@@ -166,3 +166,54 @@ describe('quality-score interpolation (missing intelligence)', () => {
     expect(r.ref).toBe('p:b');
   });
 });
+
+describe('easy turns prefer the cheapest sufficient sibling (latency)', () => {
+  // Over-provisioning a trivial turn buys time-to-first-token, not quality:
+  // the quality-first order used to hand "hello" to the priciest sibling the
+  // cost terciles happened to label draft/standard.
+  const cheapFast: ModelCandidate = {
+    ref: 'p:cheap-fast',
+    tier: 'draft',
+    outputCentsPerMillion: 50,
+    qualityScore: 0.8,
+  };
+  const pricySmart: ModelCandidate = {
+    ref: 'p:pricy-smart',
+    tier: 'draft',
+    outputCentsPerMillion: 120,
+    qualityScore: 0.94,
+  };
+
+  it('easy → cheapest within the sufficient tier, not highest quality', () => {
+    const r = selectModelTier({
+      candidates: [pricySmart, cheapFast],
+      difficultyClass: 'easy',
+      domain: 'general',
+    });
+    expect(r.ref).toBe('p:cheap-fast');
+  });
+
+  it('medium keeps the quality-first order', () => {
+    const r = selectModelTier({
+      candidates: [pricySmart, cheapFast],
+      difficultyClass: 'medium',
+      domain: 'general',
+    });
+    expect(r.ref).toBe('p:pricy-smart');
+  });
+
+  it('high-stakes domains still force the strongest tier over cost', () => {
+    const frontierPricy: ModelCandidate = {
+      ref: 'p:frontier-pricy',
+      tier: 'frontier',
+      outputCentsPerMillion: 1500,
+      qualityScore: 0.95,
+    };
+    const r = selectModelTier({
+      candidates: [cheapFast, frontierPricy],
+      difficultyClass: 'easy',
+      domain: 'medical',
+    });
+    expect(r.ref).toBe('p:frontier-pricy');
+  });
+});
