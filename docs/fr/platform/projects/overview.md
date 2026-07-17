@@ -5,6 +5,12 @@ description: Un projet est un espace de travail partagé qui regroupe chats, fic
 
 Un projet est un espace de travail partagé qui regroupe tout ce dont un travail a besoin — les chats, les fichiers de référence, les instructions, le tableau des tâches et les discussions — pour que le contexte suive le travail au lieu d’être recollé dans chaque chat. Là où un chat isolé répond à une question, un projet est l’endroit où une équipe fait avancer un client, un lancement ou une enquête au long cours.
 
+Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deux minutes et demie — avec une tâche qu’un agent prend à l’écran.
+
+<Video src="/videos/tutorials/ep6-projects.fr.mp4" poster="/videos/tutorials/ep6-projects.fr.webp" captions="/videos/tutorials/ep6-projects.fr.vtt" lang="fr" title="Épisode 6 — Les projets avec l'IA" caption="Épisode 6 — Les projets avec l'IA (2:21)">
+
+</Video>
+
 <Frame caption="Le tableau des tâches d’un projet — l’un des huit onglets que porte chaque projet.">
 
 ![Un tableau kanban de tâches dans le projet Website relaunch, avec sept cartes de tâches réparties sur les colonnes Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
