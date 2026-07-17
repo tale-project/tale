@@ -469,7 +469,11 @@ async function ensureProducts(
       await isPresent(page.getByRole('row').filter({ hasText: product.name }))
     )
       continue;
+    // "Add product" is an action menu (import from device | manual entry).
     await addButton.click();
+    await page
+      .getByRole('menuitem', { name: t('products.importMenu.manualEntry') })
+      .click();
     const dialog = page.getByRole('dialog', {
       name: t('products.create.title'),
     });
