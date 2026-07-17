@@ -71,6 +71,78 @@
       "kind": "poster",
       "width": 1920,
       "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.de.mp4",
+      "episode": "ep2-chat",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 201.8,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.de.vtt",
+      "episode": "ep2-chat",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 201.8
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.de.webp",
+      "episode": "ep2-chat",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.en.mp4",
+      "episode": "ep2-chat",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 188.7,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.en.vtt",
+      "episode": "ep2-chat",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 188.7
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.en.webp",
+      "episode": "ep2-chat",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.fr.mp4",
+      "episode": "ep2-chat",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 173.7,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.fr.vtt",
+      "episode": "ep2-chat",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 173.7
+    },
+    {
+      "file": "videos/tutorials/ep2-chat.fr.webp",
+      "episode": "ep2-chat",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
     }
   ]
 }

@@ -15,8 +15,14 @@ Der Rundgang: Chat, verankert in deinen Dokumenten, Agenten mit klarem Auftrag, 
 
 </Card>
 
+<Card title="Episode 2 — Chat, im Detail" icon="play" href="/de/tutorials/videos/chat-in-depth">
+
+Dieselbe Frage ohne und mit Verankerung, Modellwahl mit Belegen im Arena-Modus, große Ergebnisse im Canvas und der Ort der Tiefenrecherche. Gut drei Minuten.
+
+</Card>
+
 </CardGroup>
 
 ## Die Serie danach
 
-Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Chat im Detail, Wissen, dein erster Agent, Automatisierungen und Freigaben, Projekte, Integrationen sowie Richtlinien und Vertrauen.
+Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Wissen, dein erster Agent, Automatisierungen und Freigaben, Projekte, Integrationen, Menschen und Teams, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.

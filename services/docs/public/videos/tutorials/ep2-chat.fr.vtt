@@ -1,0 +1,232 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:04.488
+Le chat, c’est la pièce où ton
+équipe rencontre les modèles.
+
+2
+00:00:04.488 --> 00:00:07.118
+Dans cet épisode : bien
+demander, quoi attacher,
+
+3
+00:00:07.118 --> 00:00:11.173
+comment choisir un modèle — et
+distinguer une réponse solide d’une réponse
+
+4
+00:00:11.173 --> 00:00:12.160
+simplement fluide.
+
+5
+00:00:13.760 --> 00:00:17.715
+Un chat commence dans le composeur —
+et c’est plus qu’une zone de texte.
+
+6
+00:00:17.715 --> 00:00:22.054
+Tu choisis quel agent répond, quel
+modèle tourne et quel contexte accompagne la
+
+7
+00:00:22.054 --> 00:00:22.754
+question.
+
+8
+00:00:22.754 --> 00:00:24.800
+Ces trois choix façonnent chaque réponse.
+
+9
+00:00:26.000 --> 00:00:27.995
+Regarde ce qui se passe sans contexte.
+
+10
+00:00:27.995 --> 00:00:32.194
+On demande ce que pensent nos clients de
+notre onboarding… et le modèle répond —
+
+11
+00:00:32.194 --> 00:00:34.399
+fluide, assuré, et parfaitement générique.
+
+12
+00:00:34.399 --> 00:00:35.921
+Il n’a jamais vu tes clients.
+
+13
+00:00:35.921 --> 00:00:39.280
+Il comble le vide avec les
+motifs de ses données d’entraînement.
+
+14
+00:00:41.000 --> 00:00:43.027
+Maintenant le même sujet, ancré.
+
+15
+00:00:43.027 --> 00:00:47.777
+On attache la revue support du T2… et
+on demande quoi corriger en priorité.
+
+16
+00:00:47.777 --> 00:00:50.500
+La réponse change de
+nature : tes chiffres,
+
+17
+00:00:50.500 --> 00:00:54.680
+tes documents, des sources
+nommées que tu peux ouvrir et vérifier.
+
+18
+00:00:58.000 --> 00:01:01.658
+C’est l’habitude qui change
+tout dans le travail avec l’IA.
+
+19
+00:01:01.658 --> 00:01:06.867
+Même modèle, même sujet — le contexte
+décide si tu reçois des mots plausibles ou tes
+
+20
+00:01:06.867 --> 00:01:07.735
+propres faits.
+
+21
+00:01:07.735 --> 00:01:10.215
+Une réponse fluide n’est pas une preuve.
+
+22
+00:01:10.215 --> 00:01:11.269
+Les sources, oui.
+
+23
+00:01:11.269 --> 00:01:13.440
+Quand la réponse compte : ancre-la.
+
+24
+00:01:14.640 --> 00:01:16.978
+Le choix du modèle est
+la deuxième décision.
+
+25
+00:01:16.978 --> 00:01:20.963
+Les modèles diffèrent — en vitesse, en
+coût, en profondeur de raisonnement.
+
+26
+00:01:20.963 --> 00:01:25.320
+Avec Auto, Tale route chaque demande vers
+un choix raisonnable — le bon réglage la
+
+27
+00:01:25.320 --> 00:01:26.223
+plupart du temps.
+
+28
+00:01:26.223 --> 00:01:28.880
+Mais tu peux fixer
+n’importe quel modèle autorisé.
+
+29
+00:01:30.080 --> 00:01:33.417
+Et quand tu veux des preuves
+plutôt que des avis : lance une Arène.
+
+30
+00:01:33.417 --> 00:01:35.260
+Un prompt, deux modèles, côte à côte.
+
+31
+00:01:35.260 --> 00:01:38.248
+Regarde-les répondre au même
+brief… puis désigne le gagnant.
+
+32
+00:01:38.248 --> 00:01:42.431
+Tes verdicts alimentent les statistiques
+de l’espace de travail — le choix du modèle
+
+33
+00:01:42.431 --> 00:01:45.120
+devient une décision
+mesurée, pas une affaire de goût.
+
+34
+00:01:54.080 --> 00:01:56.144
+Les gros livrables ont leur établi.
+
+35
+00:01:56.144 --> 00:01:58.916
+Demande un document —
+une synthèse, un rapport,
+
+36
+00:01:58.916 --> 00:02:01.747
+une page — et le canevas
+s’ouvre à côté du chat.
+
+37
+00:02:01.747 --> 00:02:05.876
+Le résultat arrive comme un fichier
+: à lire, à retoucher, à partager.
+
+38
+00:02:05.876 --> 00:02:08.000
+Pas un mur de texte à copier-coller.
+
+39
+00:02:13.080 --> 00:02:16.359
+Une chose encore habite ici
+: la recherche approfondie.
+
+40
+00:02:16.359 --> 00:02:18.863
+L’agent Chercheur planifie ses recherches,
+
+41
+00:02:18.863 --> 00:02:23.811
+lit ce qu’il trouve sur le web ouvert, et
+rend un rapport avec ses sources nommées.
+
+42
+00:02:23.811 --> 00:02:28.520
+La règle de l’ancrage que tu viens
+d’apprendre — elle s’étend jusqu’à Internet.
+
+43
+00:02:29.720 --> 00:02:33.097
+Le chat, bien utilisé : ancrer
+tes questions dans tes documents,
+
+44
+00:02:33.097 --> 00:02:37.213
+choisir les modèles sur preuves,
+laisser les grands livrables atterrir dans le
+
+45
+00:02:37.213 --> 00:02:37.913
+canevas.
+
+46
+00:02:37.913 --> 00:02:41.976
+Prochain épisode : Connaissances — la
+bibliothèque d’où viennent les réponses
+
+47
+00:02:41.976 --> 00:02:42.120
+ancrées.
+
+48
+00:02:43.320 --> 00:02:47.199
+Le guide du chat dans la documentation
+détaille tout ce que tu viens de voir,
+
+49
+00:02:47.199 --> 00:02:48.559
+raccourcis clavier compris.
+
+50
+00:02:48.559 --> 00:02:50.120
+À bientôt pour l’épisode trois.
+

@@ -15,8 +15,14 @@ The tour: chat grounded in your documents, agents with a mandate, automations wi
 
 </Card>
 
+<Card title="Episode 2 — Chat, in depth" icon="play" href="/tutorials/videos/chat-in-depth">
+
+The same question ungrounded and grounded, model choice with evidence in Arena Mode, big deliverables in the canvas, and where deep research lives. Three minutes.
+
+</Card>
+
 </CardGroup>
 
 ## The series ahead
 
-Episodes land here as they are produced. On the roadmap: chat in depth, knowledge, building your first agent, automations and approvals, projects, integrations, and governance & trust.
+Episodes land here as they are produced. On the roadmap: knowledge, building your first agent, automations and approvals, projects, integrations, people and teams, governance & trust, and a bonus episode for developers.

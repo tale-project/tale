@@ -15,8 +15,14 @@ La visite : le chat ancré dans tes documents, des agents avec un mandat, des a
 
 </Card>
 
+<Card title="Épisode 2 — Le chat, en profondeur" icon="play" href="/fr/tutorials/videos/chat-in-depth">
+
+La même question sans puis avec ancrage, le choix du modèle sur preuves en mode Arène, les grands livrables dans le canevas, et où vit la recherche approfondie. Trois minutes.
+
+</Card>
+
 </CardGroup>
 
 ## La suite de la série
 
-Les épisodes arrivent ici au fil de la production. Au programme : le chat en profondeur, les connaissances, ton premier agent, les automatisations et validations, les projets, les intégrations, puis la gouvernance et la confiance.
+Les épisodes arrivent ici au fil de la production. Au programme : les connaissances, ton premier agent, les automatisations et validations, les projets, les intégrations, les personnes et les équipes, la gouvernance et la confiance, puis un épisode bonus pour les développeurs.

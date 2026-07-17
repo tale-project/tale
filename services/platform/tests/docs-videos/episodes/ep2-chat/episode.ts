@@ -49,6 +49,15 @@ export const ARENA_DONE_PHRASE: Record<Locale, string> = {
   fr: 'bloquantes pour le lancement',
 };
 
+/** The brief's H1 as the canvas mock writes it — rendered only once the
+ * canvas pane is actually open on the file, so it is the honest "pane
+ * opened" anchor (the pane's rail tab exists even while closed). */
+export const CANVAS_BRIEF_HEADING: Record<Locale, string> = {
+  en: 'Onboarding — what customers told us in Q2',
+  de: 'Onboarding — das Kundenfeedback aus Q2',
+  fr: 'Onboarding — ce que les clients nous ont dit au T2',
+};
+
 export const EP2_CHAT: EpisodeSpec = {
   id: 'ep2-chat',
   section: 'tutorials',

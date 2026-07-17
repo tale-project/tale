@@ -17,6 +17,7 @@ import {
 import {
   ARENA_DONE_PHRASE,
   ARENA_PROMPT,
+  CANVAS_BRIEF_HEADING,
   CANVAS_PROMPT,
   UNGROUNDED_PROMPT,
 } from './episode';
@@ -27,6 +28,10 @@ const RESEARCHER_NAME = {
   de: 'Rechercheur',
   fr: 'Chercheur',
 } as const;
+
+/** The Modes entry label — connector/agent DATA (researcher.json
+ * `composerMode.label`), one string for every locale. */
+const DEEP_RESEARCH_MODE_LABEL = 'Deep research';
 
 function rail(rt: SceneRuntime, path: string) {
   return rt.page
@@ -103,18 +108,25 @@ export async function warmup(
     .getByRole('menuitem', { name: t('chat.arena.label') })
     .first()
     .click();
+  // Arena-active signal: the composer's "A <model> vs B <model>" bar — the
+  // column labels render only after a prompt is sent.
   await page
-    .getByText(t('chat.arena.modelALabel'))
+    .getByText(t('chat.arena.vs'), { exact: true })
     .first()
     .waitFor({ state: 'visible', timeout: 15_000 });
+  // The menu entry is a TOGGLE — the same "Arena Mode" item exits the mode.
   await page
     .getByRole('button', { name: t('composer.openMenu') })
     .first()
     .click();
   await page
-    .getByRole('menuitem', { name: t('chat.arena.disable') })
+    .getByRole('menuitem', { name: t('chat.arena.label') })
     .first()
     .click();
+  await page
+    .getByText(t('chat.arena.vs'), { exact: true })
+    .first()
+    .waitFor({ state: 'hidden', timeout: 15_000 });
 
   // Canvas: send the real canvas prompt once so the pane's chunk compiles;
   // the thread is deleted off camera after the take.
@@ -125,7 +137,7 @@ export async function warmup(
   const warmThread = THREAD_URL.exec(page.url())?.[1];
   if (warmThread) registerThreadForCleanup(ctx, warmThread);
   await page
-    .getByText(t('chat.canvas.title'))
+    .getByText(CANVAS_BRIEF_HEADING[ctx.locale])
     .first()
     .waitFor({ state: 'visible', timeout: 60_000 });
 
@@ -275,7 +287,7 @@ export const SCENES: readonly SceneChoreography[] = [
         page.getByRole('menuitem', { name: rt.t('chat.arena.label') }).first(),
       );
       await page
-        .getByText(rt.t('chat.arena.modelALabel'))
+        .getByText(rt.t('chat.arena.vs'), { exact: true })
         .first()
         .waitFor({ state: 'visible', timeout: 15_000 });
       await cue(3.4);
@@ -312,32 +324,46 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       registerCurrentThread(rt);
-      await page
-        .getByText(rt.t('chat.canvas.title'))
-        .first()
-        .waitFor({ state: 'visible', timeout: 60_000 });
-      await cue(13.0);
-      const pane = page.getByText(rt.t('chat.canvas.title')).first();
-      await cursor.hover(pane);
+      // The brief's H1 renders only once the pane is open on the file — the
+      // honest "canvas opened" anchor (the pane's rail tab exists closed).
+      const heading = page.getByText(CANVAS_BRIEF_HEADING[ctx.locale]).first();
+      await heading.waitFor({ state: 'visible', timeout: 60_000 });
+      // The pane opens on the Source view — the rendered Preview is the
+      // shot: a leadership brief, not a wall of markdown.
+      await cue(12.0);
+      await cursor.click(
+        page
+          .getByRole('button', { name: rt.t('chat.workspaceFiles.preview') })
+          .first(),
+      );
+      await cue(14.5);
+      await cursor.hover(heading);
     },
   },
   {
-    // Deep research, shown honestly: pick the Researcher, read the mandate.
+    // Deep research, shown honestly: the Modes entry in the composer's plus
+    // menu (docs: platform/chat/deep-research.md). Picking it switches the
+    // chat into the Researcher agent — no live run: a deterministic
+    // multi-turn research choreography cannot be mocked.
     id: 'research',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
       await cue(1.2);
       await cursor.click(
-        page
-          .getByRole('button', { name: rt.t('chat.agentSelector.label') })
-          .first(),
+        page.getByRole('button', { name: rt.t('composer.openMenu') }).first(),
       );
-      const researcher = page
-        .getByRole('option', { name: RESEARCHER_NAME[ctx.locale] })
+      const mode = page
+        .getByRole('menuitem', { name: DEEP_RESEARCH_MODE_LABEL })
         .first();
-      await researcher.waitFor({ state: 'visible', timeout: 15_000 });
+      await mode.waitFor({ state: 'visible', timeout: 15_000 });
       await cue(3.2);
-      await cursor.click(researcher);
+      await cursor.click(mode);
+      // The chat switches into the Researcher — its display name lands on
+      // the composer's agent selector.
+      const researcher = page.getByText(RESEARCHER_NAME[ctx.locale]).first();
+      await researcher.waitFor({ state: 'visible', timeout: 15_000 });
+      await cue(6.5);
+      await cursor.hover(researcher);
     },
   },
   {
