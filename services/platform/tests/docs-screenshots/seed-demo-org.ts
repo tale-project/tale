@@ -8,6 +8,10 @@
  * half-seeded org fills only the gaps. All literals live in demo-content.ts.
  */
 
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { promisify } from 'node:util';
+
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { matchDocsReply } from '../../lib/mocks/overrides/docs-replies';
@@ -459,11 +463,15 @@ async function ensureProducts(
     name: t('products.addButton'),
   });
   await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  // A productless org replaces the table with an empty-state hero — no footer.
-  await settleListOrEmpty(
-    page,
-    page.getByText(t('emptyStates.products.title')),
-  );
+  // The products table renders no row-count footer, so `settleListOrEmpty`
+  // cannot latch once rows exist: settled is the empty-state hero OR the
+  // first data row (header is row 0).
+  await expect(
+    page
+      .getByText(t('emptyStates.products.title'))
+      .first()
+      .or(page.getByRole('row').nth(1)),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   for (const product of products) {
     if (
       await isPresent(page.getByRole('row').filter({ hasText: product.name }))
@@ -522,6 +530,88 @@ async function ensureProducts(
       page.getByRole('row').filter({ hasText: product.name }).first(),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   }
+}
+
+const execFileAsync = promisify(execFile);
+const PLATFORM_DIR = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  '../..',
+);
+
+/**
+ * Install the builtin Researcher agent (an enabled `agentInstallations`
+ * row). `metadata.autoInstall` is false for it, and the agent-catalog
+ * installer UI is not mounted anywhere yet — the internal mutation is the
+ * only lever, the same row the provisioner writes. Replace with the
+ * UI-driven flow once the catalog installer ships. Idempotent (upsert).
+ */
+async function ensureResearcherInstalled(orgId: string): Promise<void> {
+  await execFileAsync(
+    'bunx',
+    [
+      'convex',
+      'run',
+      'agents/installations:upsertInstallation',
+      JSON.stringify({
+        organizationId: orgId,
+        agentSlug: 'researcher',
+        installedBy: 'docs-demo-seed',
+        contentHash: 'docs-demo-seed',
+        enabled: true,
+      }),
+    ],
+    { cwd: PLATFORM_DIR },
+  );
+}
+
+/**
+ * Connect the Tavily integration so integration-bound builtin agents — the
+ * Researcher — offer themselves in the chat agent picker. Outbound Tavily
+ * HTTP is rewritten to the mock gateway (`TALE_MOCK_INTEGRATIONS_BASE`), so
+ * the key value is arbitrary and nothing ever leaves the machine.
+ */
+async function ensureTavilyIntegration(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/settings/integrations`);
+  const allTab = page
+    .getByText(t('settings.integrations.tabs.all'), { exact: true })
+    .first();
+  await expect(allTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await allTab.click();
+  // The catalog card's accessible name grows a "Connected" badge once the
+  // integration is live — never match it exactly.
+  const card = page.getByRole('button', { name: /Tavily/ }).first();
+  await expect(card).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  if (
+    await isPresent(card.getByText(t('settings.integrations.badge.connected')))
+  ) {
+    return;
+  }
+  await card.click();
+  const dialog = page.getByRole('dialog').last();
+  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // The connector's single auth field; role-scoped so the label's casing
+  // (connector data, not chrome) cannot break the fill.
+  await dialog.getByRole('textbox').first().fill('tvly-docs-demo-mock-key');
+  await dialog
+    .getByRole('button', {
+      name: t('settings.integrations.panel.connectName').replace(
+        '{name}',
+        'Tavily',
+      ),
+    })
+    .click();
+  // The catalog card does not live-update its badge; the details panel
+  // flips to "Active" — that is the persisted-connection signal.
+  await expect(dialog.getByText(t('common.status.active')).first()).toBeVisible(
+    { timeout: TIMEOUT.PERSIST },
+  );
+  const close = dialog.getByRole('button', {
+    name: t('common.actions.close'),
+  });
+  if (await isPresent(close)) await close.click();
 }
 
 async function ensureChats(
@@ -1100,6 +1190,10 @@ export async function seedDemoOrg(
   await step('documents', () => ensureDocuments(page, orgId));
   await step('knowledge entries', () => ensureKnowledgeEntries(page, orgId));
   await step('products', () => ensureProducts(page, orgId));
+  await step('tavily integration', () => ensureTavilyIntegration(page, orgId));
+  await step('researcher agent installed', () =>
+    ensureResearcherInstalled(orgId),
+  );
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('environment variables', () => ensureEnvVars(page, orgId));
@@ -1152,5 +1246,9 @@ export async function seedVideoLocaleOrg(
     ensureKnowledgeEntries(page, orgId, content.knowledgeEntries),
   );
   await step('products', () => ensureProducts(page, orgId, content.products));
+  await step('tavily integration', () => ensureTavilyIntegration(page, orgId));
+  await step('researcher agent installed', () =>
+    ensureResearcherInstalled(orgId),
+  );
   return projects;
 }
