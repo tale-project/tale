@@ -160,3 +160,44 @@ describe('scoreDifficulty', () => {
     expect(creative.creativity).toBeGreaterThan(precise.creativity);
   });
 });
+
+describe('class-capped prior budget', () => {
+  // The prior may never announce 'easy' yet spend a 'medium' thinking budget:
+  // a single feature weight (math on "what is 2+2?") used to push a trivial
+  // turn to a ~3.4k-token thinking prior — seconds of dead air before the
+  // first visible token.
+  it('caps an easy-class turn at the low-tier budget even when math fires', () => {
+    const r = scoreDifficulty({
+      kind: 'chat',
+      promptText: 'What is 2+2? Answer in one word.',
+    });
+    expect(r.difficultyClass).toBe('easy');
+    expect(r.target.tier).toBe('low');
+    expect(r.target.budgetTokens).toBeLessThanOrEqual(2048);
+  });
+
+  it('keeps trivial greetings at tier off', () => {
+    const r = scoreDifficulty({ kind: 'chat', promptText: 'hello' });
+    expect(r.target.tier).toBe('off');
+    expect(r.target.budgetTokens).toBe(0);
+  });
+
+  it('floors still win: code turns keep their medium minimum', () => {
+    const r = scoreDifficulty({
+      kind: 'chat',
+      promptText: 'Fix this:\n```js\nconst x = arr.map(f);\n```',
+    });
+    expect(r.floorTier).toBe('medium');
+    expect(r.target.budgetTokens).toBeGreaterThanOrEqual(8192);
+  });
+
+  it('hard turns keep an uncapped high-tier prior', () => {
+    const r = scoreDifficulty({
+      kind: 'chat',
+      promptText:
+        'Prove that sqrt(2) is irrational, then formalize the argument step by step.',
+    });
+    expect(r.difficultyClass).toBe('hard');
+    expect(r.target.budgetTokens).toBeGreaterThan(8192);
+  });
+});
