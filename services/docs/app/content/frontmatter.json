@@ -859,6 +859,22 @@
       "description": "Die menschliche Hälfte der Vertrauensgeschichte — die Mitgliedertabelle und die Rollenleiter, Teams als Wissenswände und Identitäts-Hygiene, mit Minimalprinzip auf beiden Seiten des Tisches."
     }
   },
+  "de:tutorials/videos/tale-for-developers": {
+    "slug": "tutorials/videos/tale-for-developers",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Bonus — Tale für Entwickler",
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser, externe Coding-Agenten in Sandboxes und die Run-Code-Richtlinie, die alles einhegt."
+    }
+  },
+  "de:tutorials/videos/integrations": {
+    "slug": "tutorials/videos/integrations",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 7 — Integrationen & die Außenwelt",
+      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Integration, MCP-Server mit Freigabe-Flags pro Werkzeug und Egress, der im Zweifel schließt."
+    }
+  },
   "de:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "de",
@@ -897,6 +913,14 @@
     "frontmatter": {
       "title": "Video-Tutorials",
       "description": "Kurze, produzierte Rundgänge durch die Plattform — was Tale kann, wo KI hilft und wo dein Urteil gefragt bleibt. Jede Episode erscheint auf Deutsch, Englisch und Französisch."
+    }
+  },
+  "de:tutorials/videos/governance-and-trust": {
+    "slug": "tutorials/videos/governance-and-trust",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 9 — Richtlinien, Kosten & Vertrauen",
+      "description": "Das Serien-Finale - der Kontrollraum in einer Tour — Anbieter und Modell-Richtlinien, Leitplanken, das Audit-Protokoll, Nutzungs- und Feedback-Analysen, Datenresidenz — und die fünf Gewohnheiten, auf die die ganze Serie hinauslief."
     }
   },
   "de:tutorials/videos/welcome-to-tale": {
@@ -2099,6 +2123,22 @@
       "description": "La moitié humaine de l'histoire de confiance — la table des membres et l'échelle des rôles, les équipes comme murs de connaissances, et l'hygiène d'identité, avec le moindre privilège des deux côtés de la table."
     }
   },
+  "fr:tutorials/videos/tale-for-developers": {
+    "slug": "tutorials/videos/tale-for-developers",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Bonus — Tale pour les développeurs",
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, agents de code externes en bac à sable, et la politique d'exécution de code qui contient le tout."
+    }
+  },
+  "fr:tutorials/videos/integrations": {
+    "slug": "tutorials/videos/integrations",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 7 — Intégrations & le monde extérieur",
+      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une intégration reliée, les serveurs MCP avec drapeaux de validation par outil, et une sortie réseau qui échoue fermée."
+    }
+  },
   "fr:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "fr",
@@ -2137,6 +2177,14 @@
     "frontmatter": {
       "title": "Tutoriels vidéo",
       "description": "Des visites guidées courtes et produites de la plateforme — ce que fait Tale, où l'IA aide, et où ton jugement reste nécessaire. Chaque épisode existe en français, en anglais et en allemand."
+    }
+  },
+  "fr:tutorials/videos/governance-and-trust": {
+    "slug": "tutorials/videos/governance-and-trust",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 9 — Gouvernance, coûts & confiance",
+      "description": "Le final de la série - la salle de contrôle en une visite — fournisseurs et politique de modèles, garde-fous, journal d'audit, analyses d'usage et de feedback, résidence des données — et les cinq habitudes vers lesquelles toute la série avançait."
     }
   },
   "fr:tutorials/videos/welcome-to-tale": {
@@ -3339,6 +3387,22 @@
       "description": "The human half of the trust story — the members table and the role ladder, teams as knowledge walls, and identity hygiene, with least privilege on both sides of the table."
     }
   },
+  "en:tutorials/videos/tale-for-developers": {
+    "slug": "tutorials/videos/tale-for-developers",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Bonus — Tale for developers",
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, external coding agents in sandboxes, and the run-code policy that keeps everything contained."
+    }
+  },
+  "en:tutorials/videos/integrations": {
+    "slug": "tutorials/videos/integrations",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 7 — Integrations & the outside world",
+      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound integration, MCP servers with per-tool approval flags, and fail-closed egress."
+    }
+  },
   "en:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "en",
@@ -3377,6 +3441,14 @@
     "frontmatter": {
       "title": "Video tutorials",
       "description": "Short, produced walkthroughs of the platform — what Tale does, where AI helps, and where it needs your judgment. Every episode ships in English, German, and French."
+    }
+  },
+  "en:tutorials/videos/governance-and-trust": {
+    "slug": "tutorials/videos/governance-and-trust",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 9 — Governance, cost & trust",
+      "description": "The series finale - the control room in one tour — providers and model policy, guardrails, the audit log, usage and feedback analytics, data residency — and the five habits the whole series was building toward."
     }
   },
   "en:tutorials/videos/welcome-to-tale": {
