@@ -223,8 +223,19 @@ async function cleanupWowThread(
     await cleanupPage.goto(`/dashboard/${ctx.orgId}/chat`, {
       waitUntil: 'domcontentloaded',
     });
-    const { deleteThreadById } = await import('../../e2e/helpers/chat');
+    const { deleteThreadById, ensureHistorySidebarOpen } =
+      await import('../../e2e/helpers/chat');
+    // Thread rows render only inside the history drawer — open it before
+    // any existence check, or every row reads as "gone".
+    await ensureHistorySidebarOpen(cleanupPage);
     for (const id of ids) {
+      // The app deletes some registered threads itself (an Arena branch on
+      // exit) — skip rows that are already gone instead of timing out.
+      const row = cleanupPage.locator(`[data-thread-id="${id}"]`).first();
+      if (!(await row.isVisible().catch(() => false))) {
+        console.log(`  · thread ${id} already gone`);
+        continue;
+      }
       try {
         await deleteThreadById(cleanupPage, id);
         console.log(`  ✓ cleaned up thread ${id}`);
