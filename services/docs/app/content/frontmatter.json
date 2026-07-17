@@ -859,6 +859,14 @@
       "description": "Die tägliche Oberfläche, gut genutzt — dieselbe Frage einmal ohne und einmal mit Verankerung, Modellwahl mit Belegen im Arena-Modus, große Ergebnisse im Canvas und der Ort der Tiefenrecherche."
     }
   },
+  "de:tutorials/videos/your-first-agent": {
+    "slug": "tutorials/videos/your-first-agent",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 4 — Dein erster Agent",
+      "description": "Ein Agent, vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — dann sichtbar gemacht und live getestet, mit klar benannter Vertrauensgrenze."
+    }
+  },
   "de:tutorials/videos/index": {
     "slug": "tutorials/videos/index",
     "locale": "de",
@@ -2067,6 +2075,14 @@
       "description": "La surface quotidienne, bien utilisée — la même question sans puis avec ancrage, le choix du modèle sur preuves en mode Arène, les grands livrables dans le canevas, et où vit la recherche approfondie."
     }
   },
+  "fr:tutorials/videos/your-first-agent": {
+    "slug": "tutorials/videos/your-first-agent",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 4 — Ton premier agent",
+      "description": "Un agent construit de bout en bout à l'écran — nom, instructions, périmètre de connaissances, outils, modèle — puis rendu visible et testé en direct, la frontière de confiance nommée."
+    }
+  },
   "fr:tutorials/videos/index": {
     "slug": "tutorials/videos/index",
     "locale": "fr",
@@ -3273,6 +3289,14 @@
     "frontmatter": {
       "title": "Episode 2 — Chat, in depth",
       "description": "The daily surface, used well — the same question asked ungrounded and grounded, model choice with evidence in Arena Mode, big deliverables in the canvas, and where deep research lives."
+    }
+  },
+  "en:tutorials/videos/your-first-agent": {
+    "slug": "tutorials/videos/your-first-agent",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 4 — Your first agent",
+      "description": "An agent built end to end on camera — name, instructions, knowledge scope, tools, model — then made visible and tested live, with the trust boundary spelled out."
     }
   },
   "en:tutorials/videos/index": {

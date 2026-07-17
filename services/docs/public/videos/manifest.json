@@ -215,6 +215,78 @@
       "kind": "poster",
       "width": 1920,
       "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.de.mp4",
+      "episode": "ep4-agent",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 198.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.de.vtt",
+      "episode": "ep4-agent",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 198.6
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.de.webp",
+      "episode": "ep4-agent",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.en.mp4",
+      "episode": "ep4-agent",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 166.8,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.en.vtt",
+      "episode": "ep4-agent",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 166.8
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.en.webp",
+      "episode": "ep4-agent",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.fr.mp4",
+      "episode": "ep4-agent",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 163,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.fr.vtt",
+      "episode": "ep4-agent",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 163
+    },
+    {
+      "file": "videos/tutorials/ep4-agent.fr.webp",
+      "episode": "ep4-agent",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
     }
   ]
 }

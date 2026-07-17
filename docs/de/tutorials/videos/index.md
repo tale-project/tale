@@ -27,8 +27,14 @@ Die Bibliothek hinter verankerten Antworten: Indexieren ohne Training, ein Eintr
 
 </Card>
 
+<Card title="Episode 4 — Dein erster Agent" icon="play" href="/de/tutorials/videos/your-first-agent">
+
+Ein Agent, vor der Kamera gebaut — Anweisungen, Wissensbereich, Werkzeuge, Modell — und live getestet. Fähigkeit ist Angriffsfläche: fang klein an. Gut drei Minuten.
+
+</Card>
+
 </CardGroup>
 
 ## Die Serie danach
 
-Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: dein erster Agent, Automatisierungen und Freigaben, Projekte, Integrationen, Menschen und Teams, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.
+Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Automatisierungen und Freigaben, Projekte, Integrationen, Menschen und Teams, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.

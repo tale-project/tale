@@ -7,6 +7,12 @@ Un agent est l’unité vers laquelle Tale se tourne quand la même question va 
 
 Cette page te donne le modèle mental que le reste de la section présuppose. Lis-la une fois avant de construire ton premier agent ; reviens-y quand tu ne sais plus si un comportement à changer vit dans les instructions, les connaissances, les outils ou le modèle.
 
+Tu préfères regarder d’abord ? L’épisode 4 construit un agent de bout en bout en moins de trois minutes — les quatre décisions, puis le test en direct, sous-titres compris.
+
+<Video src="/videos/tutorials/ep4-agent.fr.mp4" poster="/videos/tutorials/ep4-agent.fr.webp" captions="/videos/tutorials/ep4-agent.fr.vtt" lang="fr" title="Épisode 4 — Ton premier agent" caption="Épisode 4 — Ton premier agent (2:42)">
+
+</Video>
+
 ## Les quatre boutons
 
 Les **instructions** sont le prompt système — la prose qui encadre chaque réponse. Garde-les courtes, opiniâtres et concrètes ; de longues instructions se diluent dans les longues conversations. Précise la voix, les contraintes et les cas de refus.

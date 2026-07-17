@@ -27,8 +27,14 @@ La bibliothèque derrière les réponses ancrées : indexer sans entraîner, une
 
 </Card>
 
+<Card title="Épisode 4 — Ton premier agent" icon="play" href="/fr/tutorials/videos/your-first-agent">
+
+Un agent construit de bout en bout à l'écran — instructions, connaissances, outils, modèle — puis testé en direct. La capacité, c'est de l'exposition : commence petit. Trois minutes.
+
+</Card>
+
 </CardGroup>
 
 ## La suite de la série
 
-Les épisodes arrivent ici au fil de la production. Au programme : les connaissances, ton premier agent, les automatisations et validations, les projets, les intégrations, les personnes et les équipes, la gouvernance et la confiance, puis un épisode bonus pour les développeurs.
+Les épisodes arrivent ici au fil de la production. Au programme : les connaissances, les automatisations et validations, les projets, les intégrations, les personnes et les équipes, la gouvernance et la confiance, puis un épisode bonus pour les développeurs.

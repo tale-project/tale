@@ -27,8 +27,14 @@ The library behind grounded answers: indexing without training, an entry added l
 
 </Card>
 
+<Card title="Episode 4 — Your first agent" icon="play" href="/tutorials/videos/your-first-agent">
+
+An agent built end to end on camera — instructions, knowledge scope, tools, model — then tested live. Capability is exposure: start small. Three minutes.
+
+</Card>
+
 </CardGroup>
 
 ## The series ahead
 
-Episodes land here as they are produced. On the roadmap: building your first agent, automations and approvals, projects, integrations, people and teams, governance & trust, and a bonus episode for developers.
+Episodes land here as they are produced. On the roadmap: automations and approvals, projects, integrations, people and teams, governance & trust, and a bonus episode for developers.
