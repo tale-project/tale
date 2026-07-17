@@ -1,0 +1,188 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.028
+Agents answer when you ask.
+
+2
+00:00:03.028 --> 00:00:07.971
+Automations act on their own — on
+schedules, on events, on incoming work.
+
+3
+00:00:07.971 --> 00:00:11.425
+This episode: how they
+run, how they fail honestly,
+
+4
+00:00:11.425 --> 00:00:14.337
+and the card that
+keeps a person in charge.
+
+5
+00:00:15.937 --> 00:00:19.159
+The catalog is a library
+of ready-made bundles:
+
+6
+00:00:19.159 --> 00:00:23.409
+sync a mailbox, resolve GitHub
+issues, keep documents indexed.
+
+7
+00:00:23.409 --> 00:00:27.385
+Each one packs workflows,
+agents, and views — one install,
+
+8
+00:00:27.385 --> 00:00:30.127
+and it files itself into your workspace.
+
+9
+00:00:31.327 --> 00:00:34.691
+This workspace already
+runs one: task triage.
+
+10
+00:00:34.691 --> 00:00:40.597
+Every new task gets scored, and the
+automation decides — assign it to an agent,
+
+11
+00:00:40.597 --> 00:00:43.139
+or leave a suggestion for a human.
+
+12
+00:00:43.139 --> 00:00:44.485
+Let us open it up.
+
+13
+00:00:45.685 --> 00:00:50.358
+Inside, the automation reads like
+a recipe: a trigger, then steps.
+
+14
+00:00:50.358 --> 00:00:55.385
+A step scores the task with an
+agent, a step routes it, a step reports.
+
+15
+00:00:55.385 --> 00:01:00.555
+No black box — you can read exactly
+what will happen before it ever runs.
+
+16
+00:01:01.755 --> 00:01:03.707
+Every run leaves a journal.
+
+17
+00:01:03.707 --> 00:01:07.899
+Green rows completed; each
+one lists what the trigger saw,
+
+18
+00:01:07.899 --> 00:01:10.284
+what each step did, what it cost.
+
+19
+00:01:10.284 --> 00:01:14.115
+Automation you can audit is
+automation you can trust.
+
+20
+00:01:15.315 --> 00:01:18.710
+And here is the row that
+matters most: a red one.
+
+21
+00:01:18.710 --> 00:01:21.758
+A step returned data
+that failed validation,
+
+22
+00:01:21.758 --> 00:01:25.361
+the run stopped, and the
+journal says exactly where.
+
+23
+00:01:25.361 --> 00:01:31.111
+Automations fail sometimes — the
+difference between a toy and a tool is whether the
+
+24
+00:01:31.111 --> 00:01:32.705
+failure has an address.
+
+25
+00:01:33.905 --> 00:01:35.558
+Now the centerpiece.
+
+26
+00:01:35.558 --> 00:01:39.442
+We ask for a customer
+reply — drafted AND sent.
+
+27
+00:01:39.442 --> 00:01:42.582
+The agent writes the draft… and stops.
+
+28
+00:01:42.582 --> 00:01:46.383
+This card is the
+boundary: the draft is ready,
+
+29
+00:01:46.383 --> 00:01:50.184
+but touching the
+outside world needs a person.
+
+30
+00:01:50.184 --> 00:01:52.995
+We read it, we decide, we approve.
+
+31
+00:01:59.905 --> 00:02:05.488
+AI drafts, people decide — episode one
+made the promise, this is the wiring.
+
+32
+00:02:05.488 --> 00:02:10.777
+And notice what approvals really buy
+you: not less automation, but more.
+
+33
+00:02:10.777 --> 00:02:16.948
+You can afford to automate the risky work
+precisely because the risky step waits for
+
+34
+00:02:16.948 --> 00:02:17.242
+you.
+
+35
+00:02:18.442 --> 00:02:21.957
+Automations: readable
+recipes, honest journals,
+
+36
+00:02:21.957 --> 00:02:25.098
+and a human gate on the steps that matter.
+
+37
+00:02:25.098 --> 00:02:30.482
+Next episode: projects — where your
+team and its agents share one board.
+
+38
+00:02:31.682 --> 00:02:36.440
+The automations and approvals
+sections of the documentation carry the full
+
+39
+00:02:36.440 --> 00:02:37.140
+reference.
+
+40
+00:02:37.140 --> 00:02:38.562
+See you in episode six.
+

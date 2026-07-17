@@ -5,6 +5,12 @@ description: Eine Automatisierung ist das installierbare Bündel aus Integration
 
 Eine Automatisierung ist die Einheit, zu der Tale greift, wenn eine Aufgabe mehr als ein bewegliches Teil braucht, das zusammengeschaltet werden muss — eine Integration, ein oder mehrere Agents, ein Workflow, manchmal eine eigene Seite —, und du das Ganze lieber in einem Schritt installiert und verbunden haben willst, statt es von Hand zusammenzusetzen. Inhaber, Admins und Entwickler installieren Automatisierungen aus dem Automatisierungen-Katalog; einmal installiert, nutzen Redakteure und Mitglieder, was mitgeliefert wurde — ein Posteingang-Tab, ein Backlog-Eintrag, ein Chat-Agent —, ohne wissen zu müssen, was darunterliegt. Diese Seite benennt die Bestandteile, die eine Automatisierung bündelt, den Workflow, der sie antreibt, und wann eine Automatisierung die richtige Einheit ist statt eines einzelnen Agents.
 
+Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine echte Freigabekarte vor der Kamera — mit Untertiteln.
+
+<Video src="/videos/tutorials/ep5-automations.de.mp4" poster="/videos/tutorials/ep5-automations.de.webp" captions="/videos/tutorials/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11)">
+
+</Video>
+
 ## Was eine Automatisierung bündelt
 
 Das Manifest einer Automatisierung benennt bis zu fünf Arten von Bestandteilen, und die meisten Automatisierungen nutzen nur einen Teil davon.

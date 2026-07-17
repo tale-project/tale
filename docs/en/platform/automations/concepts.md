@@ -5,6 +5,12 @@ description: An automation is the installable bundle of integrations, agents, sk
 
 An automation is the unit Tale reaches for when a job needs more than one moving part wired together — an integration credential, one or more agents, a workflow, sometimes a page of its own — and you want all of it installed and connected in one action instead of assembled by hand. Owners, Admins, and Developers install automations from the Automations catalog; once installed, Editors and Members use whatever it shipped — an Inbox tab, a Backlog entry, a chat agent — without needing to know what's underneath. This page names the pieces an automation bundles, the workflow that makes it run, and when an automation is the right unit instead of a single agent.
 
+Prefer to watch first? Episode 5 opens the triage automation end to end and decides a real approval card on camera — captions included.
+
+<Video src="/videos/tutorials/ep5-automations.en.mp4" poster="/videos/tutorials/ep5-automations.en.webp" captions="/videos/tutorials/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42)">
+
+</Video>
+
 ## What an automation bundles
 
 An automation's manifest names up to five kinds of pieces, and most automations only use some of them.
