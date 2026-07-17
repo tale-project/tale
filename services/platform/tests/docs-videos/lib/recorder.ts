@@ -225,7 +225,22 @@ async function cleanupWowThread(
         .filter(Boolean),
     ),
   ];
-  if (ids.length === 0 && entryTopics.length === 0 && agentNames.length === 0)
+  // Tasks a take creates ON CAMERA (Episode 6), archived by title on the
+  // board the scene registered under `cleanupTaskBoardUrl`.
+  const taskTitles = [
+    ...new Set(
+      (ctx.notes.get('cleanupTaskTitles')?.split(',') ?? [])
+        .map((title) => title.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const taskBoardUrl = ctx.notes.get('cleanupTaskBoardUrl') ?? '';
+  if (
+    ids.length === 0 &&
+    entryTopics.length === 0 &&
+    agentNames.length === 0 &&
+    taskTitles.length === 0
+  )
     return;
   const cleanupContext = await browser.newContext({
     baseURL: BASE_URL,
@@ -342,6 +357,52 @@ async function cleanupWowThread(
       } catch (error) {
         console.warn(
           `  ! could not delete agent "${name}" — remove it by hand:`,
+          error,
+        );
+      }
+    }
+    for (const title of taskTitles) {
+      if (!taskBoardUrl) break;
+      try {
+        await cleanupPage.goto(taskBoardUrl, {
+          waitUntil: 'domcontentloaded',
+        });
+        const card = cleanupPage.getByText(title).first();
+        const present = await card
+          .waitFor({ state: 'visible', timeout: 15_000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!present) {
+          console.log(`  · task "${title}" already gone`);
+          continue;
+        }
+        await card.click();
+        const dialog = cleanupPage.getByRole('dialog').last();
+        await dialog.waitFor({ state: 'visible', timeout: 15_000 });
+        // Archive lives directly in the dialog, or under its ⋯ menu.
+        const direct = dialog.getByRole('button', { name: 'Archive' }).first();
+        if (await direct.isVisible().catch(() => false)) {
+          await direct.click();
+        } else {
+          await dialog
+            .getByRole('button', { name: 'More actions' })
+            .first()
+            .click();
+          await cleanupPage
+            .getByRole('menuitem', { name: 'Archive' })
+            .first()
+            .click();
+        }
+        const confirm = cleanupPage.getByRole('dialog', {
+          name: 'Archive task?',
+        });
+        await confirm.waitFor({ state: 'visible', timeout: 10_000 });
+        await confirm.getByRole('button', { name: 'Archive' }).click();
+        await confirm.waitFor({ state: 'hidden', timeout: 10_000 });
+        console.log(`  ✓ archived task "${title}"`);
+      } catch (error) {
+        console.warn(
+          `  ! could not archive task "${title}" — archive it by hand:`,
           error,
         );
       }

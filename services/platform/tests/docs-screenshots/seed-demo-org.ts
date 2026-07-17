@@ -276,12 +276,13 @@ async function ensureProjectFiles(
   page: Page,
   orgId: string,
   projectId: string,
+  files: readonly DemoDocument[] = DEMO_PROJECT_FILES,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/files`);
   await expect(
     page.getByText(t('projects.files.emptyDescription')).first(),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  for (const doc of DEMO_PROJECT_FILES) {
+  for (const doc of files) {
     if (
       await page
         .getByText(doc.fileName)
@@ -307,11 +308,12 @@ async function ensureDiscussions(
   page: Page,
   orgId: string,
   projectId: string,
+  discussions: readonly (typeof DEMO_DISCUSSIONS)[number][] = DEMO_DISCUSSIONS,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/discussions`);
   const newButton = page.getByRole('button', { name: t('discussions.new') });
   await expect(newButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  for (const discussion of DEMO_DISCUSSIONS) {
+  for (const discussion of discussions) {
     if (
       await page
         .getByText(discussion.title)
@@ -546,22 +548,25 @@ const PLATFORM_DIR = path.join(
  * UI-driven flow once the catalog installer ships. Idempotent (upsert).
  */
 async function ensureResearcherInstalled(orgId: string): Promise<void> {
-  await execFileAsync(
-    'bunx',
-    [
-      'convex',
-      'run',
-      'agents/installations:upsertInstallation',
-      JSON.stringify({
-        organizationId: orgId,
-        agentSlug: 'researcher',
-        installedBy: 'docs-demo-seed',
-        contentHash: 'docs-demo-seed',
-        enabled: true,
-      }),
-    ],
-    { cwd: PLATFORM_DIR },
-  );
+  // The coding agents ride along for the developer episode — same rationale.
+  for (const agentSlug of ['researcher', 'claude-code', 'cursor']) {
+    await execFileAsync(
+      'bunx',
+      [
+        'convex',
+        'run',
+        'agents/installations:upsertInstallation',
+        JSON.stringify({
+          organizationId: orgId,
+          agentSlug,
+          installedBy: 'docs-demo-seed',
+          contentHash: 'docs-demo-seed',
+          enabled: true,
+        }),
+      ],
+      { cwd: PLATFORM_DIR },
+    );
+  }
 }
 
 /**
@@ -677,7 +682,11 @@ async function ensureChats(
  * accept — so the Members table shows a team instead of a lone owner, and the
  * governance surfaces get subjects to act on.
  */
-async function ensureMembers(page: Page, orgId: string): Promise<void> {
+async function ensureMembers(
+  page: Page,
+  orgId: string,
+  members: readonly (typeof DEMO_MEMBERS)[number][] = DEMO_MEMBERS,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/organization`);
   const addButton = page.getByRole('button', {
     name: t('settings.organization.addMember'),
@@ -689,7 +698,7 @@ async function ensureMembers(page: Page, orgId: string): Promise<void> {
   await expect(
     page.getByRole('row').filter({ hasText: DEMO_OWNER.email }).first(),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  for (const member of DEMO_MEMBERS) {
+  for (const member of members) {
     if (await isPresent(page.getByText(member.email))) continue;
     await addButton.click();
     // The dialog title AND its submit button both read "Add member" — scope
@@ -710,22 +719,32 @@ async function ensureMembers(page: Page, orgId: string): Promise<void> {
       })
       .click();
     // type=password exposes no textbox role, and the show/hide toggle's label
-    // also contains "Password" — match the label exactly.
-    await dialog
-      .getByLabel(t('settings.form.password'), { exact: true })
-      .fill(E2E_PASSWORD);
+    // also contains "Password" — match the label exactly. The field only
+    // exists for NEW accounts: adding an email that already has an account
+    // (the video locale orgs re-add the shared-org people) skips credentials.
+    const password = dialog.getByLabel(t('settings.form.password'), {
+      exact: true,
+    });
+    const needsPassword = await password
+      .waitFor({ state: 'visible', timeout: 3_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (needsPassword) await password.fill(E2E_PASSWORD);
     await dialog
       .getByRole('button', { name: t('dialogs.addMember.title') })
       .click();
-    // A new credentialed member surfaces the shown-once credentials view; it
-    // stays open until acknowledged and would swallow the next iteration.
-    const credentials = page.getByRole('dialog', {
-      name: t('dialogs.memberAdded.title'),
-    });
-    await expect(credentials).toBeVisible({ timeout: TIMEOUT.PERSIST });
-    await credentials
-      .getByRole('button', { name: t('common.actions.done') })
-      .click();
+    if (needsPassword) {
+      // A new credentialed member surfaces the shown-once credentials view;
+      // it stays open until acknowledged and would swallow the next
+      // iteration. Existing-account adds close the dialog directly.
+      const credentials = page.getByRole('dialog', {
+        name: t('dialogs.memberAdded.title'),
+      });
+      await expect(credentials).toBeVisible({ timeout: TIMEOUT.PERSIST });
+      await credentials
+        .getByRole('button', { name: t('common.actions.done') })
+        .click();
+    }
     await expect(page.getByText(member.email).first()).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
@@ -733,14 +752,18 @@ async function ensureMembers(page: Page, orgId: string): Promise<void> {
 }
 
 /** Teams (Settings > Teams) — otherwise the table screenshots as "No teams yet". */
-async function ensureTeams(page: Page, orgId: string): Promise<void> {
+async function ensureTeams(
+  page: Page,
+  orgId: string,
+  teams: readonly string[] = DEMO_TEAMS,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/teams`);
   const createButton = page
     .getByRole('button', { name: t('settings.teams.createTeam') })
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await settleList(page);
-  for (const team of DEMO_TEAMS) {
+  for (const team of teams) {
     if (await isPresent(page.getByRole('row').filter({ hasText: team })))
       continue;
     await createButton.click();
@@ -1231,6 +1254,9 @@ export async function seedVideoLocaleOrg(
     readonly documents: readonly DemoDocument[];
     readonly knowledgeEntries: readonly DemoKnowledgeEntry[];
     readonly products: readonly DemoProduct[];
+    readonly teams: readonly string[];
+    readonly projectFiles: readonly DemoDocument[];
+    readonly discussions: readonly (typeof DEMO_DISCUSSIONS)[number][];
   },
 ): Promise<Map<string, string>> {
   const projects = new Map<string, string>();
@@ -1250,5 +1276,16 @@ export async function seedVideoLocaleOrg(
   await step('researcher agent installed', () =>
     ensureResearcherInstalled(orgId),
   );
+  await step('members', () => ensureMembers(page, orgId));
+  await step('teams', () => ensureTeams(page, orgId, content.teams));
+  const relaunch = projects.get(content.projects[0]?.name ?? '');
+  if (relaunch) {
+    await step('project files', () =>
+      ensureProjectFiles(page, orgId, relaunch, content.projectFiles),
+    );
+    await step('discussions', () =>
+      ensureDiscussions(page, orgId, relaunch, content.discussions),
+    );
+  }
   return projects;
 }

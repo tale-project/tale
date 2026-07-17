@@ -26,6 +26,12 @@ import { EP1_WELCOME } from './episodes/ep1-welcome/episode';
 import { EP2_CHAT } from './episodes/ep2-chat/episode';
 import { EP3_KNOWLEDGE } from './episodes/ep3-knowledge/episode';
 import { EP4_AGENT } from './episodes/ep4-agent/episode';
+import { EP5_AUTOMATIONS } from './episodes/ep5-automations/episode';
+import { EP6_PROJECTS } from './episodes/ep6-projects/episode';
+import { EP7_INTEGRATIONS } from './episodes/ep7-integrations/episode';
+import { EP8_PEOPLE } from './episodes/ep8-people/episode';
+import { EP9_GOVERNANCE } from './episodes/ep9-governance/episode';
+import { EP10_DEVELOPERS } from './episodes/ep10-developers/episode';
 import { SPIKE_SYNC } from './episodes/spike-sync/episode';
 import { audioPlanPath, type AudioPlan } from './lib/audio-plan';
 import { loadDevEnv } from './lib/dev-env';
@@ -53,6 +59,12 @@ const EPISODES: readonly EpisodeSpec[] = [
   EP2_CHAT,
   EP3_KNOWLEDGE,
   EP4_AGENT,
+  EP5_AUTOMATIONS,
+  EP6_PROJECTS,
+  EP7_INTEGRATIONS,
+  EP8_PEOPLE,
+  EP9_GOVERNANCE,
+  EP10_DEVELOPERS,
   SPIKE_SYNC,
 ];
 
