@@ -12,7 +12,7 @@
  * unit-tested under the node vitest runtime.
  */
 
-export interface ByteRange {
+interface ByteRange {
   /** First byte position, inclusive. */
   start: number;
   /** Last byte position, inclusive (≤ size - 1). */
