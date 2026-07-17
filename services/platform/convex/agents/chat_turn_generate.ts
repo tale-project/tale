@@ -49,10 +49,15 @@ import { userContextValidator } from '../lib/agent_response/validators';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
+import { ensureProviderKeepAlive } from '../providers/keep_alive';
 import type { AutoRouteReason } from '../streaming/validators';
 import { applyModelOverride } from './config';
 import { resolveExternalAgentModelRefs } from './external_agent/resolve_external_agent_model';
 import { resolveAgentConfigInline } from './resolve_agent_config';
+
+// Reuse provider TLS connections across turns (module scope: once per
+// executor process, before the first turn's model call).
+ensureProviderKeepAlive();
 
 /** Save a short assistant-role system notice so an async failure is visible. */
 async function saveSystemNotice(

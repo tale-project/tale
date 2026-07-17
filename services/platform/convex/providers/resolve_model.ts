@@ -14,7 +14,6 @@ import type {
   LanguageModelV3Middleware,
 } from '@ai-sdk/provider';
 import { wrapLanguageModel } from 'ai';
-import { Agent as UndiciAgent } from 'undici';
 
 import type { Domain } from '../../lib/shared/constants/domains';
 import type {
@@ -315,26 +314,6 @@ type FetchFn = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-/**
- * Keep TLS connections to LLM providers alive ACROSS turns. Node's default
- * dispatcher idles keep-alive sockets out after ~4s; chat turns are usually
- * farther apart, so every turn paid a fresh TCP+TLS handshake to the provider
- * (~60–250ms to openrouter.ai measured on the chat hot path). One module-level
- * agent with a longer idle window spans turns in the persistent node executor
- * and is torn down with the process on deploy/restart.
- */
-const keepAliveDispatcher = new UndiciAgent({
-  keepAliveTimeout: 60_000,
-  keepAliveMaxTimeout: 300_000,
-});
-
-const keepAliveFetch: FetchFn = (input, init) =>
-  fetch(input, {
-    ...init,
-    dispatcher: keepAliveDispatcher,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- undici's fetch honors `dispatcher` in RequestInit; TS's DOM lib types don't declare it
-  } as RequestInit);
-
 function createDebugFetch(providerName: string): FetchFn | undefined {
   if (process.env.TALE_DEBUG_LLM_WIRE !== '1') return undefined;
   return async (input, init) => {
@@ -368,7 +347,7 @@ function createDebugFetch(providerName: string): FetchFn | undefined {
     } catch (err) {
       console.warn('[TALE_DEBUG_LLM_WIRE] failed to log outgoing request', err);
     }
-    return keepAliveFetch(input, init);
+    return fetch(input, init);
   };
 }
 
@@ -397,7 +376,7 @@ function createCompatibleProvider(
   // fetch unchanged, so there's zero overhead on the common path.
   const wireFetch = createWireTransformFetch(
     modelData,
-    createDebugFetch(modelData.providerName) ?? keepAliveFetch,
+    createDebugFetch(modelData.providerName),
   );
   return createOpenAICompatible({
     name: modelData.providerName,

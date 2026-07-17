@@ -1263,6 +1263,7 @@ import type * as providers_failover from "../providers/failover.js";
 import type * as providers_failure_scope from "../providers/failure_scope.js";
 import type * as providers_file_actions from "../providers/file_actions.js";
 import type * as providers_file_utils from "../providers/file_utils.js";
+import type * as providers_keep_alive from "../providers/keep_alive.js";
 import type * as providers_provider_attribution from "../providers/provider_attribution.js";
 import type * as providers_provider_files_cache from "../providers/provider_files_cache.js";
 import type * as providers_request_body_transform from "../providers/request_body_transform.js";
@@ -3039,6 +3040,7 @@ declare const fullApi: ApiFromModules<{
   "providers/failure_scope": typeof providers_failure_scope;
   "providers/file_actions": typeof providers_file_actions;
   "providers/file_utils": typeof providers_file_utils;
+  "providers/keep_alive": typeof providers_keep_alive;
   "providers/provider_attribution": typeof providers_provider_attribution;
   "providers/provider_files_cache": typeof providers_provider_files_cache;
   "providers/request_body_transform": typeof providers_request_body_transform;
