@@ -189,6 +189,79 @@ describe('chat/completions override', () => {
     expect(body.choices[0].message.content).toBe(scripted.reply);
   });
 
+  test('a tool-scripted docs phrase emits its tool call, then acks on resume', async () => {
+    // The docs-videos canvas scene: a clean on-camera prompt (no e2e keyword)
+    // emits a `file_write` tool call with reasoning first, and the follow-up
+    // turn streams the plain-text ack — mirroring the e2e fileWrite scenario.
+    const scripted = DOCS_REPLIES.find((entry) => entry.tool);
+    if (!scripted) throw new Error('expected a docs reply with a tool script');
+    if (scripted.tool?.name !== 'file_write')
+      throw new Error('expected the first tool script to be file_write');
+    const first = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [{ role: 'user', content: `Please ${scripted.match}.` }],
+    });
+    const firstText = await first.text();
+    expect(firstText).toContain('reasoning_content');
+    expect(firstText).toContain('file_write');
+    expect(firstText).toContain(
+      JSON.stringify(scripted.tool.files[0].path).slice(1, -1),
+    );
+    expect(firstText).toContain('"finish_reason":"tool_calls"');
+    // The ack text must NOT stream on the tool turn.
+    const ackWord = scripted.reply.split(/\s+/)[0];
+    expect(firstText).not.toContain(`"content":"${ackWord}`);
+
+    const resume = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [
+        { role: 'user', content: `Please ${scripted.match}.` },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'call_docs_fw_0',
+              type: 'function',
+              function: { name: 'file_write', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', content: '{"ok":true}' },
+      ],
+    });
+    const resumeText = await resume.text();
+    expect(resumeText).not.toContain('"finish_reason":"tool_calls"');
+    expect(resumeText).toContain(ackWord);
+    // The tool turn already "thought" — the ack turn is content-only.
+    expect(resumeText).not.toContain('reasoning_content');
+  });
+
+  test('a tool-scripted docs phrase stays text-only on the non-stream path', async () => {
+    // Thread-title generation is a non-streamed call carrying the user's first
+    // message — it must get the plain `reply`, never tool markup.
+    const scripted = DOCS_REPLIES.find((entry) => entry.tool);
+    if (!scripted) throw new Error('expected a docs reply with a tool script');
+    const res = await post('/v1/chat/completions', {
+      model: 'm',
+      messages: [{ role: 'user', content: `Please ${scripted.match}.` }],
+    });
+    const body = await readJson(res);
+    expect(body.choices[0].message.content).toBe(scripted.reply);
+    expect(JSON.stringify(body)).not.toContain('tool_calls');
+  });
+
+  test('every tool-scripted docs entry ships all three locales', () => {
+    // The docs-videos set is indivisible (en/de/fr) — a tool mechanism used by
+    // one locale's scene must have a scripted sibling for the other two, or a
+    // locale's take falls back to canned text mid-scene. Tool entries come in
+    // locale triplets by construction: file paths differ, tool names group.
+    const toolEntries = DOCS_REPLIES.filter((entry) => entry.tool);
+    expect(toolEntries.length % 3).toBe(0);
+  });
+
   test('docs phrases never shadow the default canned path', async () => {
     const res = await post('/v1/chat/completions', {
       model: 'e2e-chat-model',

@@ -37,6 +37,32 @@ interface DocsReplyModelVariant extends DocsReplyContent {
   readonly model: string;
 }
 
+/**
+ * A scripted tool call a docs entry emits on its FIRST turn (the resume turn
+ * streams the entry's `reply` as the plain-text acknowledgement, exactly like
+ * the e2e `MOCK_TRIGGERS` tool scenarios — but from a clean, on-camera prompt
+ * with no visible trigger keyword). Args must satisfy the real tool's zod
+ * schema; both shapes below mirror the proven `canned.ts` payloads.
+ *
+ *  - `file_write` executes server-side (no sandbox), so the files land in the
+ *    thread workspace and the Canvas pane auto-opens on agent-produced content.
+ *  - `request_human_input` creates a real pending approval card in the chat.
+ */
+export type DocsReplyTool =
+  | {
+      readonly name: 'file_write';
+      readonly files: readonly { path: string; content: string }[];
+    }
+  | {
+      readonly name: 'request_human_input';
+      readonly question: string;
+      readonly fields: readonly {
+        type: 'text';
+        label: string;
+        required: boolean;
+      }[];
+    };
+
 interface DocsReply extends DocsReplyContent {
   /** Lowercase substring matched against the LAST user message. */
   readonly match: string;
@@ -48,6 +74,15 @@ interface DocsReply extends DocsReplyContent {
    * (a seeded chat thread, an auto-routed model) keeps the default.
    */
   readonly byModel?: readonly DocsReplyModelVariant[];
+  /**
+   * Optional tool call for the entry's first turn. With it, the entry becomes
+   * a two-turn script: `reasoning` streams before the tool call, the tool
+   * runs, and the follow-up turn (tool result in the conversation) streams
+   * `reply` as the acknowledgement — no reasoning the second time. Non-stream
+   * calls (thread-title generation) always get the plain `reply`, never tool
+   * markup.
+   */
+  readonly tool?: DocsReplyTool;
 }
 
 /**
@@ -119,6 +154,138 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       '',
       'Cette lecture s’appuie sur la **revue support du T2** et la **check-list d’onboarding** de votre base de connaissances. La revue support identifie les webhooks comme la question qui progresse le plus vite, et la check-list n’a pas encore d’étape webhook — y ajouter un exemple complet répondrait aux deux principales frictions.',
     ].join('\n'),
+  },
+  // ——— Video pipeline: Episode 2 canvas scene (one entry per locale) ———
+  // The on-camera prompt asks for a shareable one-pager; the scripted
+  // `file_write` lands it in the thread workspace, the Canvas pane auto-opens
+  // on the agent-produced file, and the resume turn speaks the ack. Prompts
+  // live in `tests/docs-videos/episodes/ep2-chat/` and MUST contain these
+  // match clauses verbatim. The brief's content is data — native per locale,
+  // grounded in the same Q2 themes as the Episode 1 wow answer.
+  {
+    match: 'one-page brief for the leadership team',
+    reasoning:
+      'Pulling the three onboarding themes from the Q2 support review and shaping them into a one-page brief for leadership. Writing it to the canvas as a shareable document.',
+    reply:
+      'The brief is on the canvas — one page: the three themes, the evidence behind each, and one recommended next step. Edit it there directly, or ask me for a tighter cut.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/onboarding-brief.md',
+          content: [
+            '# Onboarding — what customers told us in Q2',
+            '',
+            '**For the leadership team — one page, three themes.**',
+            '',
+            '## 1. Setup takes too long',
+            '',
+            'Raised in every onboarding call. "Two days from invite to first useful answer."',
+            'The slow step is workspace configuration, not the product itself.',
+            '',
+            '## 2. Webhook setup is unclear',
+            '',
+            'Questions doubled after the April release. The setup guide still has no worked',
+            'example, and the onboarding checklist has no webhook step at all.',
+            '',
+            '## 3. Shared projects drive adoption',
+            '',
+            'Praised in two of three calls: "The team space made adoption easy." Teams that',
+            'started inside a shared project reached daily use fastest.',
+            '',
+            '## Recommended next step',
+            '',
+            'Add a worked webhook example to the onboarding checklist — it addresses the two',
+            'loudest complaints at once. Owner: onboarding squad. Effort: one sprint.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
+  {
+    match: 'einseitiges briefing für die geschäftsleitung',
+    reasoning:
+      'Die drei Onboarding-Themen aus dem Q2-Support-Bericht werden zu einem einseitigen Briefing für die Geschäftsleitung verdichtet. Das Dokument entsteht im Canvas.',
+    reply:
+      'Das Briefing liegt im Canvas — eine Seite: die drei Themen, die Belege dazu und ein empfohlener nächster Schritt. Du kannst dort direkt weiterarbeiten oder eine kürzere Fassung anfordern.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/onboarding-briefing.md',
+          content: [
+            '# Onboarding — das Kundenfeedback aus Q2',
+            '',
+            '**Für die Geschäftsleitung — eine Seite, drei Themen.**',
+            '',
+            '## 1. Die Einrichtung dauert zu lange',
+            '',
+            'In jedem Onboarding-Gespräch genannt. „Zwei Tage von der Einladung bis zur',
+            'ersten brauchbaren Antwort." Der langsame Schritt ist die Konfiguration, nicht',
+            'das Produkt.',
+            '',
+            '## 2. Die Webhook-Einrichtung ist unklar',
+            '',
+            'Die Fragen haben sich nach dem April-Release verdoppelt. In der Anleitung fehlt',
+            'ein durchgerechnetes Beispiel, in der Checkliste der Webhook-Schritt.',
+            '',
+            '## 3. Gemeinsame Projekte überzeugen',
+            '',
+            'In zwei von drei Gesprächen gelobt: „Der Team-Bereich hat die Einführung leicht',
+            'gemacht." Teams mit gemeinsamem Projekt erreichten die tägliche Nutzung am',
+            'schnellsten.',
+            '',
+            '## Empfohlener nächster Schritt',
+            '',
+            'Ein durchgerechnetes Webhook-Beispiel in die Onboarding-Checkliste aufnehmen —',
+            'das adressiert die zwei häufigsten Beschwerden zugleich. Aufwand: ein Sprint.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
+  {
+    match: 'synthèse d’une page pour la direction',
+    reasoning:
+      'Les trois thèmes d’onboarding de la revue support du T2 sont condensés en une synthèse d’une page pour la direction. Le document s’écrit dans le canvas.',
+    reply:
+      'La synthèse est dans le canvas — une page : les trois thèmes, les éléments à l’appui et une prochaine étape recommandée. Tu peux la retoucher directement, ou me demander une version plus courte.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/synthese-onboarding.md',
+          content: [
+            '# Onboarding — ce que les clients nous ont dit au T2',
+            '',
+            '**Pour la direction — une page, trois thèmes.**',
+            '',
+            '## 1. La mise en place prend trop de temps',
+            '',
+            'Mentionné à chaque appel d’onboarding. « Deux jours entre l’invitation et la',
+            'première réponse utile. » L’étape lente est la configuration, pas le produit.',
+            '',
+            '## 2. La configuration des webhooks est floue',
+            '',
+            'Les questions ont doublé depuis la version d’avril. Le guide n’a toujours pas',
+            'd’exemple complet, et la check-list n’a pas d’étape webhook.',
+            '',
+            '## 3. Les projets partagés font adopter le produit',
+            '',
+            'Salués dans deux appels sur trois : « L’espace d’équipe a facilité l’adoption. »',
+            'Les équipes parties d’un projet partagé ont atteint l’usage quotidien le plus vite.',
+            '',
+            '## Prochaine étape recommandée',
+            '',
+            'Ajouter un exemple complet de webhook à la check-list d’onboarding — cela répond',
+            'aux deux frictions principales à la fois. Charge : un sprint.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
   },
   {
     match: 'summarize the onboarding feedback',
@@ -269,21 +436,33 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
   },
 ] as const;
 
+/** What a matched prompt scripts: content (default or per-model) + any tool. */
+export interface MatchedDocsReply extends DocsReplyContent {
+  readonly tool?: DocsReplyTool;
+}
+
 /**
  * The scripted content for a chat body's last user message, or null when no
  * docs phrase matches (the caller falls through to the e2e scenarios). When
  * the matched entry scripts the requested `model`, that variant wins over its
- * default `reply`/`reasoning`.
+ * default `reply`/`reasoning`; the entry's `tool` (if any) always rides along.
  */
 export function matchDocsReply(
   lastUserText: string,
   model?: string,
-): DocsReplyContent | null {
+): MatchedDocsReply | null {
   const text = lastUserText.toLowerCase();
   const entry = DOCS_REPLIES.find((reply) => text.includes(reply.match));
   if (!entry) return null;
   const modelId = (model ?? '').toLowerCase();
-  return entry.byModel?.find((v) => modelId.includes(v.model)) ?? entry;
+  const content =
+    entry.byModel?.find((v) => modelId.includes(v.model)) ?? entry;
+  if (!entry.tool) return content;
+  return {
+    reply: content.reply,
+    reasoning: content.reasoning,
+    tool: entry.tool,
+  };
 }
 
 /**

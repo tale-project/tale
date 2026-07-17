@@ -39,7 +39,11 @@ import {
   CANNED_REPLY,
   MOCK_TRIGGERS,
 } from './canned';
-import { matchDocsReply, matchDocsTriageScore } from './docs-replies';
+import {
+  matchDocsReply,
+  matchDocsTriageScore,
+  type DocsReplyTool,
+} from './docs-replies';
 
 /** Canned content for structured-output requests (`response_format` json*). */
 const CANNED_JSON_REPLY = '{}';
@@ -168,6 +172,7 @@ function toChatCompletionRequest(value: JsonValue): ChatCompletionRequest {
 type Scenario =
   | 'canned'
   | 'docs'
+  | 'docsTool'
   | 'taskTriage'
   | 'reasoning'
   | 'nextSteps'
@@ -245,9 +250,40 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
   if (last.includes(MOCK_TRIGGERS.nextSteps)) return 'nextSteps';
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
-  // unmatched stays on the spec-pinned canned path.
-  if (matchDocsReply(last)) return 'docs';
+  // unmatched stays on the spec-pinned canned path. A tool-scripted entry
+  // emits its tool call on the first turn and its `reply` on the resume turn.
+  const docsReply = matchDocsReply(last);
+  if (docsReply) return docsReply.tool && !resume ? 'docsTool' : 'docs';
   return 'canned';
+}
+
+/** The streamed tool-call delta(s) for a docs entry's scripted tool. */
+function docsToolCallDeltas(tool: DocsReplyTool): ToolCallDelta[] {
+  if (tool.name === 'file_write') {
+    return tool.files.map((file, index) => ({
+      index,
+      id: `call_docs_fw_${index}`,
+      type: 'function' as const,
+      function: {
+        name: FILE_WRITE_TOOL_NAME,
+        arguments: JSON.stringify({ path: file.path, content: file.content }),
+      },
+    }));
+  }
+  return [
+    {
+      index: 0,
+      id: 'call_docs_hi_0',
+      type: 'function' as const,
+      function: {
+        name: HUMAN_INPUT_TOOL_NAME,
+        arguments: JSON.stringify({
+          question: tool.question,
+          fields: tool.fields,
+        }),
+      },
+    },
+  ];
 }
 
 /** The plain-text content a (non-tool) scenario streams as `delta.content`. */
@@ -257,6 +293,7 @@ function scenarioContent(
 ): string {
   switch (scenario) {
     case 'docs':
+    case 'docsTool':
       return (
         matchDocsReply(lastUserText(body), body.model)?.reply ?? CANNED_REPLY
       );
@@ -304,7 +341,10 @@ function jsonCompletionContent(body: ChatCompletionRequest): string {
   if (scenario === 'taskTriage') return scenarioContent(scenario, body);
   if ((body.response_format?.type ?? '').startsWith('json'))
     return CANNED_JSON_REPLY;
-  if (scenario === 'docs') return scenarioContent(scenario, body);
+  // A tool-scripted docs entry still answers text-only here — thread-title
+  // generation must never see tool markup, only the entry's `reply`.
+  if (scenario === 'docs' || scenario === 'docsTool')
+    return scenarioContent(scenario, body);
   return CANNED_REPLY;
 }
 
@@ -429,6 +469,30 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
         return;
       }
 
+      // A docs entry's scripted tool turn: reasoning first (thinking before
+      // acting reads naturally on camera), then the tool call(s). The agent
+      // executes them and loops back; the resume turn streams the `reply`.
+      const docsTool =
+        scenario === 'docsTool'
+          ? matchDocsReply(lastUserText(body), body.model)
+          : null;
+      if (docsTool?.tool) {
+        if (docsTool.reasoning) {
+          for (const delta of toDeltas(docsTool.reasoning)) {
+            sendDelta({ reasoning_content: delta }, null);
+            await pause();
+          }
+        }
+        for (const call of docsToolCallDeltas(docsTool.tool)) {
+          sendDelta({ tool_calls: [call] }, null);
+          await pause();
+        }
+        sendDelta({}, 'tool_calls', USAGE);
+        send('data: [DONE]\n\n');
+        controller.close();
+        return;
+      }
+
       if (scenario === 'fileWriteTool' || scenario === 'planTool') {
         // Batch tool call(s): every `file_write` executes server-side (no
         // sandbox), landing files the Canvas/Workspace panes render; the single
@@ -461,13 +525,18 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
 
       // Reasoning streams `reasoning_content` first; the SDK closes the
       // reasoning block automatically on the first `content` delta. Docs
-      // replies opt into the same path via their `reasoning` field.
+      // replies opt into the same path via their `reasoning` field — except
+      // on a tool entry's ack turn, whose thinking already ran on the tool
+      // turn; repeating it would render a second "Thinking" block.
+      const docsMatch =
+        scenario === 'docs'
+          ? matchDocsReply(lastUserText(body), body.model)
+          : null;
       const reasoningText =
         scenario === 'reasoning'
           ? CANNED_REASONING
-          : scenario === 'docs'
-            ? (matchDocsReply(lastUserText(body), body.model)?.reasoning ??
-              null)
+          : docsMatch && !docsMatch.tool
+            ? (docsMatch.reasoning ?? null)
             : null;
       if (reasoningText !== null) {
         for (const delta of toDeltas(reasoningText)) {
