@@ -57,15 +57,15 @@ Connectors you can read before opening, MCP tools with approval flags, and egres
 
 </Card>
 
-<Card title="Episode 7 — Integrations & the outside world" icon="play" href="/tutorials/videos/integrations">
-
-Connectors you can read before opening, MCP tools with approval flags, and egress that fails closed. Every door opened deliberately. Two and a half minutes.
-
-</Card>
-
 <Card title="Episode 9 — Governance, cost & trust" icon="play" href="/tutorials/videos/governance-and-trust">
 
 The finale: providers and model policy, guardrails, the audit log, cost and quality charts, residency — and the five habits of using AI well. Three minutes.
+
+</Card>
+
+<Card title="Bonus — Tale for developers" icon="play" href="/tutorials/videos/tale-for-developers">
+
+The builder's lap: scoped keys, four API doors, webhooks, and coding agents in sandboxes that fail closed. Two minutes.
 
 </Card>
 
@@ -73,4 +73,4 @@ The finale: providers and model policy, guardrails, the audit log, cost and qual
 
 ## The series ahead
 
-Episodes land here as they are produced. On the roadmap: a bonus episode for developers.
+That completes the series: the tour, seven deep dives, and a developer bonus — each in English, German, and French. The documentation around every episode goes further; start wherever your role starts.

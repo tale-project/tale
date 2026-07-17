@@ -73,6 +73,78 @@
       "height": 1080
     },
     {
+      "file": "videos/tutorials/ep10-developers.de.mp4",
+      "episode": "ep10-developers",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 158.4,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.de.vtt",
+      "episode": "ep10-developers",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 158.4
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.de.webp",
+      "episode": "ep10-developers",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.en.mp4",
+      "episode": "ep10-developers",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 128.4,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.en.vtt",
+      "episode": "ep10-developers",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 128.4
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.en.webp",
+      "episode": "ep10-developers",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.fr.mp4",
+      "episode": "ep10-developers",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 123.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.fr.vtt",
+      "episode": "ep10-developers",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 123.6
+    },
+    {
+      "file": "videos/tutorials/ep10-developers.fr.webp",
+      "episode": "ep10-developers",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
       "file": "videos/tutorials/ep2-chat.de.mp4",
       "episode": "ep2-chat",
       "locale": "de",
