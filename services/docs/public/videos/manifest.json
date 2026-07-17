@@ -575,6 +575,78 @@
       "kind": "poster",
       "width": 1920,
       "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.de.mp4",
+      "episode": "ep9-governance",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 211,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.de.vtt",
+      "episode": "ep9-governance",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 211
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.de.webp",
+      "episode": "ep9-governance",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.en.mp4",
+      "episode": "ep9-governance",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 180.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.en.vtt",
+      "episode": "ep9-governance",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 180.6
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.en.webp",
+      "episode": "ep9-governance",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.fr.mp4",
+      "episode": "ep9-governance",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 167.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.fr.vtt",
+      "episode": "ep9-governance",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 167.6
+    },
+    {
+      "file": "videos/tutorials/ep9-governance.fr.webp",
+      "episode": "ep9-governance",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
     }
   ]
 }

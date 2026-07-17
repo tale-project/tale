@@ -57,8 +57,20 @@ Des connecteurs qu'on lit avant d'ouvrir, des outils MCP avec drapeaux de valida
 
 </Card>
 
+<Card title="Épisode 7 — Intégrations & le monde extérieur" icon="play" href="/fr/tutorials/videos/integrations">
+
+Des connecteurs qu'on lit avant d'ouvrir, des outils MCP avec drapeaux de validation, et une sortie réseau qui échoue fermée. Chaque porte ouverte délibérément. Deux minutes et demie.
+
+</Card>
+
+<Card title="Épisode 9 — Gouvernance, coûts & confiance" icon="play" href="/fr/tutorials/videos/governance-and-trust">
+
+Le final : fournisseurs et politique de modèles, garde-fous, journal d'audit, graphiques de coûts et de qualité, résidence — et les cinq habitudes d'un bon usage de l'IA. Trois minutes.
+
+</Card>
+
 </CardGroup>
 
 ## La suite de la série
 
-Les épisodes arrivent ici au fil de la production. Au programme : la gouvernance et la confiance, puis un épisode bonus pour les développeurs.
+Les épisodes arrivent ici au fil de la production. Au programme : un épisode bonus pour les développeurs.

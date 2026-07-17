@@ -7,6 +7,12 @@ Admin est le plan de configuration de Tale. Cela couvre les personnes qui peuven
 
 Ces pages décrivent ce que fait chaque réglage et ce qu’il change au produit en cours. La plupart se lisent une fois au montage, puis se revisitent quand quelque chose change — un nouveau collègue, une clé rotée, un nouveau fournisseur. L’histoire des rôles et permissions derrière tout le menu vit dans [Membres et rôles](/fr/platform/admin/members-and-roles) ; commence par là, car chaque autre page Admin renvoie aux noms de rôles qu’elle définit.
 
+Tu préfères regarder d’abord ? L’épisode 9 traverse toute la salle de contrôle — fournisseurs, garde-fous, audit, coûts — en trois minutes, sous-titres compris.
+
+<Video src="/videos/tutorials/ep9-governance.fr.mp4" poster="/videos/tutorials/ep9-governance.fr.webp" captions="/videos/tutorials/ep9-governance.fr.vtt" lang="fr" title="Épisode 9 — Gouvernance, coûts & confiance" caption="Épisode 9 — Gouvernance, coûts & confiance (2:48)">
+
+</Video>
+
 ## Domaines de configuration
 
 <CardGroup cols="2">
