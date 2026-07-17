@@ -1,9 +1,12 @@
 'use client';
 
+import { IconButton } from '@tale/ui/icon-button';
 import { Stack } from '@tale/ui/layout';
-import { Check, Plus } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { Check, Plus, Settings } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -21,6 +24,12 @@ interface TeamListPanelProps {
   selectedTeamId: string | null;
   onSelectTeam: (teamId: string | null) => void;
   onAfterAction?: () => void;
+  /**
+   * Called when the user activates the "manage teams" gear in the header, so a
+   * caller that renders the panel inside an overlay (e.g. the account menu) can
+   * dismiss that overlay before we navigate to the team-settings page.
+   */
+  onManageTeams?: () => void;
   /**
    * Hide the "Team" section header. Use when the panel is rendered under a row
    * that already labels it (e.g. the account menu's inline Team picker), where
@@ -44,12 +53,17 @@ export function TeamListPanel({
   selectedTeamId,
   onSelectTeam,
   onAfterAction,
+  onManageTeams,
   hideHeader = false,
 }: TeamListPanelProps) {
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
   const [createOpen, setCreateOpen] = useState(false);
+  // Gate the header's settings gear to match its destination
+  // (/dashboard/$id/settings/teams is `read orgSettings`), so members who
+  // can't reach that page aren't sent to a denied screen.
+  const canManageTeams = useAbility().can('read', 'orgSettings');
 
   const handleSelect = useCallback(
     (teamId: string | null) => {
@@ -67,8 +81,28 @@ export function TeamListPanel({
   return (
     <Stack gap={0}>
       {!hideHeader && (
-        <div className="text-muted-foreground px-3 pt-2 pb-1.5 text-xs font-medium tracking-wide uppercase">
-          {tNav('teamFilter.label')}
+        <div className="flex min-h-8 items-center justify-between gap-2 pr-1.5 pl-3">
+          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            {tNav('teamFilter.label')}
+          </span>
+          {canManageTeams && (
+            <IconButton
+              asChild
+              icon={Settings}
+              size="sm"
+              aria-label={tNav('teamFilter.manageTeams')}
+              slotChild={
+                <Link
+                  to="/dashboard/$id/settings/teams"
+                  params={{ id: organizationId }}
+                  // Navigating leaves the popup, so dismiss the (controlled) menu
+                  // it lives in — otherwise it lingers over the settings page.
+                  // team-select is intentionally left untouched.
+                  onClick={() => onManageTeams?.()}
+                />
+              }
+            />
+          )}
         </div>
       )}
 
