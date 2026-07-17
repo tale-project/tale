@@ -76,6 +76,11 @@ import {
   serializeProviderJson,
   validateProviderName,
 } from './file_utils';
+import {
+  computeProvidersFingerprint,
+  getCachedProviders,
+  setCachedProviders,
+} from './provider_files_cache';
 import { mergeRequestBodyMap } from './request_body_transform';
 // Type-only import (erased at runtime — no circular dependency) so the
 // in-process resolver shares the canonical ResolvedModelData shape.
@@ -440,6 +445,15 @@ async function loadAllProviders(
   orgSlug: string,
 ): Promise<ProviderWithSecrets[]> {
   const dir = resolveProvidersDir(orgSlug);
+  // Cross-turn cache: the catalog is a pure function of the directory's
+  // on-disk content, and this runs on EVERY model resolution (once per chat
+  // turn, plus once per fallback attempt). The mtime fingerprint makes any
+  // provider edit / key rotation miss naturally; see provider_files_cache.ts.
+  const fingerprint = await computeProvidersFingerprint(dir);
+  if (fingerprint) {
+    const cached = getCachedProviders<ProviderWithSecrets>(dir, fingerprint);
+    if (cached) return cached;
+  }
   let entries: string[];
   try {
     entries = await readdir(dir);
@@ -529,6 +543,7 @@ async function loadAllProviders(
     );
   }
 
+  if (fingerprint) setCachedProviders(dir, fingerprint, providers);
   return providers;
 }
 
