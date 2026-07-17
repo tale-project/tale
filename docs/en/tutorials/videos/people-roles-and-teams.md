@@ -5,7 +5,7 @@ description: The human half of the trust story — the members table and the rol
 
 Episode five gated the machines; this episode gates the people. It walks the workspace roster and the four-step role ladder, opens the add-member dialog just long enough to learn it, draws the team boundaries that decide who reads what, and closes on the boring guardrails that matter most: two-factor and single sign-on.
 
-<Video src="/videos/tutorials/ep8-people.en.mp4" poster="/videos/tutorials/ep8-people.en.webp" captions="/videos/tutorials/ep8-people.en.vtt" lang="en" title="Episode 8 — People, roles & teams" caption="Episode 8 — People, roles & teams (2:15, captions available)">
+<Video src="/videos/tutorials/ep8-people/ep8-people.en.mp4" poster="/videos/tutorials/ep8-people/ep8-people.en.webp" captions="/videos/tutorials/ep8-people/ep8-people.en.vtt" lang="en" title="Episode 8 — People, roles & teams" caption="Episode 8 — People, roles & teams (2:15, captions available)">
 
 </Video>
 

@@ -9,7 +9,7 @@ Cette page te donne le modèle mental que le reste de la section présuppose. Li
 
 Tu préfères regarder d’abord ? L’épisode 4 construit un agent de bout en bout en moins de trois minutes — les quatre décisions, puis le test en direct, sous-titres compris.
 
-<Video src="/videos/tutorials/ep4-agent.fr.mp4" poster="/videos/tutorials/ep4-agent.fr.webp" captions="/videos/tutorials/ep4-agent.fr.vtt" lang="fr" title="Épisode 4 — Ton premier agent" caption="Épisode 4 — Ton premier agent (2:42)">
+<Video src="/videos/tutorials/ep4-agent/ep4-agent.fr.mp4" poster="/videos/tutorials/ep4-agent/ep4-agent.fr.webp" captions="/videos/tutorials/ep4-agent/ep4-agent.fr.vtt" lang="fr" title="Épisode 4 — Ton premier agent" caption="Épisode 4 — Ton premier agent (2:42)">
 
 </Video>
 

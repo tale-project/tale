@@ -9,7 +9,7 @@ Si tu es à l’intérieur du produit avec le rôle Développeur (construction d
 
 Tu préfères regarder d’abord ? L’épisode bonus parcourt la surface développeur — clés, API, webhooks, agents de code en bac à sable — en deux minutes.
 
-<Video src="/videos/tutorials/ep10-developers.fr.mp4" poster="/videos/tutorials/ep10-developers.fr.webp" captions="/videos/tutorials/ep10-developers.fr.vtt" lang="fr" title="Bonus — Tale pour les développeurs" caption="Bonus — Tale pour les développeurs (2:04)">
+<Video src="/videos/tutorials/ep10-developers/ep10-developers.fr.mp4" poster="/videos/tutorials/ep10-developers/ep10-developers.fr.webp" captions="/videos/tutorials/ep10-developers/ep10-developers.fr.vtt" lang="fr" title="Bonus — Tale pour les développeurs" caption="Bonus — Tale pour les développeurs (2:04)">
 
 </Video>
 

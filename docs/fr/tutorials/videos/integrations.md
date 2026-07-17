@@ -5,7 +5,7 @@ description: Les portes hors de l'espace de travail — des connecteurs dont on 
 
 Ton espace de travail ne vit pas seul. Cet épisode parcourt les portes vers l'extérieur et la discipline logée dans chacune : un connecteur qu'on lit avant de l'ouvrir, la capacité qui s'allume quand une intégration est reliée, des outils MCP qui arrivent avec leurs propres drapeaux de validation, et un réseau bac à sable qui répond non par défaut.
 
-<Video src="/videos/tutorials/ep7-integrations.fr.mp4" poster="/videos/tutorials/ep7-integrations.fr.webp" captions="/videos/tutorials/ep7-integrations.fr.vtt" lang="fr" title="Épisode 7 — Intégrations & le monde extérieur" caption="Épisode 7 — Intégrations & le monde extérieur (2:18, sous-titres disponibles)">
+<Video src="/videos/tutorials/ep7-integrations/ep7-integrations.fr.mp4" poster="/videos/tutorials/ep7-integrations/ep7-integrations.fr.webp" captions="/videos/tutorials/ep7-integrations/ep7-integrations.fr.vtt" lang="fr" title="Épisode 7 — Intégrations & le monde extérieur" caption="Épisode 7 — Intégrations & le monde extérieur (2:18, sous-titres disponibles)">
 
 </Video>
 

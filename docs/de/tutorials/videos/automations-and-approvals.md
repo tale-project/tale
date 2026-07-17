@@ -5,7 +5,7 @@ description: Die Triage-Automatisierung aufgeklappt wie ein Rezept — Editor, A
 
 Agenten antworten auf Anfrage; Automatisierungen handeln von selbst. Diese Episode öffnet die installierte Triage-Automatisierung von vorne bis hinten — den Workflow, den du lesen kannst, bevor er läuft, das Protokoll, das jeder Lauf hinterlässt, die rote Zeile, die Scheitern mit Adresse zeigt — und dann das Herzstück der Serie: Ein Agent entwirft eine Kundenantwort nach draußen und hält an einer Freigabekarte, bis ein Mensch entscheidet. Vor laufender Kamera.
 
-<Video src="/videos/tutorials/ep5-automations.de.mp4" poster="/videos/tutorials/ep5-automations.de.webp" captions="/videos/tutorials/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11, mit Untertiteln)">
+<Video src="/videos/tutorials/ep5-automations/ep5-automations.de.mp4" poster="/videos/tutorials/ep5-automations/ep5-automations.de.webp" captions="/videos/tutorials/ep5-automations/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11, mit Untertiteln)">
 
 </Video>
 

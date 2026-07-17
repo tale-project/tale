@@ -5,7 +5,7 @@ description: Le tour des bâtisseurs - clés API bornées, les quatre portes d'A
 
 Tout ce que la série a montré repose sur une API. L'épisode bonus parcourt la surface développeur : des clés API nommées et révocables ; REST, MCP, WebDAV et les runtimes bac à sable ; des webhooks qui déclenchent des agents depuis n'importe quel système ; les agents de code externes — Claude Code, Cursor — dans leurs bacs à sable ; et la politique d'exécution qui nomme ce qui peut s'installer et où le code peut se connecter. Des outils puissants, un rayon d'action contenu.
 
-<Video src="/videos/tutorials/ep10-developers.fr.mp4" poster="/videos/tutorials/ep10-developers.fr.webp" captions="/videos/tutorials/ep10-developers.fr.vtt" lang="fr" title="Bonus — Tale pour les développeurs" caption="Bonus — Tale pour les développeurs (2:04, sous-titres disponibles)">
+<Video src="/videos/tutorials/ep10-developers/ep10-developers.fr.mp4" poster="/videos/tutorials/ep10-developers/ep10-developers.fr.webp" captions="/videos/tutorials/ep10-developers/ep10-developers.fr.vtt" lang="fr" title="Bonus — Tale pour les développeurs" caption="Bonus — Tale pour les développeurs (2:04, sous-titres disponibles)">
 
 </Video>
 

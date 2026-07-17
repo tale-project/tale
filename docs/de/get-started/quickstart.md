@@ -13,7 +13,7 @@ Das ist der kürzeste Weg zu einem funktionierenden Chat mit einem Agent: Instan
 
 Lieber als Video? Episode 1 geht denselben Weg in gut drei Minuten — Untertitel inklusive.
 
-<Video src="/videos/tutorials/ep1-welcome.de.mp4" poster="/videos/tutorials/ep1-welcome.de.webp" captions="/videos/tutorials/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:25)">
+<Video src="/videos/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:25)">
 
 </Video>
 

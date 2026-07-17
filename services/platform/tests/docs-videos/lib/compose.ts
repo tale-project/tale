@@ -109,7 +109,7 @@ export async function runComposeStage(
 
   const outDir = episode.diagnostic
     ? path.join(stateDir, 'out')
-    : path.join(DOCS_PUBLIC, 'videos', episode.section);
+    : path.join(DOCS_PUBLIC, 'videos', episode.section, episode.id);
   mkdirSync(outDir, { recursive: true });
   const baseName = `${episode.id}.${locale}`;
   const mp4Path = path.join(outDir, `${baseName}.mp4`);

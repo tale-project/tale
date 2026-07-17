@@ -5,7 +5,7 @@ description: La surface quotidienne, bien utilisée — la même question sans p
 
 L'épisode 1 faisait le tour ; celui-ci s'installe dans la pièce où ton équipe va réellement travailler. Son cœur est une expérience contrôlée : la même question d'onboarding posée deux fois — une fois sans contexte, une fois avec la revue support du T2 attachée. Tu regardes une réponse fluide et une réponse ancrée cesser d'être la même chose.
 
-<Video src="/videos/tutorials/ep2-chat.fr.mp4" poster="/videos/tutorials/ep2-chat.fr.webp" captions="/videos/tutorials/ep2-chat.fr.vtt" lang="fr" title="Épisode 2 — Le chat, en profondeur" caption="Épisode 2 — Le chat, en profondeur (2:53, sous-titres disponibles)">
+<Video src="/videos/tutorials/ep2-chat/ep2-chat.fr.mp4" poster="/videos/tutorials/ep2-chat/ep2-chat.fr.webp" captions="/videos/tutorials/ep2-chat/ep2-chat.fr.vtt" lang="fr" title="Épisode 2 — Le chat, en profondeur" caption="Épisode 2 — Le chat, en profondeur (2:53, sous-titres disponibles)">
 
 </Video>
 

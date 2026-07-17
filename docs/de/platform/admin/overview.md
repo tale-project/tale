@@ -9,7 +9,7 @@ Diese Seiten beschreiben, was jede Einstellung tut und was sie am laufenden Prod
 
 Lieber erst zusehen? Episode 9 durchquert den ganzen Kontrollraum — Anbieter, Leitplanken, Audit, Kosten — in gut drei Minuten, mit Untertiteln.
 
-<Video src="/videos/tutorials/ep9-governance.de.mp4" poster="/videos/tutorials/ep9-governance.de.webp" captions="/videos/tutorials/ep9-governance.de.vtt" lang="de" title="Episode 9 — Richtlinien, Kosten & Vertrauen" caption="Episode 9 — Richtlinien, Kosten & Vertrauen (3:31)">
+<Video src="/videos/tutorials/ep9-governance/ep9-governance.de.mp4" poster="/videos/tutorials/ep9-governance/ep9-governance.de.webp" captions="/videos/tutorials/ep9-governance/ep9-governance.de.vtt" lang="de" title="Episode 9 — Richtlinien, Kosten & Vertrauen" caption="Episode 9 — Richtlinien, Kosten & Vertrauen (3:31)">
 
 </Video>
 

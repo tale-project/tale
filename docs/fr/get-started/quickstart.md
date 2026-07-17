@@ -13,7 +13,7 @@ C’est le chemin le plus court vers un chat qui répond : obtenir une instance
 
 Tu préfères la vidéo ? L'épisode 1 parcourt le même chemin en trois minutes — sous-titres compris.
 
-<Video src="/videos/tutorials/ep1-welcome.fr.mp4" poster="/videos/tutorials/ep1-welcome.fr.webp" captions="/videos/tutorials/ep1-welcome.fr.vtt" lang="fr" title="Épisode 1 — Bienvenue dans Tale" caption="Épisode 1 — Bienvenue dans Tale (2:46)">
+<Video src="/videos/tutorials/ep1-welcome/ep1-welcome.fr.mp4" poster="/videos/tutorials/ep1-welcome/ep1-welcome.fr.webp" captions="/videos/tutorials/ep1-welcome/ep1-welcome.fr.vtt" lang="fr" title="Épisode 1 — Bienvenue dans Tale" caption="Épisode 1 — Bienvenue dans Tale (2:46)">
 
 </Video>
 

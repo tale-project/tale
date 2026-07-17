@@ -5,7 +5,7 @@ description: Der gemeinsame Arbeitsraum im Detail — das Board mitten im Flug, 
 
 Im Chat fragst du; in Projekten wohnt die Arbeit. Diese Episode geht durch das Relaunch-Projekt, das das Team wirklich betreibt — und legt dann vor der Kamera eine Aufgabe an, ganz normal, damit du zusehen kannst, wie die Triage sie bewertet und ein Agent sie übernimmt. Das Backlog schließt den Kreis: Agenten schlagen vor, Menschen befördern.
 
-<Video src="/videos/tutorials/ep6-projects.de.mp4" poster="/videos/tutorials/ep6-projects.de.webp" captions="/videos/tutorials/ep6-projects.de.vtt" lang="de" title="Episode 6 — Projekte mit KI" caption="Episode 6 — Projekte mit KI (2:47, mit Untertiteln)">
+<Video src="/videos/tutorials/ep6-projects/ep6-projects.de.mp4" poster="/videos/tutorials/ep6-projects/ep6-projects.de.webp" captions="/videos/tutorials/ep6-projects/ep6-projects.de.vtt" lang="de" title="Episode 6 — Projekte mit KI" caption="Episode 6 — Projekte mit KI (2:47, mit Untertiteln)">
 
 </Video>
 

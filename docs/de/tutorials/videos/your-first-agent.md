@@ -5,7 +5,7 @@ description: Ein Agent, vor laufender Kamera gebaut — Name, Anweisungen, Wisse
 
 Der Chat hat dir das Fragen beigebracht, das Wissen die Grundlage der Antworten. Diese Episode baut das Ding, das beides einsetzt: einen Agenten, von Null vor der Kamera. Der rote Faden ist die Vertrauensgrenze — jedes gewährte Werkzeug erweitert, was der Agent tun kann. Der kleinste Agent, der den Job erledigt, ist der sicherste.
 
-<Video src="/videos/tutorials/ep4-agent.de.mp4" poster="/videos/tutorials/ep4-agent.de.webp" captions="/videos/tutorials/ep4-agent.de.vtt" lang="de" title="Episode 4 — Dein erster Agent" caption="Episode 4 — Dein erster Agent (3:18, mit Untertiteln)">
+<Video src="/videos/tutorials/ep4-agent/ep4-agent.de.mp4" poster="/videos/tutorials/ep4-agent/ep4-agent.de.webp" captions="/videos/tutorials/ep4-agent/ep4-agent.de.vtt" lang="de" title="Episode 4 — Dein erster Agent" caption="Episode 4 — Dein erster Agent (3:18, mit Untertiteln)">
 
 </Video>
 

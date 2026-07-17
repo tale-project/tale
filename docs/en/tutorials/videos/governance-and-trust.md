@@ -5,7 +5,7 @@ description: The series finale - the control room in one tour — providers and 
 
 The finale is for whoever answers for AI in the organization. It tours the control room end to end — which models run and for whom, the guardrails that scan both directions, the audit log where episode five's approval actually landed, the cost and quality charts where episode two's Arena verdicts ended up, and the region dial — then closes the series with its five habits: ground it, gate it, scope it, log it, measure it.
 
-<Video src="/videos/tutorials/ep9-governance.en.mp4" poster="/videos/tutorials/ep9-governance.en.webp" captions="/videos/tutorials/ep9-governance.en.vtt" lang="en" title="Episode 9 — Governance, cost & trust" caption="Episode 9 — Governance, cost & trust (3:01, captions available)">
+<Video src="/videos/tutorials/ep9-governance/ep9-governance.en.mp4" poster="/videos/tutorials/ep9-governance/ep9-governance.en.webp" captions="/videos/tutorials/ep9-governance/ep9-governance.en.vtt" lang="en" title="Episode 9 — Governance, cost & trust" caption="Episode 9 — Governance, cost & trust (3:01, captions available)">
 
 </Video>
 

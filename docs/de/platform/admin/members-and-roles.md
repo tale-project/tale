@@ -9,7 +9,7 @@ Sechs Rollen decken nahezu jedes Team ab, an das Tale ausgeliefert wird. Admins 
 
 Lieber erst zusehen? Episode 8 geht in gut zwei Minuten durch Besetzung, Rollenleiter und Teamwände — mit Untertiteln.
 
-<Video src="/videos/tutorials/ep8-people.de.mp4" poster="/videos/tutorials/ep8-people.de.webp" captions="/videos/tutorials/ep8-people.de.vtt" lang="de" title="Episode 8 — Menschen, Rollen & Teams" caption="Episode 8 — Menschen, Rollen & Teams (2:35)">
+<Video src="/videos/tutorials/ep8-people/ep8-people.de.mp4" poster="/videos/tutorials/ep8-people/ep8-people.de.webp" captions="/videos/tutorials/ep8-people/ep8-people.de.vtt" lang="de" title="Episode 8 — Menschen, Rollen & Teams" caption="Episode 8 — Menschen, Rollen & Teams (2:35)">
 
 </Video>
 

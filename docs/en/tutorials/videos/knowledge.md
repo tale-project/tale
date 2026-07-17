@@ -5,7 +5,7 @@ description: The library behind every grounded answer — documents and indexing
 
 The grounded answers of episode 2 all came from one place. This episode opens that place up: what the Indexed badge really means (and why indexing is not training), a knowledge entry added on camera and cited by an agent two minutes later, typed records beside prose documents, the crawler's honest anonymous-visitor boundary, and the scope switches that make visibility a decision instead of an accident.
 
-<Video src="/videos/tutorials/ep3-knowledge.en.mp4" poster="/videos/tutorials/ep3-knowledge.en.webp" captions="/videos/tutorials/ep3-knowledge.en.vtt" lang="en" title="Episode 3 — Knowledge" caption="Episode 3 — Knowledge (3:03, captions available)">
+<Video src="/videos/tutorials/ep3-knowledge/ep3-knowledge.en.mp4" poster="/videos/tutorials/ep3-knowledge/ep3-knowledge.en.webp" captions="/videos/tutorials/ep3-knowledge/ep3-knowledge.en.vtt" lang="en" title="Episode 3 — Knowledge" caption="Episode 3 — Knowledge (3:03, captions available)">
 
 </Video>
 

@@ -5,7 +5,7 @@ description: A three-minute tour — chat grounded in your own documents, agents
 
 The opener shows the whole workspace once, end to end, and names the three ideas the series keeps returning to: answers you can verify, automation with human oversight, and control over where your data lives and which models touch it. Watch it before the quickstart and the rest of the docs will feel familiar on arrival.
 
-<Video src="/videos/tutorials/ep1-welcome.en.mp4" poster="/videos/tutorials/ep1-welcome.en.webp" captions="/videos/tutorials/ep1-welcome.en.vtt" lang="en" title="Episode 1 — Welcome to Tale" caption="Episode 1 — Welcome to Tale (2:50, captions available)">
+<Video src="/videos/tutorials/ep1-welcome/ep1-welcome.en.mp4" poster="/videos/tutorials/ep1-welcome/ep1-welcome.en.webp" captions="/videos/tutorials/ep1-welcome/ep1-welcome.en.vtt" lang="en" title="Episode 1 — Welcome to Tale" caption="Episode 1 — Welcome to Tale (2:50, captions available)">
 
 </Video>
 

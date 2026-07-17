@@ -7,7 +7,7 @@ Integrationen sind die Brücken zwischen Tale und dem Rest deines Stacks: Agents
 
 Lieber erst zusehen? Episode 7 geht die Türen zur Außenwelt ab — Connectoren, MCP und die Grenzen — in knapp drei Minuten, mit Untertiteln.
 
-<Video src="/videos/tutorials/ep7-integrations.de.mp4" poster="/videos/tutorials/ep7-integrations.de.webp" captions="/videos/tutorials/ep7-integrations.de.vtt" lang="de" title="Episode 7 — Integrationen & die Außenwelt" caption="Episode 7 — Integrationen & die Außenwelt (2:52)">
+<Video src="/videos/tutorials/ep7-integrations/ep7-integrations.de.mp4" poster="/videos/tutorials/ep7-integrations/ep7-integrations.de.webp" captions="/videos/tutorials/ep7-integrations/ep7-integrations.de.vtt" lang="de" title="Episode 7 — Integrationen & die Außenwelt" caption="Episode 7 — Integrationen & die Außenwelt (2:52)">
 
 </Video>
 

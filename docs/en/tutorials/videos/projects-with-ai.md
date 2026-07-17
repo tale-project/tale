@@ -5,7 +5,7 @@ description: The shared workspace deep dive — the board mid-flight, project fi
 
 Chat is where you ask; projects are where the work lives. This episode walks the relaunch project the team actually runs — and then creates a task on camera, the usual way, so you can watch the triage automation score it and an agent take it. The backlog closes the loop: agents propose, people promote.
 
-<Video src="/videos/tutorials/ep6-projects.en.mp4" poster="/videos/tutorials/ep6-projects.en.webp" captions="/videos/tutorials/ep6-projects.en.vtt" lang="en" title="Episode 6 — Projects with AI" caption="Episode 6 — Projects with AI (2:21, captions available)">
+<Video src="/videos/tutorials/ep6-projects/ep6-projects.en.mp4" poster="/videos/tutorials/ep6-projects/ep6-projects.en.webp" captions="/videos/tutorials/ep6-projects/ep6-projects.en.vtt" lang="en" title="Episode 6 — Projects with AI" caption="Episode 6 — Projects with AI (2:21, captions available)">
 
 </Video>
 

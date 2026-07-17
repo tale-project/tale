@@ -9,7 +9,7 @@ Wenn du innerhalb des Produkts als Entwickler-Rolle arbeitest (Agents, Workflows
 
 Lieber erst zusehen? Die Bonus-Episode geht die Entwickler-Oberfläche ab — Schlüssel, APIs, Webhooks, Sandbox-Coding-Agenten — in gut zwei Minuten.
 
-<Video src="/videos/tutorials/ep10-developers.de.mp4" poster="/videos/tutorials/ep10-developers.de.webp" captions="/videos/tutorials/ep10-developers.de.vtt" lang="de" title="Bonus — Tale für Entwickler" caption="Bonus — Tale für Entwickler (2:38)">
+<Video src="/videos/tutorials/ep10-developers/ep10-developers.de.mp4" poster="/videos/tutorials/ep10-developers/ep10-developers.de.webp" captions="/videos/tutorials/ep10-developers/ep10-developers.de.vtt" lang="de" title="Bonus — Tale für Entwickler" caption="Bonus — Tale für Entwickler (2:38)">
 
 </Video>
 

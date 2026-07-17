@@ -7,7 +7,7 @@ Integrations are the bridges between Tale and the rest of your stack: agents cal
 
 Prefer to watch first? Episode 7 walks the doors to the outside world — connectors, MCP, and the boundaries — in two and a half minutes, captions included.
 
-<Video src="/videos/tutorials/ep7-integrations.en.mp4" poster="/videos/tutorials/ep7-integrations.en.webp" captions="/videos/tutorials/ep7-integrations.en.vtt" lang="en" title="Episode 7 — Integrations & the outside world" caption="Episode 7 — Integrations & the outside world (2:30)">
+<Video src="/videos/tutorials/ep7-integrations/ep7-integrations.en.mp4" poster="/videos/tutorials/ep7-integrations/ep7-integrations.en.webp" captions="/videos/tutorials/ep7-integrations/ep7-integrations.en.vtt" lang="en" title="Episode 7 — Integrations & the outside world" caption="Episode 7 — Integrations & the outside world (2:30)">
 
 </Video>
 

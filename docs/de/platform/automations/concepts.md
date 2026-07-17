@@ -7,7 +7,7 @@ Eine Automatisierung ist die Einheit, zu der Tale greift, wenn eine Aufgabe mehr
 
 Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine echte Freigabekarte vor der Kamera — mit Untertiteln.
 
-<Video src="/videos/tutorials/ep5-automations.de.mp4" poster="/videos/tutorials/ep5-automations.de.webp" captions="/videos/tutorials/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11)">
+<Video src="/videos/tutorials/ep5-automations/ep5-automations.de.mp4" poster="/videos/tutorials/ep5-automations/ep5-automations.de.webp" captions="/videos/tutorials/ep5-automations/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11)">
 
 </Video>
 

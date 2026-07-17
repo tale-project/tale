@@ -5,7 +5,7 @@ description: Die Bibliothek hinter jeder verankerten Antwort — Dokumente und I
 
 Die verankerten Antworten aus Episode 2 kamen alle aus einem Ort. Diese Episode öffnet ihn: was das Abzeichen „Indexiert" wirklich bedeutet (und warum Indexieren kein Training ist), ein Wissenseintrag, live angelegt und zwei Minuten später von einem Agenten zitiert, typisierte Datensätze neben Prosa-Dokumenten, die ehrliche Grenze des Crawlers und die Zugriffsschalter, die Sichtbarkeit zur Entscheidung machen statt zum Zufall.
 
-<Video src="/videos/tutorials/ep3-knowledge.de.mp4" poster="/videos/tutorials/ep3-knowledge.de.webp" captions="/videos/tutorials/ep3-knowledge.de.vtt" lang="de" title="Episode 3 — Wissen" caption="Episode 3 — Wissen (3:22, mit Untertiteln)">
+<Video src="/videos/tutorials/ep3-knowledge/ep3-knowledge.de.mp4" poster="/videos/tutorials/ep3-knowledge/ep3-knowledge.de.webp" captions="/videos/tutorials/ep3-knowledge/ep3-knowledge.de.vtt" lang="de" title="Episode 3 — Wissen" caption="Episode 3 — Wissen (3:22, mit Untertiteln)">
 
 </Video>
 

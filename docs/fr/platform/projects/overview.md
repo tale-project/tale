@@ -7,7 +7,7 @@ Un projet est un espace de travail partagé qui regroupe tout ce dont un travail
 
 Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deux minutes et demie — avec une tâche qu’un agent prend à l’écran.
 
-<Video src="/videos/tutorials/ep6-projects.fr.mp4" poster="/videos/tutorials/ep6-projects.fr.webp" captions="/videos/tutorials/ep6-projects.fr.vtt" lang="fr" title="Épisode 6 — Les projets avec l'IA" caption="Épisode 6 — Les projets avec l'IA (2:21)">
+<Video src="/videos/tutorials/ep6-projects/ep6-projects.fr.mp4" poster="/videos/tutorials/ep6-projects/ep6-projects.fr.webp" captions="/videos/tutorials/ep6-projects/ep6-projects.fr.vtt" lang="fr" title="Épisode 6 — Les projets avec l'IA" caption="Épisode 6 — Les projets avec l'IA (2:21)">
 
 </Video>
 

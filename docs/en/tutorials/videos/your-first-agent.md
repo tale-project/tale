@@ -5,7 +5,7 @@ description: An agent built end to end on camera — name, instructions, knowled
 
 Chat taught you to ask; knowledge taught you what answers stand on. This episode builds the thing that puts both to work: an agent, created from scratch on camera. The through-line is the trust boundary — every tool you grant widens what the agent can do, so the smallest agent that does the job is the safest one.
 
-<Video src="/videos/tutorials/ep4-agent.en.mp4" poster="/videos/tutorials/ep4-agent.en.webp" captions="/videos/tutorials/ep4-agent.en.vtt" lang="en" title="Episode 4 — Your first agent" caption="Episode 4 — Your first agent (2:46, captions available)">
+<Video src="/videos/tutorials/ep4-agent/ep4-agent.en.mp4" poster="/videos/tutorials/ep4-agent/ep4-agent.en.webp" captions="/videos/tutorials/ep4-agent/ep4-agent.en.vtt" lang="en" title="Episode 4 — Your first agent" caption="Episode 4 — Your first agent (2:46, captions available)">
 
 </Video>
 

@@ -9,7 +9,7 @@ Six rôles couvrent presque chaque équipe à laquelle Tale est livré. Les Admi
 
 Tu préfères regarder d’abord ? L’épisode 8 parcourt l’effectif, l’échelle des rôles et les murs d’équipe en deux minutes — sous-titres compris.
 
-<Video src="/videos/tutorials/ep8-people.fr.mp4" poster="/videos/tutorials/ep8-people.fr.webp" captions="/videos/tutorials/ep8-people.fr.vtt" lang="fr" title="Épisode 8 — Personnes, rôles & équipes" caption="Épisode 8 — Personnes, rôles & équipes (2:06)">
+<Video src="/videos/tutorials/ep8-people/ep8-people.fr.mp4" poster="/videos/tutorials/ep8-people/ep8-people.fr.webp" captions="/videos/tutorials/ep8-people/ep8-people.fr.vtt" lang="fr" title="Épisode 8 — Personnes, rôles & équipes" caption="Épisode 8 — Personnes, rôles & équipes (2:06)">
 
 </Video>
 

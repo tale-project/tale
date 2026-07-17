@@ -7,7 +7,7 @@ Une automatisation est l’unité vers laquelle Tale se tourne quand un travail 
 
 Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de triage de bout en bout et décide une vraie carte de validation à l’écran — sous-titres compris.
 
-<Video src="/videos/tutorials/ep5-automations.fr.mp4" poster="/videos/tutorials/ep5-automations.fr.webp" captions="/videos/tutorials/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34)">
+<Video src="/videos/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34)">
 
 </Video>
 

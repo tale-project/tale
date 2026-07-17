@@ -17,9 +17,9 @@ type Story = StoryObj<typeof meta>;
  *  caption bar, native controls) is what the story exercises. */
 export const Tutorial: Story = {
   args: {
-    src: '/videos/tutorials/ep1-welcome.en.mp4',
-    poster: '/videos/tutorials/ep1-welcome.en.webp',
-    captions: '/videos/tutorials/ep1-welcome.en.vtt',
+    src: '/videos/tutorials/ep1-welcome/ep1-welcome.en.mp4',
+    poster: '/videos/tutorials/ep1-welcome/ep1-welcome.en.webp',
+    captions: '/videos/tutorials/ep1-welcome/ep1-welcome.en.vtt',
     lang: 'en',
     title: 'Welcome to Tale',
     caption: 'Episode 1 — Welcome to Tale (3 min)',
@@ -28,8 +28,8 @@ export const Tutorial: Story = {
 
 export const WithoutCaptionBar: Story = {
   args: {
-    src: '/videos/tutorials/ep1-welcome.en.mp4',
-    captions: '/videos/tutorials/ep1-welcome.en.vtt',
+    src: '/videos/tutorials/ep1-welcome/ep1-welcome.en.mp4',
+    captions: '/videos/tutorials/ep1-welcome/ep1-welcome.en.vtt',
     lang: 'en',
     title: 'Welcome to Tale',
   },

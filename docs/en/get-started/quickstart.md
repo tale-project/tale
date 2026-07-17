@@ -13,7 +13,7 @@ This is the shortest path to a working chat with an agent: get an instance, sign
 
 Prefer the tour as a video? Episode 1 walks the same ground in three minutes — captions included.
 
-<Video src="/videos/tutorials/ep1-welcome.en.mp4" poster="/videos/tutorials/ep1-welcome.en.webp" captions="/videos/tutorials/ep1-welcome.en.vtt" lang="en" title="Episode 1 — Welcome to Tale" caption="Episode 1 — Welcome to Tale (2:48)">
+<Video src="/videos/tutorials/ep1-welcome/ep1-welcome.en.mp4" poster="/videos/tutorials/ep1-welcome/ep1-welcome.en.webp" captions="/videos/tutorials/ep1-welcome/ep1-welcome.en.vtt" lang="en" title="Episode 1 — Welcome to Tale" caption="Episode 1 — Welcome to Tale (2:48)">
 
 </Video>
 
