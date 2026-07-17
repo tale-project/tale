@@ -19,7 +19,7 @@ Workflows leben in der Automatisierung, die sie antreiben: Öffne die Automatisi
 
 Schalte den **KI-Editor** in der Leinwand-Werkzeugleiste ein und beschreib die ganze Form in einer Nachricht:
 
-> Lass jeden Werktag um 08:00 den Agent <dein Agent> die ungelesenen Kundennachrichten von gestern in einen Absatz zusammenfassen, dann einen Menschen den Entwurf prüfen, und schick nur den freigegebenen Text an den Team-Kanal.
+> Lass jeden Werktag um 08:00 den Agent <dein Agent> die ungelesenen Kontaktnachrichten von gestern in einen Absatz zusammenfassen, dann einen Menschen den Entwurf prüfen, und schick nur den freigegebenen Text an den Team-Kanal.
 
 Der KI-Editor antwortet mit einer Vorschlagskarte — **Workflow erstellen** mit der Schrittzahl, oder **Workflow aktualisieren**, wenn er den geöffneten umbaut. Solange die Karte aussteht, passiert an der Definition nichts: Klapp sie auf, prüf die gelisteten Schritte — ein **LLM**-Schritt für den Entwurf, die Review-Pause, der Versand — und genehmige sie. Die Änderung wird angewendet und versioniert wie jedes manuelle Speichern.
 

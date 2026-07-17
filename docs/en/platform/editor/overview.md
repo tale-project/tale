@@ -9,7 +9,7 @@ This overview names what an Editor does, where they do it, and which pages cover
 
 ## What Editor covers
 
-The work an Editor does falls into four buckets: building **agents** (instructions, knowledge bindings, tools, models), curating the **knowledge base** (uploading documents, maintaining customers, products, vendors, websites), authoring **automations** (workflows with triggers, steps, and approval gates), and bundling **projects** (file sets, scoped agents, project instructions). Each bucket has its own section in Platform; the Editor tab is the index across them.
+The work an Editor does falls into four buckets: building **agents** (instructions, knowledge bindings, tools, models), curating the **knowledge base** (uploading documents, maintaining contacts, products, vendors, websites), authoring **automations** (workflows with triggers, steps, and approval gates), and bundling **projects** (file sets, scoped agents, project instructions). Each bucket has its own section in Platform; the Editor tab is the index across them.
 
 Editors share the build surface with Developers — Developers also see all four buckets and can do everything an Editor can, plus the API and integration plane. Reach for an Editor when the day-to-day work is content and configuration; reach for a Developer when the work crosses into code or external systems.
 
@@ -39,7 +39,7 @@ The documents and structured-data area an Editor curates.
 
 <Card title="Projects" icon="folder-open" href="/platform/projects/overview">
 
-The shared workspace an Editor bundles around a customer or a launch.
+The shared workspace an Editor bundles around a contact or a launch.
 
 </Card>
 

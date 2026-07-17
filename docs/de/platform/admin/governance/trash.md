@@ -24,7 +24,7 @@ Der Papierkorb hält Zeilen aus vielen Kategorien. Der Kategoriefilter wechselt 
 - Temporäre Dateien
 - Prompt-Vorlagen
 - Nachrichten-Feedback
-- Kunden
+- Kontakte
 - Lieferanten
 - Externe Konversationen
 - Nachrichten-Metadaten

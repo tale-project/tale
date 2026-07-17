@@ -9,7 +9,7 @@ Cette page couvre la surface opérateur. Les contrôles côté admin et les desc
 
 ## Comment marchent les bornes
 
-Chaque catégorie de rétention — fils de chat, documents, clients, fournisseurs, templates de prompt, lignes de ledger, audit logs, exécutions de workflow, logs de triggers de workflow, tentatives de login — a un `min` et un `max`. Un admin d'org fixe une valeur dans cette fenêtre. Resserrer le plancher sur une instance existante est un flow en plusieurs étapes : l'opérateur propose la nouvelle borne, chaque admin affecté voit une bannière, le changement s'applique une fois accepté.
+Chaque catégorie de rétention — fils de chat, documents, contacts, fournisseurs, templates de prompt, lignes de ledger, audit logs, exécutions de workflow, logs de triggers de workflow, tentatives de login — a un `min` et un `max`. Un admin d'org fixe une valeur dans cette fenêtre. Resserrer le plancher sur une instance existante est un flow en plusieurs étapes : l'opérateur propose la nouvelle borne, chaque admin affecté voit une bannière, le changement s'applique une fois accepté.
 
 | Catégorie                    | Plancher typique | Pourquoi                                                  |
 | ---------------------------- | ---------------- | --------------------------------------------------------- |

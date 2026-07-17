@@ -33,6 +33,8 @@ Die Definition jeder Integration — ihr Konfigurationsschema, ihr Connector, ih
 
 Zum Rotieren öffne die Zeile der Integration und klick auf **Anmeldedaten rotieren**. OAuth-Integrationen gehen den Tanz nochmal mit denselben Scopes; API-Schlüssel-Integrationen zeigen ein Feld für den neuen Schlüssel. Die alte Anmeldung hört auf zu funktionieren, sobald die neue verifiziert ist — auf Integrations-Ebene gibt es kein Überlappungsfenster für Anmeldedaten. Greif zur Rotation in dem Rhythmus, den deine Sicherheitsrichtlinie vorgibt, oder wann immer das Upstream-System meldet, dass die Anmeldung kompromittiert ist.
 
+Wenn ein Plattform-Upgrade einer OAuth-Integration, die du schon verbunden hast, neue Scopes hinzufügt, rotier einmal, damit der Consent-Bildschirm sie vergibt. **Outlook** ist der aktuelle Fall: nach dem Upgrade, das die Kontoadresse fürs Verfassen liest, müssen bestehende Outlook-Verbindungen einmal rotieren, bevor das Verfassen die echte Adresse statt des bloßen Anbieternamens zeigt — bis dahin funktioniert das Senden weiter; nur das Erfassen der Adresse wartet auf den neuen Scope `User.Read`.
+
 ## Eine Integration einschränken
 
 Über die Anmeldedaten hinaus trägt eine Integration zwei Eingrenzungs-Hebel unter ihrer Zeile:

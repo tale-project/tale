@@ -19,7 +19,7 @@ Workflows live inside the automation they power: open the automation and its **E
 
 Toggle the **AI editor** on the canvas toolbar and describe the whole shape in one message:
 
-> Every weekday at 08:00, have the <your agent> agent summarise yesterday's unread customer messages into one paragraph, then ask a human to review the draft, and only send the approved text to the team channel.
+> Every weekday at 08:00, have the <your agent> agent summarise yesterday's unread contact messages into one paragraph, then ask a human to review the draft, and only send the approved text to the team channel.
 
 The AI editor answers with a proposal card — **Create workflow** with the step count, or **Update workflow** when it reworks the one you opened. Nothing touches the definition while the card is pending: expand it, check the steps it lists — an **LLM** step for the draft, the review pause, the send — and approve it. The change is applied and versioned like any manual save.
 

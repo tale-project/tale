@@ -3,7 +3,7 @@ title: Member
 description: Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox, act on approvals. The pages here are what someone with the Member role does day to day.
 ---
 
-Member is the default role most people in most orgs carry. It is the end-user surface of Tale — chat with agents, browse the knowledge base, reply to customer email in an installed automation's Inbox, act on the approvals others have routed to you, and leave feedback on replies. Members do not build agents, do not configure providers, do not install automations. They use the product the Editors and Developers built for them.
+Member is the default role most people in most orgs carry. It is the end-user surface of Tale — chat with agents, browse the knowledge base, reply to contact email in an installed automation's Inbox, act on the approvals others have routed to you, and leave feedback on replies. Members do not build agents, do not configure providers, do not install automations. They use the product the Editors and Developers built for them.
 
 This overview names what a Member can do and points at the per-feature pages. Members typically land on Chat first; the rest of this page is what to read once chat alone is not enough — when you want to know where a citation came from, what an approval card is, or what a project bundles.
 
@@ -12,7 +12,7 @@ This overview names what a Member can do and points at the per-feature pages. Me
 The Member surface is intentionally narrow. The four buckets are:
 
 - **Chat** — pick an agent (or none), send a message, read the reply. The chat surfaces the prompt library, attachments, voice mode, arena mode for side-by-side comparison, and the Canvas pane when a reply produces more than the chat can hold inline.
-- **Knowledge** — browse documents, customers, products, vendors, websites the org has loaded. Read-only for Members; the curating happens on the Editor side.
+- **Knowledge** — browse documents, contacts, products, vendors, websites the org has loaded. Read-only for Members; the curating happens on the Editor side.
 - **Inbox** — reply in the **Inbox** tab an installed email automation adds. Members answer when an agent hands a conversation back; installing the automation itself is an admin action.
 - **Approvals** — read the approval cards routed to you. Click Approve, Reject, or Request changes; leave a comment if the rule asks for one.
 

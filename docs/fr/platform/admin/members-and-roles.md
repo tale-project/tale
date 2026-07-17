@@ -29,9 +29,9 @@ Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le cha
 
 **Développeur** construit : agents, automatisations, intégrations, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’intégration.
 
-**Éditeur** organise et opère : agents, base de connaissances (documents, clients, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de prompts. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les intégrations mais pas les configurer. Va vers Éditeur quand quelqu’un fait le travail produit quotidien sans toucher au plan API ou intégrations.
+**Éditeur** organise et opère : agents, base de connaissances (documents, contacts, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de prompts. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les intégrations mais pas les configurer. Va vers Éditeur quand quelqu’un fait le travail produit quotidien sans toucher au plan API ou intégrations.
 
-**Membre** exécute : chat, parcourt la base de connaissances, lit les conversations et approbations qui lui sont assignées. Les Membres n’écrivent que dans le feedback de message (pouce en haut / en bas). Va vers Membre comme défaut — la plupart des utilisateurs dans la plupart des organisations sont Membres.
+**Membre** exécute : chat, parcourt la base de connaissances, et lit les conversations et approbations. La lecture des conversations est organisationnelle par défaut ; active **Contrôle selon l’assignation des conversations** sous [Politiques et limites](/fr/platform/admin/governance/policies-and-limits#controle-selon-lassignation-des-conversations) quand les Membres ne doivent voir que les fils non assignés plus ceux qui leur sont assignés ou à leurs équipes. Les Membres n’écrivent que dans le feedback de message (pouce en haut / en bas). Va vers Membre comme défaut — la plupart des utilisateurs dans la plupart des organisations sont Membres.
 
 **Désactivé** n’a aucune permission. Utilise ça pour révoquer l’accès sans supprimer le compte ; les transcriptions et l’historique d’audit restent intacts, et réactiver restaure le rôle précédent.
 
@@ -42,7 +42,7 @@ Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le cha
 | Agents                    | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Documents                 | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Produits                  | R / W        | R / W | R / W       | R / W   | R      | —         |
-| Clients                   | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Contacts                  | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Fournisseurs              | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Projets                   | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Sites web                 | R / W        | R / W | R / W       | R / W   | R      | —         |

@@ -3,7 +3,7 @@ title: Projects
 description: A project is a shared workspace that bundles chats, files, instructions, tasks, and discussions around one piece of work. This overview maps the project tabs and points to the page that goes deeper on each.
 ---
 
-A project is a shared workspace that bundles everything one piece of work needs — the chats, the reference files, the instructions, the task board, and the discussions — so the context follows the work instead of being re-pasted into every chat. Where a single chat answers one question, a project is where a team keeps a customer, a launch, or a long-running investigation moving.
+A project is a shared workspace that bundles everything one piece of work needs — the chats, the reference files, the instructions, the task board, and the discussions — so the context follows the work instead of being re-pasted into every chat. Where a single chat answers one question, a project is where a team keeps a contact, a launch, or a long-running investigation moving.
 
 <Frame caption="A project's task board — one of the eight tabs every project carries.">
 

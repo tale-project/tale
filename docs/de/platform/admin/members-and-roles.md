@@ -29,9 +29,9 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 
 **Entwickler** baut: Agents, Workflows, Integrationen, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Integrations-Tooling braucht.
 
-**Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kunden, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Prompt-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Integrationen lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Integrationsebene zu berühren.
+**Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Prompt-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Integrationen lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Integrationsebene zu berühren.
 
-**Mitglied** nutzt: Chat, durchsucht die Wissensdatenbank, liest Konversationen und Genehmigungen, die ihm zugewiesen sind. Mitglieder schreiben nur an Nachrichten-Feedback (Daumen hoch / runter). Greif zu Mitglied als Default — die meisten Benutzer in den meisten Organisationen sind Mitglieder.
+**Mitglied** nutzt: Chat, durchsucht die Wissensdatenbank und liest Konversationen und Genehmigungen. Konversationen sind standardmäßig organisationsweit lesbar; schalt **Konversationssteuerung nach Zuständigkeit** unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits#konversationssteuerung-nach-zustaendigkeit) ein, wenn Mitglieder nur nicht zugewiesene Threads plus die sehen sollen, die ihnen oder ihren Teams zugewiesen sind. Mitglieder schreiben nur an Nachrichten-Feedback (Daumen hoch / runter). Greif zu Mitglied als Default — die meisten Benutzer in den meisten Organisationen sind Mitglieder.
 
 **Deaktiviert** hat keine Berechtigungen. Nutz das, um Zugriff zu entziehen, ohne den Account zu löschen; Transkripte und Audit-Historie bleiben intakt, und ein Reaktivieren stellt die vorherige Rolle wieder her.
 
@@ -42,7 +42,7 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 | Agents                    | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Dokumente                 | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Produkte                  | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Kunden                    | R / W   | R / W | R / W      | R / W     | R        | —           |
+| Kontakte                  | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Lieferanten               | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Projekte                  | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Websites                  | R / W   | R / W | R / W      | R / W     | R        | —           |

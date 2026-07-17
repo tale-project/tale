@@ -34,7 +34,7 @@ Strukturierte Datensätze und Live-Quellen sind Tools, kein Wissen — und Datei
 | Nutze…                                                  | Wenn der Agent braucht…                                       |
 | ------------------------------------------------------- | ------------------------------------------------------------- |
 | Wissen (dieser Tab)                                     | Hochgeladene Dokumente in jedem Chat durchsuchen und zitieren |
-| [Tools](/de/platform/agents/tools)                      | Kunden, Produkte, Lieferanten, Websites oder Live-Systeme     |
+| [Tools](/de/platform/agents/tools)                      | Kontakte, Produkte, Lieferanten, Websites oder Live-Systeme   |
 | [Anhänge](/de/platform/chat/attachments)                | Eine Datei, die nur für einen Chat zählt                      |
 | [Projekt-Agenten](/de/platform/projects/project-agents) | Wissen, das auf ein Projekt begrenzt ist                      |
 

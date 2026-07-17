@@ -4,7 +4,7 @@ description: Tale is the orchestrator for AI agents. Start with the quickstart, 
 kind: index
 ---
 
-You chat with models over your own documents, build agents that handle a job end to end, run automations in the background, and manage customer conversations from one inbox — with your choice of AI providers and your data pinned to a region you control.
+You chat with models over your own documents, build agents that handle a job end to end, run automations in the background, and manage contact conversations from one inbox — with your choice of AI providers and your data pinned to a region you control.
 
 Every feature, API, and role is identical across the two editions; the only difference is who runs the stack. Start with the quickstart, then follow the journey that matches your role.
 

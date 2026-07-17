@@ -15,7 +15,7 @@ Deep research beats a plain chat for questions where the value is not the model'
 - You want citations — a quote without a URL is a guess.
 - You are happy to wait two to ten minutes for a written report instead of a chat reply.
 
-For narrow factual questions ("what is the capital of Senegal") plain chat is faster and just as accurate. For questions about your own data ("what did the customer say in last Tuesday's call") an agent with [Knowledge](/platform/agents/knowledge) bindings is the right shape — Deep research only reads the open web, not your knowledge base.
+For narrow factual questions ("what is the capital of Senegal") plain chat is faster and just as accurate. For questions about your own data ("what did the contact say in last Tuesday's call") an agent with [Knowledge](/platform/agents/knowledge) bindings is the right shape — Deep research only reads the open web, not your knowledge base.
 
 ## Open Deep research
 

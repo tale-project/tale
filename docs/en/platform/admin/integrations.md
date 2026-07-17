@@ -33,6 +33,8 @@ Each integration's definition — its configuration schema, connector, and icon 
 
 To rotate, open the integration's row and click **Rotate credentials**. OAuth integrations walk the dance again with the same scopes; API-key integrations show a field for the new key. The old credential stops working as soon as the new one is verified — there is no overlap window for credentials at the integration level. Reach for rotation on the cadence your security policy mandates, or whenever the upstream system reports the credential is compromised.
 
+When a platform upgrade adds scopes to an OAuth integration you already connected, rotate once so the consent screen grants them. **Outlook** is the current case: after the upgrade that reads the account address for compose, existing Outlook connections must rotate before compose shows the real address instead of the bare provider name — until then sending still works; only the address capture waits on the new `User.Read` scope.
+
 ## Restricting an integration
 
 Beyond the credential, an integration carries two scoping levers under its row:

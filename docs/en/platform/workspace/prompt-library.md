@@ -3,7 +3,7 @@ title: Prompt library
 description: The Prompt library is where you save chat prompts for reuse — personal, team, or org-wide. Members, Editors, and Developers read this when they keep a recurring chat starter handy.
 ---
 
-The Prompt library is the saved-prompts surface of Tale. It is where you keep the chat starters you reach for more than once — a writing-voice prompt you reuse for every customer email draft, a debugging prompt your team passes around, a research prompt the whole org should agree on. Every role above Disabled can save and use prompts; the **visibility** lever on each prompt decides who else sees it.
+The Prompt library is the saved-prompts surface of Tale. It is where you keep the chat starters you reach for more than once — a writing-voice prompt you reuse for every contact email draft, a debugging prompt your team passes around, a research prompt the whole org should agree on. Every role above Disabled can save and use prompts; the **visibility** lever on each prompt decides who else sees it.
 
 This page is the reference for what a prompt is, how the three visibility levels behave, how the version history works, and how prompts get into a chat. The library lives under **Prompts** in the sidebar; the same library surfaces inline in the chat.
 
@@ -47,7 +47,7 @@ The version history is the place to look when a teammate edited a global prompt 
 
 The chat has a prompt picker at its base. Open it, search or filter to find the prompt you want, and click it to paste the content into the chat. The prompt is now your message — edit it, attach files, add context, send. Once sent, the prompt acts the way any chat input does; Tale does not track which chats used which prompts.
 
-Some prompts contain template variables — placeholders like `{{customer_name}}` or `{{topic}}`. The picker prompts you for each variable before pasting; the resulting content is the prompt with the placeholders filled in. Variables are declared in the prompt's content with the `{{variable_name}}` syntax.
+Some prompts contain template variables — placeholders like `{{contact_name}}` or `{{topic}}`. The picker prompts you for each variable before pasting; the resulting content is the prompt with the placeholders filled in. Variables are declared in the prompt's content with the `{{variable_name}}` syntax.
 
 ## Limits and lifecycle
 

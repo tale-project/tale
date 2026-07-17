@@ -51,7 +51,7 @@ An agent with the human-input tool can pause mid-task and ask you something — 
 
 ## Conversations versus chats
 
-Within Chat, the unit is a **chat** — that is the word every button and toast uses. The data model behind it is called `threads`, and the URL slug is `threads/$threadId`; the docs follow the UI and say "chat" in body prose. The customer-channel inbox an installed email automation adds is a different surface — a conversation there is a customer thread, not a chat; see [Built-in automations](/platform/automations/builtin) for the inbox sense.
+Within Chat, the unit is a **chat** — that is the word every button and toast uses. The data model behind it is called `threads`, and the URL slug is `threads/$threadId`; the docs follow the UI and say "chat" in body prose. The contact-channel inbox an installed email automation adds is a different surface — a conversation there is a contact thread, not a chat; see [Built-in automations](/platform/automations/builtin) for the inbox sense.
 
 ## History and search
 

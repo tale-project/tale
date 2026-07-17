@@ -13,7 +13,7 @@ Diese Seite vermittelt dir das mentale Modell, das der Rest des Abschnitts vorau
 
 **Wissen** ist das, was der Agent aus der Wissensdatenbank der Organisation abrufen kann. Ein Abrufmodus entscheidet, ob der Agent bei Bedarf sucht, ob relevante Chunks in jede Antwort injiziert werden, ob beides passiert oder keines — und Scope-Schalter entscheiden, ob Team-Dokumente, Organisationsdokumente und die eigenen Uploads des Agents durchsuchbar sind. Wissen außerhalb dieser Scopes ist für den Agent unsichtbar — es gibt kein implizites Ziehen aus allem, was die Organisation besitzt.
 
-**Tools** sind das, was der Agent über Text-Antworten hinaus tun kann. Der Tab **Tools** des Agents ist eine Checkliste pro Tool, gruppiert nach Kategorie — Kunden- und Produktdaten, Dateien, Workflows, Websuche, Code-Ausführung und mehr. Schalte jedes Tool einzeln frei; jedes Tool, das du gewährst, weitet die Vertrauensgrenze, also halte die Liste kurz.
+**Tools** sind das, was der Agent über Text-Antworten hinaus tun kann. Der Tab **Tools** des Agents ist eine Checkliste pro Tool, gruppiert nach Kategorie — Kontakt- und Produktdaten, Dateien, Workflows, Websuche, Code-Ausführung und mehr. Schalte jedes Tool einzeln frei; jedes Tool, das du gewährst, weitet die Vertrauensgrenze, also halte die Liste kurz.
 
 **Modell** ist das LLM hinter jeder Antwort. Modelle sind eine geordnete Liste: der erste Eintrag ist das primäre Modell, der Rest sind Fallbacks, die Tale der Reihe nach probiert, wenn das primäre nicht verfügbar ist. Ein Modellwechsel trainiert nichts neu — die anderen drei Knöpfe des Agents sind das „Gedächtnis“ des Modells für den Job.
 

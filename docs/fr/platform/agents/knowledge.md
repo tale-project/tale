@@ -31,12 +31,12 @@ Quand l’agent récupère, les citations s’attachent aux phrases qu’elles s
 
 Les enregistrements structurés et les sources vivantes sont des outils, pas des connaissances — et les fichiers pour une seule conversation sont des pièces jointes. Les frontières :
 
-| Utilise…                                                 | Quand l’agent a besoin…                                            |
-| -------------------------------------------------------- | ------------------------------------------------------------------ |
-| les connaissances (cet onglet)                           | De chercher et citer des documents téléversés à chaque chat        |
-| [Outils](/fr/platform/agents/tools)                      | Des clients, produits, fournisseurs, sites web ou systèmes vivants |
-| [Pièces jointes](/fr/platform/chat/attachments)          | D’un fichier qui ne compte que pour un seul chat                   |
-| [Agents de projet](/fr/platform/projects/project-agents) | De connaissances cantonnées à un seul Projet                       |
+| Utilise…                                                 | Quand l’agent a besoin…                                             |
+| -------------------------------------------------------- | ------------------------------------------------------------------- |
+| les connaissances (cet onglet)                           | De chercher et citer des documents téléversés à chaque chat         |
+| [Outils](/fr/platform/agents/tools)                      | Des contacts, produits, fournisseurs, sites web ou systèmes vivants |
+| [Pièces jointes](/fr/platform/chat/attachments)          | D’un fichier qui ne compte que pour un seul chat                    |
+| [Agents de projet](/fr/platform/projects/project-agents) | De connaissances cantonnées à un seul Projet                        |
 
 ## Où ça se situe
 

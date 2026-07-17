@@ -13,7 +13,7 @@ This page hands you the mental model the rest of the section assumes. Read it on
 
 **Knowledge** is what the agent can retrieve from the org's knowledge base. A retrieval mode decides whether the agent searches on demand, has relevant chunks injected into every reply, does both, or neither — and scope switches decide whether team documents, organization documents, and the agent's own uploads are searchable. Knowledge outside those scopes is invisible to the agent — there is no implicit pull from everything the org owns.
 
-**Tools** are what the agent can do beyond replying with text. The agent's **Tools** tab is a per-tool checklist grouped by category — customer and product data, files, workflows, web search, code execution, and more. Toggle each tool individually; every tool you grant widens the trust boundary, so keep the list short.
+**Tools** are what the agent can do beyond replying with text. The agent's **Tools** tab is a per-tool checklist grouped by category — contact and product data, files, workflows, web search, code execution, and more. Toggle each tool individually; every tool you grant widens the trust boundary, so keep the list short.
 
 **Model** is the LLM behind every reply. Models are an ordered list: the first entry is the primary, and the rest are fallbacks Tale tries in order when the primary is unavailable. Switching the model does not re-train anything — the agent's other three knobs are the model's "memory" of the job.
 

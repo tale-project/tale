@@ -19,7 +19,7 @@ Les workflows vivent dans l'automatisation qu'ils animent : ouvre l'automatisati
 
 Active l'**Éditeur IA** dans la barre d'outils du canevas et décris toute la forme en un seul message :
 
-> Chaque jour ouvré à 8 h, fais résumer par l'agent <ton agent> les messages clients non lus d'hier en un paragraphe, puis fais relire le brouillon par un humain, et n'envoie au canal d'équipe que le texte approuvé.
+> Chaque jour ouvré à 8 h, fais résumer par l'agent <ton agent> les messages de contacts non lus d'hier en un paragraphe, puis fais relire le brouillon par un humain, et n'envoie au canal d'équipe que le texte approuvé.
 
 L'Éditeur IA répond par une carte de proposition — **Créer le workflow** avec le nombre d'étapes, ou **Mettre à jour le workflow** s'il retravaille celui que tu as ouvert. Tant que la carte est en attente, rien ne touche la définition : déplie-la, vérifie les étapes listées — une étape **LLM** pour le brouillon, la pause de relecture, l'envoi — et approuve-la. Le changement s'applique et se versionne comme n'importe quelle sauvegarde manuelle.
 

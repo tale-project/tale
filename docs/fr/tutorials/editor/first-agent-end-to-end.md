@@ -9,7 +9,7 @@ Il te faut un rôle Éditeur et un modèle marqué Chat configuré chez le fourn
 
 ## Avant de commencer
 
-Confirme trois choses. Ton rôle est au moins Éditeur — l'édition d'agent est verrouillée à Éditeur et au-dessus. L'organisation a un fournisseur configuré et au moins un modèle marqué Chat dessus ; sans cela, la réponse de test à la fin échoue sur l'appel au modèle. Tu as une question en tête à laquelle l'agent doit répondre — choisis quelque chose d'assez étroit pour qu'un paragraphe d'instructions puisse l'encadrer, comme « résume un message client entrant en une phrase plus une action suivante recommandée ».
+Confirme trois choses. Ton rôle est au moins Éditeur — l'édition d'agent est verrouillée à Éditeur et au-dessus. L'organisation a un fournisseur configuré et au moins un modèle marqué Chat dessus ; sans cela, la réponse de test à la fin échoue sur l'appel au modèle. Tu as une question en tête à laquelle l'agent doit répondre — choisis quelque chose d'assez étroit pour qu'un paragraphe d'instructions puisse l'encadrer, comme « résume un message d'un contact entrant en une phrase plus une action suivante recommandée ».
 
 ## Étape 1 — Écrire les instructions
 
@@ -36,7 +36,7 @@ Si l'agent doit écrire l'action recommandée dans un CRM, tu activerais plus ta
 
 Ouvre l'onglet **Modèle** et choisis le défaut de l'organisation comme primaire ; règle un modèle plus petit en fallback pour que l'agent tourne encore quand le primaire est rate-limited. Enregistre, puis clique **Publier**. L'agent est désormais visible dans le chat pour toute personne avec le bon rôle.
 
-Ouvre un chat avec `Triage assistant` et colle un vrai message client. La réponse doit atterrir en deux lignes selon les instructions — un résumé en une phrase et une action recommandée. Si le format dérive, resserre les instructions et republie ; c'est la boucle dans laquelle tu passes le plus de temps.
+Ouvre un chat avec `Triage assistant` et colle un vrai message d'un contact. La réponse doit atterrir en deux lignes selon les instructions — un résumé en une phrase et une action recommandée. Si le format dérive, resserre les instructions et republie ; c'est la boucle dans laquelle tu passes le plus de temps.
 
 ## Où ça s'utilise
 

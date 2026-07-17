@@ -221,7 +221,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Aufgaben-Automatisierung",
-      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, das menschliche Review-Gate, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
+      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, die Prüfung direkt über den Status In Prüfung, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
     }
   },
   "de:platform/workspace/prompt-library": {
@@ -598,7 +598,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Strukturierte Daten",
-      "description": "Tales Wissensdatenbank bringt vier eingebaute strukturierte Entitäten mit — Kunden, Produkte, Lieferanten, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt."
+      "description": "Tales Wissensdatenbank bringt vier eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Lieferanten, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt."
     }
   },
   "de:platform/knowledge/crawling": {
@@ -1397,7 +1397,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisation des tâches",
-      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, le portail de revue humain, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
+      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, la revue directement via le statut En revue, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
     }
   },
   "fr:platform/workspace/prompt-library": {
@@ -1774,7 +1774,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Données structurées",
-      "description": "La base de connaissances de Tale embarque quatre entités structurées intégrées — Clients, Produits, Fournisseurs, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document."
+      "description": "La base de connaissances de Tale embarque quatre entités structurées intégrées — Contacts, Produits, Fournisseurs, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document."
     }
   },
   "fr:platform/knowledge/crawling": {
@@ -2573,7 +2573,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Task automation",
-      "description": "The default task-ops pack — how assigning a task to an agent runs it, the human review gate, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
+      "description": "The default task-ops pack — how assigning a task to an agent runs it, human review straight from the In review status, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
     }
   },
   "en:platform/workspace/prompt-library": {
@@ -2950,7 +2950,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Structured data",
-      "description": "Tale's knowledge base ships four built-in structured entities — Customers, Products, Vendors, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document."
+      "description": "Tale's knowledge base ships four built-in structured entities — Contacts, Products, Vendors, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document."
     }
   },
   "en:platform/knowledge/crawling": {

@@ -45,7 +45,7 @@ Clicking a document opens the preview, with a sidebar showing size, source, RAG 
 
 ## Documents versus structured data
 
-Documents are the unstructured half of the knowledge base. When the content is a list of things with the same fields — customers, products, suppliers — a typed record serves agents better than a spreadsheet upload: exact values instead of retrieved passages. The decision rules live in [Structured data](/platform/knowledge/structured-data).
+Documents are the unstructured half of the knowledge base. When the content is a list of things with the same fields — contacts, products, suppliers — a typed record serves agents better than a spreadsheet upload: exact values instead of retrieved passages. The decision rules live in [Structured data](/platform/knowledge/structured-data).
 
 ## Where this fits
 

@@ -3,7 +3,7 @@ title: Mitglied
 description: Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten, Genehmigungen entscheiden. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut.
 ---
 
-Mitglied ist die Standardrolle, die die meisten Personen in den meisten Organisationen tragen. Es ist die Endbenutzer-Oberfläche von Tale — mit Agents chatten, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung auf Kunden-E-Mails antworten, die Genehmigungen entscheiden, die andere zu dir geroutet haben, und Feedback zu Antworten hinterlassen. Mitglieder bauen keine Agents, konfigurieren keine Anbieter, installieren keine Automatisierungen. Sie nutzen das Produkt, das die Redakteure und Entwickler für sie gebaut haben.
+Mitglied ist die Standardrolle, die die meisten Personen in den meisten Organisationen tragen. Es ist die Endbenutzer-Oberfläche von Tale — mit Agents chatten, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung auf Kontakt-E-Mails antworten, die Genehmigungen entscheiden, die andere zu dir geroutet haben, und Feedback zu Antworten hinterlassen. Mitglieder bauen keine Agents, konfigurieren keine Anbieter, installieren keine Automatisierungen. Sie nutzen das Produkt, das die Redakteure und Entwickler für sie gebaut haben.
 
 Diese Übersicht nennt, was ein Mitglied tun kann, und verweist auf die Per-Funktions-Seiten. Mitglieder landen typischerweise zuerst auf Chat; der Rest dieser Seite ist das, was du liest, wenn Chat allein nicht reicht — wenn du wissen willst, woher ein Zitat kam, was eine Genehmigungs-Karte ist oder was ein Projekt bündelt.
 
@@ -12,7 +12,7 @@ Diese Übersicht nennt, was ein Mitglied tun kann, und verweist auf die Per-Funk
 Die Mitglieder-Oberfläche ist bewusst eng. Die vier Kübel sind:
 
 - **Chat** — einen Agent (oder keinen) wählen, eine Nachricht senden, die Antwort lesen. Der Chat legt die Prompt-Bibliothek, Anhänge, Voice-Modus, Arena-Modus für Seite-an-Seite-Vergleich und die Canvas-Spalte frei, wenn eine Antwort mehr produziert, als der Chat inline halten kann.
-- **Wissen** — Dokumente, Kunden, Produkte, Lieferanten, Websites durchstöbern, die die Organisation geladen hat. Nur-Lese für Mitglieder; das Kuratieren passiert auf der Redakteur-Seite.
+- **Wissen** — Dokumente, Kontakte, Produkte, Lieferanten, Websites durchstöbern, die die Organisation geladen hat. Nur-Lese für Mitglieder; das Kuratieren passiert auf der Redakteur-Seite.
 - **Inbox** — im Tab **Inbox** antworten, den eine installierte E-Mail-Automatisierung hinzufügt. Mitglieder antworten, wenn ein Agent eine Konversation zurückgibt; die Automatisierung selbst zu installieren ist eine Admin-Aktion.
 - **Genehmigungen** — die Genehmigungs-Karten lesen, die zu dir geroutet wurden. Klick auf Genehmigen, Ablehnen oder Änderungen anfordern; hinterlass einen Kommentar, wenn die Regel danach fragt.
 

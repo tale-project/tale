@@ -37,4 +37,4 @@ Chaque ligne montre le domaine, son **Statut** — **Inactif** entre deux analys
 
 ## Où cela s’inscrit
 
-L’exploration est le moyen économique d’amener un site public dans le contexte des agents : un domaine, une cadence, et le reste est l’affaire du crawler. La contrepartie est la frontière du visiteur anonyme — le contenu privé passe par [Documents](/fr/platform/knowledge/documents) ou une intégration. Pour la place des lignes Sites web à côté des Clients, Produits et Fournisseurs, lis [Données structurées](/fr/platform/knowledge/structured-data).
+L’exploration est le moyen économique d’amener un site public dans le contexte des agents : un domaine, une cadence, et le reste est l’affaire du crawler. La contrepartie est la frontière du visiteur anonyme — le contenu privé passe par [Documents](/fr/platform/knowledge/documents) ou une intégration. Pour la place des lignes Sites web à côté des Contacts, Produits et Fournisseurs, lis [Données structurées](/fr/platform/knowledge/structured-data).

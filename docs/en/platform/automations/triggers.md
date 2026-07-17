@@ -33,7 +33,7 @@ Save the webhook URL when it is shown — the token in the URL acts as the authe
 
 ## Events
 
-Click **Add event trigger** and pick an event type from the dropdown — things that happen inside Tale, such as `task.created`, `conversation.message_received`, `customer.updated`, or `workflow.completed`. Optional filters narrow when the trigger fires, and the event's payload becomes the run's input. Reach for an event trigger when the workflow's job is to react to something Tale itself just did.
+Click **Add event trigger** and pick an event type from the dropdown — things that happen inside Tale, such as `task.created`, `conversation.message_received`, `contact.updated`, or `workflow.completed`. Optional filters narrow when the trigger fires, and the event's payload becomes the run's input. Reach for an event trigger when the workflow's job is to react to something Tale itself just did.
 
 <Note>
 

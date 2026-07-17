@@ -71,4 +71,4 @@ When the Canvas opens, and what gets a Canvas versus inline rendering.
 
 ## Where this fits
 
-Chat is the surface every other Platform feature ultimately serves. Agents shape its replies, Knowledge feeds its citations, Approvals interrupt it for human checks, Conversations is a sibling inbox for customer channels rather than your own threads. The page worth bookmarking first is [Chat basics](/platform/chat/basics) — once you understand the chat-to-reply path, every other chat page reads as a variation on it.
+Chat is the surface every other Platform feature ultimately serves. Agents shape its replies, Knowledge feeds its citations, Approvals interrupt it for human checks, Conversations is a sibling inbox for contact channels rather than your own threads. The page worth bookmarking first is [Chat basics](/platform/chat/basics) — once you understand the chat-to-reply path, every other chat page reads as a variation on it.

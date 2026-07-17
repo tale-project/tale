@@ -9,7 +9,7 @@ Diese Seite deckt die Operator-Oberfläche ab. Die Admin-seitigen Controls und d
 
 ## Wie die Grenzen funktionieren
 
-Jede Retention-Kategorie — Chat-Threads, Dokumente, Kunden, Lieferanten, Prompt-Templates, Ledger-Zeilen, Audit-Logs, Workflow-Ausführungen, Workflow-Trigger-Logs, Login-Versuche — hat ein `min` und ein `max`. Ein Org-Admin setzt einen Wert innerhalb dieses Fensters. Den Boden über eine bestehende Instanz hinweg anzuziehen ist ein mehrstufiger Flow: Operator schlägt die neue Grenze vor, jeder betroffene Admin sieht ein Banner, die Änderung greift, sobald sie akzeptiert ist.
+Jede Retention-Kategorie — Chat-Threads, Dokumente, Kontakte, Lieferanten, Prompt-Templates, Ledger-Zeilen, Audit-Logs, Workflow-Ausführungen, Workflow-Trigger-Logs, Login-Versuche — hat ein `min` und ein `max`. Ein Org-Admin setzt einen Wert innerhalb dieses Fensters. Den Boden über eine bestehende Instanz hinweg anzuziehen ist ein mehrstufiger Flow: Operator schlägt die neue Grenze vor, jeder betroffene Admin sieht ein Banner, die Änderung greift, sobald sie akzeptiert ist.
 
 | Kategorie                 | Typische Untergrenze | Warum                                           |
 | ------------------------- | -------------------- | ----------------------------------------------- |

@@ -24,7 +24,7 @@ Trash holds rows from many categories. The category filter switches the view per
 - Temporary files
 - Prompt templates
 - Message feedback
-- Customers
+- Contacts
 - Vendors
 - External conversations
 - Message metadata

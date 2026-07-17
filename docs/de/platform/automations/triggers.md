@@ -33,7 +33,7 @@ Sichere die Webhook-URL, wenn sie angezeigt wird — das Token in der URL wirkt 
 
 ## Ereignisse
 
-Klicke auf **Ereignis-Trigger hinzufügen** und wähle einen Ereignistyp aus dem Dropdown — Dinge, die innerhalb von Tale passieren, etwa `task.created`, `conversation.message_received`, `customer.updated` oder `workflow.completed`. Optionale Filter grenzen ein, wann der Trigger feuert, und der Payload des Ereignisses wird zur Eingabe des Laufs. Greif zum Ereignis-Trigger, wenn der Job des Workflows darin besteht, auf etwas zu reagieren, das Tale selbst gerade getan hat.
+Klicke auf **Ereignis-Trigger hinzufügen** und wähle einen Ereignistyp aus dem Dropdown — Dinge, die innerhalb von Tale passieren, etwa `task.created`, `conversation.message_received`, `contact.updated` oder `workflow.completed`. Optionale Filter grenzen ein, wann der Trigger feuert, und der Payload des Ereignisses wird zur Eingabe des Laufs. Greif zum Ereignis-Trigger, wenn der Job des Workflows darin besteht, auf etwas zu reagieren, das Tale selbst gerade getan hat.
 
 <Note>
 

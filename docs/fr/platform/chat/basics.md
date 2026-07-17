@@ -51,7 +51,7 @@ Un agent doté de l’outil human input peut s’interrompre en pleine tâche po
 
 ## Conversations versus chats
 
-À l’intérieur du Chat, l’unité est un **chat** — c’est le mot que chaque bouton et chaque toast utilise. Le modèle de données derrière s’appelle `threads`, et le slug d’URL est `threads/$threadId` ; la doc suit l’UI et dit « chat » dans la prose. La boîte de réception des canaux clients qu’ajoute une automatisation d’e-mail installée est une autre surface — une conversation là-bas est un fil client, pas un chat ; voir [Automatisations livrées](/fr/platform/automations/builtin) pour le sens de boîte de réception.
+À l’intérieur du Chat, l’unité est un **chat** — c’est le mot que chaque bouton et chaque toast utilise. Le modèle de données derrière s’appelle `threads`, et le slug d’URL est `threads/$threadId` ; la doc suit l’UI et dit « chat » dans la prose. La boîte de réception des canaux contacts qu’ajoute une automatisation d’e-mail installée est une autre surface — une conversation là-bas est un fil client, pas un chat ; voir [Automatisations livrées](/fr/platform/automations/builtin) pour le sens de boîte de réception.
 
 ## Historique et recherche
 

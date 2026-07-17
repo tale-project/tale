@@ -4,7 +4,7 @@ description: Tale est l’orchestrateur pour agents IA. Commence par le démarra
 kind: index
 ---
 
-Tale est l’orchestrateur pour agents IA. Tu discutes avec des modèles sur tes propres documents, tu construis des agents qui prennent une tâche en charge de bout en bout, tu lances des automatisations en arrière-plan et tu gères les conversations clients depuis une seule boîte de réception — avec les fournisseurs d’IA de ton choix et tes données ancrées dans une région que tu contrôles.
+Tale est l’orchestrateur pour agents IA. Tu discutes avec des modèles sur tes propres documents, tu construis des agents qui prennent une tâche en charge de bout en bout, tu lances des automatisations en arrière-plan et tu gères les conversations avec les contacts depuis une seule boîte de réception — avec les fournisseurs d’IA de ton choix et tes données ancrées dans une région que tu contrôles.
 
 Chaque fonctionnalité, chaque API et chaque rôle est identique entre les deux éditions ; la seule différence est qui exploite la stack. Commence par le démarrage rapide, puis suis le parcours qui correspond à ton rôle.
 

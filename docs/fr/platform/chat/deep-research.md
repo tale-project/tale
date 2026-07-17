@@ -15,7 +15,7 @@ La recherche approfondie bat un chat ordinaire pour les questions où la valeur 
 - Tu veux des citations — une affirmation sans URL est une devinette.
 - Tu acceptes d’attendre deux à dix minutes pour un rapport écrit plutôt qu’une réponse de chat.
 
-Pour des questions factuelles étroites (« quelle est la capitale du Sénégal »), un chat classique est plus rapide et tout aussi précis. Pour des questions sur tes propres données (« qu’a dit le client lors de l’appel de mardi dernier »), un agent avec des liaisons de [Connaissances](/fr/platform/agents/knowledge) est la bonne forme — la recherche approfondie ne lit que le web ouvert, pas ta base de connaissances.
+Pour des questions factuelles étroites (« quelle est la capitale du Sénégal »), un chat classique est plus rapide et tout aussi précis. Pour des questions sur tes propres données (« qu’a dit le contact lors de l’appel de mardi dernier »), un agent avec des liaisons de [Connaissances](/fr/platform/agents/knowledge) est la bonne forme — la recherche approfondie ne lit que le web ouvert, pas ta base de connaissances.
 
 ## Ouvrir la recherche approfondie
 
