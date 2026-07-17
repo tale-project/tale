@@ -300,6 +300,7 @@ import type * as contacts_validators from "../contacts/validators.js";
 import type * as control_drain from "../control/drain.js";
 import type * as conversations_actions from "../conversations/actions.js";
 import type * as conversations_add_message_to_conversation from "../conversations/add_message_to_conversation.js";
+import type * as conversations_address_routing from "../conversations/address_routing.js";
 import type * as conversations_attachments from "../conversations/attachments.js";
 import type * as conversations_build_threading_headers from "../conversations/build_threading_headers.js";
 import type * as conversations_bulk_archive_conversations from "../conversations/bulk_archive_conversations.js";
@@ -2074,6 +2075,7 @@ declare const fullApi: ApiFromModules<{
   "control/drain": typeof control_drain;
   "conversations/actions": typeof conversations_actions;
   "conversations/add_message_to_conversation": typeof conversations_add_message_to_conversation;
+  "conversations/address_routing": typeof conversations_address_routing;
   "conversations/attachments": typeof conversations_attachments;
   "conversations/build_threading_headers": typeof conversations_build_threading_headers;
   "conversations/bulk_archive_conversations": typeof conversations_bulk_archive_conversations;
