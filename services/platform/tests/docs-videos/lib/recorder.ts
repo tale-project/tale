@@ -185,17 +185,28 @@ function sleepUntil(deadlineMs: number, nowMs: () => number): Promise<void> {
 }
 
 /**
- * Delete the thread the wow scene created — the take must leave the SHARED
- * demo org exactly as seeded. Runs in its own en-locale context because the
- * e2e chat helpers resolve labels from the en catalog. Best-effort: a failure
- * here must never mask the take's own error.
+ * Delete every thread the take created — the take must leave the demo org
+ * exactly as seeded. Scenes register ids under the `wowThreadId` note (the
+ * Episode 1 contract, one thread) and/or a comma-separated `cleanupThreadIds`
+ * note (any number). Runs in its own en-locale context because the e2e chat
+ * helpers resolve labels from the en catalog. Best-effort per thread: a
+ * failure here must never mask the take's own error.
  */
 async function cleanupWowThread(
   browser: Browser,
   ctx: SceneContext,
 ): Promise<void> {
-  const wowThreadId = ctx.notes.get('wowThreadId');
-  if (!wowThreadId) return;
+  const ids = [
+    ...new Set(
+      [
+        ctx.notes.get('wowThreadId'),
+        ...(ctx.notes.get('cleanupThreadIds')?.split(',') ?? []),
+      ]
+        .map((id) => id?.trim())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (ids.length === 0) return;
   const cleanupContext = await browser.newContext({
     baseURL: BASE_URL,
     storageState: path.join(SCREENSHOTS_STATE, 'auth.json'),
@@ -213,11 +224,20 @@ async function cleanupWowThread(
       waitUntil: 'domcontentloaded',
     });
     const { deleteThreadById } = await import('../../e2e/helpers/chat');
-    await deleteThreadById(cleanupPage, wowThreadId);
-    console.log(`  ✓ cleaned up wow thread ${wowThreadId}`);
+    for (const id of ids) {
+      try {
+        await deleteThreadById(cleanupPage, id);
+        console.log(`  ✓ cleaned up thread ${id}`);
+      } catch (error) {
+        console.warn(
+          `  ! could not delete thread ${id} — remove it by hand:`,
+          error,
+        );
+      }
+    }
   } catch (error) {
     console.warn(
-      `  ! could not delete wow thread ${wowThreadId} — remove it by hand:`,
+      '  ! thread cleanup context failed — check the org by hand:',
       error,
     );
   } finally {
