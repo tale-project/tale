@@ -83,6 +83,14 @@ interface DocsReply extends DocsReplyContent {
    * markup.
    */
   readonly tool?: DocsReplyTool;
+  /**
+   * Optional short content sentence streamed BEFORE the tool call on the
+   * tool turn — the natural model shape (text, then the call). Without any
+   * content, a PAUSING tool turn (request_human_input) is judged an empty
+   * generation by the fallback layer and a model-switch banner lands in the
+   * chat.
+   */
+  readonly toolIntro?: string;
 }
 
 /**
@@ -243,6 +251,55 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       'Recherche d’une règle de retour dans la base de connaissances. L’entrée « Pilote politique de retour » couvre directement les forfaits annuels.',
     reply:
       'Pour les forfaits annuels, la fenêtre de retour est de **60 jours**, effective en août — un pilote jusqu’au T4. Les forfaits mensuels gardent les 30 jours habituels. Source : l’entrée **Pilote politique de retour** dans les connaissances de ton espace de travail.',
+  },
+  // ——— Video pipeline: Episode 5 approval card (one entry per locale) ———
+  // The gated outbound reply: reasoning streams, then a `request_human_input`
+  // tool call pauses the turn as a REAL pending approval card carrying the
+  // draft. The resume turn (after the on-camera decision) streams the ack.
+  {
+    match: 'annual discount question and send it',
+    toolIntro:
+      'The draft is ready — sending mail leaves the workspace, so I need your sign-off first.',
+    reasoning:
+      'Drafting the reply from the pricing thread and the plan terms. Sending mail leaves the workspace — pausing for a human decision before anything goes out.',
+    reply:
+      'Sent to Bergmann Logistics with your adjustment noted. The approval — who decided, and when — is recorded in the audit log.',
+    tool: {
+      name: 'request_human_input',
+      question:
+        'Draft ready for Bergmann Logistics: “Hello Ms. Bergmann — thank you for your patience. Yes: on the annual plan you save 12% against monthly billing, and we can apply it from your next cycle. Shall I set that up?” Send this reply?',
+      fields: [{ type: 'text', label: 'Final adjustments', required: true }],
+    },
+  },
+  {
+    match: 'jahresrabatt und schick sie',
+    toolIntro:
+      'Der Entwurf steht — Versand verlässt den Arbeitsbereich, also brauche ich zuerst deine Freigabe.',
+    reasoning:
+      'Der Antwortentwurf entsteht aus dem Preis-Thread und den Tarifbedingungen. E-Mail-Versand verlässt den Arbeitsbereich — vor dem Senden wird eine menschliche Entscheidung eingeholt.',
+    reply:
+      'An Bergmann Logistics gesendet, deine Anpassung ist vermerkt. Die Freigabe — wer entschieden hat, und wann — steht im Audit-Protokoll.',
+    tool: {
+      name: 'request_human_input',
+      question:
+        'Entwurf für Bergmann Logistics: „Guten Tag Frau Bergmann — danke für Ihre Geduld. Ja: Im Jahrestarif sparen Sie 12 % gegenüber monatlicher Abrechnung, anwendbar ab Ihrem nächsten Zyklus. Soll ich das einrichten?" Diese Antwort senden?',
+      fields: [{ type: 'text', label: 'Letzte Anpassungen', required: true }],
+    },
+  },
+  {
+    match: 'remise annuelle et envoie',
+    toolIntro:
+      'Le brouillon est prêt — un envoi sort de l’espace de travail, il me faut d’abord ta validation.',
+    reasoning:
+      'Le brouillon se construit à partir du fil tarifaire et des conditions du forfait. Envoyer un e-mail sort de l’espace de travail — pause pour une décision humaine avant tout envoi.',
+    reply:
+      'Envoyé à Bergmann Logistics, ton ajustement noté. La validation — qui a décidé, et quand — est inscrite au journal d’audit.',
+    tool: {
+      name: 'request_human_input',
+      question:
+        'Brouillon prêt pour Bergmann Logistics : « Bonjour Madame Bergmann — merci pour votre patience. Oui : le forfait annuel vous fait économiser 12 % par rapport au mensuel, applicable dès votre prochain cycle. Je le mets en place ? » Envoyer cette réponse ?',
+      fields: [{ type: 'text', label: 'Derniers ajustements', required: true }],
+    },
   },
   // ——— Video pipeline: Episode 4 test-run (one entry per locale) ———
   // The freshly created Support Coach answers its first ask. The reply
@@ -661,6 +718,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
 /** What a matched prompt scripts: content (default or per-model) + any tool. */
 export interface MatchedDocsReply extends DocsReplyContent {
   readonly tool?: DocsReplyTool;
+  readonly toolIntro?: string;
 }
 
 /**
@@ -684,6 +742,7 @@ export function matchDocsReply(
     reply: content.reply,
     reasoning: content.reasoning,
     tool: entry.tool,
+    ...(entry.toolIntro !== undefined ? { toolIntro: entry.toolIntro } : {}),
   };
 }
 
@@ -745,6 +804,36 @@ interface DocsTriageScore {
  * cannot start assigning agents inside the e2e suite.
  */
 const DOCS_TRIAGE_SCORES: readonly DocsTriageScore[] = [
+  // ——— Video pipeline: Episode 6 on-camera task (one per locale) ———
+  // Created live on the relaunch board; scores above the auto-assign bar so
+  // the agent visibly takes the card. Archived off camera after the take.
+  {
+    task: 'draft the launch announcement post',
+    score: {
+      slug: 'assistant',
+      confidence: 0.82,
+      reason:
+        'Announcement copy is drafting work, and the brand guidelines plus content inventory are indexed.',
+    },
+  },
+  {
+    task: 'launch-ankündigung entwerfen',
+    score: {
+      slug: 'assistant',
+      confidence: 0.82,
+      reason:
+        'Ankündigungstexte sind Schreibarbeit; Markenrichtlinien und Content-Inventar sind indexiert.',
+    },
+  },
+  {
+    task: 'rédiger l’annonce de lancement',
+    score: {
+      slug: 'assistant',
+      confidence: 0.82,
+      reason:
+        'Le texte d’annonce est un travail de rédaction ; la charte et l’inventaire de contenu sont indexés.',
+    },
+  },
   // Project: Website relaunch.
   {
     task: 'finalize homepage copy with marketing',
