@@ -21,6 +21,7 @@
  * runner and on a laptop. It stays gated behind `YOUTUBE_LIVE_TEST=1`; the
  * provisioning + network calls never fire in the normal suite.
  */
+import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -30,6 +31,7 @@ import { beforeAll, describe, expect, it, type TestContext } from 'vitest';
 
 import {
   YtDlpError,
+  buildSpawnPath,
   ytdlpJson,
   ytdlpWriteSubs,
   type YtDlpMetadata,
@@ -143,6 +145,59 @@ describe.skipIf(!LIVE)(
       // `||=`: honour an explicit plugin dir (e.g. the CI baked path) if set.
       process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS ||= tc.pluginDir;
     }, 600_000);
+
+    // Guards the plugin-DISCOVERY contract, which the bot-wall skip above
+    // cannot: a bgutil zip expanded flat into the plugin root (yt_dlp_plugins/
+    // directly under --plugin-dirs instead of nested one child deeper) makes
+    // yt-dlp print "Plugin directories: none" and silently run tokenless —
+    // every case below then walls and SKIPS, and the regression ships green.
+    // The -v debug header prints before any network I/O, so probing it against
+    // an unroutable URL proves discovery in milliseconds with zero YouTube
+    // dependency.
+    it('discovers the bgutil plugin package from the plugin-dirs layout', async () => {
+      const pluginDirs = process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS;
+      expect(pluginDirs).toBeTruthy();
+      const stderr = await new Promise<string>((resolve, reject) => {
+        const proc = spawn(
+          'yt-dlp',
+          [
+            '-v',
+            '--no-config',
+            '--ignore-config',
+            '--socket-timeout',
+            '2',
+            '--plugin-dirs',
+            pluginDirs as string,
+            '--simulate',
+            '--',
+            'https://127.0.0.1:9/unreachable',
+          ],
+          {
+            stdio: ['ignore', 'ignore', 'pipe'],
+            env: {
+              PATH: buildSpawnPath(process.env),
+              HOME: tmpdir(),
+              LANG: 'C.UTF-8',
+            },
+          },
+        );
+        let out = '';
+        proc.stderr.on('data', (d) => {
+          out += d.toString();
+        });
+        proc.on('close', () => resolve(out));
+        proc.on('error', reject);
+      });
+      const headerLine = stderr
+        .split('\n')
+        .find((l) => l.includes('Plugin directories'));
+      expect(
+        headerLine,
+        `no "Plugin directories" debug line in: ${stderr.slice(0, 400)}`,
+      ).toBeTruthy();
+      expect(headerLine).not.toContain('none');
+      expect(headerLine).toContain('yt_dlp_plugins');
+    }, 60_000);
 
     it('fetches video metadata past the bot wall', async (ctx) => {
       const jobDir = await mkdtemp(join(tmpdir(), 'ytlive-meta-'));

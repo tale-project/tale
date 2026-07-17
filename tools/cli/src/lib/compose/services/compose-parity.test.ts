@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
@@ -28,6 +29,7 @@ const config = {
 const composePath = fileURLToPath(
   new URL('../../../../../../compose.yml', import.meta.url),
 );
+const repoRoot = fileURLToPath(new URL('../../../../../../', import.meta.url));
 const compose = parse(readFileSync(composePath, 'utf8')) as {
   services: Record<
     string,
@@ -133,5 +135,22 @@ describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () =
     expect(
       networkNames(generated.services['bgutil-provider']?.networks),
     ).toEqual(['internal']);
+  });
+
+  // yt-dlp --plugin-dirs DIR does DIR.iterdir() then looks for yt_dlp_plugins
+  // under each child. Unzipping the bgutil zip (which already contains
+  // yt_dlp_plugins/) straight into DIR yields Plugin directories: none. The
+  // Dockerfile must nest under /opt/yt-dlp/plugins/bgutil/.
+  test('Dockerfile unzips the bgutil plugin under a named child of plugin-dirs', () => {
+    const dockerfile = readFileSync(
+      resolve(repoRoot, 'services/convex/Dockerfile'),
+      'utf8',
+    );
+    expect(dockerfile).toContain(
+      'unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil',
+    );
+    expect(dockerfile).not.toMatch(
+      /unzip -q \/tmp\/bgutil-pot\.zip -d \/opt\/yt-dlp\/plugins\s/,
+    );
   });
 });

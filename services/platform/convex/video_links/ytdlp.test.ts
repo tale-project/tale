@@ -12,6 +12,10 @@ import {
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
 } from './ytdlp';
+import {
+  BGUTIL_PLUGIN_NEST_DIR,
+  bgutilPluginInstallDir,
+} from './ytdlp_toolchain';
 
 describe('classifyYtDlpStderr', () => {
   it('classifies the YouTube bot wall', () => {
@@ -121,6 +125,11 @@ describe('youtubeExtractorArgsFromEnv', () => {
     expect(flags).toContain(
       'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416',
     );
+    // Provider present → widen the client list to include mweb (PO-Token
+    // Guide) and force PLAYER-context token fetches (auto never asks for one).
+    expect(flags).toContain(
+      'youtube:player_client=default,mweb,tv_simply;fetch_pot=always',
+    );
   });
 
   it('ignores an invalid provider URL', () => {
@@ -139,6 +148,49 @@ describe('youtubeExtractorArgsFromEnv', () => {
     expect(flags).toContain(
       'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416',
     );
+    expect(flags).toContain(
+      'youtube:player_client=default,mweb,tv_simply;fetch_pot=always',
+    );
+  });
+
+  it('does not emit fetch_pot without a provider', () => {
+    const flags = youtubeExtractorArgsFromEnv({}, undefined, false);
+    expect(flags.join(' ')).not.toContain('fetch_pot');
+  });
+
+  it('honours a VIDEO_INGEST_FETCH_POT override', () => {
+    const flags = youtubeExtractorArgsFromEnv(
+      { VIDEO_INGEST_FETCH_POT: 'never' },
+      undefined,
+      true,
+    );
+    expect(flags).toContain(
+      'youtube:player_client=default,mweb,tv_simply;fetch_pot=never',
+    );
+    // An explicit value applies even without a provider (e.g. an operator
+    // running a plugin from VIDEO_INGEST_YTDLP_PLUGIN_DIRS only).
+    const noProvider = youtubeExtractorArgsFromEnv(
+      { VIDEO_INGEST_FETCH_POT: 'always' },
+      undefined,
+      false,
+    );
+    expect(noProvider).toContain(
+      'youtube:player_client=default,tv_simply;fetch_pot=always',
+    );
+  });
+
+  it('ignores an invalid VIDEO_INGEST_FETCH_POT (logged, not thrown)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const flags = youtubeExtractorArgsFromEnv(
+      { VIDEO_INGEST_FETCH_POT: 'sometimes' },
+      undefined,
+      true,
+    );
+    expect(flags).toContain(
+      'youtube:player_client=default,mweb,tv_simply;fetch_pot=always',
+    );
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('does not default the provider URL without the baked plugin', () => {
@@ -286,6 +338,17 @@ describe('pluginDirFlagsFromEnv', () => {
     expect(
       pluginDirFlagsFromEnv({ VIDEO_INGEST_YTDLP_PLUGIN_DIRS: '/x' }, true),
     ).toEqual(['--plugin-dirs', '/x']);
+  });
+});
+
+describe('bgutilPluginInstallDir', () => {
+  // Guards the nesting contract that yt-dlp requires for --plugin-dirs:
+  // the zip's yt_dlp_plugins/ must live under a named child, not the root.
+  it('nests the bgutil package under a named child of the plugin-dirs root', () => {
+    expect(BGUTIL_PLUGIN_NEST_DIR).toBe('bgutil');
+    expect(bgutilPluginInstallDir('/opt/yt-dlp/plugins')).toBe(
+      '/opt/yt-dlp/plugins/bgutil',
+    );
   });
 });
 

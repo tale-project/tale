@@ -295,11 +295,12 @@ services:
   # bgutil PO-token provider (YouTube ingestion anti-bot)
   # ============================================================================
   # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin baked into the
-  # convex image, so video-link ingestion survives YouTube's "confirm you're not
-  # a bot" wall on datacenter/flagged IPs — with zero operator config. Reached
-  # only by the convex container over the internal network (no published ports);
-  # video ingest degrades gracefully (no token) if it's down, so nothing
-  # depends_on it. The image tag MUST match BGUTIL_POT_VERSION in
+  # convex image (layout: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…), so
+  # video-link ingestion survives YouTube's "confirm you're not a bot" wall on
+  # datacenter/flagged IPs — with zero operator config. Reached only by the
+  # convex container over the internal network (no published ports); video
+  # ingest degrades gracefully (no token) if it's down, so nothing depends_on
+  # it. The image tag MUST match BGUTIL_POT_VERSION in
   # services/convex/Dockerfile — bump both together.
   bgutil-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
