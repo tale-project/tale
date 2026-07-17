@@ -1,0 +1,216 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:04.302
+Chat is the room where
+your team meets the models.
+
+2
+00:00:04.302 --> 00:00:07.342
+In this episode: how to
+ask well, what to attach,
+
+3
+00:00:07.342 --> 00:00:11.870
+how to choose a model — and how to
+tell a solid answer from a fluent one.
+
+4
+00:00:13.470 --> 00:00:18.333
+A chat starts in the composer, and
+the composer is more than a text box.
+
+5
+00:00:18.333 --> 00:00:23.668
+You choose which agent answers, which
+model runs, and what context rides along.
+
+6
+00:00:23.668 --> 00:00:27.180
+Those three choices shape
+every answer you will get.
+
+7
+00:00:28.380 --> 00:00:30.719
+Watch what happens without context.
+
+8
+00:00:30.719 --> 00:00:35.999
+We ask how customers feel about our
+onboarding… and the model answers — fluent,
+
+9
+00:00:35.999 --> 00:00:38.271
+confident, and completely generic.
+
+10
+00:00:38.271 --> 00:00:40.477
+It has never seen your customers.
+
+11
+00:00:40.477 --> 00:00:44.420
+It is filling the gap with
+patterns from its training data.
+
+12
+00:00:45.620 --> 00:00:47.853
+Now the same topic, grounded.
+
+13
+00:00:47.853 --> 00:00:52.397
+We attach the Q2 support
+review… and ask what to fix first.
+
+14
+00:00:52.397 --> 00:00:55.708
+The answer changes
+character: your numbers,
+
+15
+00:00:55.708 --> 00:00:59.790
+your documents, named
+sources you can open and check.
+
+16
+00:01:02.620 --> 00:01:07.812
+This is the one habit that changes
+everything about working with AI.
+
+17
+00:01:07.812 --> 00:01:14.225
+Same model, same topic — the context
+decides whether you get plausible words or your
+
+18
+00:01:14.225 --> 00:01:14.988
+own facts.
+
+19
+00:01:14.988 --> 00:01:17.431
+A fluent answer is not evidence.
+
+20
+00:01:17.431 --> 00:01:18.347
+Sources are.
+
+21
+00:01:18.347 --> 00:01:21.020
+When the answer matters, ground it.
+
+22
+00:01:22.220 --> 00:01:25.093
+The model picker is the second decision.
+
+23
+00:01:25.093 --> 00:01:29.475
+Models differ — in speed, in
+cost, in how deeply they reason.
+
+24
+00:01:29.475 --> 00:01:33.497
+Auto lets Tale route each
+request to a sensible default,
+
+25
+00:01:33.497 --> 00:01:36.442
+and for most work that is the right call.
+
+26
+00:01:36.442 --> 00:01:39.890
+But you can pin any
+model your workspace allows.
+
+27
+00:01:41.090 --> 00:01:45.458
+And when you want evidence
+instead of opinions, run an Arena.
+
+28
+00:01:45.458 --> 00:01:48.108
+One prompt, two models, side by side.
+
+29
+00:01:48.108 --> 00:01:52.047
+Watch them answer the same
+brief… then call the winner.
+
+30
+00:01:52.047 --> 00:01:56.344
+Your verdicts flow into the
+workspace analytics — over time,
+
+31
+00:01:56.344 --> 00:02:00.210
+model choice becomes a
+measured decision, not a taste.
+
+32
+00:02:05.090 --> 00:02:08.068
+Big deliverables get their own workbench.
+
+33
+00:02:08.068 --> 00:02:13.951
+Ask for a document — a brief, a report, a
+page — and the canvas opens next to the
+
+34
+00:02:13.951 --> 00:02:14.651
+chat.
+
+35
+00:02:14.651 --> 00:02:18.936
+The result lands as a file you
+can read, refine, and share.
+
+36
+00:02:18.936 --> 00:02:21.940
+Not a wall of chat text
+you copy-paste out of.
+
+37
+00:02:24.090 --> 00:02:26.809
+One more thing lives here: deep research.
+
+38
+00:02:26.809 --> 00:02:29.727
+The Researcher agent
+plans its own searches,
+
+39
+00:02:29.727 --> 00:02:34.833
+reads what it finds on the open web,
+and returns a report with named sources.
+
+40
+00:02:34.833 --> 00:02:39.939
+The grounding rule you just learned —
+it extends all the way to the internet.
+
+41
+00:02:41.139 --> 00:02:45.586
+Chat, used well: ground your
+questions in your documents,
+
+42
+00:02:45.586 --> 00:02:50.267
+pick models on evidence, let
+big answers land in the canvas.
+
+43
+00:02:50.267 --> 00:02:55.729
+Next episode: Knowledge — the
+library your grounded answers come from.
+
+44
+00:02:56.929 --> 00:03:01.496
+The chat guide in the
+documentation covers everything you saw here,
+
+45
+00:03:01.496 --> 00:03:03.405
+keyboard shortcuts included.
+
+46
+00:03:03.405 --> 00:03:05.109
+See you in episode three.
+

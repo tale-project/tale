@@ -1,0 +1,171 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.510
+Your workspace does not live alone.
+
+2
+00:00:03.510 --> 00:00:08.923
+Mail, repositories, search, your own
+internal tools — this episode walks the doors
+
+3
+00:00:08.923 --> 00:00:12.950
+to the outside world, and the
+discipline built into each one.
+
+4
+00:00:14.150 --> 00:00:18.312
+Integrations connect once
+and serve the whole workspace:
+
+5
+00:00:18.312 --> 00:00:21.507
+Gmail, GitHub,
+Shopify, Slack — and Tavily,
+
+6
+00:00:21.507 --> 00:00:22.845
+already live here.
+
+7
+00:00:22.845 --> 00:00:26.932
+Every agent and automation
+borrows the same connection;
+
+8
+00:00:26.932 --> 00:00:29.310
+nobody pastes keys into prompts.
+
+9
+00:00:30.510 --> 00:00:35.093
+Open a connector and you can
+read the door before you open it:
+
+10
+00:00:35.093 --> 00:00:41.302
+exactly two operations — search and
+extract — and an allowed-hosts list naming where
+
+11
+00:00:41.302 --> 00:00:42.485
+requests may go.
+
+12
+00:00:42.485 --> 00:00:45.590
+No hidden verbs, no surprise destinations.
+
+13
+00:00:46.790 --> 00:00:51.935
+And here is what a connection buys:
+remember deep research from episode two?
+
+14
+00:00:51.935 --> 00:00:55.455
+It exists in this
+workspace because Tavily is bound.
+
+15
+00:00:55.455 --> 00:00:59.990
+Connect a door once, and a whole
+capability lights up for everyone.
+
+16
+00:01:01.190 --> 00:01:04.134
+For everything without
+a ready-made connector,
+
+17
+00:01:04.134 --> 00:01:06.886
+there is MCP — the
+open protocol for tools.
+
+18
+00:01:06.886 --> 00:01:10.278
+Point Tale at your internal
+wiki, your ticket system,
+
+19
+00:01:10.278 --> 00:01:15.270
+anything that speaks it, and its tools
+appear to your agents like native ones.
+
+20
+00:01:16.470 --> 00:01:19.277
+But native-looking is not native-trusted.
+
+21
+00:01:19.277 --> 00:01:25.028
+An external tool is a new trust boundary,
+and each one carries its own approval flag
+
+22
+00:01:25.028 --> 00:01:28.109
+— flip it, and every
+call waits for a person,
+
+23
+00:01:28.109 --> 00:01:30.710
+exactly like the card in episode five.
+
+24
+00:01:31.910 --> 00:01:34.398
+The last door is the one code opens.
+
+25
+00:01:34.398 --> 00:01:39.858
+When agents run code, it runs in a
+sandbox whose network is closed by default —
+
+26
+00:01:39.858 --> 00:01:43.936
+allowed destinations are
+named, everything else is refused,
+
+27
+00:01:43.936 --> 00:01:45.871
+and the policy fails closed.
+
+28
+00:01:45.871 --> 00:01:50.710
+A tool that cannot phone home
+quietly is a tool you can afford to run.
+
+29
+00:01:51.910 --> 00:01:55.994
+That is the pattern at every
+door: operations you can read,
+
+30
+00:01:55.994 --> 00:01:59.178
+hosts you can name,
+approvals you can require,
+
+31
+00:01:59.178 --> 00:02:01.116
+networks that default to no.
+
+32
+00:02:01.116 --> 00:02:06.030
+Connect boldly — because each door
+was built to be opened deliberately.
+
+33
+00:02:07.230 --> 00:02:12.256
+Integrations, MCP, and the
+boundaries that make them safe to use.
+
+34
+00:02:12.256 --> 00:02:18.750
+Next episode: the people side — members,
+roles, and teams, and who gets to see what.
+
+35
+00:02:19.950 --> 00:02:25.207
+The integrations and governance sections
+of the documentation carry every detail.
+
+36
+00:02:25.207 --> 00:02:26.830
+See you in episode eight.
+

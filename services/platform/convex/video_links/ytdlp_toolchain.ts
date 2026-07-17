@@ -18,8 +18,10 @@
  *     (so Homebrew's `/opt/homebrew/bin` counts), installed via brew/apt only
  *     when absent. Returned as an absolute path because yt-dlp receives it
  *     through `--ffmpeg-location`, which is PATH-independent.
- *   - bgutil: PO-token-provider plugin → `plugins/`. Cheap; only exercised when
- *     a provider URL is reachable (datacenter IPs), so a residential host that
+ *   - bgutil: PO-token-provider plugin → `plugins/bgutil/yt_dlp_plugins/`
+ *     (nested — yt-dlp `--plugin-dirs` does `iterdir()` then looks for
+ *     `yt_dlp_plugins/` under each child). Cheap; only exercised when a
+ *     provider URL is reachable (datacenter IPs), so a residential host that
  *     never calls it can't be broken by a partial plugin.
  *
  * The caller (`ytdlp_live.test.ts`'s `beforeAll`) feeds the returned dirs to
@@ -50,6 +52,20 @@ const PINNED_SYSTEM_BIN_DIRS = ['/usr/local/bin', '/usr/bin'] as const;
  * plugin and provider must agree on the protocol version.
  */
 const BGUTIL_POT_VERSION = '1.3.1';
+
+/**
+ * Named child under `--plugin-dirs` where the bgutil zip is expanded.
+ * yt-dlp's `candidate_plugin_paths` does `Path(dir).iterdir()` then looks for
+ * `yt_dlp_plugins/` under each child — so the zip (which already contains
+ * `yt_dlp_plugins/`) must land in `<plugin-dirs>/bgutil/`, not directly in
+ * `<plugin-dirs>/`. Must stay in lockstep with `services/convex/Dockerfile`.
+ */
+export const BGUTIL_PLUGIN_NEST_DIR = 'bgutil';
+
+/** Absolute install dir for the bgutil plugin package under a `--plugin-dirs` root. */
+export function bgutilPluginInstallDir(pluginDirsRoot: string): string {
+  return join(pluginDirsRoot, BGUTIL_PLUGIN_NEST_DIR);
+}
 
 interface VideoToolchain {
   /**
@@ -192,19 +208,23 @@ async function ensureFfmpeg(): Promise<string> {
 }
 
 /**
- * Download + unzip the bgutil PO-token-provider plugin into `pluginDir`. The zip
- * expands to a `yt_dlp_plugins/` namespace package that yt-dlp auto-loads from
- * `--plugin-dirs`; its presence is the idempotency guard.
+ * Download + unzip the bgutil PO-token-provider plugin into
+ * `pluginDir/bgutil/`. The zip expands to `yt_dlp_plugins/`; nesting under the
+ * named child is required for yt-dlp to discover it via `--plugin-dirs`
+ * (see `BGUTIL_PLUGIN_NEST_DIR`). Presence of that nested package is the
+ * idempotency guard.
  */
 async function ensureBgutilPlugin(pluginDir: string): Promise<void> {
-  if (existsSync(join(pluginDir, 'yt_dlp_plugins'))) return;
+  const installDir = bgutilPluginInstallDir(pluginDir);
+  if (existsSync(join(installDir, 'yt_dlp_plugins'))) return;
   console.info('[video-toolchain] downloading bgutil yt-dlp plugin…');
+  await fs.mkdir(installDir, { recursive: true });
   const zip = join(pluginDir, 'bgutil-ytdlp-pot-provider.zip');
   await downloadTo(
     `https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip`,
     zip,
   );
-  await unzipInto(zip, pluginDir);
+  await unzipInto(zip, installDir);
   await fs.rm(zip, { force: true });
 }
 

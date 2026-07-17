@@ -7,6 +7,12 @@ An agent is the unit Tale reaches for when the same question is going to come ba
 
 This page hands you the mental model the rest of the section assumes. Read it once before you build your first agent; come back to it when you can't remember whether a behaviour you want to change lives in the instructions, the knowledge, the tools, or the model.
 
+Prefer to watch first? Episode 4 builds an agent end to end in under three minutes — all four decisions, then a live test, captions included.
+
+<Video src="/videos/en/tutorials/ep4-agent/ep4-agent.en.mp4" poster="/videos/en/tutorials/ep4-agent/ep4-agent.en.webp" captions="/videos/en/tutorials/ep4-agent/ep4-agent.en.vtt" lang="en" title="Episode 4 — Your first agent" caption="Episode 4 — Your first agent (2:46)">
+
+</Video>
+
 ## The four knobs
 
 **Instructions** are the system prompt — the prose that frames every reply. Keep instructions short, opinionated, and concrete; long instructions get diluted in long conversations. Specify the voice, the constraints, and the refusal cases.

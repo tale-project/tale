@@ -1,0 +1,206 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:05.165
+The finale is for whoever
+answers for AI in your organization.
+
+2
+00:00:05.165 --> 00:00:08.171
+One tour of the control
+room: which models run,
+
+3
+00:00:08.171 --> 00:00:13.543
+what filters protect, what gets logged,
+what it all costs — and the five habits this
+
+4
+00:00:13.543 --> 00:00:15.589
+series has been building toward.
+
+5
+00:00:16.789 --> 00:00:18.340
+You choose the machinery.
+
+6
+00:00:18.340 --> 00:00:23.426
+One gateway covers the whole catalog, or
+you bring your own vendor keys — and when
+
+7
+00:00:23.426 --> 00:00:28.450
+data must not leave the house, point Tale
+at models running on your own hardware.
+
+8
+00:00:28.450 --> 00:00:32.110
+The workspace serves your
+choice, not the other way around.
+
+9
+00:00:33.310 --> 00:00:36.626
+And who may use which
+model is policy, not folklore:
+
+10
+00:00:36.626 --> 00:00:41.664
+allow-lists per role and team, so the
+expensive deep-reasoning model serves the
+
+11
+00:00:41.664 --> 00:00:46.510
+people whose work needs it — and
+nobody discovers a surprise on the invoice.
+
+12
+00:00:47.710 --> 00:00:52.750
+Guardrails scan both directions: what
+goes into a model and what comes back.
+
+13
+00:00:52.750 --> 00:00:56.066
+Personal data can be
+masked before it ever leaves,
+
+14
+00:00:56.066 --> 00:01:01.372
+unsafe content blocked or flagged — and
+the matched text itself is never stored.
+
+15
+00:01:01.372 --> 00:01:05.351
+People paste more than they
+should; the seatbelt assumes it.
+
+16
+00:01:06.551 --> 00:01:10.130
+The audit log is where the
+series comes full circle.
+
+17
+00:01:10.130 --> 00:01:15.774
+The approval you watched in episode five
+is in here — who decided, what, and when.
+
+18
+00:01:15.774 --> 00:01:21.556
+Every guardrail hit, every setting change,
+every consequential action, attributable.
+
+19
+00:01:21.556 --> 00:01:24.241
+Trust is not a feeling; it is a record.
+
+20
+00:01:25.441 --> 00:01:30.437
+Usage analytics answer the question
+every finance team asks in month two:
+
+21
+00:01:30.437 --> 00:01:32.559
+what does this cost, and where?
+
+22
+00:01:32.559 --> 00:01:38.171
+Tokens and spend by team, by model, by
+agent — with budgets that turn amber before
+
+23
+00:01:38.171 --> 00:01:39.881
+they turn into a problem.
+
+24
+00:01:41.081 --> 00:01:43.679
+And quality gets measured, not assumed.
+
+25
+00:01:43.679 --> 00:01:49.207
+Thumbs from every reply and the Arena
+verdicts from episode two land here — so when
+
+26
+00:01:49.207 --> 00:01:52.937
+someone asks whether the
+expensive model earns its keep,
+
+27
+00:01:52.937 --> 00:01:55.401
+you answer with a chart, not a hunch.
+
+28
+00:01:56.601 --> 00:01:59.233
+One more dial: where the data lives.
+
+29
+00:01:59.233 --> 00:02:03.839
+Pin the workspace to a region
+and it stays there — Switzerland,
+
+30
+00:02:03.839 --> 00:02:06.764
+the EU, wherever your obligations point.
+
+31
+00:02:06.764 --> 00:02:10.201
+Residency is a setting
+here, not a negotiation.
+
+32
+00:02:11.401 --> 00:02:13.498
+Nine episodes, five habits.
+
+33
+00:02:13.498 --> 00:02:16.450
+Ground it — answers from your sources.
+
+34
+00:02:16.450 --> 00:02:19.557
+Gate it — people decide the risky steps.
+
+35
+00:02:19.557 --> 00:02:24.606
+Scope it — the smallest agent,
+library, and role that do the job.
+
+36
+00:02:24.606 --> 00:02:27.713
+Log it — every action with a name on it.
+
+37
+00:02:27.713 --> 00:02:30.820
+Measure it — cost and quality on charts.
+
+38
+00:02:30.820 --> 00:02:34.471
+That is what using AI
+well actually looks like.
+
+39
+00:02:35.671 --> 00:02:38.562
+That closes the main arc of the series.
+
+40
+00:02:38.562 --> 00:02:41.824
+One bonus lap remains
+— for your developers:
+
+41
+00:02:41.824 --> 00:02:45.308
+APIs, webhooks, and
+coding agents in sandboxes.
+
+42
+00:02:45.308 --> 00:02:49.311
+Everyone else: the
+documentation carries on from here.
+
+43
+00:02:50.511 --> 00:02:51.923
+Thank you for watching.
+
+44
+00:02:51.923 --> 00:02:56.958
+Everything you saw — and everything we
+could not fit — lives in the documentation.
+

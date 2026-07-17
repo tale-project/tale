@@ -77,6 +77,13 @@ export default {
         // hosted at root like docker:test* — a platform-local `bun tests/…`
         // script crashes knip's script parser), never imported.
         'tests/docs-screenshots/capture.ts',
+        // Same shape: the docs video producer behind the root `docs:videos`
+        // script (source of every services/docs/public/videos/ asset). Episode
+        // choreographies load via a dynamic template import the graph can't see.
+        'tests/docs-videos/produce.ts',
+        'tests/docs-videos/episodes/*/scenes.ts',
+        // Hand-run locale-org bootstrap (`bun tests/docs-videos/seed-locale-orgs.ts`).
+        'tests/docs-videos/seed-locale-orgs.ts',
         // Same shape: the root `readme:assets` script derives the README gallery
         // tiles and tour from the captured docs frames.
         'tests/docs-screenshots/readme-assets.ts',

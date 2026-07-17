@@ -11,6 +11,12 @@ Si tu n’as pas encore suivi un [parcours de démarrage](/fr/get-started/quicks
 
 <CardGroup cols="2">
 
+<Card title="Série vidéo" icon="play" href="/fr/tutorials/videos">
+
+Des visites produites de toute la plateforme — ancrage, agents, automatisations, gouvernance — trois minutes à la fois, en trois langues.
+
+</Card>
+
 <Card title="Tutoriels membre" icon="message-circle" href="/fr/tutorials/member/chat-effectively">
 
 Chatter efficacement, travailler dans les projets, mener des conversations vocales.

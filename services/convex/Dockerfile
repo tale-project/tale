@@ -30,7 +30,7 @@ ARG SOPS_VERSION=3.9.4
 # yt-dlp + Deno: pinned defaults to specific upstream releases so two
 # image builds an hour apart produce byte-identical binaries. Builders
 # wanting the absolute newest player-signature fixes pass an explicit
-# build-arg (e.g. `--build-arg YTDLP_VERSION=2026.03.17`); ops should
+# build-arg (e.g. `--build-arg YTDLP_VERSION=2026.07.04`); ops should
 # rebuild this image roughly monthly to pick up upstream fixes (the
 # default pins exactly so an upgrade is a deliberate version bump, not
 # a silent moving target). Empty defaults are still supported and fall
@@ -38,7 +38,7 @@ ARG SOPS_VERSION=3.9.4
 # dev but discouraged for production. Resolved versions land in
 # /etc/yt-dlp-version + /etc/deno-version for runtime inspection.
 # Deno is required by yt-dlp's n-challenge JS solver (yt-dlp ≥ 2025.11).
-ARG YTDLP_VERSION=2026.03.17
+ARG YTDLP_VERSION=2026.07.04
 ARG DENO_VERSION=v2.5.4
 # bgutil PO-token provider plugin (yt-dlp GVS tokens → dissolves YouTube's bot
 # wall on flagged/datacenter IPs). MUST match the `bgutil-provider` sidecar
@@ -100,15 +100,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && echo "$DENO_TAG" > /etc/deno-version \
     && rm -f "/tmp/${DENO_ASSET}" /tmp/deno.sums \
     # bgutil PO-token provider plugin: version-pinned + SHA256-verified (like
-    # yt-dlp/deno above), unzipped into the plugin dir the video-ingest actions
-    # point `--plugin-dirs` at. yt-dlp loads the `yt_dlp_plugins/` namespace
-    # package; the token itself is served by the `bgutil-provider` compose
-    # sidecar. Presence of this dir also flips the zero-config default in
+    # yt-dlp/deno above). Unzipped under a NAMED child of the `--plugin-dirs`
+    # root — yt-dlp does `iterdir()` on that root and then looks for
+    # `yt_dlp_plugins/` under each child (see yt_dlp/plugins.py). Unzipping the
+    # zip (which already contains `yt_dlp_plugins/`) straight into the root
+    # yields `plugins/yt_dlp_plugins/…` and loads ZERO providers
+    # ("Plugin directories: none"). Correct layout:
+    #   /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/extractor/…
+    # The token itself is served by the `bgutil-provider` compose sidecar.
+    # Presence of `/opt/yt-dlp/plugins` also flips the zero-config default in
     # convex/video_links/ytdlp.ts (HAS_BAKED_YTDLP_PLUGIN).
-    && mkdir -p /opt/yt-dlp/plugins \
+    && mkdir -p /opt/yt-dlp/plugins/bgutil \
     && curl -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip" -o /tmp/bgutil-pot.zip \
     && echo "b8ceec7f76143da172aaf5ebeec0c2d218e5680c063b931586bca48567069b38  /tmp/bgutil-pot.zip" | sha256sum -c - \
-    && unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins \
+    && unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil \
     && rm -f /tmp/bgutil-pot.zip \
     && echo "${BGUTIL_POT_VERSION}" > /etc/bgutil-pot-version \
     # unzip is only needed for Deno + bgutil install; remove to keep image lean

@@ -14,6 +14,7 @@ import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
 import { DocsImage } from '@/app/components/docs/docs-image';
 import { DocsPrevNext } from '@/app/components/docs/docs-prev-next';
 import { DocsToc } from '@/app/components/docs/docs-toc';
+import { DocsVideo } from '@/app/components/docs/docs-video';
 import { EditOnGithub } from '@/app/components/docs/edit-on-github';
 import { PageActions } from '@/app/features/page-actions/page-actions';
 import { getDocPage } from '@/lib/content/loader';
@@ -28,12 +29,13 @@ interface DocsPageProps {
   slug: string;
 }
 
-// The shared registry plus an `img` override that rebases root-absolute
-// screenshot srcs onto the deploy base (see DocsImage) — the router only
-// rebases links, not image srcs.
+// The shared registry plus `img`/`video` overrides that rebase root-absolute
+// asset srcs onto the deploy base (see DocsImage / DocsVideo) — the router
+// only rebases links, not media srcs.
 const docsMarkdownComponents = {
   ...markdownComponents,
   img: DocsImage,
+  video: DocsVideo,
 };
 
 function humaniseSegment(part: string): string {

@@ -5,6 +5,12 @@ description: Une automatisation est le bundle installable d’intégrations, d�
 
 Une automatisation est l’unité vers laquelle Tale se tourne quand un travail a besoin de plus d’une pièce mobile assemblée à la main — une connexion d’intégration, un ou plusieurs agents, un workflow, parfois une page à elle — et que tu veux tout ça installé et branché en une seule action. Les Propriétaires, Admins et Développeurs installent les automatisations depuis le catalogue Automatisations ; une fois installée, les Éditeurs et Membres se servent de ce qu’elle a livré — un onglet Boîte de réception, une entrée de Backlog, un agent de chat — sans avoir besoin de savoir ce qu’il y a dessous. Cette page nomme les pièces qu’une automatisation empaquette, le workflow qui la fait tourner, et quand une automatisation est la bonne unité plutôt qu’un agent seul.
 
+Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de triage de bout en bout et décide une vraie carte de validation à l’écran — sous-titres compris.
+
+<Video src="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34)">
+
+</Video>
+
 ## Ce qu’une automatisation empaquette
 
 Le manifeste d’une automatisation nomme jusqu’à cinq types de pièces, et la plupart des automatisations n’en utilisent que quelques-unes.

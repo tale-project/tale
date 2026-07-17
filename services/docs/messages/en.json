@@ -41,7 +41,8 @@
       "tutorialsAdmin": "Admin",
       "tutorialsEditor": "Editor",
       "tutorialsDeveloper": "Developer",
-      "tutorialsMember": "Member"
+      "tutorialsMember": "Member",
+      "tutorialsVideos": "Videos"
     }
   },
   "search": {

@@ -5,6 +5,12 @@ description: A project is a shared workspace that bundles chats, files, instruct
 
 A project is a shared workspace that bundles everything one piece of work needs — the chats, the reference files, the instructions, the task board, and the discussions — so the context follows the work instead of being re-pasted into every chat. Where a single chat answers one question, a project is where a team keeps a customer, a launch, or a long-running investigation moving.
 
+Prefer to watch first? Episode 6 walks a live project in two and a half minutes — including a task an agent picks up on camera.
+
+<Video src="/videos/en/tutorials/ep6-projects/ep6-projects.en.mp4" poster="/videos/en/tutorials/ep6-projects/ep6-projects.en.webp" captions="/videos/en/tutorials/ep6-projects/ep6-projects.en.vtt" lang="en" title="Episode 6 — Projects with AI" caption="Episode 6 — Projects with AI (2:21)">
+
+</Video>
+
 <Frame caption="A project's task board — one of the eight tabs every project carries.">
 
 ![A kanban task board inside the Website relaunch project, with seven task cards spread across the Backlog, To do, In progress, In review, Done, and Cancelled columns.](/images/platform/projects-task-board.webp)

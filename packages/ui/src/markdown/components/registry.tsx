@@ -12,6 +12,7 @@ import { CodeGroup } from './code-group';
 import { Frame } from './frame';
 import { Step, Steps } from './steps';
 import { Tab, Tabs } from './tabs';
+import { Video } from './video';
 
 /**
  * Component table passed to react-markdown's `components` prop. The HTML
@@ -38,6 +39,9 @@ export const markdownComponents = {
   codegroup: CodeGroup,
   accordion: Accordion,
   accordiongroup: AccordionGroup,
+  // `<Video>` lowercases to the NATIVE element name — mapping `video` routes
+  // both the authored component and any raw `<video>` through one renderer.
+  video: Video,
   // PascalCase aliases — kept so that components can also be referenced
   // directly (e.g. when bypassing rehype-raw).
   Note,
@@ -56,6 +60,7 @@ export const markdownComponents = {
   CodeGroup,
   Accordion,
   AccordionGroup,
+  Video,
 };
 
 export type MarkdownComponents = typeof markdownComponents;
