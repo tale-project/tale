@@ -11,7 +11,7 @@
   "visibleInChat": false,
   "personalizationMode": "off",
   "maxSteps": 1,
-  "timeoutMs": 8000,
+  "timeoutMs": 4000,
   "routing": {
     "modelSelection": "auto",
     "orchestration": "auto",
@@ -19,7 +19,6 @@
   },
   "supportedModels": [
     "openrouter:anthropic/claude-haiku-4.5",
-    "openrouter:google/gemini-3.1-pro-preview",
-    "openrouter:openai/gpt-5.5"
+    "openrouter:google/gemini-3-flash-preview"
   ]
 }
