@@ -523,5 +523,10 @@
     "dbSchema": "9c8a9ae858a5861469941555",
     "configSchema": "04ffa9d94a7a59519161d637",
     "scaffold": "2d3f81aaf21f85dd75afe849"
+  },
+  "0.3.5": {
+    "dbSchema": "561dd9501088a6d81af5dc3c",
+    "configSchema": "54ec00088862116e46ff81b5",
+    "scaffold": "2d3f81aaf21f85dd75afe849"
   }
 }
