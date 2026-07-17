@@ -716,7 +716,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
 ] as const;
 
 /** What a matched prompt scripts: content (default or per-model) + any tool. */
-export interface MatchedDocsReply extends DocsReplyContent {
+interface MatchedDocsReply extends DocsReplyContent {
   readonly tool?: DocsReplyTool;
   readonly toolIntro?: string;
 }

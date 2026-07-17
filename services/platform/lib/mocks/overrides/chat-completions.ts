@@ -190,12 +190,6 @@ function userTexts(messages: ParsedMessage[]): string[] {
     .map((message) => message.text.toLowerCase());
 }
 
-/** Last user message, lowercased — the docs-reply match key. */
-function lastUserText(body: ChatCompletionRequest): string {
-  const users = userTexts(body.messages ?? []);
-  return users[users.length - 1] ?? '';
-}
-
 /**
  * The docs entry for this conversation: every message text scanned
  * NEWEST-FIRST — system messages included. A human-input RESUME arrives as a
