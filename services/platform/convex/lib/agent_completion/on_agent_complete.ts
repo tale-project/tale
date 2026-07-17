@@ -141,7 +141,7 @@ export async function onAgentComplete(
     const messageId = result.messageId;
 
     if (messageId) {
-      console.log('[onAgentComplete] DEBUG citations:', {
+      debugLog('citations', {
         hasCitations: !!result.citations,
         citationsLength: result.citations?.length,
       });
