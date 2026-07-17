@@ -5,6 +5,12 @@ description: Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, A
 
 Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück Arbeit braucht — die Chats, die Referenzdateien, die Anweisungen, das Aufgaben-Board und die Diskussionen —, damit der Kontext der Arbeit folgt, statt in jeden Chat neu kopiert zu werden. Wo ein einzelner Chat eine Frage beantwortet, ist ein Projekt der Ort, an dem ein Team einen Kunden, einen Launch oder eine länger laufende Untersuchung in Bewegung hält.
 
+Lieber erst zusehen? Episode 6 geht in knapp drei Minuten durch ein echtes Projekt — samt einer Aufgabe, die ein Agent vor der Kamera übernimmt.
+
+<Video src="/videos/de/tutorials/ep6-projects/ep6-projects.de.mp4" poster="/videos/de/tutorials/ep6-projects/ep6-projects.de.webp" captions="/videos/de/tutorials/ep6-projects/ep6-projects.de.vtt" lang="de" title="Episode 6 — Projekte mit KI" caption="Episode 6 — Projekte mit KI (2:47)">
+
+</Video>
+
 <Frame caption="Das Aufgaben-Board eines Projekts — einer der acht Tabs, die jedes Projekt trägt.">
 
 ![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit sieben Aufgabenkarten, verteilt über die Spalten Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)

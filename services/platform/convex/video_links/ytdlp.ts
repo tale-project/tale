@@ -43,6 +43,10 @@ const YTDLP_BIN = 'yt-dlp';
  * `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` / `VIDEO_INGEST_POT_PROVIDER_URL` override.
  * Evaluated once at module load — cheap, and the image layout never changes at
  * runtime. Absent on a host `bun dev` (no baked dir) → defaults stay dormant.
+ *
+ * Layout under this root MUST be `bgutil/yt_dlp_plugins/…` (not a bare
+ * `yt_dlp_plugins/`): yt-dlp `--plugin-dirs` iterates children of this path.
+ * See `BGUTIL_PLUGIN_NEST_DIR` in `ytdlp_toolchain.ts` and the Dockerfile.
  */
 const BAKED_YTDLP_PLUGIN_DIR = '/opt/yt-dlp/plugins';
 const DEFAULT_POT_PROVIDER_URL = 'http://bgutil-provider:4416';
@@ -196,10 +200,22 @@ export function proxyFlagsFromEnv(env: NodeJS.ProcessEnv): string[] {
   return ['--proxy', raw];
 }
 
-/** Default YouTube player clients. `default` (= android_vr, web_safari) needs
- * no PO token; `tv_simply` is a lightweight fallback. Operators running a PO
- * token provider can widen this to e.g. `default,mweb` via env. */
+/** Default YouTube player clients when no PO-token provider is wired.
+ * `default` (= android_vr, web_safari) needs no PO token; `tv_simply` is a
+ * lightweight fallback that may skip formats without a GVS token. */
 const DEFAULT_YOUTUBE_PLAYER_CLIENT = 'default,tv_simply';
+
+/**
+ * When a PO-token provider is available (baked plugin → compose sidecar, or
+ * an explicit `VIDEO_INGEST_POT_PROVIDER_URL`), include `mweb` — yt-dlp's
+ * PO-Token Guide TL;DR is "provider + mweb for GVS". Without `mweb` in the
+ * list the provider is registered but rarely asked, and flagged datacenter
+ * IPs still hit the bot wall. Operators can still override via env.
+ */
+const DEFAULT_YOUTUBE_PLAYER_CLIENT_WITH_POT = 'default,mweb,tv_simply';
+
+/** Values yt-dlp accepts for the `youtube:fetch_pot` extractor-arg. */
+const FETCH_POT_VALUES = new Set(['never', 'auto', 'always']);
 
 /**
  * `--extractor-args` for YouTube: the player-client list (env-tunable) plus an
@@ -226,20 +242,46 @@ export function youtubeExtractorArgsFromEnv(
   session?: YtdlpSession,
   hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
 ): string[] {
-  const client =
-    env.VIDEO_INGEST_PLAYER_CLIENT?.trim() || DEFAULT_YOUTUBE_PLAYER_CLIENT;
-  const parts = [`player_client=${client}`];
-  const poToken = session?.poToken?.trim() || env.VIDEO_INGEST_PO_TOKEN?.trim();
-  if (poToken) parts.push(`po_token=${poToken}`);
-  const visitorData = session?.visitorData?.trim();
-  if (visitorData) parts.push(`visitor_data=${visitorData}`);
-  const flags = ['--extractor-args', `youtube:${parts.join(';')}`];
-
   // Explicit env wins; otherwise, when the bgutil plugin is baked into the
   // image, default to the compose sidecar so PO tokens work out of the box.
   const providerUrl =
     env.VIDEO_INGEST_POT_PROVIDER_URL?.trim() ||
     (hasBakedPlugin ? DEFAULT_POT_PROVIDER_URL : undefined);
+
+  const client =
+    env.VIDEO_INGEST_PLAYER_CLIENT?.trim() ||
+    (providerUrl
+      ? DEFAULT_YOUTUBE_PLAYER_CLIENT_WITH_POT
+      : DEFAULT_YOUTUBE_PLAYER_CLIENT);
+  const parts = [`player_client=${client}`];
+  const poToken = session?.poToken?.trim() || env.VIDEO_INGEST_PO_TOKEN?.trim();
+  if (poToken) parts.push(`po_token=${poToken}`);
+  const visitorData = session?.visitorData?.trim();
+  if (visitorData) parts.push(`visitor_data=${visitorData}`);
+
+  // Under yt-dlp's default `fetch_pot=auto`, a PLAYER-context PO token is only
+  // requested when the client's policy marks it required/recommended — which
+  // no WEBPO client does. The bot wall hits exactly that player request, so a
+  // healthy provider ends up registered but never consulted (verified live on
+  // a flagged datacenter IP: zero provider calls until this arg is set).
+  // With a local sidecar the extra fetch is one cheap HTTP call per client →
+  // default to `always` whenever a provider is wired. `VIDEO_INGEST_FETCH_POT`
+  // (never|auto|always) overrides; `never` is the escape hatch if a wedged
+  // provider ever stalls player requests.
+  const fetchPotRaw = env.VIDEO_INGEST_FETCH_POT?.trim();
+  let fetchPot = providerUrl ? 'always' : undefined;
+  if (fetchPotRaw) {
+    if (FETCH_POT_VALUES.has(fetchPotRaw)) {
+      fetchPot = fetchPotRaw;
+    } else {
+      console.warn(
+        `[ytdlp] VIDEO_INGEST_FETCH_POT "${fetchPotRaw}" is not one of never|auto|always; ignoring`,
+      );
+    }
+  }
+  if (fetchPot) parts.push(`fetch_pot=${fetchPot}`);
+  const flags = ['--extractor-args', `youtube:${parts.join(';')}`];
+
   if (providerUrl) {
     if (URL.canParse(providerUrl)) {
       flags.push(

@@ -7,6 +7,12 @@ Admin ist die Konfigurationsebene von Tale. Sie umfasst die Personen, die sich a
 
 Diese Seiten beschreiben, was jede Einstellung tut und was sie am laufenden Produkt ändert. Die meisten liest du einmal beim Aufsetzen und besuchst sie wieder, wenn sich etwas ändert — eine neue Person, ein rotierter Schlüssel, ein neuer Anbieter. Die Rollen- und Berechtigungsgeschichte hinter dem ganzen Menü liegt in [Mitglieder und Rollen](/de/platform/admin/members-and-roles); fang dort an, denn jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.
 
+Lieber erst zusehen? Episode 9 durchquert den ganzen Kontrollraum — Anbieter, Leitplanken, Audit, Kosten — in gut drei Minuten, mit Untertiteln.
+
+<Video src="/videos/de/tutorials/ep9-governance/ep9-governance.de.mp4" poster="/videos/de/tutorials/ep9-governance/ep9-governance.de.webp" captions="/videos/de/tutorials/ep9-governance/ep9-governance.de.vtt" lang="de" title="Episode 9 — Richtlinien, Kosten & Vertrauen" caption="Episode 9 — Richtlinien, Kosten & Vertrauen (3:31)">
+
+</Video>
+
 ## Konfigurationsbereiche
 
 <CardGroup cols="2">

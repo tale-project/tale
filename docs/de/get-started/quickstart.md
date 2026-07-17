@@ -11,6 +11,12 @@ Das ist der kürzeste Weg zu einem funktionierenden Chat mit einem Agent: Instan
 
 </Frame>
 
+Lieber als Video? Episode 1 geht denselben Weg in gut drei Minuten — Untertitel inklusive.
+
+<Video src="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:25)">
+
+</Video>
+
 ## Hol dir eine Instanz
 
 Beide Editionen sind dasselbe Produkt — entscheide danach, wer den Stack betreiben soll.

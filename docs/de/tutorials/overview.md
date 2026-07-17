@@ -11,6 +11,12 @@ Bist du noch keinen [Einstieg](/de/get-started/quickstart) durchgegangen, fang d
 
 <CardGroup cols="2">
 
+<Card title="Videoserie" icon="play" href="/de/tutorials/videos">
+
+Produzierte Rundgänge durch die ganze Plattform — Verankerung, Agenten, Automatisierungen, Richtlinien — je drei Minuten, in drei Sprachen.
+
+</Card>
+
 <Card title="Mitglieder-Tutorials" icon="message-circle" href="/de/tutorials/member/chat-effectively">
 
 Effektiv chatten, in Projekten arbeiten, Sprach-Konversationen führen.

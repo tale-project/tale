@@ -5,6 +5,12 @@ description: Chat ist der tägliche Einstiegspunkt — wähl einen Agent, sende 
 
 Chat ist der tägliche Einstiegspunkt zu Tale. Du öffnest ihn, wählst einen Agent (oder keinen), tippst, und eine Antwort streamt zurück — mit Zitaten, Tool-Aufrufen und allem. Die meisten User verbringen hier mehr Zeit als in jedem anderen Tab; alles andere in Platform existiert, um Chat etwas Nützliches zu füttern oder zu regeln, was er tut.
 
+Lieber erst zusehen? Episode 2 geht diese ganze Oberfläche in gut drei Minuten durch — Verankerung, Modellwahl, Arena-Modus und Canvas, mit Untertiteln.
+
+<Video src="/videos/de/tutorials/ep2-chat/ep2-chat.de.mp4" poster="/videos/de/tutorials/ep2-chat/ep2-chat.de.webp" captions="/videos/de/tutorials/ep2-chat/ep2-chat.de.vtt" lang="de" title="Episode 2 — Chat, im Detail" caption="Episode 2 — Chat, im Detail (3:21)">
+
+</Video>
+
 <Frame caption="Ein Chat mit einer gestreamten Antwort — die Oberfläche, der jedes andere Feature dient.">
 
 ![Ein Chat-Thread zeigt eine Nutzerfrage zu Onboarding-Feedback und eine Assistenten-Antwort mit einer Markdown-Tabelle aus drei Themen.](/images/platform/chat-thread-reply.webp)

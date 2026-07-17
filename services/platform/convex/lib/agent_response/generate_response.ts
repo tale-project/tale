@@ -1622,7 +1622,9 @@ export async function generateAgentResponse(
       // is an EXPECTED capacity stop on tool-heavy turns and continues
       // neutrally for up to MAX_STEP_CAP_CONTINUES rounds; provider anomalies
       // ('length', 'unknown', DeepSeek stop-with-empty-text) retry ONCE with
-      // the [RESPONSE_INTERRUPTED] marker, as before.
+      // the [RESPONSE_INTERRUPTED] marker, as before. An unlabelled finish
+      // ('other'/'unknown'/undefined) with substantive final text is accepted
+      // as complete — no retry (see UNLABELLED_FINISH_REASONS).
       let stepCapRounds = 0;
       for (;;) {
         const continueCheck = shouldRetryGeneration(

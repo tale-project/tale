@@ -5,6 +5,12 @@ description: The third-party systems Tale connects to — the catalog under Sett
 
 Integrations are the bridges between Tale and the rest of your stack: agents call them as tools, workflows call them at steps, and the knowledge pipeline pulls documents through them. The org connects each one once under **Settings > Integrations**; from then on, anything in Tale can use it without re-authenticating. This overview names the shipped catalog and the two ways to extend it.
 
+Prefer to watch first? Episode 7 walks the doors to the outside world — connectors, MCP, and the boundaries — in two and a half minutes, captions included.
+
+<Video src="/videos/en/tutorials/ep7-integrations/ep7-integrations.en.mp4" poster="/videos/en/tutorials/ep7-integrations/ep7-integrations.en.webp" captions="/videos/en/tutorials/ep7-integrations/ep7-integrations.en.vtt" lang="en" title="Episode 7 — Integrations & the outside world" caption="Episode 7 — Integrations & the outside world (2:30)">
+
+</Video>
+
 <Frame caption="Settings > Integrations on the All integrations tab — the full catalog, each card one Connect away.">
 
 ![The Settings Integrations page showing a search field, an Add integration button, and a card grid of twelve services including Confluence, GitHub, Gmail, Slack, and Twilio.](/images/platform/integrations-catalog.webp)

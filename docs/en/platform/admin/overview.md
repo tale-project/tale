@@ -7,6 +7,12 @@ Admin is the configuration plane of Tale. It covers the people who can sign in, 
 
 These pages describe what each setting does and what it changes about the running product. Most are read once during setup and revisited when something changes — a new hire, a rotated key, a new provider. The role-and-permission story behind the whole menu lives in [Members and roles](/platform/admin/members-and-roles); start there, because every other Admin page references the role names it defines.
 
+Prefer to watch first? Episode 9 tours the whole control room — providers, guardrails, audit, cost — in three minutes, captions included.
+
+<Video src="/videos/en/tutorials/ep9-governance/ep9-governance.en.mp4" poster="/videos/en/tutorials/ep9-governance/ep9-governance.en.webp" captions="/videos/en/tutorials/ep9-governance/ep9-governance.en.vtt" lang="en" title="Episode 9 — Governance, cost & trust" caption="Episode 9 — Governance, cost & trust (3:01)">
+
+</Video>
+
 ## Configuration areas
 
 <CardGroup cols="2">

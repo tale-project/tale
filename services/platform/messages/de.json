@@ -4605,7 +4605,8 @@
     "webdav": "WebDAV",
     "teamFilter": {
       "label": "Team",
-      "allTeams": "Alle"
+      "allTeams": "Alle",
+      "manageTeams": "Teams verwalten"
     },
     "orgSwitcher": {
       "label": "Organisation"

@@ -1,0 +1,183 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.627
+Episode three filled the library.
+
+2
+00:00:03.627 --> 00:00:05.540
+Now we hire the librarian.
+
+3
+00:00:05.540 --> 00:00:11.645
+In this episode: your first agent, built
+end to end — and why the smallest agent is
+
+4
+00:00:11.645 --> 00:00:13.190
+usually the best one.
+
+5
+00:00:14.790 --> 00:00:15.901
+Agents live here.
+
+6
+00:00:15.901 --> 00:00:20.670
+You met the built-in ones in episode
+one — the Assistant, the Researcher.
+
+7
+00:00:20.670 --> 00:00:25.374
+Today we add our own: a coach that
+helps the support team draft replies.
+
+8
+00:00:26.574 --> 00:00:29.733
+An agent starts with a
+name and an identity.
+
+9
+00:00:29.733 --> 00:00:34.615
+Create agent, blank, a technical
+name… a display name… and continue.
+
+10
+00:00:34.615 --> 00:00:39.711
+That is the whole ceremony — the
+real work is the four decisions ahead.
+
+11
+00:00:43.574 --> 00:00:47.386
+Decision one: the
+instructions — the job description.
+
+12
+00:00:47.386 --> 00:00:50.623
+Tone, duties, and the
+line it must not cross.
+
+13
+00:00:50.623 --> 00:00:55.946
+Ours says: be friendly and concrete,
+and hand billing disputes to a human.
+
+14
+00:00:55.946 --> 00:00:59.254
+Write it like you would
+brief a new colleague.
+
+15
+00:01:00.574 --> 00:01:02.691
+Decision two: what it may read.
+
+16
+00:01:02.691 --> 00:01:08.427
+The knowledge scope from last episode
+applies per agent — give the coach the support
+
+17
+00:01:08.427 --> 00:01:10.271
+documents and nothing more.
+
+18
+00:01:10.271 --> 00:01:12.934
+The smallest library that does the job.
+
+19
+00:01:14.134 --> 00:01:17.458
+Decision three is the
+one to respect: tools.
+
+20
+00:01:17.458 --> 00:01:22.443
+Every box you tick widens what
+this agent can DO — search the web,
+
+21
+00:01:22.443 --> 00:01:25.918
+write files, run code,
+call your integrations.
+
+22
+00:01:25.918 --> 00:01:28.033
+Capability is also exposure.
+
+23
+00:01:28.033 --> 00:01:32.414
+Start with none, add each
+tool the day the job demands it.
+
+24
+00:01:33.614 --> 00:01:35.341
+Decision four: the engine.
+
+25
+00:01:35.341 --> 00:01:40.787
+Pick a model, add a fallback for busy
+days — or leave it on the workspace default.
+
+26
+00:01:40.787 --> 00:01:44.173
+For a drafting coach, the
+default is exactly right.
+
+27
+00:01:45.373 --> 00:01:49.610
+Make it visible in chat, and the
+whole team has a new colleague.
+
+28
+00:01:49.610 --> 00:01:54.907
+We test it right away: a customer wants
+an invoice copy… and look at the answer.
+
+29
+00:01:54.907 --> 00:01:59.211
+Friendly, concrete — and it hands
+the billing dispute to a human,
+
+30
+00:01:59.211 --> 00:02:00.667
+exactly as instructed.
+
+31
+00:02:07.373 --> 00:02:10.765
+An agent is a draft you
+refine, not a monument.
+
+32
+00:02:10.765 --> 00:02:16.466
+Instructions are cheap to change, and
+the history keeps every version — improve
+
+33
+00:02:16.466 --> 00:02:18.270
+boldly, roll back freely.
+
+34
+00:02:19.470 --> 00:02:24.867
+Name, instructions, knowledge,
+tools, model — a colleague you designed,
+
+35
+00:02:24.867 --> 00:02:27.452
+scoped as small as the job allows.
+
+36
+00:02:27.452 --> 00:02:32.621
+Next episode: automations — agents
+that act on schedules and events,
+
+37
+00:02:32.621 --> 00:02:35.510
+with people approving the risky steps.
+
+38
+00:02:36.710 --> 00:02:41.649
+The agents section of the
+documentation walks every decision you just made.
+
+39
+00:02:41.649 --> 00:02:43.230
+See you in episode five.
+

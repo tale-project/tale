@@ -1,0 +1,171 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.958
+Un tour bonus pour celles
+et ceux qui construisent.
+
+2
+00:00:03.958 --> 00:00:08.393
+Tout ce que la série a montré repose sur
+une API — cet épisode parcourt la surface
+
+3
+00:00:08.393 --> 00:00:10.827
+développeur : clés,
+webhooks, agents de code,
+
+4
+00:00:10.827 --> 00:00:12.720
+et le bac à sable qui les contient.
+
+5
+00:00:13.920 --> 00:00:17.132
+L’accès programmatique
+commence ici : des clés nommées,
+
+6
+00:00:17.132 --> 00:00:19.585
+une par système — la pipeline d’ingestion,
+
+7
+00:00:19.585 --> 00:00:20.344
+le job de CI.
+
+8
+00:00:20.344 --> 00:00:25.133
+Chacune est bornée, révocable en un clic,
+et chacun de ses appels atterrit dans le
+
+9
+00:00:25.133 --> 00:00:27.120
+même journal d’audit que le final.
+
+10
+00:00:28.320 --> 00:00:32.804
+Quatre portes pour quatre styles : une
+API REST pour tout ce que fait l’interface,
+
+11
+00:00:32.804 --> 00:00:35.702
+MCP pour servir les outils
+de Tale à d’autres agents,
+
+12
+00:00:35.702 --> 00:00:38.327
+WebDAV pour monter les
+fichiers comme un disque,
+
+13
+00:00:38.327 --> 00:00:41.280
+et des runtimes bac à sable
+configurables par langage.
+
+14
+00:00:42.480 --> 00:00:47.311
+Les webhooks pointent dans l’autre sens :
+n’importe quel système peut déclencher un
+
+15
+00:00:47.311 --> 00:00:48.011
+agent.
+
+16
+00:00:48.011 --> 00:00:50.863
+Un POST signé depuis
+votre CRM, votre monitoring,
+
+17
+00:00:50.863 --> 00:00:54.821
+votre build — et l’agent tourne
+avec la charge utile comme contexte.
+
+18
+00:00:54.821 --> 00:00:58.080
+Les automatisations de
+l’épisode cinq, déclenchées de partout.
+
+19
+00:00:59.280 --> 00:01:02.872
+Et l’artillerie lourde : les
+agents de code externes — Claude Code,
+
+20
+00:01:02.872 --> 00:01:07.053
+Cursor et leurs pairs — travaillent
+dans Tale dans leurs propres bacs à sable.
+
+21
+00:01:07.053 --> 00:01:11.341
+Ils planifient, écrivent des fichiers,
+lancent des commandes… dans une boîte qui
+
+22
+00:01:11.341 --> 00:01:15.040
+démarre vide et reste déconnectée,
+sauf ce que la politique autorise.
+
+23
+00:01:16.240 --> 00:01:18.975
+Cette politique est
+explicite et vous appartient :
+
+24
+00:01:18.975 --> 00:01:22.804
+quels paquets peuvent s’installer,
+quels hôtes le code peut atteindre.
+
+25
+00:01:22.804 --> 00:01:26.469
+Les métadonnées cloud et les
+plages privées sont toujours refusées,
+
+26
+00:01:26.469 --> 00:01:30.353
+et si le proxy de sortie tombe, rien
+ne sort — le système échoue fermé,
+
+27
+00:01:30.353 --> 00:01:31.120
+jamais ouvert.
+
+28
+00:01:32.320 --> 00:01:36.807
+Des outils puissants, un rayon d’action
+contenu — la version développeur de tout ce
+
+29
+00:01:36.807 --> 00:01:38.105
+que la série a enseigné.
+
+30
+00:01:38.105 --> 00:01:42.646
+Borne la clé, signe le webhook, mets
+l’agent en bac à sable — et construis sans peur
+
+31
+00:01:42.646 --> 00:01:44.160
+à l’intérieur de ces lignes.
+
+32
+00:01:45.360 --> 00:01:47.430
+C’était la série — dix épisodes.
+
+33
+00:01:47.430 --> 00:01:51.053
+La section Develop de la
+documentation prend le relais :
+
+34
+00:01:51.053 --> 00:01:55.129
+référence API, signatures de
+webhooks et guide du contributeur.
+
+35
+00:01:55.129 --> 00:01:57.200
+Construis quelque chose de bien.
+
+36
+00:01:58.400 --> 00:02:00.000
+Merci de construire avec Tale.
+
