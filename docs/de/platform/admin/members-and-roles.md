@@ -7,6 +7,12 @@ Mitglieder sind die Personen in deiner Organisation, die sich bei Tale anmelden 
 
 Sechs Rollen decken nahezu jedes Team ab, an das Tale ausgeliefert wird. Admins und Inhaber lesen diese Seite, wenn sie ein Team zum ersten Mal aufsetzen, wenn ein Audit fragt, wer welchen Zugriff hat, oder wenn sie wissen müssen, ob sie einem neuen Kollegen Redakteur oder Entwickler geben.
 
+Lieber erst zusehen? Episode 8 geht in gut zwei Minuten durch Besetzung, Rollenleiter und Teamwände — mit Untertiteln.
+
+<Video src="/videos/tutorials/ep8-people.de.mp4" poster="/videos/tutorials/ep8-people.de.webp" captions="/videos/tutorials/ep8-people.de.vtt" lang="de" title="Episode 8 — Menschen, Rollen & Teams" caption="Episode 8 — Menschen, Rollen & Teams (2:35)">
+
+</Video>
+
 <Frame caption="Der Mitglieder-Abschnitt unter Einstellungen > Organisation — jeder Account und die Rolle, die ihn begrenzt.">
 
 ![Die Organisations-Einstellungsseite mit ihrem Mitglieder-Abschnitt, der den Inhaber des Workspace und eine Schaltfläche Mitglied hinzufügen zeigt.](/images/get-started/settings-organization-members.webp)

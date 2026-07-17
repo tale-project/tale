@@ -33,8 +33,26 @@ Ein Agent, vor der Kamera gebaut — Anweisungen, Wissensbereich, Werkzeuge, Mod
 
 </Card>
 
+<Card title="Episode 5 — Automatisierungen & Freigaben" icon="play" href="/de/tutorials/videos/automations-and-approvals">
+
+Die Triage-Automatisierung wie ein Rezept aufgeklappt, der ehrliche rote Lauf und eine echte Freigabekarte, vor der Kamera entschieden. KI entwirft, Menschen entscheiden. Gut drei Minuten.
+
+</Card>
+
+<Card title="Episode 6 — Projekte mit KI" icon="play" href="/de/tutorials/videos/projects-with-ai">
+
+Das Board mitten im Flug, Dateien als begrenzter Kontext und eine vor der Kamera angelegte Aufgabe, die ein Agent sichtbar übernimmt. Die Initiative bleibt beim Menschen. Knapp drei Minuten.
+
+</Card>
+
+<Card title="Episode 8 — Menschen, Rollen & Teams" icon="play" href="/de/tutorials/videos/people-roles-and-teams">
+
+Die menschliche Hälfte des Vertrauens: die Rollenleiter, Teams als Wissenswände und Identitäts-Hygiene. Zugriff wird entworfen, nicht angenommen. Gut zwei Minuten.
+
+</Card>
+
 </CardGroup>
 
 ## Die Serie danach
 
-Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Automatisierungen und Freigaben, Projekte, Integrationen, Menschen und Teams, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.
+Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Integrationen, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.

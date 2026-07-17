@@ -33,8 +33,26 @@ Un agent construit de bout en bout à l'écran — instructions, connaissances, 
 
 </Card>
 
+<Card title="Épisode 5 — Automatisations & validations" icon="play" href="/fr/tutorials/videos/automations-and-approvals">
+
+L'automatisation de triage ouverte comme une recette, l'exécution rouge honnête, et une vraie carte de validation décidée à l'écran. L'IA rédige, les humains décident. Trois minutes.
+
+</Card>
+
+<Card title="Épisode 6 — Les projets avec l'IA" icon="play" href="/fr/tutorials/videos/projects-with-ai">
+
+Le tableau en plein vol, les fichiers comme contexte borné, et une tâche créée à l'écran qu'un agent prend visiblement. L'initiative reste humaine. Deux minutes et demie.
+
+</Card>
+
+<Card title="Épisode 8 — Personnes, rôles & équipes" icon="play" href="/fr/tutorials/videos/people-roles-and-teams">
+
+La moitié humaine de la confiance : l'échelle des rôles, les équipes comme murs de connaissances, et l'hygiène d'identité. L'accès se conçoit, il ne se présume pas. Deux minutes.
+
+</Card>
+
 </CardGroup>
 
 ## La suite de la série
 
-Les épisodes arrivent ici au fil de la production. Au programme : les connaissances, les automatisations et validations, les projets, les intégrations, les personnes et les équipes, la gouvernance et la confiance, puis un épisode bonus pour les développeurs.
+Les épisodes arrivent ici au fil de la production. Au programme : les connaissances, les intégrations, la gouvernance et la confiance, puis un épisode bonus pour les développeurs.

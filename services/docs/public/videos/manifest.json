@@ -287,6 +287,222 @@
       "kind": "poster",
       "width": 1920,
       "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.de.mp4",
+      "episode": "ep5-automations",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 191.4,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.de.vtt",
+      "episode": "ep5-automations",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 191.4
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.de.webp",
+      "episode": "ep5-automations",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.en.mp4",
+      "episode": "ep5-automations",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 162.2,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.en.vtt",
+      "episode": "ep5-automations",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 162.2
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.en.webp",
+      "episode": "ep5-automations",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.fr.mp4",
+      "episode": "ep5-automations",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 154.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.fr.vtt",
+      "episode": "ep5-automations",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 154.6
+    },
+    {
+      "file": "videos/tutorials/ep5-automations.fr.webp",
+      "episode": "ep5-automations",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.de.mp4",
+      "episode": "ep6-projects",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 167.5,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.de.vtt",
+      "episode": "ep6-projects",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 167.5
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.de.webp",
+      "episode": "ep6-projects",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.en.mp4",
+      "episode": "ep6-projects",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 141.1,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.en.vtt",
+      "episode": "ep6-projects",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 141.1
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.en.webp",
+      "episode": "ep6-projects",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.fr.mp4",
+      "episode": "ep6-projects",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 141,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.fr.vtt",
+      "episode": "ep6-projects",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 141
+    },
+    {
+      "file": "videos/tutorials/ep6-projects.fr.webp",
+      "episode": "ep6-projects",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep8-people.de.mp4",
+      "episode": "ep8-people",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 155.7,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep8-people.de.vtt",
+      "episode": "ep8-people",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 155.7
+    },
+    {
+      "file": "videos/tutorials/ep8-people.de.webp",
+      "episode": "ep8-people",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep8-people.en.mp4",
+      "episode": "ep8-people",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 135.2,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep8-people.en.vtt",
+      "episode": "ep8-people",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 135.2
+    },
+    {
+      "file": "videos/tutorials/ep8-people.en.webp",
+      "episode": "ep8-people",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep8-people.fr.mp4",
+      "episode": "ep8-people",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 126.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep8-people.fr.vtt",
+      "episode": "ep8-people",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 126.6
+    },
+    {
+      "file": "videos/tutorials/ep8-people.fr.webp",
+      "episode": "ep8-people",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
     }
   ]
 }

@@ -33,8 +33,26 @@ An agent built end to end on camera — instructions, knowledge scope, tools, mo
 
 </Card>
 
+<Card title="Episode 5 — Automations & approvals" icon="play" href="/tutorials/videos/automations-and-approvals">
+
+The triage automation opened like a recipe, the honest red run, and a real approval card decided on camera. AI drafts, people decide. Three minutes.
+
+</Card>
+
+<Card title="Episode 6 — Projects with AI" icon="play" href="/tutorials/videos/projects-with-ai">
+
+The board mid-flight, files as scoped context, and a task created on camera that an agent visibly takes. Initiative stays human. Two and a half minutes.
+
+</Card>
+
+<Card title="Episode 8 — People, roles & teams" icon="play" href="/tutorials/videos/people-roles-and-teams">
+
+The human half of trust: the role ladder, teams as knowledge walls, and identity hygiene. Access is designed, not assumed. Two minutes.
+
+</Card>
+
 </CardGroup>
 
 ## The series ahead
 
-Episodes land here as they are produced. On the roadmap: automations and approvals, projects, integrations, people and teams, governance & trust, and a bonus episode for developers.
+Episodes land here as they are produced. On the roadmap: integrations, governance & trust, and a bonus episode for developers.

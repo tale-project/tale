@@ -843,6 +843,22 @@
       "description": "Verdrahte Meetily (oder ein ähnliches lokales Meeting-Transkriptions-Tool) mit der Wissensdatenbank eines Tale-Projekts, damit Transkripte als Dokumente von selbst landen, ohne dass jemand eine Datei hochlädt."
     }
   },
+  "de:tutorials/videos/automations-and-approvals": {
+    "slug": "tutorials/videos/automations-and-approvals",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 5 — Automatisierungen & Freigaben",
+      "description": "Die Triage-Automatisierung aufgeklappt wie ein Rezept — Editor, Auslöser, das Laufprotokoll mit seiner ehrlichen roten Zeile — und dann die Freigabekarte - eine echte offene Entscheidung, vor der Kamera getroffen."
+    }
+  },
+  "de:tutorials/videos/people-roles-and-teams": {
+    "slug": "tutorials/videos/people-roles-and-teams",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 8 — Menschen, Rollen & Teams",
+      "description": "Die menschliche Hälfte der Vertrauensgeschichte — die Mitgliedertabelle und die Rollenleiter, Teams als Wissenswände und Identitäts-Hygiene, mit Minimalprinzip auf beiden Seiten des Tisches."
+    }
+  },
   "de:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "de",
@@ -857,6 +873,14 @@
     "frontmatter": {
       "title": "Episode 2 — Chat, im Detail",
       "description": "Die tägliche Oberfläche, gut genutzt — dieselbe Frage einmal ohne und einmal mit Verankerung, Modellwahl mit Belegen im Arena-Modus, große Ergebnisse im Canvas und der Ort der Tiefenrecherche."
+    }
+  },
+  "de:tutorials/videos/projects-with-ai": {
+    "slug": "tutorials/videos/projects-with-ai",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 6 — Projekte mit KI",
+      "description": "Der gemeinsame Arbeitsraum im Detail — das Board mitten im Flug, Projektdateien als begrenzter Kontext, Diskussionen neben den Aufgaben, und eine vor der Kamera angelegte Aufgabe, die ein Agent sichtbar übernimmt."
     }
   },
   "de:tutorials/videos/your-first-agent": {
@@ -2059,6 +2083,22 @@
       "description": "Câble Meetily (ou un outil local de transcription de réunions similaire) dans la Base de connaissances d'un projet Tale pour que les transcriptions atterrissent toutes seules comme documents, sans que personne ne charge un fichier."
     }
   },
+  "fr:tutorials/videos/automations-and-approvals": {
+    "slug": "tutorials/videos/automations-and-approvals",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 5 — Automatisations & validations",
+      "description": "L'automatisation de triage ouverte comme une recette — éditeur, déclencheurs, le journal d'exécution et sa ligne rouge honnête — puis la carte de validation - une vraie décision en attente, prise à l'écran."
+    }
+  },
+  "fr:tutorials/videos/people-roles-and-teams": {
+    "slug": "tutorials/videos/people-roles-and-teams",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 8 — Personnes, rôles & équipes",
+      "description": "La moitié humaine de l'histoire de confiance — la table des membres et l'échelle des rôles, les équipes comme murs de connaissances, et l'hygiène d'identité, avec le moindre privilège des deux côtés de la table."
+    }
+  },
   "fr:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "fr",
@@ -2073,6 +2113,14 @@
     "frontmatter": {
       "title": "Épisode 2 — Le chat, en profondeur",
       "description": "La surface quotidienne, bien utilisée — la même question sans puis avec ancrage, le choix du modèle sur preuves en mode Arène, les grands livrables dans le canevas, et où vit la recherche approfondie."
+    }
+  },
+  "fr:tutorials/videos/projects-with-ai": {
+    "slug": "tutorials/videos/projects-with-ai",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 6 — Les projets avec l'IA",
+      "description": "L'espace partagé en profondeur — le tableau en plein vol, les fichiers du projet comme contexte borné, les discussions à côté des tâches, et une tâche créée à l'écran qu'un agent prend visiblement en charge."
     }
   },
   "fr:tutorials/videos/your-first-agent": {
@@ -3275,6 +3323,22 @@
       "description": "Wire Meetily (or a similar local meeting-transcription tool) into a Tale project's Knowledge Base so transcripts land as documents on their own without anyone uploading a file."
     }
   },
+  "en:tutorials/videos/automations-and-approvals": {
+    "slug": "tutorials/videos/automations-and-approvals",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 5 — Automations & approvals",
+      "description": "The triage automation opened like a recipe — editor, triggers, the run journal with its honest red row — then the approval card - a real pending decision, made on camera."
+    }
+  },
+  "en:tutorials/videos/people-roles-and-teams": {
+    "slug": "tutorials/videos/people-roles-and-teams",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 8 — People, roles & teams",
+      "description": "The human half of the trust story — the members table and the role ladder, teams as knowledge walls, and identity hygiene, with least privilege on both sides of the table."
+    }
+  },
   "en:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "en",
@@ -3289,6 +3353,14 @@
     "frontmatter": {
       "title": "Episode 2 — Chat, in depth",
       "description": "The daily surface, used well — the same question asked ungrounded and grounded, model choice with evidence in Arena Mode, big deliverables in the canvas, and where deep research lives."
+    }
+  },
+  "en:tutorials/videos/projects-with-ai": {
+    "slug": "tutorials/videos/projects-with-ai",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 6 — Projects with AI",
+      "description": "The shared workspace deep dive — the board mid-flight, project files as scoped context, discussions beside the tasks, and a task created on camera that an agent visibly picks up."
     }
   },
   "en:tutorials/videos/your-first-agent": {

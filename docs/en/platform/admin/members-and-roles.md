@@ -7,6 +7,12 @@ Members are the people in your organisation who can sign in to Tale. Roles contr
 
 Six roles cover almost every team Tale ships to. Admins and Owners read this page when they are setting up a team for the first time, when an audit asks who has access to what, or when they need to know whether to give a new hire Editor or Developer.
 
+Prefer to watch first? Episode 8 walks the roster, the role ladder, and the team walls in two minutes — captions included.
+
+<Video src="/videos/tutorials/ep8-people.en.mp4" poster="/videos/tutorials/ep8-people.en.webp" captions="/videos/tutorials/ep8-people.en.vtt" lang="en" title="Episode 8 — People, roles & teams" caption="Episode 8 — People, roles & teams (2:15)">
+
+</Video>
+
 <Frame caption="The Members section under Settings > Organization — every account and the role that bounds it.">
 
 ![The Organization settings page with its Members section listing the workspace owner and an Add member button.](/images/get-started/settings-organization-members.webp)
