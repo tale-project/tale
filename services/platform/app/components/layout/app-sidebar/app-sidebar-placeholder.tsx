@@ -111,7 +111,7 @@ export function AppSidebarPlaceholder({
               <TileSkeleton />
             </div>
             {/* Search tile */}
-            <div className="shrink-0 pb-2">
+            <div className="shrink-0 pb-0.5">
               <TileSkeleton />
             </div>
             {/* Nav tiles */}
@@ -151,16 +151,16 @@ export function AppSidebarPlaceholder({
           <div className="shrink-0 px-1.5 pt-3 pb-4">
             <Row gap={0} className="h-9 gap-2.5">
               <TileSkeleton />
-              <div className="min-w-0 flex-1">
+              <Row gap={0} justify="center" className="min-w-0 flex-1">
                 <SkeletonBox>
                   <div className="h-4 w-24" />
                 </SkeletonBox>
-              </div>
+              </Row>
               <TileSkeleton />
             </Row>
           </div>
           {/* Search row */}
-          <div className="shrink-0 px-1.5 pb-2">
+          <div className="shrink-0 px-1.5 pb-0.5">
             <SkeletonBox fullWidth>
               <div className="h-9 rounded-md" />
             </SkeletonBox>

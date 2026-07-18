@@ -99,7 +99,7 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
                 collapsible={collapsible}
               />
             </div>
-            <div className="shrink-0 px-1.5 pb-2">
+            <div className="shrink-0 px-1.5 pb-0.5">
               <SidebarSearch expanded={isExpanded} />
             </div>
             <SidebarNav organizationId={organizationId} expanded={isExpanded} />

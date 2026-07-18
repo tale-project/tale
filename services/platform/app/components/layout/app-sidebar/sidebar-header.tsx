@@ -56,7 +56,7 @@ export function SidebarHeader({
       <span
         aria-hidden
         className={cn(
-          'text-foreground min-w-0 flex-1 truncate text-sm font-semibold',
+          'text-foreground min-w-0 flex-1 truncate text-center text-sm font-semibold',
           labelFadeClass(expanded),
         )}
       >

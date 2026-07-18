@@ -110,7 +110,7 @@ function SidebarShell({
             </div>
           )}
           {expanded && (
-            <span className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">
+            <span className="text-foreground min-w-0 flex-1 truncate text-center text-sm font-semibold">
               Tale
             </span>
           )}
@@ -126,7 +126,7 @@ function SidebarShell({
         </div>
       </div>
       {/* Search trigger */}
-      <div className="shrink-0 px-1.5 pb-2">
+      <div className="shrink-0 px-1.5 pb-0.5">
         <button
           type="button"
           aria-label="Search chat"
