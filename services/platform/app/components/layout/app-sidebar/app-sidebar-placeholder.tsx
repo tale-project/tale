@@ -87,7 +87,7 @@ export function AppSidebarPlaceholder() {
               (section label + rows) so its real skeleton slots in seamlessly */}
           <Stack
             gap={0}
-            className="border-border mt-2 min-h-0 flex-1 overflow-hidden border-t px-2.5 py-3.5"
+            className="border-border mt-2 min-h-0 flex-1 gap-0.5 overflow-hidden border-t px-2.5 pt-2.5 pb-3.5"
           >
             <Row gap={0} className="h-7 px-2">
               <SkeletonBox>
@@ -106,7 +106,10 @@ export function AppSidebarPlaceholder() {
             ))}
           </Stack>
           {/* Pinned footer: bell tile + account row */}
-          <Stack gap={0} className="border-border shrink-0 border-t px-2 py-2">
+          <Stack
+            gap={0}
+            className="border-border shrink-0 gap-0.5 border-t px-2 py-2"
+          >
             <Row gap={0} justify="center" className="size-8">
               <SkeletonBox>
                 <div className="size-5" />

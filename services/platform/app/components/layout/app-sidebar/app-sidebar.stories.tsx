@@ -188,7 +188,7 @@ function SidebarShell({
         )}
       </div>
       {/* Footer */}
-      <div className="border-border flex shrink-0 flex-col gap-0 border-t px-2 py-2">
+      <div className="border-border flex shrink-0 flex-col gap-0.5 border-t px-2 py-2">
         <button
           type="button"
           aria-label="Notifications"

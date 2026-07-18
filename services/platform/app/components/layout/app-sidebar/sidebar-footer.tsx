@@ -32,7 +32,7 @@ export function SidebarFooter({
     <Stack
       gap={0}
       align="start"
-      className="border-border shrink-0 border-t px-2 py-2"
+      className="border-border shrink-0 gap-0.5 border-t px-2 py-2"
     >
       <NotificationBell organizationId={organizationId} />
       {pinned.length > 0 && (

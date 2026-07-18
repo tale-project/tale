@@ -483,7 +483,7 @@ export function ChatHistorySidebar({
         // full-height mobile Sheet (which passes `p-0`, opting out of the
         // Sheet primitive's own safe-area padding).
         'flex flex-[1_1_0] flex-col overflow-hidden px-2.5 py-3.5',
-        'pt-[calc(0.875rem+var(--safe-top))] pb-[calc(0.875rem+var(--safe-bottom))] pl-[calc(0.625rem+var(--safe-left))]',
+        'pt-[calc(0.625rem+var(--safe-top))] pb-[calc(0.875rem+var(--safe-bottom))] pl-[calc(0.625rem+var(--safe-left))]',
         className,
       )}
       {...restProps}
@@ -499,7 +499,7 @@ export function ChatHistorySidebar({
             // placeholder itself would either collapse to 0 (non-fullWidth)
             // or be ignored by the mask (fullWidth).
             <Skeletonize loading>
-              <Stack gap={0} className="pb-2">
+              <Stack gap={0} className="gap-0.5 pb-2">
                 <Row gap={0} className="h-7 px-2">
                   <SkeletonBox>
                     <div className="h-3 w-16" />
@@ -527,10 +527,11 @@ export function ChatHistorySidebar({
                     </div>
                   </div>
                 ))}
-                <Row
-                  gap={0}
-                  className="border-border mt-1.5 h-7 border-t px-2 pt-2.5"
-                >
+                <div
+                  aria-hidden
+                  className="border-border mt-1.5 mb-2 border-t"
+                />
+                <Row gap={0} className="h-7 px-2">
                   <SkeletonBox>
                     <div className="h-3 w-12" />
                   </SkeletonBox>
@@ -577,7 +578,7 @@ export function ChatHistorySidebar({
           ) : (
             <ChatRowContext.Provider value={rowContext}>
               <ChatDndProvider>
-                <Stack gap={0} className="pb-2">
+                <Stack gap={0} className="gap-0.5 pb-2">
                   {/* PROJECTS — always rendered (even empty) so the section
                       never appears/disappears on drag and the "new project"
                       action always has a home. Each folder is a drop target. */}
@@ -602,10 +603,16 @@ export function ChatHistorySidebar({
                       drop target: a chat dragged here (from a project) is moved
                       back out to "Chats". Always rendered so that target exists
                       even when every chat currently lives in a project. */}
-                  <SidebarSectionHeader
-                    label={t('chatsSection')}
-                    className="border-border mt-1.5 border-t pt-2.5"
+                  {/* Divider as its own element (not padding inside the h-7
+                      header) so the CHATS header box is pixel-identical to
+                      PROJECTS'. Margins account for the list's 2px flex gap:
+                      6+2 above the border, 8+2 below = the same 8/10 rhythm
+                      as every other section boundary. */}
+                  <div
+                    aria-hidden
+                    className="border-border mt-1.5 mb-2 border-t"
                   />
+                  <SidebarSectionHeader label={t('chatsSection')} />
                   <LooseChatsDropZone hasChats={looseChats.length > 0}>
                     {looseChats.map((chat) => (
                       <ChatRow key={chat._id} chat={chat} />
@@ -632,7 +639,7 @@ export function ChatHistorySidebar({
       </Stack>
 
       {archivedChats && archivedChats.length > 0 && (
-        <section className="border-border mt-2 shrink-0 border-t pt-2">
+        <section className="border-border mt-2 shrink-0 border-t pt-2.5">
           <button
             type="button"
             onClick={() => setArchivedExpanded(!archivedExpanded)}
@@ -669,7 +676,7 @@ export function ChatHistorySidebar({
           >
             <Stack
               gap={0}
-              className="max-h-64 min-h-0 overflow-y-auto pt-1 pb-2"
+              className="max-h-64 min-h-0 gap-0.5 overflow-y-auto pt-1 pb-2"
             >
               {archivedChats.map((chat) => (
                 <Row
@@ -895,7 +902,7 @@ function ProjectFolder({
         <div className="min-h-0 overflow-hidden">
           <Stack
             gap={0}
-            className="border-border/60 mt-1 ml-3.5 border-l pl-1.5"
+            className="border-border/60 mt-1 ml-3.5 gap-0.5 border-l pl-1.5"
           >
             {chats.length === 0 ? (
               <Text
@@ -933,7 +940,9 @@ function LooseChatsDropZone({
 
   return (
     <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
-      <Stack gap={0}>{children}</Stack>
+      <Stack gap={0} className="gap-0.5">
+        {children}
+      </Stack>
       {isDragging && !hasChats && (
         <div
           className={cn(
