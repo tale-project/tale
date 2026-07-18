@@ -42,14 +42,6 @@ function sendButton(rt: SceneRuntime) {
 
 const THREAD_URL = /\/chat\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
 
-function registerThreadForCleanup(ctx: SceneContext, threadId: string): void {
-  const existing = ctx.notes.get('cleanupThreadIds');
-  ctx.notes.set(
-    'cleanupThreadIds',
-    existing ? `${existing},${threadId}` : threadId,
-  );
-}
-
 export async function warmup(
   page: import('@playwright/test').Page,
   ctx: import('../../lib/scene').SceneContext,
@@ -197,7 +189,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       const threadId = THREAD_URL.exec(page.url())?.[1];
-      if (threadId) registerThreadForCleanup(ctx, threadId);
+      if (threadId) ctx.cleanup.thread(threadId);
       // The pending card carries the draft; wait on its field label.
       const field = page
         .getByRole('textbox', { name: APPROVAL_FIELD_LABEL[ctx.locale] })

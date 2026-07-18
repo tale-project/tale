@@ -1,8 +1,8 @@
 /**
  * Episode 3 choreography — the knowledge library, surface by surface. The
- * one on-camera mutation (the knowledge entry) is registered under the
- * `cleanupEntryTopics` note and deleted off camera by the recorder; the wow
- * thread rides the `cleanupThreadIds` contract from Episode 2. Knowledge
+ * one on-camera mutation (the knowledge entry) is registered on the
+ * cleanup registry and deleted off camera by the recorder; the wow
+ * thread rides the same contract (`ctx.cleanup.thread`). Knowledge
  * sub-pages are deep links (`spaNavigate` under 'cut' chapter veils); the
  * documents and agents hops are real rail clicks.
  */
@@ -41,14 +41,6 @@ function sendButton(rt: SceneRuntime) {
 }
 
 const THREAD_URL = /\/chat\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
-
-function registerThreadForCleanup(ctx: SceneContext, threadId: string): void {
-  const existing = ctx.notes.get('cleanupThreadIds');
-  ctx.notes.set(
-    'cleanupThreadIds',
-    existing ? `${existing},${threadId}` : threadId,
-  );
-}
 
 /** Every route the take renders, warmed before the screencast. */
 export async function warmup(
@@ -196,13 +188,7 @@ export const SCENES: readonly SceneChoreography[] = [
         dialog.getByRole('button', { name: rt.t('common.actions.save') }),
       );
       await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
-      const existing = ctx.notes.get('cleanupEntryTopics');
-      ctx.notes.set(
-        'cleanupEntryTopics',
-        existing
-          ? `${existing},${ENTRY_TOPIC[ctx.locale]}`
-          : ENTRY_TOPIC[ctx.locale],
-      );
+      ctx.cleanup.knowledgeEntry(ENTRY_TOPIC[ctx.locale]);
       await page
         .getByText(ENTRY_TOPIC[ctx.locale])
         .first()
@@ -306,7 +292,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       const threadId = THREAD_URL.exec(page.url())?.[1];
-      if (threadId) registerThreadForCleanup(ctx, threadId);
+      if (threadId) ctx.cleanup.thread(threadId);
       await sendButton(rt).waitFor({ state: 'visible', timeout: 30_000 });
       await cue(11.5);
       const source = page

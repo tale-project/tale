@@ -2,8 +2,8 @@
  * Episode 4 choreography — an agent built on camera. The warmup creates and
  * deletes a throwaway agent so every editor chunk is compiled BEFORE the
  * screencast (the real creation must land on a warm editor). The on-camera
- * agent + its test thread are removed off camera via the `cleanupAgentNames`
- * and `cleanupThreadIds` notes — registered the moment they exist, so an
+ * agent + its test thread are removed off camera via the cleanup registry
+ * (`ctx.cleanup.agent` / `.thread`) — registered the moment they exist, so an
  * aborted take still cleans up.
  */
 
@@ -32,11 +32,6 @@ function sendButton(rt: SceneRuntime) {
 }
 
 const THREAD_URL = /\/chat\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
-
-function registerNote(ctx: SceneContext, key: string, value: string): void {
-  const existing = ctx.notes.get(key);
-  ctx.notes.set(key, existing ? `${existing},${value}` : value);
-}
 
 /** The agent editor's section navigation, scoped by its aria name. */
 function editorNav(rt: SceneRuntime) {
@@ -193,7 +188,7 @@ export const SCENES: readonly SceneChoreography[] = [
       );
       await page.keyboard.type(AGENT_DISPLAY_NAME[ctx.locale], { delay: 48 });
       // Registered the moment it will exist — an aborted take still cleans.
-      registerNote(ctx, 'cleanupAgentNames', AGENT_DISPLAY_NAME[ctx.locale]);
+      ctx.cleanup.agent(AGENT_DISPLAY_NAME[ctx.locale]);
       await cue(10.4);
       await cursor.click(
         page.getByRole('button', {
@@ -334,7 +329,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       const threadId = THREAD_URL.exec(page.url())?.[1];
-      if (threadId) registerNote(ctx, 'cleanupThreadIds', threadId);
+      if (threadId) ctx.cleanup.thread(threadId);
       await sendButton(rt).waitFor({ state: 'visible', timeout: 30_000 });
     },
   },

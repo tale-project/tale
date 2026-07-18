@@ -168,7 +168,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       const threadId = THREAD_URL.exec(page.url())?.[1];
-      if (threadId) ctx.notes.set('wowThreadId', threadId);
+      if (threadId) ctx.cleanup.thread(threadId);
     },
   },
   {

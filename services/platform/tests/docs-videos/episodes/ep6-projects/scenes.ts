@@ -2,7 +2,7 @@
  * Episode 6 choreography — the relaunch project deep dive with one live
  * centerpiece: a task created on camera, scored by the triage automation,
  * and visibly taken by the agent. The task is archived off camera
- * (`cleanupTaskTitles` + `cleanupTaskBoardUrl`); nothing else mutates.
+ * (`ctx.cleanup.task`); nothing else mutates.
  */
 
 import { videoContentFor } from '../../lib/locale-content';
@@ -171,9 +171,8 @@ export const SCENES: readonly SceneChoreography[] = [
       });
       await createButton.waitFor({ state: 'visible', timeout: 30_000 });
       // Register cleanup BEFORE creating — an abort still archives.
-      ctx.notes.set('cleanupTaskTitles', CAMERA_TASK_TITLE[ctx.locale]);
-      ctx.notes.set(
-        'cleanupTaskBoardUrl',
+      ctx.cleanup.task(
+        CAMERA_TASK_TITLE[ctx.locale],
         `/dashboard/${ctx.orgId}/projects/${relaunchId(ctx)}/tasks/board`,
       );
       await cue(2.6);
