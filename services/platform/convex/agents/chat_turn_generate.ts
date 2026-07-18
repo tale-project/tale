@@ -32,7 +32,10 @@ import {
   resolveProductAgentKind,
   type ProductAgentSlug,
 } from '../../lib/agent-adapters/events';
-import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
+import {
+  AUTO_AGENT_SLUG,
+  DEFAULT_CHAT_AGENT_SLUG,
+} from '../../lib/shared/constants/agents';
 import type {
   ResponseReasoningSeed,
   ResponseStyleAdvice,
@@ -180,6 +183,28 @@ export const runChatTurnGeneration = internalAction({
       //    agent that no longer resolves (uninstalled/renamed) falls through
       //    to the client selection.
       const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+      // Kick the guardrails snapshot immediately: it depends only on the org,
+      // so it loads while the (Auto) classifier and the agent config resolve
+      // below instead of serially after them. Awaited in the Promise.all
+      // further down.
+      const guardrailsPromise = loadGuardrailsSnapshot(
+        ctx,
+        args.organizationId,
+      );
+      const governanceQuery = (supportedModels: string[]) =>
+        ctx.runQuery(
+          internal.governance.internal_queries.resolveGenerationGovernance,
+          {
+            organizationId: args.organizationId,
+            userId: args.userId,
+            userEmail: args.userEmail,
+            userName: args.userName,
+            supportedModels: supportedModels.map(stripModelRefQualifier),
+            ...(args.modelId
+              ? { explicitModelId: stripModelRefQualifier(args.modelId) }
+              : {}),
+          },
+        );
       let lockedConfigResult:
         | Awaited<ReturnType<typeof resolveAgentConfigInline>>
         | undefined;
@@ -220,6 +245,32 @@ export const runChatTurnGeneration = internalAction({
       // suffix; `routeSeed` seeds the reasoning governor's prior.
       let routeStyle: ResponseStyleAdvice | undefined;
       let routeSeed: ResponseReasoningSeed | undefined;
+      // Speculative default-agent prep (Auto only): the classifier's full
+      // LLM round-trip is dead air before the answer can start, and the route
+      // lands on the default chat agent in the common case (fallback, cached
+      // default, general asks). Resolve the default agent's config + its
+      // governance NOW, concurrently with the classifier; a specialist route
+      // below simply redoes both (a cheap disk read + one query) and the
+      // speculation is discarded.
+      const speculativePrep =
+        !lockedConfigResult && args.agentSlug === AUTO_AGENT_SLUG
+          ? (async () => {
+              const cfg = await resolveAgentConfigInline(ctx, {
+                orgSlug,
+                agentSlug: DEFAULT_CHAT_AGENT_SLUG,
+                organizationId: args.organizationId,
+                modelId: args.modelId,
+              });
+              const gov = await governanceQuery(cfg.supportedModels);
+              return { cfg, gov };
+            })().catch((err: unknown) => {
+              console.warn(
+                '[runChatTurnGeneration] speculative default-agent prep failed (resolving after route):',
+                err instanceof Error ? err.message : err,
+              );
+              return undefined;
+            })
+          : undefined;
       if (!lockedConfigResult && args.agentSlug === AUTO_AGENT_SLUG) {
         const allowedAgentSlugs = args.projectId
           ? await ctx.runQuery(
@@ -280,8 +331,15 @@ export const runChatTurnGeneration = internalAction({
       //    (member + teamIds fetched once) instead of the former two/three
       //    (resolveDefaultModel + getAccessibleModels + checkModelAccess each
       //    re-fetching membership).
+      // Cash in the speculation when the route landed on the default agent;
+      // any other slug (specialist route, pinned agent, lock) resolves fresh.
+      const speculative =
+        speculativePrep && resolvedAgentSlug === DEFAULT_CHAT_AGENT_SLUG
+          ? await speculativePrep
+          : undefined;
       const configResult =
         lockedConfigResult ??
+        speculative?.cfg ??
         (await resolveAgentConfigInline(ctx, {
           orgSlug,
           agentSlug: resolvedAgentSlug,
@@ -340,22 +398,8 @@ export const runChatTurnGeneration = internalAction({
       }
 
       const [guardrails, governance] = await Promise.all([
-        loadGuardrailsSnapshot(ctx, args.organizationId),
-        ctx.runQuery(
-          internal.governance.internal_queries.resolveGenerationGovernance,
-          {
-            organizationId: args.organizationId,
-            userId: args.userId,
-            userEmail: args.userEmail,
-            userName: args.userName,
-            supportedModels: configResult.supportedModels.map(
-              stripModelRefQualifier,
-            ),
-            ...(args.modelId
-              ? { explicitModelId: stripModelRefQualifier(args.modelId) }
-              : {}),
-          },
-        ),
+        guardrailsPromise,
+        speculative?.gov ?? governanceQuery(configResult.supportedModels),
       ]);
 
       // 4. Governance default model (implicit path only).
