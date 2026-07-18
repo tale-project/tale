@@ -6,7 +6,9 @@ import {
   useContext,
   useMemo,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -15,14 +17,14 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 interface SidebarContextValue {
   /** Desktop sidebar expanded (full panel) vs collapsed (icon rail). */
   isExpanded: boolean;
-  setExpanded: (expanded: boolean) => void;
+  setExpanded: Dispatch<SetStateAction<boolean>>;
   toggleExpanded: () => void;
   /** Mobile unified drawer (nav + chat history). Session-only. */
   isMobileSheetOpen: boolean;
-  setMobileSheetOpen: (open: boolean) => void;
+  setMobileSheetOpen: Dispatch<SetStateAction<boolean>>;
   /** Global chat-search palette (SearchCommand). Session-only. */
   isSearchOpen: boolean;
-  setSearchOpen: (open: boolean) => void;
+  setSearchOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);

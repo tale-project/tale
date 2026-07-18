@@ -52,8 +52,10 @@ export function NotificationBell({
       type="button"
       aria-label={tNav('notifications')}
       className={cn(
-        'hover:bg-muted relative flex items-center rounded-lg transition-colors cursor-pointer',
-        label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
+        'hover:bg-muted relative flex items-center transition-colors cursor-pointer',
+        label
+          ? 'gap-3 px-3 py-2 w-full rounded-lg'
+          : 'justify-center p-1.5 rounded-md',
       )}
     >
       <span className="relative inline-flex">

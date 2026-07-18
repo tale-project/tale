@@ -153,8 +153,14 @@ vi.mock('@/app/components/layout/app-sidebar/sidebar-context', () => ({
   ),
 }));
 
-vi.mock('@/app/components/ui/navigation/navigation', () => ({
-  Navigation: () => null,
+vi.mock('@/app/components/layout/app-sidebar/app-sidebar', () => ({
+  AppSidebar: () => null,
+}));
+
+vi.mock('@/app/hooks/use-clock-offset', () => ({
+  ClockOffsetProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 vi.mock('@/app/components/user-button', () => ({

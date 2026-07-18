@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  MessageCircle,
+  SquarePen,
   BrainIcon,
   Workflow,
   Bot,
@@ -44,6 +44,11 @@ export interface NavItem {
    * sibling entries share a prefix and the default would over-match.
    */
   isActivePath?: (pathname: string) => boolean;
+  /**
+   * Render as the list's primary action (full-contrast label) even when
+   * inactive — used by "New chat", which is a verb among destinations.
+   */
+  emphasis?: boolean;
 }
 
 export interface NavigationItems {
@@ -73,8 +78,9 @@ export function useNavigationItems(businessId: string): NavigationItems {
           to: '/dashboard/$id/chat',
           params: { id: businessId },
           href: `/dashboard/${businessId}/chat`,
-          icon: MessageCircle,
+          icon: SquarePen,
           shortcut: newChatShortcut,
+          emphasis: true,
         },
         {
           label: tProjects('title'),

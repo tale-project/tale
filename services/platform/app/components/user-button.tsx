@@ -34,6 +34,11 @@ import {
   useState,
 } from 'react';
 
+import {
+  labelFadeClass,
+  ROW_TRANSITION_CLASS,
+  rowWidthStyle,
+} from '@/app/components/layout/app-sidebar/sidebar-motion';
 import { IosInstallSheet } from '@/app/components/pwa/ios-install-sheet';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
@@ -147,6 +152,14 @@ export interface UserButtonProps {
    * the current route.
    */
   onNavigate?: () => void;
+  /**
+   * Unified-sidebar footer variant. When set, the trigger renders as a
+   * sidebar row — a 32px icon tile that widens to a full labelled row (the
+   * member display name) while `true` — sharing the sidebar's width/fade
+   * motion. The hover tooltip only renders while collapsed. Mutually
+   * exclusive with `label`.
+   */
+  sidebarExpanded?: boolean;
 }
 
 export function UserButton({
@@ -154,6 +167,7 @@ export function UserButton({
   label,
   tooltipText,
   onNavigate,
+  sidebarExpanded,
 }: UserButtonProps) {
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
@@ -606,6 +620,8 @@ export function UserButton({
     closeMenu,
   ]);
 
+  const isSidebarVariant = sidebarExpanded !== undefined;
+
   const triggerContent = (
     <button
       ref={menuTriggerRef}
@@ -614,11 +630,19 @@ export function UserButton({
         label ? undefined : (tooltipText ?? t('userButton.manageAccount'))
       }
       className={cn(
-        'relative flex items-center rounded-lg transition-colors hover:bg-muted cursor-pointer',
-        label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
+        'relative flex items-center transition-colors hover:bg-muted cursor-pointer',
+        label
+          ? 'gap-3 px-3 py-2 w-full rounded-lg'
+          : isSidebarVariant
+            ? cn(
+                'h-8 gap-2.5 overflow-hidden rounded-md pl-1.5 pr-2',
+                ROW_TRANSITION_CLASS,
+              )
+            : 'justify-center p-1.5 rounded-md',
       )}
+      style={isSidebarVariant ? rowWidthStyle(sidebarExpanded) : undefined}
     >
-      <div className="relative">
+      <div className="relative shrink-0">
         <UserCircle className="text-muted-foreground size-5 shrink-0" />
         {hasUnseenVersion && (
           <>
@@ -634,6 +658,17 @@ export function UserButton({
         <Text as="span" variant="label">
           {label}
         </Text>
+      )}
+      {isSidebarVariant && (
+        <span
+          aria-hidden
+          className={cn(
+            'text-muted-foreground min-w-0 flex-1 truncate text-left text-[13px]',
+            labelFadeClass(sidebarExpanded ?? false),
+          )}
+        >
+          {displayName}
+        </span>
       )}
     </button>
   );
@@ -659,7 +694,9 @@ export function UserButton({
 
   const contentClassName = 'w-64';
 
-  if (label) {
+  // Labelled variants (mobile nav row, expanded sidebar row) show their text
+  // inline, so the hover tooltip only exists for the icon-only/collapsed tile.
+  if (label || (isSidebarVariant && sidebarExpanded)) {
     return (
       <>
         <DropdownMenu

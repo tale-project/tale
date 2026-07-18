@@ -1175,13 +1175,8 @@
       "voiceModeDisable": "Arrêter la lecture à voix haute"
     },
     "searchChat": "Rechercher dans le chat",
-    "hideSearch": "Masquer la recherche",
     "showHistory": "Afficher l'historique",
     "hideHistory": "Masquer l'historique",
-    "unifiedSidebar": {
-      "title": "Menu",
-      "landmark": "Barre latérale du tableau de bord"
-    },
     "newProject": "Nouveau projet",
     "typeMessageHere": "Saisis ton message ici…",
     "send": "Envoyer le message",
@@ -4620,7 +4615,13 @@
     "orgDataResidency": "Résidence des données de l'organisation",
     "runtimes": "Runtimes",
     "sandboxes": "Sandboxes",
-    "enterpriseSso": "SSO d'entreprise"
+    "enterpriseSso": "SSO d'entreprise",
+    "sidebar": {
+      "collapse": "Réduire la barre latérale",
+      "expand": "Développer la barre latérale",
+      "landmark": "Barre latérale du tableau de bord",
+      "title": "Menu"
+    }
   },
   "notificationPreferences": {
     "title": "Notifications",

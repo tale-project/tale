@@ -1175,13 +1175,8 @@
       "voiceModeDisable": "Stop reading replies aloud"
     },
     "searchChat": "Search chat",
-    "hideSearch": "Hide search",
     "showHistory": "Show chats",
     "hideHistory": "Hide chats",
-    "unifiedSidebar": {
-      "title": "Menu",
-      "landmark": "Dashboard sidebar"
-    },
     "newProject": "New project",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
@@ -4620,7 +4615,13 @@
     "orgDataResidency": "Organization data residency",
     "runtimes": "Runtimes",
     "sandboxes": "Sandboxes",
-    "enterpriseSso": "Enterprise SSO"
+    "enterpriseSso": "Enterprise SSO",
+    "sidebar": {
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar",
+      "landmark": "Dashboard sidebar",
+      "title": "Menu"
+    }
   },
   "notificationPreferences": {
     "title": "Notifications",
