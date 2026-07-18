@@ -69,7 +69,7 @@ class FakeXhr {
   }
 }
 
-function startUpload() {
+function startUpload(onUploadPhaseDone?: () => void) {
   const file = new File(['x'], 'big.pdf', { type: 'application/pdf' });
   const promise = uploadWithProgress(
     'https://acc.r2.cloudflarestorage.com/bucket/key',
@@ -78,6 +78,7 @@ function startUpload() {
     'PUT',
     undefined,
     () => {},
+    onUploadPhaseDone,
   );
   // Swallow later assertions' rejections so an aborting test can inspect the
   // promise without an unhandled-rejection warning.
@@ -96,6 +97,17 @@ afterEach(() => {
 });
 
 describe('uploadWithProgress two-phase watchdog', () => {
+  it('reports the end of the upload phase so the UI can show "confirming"', async () => {
+    const onUploadPhaseDone = vi.fn();
+    const { promise, xhr } = startUpload(onUploadPhaseDone);
+    xhr.emitProgress(100_000, 100_000);
+    expect(onUploadPhaseDone).not.toHaveBeenCalled();
+    xhr.emitUploadDone();
+    expect(onUploadPhaseDone).toHaveBeenCalledTimes(1);
+    xhr.emitResponse(200);
+    await expect(promise).resolves.toEqual({});
+  });
+
   it('still aborts a transfer with no progress for the stall window', async () => {
     const { promise, xhr } = startUpload();
     xhr.emitProgress(1_000, 100_000);

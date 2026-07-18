@@ -26,7 +26,16 @@ import { UploadTimeoutError, withDeadline } from '../lib/upload-deadline';
 // Types
 // ---------------------------------------------------------------------------
 
-export type FileUploadStatus = 'pending' | 'uploading' | 'completed' | 'failed';
+export type FileUploadStatus =
+  | 'pending'
+  | 'uploading'
+  // All bytes handed to the network stack; waiting for the store to commit
+  // and the document records to bind. Progress is indeterminate here — on a
+  // slow uplink this phase runs for minutes with no byte progress to show,
+  // and a bar frozen at 100 % reads as "stuck" (see UPLOAD_RESPONSE_DEADLINE_MS).
+  | 'finalizing'
+  | 'completed'
+  | 'failed';
 
 export interface TrackedFile {
   id: string;
@@ -107,6 +116,10 @@ export function uploadWithProgress(
   method: 'POST' | 'PUT',
   signal: AbortSignal | undefined,
   onProgress: (loaded: number, total: number) => void,
+  // Fires once when the upload phase ends (all bytes handed off) and the
+  // response wait begins — the caller flips the row into its indeterminate
+  // "confirming" state so a full bar never sits frozen at 100 %.
+  onUploadPhaseDone?: () => void,
 ): Promise<{ storageId?: string }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -144,6 +157,7 @@ export function uploadWithProgress(
     xhr.upload.addEventListener('load', () => {
       uploadPhaseDone = true;
       armWatchdog(UPLOAD_RESPONSE_DEADLINE_MS);
+      onUploadPhaseDone?.();
     });
 
     xhr.addEventListener('load', () => {
@@ -285,6 +299,12 @@ export function useDocumentUpload(options: UploadOptions) {
               bytesLoaded: loaded,
               bytesTotal: total,
             });
+          },
+          () => {
+            // Bytes are all out the door; the store hasn't answered yet and
+            // the document records aren't bound. Show "confirming", not a
+            // dead 100 % bar — on a slow uplink this phase runs for minutes.
+            updateFileStatus(fileId, { status: 'finalizing' });
           },
         );
         // Bind the S3 ref (known up front from the handoff) or the Convex id

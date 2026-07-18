@@ -1,7 +1,7 @@
 'use client';
 
 import { Row } from '@tale/ui/layout';
-import { CircleAlert, CircleCheck, RotateCw, X } from 'lucide-react';
+import { CircleAlert, CircleCheck, Loader2, RotateCw, X } from 'lucide-react';
 import { memo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -73,6 +73,10 @@ export const UploadFileRow = memo(function UploadFileRow({
   const isFailed = status === 'failed';
   const isCompleted = status === 'completed';
   const isUploading = status === 'uploading';
+  // Bytes all sent, waiting for the store/records — byte progress is over,
+  // so the bar goes indeterminate and the copy says "confirming" instead of
+  // freezing at 100 % (which reads as "stuck" during a slow-uplink drain).
+  const isFinalizing = status === 'finalizing';
   const isPending = status === 'pending';
 
   return (
@@ -145,6 +149,16 @@ export const UploadFileRow = memo(function UploadFileRow({
           </span>
         )}
 
+        {isFinalizing && (
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-blue-600">
+            <Loader2
+              className="size-3 motion-safe:animate-spin"
+              aria-hidden="true"
+            />
+            {t('upload.confirming')}
+          </span>
+        )}
+
         {isFailed && onRetry && (
           <button
             type="button"
@@ -168,7 +182,8 @@ export const UploadFileRow = memo(function UploadFileRow({
         )}
       </Row>
 
-      {/* Progress bar (only for uploading) */}
+      {/* Progress bar: determinate while bytes flow, indeterminate while
+          confirming (no aria-valuenow — there is no meaningful value). */}
       {isUploading && (
         <div
           role="progressbar"
@@ -182,6 +197,15 @@ export const UploadFileRow = memo(function UploadFileRow({
             className="h-full rounded-full bg-gradient-to-b from-blue-600 to-blue-400 transition-all duration-300 ease-out"
             style={{ width: `${percentage}%` }}
           />
+        </div>
+      )}
+      {isFinalizing && (
+        <div
+          role="progressbar"
+          aria-label={t('upload.confirmingFileNamed', { fileName })}
+          className="bg-muted h-1 w-full overflow-hidden rounded-full"
+        >
+          <div className="h-full w-full rounded-full bg-gradient-to-b from-blue-600 to-blue-400 motion-safe:animate-pulse" />
         </div>
       )}
 
