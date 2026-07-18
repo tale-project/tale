@@ -720,6 +720,11 @@ function StorageSection({
                   okLabel={t('orgDataResidency.storage.verified')}
                 />
               </HStack>
+              <Alert
+                description={t('orgDataResidency.storage.corsNote', {
+                  origin: window.location.origin,
+                })}
+              />
               <p className="text-muted-foreground text-xs">
                 {t('orgDataResidency.storage.note')}
               </p>

@@ -7196,6 +7196,7 @@
         "prefixHint": "Espace de noms optionnel dans le bucket ; vide, les objets sont stockés à la racine.",
         "credentialsHint": "Écriture seule — les clés stockées ne sont jamais affichées. Saisis les deux clés, ou laisse-les vides pour tester les clés enregistrées.",
         "verified": "Bucket vérifié (écriture, lecture, suppression)",
+        "corsNote": "Les téléversements et les téléchargements passent directement du navigateur à ton bucket : le bucket doit donc accepter les requêtes cross-origin (CORS) depuis {origin} — autorise cette origine avec les méthodes GET, PUT et HEAD et tous les en-têtes de requête. Le test de connexion s'exécute côté serveur et ne peut pas le vérifier.",
         "note": "Désactivé, les fichiers de cette organisation restent dans le stockage intégré du déploiement, isolés par organisation. Activé, les nouveaux téléversements vont dans le bucket ci-dessus ; les fichiers stockés avant le changement restent lisibles là où ils sont.",
         "saved": "Enregistré — les nouveaux téléversements de cette organisation vont dans ton bucket.",
         "cleared": "Connexion supprimée — les nouveaux téléversements retournent dans le stockage intégré du déploiement. Les fichiers déjà dans ton bucket y restent, mais Tale ne peut plus les lire tant que tu ne rétablis pas la connexion.",

@@ -7196,6 +7196,7 @@
         "prefixHint": "Optionaler Namensraum im Bucket; leer legt Objekte direkt im Bucket ab.",
         "credentialsHint": "Nur Schreiben — gespeicherte Schlüssel werden nie angezeigt. Gib beide Schlüssel ein oder lass beide leer, um die gespeicherten Schlüssel zu testen.",
         "verified": "Bucket geprüft (Hochladen, Lesen, Löschen)",
+        "corsNote": "Uploads und Downloads laufen direkt zwischen Browser und deinem Bucket. Der Bucket muss deshalb Cross-Origin-Anfragen (CORS) von {origin} akzeptieren — erlaube diesen Origin mit den Methoden GET, PUT und HEAD sowie allen Request-Headern. Der Verbindungstest läuft auf dem Server und kann das nicht prüfen.",
         "note": "Ohne Verbindung liegen die Dateien dieser Organisation im eingebauten Speicher des Deployments, pro Organisation isoliert. Mit Verbindung landen neue Uploads im oben angegebenen Bucket; zuvor gespeicherte Dateien bleiben lesbar, wo sie sind.",
         "saved": "Gespeichert — neue Uploads dieser Organisation landen in deinem Bucket.",
         "cleared": "Verbindung entfernt — neue Uploads landen wieder im eingebauten Speicher des Deployments. Dateien in deinem Bucket bleiben dort, sind für Tale aber erst wieder verfügbar, wenn du die Verbindung erneut einrichtest.",
