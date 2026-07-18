@@ -2,6 +2,8 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
+import { readSidebarExpandedHint } from './sidebar-context';
+
 // The real list is CASL-gated down to a few items and the gated count isn't
 // known until access resolves, so the placeholder optimistically renders the
 // whole set — a pixel match for the common admin/owner case that only
@@ -18,31 +20,6 @@ const NAV_LABEL_WIDTHS = [
   'w-14',
   'w-16',
 ];
-
-/**
- * The persisted expand/collapse preference is keyed per user+org, and the
- * userId isn't knowable before auth resolves — but the org IS (route param).
- * Scanning for any user's key under this org is a reliable hint on a personal
- * browser, and it removes the expanded→rail settle jump for collapsed-pref
- * users on cold loads. Wrong at worst for one paint on a shared machine.
- */
-function readCollapsedHint(organizationId?: string): boolean {
-  if (!organizationId || typeof window === 'undefined') return false;
-  try {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (
-        key?.startsWith('app-sidebar-expanded-') &&
-        key.endsWith(`-${organizationId}`)
-      ) {
-        return window.localStorage.getItem(key) === 'false';
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to read the sidebar width hint', error);
-  }
-  return false;
-}
 
 /** One masked 36×36 icon tile (logo/toggle/search/nav/bell slots). */
 function TileSkeleton() {
@@ -99,7 +76,7 @@ export interface AppSidebarPlaceholderProps {
 export function AppSidebarPlaceholder({
   organizationId,
 }: AppSidebarPlaceholderProps) {
-  const collapsed = readCollapsedHint(organizationId);
+  const collapsed = readSidebarExpandedHint(organizationId) === false;
 
   if (collapsed) {
     return (

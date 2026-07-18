@@ -43,6 +43,36 @@ interface SidebarProviderProps {
 }
 
 /**
+ * The persisted expand/collapse preference is keyed per user+org, but the
+ * userId isn't knowable before auth resolves — the org (route param) is.
+ * Scanning for any user's key under the org gives the first render its
+ * correct width on a personal browser (no expanded→collapsed settle once
+ * auth lands). Shared by the provider (initial value) and the skeleton
+ * placeholder (width variant). Returns `undefined` when no key exists —
+ * callers fall back to the expanded default. SSR-safe: `undefined` without
+ * a window.
+ */
+export function readSidebarExpandedHint(
+  organizationId?: string,
+): boolean | undefined {
+  if (!organizationId || typeof window === 'undefined') return undefined;
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (
+        key?.startsWith('app-sidebar-expanded-') &&
+        key.endsWith(`-${organizationId}`)
+      ) {
+        return window.localStorage.getItem(key) !== 'false';
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to read the sidebar width hint', error);
+  }
+  return undefined;
+}
+
+/**
  * Shell-level state for the unified app sidebar: the desktop expand/collapse
  * preference (persisted per user+org, default expanded), the mobile drawer, and
  * the global chat-search palette. Lives in the dashboard layout so the sidebar,
@@ -54,14 +84,18 @@ export function SidebarProvider({
   children,
 }: SidebarProviderProps) {
   const { user } = useAuth();
-  // Same per-user+org key pattern as ChatLayoutProvider's persisted prefs; the
-  // org-only fallback covers the brief window before auth resolves —
-  // usePersistedState re-reads storage when the key upgrades to the
-  // user-scoped one.
+  // Same per-user+org key pattern as ChatLayoutProvider's persisted prefs. The
+  // org-only fallback key covers the brief window before auth resolves; it is
+  // never written, so its INITIAL value comes from the org-scan hint — the
+  // first paint already has the user's last-known width, and the re-read when
+  // the key upgrades to the user-scoped one is a no-op in the common case.
   const expandedKey = user?.userId
     ? `app-sidebar-expanded-${user.userId}-${organizationId}`
     : `app-sidebar-expanded-${organizationId}`;
-  const [isExpanded, setExpanded] = usePersistedState(expandedKey, true);
+  const [isExpanded, setExpanded] = usePersistedState(
+    expandedKey,
+    readSidebarExpandedHint(organizationId) ?? true,
+  );
   const [isMobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [isSearchOpen, setSearchOpen] = useState(false);
 

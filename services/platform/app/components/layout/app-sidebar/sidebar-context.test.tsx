@@ -3,8 +3,12 @@ import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { authState } = vi.hoisted(() => ({
+  authState: { user: { userId: 'user_1' } as { userId: string } | null },
+}));
+
 vi.mock('@/app/hooks/use-convex-auth', () => ({
-  useAuth: () => ({ user: { userId: 'user_1' } }),
+  useAuth: () => ({ user: authState.user }),
 }));
 
 import { SidebarProvider, useSidebar } from './sidebar-context';
@@ -15,6 +19,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   window.localStorage.clear();
+  authState.user = { userId: 'user_1' };
 });
 
 describe('SidebarProvider', () => {
@@ -40,6 +45,22 @@ describe('SidebarProvider', () => {
     window.localStorage.setItem('app-sidebar-expanded-user_1-org_1', 'false');
     const { result } = renderHook(() => useSidebar(), { wrapper });
     expect(result.current.isExpanded).toBe(false);
+  });
+
+  it('first paint before auth resolves uses the org-scan hint (no expanded flash)', () => {
+    // Pre-auth the user-scoped key is unknowable; the org-scan hint (any
+    // user's key under this org) must make the FIRST render collapsed.
+    authState.user = null;
+    window.localStorage.setItem('app-sidebar-expanded-user_1-org_1', 'false');
+    const { result } = renderHook(() => useSidebar(), { wrapper });
+    expect(result.current.isExpanded).toBe(false);
+  });
+
+  it('ignores hints from other orgs before auth resolves', () => {
+    authState.user = null;
+    window.localStorage.setItem('app-sidebar-expanded-user_1-org_2', 'false');
+    const { result } = renderHook(() => useSidebar(), { wrapper });
+    expect(result.current.isExpanded).toBe(true);
   });
 
   it('mobile sheet and search palette state are session-only and independent', () => {
