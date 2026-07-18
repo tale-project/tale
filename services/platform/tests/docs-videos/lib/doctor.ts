@@ -20,9 +20,9 @@ import type { EpisodeSpec, Locale } from './episode';
 import { ffmpegBin } from './ffmpeg';
 import { REPO_ROOT, SCREENSHOTS_STATE_DIR, STATE_DIR } from './paths';
 
-export type DoctorStatus = 'ok' | 'warn' | 'fail';
+type DoctorStatus = 'ok' | 'warn' | 'fail';
 
-export interface DoctorCheck {
+interface DoctorCheck {
   readonly name: string;
   readonly status: DoctorStatus;
   readonly detail: string;
@@ -30,7 +30,7 @@ export interface DoctorCheck {
   readonly fix?: string;
 }
 
-export interface DoctorScope {
+interface DoctorScope {
   /** Selected episodes — decides org/locale/knowledge-DB applicability. */
   readonly episodes: readonly EpisodeSpec[];
   readonly locales: readonly Locale[];

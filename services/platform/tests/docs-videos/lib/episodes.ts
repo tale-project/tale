@@ -79,15 +79,3 @@ export async function loadEpisodes(): Promise<readonly EpisodeSpec[]> {
   cache = episodes;
   return episodes;
 }
-
-/** One episode by id, or throw naming the known ids. */
-export async function findEpisode(id: string): Promise<EpisodeSpec> {
-  const episodes = await loadEpisodes();
-  const episode = episodes.find((e) => e.id === id);
-  if (!episode) {
-    throw new Error(
-      `Unknown episode "${id}". Known: ${episodes.map((e) => e.id).join(', ')}`,
-    );
-  }
-  return episode;
-}

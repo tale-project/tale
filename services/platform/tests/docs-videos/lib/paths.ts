@@ -9,7 +9,7 @@ import path from 'node:path';
 const LIB_DIR = path.dirname(new URL(import.meta.url).pathname);
 
 /** `services/platform/tests/docs-videos/` — the pipeline root. */
-export const PIPELINE_DIR = path.resolve(LIB_DIR, '..');
+const PIPELINE_DIR = path.resolve(LIB_DIR, '..');
 
 /** Episode specs + choreography, one directory per episode id. */
 export const EPISODES_DIR = path.join(PIPELINE_DIR, 'episodes');

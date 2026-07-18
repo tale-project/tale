@@ -28,12 +28,12 @@ const EARLY_SPEECH_SLACK_MS = 700;
 /** Composed duration may differ from the plan by at most this much. */
 const MAX_DURATION_DELTA_MS = 800;
 
-export interface SpeechInterval {
+interface SpeechInterval {
   readonly startMs: number;
   readonly endMs: number;
 }
 
-export interface VerifyIssue {
+interface VerifyIssue {
   readonly where: string;
   readonly detail: string;
 }

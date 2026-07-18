@@ -43,7 +43,7 @@ const DRAFT_HEIGHT = 720;
 /** Ten minutes of encode budget — episodes are minutes long, 4K input. */
 const ENCODE_TIMEOUT_MS = 10 * 60 * 1000;
 
-export interface ComposeOptions {
+interface ComposeOptions {
   /**
    * Fast low-res encode into `.state/out/` for review — never touches the
    * docs tree, the poster, or the manifest.
