@@ -29,7 +29,7 @@ export interface AppSidebarProps {
 /**
  * The unified app sidebar: primary navigation, chat search, and chat history
  * in one shell-level panel present on every dashboard route. Expanded it is an
- * 18rem labelled panel; collapsed, a 3.5rem icon rail. The inner column keeps
+ * 18rem labelled panel; collapsed, a 3rem icon rail. The inner column keeps
  * the expanded width and the panel clips it, so icons hold their position and
  * the whole surface folds as one piece — the panel, rows, toggle slide, and
  * fades all run on one CSS clock (see sidebar-motion.ts).
@@ -92,14 +92,14 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
             className="h-full overflow-hidden"
             style={{ width: EXPANDED_WIDTH }}
           >
-            <div className="shrink-0 px-2 pt-3 pb-4">
+            <div className="shrink-0 px-1.5 pt-3 pb-4">
               <SidebarHeader
                 organizationId={organizationId}
                 expanded={isExpanded}
                 collapsible={collapsible}
               />
             </div>
-            <div className="shrink-0 px-2 pb-2">
+            <div className="shrink-0 px-1.5 pb-2">
               <SidebarSearch expanded={isExpanded} />
             </div>
             <SidebarNav organizationId={organizationId} expanded={isExpanded} />

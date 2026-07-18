@@ -3,7 +3,7 @@
 /*
  * Unified app sidebar: expanded panel ↔ collapsed icon rail. Consumed by the
  * AppSidebar width animation AND its skeleton placeholder so both share one
- * geometry (8px inset + 32px tile + 8px inset = 3rem collapsed). Fixed
+ * geometry (6px inset + 36px tile + 6px inset = 3rem collapsed). Fixed
  * widths from first paint — otherwise the column reflows as content hydrates,
  * shifting the whole page on reload.
  */

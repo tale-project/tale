@@ -46,7 +46,7 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
     <button
       type="button"
       aria-label={tNav('notifications')}
-      className="hover:bg-muted relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors"
+      className="hover:bg-muted relative flex cursor-pointer items-center justify-center rounded-md p-2 transition-colors"
     >
       <span className="relative inline-flex">
         <Bell className="text-muted-foreground size-5 shrink-0" />

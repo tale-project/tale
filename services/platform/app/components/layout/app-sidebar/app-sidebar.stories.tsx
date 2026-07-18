@@ -18,8 +18,8 @@ import { cn } from '@/lib/utils/cn';
 
 // NOTE: The full AppSidebar requires TanStack Router, the SidebarProvider,
 // Convex-backed chat history, and i18n. These stories render a static visual
-// replica of both states to demonstrate the layout, row anatomy (32px icon
-// tiles, h-8 rows, 13px labels), and active/inactive treatments without those
+// replica of both states to demonstrate the layout, row anatomy (36px icon
+// tiles, h-9 rows, 13px labels), and active/inactive treatments without those
 // provider dependencies.
 
 interface NavItemData {
@@ -56,12 +56,12 @@ function NavRowVisual({
       >
         <div
           className={cn(
-            'relative flex h-8 items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-1.5 transition-colors',
+            'relative flex h-9 items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-1.5 transition-colors',
             item.isActive
               ? 'bg-muted text-foreground'
               : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
           )}
-          style={{ width: expanded ? '15rem' : '2rem' }}
+          style={{ width: expanded ? '15.25rem' : '2.25rem' }}
           data-active={item.isActive}
         >
           <span className="relative flex size-5 shrink-0 items-center justify-center">
@@ -100,12 +100,12 @@ function SidebarShell({
       className="bg-background border-border flex h-[560px] flex-col overflow-hidden rounded-lg border"
       style={{ width: expanded ? '16rem' : '3rem' }}
     >
-      {/* Header — expanded: 32px logo box + name + toggle at the row's end;
+      {/* Header — expanded: 36px logo box + name + toggle at the row's end;
           collapsed: only the toggle, in the leading icon column. */}
-      <div className="shrink-0 px-2 pt-3 pb-4">
-        <div className="flex h-8 items-center gap-2.5">
+      <div className="shrink-0 px-1.5 pt-3 pb-4">
+        <div className="flex h-9 items-center gap-2.5">
           {(expanded || pinned) && (
-            <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded text-xs font-bold">
+            <div className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded text-xs font-bold">
               T
             </div>
           )}
@@ -118,7 +118,7 @@ function SidebarShell({
             <button
               type="button"
               aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-              className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
             >
               <ToggleIcon className="size-5" />
             </button>
@@ -126,17 +126,17 @@ function SidebarShell({
         </div>
       </div>
       {/* Search trigger */}
-      <div className="shrink-0 px-2 pb-2">
+      <div className="shrink-0 px-1.5 pb-2">
         <button
           type="button"
           aria-label="Search chat"
           className={cn(
-            'text-muted-foreground flex h-8 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md border pl-1.5 transition-colors',
+            'text-muted-foreground flex h-9 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md border pl-2 transition-colors',
             expanded
               ? 'border-border bg-muted/50 hover:bg-muted pr-1.5'
               : 'hover:bg-muted border-transparent',
           )}
-          style={{ width: expanded ? '15rem' : '2rem' }}
+          style={{ width: expanded ? '15.25rem' : '2.25rem' }}
         >
           <Search className="size-5 shrink-0" />
           <span
@@ -158,7 +158,7 @@ function SidebarShell({
         </button>
       </div>
       {/* Primary nav */}
-      <nav aria-label="Main navigation" className="px-2">
+      <nav aria-label="Main navigation" className="px-1.5">
         <ul className="flex list-none flex-col gap-0.5">
           {sampleItems.map((item) => (
             <NavRowVisual key={item.label} item={item} expanded={expanded} />
@@ -188,19 +188,19 @@ function SidebarShell({
         )}
       </div>
       {/* Footer */}
-      <div className="border-border flex shrink-0 flex-col gap-0.5 border-t px-2 py-2">
+      <div className="border-border flex shrink-0 flex-col gap-0.5 border-t px-1.5 py-2">
         <button
           type="button"
           aria-label="Notifications"
-          className="text-muted-foreground hover:bg-muted flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors"
+          className="text-muted-foreground hover:bg-muted flex size-9 cursor-pointer items-center justify-center rounded-md transition-colors"
         >
           <Bell className="size-5" />
         </button>
         <button
           type="button"
           aria-label="Manage account"
-          className="text-muted-foreground hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-1.5 transition-colors"
-          style={{ width: expanded ? '15rem' : '2rem' }}
+          className="text-muted-foreground hover:bg-muted flex h-9 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-2 transition-colors"
+          style={{ width: expanded ? '15.25rem' : '2.25rem' }}
         >
           <UserCircle className="size-5 shrink-0" />
           <span
@@ -225,7 +225,7 @@ const meta: Meta = {
     docs: {
       description: {
         component: `
-The unified app sidebar: primary navigation, chat search trigger, and chat history in one shell-level panel present on every dashboard route. Expanded it is an 16rem labelled panel; collapsed, a 3rem icon rail of 32×32 tiles. Icons hold their position across states — collapse is a clip plus a label fade, driven by \`--sidebar-width\` / \`--sidebar-width-collapsed\`.
+The unified app sidebar: primary navigation, chat search trigger, and chat history in one shell-level panel present on every dashboard route. Expanded it is an 16rem labelled panel; collapsed, a 3rem icon rail of 36×36 tiles. Icons hold their position across states — collapse is a clip plus a label fade, driven by \`--sidebar-width\` / \`--sidebar-width-collapsed\`.
 
 ## Provider dependencies
 The full \`AppSidebar\` requires TanStack Router, \`SidebarProvider\`, and the Convex-backed chat history. These stories render a static visual replica of both states.
@@ -260,7 +260,7 @@ export const Collapsed: Story = {
     docs: {
       description: {
         story:
-          'The 3rem icon rail: 32×32 tiles, labels clipped and faded out, chat history hidden.',
+          'The 3rem icon rail: 36×36 tiles, labels clipped and faded out, chat history hidden.',
       },
     },
   },

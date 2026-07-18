@@ -29,7 +29,7 @@ function isPathMatch(itemHref: string, currentPath: string): boolean {
 
 export interface SidebarNavItemProps {
   item: NavItem;
-  /** Sidebar state: full labelled row (true) ↔ 32×32 icon tile (false). */
+  /** Sidebar state: full labelled row (true) ↔ 36×36 icon tile (false). */
   expanded: boolean;
 }
 
@@ -76,7 +76,7 @@ export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
   const rowContent = (
     <div
       className={cn(
-        'relative flex h-8 items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-1.5',
+        'relative flex h-9 items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-2',
         ROW_TRANSITION_CLASS,
         isActive
           ? accentColor
@@ -178,7 +178,7 @@ export function SidebarNav({ organizationId, expanded }: SidebarNavProps) {
   }, [isMac, navigate, organizationId]);
 
   return (
-    <nav aria-label={tCommon('aria.mainNavigation')} className="px-2">
+    <nav aria-label={tCommon('aria.mainNavigation')} className="px-1.5">
       <ul role="list" className="flex list-none flex-col gap-0.5">
         {primary.map((item) => (
           <SidebarNavItem key={item.href} item={item} expanded={expanded} />

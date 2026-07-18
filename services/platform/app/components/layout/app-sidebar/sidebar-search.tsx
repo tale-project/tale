@@ -38,7 +38,7 @@ export function SidebarSearch({ expanded }: SidebarSearchProps) {
       onClick={() => setSearchOpen(true)}
       aria-label={t('searchChat')}
       className={cn(
-        'text-muted-foreground flex h-8 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md border pl-1.5',
+        'text-muted-foreground flex h-9 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md border pl-2',
         ROW_TRANSITION_CLASS,
         expanded
           ? 'border-border bg-muted/50 hover:bg-muted pr-1.5'

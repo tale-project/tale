@@ -142,7 +142,7 @@ export interface UserButtonProps {
   align?: 'start' | 'end';
   /**
    * Unified-sidebar footer variant. When set, the trigger renders as a
-   * sidebar row — a 32px icon tile that widens to a full labelled row (the
+   * sidebar row — a 36px icon tile that widens to a full labelled row (the
    * member display name) while `true` — sharing the sidebar's width/fade
    * motion. The hover tooltip only renders while collapsed.
    */
@@ -613,10 +613,10 @@ export function UserButton({
         'relative flex items-center transition-colors hover:bg-muted cursor-pointer',
         isSidebarVariant
           ? cn(
-              'h-8 gap-2.5 overflow-hidden rounded-md pl-1.5 pr-2',
+              'h-9 gap-2.5 overflow-hidden rounded-md pl-2 pr-2',
               ROW_TRANSITION_CLASS,
             )
-          : 'justify-center p-1.5 rounded-md',
+          : 'justify-center p-2 rounded-md',
       )}
       style={isSidebarVariant ? rowWidthStyle(sidebarExpanded) : undefined}
     >

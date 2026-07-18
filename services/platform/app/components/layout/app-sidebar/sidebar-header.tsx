@@ -21,7 +21,7 @@ export interface SidebarHeaderProps {
 }
 
 /**
- * Panel header. Expanded: the org logo (32×32 box, links to a fresh chat),
+ * Panel header. Expanded: the org logo (36×36 box, links to a fresh chat),
  * the workspace name, and the collapse toggle at the row's end. Collapsed:
  * only the toggle in the leading icon column — except on the pinned rail
  * (not `collapsible`), which shows the logo there instead. One toggle
@@ -39,7 +39,7 @@ export function SidebarHeader({
   const logoVisible = expanded || !collapsible;
 
   return (
-    <div className="relative flex h-8 items-center gap-2.5">
+    <div className="relative flex h-9 items-center gap-2.5">
       <Link
         to="/dashboard/$id/chat"
         params={{ id: organizationId }}
@@ -64,13 +64,13 @@ export function SidebarHeader({
       </span>
       {/* In-flow stand-in for the slot the toggle overlays while expanded, so
           the name truncates before running under it. */}
-      <span aria-hidden className="w-8 shrink-0" />
+      <span aria-hidden className="w-9 shrink-0" />
       {collapsible && (
         <div
           className={cn('absolute top-0 left-0', TOGGLE_SLIDE_CLASS)}
           style={{
             transform: expanded
-              ? 'translateX(calc(var(--sidebar-width, 16rem) - 1rem - 2rem))'
+              ? 'translateX(calc(var(--sidebar-width, 16rem) - 0.75rem - 2.25rem))'
               : 'translateX(0)',
           }}
         >

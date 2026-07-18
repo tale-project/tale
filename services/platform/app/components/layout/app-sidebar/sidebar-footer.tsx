@@ -26,13 +26,13 @@ export function SidebarFooter({
   const { pinned } = useNavigationItems(organizationId);
 
   return (
-    // `align="start"` so children shrink-wrap: the bell must stay a 32px tile
+    // `align="start"` so children shrink-wrap: the bell must stay a 36px tile
     // in the leading icon column (stretched, its centered glyph would drift to
     // mid-panel and get clipped out entirely in the rail state).
     <Stack
       gap={0}
       align="start"
-      className="border-border shrink-0 gap-0.5 border-t px-2 py-2"
+      className="border-border shrink-0 gap-0.5 border-t px-1.5 py-2"
     >
       <NotificationBell organizationId={organizationId} />
       {pinned.length > 0 && (
