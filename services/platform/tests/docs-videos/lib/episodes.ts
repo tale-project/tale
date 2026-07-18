@@ -12,6 +12,25 @@ import path from 'node:path';
 
 import type { EpisodeSpec } from './episode';
 import { EPISODES_DIR } from './paths';
+import type { SceneChoreography, SceneContext } from './scene';
+
+export interface ChoreographyModule {
+  readonly SCENES: readonly SceneChoreography[];
+  /** Optional pre-screencast lap over every surface the take visits. */
+  readonly warmup?: (
+    page: import('@playwright/test').Page,
+    ctx: SceneContext,
+  ) => Promise<void>;
+}
+
+/** The paired `scenes.ts` of one episode (choreography side of the spec). */
+export async function loadChoreography(
+  episodeId: string,
+): Promise<ChoreographyModule> {
+  return (await import(
+    path.join(EPISODES_DIR, episodeId, 'scenes.ts')
+  )) as ChoreographyModule;
+}
 
 /** `ep2-…` before `ep10-…` — numeric-aware, deterministic across machines. */
 const naturalOrder = new Intl.Collator('en', { numeric: true }).compare;

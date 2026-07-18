@@ -45,11 +45,6 @@ export const EP6_PROJECTS: EpisodeSpec = {
     fr: 'QbsdzCokdlo98elkq4Pc',
   },
   /** Unused on camera (no chat scene); kept for the spec contract. */
-  heroPromptByLocale: {
-    en: 'Draft the launch announcement post',
-    de: 'Launch-Ankündigung entwerfen',
-    fr: 'Rédiger l’annonce de lancement',
-  },
   scenes: [
     {
       id: 'title',

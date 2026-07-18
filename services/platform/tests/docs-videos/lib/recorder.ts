@@ -31,13 +31,10 @@ import { readAudioPlan } from './audio-plan';
 import { installVideoCards } from './cards';
 import { Cursor } from './cursor';
 import type { EpisodeSpec, Locale } from './episode';
+import { loadChoreography } from './episodes';
 import { contextLocale, localeT } from './i18n';
 import { SCREENSHOTS_STATE_DIR, STATE_DIR } from './paths';
-import {
-  choreographyFor,
-  type SceneChoreography,
-  type SceneContext,
-} from './scene';
+import { choreographyFor, type SceneContext } from './scene';
 import { planTimeline, type PlannedTimeline } from './timeline';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -106,23 +103,6 @@ function readOrgState(episode: EpisodeSpec, locale: Locale): OrgState {
     );
   }
   return state;
-}
-
-interface ChoreographyModule {
-  readonly SCENES: readonly SceneChoreography[];
-  /** Optional pre-screencast lap over every surface the take visits. */
-  readonly warmup?: (
-    page: import('@playwright/test').Page,
-    ctx: SceneContext,
-  ) => Promise<void>;
-}
-
-async function loadChoreography(
-  episodeId: string,
-): Promise<ChoreographyModule> {
-  return (await import(
-    `../episodes/${episodeId}/scenes`
-  )) as ChoreographyModule;
 }
 
 interface FrameLogEntry {
@@ -480,7 +460,7 @@ export async function runRecordStage(
     const ctx: SceneContext = {
       orgId: orgState.orgId,
       locale,
-      heroPrompt: episode.heroPromptByLocale[locale],
+      heroPrompt: episode.heroPromptByLocale?.[locale] ?? '',
       projects: new Map(Object.entries(orgState.projects)),
       notes: new Map(),
     };
