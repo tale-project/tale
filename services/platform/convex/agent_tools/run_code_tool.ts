@@ -288,6 +288,8 @@ export const runCodeTool: ToolDefinition = {
   tool: createTool({
     description: `**run_code** — execute code in the thread's sandbox (Python 3, Node as ESM, bash). Modes: \`inline\` (code + language) — a snippet run directly, like a shell: one-off commands, quick computations, sandbox inspection; not stored (re-runnable work → "script") · \`script\` (entryPath) — a \`file_write\`-staged workspace script; extension picks the interpreter · \`install\` — packages only (big installs / a separate checkpoint).
 
+EXAMPLES: {"mode": "inline", "language": "python", "code": "print(1+1)"} · {"mode": "script", "entryPath": "/user/code/gen.py"} · {"mode": "install", "packages": ["pandas"]}
+
 PACKAGES: declare them in \`packages\` (works in every mode; the org policy gates them). Do NOT install ad-hoc from inline code — \`pip install x\` / \`npm install -g y\` are rejected with PREFER_PACKAGES (\`pip install -r\` and project-local \`npm install\` remain fine).
 
 MULTI-STEP: repeated run_code calls (no steps array); the sandbox session persists within the turn.
