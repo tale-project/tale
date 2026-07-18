@@ -1,0 +1,79 @@
+/**
+ * {{episodeLabel}} choreography. Scene ids pair 1:1 with episode.ts. Rules
+ * of the road (produce-video skill):
+ *
+ *  - wait on state (locators), never on time — `cue(sec)` is the ONE
+ *    exception: it waits until that second of the running narration so
+ *    actions land with the voice.
+ *  - target by role + the locale catalog (`rt.t('…')`) or by href/data
+ *    literal — the same scene records under en, de AND fr.
+ *  - never `page.goto` inside a scene (it re-boots the SPA on camera);
+ *    rail clicks and `spaNavigate` are the only route changes.
+ *  - anything created ON CAMERA registers on `ctx.cleanup` the moment it
+ *    exists — an aborted take still leaves the org as seeded.
+ *
+ * Rehearse free of billing:
+ *   bun run docs:videos -- --episode {{id}} --mock-tts
+ */
+
+import type { SceneChoreography, SceneContext } from '../../lib/scene';
+
+/**
+ * Visited by the recorder BEFORE the screencast starts: on a dev server the
+ * first visit to a route compiles its chunks and fetches cold data —
+ * seconds of skeleton that must never be on camera. Mirror EVERY surface
+ * the scenes touch, then end settled on the opening route (the recorder
+ * covers it with the title card and starts the screencast).
+ */
+export async function warmup(
+  page: import('@playwright/test').Page,
+  ctx: SceneContext,
+): Promise<void> {
+  const routes = [
+    `/dashboard/${ctx.orgId}/chat`,
+    // TODO: every route a scene visits.
+  ];
+  for (const route of routes) {
+    await page.goto(route, { waitUntil: 'load' });
+    await page
+      .waitForLoadState('networkidle', { timeout: 8_000 })
+      .catch(() => {
+        console.warn(`warmup: ${route} never reached networkidle — continuing`);
+      });
+    await page.waitForTimeout(250);
+  }
+  await page
+    .getByRole('textbox')
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 });
+}
+
+export const SCENES: readonly SceneChoreography[] = [
+  {
+    id: 'title',
+    run: async ({ page }) => {
+      await page.evaluate(() => window.__taleVideoCard?.reveal());
+    },
+  },
+  {
+    id: 'first-scene',
+    run: async (rt) => {
+      const { page, cursor, cue } = rt;
+      // Unveiling the settled app IS the transition from the title card.
+      await page.evaluate(() => window.__taleVideoCard?.fadeOutAndRemove(700));
+      await cursor.place(1450, 700);
+      await cue(1.0);
+      await cursor.show();
+      // TODO: the scene's beats, each landing with the narration:
+      //   await cue(3.2);
+      //   await cursor.click(page.getByRole('link', { name: rt.t('…') }));
+    },
+  },
+  {
+    id: 'outro',
+    run: async ({ page, cursor }) => {
+      await cursor.hide();
+      await page.evaluate(() => window.__taleVideoCard?.showOutro());
+    },
+  },
+];

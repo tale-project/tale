@@ -19,6 +19,7 @@
 
 import type { Page } from '@playwright/test';
 
+import type { CleanupRegistry } from './cleanup';
 import type { Cursor } from './cursor';
 import type { Locale } from './episode';
 
@@ -56,11 +57,11 @@ export interface SceneContext {
   /** Seeded project ids by project name (docs-screenshots org state). */
   readonly projects: ReadonlyMap<string, string>;
   /**
-   * Scene-to-recorder side channel — e.g. the wow scene stores the thread id
-   * it created under `wowThreadId` so the recorder can delete it (off camera)
-   * after the take.
+   * The additive-only contract: register anything the scene creates ON
+   * CAMERA the moment it exists (thread, knowledge entry, agent, task) —
+   * the recorder sweeps it off camera after the take, even on abort.
    */
-  readonly notes: Map<string, string>;
+  readonly cleanup: CleanupRegistry;
 }
 
 export interface SceneRuntime {

@@ -30,7 +30,6 @@ export const EP10_DEVELOPERS: EpisodeSpec = {
     de: 'rKiu7lQ4c5P3az3745s3',
     fr: 'QbsdzCokdlo98elkq4Pc',
   },
-  heroPromptByLocale: { en: 'unused', de: 'unused', fr: 'unused' },
   scenes: [
     {
       id: 'title',

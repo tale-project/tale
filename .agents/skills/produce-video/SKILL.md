@@ -30,10 +30,18 @@ any asset under `services/docs/public/videos/**`, a `<Video>` embed on a docs pa
   pronunciation map — spoken text only, captions keep the real spelling. ElevenLabs audio
   tags sparingly; punctuation and ellipses carry pacing. Claims must be true of the product —
   narration ships in three languages and gets quoted back.
+- **Rehearse free before you bill or record.** `--stage check` (instant: spec ↔ choreography ↔
+  mock-reply pairing), `--stage plan` (instant: the timeline table from estimates), then a
+  `--mock-tts` take (silence-narrated, auto-composed as a draft into `.state/`) prove the
+  structure, the locators, and the budgets at zero cost. Only then synthesize real narration and
+  record the real take. (Why: every failure mode caught by check/plan/mock costs seconds there and
+  minutes-to-euros later; the same validation runs in `bun run check` via the episode gate.)
 - **TTS bills per character — respect the cache.** `--stage tts` is cache-first
   (`.state/tts-cache/`); an unchanged scene is free, an edited one re-bills all its locales.
   Batch script edits, then regenerate once. Voice ids are pinned per locale in the episode spec;
-  audition with `--audition` before changing one (a voice change re-records every locale).
+  audition with `--audition` before changing one (a voice change re-records every locale). The
+  cache key shape is test-pinned (`lib/tts-cache-key.test.ts`) — changing it re-bills the entire
+  back catalog.
 - **Choreography waits on state, never on time — `cue()` is the one exception.** Target elements
   by role + `localeT` label or by href/data literal (seeded content stays English in every
   locale; per-locale DISPLAY NAMES like the builtin agent are data — map them). Scope pickers to
@@ -41,9 +49,11 @@ any asset under `services/docs/public/videos/**`, a `<Video>` embed on a docs pa
   fix with a per-scene `minMs`/`leadInMs` in the spec, never by letting it slide. (enforced by the
   recorder + compose drift gate, ±100 ms)
 - **Takes are additive-only against the shared org.** Recording reuses the docs-screenshots
-  workspace; the only mutation a take may leave is nothing — the wow thread is cleaned up even on
-  abort. Demo-content changes go through `../docs-screenshots/demo-content.ts` and the paired
-  `lib/mocks/overrides/docs-replies.ts` (the typed prompt must contain its reply's match clause).
+  workspace; the only mutation a take may leave is nothing — anything a scene creates on camera
+  registers on `ctx.cleanup` (thread, knowledge entry, agent, task) the moment it exists, and the
+  recorder sweeps it even on abort. Demo-content changes go through
+  `../docs-screenshots/demo-content.ts` and the paired `lib/mocks/overrides/docs-replies.ts` (the
+  typed prompt must contain its reply's match clause — `--stage check` enforces the pairing).
 - **The shipped set is indivisible.** An episode ships `<id>.<locale>.{mp4,vtt,webp}` for ALL
   three locales, declared in `public/videos/manifest.json`, embedded via `<Video>` (src + poster +
   captions + lang) on pages whose locale matches. (enforced by `services/docs/tests/videos.test.ts`)
@@ -61,10 +71,13 @@ await cursor.click(pickerDoc); // the viewer hears it, then sees it
 ## Before an episode ships — tick every box, or N/A with a reason
 
 - [ ] **Watched end-to-end at 1×, every locale** — not skimmed frames: cursor motion, stream
-      pacing, scene transitions, the fade-out.
+      pacing, scene transitions, the fade-out. The per-scene review sheet
+      (`.state/review/<id>.<locale>/index.html`, written by every compose) is the triage aid, not
+      the watch-through.
 - [ ] **Listened, every locale** — pronunciation (brand names!), pace, no synthesis artifacts;
       spot-check with an STT round-trip when unsure.
-- [ ] **Compose drift gate green** (±100 ms every scene) and no overrun waivers.
+- [ ] **Compose gates green** — drift (±100 ms every scene), the automatic A/V verification
+      (duration + speech coverage; never ship on `--no-verify`), and no overrun waivers.
 - [ ] **Captions open correctly** on the rendered docs page in each locale; timing follows the voice.
 - [ ] **`bun run --filter @tale/docs test` green** — the videos contract plus the docs suite.
 - [ ] **Shared org left as seeded** — cleanup ran; `docs:screenshots --skip-seed --only chat-thread-reply` still captures pixel-equivalent.

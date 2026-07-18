@@ -20,6 +20,12 @@ export interface AudioPlan {
   readonly locale: Locale;
   readonly voiceId: string;
   readonly model: string;
+  /**
+   * True when the plan carries `--mock-tts` rehearsal silence with ESTIMATED
+   * durations. Compose refuses to ship an estimated plan into the docs tree
+   * — real narration re-plans the timeline, so every cue lands differently.
+   */
+  readonly estimated?: boolean;
   readonly scenes: readonly AudioPlanScene[];
 }
 

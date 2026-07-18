@@ -34,11 +34,6 @@ export const EP7_INTEGRATIONS: EpisodeSpec = {
     fr: 'QbsdzCokdlo98elkq4Pc',
   },
   /** No live chat ask in this episode. */
-  heroPromptByLocale: {
-    en: 'unused',
-    de: 'unused',
-    fr: 'unused',
-  },
   scenes: [
     {
       id: 'title',

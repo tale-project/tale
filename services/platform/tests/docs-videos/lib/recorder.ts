@@ -24,29 +24,21 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
-import { chromium, type Browser, type CDPSession } from '@playwright/test';
+import { chromium, type CDPSession } from '@playwright/test';
 
 import { BASE_URL } from '../../e2e/helpers/env';
 import { readAudioPlan } from './audio-plan';
 import { installVideoCards } from './cards';
+import { CleanupRegistry, runCleanup } from './cleanup';
 import { Cursor } from './cursor';
 import type { EpisodeSpec, Locale } from './episode';
+import { loadChoreography } from './episodes';
 import { contextLocale, localeT } from './i18n';
-import {
-  choreographyFor,
-  type SceneChoreography,
-  type SceneContext,
-} from './scene';
+import { SCREENSHOTS_STATE_DIR, STATE_DIR } from './paths';
+import { choreographyFor, type SceneContext } from './scene';
 import { planTimeline, type PlannedTimeline } from './timeline';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
-const SCREENSHOTS_STATE = path.join(
-  HERE,
-  '..',
-  '..',
-  'docs-screenshots',
-  '.state',
-);
 
 const VIEWPORT = { width: 1920, height: 1080 } as const;
 const DPR = 2;
@@ -85,7 +77,7 @@ function readOrgState(episode: EpisodeSpec, locale: Locale): OrgState {
   // en records against the shared docs-screenshots org; de/fr against their
   // own natively-seeded orgs (native task titles, documents, entries).
   if (locale === 'en') {
-    const orgStatePath = path.join(SCREENSHOTS_STATE, 'org.json');
+    const orgStatePath = path.join(SCREENSHOTS_STATE_DIR, 'org.json');
     if (!existsSync(orgStatePath)) {
       throw new Error(
         `No demo workspace at ${orgStatePath} — run \`bun run docs:screenshots\` once ` +
@@ -95,7 +87,7 @@ function readOrgState(episode: EpisodeSpec, locale: Locale): OrgState {
     const state = JSON.parse(readFileSync(orgStatePath, 'utf8')) as OrgState;
     return { orgId: state.orgId, projects: state.projects ?? {} };
   }
-  const localeOrgsPath = path.join(HERE, '..', '.state', 'locale-orgs.json');
+  const localeOrgsPath = path.join(STATE_DIR, 'locale-orgs.json');
   if (!existsSync(localeOrgsPath)) {
     throw new Error(
       `No locale orgs at ${localeOrgsPath} — run ` +
@@ -112,23 +104,6 @@ function readOrgState(episode: EpisodeSpec, locale: Locale): OrgState {
     );
   }
   return state;
-}
-
-interface ChoreographyModule {
-  readonly SCENES: readonly SceneChoreography[];
-  /** Optional pre-screencast lap over every surface the take visits. */
-  readonly warmup?: (
-    page: import('@playwright/test').Page,
-    ctx: SceneContext,
-  ) => Promise<void>;
-}
-
-async function loadChoreography(
-  episodeId: string,
-): Promise<ChoreographyModule> {
-  return (await import(
-    `../episodes/${episodeId}/scenes`
-  )) as ChoreographyModule;
 }
 
 interface FrameLogEntry {
@@ -184,239 +159,6 @@ function sleepUntil(deadlineMs: number, nowMs: () => number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, wait));
 }
 
-/**
- * Delete every thread the take created — the take must leave the demo org
- * exactly as seeded. Scenes register ids under the `wowThreadId` note (the
- * Episode 1 contract, one thread) and/or a comma-separated `cleanupThreadIds`
- * note (any number). Runs in its own en-locale context because the e2e chat
- * helpers resolve labels from the en catalog. Best-effort per thread: a
- * failure here must never mask the take's own error.
- */
-async function cleanupWowThread(
-  browser: Browser,
-  ctx: SceneContext,
-): Promise<void> {
-  const ids = [
-    ...new Set(
-      [
-        ctx.notes.get('wowThreadId'),
-        ...(ctx.notes.get('cleanupThreadIds')?.split(',') ?? []),
-      ]
-        .map((id) => id?.trim())
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
-  // Knowledge entries a take creates ON CAMERA (Episode 3's `entries`
-  // scene), registered by topic — topics are per-locale DATA literals, so
-  // the en-locale cleanup context finds them regardless of the take locale.
-  const entryTopics = [
-    ...new Set(
-      (ctx.notes.get('cleanupEntryTopics')?.split(',') ?? [])
-        .map((topic) => topic.trim())
-        .filter(Boolean),
-    ),
-  ];
-  // Agents a take creates ON CAMERA (Episode 4's create scene), registered
-  // by display name — the agents list row carries it in every locale.
-  const agentNames = [
-    ...new Set(
-      (ctx.notes.get('cleanupAgentNames')?.split(',') ?? [])
-        .map((name) => name.trim())
-        .filter(Boolean),
-    ),
-  ];
-  // Tasks a take creates ON CAMERA (Episode 6), archived by title on the
-  // board the scene registered under `cleanupTaskBoardUrl`.
-  const taskTitles = [
-    ...new Set(
-      (ctx.notes.get('cleanupTaskTitles')?.split(',') ?? [])
-        .map((title) => title.trim())
-        .filter(Boolean),
-    ),
-  ];
-  const taskBoardUrl = ctx.notes.get('cleanupTaskBoardUrl') ?? '';
-  if (
-    ids.length === 0 &&
-    entryTopics.length === 0 &&
-    agentNames.length === 0 &&
-    taskTitles.length === 0
-  )
-    return;
-  const cleanupContext = await browser.newContext({
-    baseURL: BASE_URL,
-    storageState: path.join(SCREENSHOTS_STATE, 'auth.json'),
-    viewport: VIEWPORT,
-    locale: 'en-US',
-    timezoneId: 'UTC',
-    serviceWorkers: 'block',
-  });
-  try {
-    await cleanupContext.addInitScript(() => {
-      window.localStorage.setItem('user-locale', 'en');
-    });
-    const cleanupPage = await cleanupContext.newPage();
-    await cleanupPage.goto(`/dashboard/${ctx.orgId}/chat`, {
-      waitUntil: 'domcontentloaded',
-    });
-    const { deleteThreadById, ensureHistorySidebarOpen } =
-      await import('../../e2e/helpers/chat');
-    // Thread rows render only inside the history drawer — open it before
-    // any existence check, or every row reads as "gone".
-    await ensureHistorySidebarOpen(cleanupPage);
-    for (const id of ids) {
-      // The app deletes some registered threads itself (an Arena branch on
-      // exit) — skip rows that are already gone instead of timing out.
-      // `isVisible()` never waits — use a bounded waitFor so a still-loading
-      // list cannot read as "already gone".
-      const row = cleanupPage.locator(`[data-thread-id="${id}"]`).first();
-      const present = await row
-        .waitFor({ state: 'visible', timeout: 5_000 })
-        .then(() => true)
-        .catch(() => false);
-      if (!present) {
-        console.log(`  · thread ${id} already gone`);
-        continue;
-      }
-      try {
-        await deleteThreadById(cleanupPage, id);
-        console.log(`  ✓ cleaned up thread ${id}`);
-      } catch (error) {
-        console.warn(
-          `  ! could not delete thread ${id} — remove it by hand:`,
-          error,
-        );
-      }
-    }
-    for (const topic of entryTopics) {
-      try {
-        await cleanupPage.goto(`/dashboard/${ctx.orgId}/knowledge-entries`, {
-          waitUntil: 'domcontentloaded',
-        });
-        // Wait for the list to resolve before judging the row's absence.
-        await cleanupPage
-          .getByRole('button', { name: 'Add entry' })
-          .waitFor({ state: 'visible', timeout: 15_000 });
-        const row = cleanupPage
-          .getByRole('row')
-          .filter({ hasText: topic })
-          .first();
-        const present = await row
-          .waitFor({ state: 'visible', timeout: 8_000 })
-          .then(() => true)
-          .catch(() => false);
-        if (!present) {
-          console.log(`  · entry "${topic}" already gone`);
-          continue;
-        }
-        // Row menu → Delete → confirm (the dialog's button shares the label).
-        await row.getByRole('button', { name: 'Open menu' }).click();
-        await cleanupPage.getByRole('menuitem', { name: 'Delete' }).click();
-        const dialog = cleanupPage.getByRole('dialog', {
-          name: 'Delete knowledge entry',
-        });
-        await dialog.waitFor({ state: 'visible', timeout: 15_000 });
-        await dialog.getByRole('button', { name: 'Delete' }).click();
-        await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
-        console.log(`  ✓ cleaned up knowledge entry "${topic}"`);
-      } catch (error) {
-        console.warn(
-          `  ! could not delete entry "${topic}" — remove it by hand:`,
-          error,
-        );
-      }
-    }
-    for (const name of agentNames) {
-      try {
-        await cleanupPage.goto(`/dashboard/${ctx.orgId}/agents`, {
-          waitUntil: 'domcontentloaded',
-        });
-        await cleanupPage
-          .getByRole('button', { name: 'Create agent' })
-          .waitFor({ state: 'visible', timeout: 15_000 });
-        const row = cleanupPage
-          .getByRole('row')
-          .filter({ hasText: name })
-          .first();
-        const present = await row
-          .waitFor({ state: 'visible', timeout: 8_000 })
-          .then(() => true)
-          .catch(() => false);
-        if (!present) {
-          console.log(`  · agent "${name}" already gone`);
-          continue;
-        }
-        await row.getByRole('button', { name: 'Open menu' }).click();
-        await cleanupPage
-          .getByRole('menuitem', { name: 'Delete', exact: true })
-          .click();
-        await cleanupPage
-          .getByRole('button', { name: 'Delete agent', exact: true })
-          .click();
-        await row.waitFor({ state: 'hidden', timeout: 15_000 });
-        console.log(`  ✓ cleaned up agent "${name}"`);
-      } catch (error) {
-        console.warn(
-          `  ! could not delete agent "${name}" — remove it by hand:`,
-          error,
-        );
-      }
-    }
-    for (const title of taskTitles) {
-      if (!taskBoardUrl) break;
-      try {
-        await cleanupPage.goto(taskBoardUrl, {
-          waitUntil: 'domcontentloaded',
-        });
-        const card = cleanupPage.getByText(title).first();
-        const present = await card
-          .waitFor({ state: 'visible', timeout: 15_000 })
-          .then(() => true)
-          .catch(() => false);
-        if (!present) {
-          console.log(`  · task "${title}" already gone`);
-          continue;
-        }
-        await card.click();
-        const dialog = cleanupPage.getByRole('dialog').last();
-        await dialog.waitFor({ state: 'visible', timeout: 15_000 });
-        // Archive lives directly in the dialog, or under its ⋯ menu.
-        const direct = dialog.getByRole('button', { name: 'Archive' }).first();
-        if (await direct.isVisible().catch(() => false)) {
-          await direct.click();
-        } else {
-          await dialog
-            .getByRole('button', { name: 'More actions' })
-            .first()
-            .click();
-          await cleanupPage
-            .getByRole('menuitem', { name: 'Archive' })
-            .first()
-            .click();
-        }
-        const confirm = cleanupPage.getByRole('dialog', {
-          name: 'Archive task?',
-        });
-        await confirm.waitFor({ state: 'visible', timeout: 10_000 });
-        await confirm.getByRole('button', { name: 'Archive' }).click();
-        await confirm.waitFor({ state: 'hidden', timeout: 10_000 });
-        console.log(`  ✓ archived task "${title}"`);
-      } catch (error) {
-        console.warn(
-          `  ! could not archive task "${title}" — archive it by hand:`,
-          error,
-        );
-      }
-    }
-  } catch (error) {
-    console.warn(
-      '  ! thread cleanup context failed — check the org by hand:',
-      error,
-    );
-  } finally {
-    await cleanupContext.close();
-  }
-}
-
 export async function runRecordStage(
   episode: EpisodeSpec,
   locale: Locale,
@@ -461,8 +203,8 @@ export async function runRecordStage(
   try {
     const context = await browser.newContext({
       baseURL: BASE_URL,
-      ...(existsSync(path.join(SCREENSHOTS_STATE, 'auth.json'))
-        ? { storageState: path.join(SCREENSHOTS_STATE, 'auth.json') }
+      ...(existsSync(path.join(SCREENSHOTS_STATE_DIR, 'auth.json'))
+        ? { storageState: path.join(SCREENSHOTS_STATE_DIR, 'auth.json') }
         : {}),
       viewport: VIEWPORT,
       deviceScaleFactor: DPR,
@@ -486,9 +228,9 @@ export async function runRecordStage(
     const ctx: SceneContext = {
       orgId: orgState.orgId,
       locale,
-      heroPrompt: episode.heroPromptByLocale[locale],
+      heroPrompt: episode.heroPromptByLocale?.[locale] ?? '',
       projects: new Map(Object.entries(orgState.projects)),
-      notes: new Map(),
+      cleanup: new CleanupRegistry(),
     };
 
     // The take is ONE SPA session — no full page load ever happens on
@@ -573,7 +315,7 @@ export async function runRecordStage(
         console.warn('stopScreencast failed:', error);
       });
       await context.close();
-      await cleanupWowThread(browser, ctx);
+      await runCleanup(browser, ctx.orgId, ctx.cleanup);
     }
 
     const recorded: RecordedTimeline = {

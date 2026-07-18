@@ -2,148 +2,164 @@
  * Docs tutorial-video producer. Every committed video under
  * `services/docs/public/videos/` is produced by this script from a declarative
  * episode spec (`episodes/<id>/episode.ts`) — no hand-recorded video ever
- * ships (the doctrine lives in the `produce-video` skill).
+ * ships (the doctrine lives in the `produce-video` skill, the runbook in
+ * README.md, `--help` in lib/cli.ts).
  *
- *   bun run docs:videos                                   # ep1, en, all stages
- *   bun run docs:videos -- --episode ep1-welcome --locale en,de,fr
- *   bun run docs:videos -- --stage tts                    # narration only
- *   bun run docs:videos -- --stage record                 # needs the Mode-A stack
- *   bun run docs:videos -- --stage compose                # ffmpeg assembly only
- *   bun run docs:videos -- --list                         # enumerate episodes
- *   bun run docs:videos -- --audition                     # voice candidates → .state/audition/
- *
- * Stages are separable on purpose: TTS bills per character (cache-first,
- * `lib/tts.ts`), recording needs the running docs-demo stack (same runbook as
- * docs:screenshots — see README.md), compose needs only ffmpeg. The narration
- * audio plan produced by `tts` (`.state/tts/<episode>.<locale>.json`) is the
- * contract the other two stages build on.
+ * Stages are separable on purpose: `check` and `plan` are free and instant,
+ * `tts` bills per character (cache-first, `lib/tts.ts` — or `--mock-tts`
+ * rehearsal silence for zero-cost iteration), `record` needs the running
+ * docs-demo stack (preflighted by `lib/doctor.ts`), `compose` needs only
+ * ffmpeg (`--draft` for the fast review loop). The narration audio plan
+ * written by `tts` (`.state/tts/<episode>.<locale>.json`) is the contract
+ * the other stages build on.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { EP1_WELCOME } from './episodes/ep1-welcome/episode';
-import { EP2_CHAT } from './episodes/ep2-chat/episode';
-import { EP3_KNOWLEDGE } from './episodes/ep3-knowledge/episode';
-import { EP4_AGENT } from './episodes/ep4-agent/episode';
-import { EP5_AUTOMATIONS } from './episodes/ep5-automations/episode';
-import { EP6_PROJECTS } from './episodes/ep6-projects/episode';
-import { EP7_INTEGRATIONS } from './episodes/ep7-integrations/episode';
-import { EP8_PEOPLE } from './episodes/ep8-people/episode';
-import { EP9_GOVERNANCE } from './episodes/ep9-governance/episode';
-import { EP10_DEVELOPERS } from './episodes/ep10-developers/episode';
-import { SPIKE_SYNC } from './episodes/spike-sync/episode';
 import { audioPlanPath, type AudioPlan } from './lib/audio-plan';
+import {
+  CliUsageError,
+  helpText,
+  parseCliArgs,
+  type CliOptions,
+} from './lib/cli';
 import { loadDevEnv } from './lib/dev-env';
+import { doctorHasFailures, formatDoctorReport, runDoctor } from './lib/doctor';
 import {
   LOCALES,
   narrationFor,
   type EpisodeSpec,
   type Locale,
 } from './lib/episode';
+import { loadChoreography, loadEpisodes } from './lib/episodes';
+import { estimateSpeechMs } from './lib/estimate';
 import { ensureFfmpegAvailable } from './lib/ffmpeg';
+import { formatClock } from './lib/format';
+import { STATE_DIR } from './lib/paths';
+import { planTimeline } from './lib/timeline';
 import {
   elevenLabsApiKey,
   resolveTtsModel,
   synthesize,
   synthesizeEpisodeWhole,
 } from './lib/tts';
+import { synthesizeMockNarration } from './lib/tts-mock';
 import { toSpokenText } from './lib/tts-text';
+import {
+  formatFindings,
+  validateChoreography,
+  validateEpisodeSpec,
+  type ValidationFinding,
+} from './lib/validate';
 
 // Dev-tooling secrets live in the repo-root `.env.dev` (never the platform's
 // own env files) — load them before anything reads process.env.
 loadDevEnv();
 
-const EPISODES: readonly EpisodeSpec[] = [
-  EP1_WELCOME,
-  EP2_CHAT,
-  EP3_KNOWLEDGE,
-  EP4_AGENT,
-  EP5_AUTOMATIONS,
-  EP6_PROJECTS,
-  EP7_INTEGRATIONS,
-  EP8_PEOPLE,
-  EP9_GOVERNANCE,
-  EP10_DEVELOPERS,
-  SPIKE_SYNC,
-];
-
-const HERE = path.dirname(new URL(import.meta.url).pathname);
-export const STATE_DIR = path.join(HERE, '.state');
-
-type Stage = 'tts' | 'record' | 'compose' | 'all';
-
-interface CliArgs {
-  episode: string;
-  locales: Locale[];
-  stage: Stage;
-  list: boolean;
-  audition: boolean;
+/**
+ * Static validation, printed. `withChoreography: false` while a script is
+ * still narration-only (the storyboard-first workflow TTSes before scenes.ts
+ * exists); record/compose always validate both sides.
+ */
+async function runCheckStage(
+  episode: EpisodeSpec,
+  withChoreography: boolean,
+): Promise<boolean> {
+  const findings: ValidationFinding[] = [...validateEpisodeSpec(episode)];
+  if (withChoreography) {
+    try {
+      findings.push(
+        ...validateChoreography(episode, await loadChoreography(episode.id)),
+      );
+    } catch (error) {
+      findings.push({
+        severity: 'error',
+        where: episode.id,
+        detail: `scenes.ts failed to load: ${String(error)}`,
+      });
+    }
+  }
+  if (findings.length > 0) console.log(formatFindings(findings));
+  const errors = findings.filter((finding) => finding.severity === 'error');
+  if (errors.length === 0 && findings.length === 0) {
+    console.log(`  ✓ ${episode.id} — spec and choreography are consistent`);
+  }
+  return errors.length === 0;
 }
 
-function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = {
-    episode: 'ep1-welcome',
-    locales: ['en'],
-    stage: 'all',
-    list: false,
-    audition: false,
-  };
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === '--list') args.list = true;
-    else if (arg === '--audition') args.audition = true;
-    else if (arg === '--episode') args.episode = argv[++i] ?? '';
-    else if (arg === '--stage') args.stage = (argv[++i] ?? 'all') as Stage;
-    else if (arg === '--locale') {
-      const requested = (argv[++i] ?? '').split(',').filter(Boolean);
-      const invalid = requested.filter((l) => !LOCALES.includes(l as Locale));
-      if (invalid.length > 0) {
-        throw new Error(
-          `Unknown locale(s): ${invalid.join(', ')} (valid: ${LOCALES.join(', ')})`,
-        );
-      }
-      args.locales = requested as Locale[];
-    } else throw new Error(`Unknown argument: ${arg}`);
-  }
-  if (!['tts', 'record', 'compose', 'all'].includes(args.stage)) {
-    throw new Error(`Unknown stage: ${args.stage}`);
-  }
-  return args;
+/** The spoken (respelled) narration per scene — the TTS/plan input. */
+function spokenTexts(episode: EpisodeSpec, locale: Locale): string[] {
+  return episode.scenes.map((scene) =>
+    toSpokenText(narrationFor(episode, scene.id, locale), locale),
+  );
 }
 
-function findEpisode(id: string): EpisodeSpec {
-  const episode = EPISODES.find((e) => e.id === id);
-  if (!episode) {
-    throw new Error(
-      `Unknown episode "${id}". Known: ${EPISODES.map((e) => e.id).join(', ')}`,
-    );
-  }
-  return episode;
+function writeAudioPlan(plan: AudioPlan): void {
+  const planPath = audioPlanPath(STATE_DIR, plan.episodeId, plan.locale);
+  mkdirSync(path.dirname(planPath), { recursive: true });
+  writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
 }
 
 /**
- * Synthesize every scene's narration for one locale, cache-first, passing
- * neighbouring scene texts as previous/next context so prosody flows across
- * cuts. Writes the audio plan JSON.
+ * Synthesize every scene's narration for one locale and write the audio
+ * plan. Three sources, one plan shape: `--mock-tts` estimated silence
+ * (free), a whole-episode generation sliced by character timestamps
+ * (consistent delivery), or per-scene generations with neighbour context.
  */
 async function runTtsStage(
   episode: EpisodeSpec,
   locale: Locale,
+  mockTts: boolean,
 ): Promise<void> {
   const voiceId = episode.voices[locale];
-  const model = await resolveTtsModel();
-  // The synthesizer gets the SPOKEN respelling (brand pronunciation etc.);
-  // captions and the episode spec keep the written form.
-  const texts = episode.scenes.map((scene) =>
-    toSpokenText(narrationFor(episode, scene.id, locale), locale),
-  );
+  const texts = spokenTexts(episode, locale);
   const planScenes: AudioPlan['scenes'][number][] = [];
   let billed = 0;
   let cachedCount = 0;
-  if (episode.wholeTakeLocales?.includes(locale)) {
+  let model: string;
+
+  const logScene = (
+    sceneId: string,
+    entry: { durationMs: number; cached: boolean },
+    flavour: 'mock' | 'whole' | 'scene',
+  ) => {
+    if (entry.durationMs <= 0) {
+      console.log(`  ∅ ${locale}/${sceneId} — silent`);
+      return;
+    }
+    const glyph = flavour === 'mock' ? '≈' : entry.cached ? '≡' : '♪';
+    const suffix = [
+      flavour === 'mock' ? 'estimated silence' : null,
+      flavour === 'whole' ? 'whole take' : null,
+      entry.cached && flavour !== 'mock' ? 'cached' : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    console.log(
+      `  ${glyph} ${locale}/${sceneId} — ${(entry.durationMs / 1000).toFixed(1)}s${suffix ? ` (${suffix})` : ''}`,
+    );
+  };
+
+  if (mockTts) {
+    model = 'mock-silence';
+    for (const [index, scene] of episode.scenes.entries()) {
+      const result = await synthesizeMockNarration(
+        texts[index] ?? '',
+        STATE_DIR,
+      );
+      if (result.cached && result.durationMs > 0) cachedCount += 1;
+      planScenes.push({
+        id: scene.id,
+        mp3Path: result.mp3Path,
+        durationMs: result.durationMs,
+      });
+      logScene(scene.id, result, 'mock');
+    }
+  } else if (episode.wholeTakeLocales?.includes(locale)) {
     // One generation for the whole episode → consistent delivery; sliced
     // into per-scene mp3s by character timestamps.
+    model = await resolveTtsModel();
     const whole = await synthesizeEpisodeWhole(texts, voiceId, STATE_DIR);
     billed = whole.billedCharacters;
     for (const [index, scene] of episode.scenes.entries()) {
@@ -159,78 +175,124 @@ async function runTtsStage(
         mp3Path: slice.mp3Path,
         durationMs: slice.durationMs,
       });
-      console.log(
-        `  ${slice.cached ? '≡' : '♪'} ${locale}/${scene.id} — ${(slice.durationMs / 1000).toFixed(1)}s (whole take${slice.cached ? ', cached' : ''})`,
+      logScene(scene.id, slice, 'whole');
+    }
+  } else {
+    model = await resolveTtsModel();
+    for (const [index, scene] of episode.scenes.entries()) {
+      const text = texts[index] ?? '';
+      if (!text.trim()) {
+        // Deliberately silent scene — nothing to synthesize.
+        planScenes.push({ id: scene.id, mp3Path: '', durationMs: 0 });
+        console.log(`  ∅ ${locale}/${scene.id} — silent`);
+        continue;
+      }
+      const result = await synthesize(
+        {
+          text,
+          voiceId,
+          previousText: texts[index - 1],
+          nextText: texts[index + 1],
+        },
+        STATE_DIR,
       );
+      billed += result.characters;
+      if (result.cached) cachedCount += 1;
+      planScenes.push({
+        id: scene.id,
+        mp3Path: result.mp3Path,
+        durationMs: result.durationMs,
+      });
+      logScene(scene.id, result, 'scene');
     }
-    const wholePlan: AudioPlan = {
-      episodeId: episode.id,
-      locale,
-      voiceId,
-      model,
-      scenes: planScenes,
-    };
-    mkdirSync(path.dirname(audioPlanPath(STATE_DIR, episode.id, locale)), {
-      recursive: true,
-    });
-    writeFileSync(
-      audioPlanPath(STATE_DIR, episode.id, locale),
-      `${JSON.stringify(wholePlan, null, 2)}\n`,
-    );
-    const wholeTotal = planScenes.reduce((sum, s) => sum + s.durationMs, 0);
-    console.log(
-      `TTS ${episode.id}/${locale}: ${planScenes.length} scenes, ${(wholeTotal / 1000).toFixed(1)}s narration (single take), ` +
-        `${billed} characters billed.`,
-    );
-    return;
   }
-  for (const [index, scene] of episode.scenes.entries()) {
-    const text = texts[index] ?? '';
-    if (!text.trim()) {
-      // Deliberately silent scene — nothing to synthesize.
-      planScenes.push({ id: scene.id, mp3Path: '', durationMs: 0 });
-      console.log(`  ∅ ${locale}/${scene.id} — silent`);
-      continue;
-    }
-    const result = await synthesize(
-      {
-        text,
-        voiceId,
-        previousText: texts[index - 1],
-        nextText: texts[index + 1],
-      },
-      STATE_DIR,
-    );
-    billed += result.characters;
-    if (result.cached) cachedCount += 1;
-    planScenes.push({
-      id: scene.id,
-      mp3Path: result.mp3Path,
-      durationMs: result.durationMs,
-    });
-    console.log(
-      `  ${result.cached ? '≡' : '♪'} ${locale}/${scene.id} — ${(result.durationMs / 1000).toFixed(1)}s${result.cached ? ' (cached)' : ''}`,
-    );
-  }
-  const plan: AudioPlan = {
+
+  writeAudioPlan({
     episodeId: episode.id,
     locale,
     voiceId,
     model,
+    ...(mockTts ? { estimated: true } : {}),
     scenes: planScenes,
-  };
-  mkdirSync(path.dirname(audioPlanPath(STATE_DIR, episode.id, locale)), {
-    recursive: true,
   });
-  writeFileSync(
-    audioPlanPath(STATE_DIR, episode.id, locale),
-    `${JSON.stringify(plan, null, 2)}\n`,
-  );
-  const total = planScenes.reduce((sum, s) => sum + s.durationMs, 0);
+  const totalMs = planScenes.reduce((sum, scene) => sum + scene.durationMs, 0);
   console.log(
-    `TTS ${episode.id}/${locale}: ${planScenes.length} scenes, ${(total / 1000).toFixed(1)}s narration, ` +
-      `${cachedCount} cached, ${billed} characters billed.`,
+    `TTS ${episode.id}/${locale}: ${planScenes.length} scenes, ` +
+      `${(totalMs / 1000).toFixed(1)}s narration, ${cachedCount} cached, ` +
+      `${billed} characters billed${mockTts ? ' (mock — estimates only)' : ''}.`,
   );
+}
+
+/**
+ * Print the planned timeline — measured narration when an audio plan
+ * exists, estimates otherwise. Free, instant, zero side effects: the
+ * pacing-design tool for script iteration.
+ */
+function runPlanStage(episode: EpisodeSpec, locale: Locale): void {
+  const planPath = audioPlanPath(STATE_DIR, episode.id, locale);
+  const audioPlan = existsSync(planPath)
+    ? (JSON.parse(readFileSync(planPath, 'utf8')) as AudioPlan)
+    : null;
+  const texts = spokenTexts(episode, locale);
+  const timeline = planTimeline(
+    episode.scenes.map((scene, index) => ({
+      id: scene.id,
+      audioDurationMs:
+        audioPlan?.scenes.find((s) => s.id === scene.id)?.durationMs ??
+        estimateSpeechMs(texts[index] ?? ''),
+      leadInMs: scene.leadInMs,
+      tailMs: scene.tailMs,
+      minMs: scene.minMs,
+    })),
+  );
+  const source = audioPlan
+    ? audioPlan.estimated
+      ? 'mock audio plan (estimated durations)'
+      : `measured audio plan (${audioPlan.model})`
+    : 'no audio plan — character-count estimates';
+  console.log(`Plan ${episode.id}/${locale} — ${source}`);
+  console.log('  start    budget  narration  scene');
+  for (const [index, planned] of timeline.scenes.entries()) {
+    const spec = episode.scenes[index];
+    const audioMs =
+      audioPlan?.scenes.find((s) => s.id === planned.id)?.durationMs ??
+      estimateSpeechMs(texts[index] ?? '');
+    const chapter = spec?.chapterByLocale?.[locale];
+    console.log(
+      `  ${formatClock(planned.startMs).padStart(7)}  ${`${(planned.budgetMs / 1000).toFixed(1)}s`.padStart(6)}  ${
+        audioMs > 0
+          ? `${(audioMs / 1000).toFixed(1)}s`.padStart(9)
+          : '        —'
+      }  ${planned.id}${chapter ? `  [${chapter}${spec?.chapterTransition === 'cut' ? ' · cut' : ''}]` : ''}`,
+    );
+  }
+  const characters = texts.join('').length;
+  console.log(
+    `  = ${formatClock(timeline.totalMs)} planned total, ${characters} spoken characters`,
+  );
+}
+
+interface UnitResult {
+  readonly episode: string;
+  readonly locale: Locale;
+  readonly ok: boolean;
+  readonly detail: string;
+}
+
+async function runList(): Promise<void> {
+  for (const episode of await loadEpisodes()) {
+    const narrationReady = LOCALES.filter((locale) =>
+      episode.scenes.every((scene) => scene.narration[locale] !== undefined),
+    );
+    const ttsReady = LOCALES.filter((locale) =>
+      existsSync(audioPlanPath(STATE_DIR, episode.id, locale)),
+    );
+    console.log(
+      `${episode.id}  [${episode.section}]${episode.diagnostic ? ' (diagnostic)' : ''}  ` +
+        `${episode.scenes.length} scenes, narration: ${narrationReady.join(', ') || '—'}, ` +
+        `tts plans: ${ttsReady.join(', ') || '—'}`,
+    );
+  }
 }
 
 /** Voice-audition candidates; samples double as future cache warmup. */
@@ -292,41 +354,181 @@ async function runAudition(): Promise<void> {
   );
 }
 
+async function resolveSelection(
+  options: CliOptions,
+): Promise<readonly EpisodeSpec[]> {
+  const episodes = await loadEpisodes();
+  if (options.episodes === 'all') {
+    // Diagnostics exercise the pipeline itself — they stay opt-in by id.
+    return episodes.filter((episode) => !episode.diagnostic);
+  }
+  return Promise.all(
+    options.episodes.map(async (id) => {
+      const episode = episodes.find((e) => e.id === id);
+      if (!episode) {
+        throw new CliUsageError(
+          `Unknown episode "${id}". Known: ${episodes.map((e) => e.id).join(', ')}`,
+        );
+      }
+      return episode;
+    }),
+  );
+}
+
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.list) {
-    for (const episode of EPISODES) {
-      const locales = LOCALES.filter((l) =>
-        episode.scenes.every((s) => s.narration[l]),
-      );
-      console.log(
-        `${episode.id}  [${episode.section}]  ${episode.scenes.length} scenes, narration ready: ${locales.join(', ') || '—'}`,
-      );
+  let options: CliOptions;
+  try {
+    options = parseCliArgs(process.argv.slice(2));
+  } catch (error) {
+    if (error instanceof CliUsageError) {
+      console.error(`docs:videos: ${error.message}`);
+      process.exitCode = 1;
+      return;
     }
+    throw error;
+  }
+  if (options.help) {
+    console.log(helpText());
     return;
   }
-
-  await ensureFfmpegAvailable();
-  elevenLabsApiKey();
-
-  if (args.audition) {
+  if (options.list) {
+    await runList();
+    return;
+  }
+  if (options.audition) {
+    await ensureFfmpegAvailable();
+    elevenLabsApiKey();
     await runAudition();
     return;
   }
 
-  const episode = findEpisode(args.episode);
-  for (const locale of args.locales) {
-    if (args.stage === 'tts' || args.stage === 'all') {
-      await runTtsStage(episode, locale);
+  const selection = await resolveSelection(options);
+  const stages: readonly ('check' | 'plan' | 'tts' | 'record' | 'compose')[] =
+    options.stage === 'all' ? ['tts', 'record', 'compose'] : [options.stage];
+  const needsTts = stages.includes('tts');
+  const needsRecord = stages.includes('record');
+  const needsCompose = stages.includes('compose');
+
+  // Fail on missing prerequisites in seconds, not minutes into a take —
+  // doctor first (it REPORTS missing pieces; the hard gates below throw).
+  if (options.doctor || needsRecord) {
+    const checks = await runDoctor({
+      episodes: selection,
+      locales: options.locales,
+      needsTts,
+      needsRecord: needsRecord || options.doctor,
+      needsCompose,
+      mockTts: options.mockTts,
+    });
+    console.log(`Doctor:\n${formatDoctorReport(checks)}`);
+    if (doctorHasFailures(checks)) {
+      if (options.doctor) {
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(
+        'preflight failed — fix the ✗ items above (or run --doctor after).',
+      );
     }
-    if (args.stage === 'record' || args.stage === 'all') {
-      const { runRecordStage } = await import('./lib/recorder');
-      await runRecordStage(episode, locale, STATE_DIR);
+    if (options.doctor) return;
+  }
+  if (needsTts || needsCompose) await ensureFfmpegAvailable();
+  if (needsTts && !options.mockTts) elevenLabsApiKey();
+
+  const results: UnitResult[] = [];
+  for (const episode of selection) {
+    // Structural drift fails here, before any stage burns time on it. The
+    // tts stage validates the spec only — narration is authored (and
+    // synthesized) before choreography exists.
+    const checkOk = await runCheckStage(
+      episode,
+      options.stage === 'check' || needsRecord || needsCompose,
+    );
+    if (!checkOk || options.stage === 'check') {
+      for (const locale of options.locales) {
+        results.push({
+          episode: episode.id,
+          locale,
+          ok: checkOk,
+          detail: checkOk ? 'check' : 'check failed',
+        });
+      }
+      continue;
     }
-    if (args.stage === 'compose' || args.stage === 'all') {
-      const { runComposeStage } = await import('./lib/compose');
-      await runComposeStage(episode, locale, STATE_DIR);
+
+    for (const locale of options.locales) {
+      try {
+        if (options.stage === 'plan') {
+          runPlanStage(episode, locale);
+          results.push({
+            episode: episode.id,
+            locale,
+            ok: true,
+            detail: 'plan',
+          });
+          continue;
+        }
+        if (needsTts) await runTtsStage(episode, locale, options.mockTts);
+        if (needsRecord) {
+          const { runRecordStage } = await import('./lib/recorder');
+          await runRecordStage(episode, locale, STATE_DIR);
+        }
+        if (needsCompose) {
+          const { runComposeStage } = await import('./lib/compose');
+          const planPath = audioPlanPath(STATE_DIR, episode.id, locale);
+          const estimatedPlan =
+            existsSync(planPath) &&
+            ((JSON.parse(readFileSync(planPath, 'utf8')) as AudioPlan)
+              .estimated ??
+              false);
+          // A rehearsal (mock) plan auto-composes as a draft — the guard in
+          // compose would otherwise reject it at the end of a long take.
+          const draft = options.draft || (estimatedPlan && !episode.diagnostic);
+          if (draft && !options.draft) {
+            console.log(
+              '  · estimated narration → composing as draft (.state/out)',
+            );
+          }
+          await runComposeStage(episode, locale, STATE_DIR, {
+            draft,
+            verify: options.verify,
+          });
+        }
+        results.push({
+          episode: episode.id,
+          locale,
+          ok: true,
+          detail: stages.join('+'),
+        });
+      } catch (error) {
+        console.error(`✗ ${episode.id}/${locale}:`, error);
+        results.push({
+          episode: episode.id,
+          locale,
+          ok: false,
+          detail:
+            String(error instanceof Error ? error.message : error).split(
+              '\n',
+            )[0] ?? 'failed',
+        });
+      }
     }
+  }
+
+  const failed = results.filter((result) => !result.ok);
+  if (results.length > 1) {
+    console.log('\nSummary:');
+    for (const result of results) {
+      console.log(
+        `  ${result.ok ? '✓' : '✗'} ${result.episode}/${result.locale} — ${result.detail}`,
+      );
+    }
+  }
+  if (failed.length > 0) {
+    console.error(
+      `\n${failed.length}/${results.length} unit(s) failed — see above.`,
+    );
+    process.exitCode = 1;
   }
 }
 

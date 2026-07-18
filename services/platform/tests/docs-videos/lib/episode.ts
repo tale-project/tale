@@ -61,8 +61,13 @@ export interface EpisodeSpec {
    * scripts next change.
    */
   readonly wholeTakeLocales?: readonly Locale[];
-  /** The question typed live in the chat wow scene, per locale. */
-  readonly heroPromptByLocale: Record<Locale, string>;
+  /**
+   * The question typed live in the chat wow scene, per locale — omit when
+   * the episode has no live-typed chat scene. A non-empty prompt MUST
+   * contain a `DOCS_REPLIES` match clause (validated by `--stage check`),
+   * or the take streams the visibly synthetic e2e canned reply.
+   */
+  readonly heroPromptByLocale?: Record<Locale, string>;
   readonly scenes: readonly SceneSpec[];
 }
 

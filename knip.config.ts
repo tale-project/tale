@@ -79,8 +79,10 @@ export default {
         'tests/docs-screenshots/capture.ts',
         // Same shape: the docs video producer behind the root `docs:videos`
         // script (source of every services/docs/public/videos/ asset). Episode
-        // choreographies load via a dynamic template import the graph can't see.
+        // specs and choreographies are auto-discovered via dynamic imports
+        // (lib/episodes.ts) the graph can't see.
         'tests/docs-videos/produce.ts',
+        'tests/docs-videos/episodes/*/episode.ts',
         'tests/docs-videos/episodes/*/scenes.ts',
         // Hand-run locale-org bootstrap (`bun tests/docs-videos/seed-locale-orgs.ts`).
         'tests/docs-videos/seed-locale-orgs.ts',

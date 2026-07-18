@@ -12,8 +12,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
-const REPO_ROOT = path.resolve(HERE, '../../../../..');
+import { REPO_ROOT } from './paths';
 
 export function loadDevEnv(): void {
   const file = path.join(REPO_ROOT, '.env.dev');

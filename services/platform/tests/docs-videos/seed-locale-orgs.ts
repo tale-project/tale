@@ -27,17 +27,10 @@ import { BASE_URL, TIMEOUT } from '../e2e/helpers/env';
 import { t } from '../e2e/helpers/i18n';
 import type { Locale } from './lib/episode';
 import { videoContentFor } from './lib/locale-content';
+import { SCREENSHOTS_STATE_DIR, STATE_DIR } from './lib/paths';
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
-const STATE_DIR = path.join(HERE, '.state');
 const LOCALE_ORGS = path.join(STATE_DIR, 'locale-orgs.json');
-const SCREENSHOTS_AUTH = path.join(
-  HERE,
-  '..',
-  'docs-screenshots',
-  '.state',
-  'auth.json',
-);
+const SCREENSHOTS_AUTH = path.join(SCREENSHOTS_STATE_DIR, 'auth.json');
 const TRIAGE_PATH = 'projects__tasks__triage-unassigned';
 
 /** The org names are workspace fiction — native per locale, and distinct so
