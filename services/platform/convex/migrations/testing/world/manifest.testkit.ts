@@ -49,6 +49,7 @@ export const baselineTables: string[] = [
   'vendors', // 0.3.4/22 copies into contacts
   'userNotifications', // the 0.2.84-valid task_assigned survivor
   'integrationCredentials', // 0.3.4/02 reads (inactive row → install no-op)
+  'messageMetadata', // 0.3.7/01 backfills organizationId from threadMetadata
 ];
 
 /**

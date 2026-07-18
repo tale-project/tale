@@ -313,6 +313,52 @@
         }
       },
       "sentimentTrend": "Sentiment au fil du temps"
+    },
+    "chatHealth": {
+      "title": "Santé de l'assistant",
+      "description": "Taux d'erreur, latence de réponse et routage sur les réponses de l'assistant de ton organisation.",
+      "cards": {
+        "errorRate": "Taux d'erreur",
+        "errorRateDetail": "{errors} sur {total} réponses",
+        "responseP95": "Temps de réponse p95",
+        "firstTokenP95": "Premier token p95",
+        "messages": "Réponses de l'assistant",
+        "msValue": "{value} ms",
+        "secValue": "{value} s",
+        "p50Detail": "p50 {value}"
+      },
+      "routing": {
+        "title": "Routage",
+        "byReason": "Par motif de routage",
+        "byAgent": "Par agent",
+        "byModel": "Par modèle",
+        "unattributed": "Non attribué",
+        "turnsTooltip": "{count} réponses",
+        "reasons": {
+          "singleCandidate": "Candidat unique",
+          "trivial": "Trivial",
+          "cached": "Mis en cache",
+          "classified": "Classé",
+          "fallback": "Repli",
+          "pinned": "Épinglé"
+        }
+      },
+      "cappedNotice": {
+        "title": "Activité récente affichée",
+        "description": "Cette fenêtre contient plus de réponses qu'un seul passage ne peut analyser. Les chiffres couvrent les réponses les plus récentes ; réduis la fenêtre pour une couverture complète."
+      },
+      "periodEmpty": {
+        "title": "Aucune activité dans cette fenêtre",
+        "description": "Aucune réponse de l'assistant n'a été enregistrée dans la période choisie. Essaie une fenêtre plus longue."
+      },
+      "empty": {
+        "title": "Aucune activité pour le moment",
+        "description": "Dès que ton équipe échange avec les assistants, les métriques de temps de réponse, d'erreurs et de routage apparaissent ici."
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les métriques",
+        "unauthorized": "Tu n'as pas accès à ces métriques"
+      }
     }
   },
   "approvalCommon": {
@@ -4102,6 +4148,7 @@
     "groups": {
       "usage": "Utilisation",
       "feedback": "Retours",
+      "chat-health": "Santé de l'assistant",
       "automations": "Automatisations",
       "projects": "Projets"
     },

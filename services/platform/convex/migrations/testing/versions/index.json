@@ -533,5 +533,10 @@
     "dbSchema": "561dd9501088a6d81af5dc3c",
     "configSchema": "54ec00088862116e46ff81b5",
     "scaffold": "2d3f81aaf21f85dd75afe849"
+  },
+  "0.3.7": {
+    "dbSchema": "299c466a265333ac02f0d4db",
+    "configSchema": "54ec00088862116e46ff81b5",
+    "scaffold": "fcf2c2be2c2ed5b35c44f886"
   }
 }

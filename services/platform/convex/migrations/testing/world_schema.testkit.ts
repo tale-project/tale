@@ -59,6 +59,7 @@ import { configCacheTable } from '../../lib/config_cache/schema';
 import { jsonRecordValidator } from '../../lib/validators/json';
 import { projectsTable } from '../../projects/schema';
 import { ssoProvidersTable } from '../../sso_providers/schema';
+import { messageMetadataTable } from '../../streaming/schema';
 import { supportCasesTable } from '../../support_cases/schema';
 import { threadFilesTable } from '../../thread_files/schema';
 import {
@@ -283,4 +284,11 @@ export const worldSchema = defineSchema({
   customers: legacyCustomersTable,
   vendors: legacyVendorsTable,
   supportCases: supportCasesTable,
+
+  // --- 0.3.7 message-metadata org backfill ----------------------------------
+  // messageMetadata predates the baseline (v0.2.84) but is only now exercised
+  // by the chain — 0.3.7/01 backfills its new optional `organizationId` from
+  // the owning thread. Production shape imported directly (no chain rename); the
+  // optional org field validates for pre-0.3.7 rows (absent) and post-up rows.
+  messageMetadata: messageMetadataTable,
 });

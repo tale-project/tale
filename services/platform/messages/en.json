@@ -313,6 +313,52 @@
         }
       },
       "sentimentTrend": "Sentiment over time"
+    },
+    "chatHealth": {
+      "title": "Chat health",
+      "description": "Error rate, response latency, and routing across your organization's assistant replies.",
+      "cards": {
+        "errorRate": "Error rate",
+        "errorRateDetail": "{errors} of {total} turns",
+        "responseP95": "Response time p95",
+        "firstTokenP95": "First-token p95",
+        "messages": "Assistant turns",
+        "msValue": "{value} ms",
+        "secValue": "{value} s",
+        "p50Detail": "p50 {value}"
+      },
+      "routing": {
+        "title": "Routing",
+        "byReason": "By route reason",
+        "byAgent": "By agent",
+        "byModel": "By model",
+        "unattributed": "Unattributed",
+        "turnsTooltip": "{count} turns",
+        "reasons": {
+          "singleCandidate": "Single candidate",
+          "trivial": "Trivial",
+          "cached": "Cached",
+          "classified": "Classified",
+          "fallback": "Fallback",
+          "pinned": "Pinned"
+        }
+      },
+      "cappedNotice": {
+        "title": "Showing recent activity",
+        "description": "This window has more assistant turns than one pass can scan. Figures cover the most recent turns; narrow the window for full coverage."
+      },
+      "periodEmpty": {
+        "title": "No activity in this window",
+        "description": "No assistant replies were recorded in the selected period. Try a longer window."
+      },
+      "empty": {
+        "title": "No chat activity yet",
+        "description": "Once your team chats with assistants, response-time, error, and routing metrics appear here."
+      },
+      "errors": {
+        "loadFailed": "Couldn't load chat health metrics",
+        "unauthorized": "You don't have access to chat health metrics"
+      }
     }
   },
   "approvalCommon": {
@@ -4102,6 +4148,7 @@
     "groups": {
       "usage": "Usage",
       "feedback": "Feedback",
+      "chat-health": "Chat health",
       "automations": "Automations",
       "projects": "Projects"
     },
