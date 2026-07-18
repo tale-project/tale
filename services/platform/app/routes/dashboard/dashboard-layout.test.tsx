@@ -147,6 +147,12 @@ vi.mock('@/app/components/layout/adaptive-header', () => ({
   AdaptiveHeaderSlot: () => null,
 }));
 
+vi.mock('@/app/components/layout/app-sidebar/sidebar-context', () => ({
+  SidebarProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
 vi.mock('@/app/components/ui/navigation/navigation', () => ({
   Navigation: () => null,
 }));

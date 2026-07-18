@@ -162,15 +162,11 @@ function SidebarSectionHeader({
 
 interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
   organizationId: string;
-  onSearchOpen?: () => void;
-  onNewChat?: () => void;
   onChatSelect?: () => void;
 }
 
 export function ChatHistorySidebar({
   organizationId,
-  onSearchOpen,
-  onNewChat,
   onChatSelect,
   className,
   ...restProps
@@ -181,7 +177,6 @@ export function ChatHistorySidebar({
   const params = useParams({ strict: false });
   // TanStack Router useParams with strict: false returns unknown params — cast required
   const currentThreadId = params.threadId;
-  const [isMac, setIsMac] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [archivedExpanded, setArchivedExpanded] = usePersistedState(
     'chat-sidebar-archived-expanded',
@@ -355,37 +350,6 @@ export function ChatHistorySidebar({
       }),
     [projects],
   );
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const platform = (
-        navigator.platform ||
-        navigator.userAgent ||
-        ''
-      ).toLowerCase();
-      setIsMac(platform.includes('mac'));
-    }
-  }, []);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const isMod = isMac ? e.metaKey : e.ctrlKey;
-
-      if (isMod && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        onSearchOpen?.();
-        return;
-      }
-
-      if (isMod && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
-        e.preventDefault();
-        onNewChat?.();
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isMac, onSearchOpen, onNewChat]);
 
   const handleChatClick = useCallback(
     (threadId: string) => {
