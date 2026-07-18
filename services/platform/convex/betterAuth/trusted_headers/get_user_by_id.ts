@@ -10,6 +10,7 @@ import {
 } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import type { QueryCtx } from '../../_generated/server';
+import { looksLikeConvexDocumentId } from '../../lib/helpers/id_shape';
 
 export interface BetterAuthUser {
   _id: string;
@@ -26,6 +27,11 @@ export async function getUserById(
   ctx: QueryCtx,
   userId: string,
 ): Promise<BetterAuthUser | null> {
+  // Sentinels ('system'), slugs, and emails cannot be document ids; passing
+  // one into the component's `_id` filter throws INSIDE the component (an
+  // uncaught component-query error in the logs) before any caller's catch.
+  // They can only ever mean "no such user" — answer that here.
+  if (!looksLikeConvexDocumentId(userId)) return null;
   const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'user',
     paginationOpts: {

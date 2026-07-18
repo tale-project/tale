@@ -378,6 +378,26 @@ describe('OrgDataResidencySettings', () => {
     expect(call).not.toHaveProperty('secretAccessKey');
   });
 
+  it('explains the bucket CORS requirement next to the storage form', () => {
+    setStorageFixture({
+      configured: true,
+      region: 'auto',
+      endpoint: 'https://acc.r2.cloudflarestorage.com',
+      forcePathStyle: true,
+      bucket: 'org-blobs',
+      hasCredentials: true,
+    });
+
+    render(<OrgDataResidencySettings organizationId="org-1" />);
+
+    // Browser-direct presigned PUT/GET needs a CORS policy on the org's
+    // bucket, and the server-side probe cannot detect a missing one — the
+    // panel has to say so, with the exact origin to allow.
+    expect(
+      screen.getByText(/must accept cross-origin \(CORS\) requests from/),
+    ).toBeInTheDocument();
+  });
+
   it('keeps the bucket probe disabled with blank fields when NO keys are stored', () => {
     setStorageFixture({
       configured: true,

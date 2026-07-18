@@ -9,6 +9,7 @@
 
 import { getString, isRecord } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
+import { looksLikeConvexDocumentId } from './id_shape';
 
 // Loose ctx shape so all of: Convex ActionCtx, ToolCtx, query/mutation
 // ctxs can pass through. The runQuery signature on the real Convex
@@ -94,6 +95,14 @@ export async function orgIdentityFromId(
   ctx: CtxWithRunQuery,
   organizationId: string,
 ): Promise<OrgIdentity> {
+  // A value that cannot BE a document id (a sentinel like 'system', a slug,
+  // an email) would throw INSIDE the betterAuth component — logged there as
+  // an uncaught error on every caller cadence, and non-terminal to
+  // `orgSlugFromIdOrNull`, so cron reconcilers would retry it forever.
+  // Treat it as the permanent miss it is.
+  if (!looksLikeConvexDocumentId(organizationId)) {
+    throw new OrgSlugUnresolvableError(organizationId, 'no_row');
+  }
   const row = await ctx.runQuery(components.betterAuth.adapter.findOne, {
     model: 'organization',
     where: [{ field: '_id', value: organizationId, operator: 'eq' }],

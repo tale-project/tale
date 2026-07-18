@@ -123,7 +123,15 @@ export const discoverUrls = internalAction({
         ? { ctx, organizationId: args.organizationId }
         : undefined,
     });
-    const inserted = await saveDiscoveredUrls(sql, args.domain, discovered);
+    // Threading the org slug lets the store self-heal the `websites` parent
+    // row (+ membership) on a pool this org switched to mid-flight — see
+    // `ensureWebsiteRow`.
+    const inserted = await saveDiscoveredUrls(
+      sql,
+      args.domain,
+      discovered,
+      args.orgSlug,
+    );
     return {
       domain: args.domain,
       urls: discovered,

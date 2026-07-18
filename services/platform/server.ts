@@ -12,6 +12,7 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { createOrgObjectStorageOriginsProvider } from './lib/org-storage-origins';
 import {
   createScreencastRelayHandler,
   type ScreencastWsData,
@@ -103,6 +104,15 @@ if (fileEventsEnabled && configDir && existsSync(configDir)) {
   });
   console.log(`Config file watcher active: ${configDir}`);
 }
+
+// Live view of the org BYO object-storage endpoint origins the CSP must
+// allow (see the security-headers comment block below). Deliberately NOT
+// gated by TALE_FILE_EVENTS — security headers must not depend on the SSE
+// feature flag; the provider is a no-op returning `[]` when the config dir
+// isn't mounted.
+const defaultOrgStorageOrigins = createOrgObjectStorageOriginsProvider(
+  configDir ?? null,
+);
 
 /**
  * Resolve the org slugs the current session is allowed to receive
@@ -411,11 +421,24 @@ function getEnvConfig(): EnvConfig {
 //     transfer (lawful basis, DPA, transparency notice are operator's
 //     responsibility). Most operators should leave it empty and rely on
 //     the libraries vendored under `public/canvas-libs/` instead.
+//   - Org bring-your-own object storage: endpoint origins read from
+//     `<TALE_CONFIG_DIR>/<orgSlug>/object-storage/connection.json` are
+//     appended to connect-src (browser-direct presigned PUT uploads +
+//     fetch-based downloads) and img-src / media-src (the `/storage`
+//     route 302s media to presigned GETs on the same endpoint). These are
+//     org-admin-configured storage backends holding the org's OWN data —
+//     the org, not a third party, is the controller — so they don't fall
+//     under the CDN prohibition above. Sourced live from config (see
+//     `lib/org-storage-origins.ts`), never from env.
 //
-// All Convex traffic — including storage uploads via `generateUploadUrl()`
-// and storage downloads — flows same-origin through Caddy (`/ws_api`,
-// `/api/storage/*`), so `'self'` covers it without needing any
-// `*.convex.cloud` / `*.convex.site` entries. SITE_URL hostname determines
+// All OTHER Convex traffic — including deployment-default storage uploads
+// via `generateUploadUrl()` and storage downloads — flows same-origin
+// through Caddy (`/ws_api`, `/api/storage/*`), so `'self'` covers it
+// without needing any `*.convex.cloud` / `*.convex.site` entries. The one
+// exception is the org BYO object-storage lane above: `generateBlobUpload`
+// hands the browser a presigned PUT addressed directly at the org's
+// endpoint, deliberately bypassing the platform so multi-hundred-MB blobs
+// never transit (or OOM) the server. SITE_URL hostname determines
 // whether HSTS is emitted (only when the deployment is HTTPS).
 // ---------------------------------------------------------------------------
 
@@ -452,7 +475,10 @@ function siteOriginFromUrl(siteUrl: string | undefined): string | null {
   }
 }
 
-function buildContentSecurityPolicy(env: EnvConfig) {
+function buildContentSecurityPolicy(
+  env: EnvConfig,
+  orgStorageOrigins: readonly string[] = [],
+) {
   const sentryOrigin = sentryOriginFromDsn(env.SENTRY_DSN);
   const sentry = sentryOrigin ? [sentryOrigin] : [];
   const figmaMcp = isLoopbackSite(env) ? ['https://mcp.figma.com'] : [];
@@ -476,9 +502,9 @@ function buildContentSecurityPolicy(env: EnvConfig) {
       ...figmaMcp,
     ],
     styleSrc: ["'self'", "'unsafe-inline'"],
-    imgSrc: ["'self'", 'data:', 'blob:', ...branding],
+    imgSrc: ["'self'", 'data:', 'blob:', ...branding, ...orgStorageOrigins],
     fontSrc: ["'self'", 'data:', ...branding],
-    connectSrc: ["'self'", ...sentry],
+    connectSrc: ["'self'", ...sentry, ...orgStorageOrigins],
     workerSrc: ["'self'", 'blob:'],
     frameSrc: ["'self'"],
     frameAncestors: ["'none'"],
@@ -486,8 +512,10 @@ function buildContentSecurityPolicy(env: EnvConfig) {
     formAction: ["'self'"],
     objectSrc: ["'none'"],
     // TTS playback streams audio from same-origin `/http_api/api/tts-audio`
-    // via `<audio>.src`, so `'self'` is required.
-    mediaSrc: ["'self'"],
+    // via `<audio>.src`, so `'self'` is required. Org BYO storage origins
+    // are included because `/storage` 302s audio/video attachments to
+    // presigned GETs on the org's endpoint.
+    mediaSrc: ["'self'", ...orgStorageOrigins],
   };
 }
 
@@ -507,41 +535,69 @@ function isLoopbackSite(env: EnvConfig): boolean {
   }
 }
 
-export function createApp(env: EnvConfig = getEnvConfig()): Hono {
+export interface CreateAppOptions {
+  /**
+   * Test seam for the org BYO object-storage origins fed into the CSP.
+   * Production uses the TTL-cached `TALE_CONFIG_DIR` scan.
+   */
+  orgStorageOrigins?: () => readonly string[];
+}
+
+export function createApp(
+  env: EnvConfig = getEnvConfig(),
+  opts: CreateAppOptions = {},
+): Hono {
   const app = new Hono();
 
-  const secure = secureHeaders({
-    contentSecurityPolicy: buildContentSecurityPolicy(env),
-    // 180 days. No `includeSubDomains`, no `preload` — self-deployed
-    // operators run on varied domains and don't own preload submission.
-    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
-    xContentTypeOptions: 'nosniff',
-    xFrameOptions: 'DENY',
-    referrerPolicy: 'strict-origin-when-cross-origin',
-    permissionsPolicy: {
-      camera: [],
-      microphone: ['self'],
-      // Active features: location-request approval card uses geolocation;
-      // copy-to-clipboard hook is wired into many UI surfaces; live-browser
-      // human takeover reads the host clipboard (`navigator.clipboard.readText`)
-      // to bridge a paste into the remote session — both need same-origin grants.
-      geolocation: ['self'],
-      clipboardWrite: ['self'],
-      clipboardRead: ['self'],
-      usb: [],
-      payment: [],
-      bluetooth: [],
-      midi: [],
-      hid: [],
-      serial: [],
-    },
-    // Defaults that would interfere with same-origin embeds and OAuth
-    // popups; we explicitly lean on CSP `frame-ancestors` and
-    // `frame-src` instead.
-    crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: false,
-    crossOriginResourcePolicy: false,
-  });
+  const makeSecure = (storageOrigins: readonly string[]) =>
+    secureHeaders({
+      contentSecurityPolicy: buildContentSecurityPolicy(env, storageOrigins),
+      // 180 days. No `includeSubDomains`, no `preload` — self-deployed
+      // operators run on varied domains and don't own preload submission.
+      strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+      xContentTypeOptions: 'nosniff',
+      xFrameOptions: 'DENY',
+      referrerPolicy: 'strict-origin-when-cross-origin',
+      permissionsPolicy: {
+        camera: [],
+        microphone: ['self'],
+        // Active features: location-request approval card uses geolocation;
+        // copy-to-clipboard hook is wired into many UI surfaces; live-browser
+        // human takeover reads the host clipboard (`navigator.clipboard.readText`)
+        // to bridge a paste into the remote session — both need same-origin grants.
+        geolocation: ['self'],
+        clipboardWrite: ['self'],
+        clipboardRead: ['self'],
+        usb: [],
+        payment: [],
+        bluetooth: [],
+        midi: [],
+        hid: [],
+        serial: [],
+      },
+      // Defaults that would interfere with same-origin embeds and OAuth
+      // popups; we explicitly lean on CSP `frame-ancestors` and
+      // `frame-src` instead.
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: false,
+      crossOriginResourcePolicy: false,
+    });
+  // Org BYO storage endpoints are runtime config (the org data-residency
+  // panel writes them, no restart involved), so the CSP has to follow
+  // without a process restart: re-check the (TTL-cached) origin set per
+  // request and rebuild the middleware only when it actually changed.
+  const orgStorageOrigins = opts.orgStorageOrigins ?? defaultOrgStorageOrigins;
+  let secureOriginsKey: string | null = null;
+  let secure = makeSecure([]);
+  const currentSecure = () => {
+    const origins = orgStorageOrigins();
+    const key = origins.join(' ');
+    if (key !== secureOriginsKey) {
+      secureOriginsKey = key;
+      secure = makeSecure(origins);
+    }
+    return secure;
+  };
   // WebDAV-specific narrow variant: CSP is dropped (DAV bodies are raw
   // blobs / XML, not HTML — CSP rewrites would confuse clients like
   // Finder and rclone), but HSTS, X-Frame-Options, X-Content-Type-Options,
@@ -570,7 +626,7 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     if (c.req.path === '/canvas-preview') return next();
     if (c.req.path.startsWith('/dav/') || c.req.path === '/dav')
       return secureForDav(c, next);
-    return secure(c, next);
+    return currentSecure()(c, next);
   });
 
   app.post('/canvas-preview', async (c) => {

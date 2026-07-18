@@ -184,6 +184,54 @@ describe('security headers', () => {
     // Same-origin assets are covered by `'self'`; no extra origin is emitted.
     expect(csp).toContain("font-src 'self' data:");
   });
+
+  // Org BYO object storage hands the browser presigned PUT/GET URLs on the
+  // org's EXTERNAL endpoint (files/blob_actions.generateBlobUpload, the
+  // /storage 302 lane), so those origins must be allow-listed or every
+  // browser-direct upload dies as `net::ERR_BLOCKED_BY_CSP` — the exact
+  // failure observed on demo v0.3.6 with a Cloudflare R2 bucket configured.
+  test('org BYO storage origins join connect-src, img-src and media-src', async () => {
+    const app = createApp(baseEnv, {
+      orgStorageOrigins: () => ['https://acc.r2.cloudflarestorage.com'],
+    });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    const directive = (name: string) =>
+      csp
+        .split(';')
+        .map((d) => d.trim())
+        .find((d) => d.startsWith(name)) ?? '';
+    expect(directive('connect-src')).toContain(
+      'https://acc.r2.cloudflarestorage.com',
+    );
+    expect(directive('img-src')).toContain(
+      'https://acc.r2.cloudflarestorage.com',
+    );
+    expect(directive('media-src')).toContain(
+      'https://acc.r2.cloudflarestorage.com',
+    );
+    // The storage origin must not leak into execution or framing directives.
+    expect(directive('script-src')).not.toContain('r2.cloudflarestorage.com');
+    expect(directive('frame-src')).not.toContain('r2.cloudflarestorage.com');
+    expect(directive('default-src')).toBe("default-src 'self'");
+  });
+
+  test('a data-residency save reaches the CSP without a restart', async () => {
+    let origins: readonly string[] = [];
+    const app = createApp(baseEnv, { orgStorageOrigins: () => origins });
+
+    const before = await app.fetch(new Request('http://localhost/api/health'));
+    expect(before.headers.get('content-security-policy')).not.toContain(
+      'r2.cloudflarestorage.com',
+    );
+
+    // The org admin saves an external bucket; the provider now reports it.
+    origins = ['https://acc.r2.cloudflarestorage.com'];
+    const after = await app.fetch(new Request('http://localhost/api/health'));
+    expect(after.headers.get('content-security-policy')).toContain(
+      "connect-src 'self' https://acc.r2.cloudflarestorage.com",
+    );
+  });
 });
 
 describe('POST /canvas-preview', () => {

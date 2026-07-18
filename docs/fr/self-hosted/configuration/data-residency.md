@@ -61,6 +61,8 @@ Contrairement au basculement S3 au niveau du déploiement ci-dessus, ce chemin n
 
 Les admins d'org gèrent aussi cette connexion dans **Paramètres > Résidence des données de l'organisation** ; son test de connexion effectue un aller-retour réel écriture-lecture-suppression contre le bucket avant que tu t'engages. Comme pour la connexion des connaissances, les fichiers JSON restent la source de vérité.
 
+> **Autorise l'origine de l'app dans la politique CORS du bucket.** Les téléversements et les téléchargements passent directement du navigateur au bucket via des URL présignées : le bucket doit donc accepter les requêtes cross-origin depuis l'URL de ton déploiement — autorise cette origine avec les méthodes `GET`, `PUT` et `HEAD` et tous les en-têtes de requête (Cloudflare R2 : **Settings > CORS Policy** du bucket ; AWS S3 et MinIO : la configuration CORS du bucket). Le test de connexion dans l'app s'exécute côté serveur, pas dans le navigateur — une politique CORS manquante ne se montre donc que plus tard, sous la forme d'un téléversement échoué.
+
 ### Déplacer les fichiers pré-existants dans le bucket
 
 Connecter le bucket ne réachemine que les **nouveaux** téléversements ; les blobs écrits avant la connexion restent dans le `_storage` de Convex et continuent de fonctionner via les références mixtes ci-dessus. Pour amener aussi cet historique sur ta propre infrastructure — tout l'intérêt de la résidence des données — lance le **backfill de blobs** : une action d'opérateur qui copie chaque blob pré-existant dans le bucket de l'org, vérifie qu'il revient identique octet pour octet, réécrit chaque ligne qui le référence et supprime la copie Convex.

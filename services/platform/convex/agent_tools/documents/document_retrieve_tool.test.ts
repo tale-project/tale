@@ -6,7 +6,9 @@ import { documentRetrieveArgs } from './document_retrieve_tool';
 import { retrieveDocument } from './helpers/retrieve_document';
 
 const FILE_ID = 'file-storage-123';
-const ORG_ID = 'org1';
+// Production-shaped document id so orgSlugFromId's syntactic gate lets the
+// mocked runQuery answer through (short fixtures like 'org1' are rejected).
+const ORG_ID = 'jn7e5agwkrztazsh38bq0zt73n87e20w';
 const USER_ID = 'user1';
 const ORG_SLUG = 'org-1';
 

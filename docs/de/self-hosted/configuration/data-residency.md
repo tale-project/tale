@@ -61,6 +61,8 @@ Anders als der deployment-weite S3-Schalter oben ist dieser Weg **nicht** nur f�
 
 Org-Admins verwalten auch diese Verbindung unter **Einstellungen > Datenresidenz der Organisation**; der dortige Verbindungstest führt einen echten Hochladen-Lesen-Löschen-Durchlauf gegen den Bucket aus, bevor du dich festlegst. Wie bei der Wissens-Verbindung bleiben die JSON-Dateien die Quelle der Wahrheit.
 
+> **Erlaube den Origin der App in der CORS-Policy des Buckets.** Uploads und Downloads laufen über vorsignierte URLs direkt zwischen Browser und Bucket, der Bucket muss Cross-Origin-Anfragen von der URL deines Deployments also akzeptieren — erlaube diesen Origin mit den Methoden `GET`, `PUT` und `HEAD` sowie allen Request-Headern (Cloudflare R2: **Settings > CORS Policy** des Buckets; AWS S3 und MinIO: die CORS-Konfiguration des Buckets). Der Verbindungstest in der App läuft auf dem Server, nicht im Browser — eine fehlende CORS-Policy zeigt sich deshalb erst später, als fehlgeschlagener Upload.
+
 ### Vorhandene Dateien in den Bucket verschieben
 
 Den Bucket zu verbinden leitet nur **neue** Uploads um; die Blobs, die vor der Verbindung geschrieben wurden, bleiben in Convex' `_storage` und funktionieren weiter über die gemischten Referenzen oben. Um auch diese Historie auf deine eigene Infrastruktur zu holen — der eigentliche Sinn der Datenresidenz — führe den **Blob-Backfill** aus: eine Operator-Aktion, die jeden vorhandenen Blob in den Bucket der Org kopiert, prüft, dass er Byte für Byte identisch zurückkommt, jede referenzierende Zeile umschreibt und die Convex-Kopie löscht.
