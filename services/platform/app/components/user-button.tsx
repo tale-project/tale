@@ -140,33 +140,17 @@ function MenuRowCollapsible({
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
-  /** Optional label to show next to the icon (for mobile navigation) */
-  label?: string;
-  /** Optional custom tooltip text (defaults to "Manage account") */
-  tooltipText?: string;
-  /**
-   * Called whenever a dropdown item navigates to a different route. Lets a
-   * parent surface (e.g. the mobile navigation Sheet) close itself so the
-   * destination page isn't covered by a stale overlay. Theme / locale /
-   * org-switcher toggles deliberately do NOT call this — they don't change
-   * the current route.
-   */
-  onNavigate?: () => void;
   /**
    * Unified-sidebar footer variant. When set, the trigger renders as a
    * sidebar row — a 32px icon tile that widens to a full labelled row (the
    * member display name) while `true` — sharing the sidebar's width/fade
-   * motion. The hover tooltip only renders while collapsed. Mutually
-   * exclusive with `label`.
+   * motion. The hover tooltip only renders while collapsed.
    */
   sidebarExpanded?: boolean;
 }
 
 export function UserButton({
   align = 'start',
-  label,
-  tooltipText,
-  onNavigate,
   sidebarExpanded,
 }: UserButtonProps) {
   const { t } = useT('auth');
@@ -397,7 +381,6 @@ export function UserButton({
               to: '/dashboard/$id/chat',
               params: { id: organizationId },
             });
-            onNavigate?.();
           }
         };
 
@@ -616,7 +599,6 @@ export function UserButton({
     lastSeenVersion,
     markChangelogSeen,
     hasUnseenVersion,
-    onNavigate,
     closeMenu,
   ]);
 
@@ -626,19 +608,15 @@ export function UserButton({
     <button
       ref={menuTriggerRef}
       type="button"
-      aria-label={
-        label ? undefined : (tooltipText ?? t('userButton.manageAccount'))
-      }
+      aria-label={t('userButton.manageAccount')}
       className={cn(
         'relative flex items-center transition-colors hover:bg-muted cursor-pointer',
-        label
-          ? 'gap-3 px-3 py-2 w-full rounded-lg'
-          : isSidebarVariant
-            ? cn(
-                'h-8 gap-2.5 overflow-hidden rounded-md pl-1.5 pr-2',
-                ROW_TRANSITION_CLASS,
-              )
-            : 'justify-center p-1.5 rounded-md',
+        isSidebarVariant
+          ? cn(
+              'h-8 gap-2.5 overflow-hidden rounded-md pl-1.5 pr-2',
+              ROW_TRANSITION_CLASS,
+            )
+          : 'justify-center p-1.5 rounded-md',
       )}
       style={isSidebarVariant ? rowWidthStyle(sidebarExpanded) : undefined}
     >
@@ -654,11 +632,6 @@ export function UserButton({
           </>
         )}
       </div>
-      {label && (
-        <Text as="span" variant="label">
-          {label}
-        </Text>
-      )}
       {isSidebarVariant && (
         <span
           aria-hidden
@@ -694,9 +667,9 @@ export function UserButton({
 
   const contentClassName = 'w-64';
 
-  // Labelled variants (mobile nav row, expanded sidebar row) show their text
-  // inline, so the hover tooltip only exists for the icon-only/collapsed tile.
-  if (label || (isSidebarVariant && sidebarExpanded)) {
+  // The expanded sidebar row shows the display name inline, so the hover
+  // tooltip only exists for the icon-only/collapsed tile.
+  if (isSidebarVariant && sidebarExpanded) {
     return (
       <>
         <DropdownMenu
@@ -733,7 +706,7 @@ export function UserButton({
             sideOffset={4}
             className="bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
           >
-            {tooltipText ?? t('userButton.manageAccount')}
+            {t('userButton.manageAccount')}
           </TooltipPrimitive.Content>
         </TooltipPrimitive.Root>
       </TooltipPrimitive.Provider>
