@@ -58,6 +58,7 @@ import {
 import { onAgentComplete } from '../agent_completion';
 import {
   buildStructuredContext,
+  loadStructuredHistory,
   AGENT_CONTEXT_CONFIGS,
   RECOVERY_TIMEOUT_MS,
   estimateTokens,
@@ -747,6 +748,68 @@ export async function generateAgentResponse(
         }
       })();
 
+    // History budget + the paginated history load, hoisted ABOVE the context
+    // Promise.all: the load depends only on the thread, the token budget, and
+    // the compaction boundary (threadMetadata.contextSummary) — never on the
+    // RAG / web / personalization legs — so it runs concurrently with them
+    // instead of serially after (on long threads the sequential page loop was
+    // pure added TTFT). The builder consumes it via `preloadedHistory`.
+    const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
+    const governanceMaxContext =
+      config.maxContextTokens ?? args.maxContextTokens;
+    // History budget scales with the model's real context window (capped), so a
+    // long chat actually fills the window and auto-compaction can kick in at
+    // ~90%. Never dips below the per-agent default; governance still caps it.
+    // An unknown context window falls back to a sensible default inside
+    // `resolveContextBudget`.
+    const effectiveMaxHistoryTokens = resolveContextBudget({
+      contextWindow: modelContextWindow,
+      governanceMaxContext:
+        governanceMaxContext != null &&
+        Number.isFinite(governanceMaxContext) &&
+        governanceMaxContext > 0
+          ? governanceMaxContext
+          : undefined,
+      agentDefault: agentConfig.maxHistoryTokens,
+    });
+    debugLog('History budget resolved', {
+      modelContextWindow,
+      governanceLimit: governanceMaxContext,
+      agentDefault: agentConfig.maxHistoryTokens,
+      effective: effectiveMaxHistoryTokens,
+    });
+    // Adaptive Reasoning Governor (Layer C) state — also the source of the
+    // compaction summary that bounds the history load. Shared with the context
+    // Promise.all below (awaiting a promise twice is safe).
+    const threadMetadataPromise = ctx
+      .runQuery(internal.threads.internal_queries.getThreadMetadata, {
+        threadId,
+      })
+      .catch((err: unknown) => {
+        console.warn(
+          '[reasoning] getThreadMetadata failed; using cold-start prior',
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      });
+    const historyPromise = threadMetadataPromise.then((meta) =>
+      loadStructuredHistory(
+        ctx,
+        threadId,
+        effectiveMaxHistoryTokens,
+        meta?.contextSummary?.coversThroughOrder,
+      ),
+    );
+    // Observe an early rejection so it can never surface as an unhandled
+    // rejection while the context Promise.all is still running; the real
+    // await at context build below still throws the original error.
+    void historyPromise.catch((err: unknown) =>
+      console.warn(
+        '[generate_response] history preload failed (surfaces at context build):',
+        err instanceof Error ? err.message : err,
+      ),
+    );
+
     // Call beforeContext hook if provided
     let hookData: BeforeContextResult | undefined;
     if (hooks?.beforeContext) {
@@ -777,20 +840,10 @@ export async function generateAgentResponse(
           tokens: 0,
         }),
       projectInstructionsPromise,
-      // Adaptive Reasoning Governor (Layer C): fetch the thread's learned
-      // reasoning state alongside the other context queries so it adds no
-      // serial latency. Degrades to the cold-start prior if the lookup fails.
-      ctx
-        .runQuery(internal.threads.internal_queries.getThreadMetadata, {
-          threadId,
-        })
-        .catch((err: unknown) => {
-          console.warn(
-            '[reasoning] getThreadMetadata failed; using cold-start prior',
-            err instanceof Error ? err.message : err,
-          );
-          return null;
-        }),
+      // Adaptive Reasoning Governor (Layer C): the thread's learned reasoning
+      // state — the same promise the history preload above chained from, so
+      // it adds no serial latency and is fetched exactly once.
+      threadMetadataPromise,
       // Inherited cross-thread profile (per org + model) for warm-starting a
       // fresh thread. Also parallel, also best-effort.
       organizationId
@@ -853,41 +906,12 @@ export async function generateAgentResponse(
       });
     }
 
-    // Build structured context (history, RAG, web)
+    // Build structured context (history, RAG, web). The history itself was
+    // preloaded concurrently with the Promise.all above, so `contextBuildMs`
+    // now measures only the RESIDUAL wait (history slower than the other
+    // legs) plus the pure string assembly.
     // Note: promptMessage is NOT included - it's passed via `prompt` parameter
-    const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
-    const governanceMaxContext =
-      config.maxContextTokens ?? args.maxContextTokens;
-    // History budget scales with the model's real context window (capped), so a
-    // long chat actually fills the window and auto-compaction can kick in at
-    // ~90%. Never dips below the per-agent default; governance still caps it.
-    // An unknown context window falls back to a sensible default inside
-    // `resolveContextBudget`.
-    const historyBudget = resolveContextBudget({
-      contextWindow: modelContextWindow,
-      governanceMaxContext:
-        governanceMaxContext != null &&
-        Number.isFinite(governanceMaxContext) &&
-        governanceMaxContext > 0
-          ? governanceMaxContext
-          : undefined,
-      agentDefault: agentConfig.maxHistoryTokens,
-    });
-    const effectiveMaxHistoryTokens = historyBudget;
-
-    debugLog('History budget resolved', {
-      modelContextWindow,
-      governanceLimit: governanceMaxContext,
-      agentDefault: agentConfig.maxHistoryTokens,
-      effective: effectiveMaxHistoryTokens,
-    });
-
     const contextBuildStart = Date.now();
-    // Artifacts module removed — workspace context is now discoverable via the
-    // `file_list` tool, so there is no artifacts block to build. This was a
-    // no-op async shim (always resolved to '') awaited on the critical path
-    // right before context build; `buildStructuredContext` treats an absent
-    // artifactsContext identically (gated by `if (artifactsContext)`).
     structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
@@ -899,6 +923,7 @@ export async function generateAgentResponse(
       artifactsContext: undefined,
       promptMessageId,
       contextSummary,
+      preloadedHistory: await historyPromise,
     });
     const contextBuildMs = Date.now() - contextBuildStart;
 
@@ -2508,7 +2533,7 @@ export async function generateAgentResponse(
                 0,
                 internal.lib.context_management.compaction.summarize
                   .compactThreadHistory,
-                { threadId, organizationId, budget: historyBudget },
+                { threadId, organizationId, budget: effectiveMaxHistoryTokens },
               )
               .then(() => undefined)
               .catch((compactErr: unknown) =>

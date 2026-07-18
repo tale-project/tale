@@ -137,6 +137,47 @@ export interface BuildStructuredContextParams {
    *  by `text` instead of being loaded verbatim, and `text` is injected as an
    *  "earlier conversation, condensed" block ahead of the recent turns. */
   contextSummary?: { text: string; coversThroughOrder: number };
+  /** Pre-loaded history (from {@link loadStructuredHistory}): lets the caller
+   *  start the paginated message load CONCURRENTLY with other context work
+   *  (RAG, personalization) instead of serially after it — the load depends
+   *  only on the thread, the token budget, and the summary boundary, never on
+   *  those other legs. When absent the builder loads internally (retry and
+   *  recovery paths keep that). */
+  preloadedHistory?: StructuredHistoryBundle;
+}
+
+/** History bundle produced by {@link loadStructuredHistory} and consumed via
+ *  `preloadedHistory` — the load half of `buildStructuredContext`, split out
+ *  so it can overlap the context `Promise.all` on the hot path. */
+export interface StructuredHistoryBundle {
+  messages: MessageDoc[];
+  toolMessageAges: Map<string, ToolOutputAge>;
+  approvals: ApprovalItem[] | null;
+}
+
+/**
+ * Load message history and approvals in parallel (independent queries).
+ * Messages already folded into the rolling summary are excluded so they
+ * aren't double-counted against the budget (the summary stands in).
+ */
+export async function loadStructuredHistory(
+  ctx: ActionCtx,
+  threadId: string,
+  maxHistoryTokens: number,
+  summarizedThroughOrder?: number,
+): Promise<StructuredHistoryBundle> {
+  const [{ messages, toolMessageAges }, approvals] = await Promise.all([
+    loadPrioritizedMessages(
+      ctx,
+      threadId,
+      maxHistoryTokens,
+      summarizedThroughOrder,
+    ),
+    ctx.runQuery(internal.approvals.internal_queries.getApprovalsForThread, {
+      threadId,
+    }),
+  ]);
+  return { messages, toolMessageAges, approvals };
 }
 
 /**
@@ -160,20 +201,14 @@ export async function buildStructuredContext(
     contextSummary,
   } = params;
 
-  // Load message history and approvals in parallel (independent queries).
-  // Messages already folded into the rolling summary are excluded here so they
-  // aren't double-counted against the budget (the summary stands in).
-  const [{ messages, toolMessageAges }, approvals] = await Promise.all([
-    loadPrioritizedMessages(
+  const { messages, toolMessageAges, approvals } =
+    params.preloadedHistory ??
+    (await loadStructuredHistory(
       ctx,
       threadId,
       maxHistoryTokens,
       contextSummary?.coversThroughOrder,
-    ),
-    ctx.runQuery(internal.approvals.internal_queries.getApprovalsForThread, {
-      threadId,
-    }),
-  ]);
+    ));
 
   const contextParts: string[] = [];
 
