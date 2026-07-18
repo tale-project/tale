@@ -16,6 +16,7 @@ import {
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
 import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
+import { AppSidebarPlaceholder } from '@/app/components/layout/app-sidebar/app-sidebar-placeholder';
 import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-context';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { DirtyBlockerProvider } from '@/app/components/ui/editor';
@@ -370,9 +371,7 @@ function DashboardLayout() {
                       {hasRole ? (
                         <AppSidebar organizationId={organizationId} />
                       ) : (
-                        <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-                          <NavRailPlaceholder />
-                        </div>
+                        <AppSidebarPlaceholder />
                       )}
 
                       <Stack
@@ -418,65 +417,6 @@ function DashboardLayout() {
   );
 }
 
-// One masked nav icon — mirrors the real NavigationItem footprint: a `size-5`
-// glyph centered in a `p-2 rounded-lg` hover target. Used for both the primary
-// list and the pinned footer buttons so the rail reads as a populated nav.
-function NavIconSkeleton() {
-  return (
-    <Row gap={0} justify="center" className="rounded-lg p-2">
-      <SkeletonBox>
-        <div className="size-5" />
-      </SkeletonBox>
-    </Row>
-  );
-}
-
-// The full primary nav (chat, projects, conversations, knowledge, agents,
-// settings). The real list is CASL-gated down to a few items and
-// the gated count isn't known until access resolves, so the placeholder
-// optimistically renders the whole set — that's a pixel match for the common
-// admin/owner case and only over-draws a slot or two for limited members. The
-// middle is a top-aligned `flex-1` region with a pinned footer, so the count
-// never reflows the rail; it only sets which icon slots the placeholder fills.
-const PLACEHOLDER_NAV_ITEMS = 7;
-
-// Masked desktop side-nav rail shown while access resolves. Mirrors the real
-// Navigation geometry — logo, primary icon list, and the pinned footer (bell +
-// user avatar) — so it slots in without reflow.
-function NavRailPlaceholder() {
-  return (
-    <Skeletonize loading>
-      <Stack gap={0} className="border-border h-full">
-        <Row gap={0} justify="center" className="flex-shrink-0 py-3">
-          <Row gap={0} justify="center" className="size-8">
-            <SkeletonBox>
-              <div className="size-5" />
-            </SkeletonBox>
-          </Row>
-        </Row>
-        <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4">
-          <div className="space-y-2">
-            {Array.from({ length: PLACEHOLDER_NAV_ITEMS }, (_, i) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <NavIconSkeleton key={i} />
-            ))}
-          </div>
-        </div>
-        <Stack gap={2} align="center" className="flex-shrink-0 py-3">
-          {/* Notification bell */}
-          <NavIconSkeleton />
-          {/* UserButton avatar */}
-          <Row gap={0} justify="center" className="rounded-lg p-2">
-            <SkeletonCircle>
-              <div className="size-5" />
-            </SkeletonCircle>
-          </Row>
-        </Stack>
-      </Stack>
-    </Skeletonize>
-  );
-}
-
 // Full-frame dashboard chrome for the redirect routes (`/dashboard`,
 // `/dashboard/create-organization`) that have no Outlet/nav of their own and
 // just need the shell to show while they resolve which org to route to.
@@ -513,10 +453,8 @@ export function DashboardShellFrame() {
         </Skeletonize>
       </div>
 
-      {/* Desktop side nav */}
-      <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-        <NavRailPlaceholder />
-      </div>
+      {/* Desktop sidebar */}
+      <AppSidebarPlaceholder />
 
       <Stack
         as="main"
