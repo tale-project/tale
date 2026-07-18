@@ -5,13 +5,14 @@
   },
   "node": {
     "externalPackages": [
+      "@modelcontextprotocol/sdk",
+      "canvas",
       "mssql",
-      "tedious",
       "mysql2",
       "pg",
       "postgres",
-      "@modelcontextprotocol/sdk",
-      "canvas"
+      "tedious",
+      "undici"
     ]
   },
   "aiFiles": {

@@ -37,6 +37,7 @@ import { detectDomain } from '../lib/agent_response/model_routing/domain';
 import { reasoningProviderOptionsFor } from '../lib/agent_response/reasoning/build_reasoning_options';
 import { scoreDifficulty } from '../lib/agent_response/reasoning/signals';
 import { classFromIntensity } from '../lib/agent_response/reasoning/types';
+import { createDebugLog } from '../lib/debug_log';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
@@ -64,11 +65,15 @@ import type { AgentReadResult } from './file_utils';
 import { listInstalledAgentsForOrg } from './internal_actions';
 import { routeSeedValidator, routeTuningValidator } from './schema';
 
+const debugLog = createDebugLog('DEBUG_AUTO_ROUTE', '[resolveAutoRoute]');
+
 /** Hard ceiling on the classifier call — beyond this we use the default. Kept
- *  in step with the `router` agent's declared `timeoutMs` so a fast classifier
- *  model gets the full budget the config intends rather than being cut off
- *  early (the previous 6s clipped slower providers → silent fallback). */
-const ROUTE_TIMEOUT_MS = 8_000;
+ *  in step with the `router` agent's declared `timeoutMs`. The classifier is
+ *  a BLOCKING hop before the real answer starts, so every ms it waits is dead
+ *  air for the user: a healthy classifier answers in 1–2.5s, and a slow
+ *  provider outlier is better served by the default agent NOW than by a
+ *  specialist 8s later (measured: timeout turns cost +8.4s perceived TTFT). */
+const ROUTE_TIMEOUT_MS = 4_000;
 
 /** Cap the candidate list shown to the router so a huge org doesn't bloat the
  *  prompt. A fast model handles this many slugs trivially. */
@@ -369,8 +374,8 @@ export const resolveAutoRoute = internalAction({
         // misroute (specialist not picked / truncated output / unparsable reply)
         // is visible in the logs without guessing. Shortlist confirms the
         // specialist was even a candidate; raw shows the model's actual reply.
-        console.log(
-          `[resolveAutoRoute] classified org=${args.organizationId} domain=${domain} shortlist=[${shortlist
+        debugLog(
+          `classified org=${args.organizationId} domain=${domain} shortlist=[${shortlist
             .map((c) => c.name)
             .join(
               ', ',

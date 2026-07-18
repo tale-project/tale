@@ -201,14 +201,20 @@ export function selectModelTier(input: SelectModelInput): ModelSelection {
   const atOrAbove = indexed.filter((x) => x.rank >= targetRank);
   const pool = atOrAbove.length > 0 ? atOrAbove : indexed;
 
+  // Within the sufficient tier: an EASY turn optimizes for cost (which tracks
+  // speed — over-provisioning a trivial turn buys latency, not quality; the
+  // quality-first order used to hand "hello" to the priciest sibling that the
+  // cost terciles happened to label draft/standard). Medium/hard turns keep
+  // quality first — there the stronger answer is worth the wait.
+  const preferCheap = !highStakes && difficultyClass === 'easy';
   pool.sort((a, b) => {
     if (a.domainMatch !== b.domainMatch) return a.domainMatch ? -1 : 1;
     if (a.rank !== b.rank) return a.rank - b.rank; // cheapest sufficient tier
+    const costA = a.c.outputCentsPerMillion ?? Infinity;
+    const costB = b.c.outputCentsPerMillion ?? Infinity;
+    if (preferCheap && costA !== costB) return costA - costB;
     if (a.quality !== b.quality) return b.quality - a.quality;
-    return (
-      (a.c.outputCentsPerMillion ?? Infinity) -
-      (b.c.outputCentsPerMillion ?? Infinity)
-    );
+    return costA - costB;
   });
 
   const winner = pool[0];

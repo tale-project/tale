@@ -178,6 +178,15 @@ const OFF_INTENSITY = 0.12;
 const PRIOR_BUDGET_GAMMA = 1.4;
 const PRIOR_BUDGET_MAX = TIER_BUDGET_TOKENS.high;
 
+/** Ceiling the PRIOR budget may reach per difficulty class — the prior can
+ *  never announce 'easy' yet spend a 'medium' thinking budget. Floors (code /
+ *  hard verbs / attachments) and the online controller may still raise it. */
+const CLASS_TIER_CAP: Record<DifficultyClass, ReasoningTier> = {
+  easy: 'low',
+  medium: 'medium',
+  hard: 'high',
+};
+
 // How far the Auto router's coarse hint pulls the heuristic prior toward it — a
 // blend, not an override (the online controller still refines from observed
 // usage). Representative prior intensity / creativity score per hint level.
@@ -330,12 +339,25 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
   if (signals.hasAttachments) floorTier = maxTier(floorTier, 'low');
 
   // Continuous intensity → prior budget → tier, lifted to the floor.
+  //
+  // The budget is CAPPED at the turn's own difficulty class: without the cap a
+  // single feature weight (math on "what is 2+2?") pushed an easy-class turn
+  // into a medium thinking budget — seconds of dead air before the first
+  // visible token on a trivial message. The floors below still win, so code /
+  // hard-verb / attachment turns keep their guaranteed minimum, and the online
+  // controller can still raise the budget when a model's revealed need says so.
+  const difficultyClass = classFromIntensity(intensity);
+  const classCapBudget = TIER_BUDGET_TOKENS[CLASS_TIER_CAP[difficultyClass]];
   const rawBudget =
     intensity <= OFF_INTENSITY
       ? 0
-      : Math.round(
-          1024 +
-            Math.pow(intensity, PRIOR_BUDGET_GAMMA) * (PRIOR_BUDGET_MAX - 1024),
+      : Math.min(
+          Math.round(
+            1024 +
+              Math.pow(intensity, PRIOR_BUDGET_GAMMA) *
+                (PRIOR_BUDGET_MAX - 1024),
+          ),
+          classCapBudget,
         );
   const tier = maxTier(budgetToTier(rawBudget), floorTier);
   const budgetTokens = Math.max(rawBudget, TIER_BUDGET_TOKENS[floorTier]);
@@ -343,7 +365,7 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
   return {
     intensity,
     creativity,
-    difficultyClass: classFromIntensity(intensity),
+    difficultyClass,
     target: { tier, budgetTokens },
     floorTier,
     features: {
