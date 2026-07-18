@@ -32,12 +32,16 @@ export function SidebarToggle({
   const isMac = useIsMac();
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  // After a toggle click, focus the instance that is visible in the NEW state
+  // (the rail instance stays mounted inside its animated slot, so this keys on
+  // the state change, not on mount).
   useEffect(() => {
-    if (focusPendingRef.current) {
+    const visibleHere = placement === 'header' ? isExpanded : !isExpanded;
+    if (visibleHere && focusPendingRef.current) {
       focusPendingRef.current = false;
       buttonRef.current?.focus();
     }
-  }, [focusPendingRef]);
+  }, [isExpanded, placement, focusPendingRef]);
 
   const label = isExpanded ? t('sidebar.collapse') : t('sidebar.expand');
   const shortcut = isMac ? '⌘ H' : 'CTRL + H';

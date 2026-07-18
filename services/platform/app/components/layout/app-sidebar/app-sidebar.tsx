@@ -8,6 +8,7 @@ import { useIsMac } from '@/app/hooks/use-is-mac';
 import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { MobileSidebarSheet } from './mobile-sidebar-sheet';
 import { SidebarChats } from './sidebar-chats';
@@ -98,14 +99,26 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
                 toggleFocusPendingRef={toggleFocusPendingRef}
               />
             </div>
-            {!isExpanded && (
-              <div className="shrink-0 px-3 pb-2">
-                <SidebarToggle
-                  focusPendingRef={toggleFocusPendingRef}
-                  placement="rail"
-                />
+            {/* Rail toggle slot: its height animates open in sync with the
+                collapse (grid-rows trick) so the rows below slide rather than
+                jump when the toggle repositions out of the header. */}
+            <div
+              className={cn(
+                'grid shrink-0 transition-[grid-template-rows] duration-[250ms] ease-(--ease-out-quint) motion-reduce:transition-none',
+                isExpanded ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]',
+              )}
+              aria-hidden={isExpanded}
+              inert={isExpanded}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="px-3 pb-2">
+                  <SidebarToggle
+                    focusPendingRef={toggleFocusPendingRef}
+                    placement="rail"
+                  />
+                </div>
               </div>
-            )}
+            </div>
             <div className="shrink-0 px-3 pb-2">
               <SidebarSearch expanded={isExpanded} />
             </div>

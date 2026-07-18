@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { cn } from '@/lib/utils/cn';
@@ -26,6 +26,17 @@ export function SidebarChats({ organizationId, expanded }: SidebarChatsProps) {
     if (expanded) setHasMounted(true);
   }, [expanded]);
 
+  // A stable element identity so the expand/collapse flip re-styles only this
+  // wrapper: re-rendering the whole thread/project tree on the same frame the
+  // width tween starts caused a visible first-frame stall (~70ms) in the
+  // collapse animation.
+  const chatHistory = useMemo(
+    () => (
+      <ChatHistorySidebar organizationId={organizationId} className="h-full" />
+    ),
+    [organizationId],
+  );
+
   return (
     <div
       inert={!expanded || undefined}
@@ -35,12 +46,7 @@ export function SidebarChats({ organizationId, expanded }: SidebarChatsProps) {
         labelFadeClass(expanded),
       )}
     >
-      {hasMounted && (
-        <ChatHistorySidebar
-          organizationId={organizationId}
-          className="h-full"
-        />
-      )}
+      {hasMounted && chatHistory}
     </div>
   );
 }
