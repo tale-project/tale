@@ -7,11 +7,7 @@
  * aborted take still cleans up.
  */
 
-import {
-  type SceneChoreography,
-  type SceneContext,
-  type SceneRuntime,
-} from '../../lib/scene';
+import { type SceneChoreography, type SceneRuntime } from '../../lib/scene';
 import { AGENT_DISPLAY_NAME, AGENT_INSTRUCTIONS, AGENT_SLUG } from './episode';
 
 function rail(rt: SceneRuntime, path: string) {

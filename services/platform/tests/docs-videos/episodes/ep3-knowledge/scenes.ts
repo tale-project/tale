@@ -11,7 +11,6 @@ import { videoContentFor } from '../../lib/locale-content';
 import {
   spaNavigate,
   type SceneChoreography,
-  type SceneContext,
   type SceneRuntime,
 } from '../../lib/scene';
 import { ENTRY_CONTENT, ENTRY_TOPIC } from './episode';

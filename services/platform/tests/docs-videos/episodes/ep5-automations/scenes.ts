@@ -8,7 +8,6 @@
 import {
   spaNavigate,
   type SceneChoreography,
-  type SceneContext,
   type SceneRuntime,
 } from '../../lib/scene';
 import { APPROVAL_FIELD_TEXT } from './episode';

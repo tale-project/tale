@@ -33,7 +33,8 @@ export async function loadChoreography(
 }
 
 /** `ep2-…` before `ep10-…` — numeric-aware, deterministic across machines. */
-const naturalOrder = new Intl.Collator('en', { numeric: true }).compare;
+const collator = new Intl.Collator('en', { numeric: true });
+const naturalOrder = (a: string, b: string): number => collator.compare(a, b);
 
 function isEpisodeSpec(value: unknown): value is EpisodeSpec {
   if (typeof value !== 'object' || value === null) return false;
