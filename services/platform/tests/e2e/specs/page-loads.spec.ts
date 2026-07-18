@@ -15,12 +15,12 @@ import { t } from '../helpers/i18n';
  */
 
 /**
- * The chat surface is settled once its header search control renders (New chat
- * is no longer a header button — it moved to the side-nav rail). It renders in
- * both the desktop bar and mobile header; pin the first (visible).
+ * The chat surface is settled once its composer renders. (The search control
+ * moved into the shell's unified sidebar, where it exists on every route — it
+ * can no longer distinguish the chat surface.)
  */
 function chatSurfaceAnchor(page: Page): Locator {
-  return page.getByRole('button', { name: t('chat.searchChat') }).first();
+  return page.getByRole('textbox', { name: t('chat.aria.chatInput') });
 }
 
 /**

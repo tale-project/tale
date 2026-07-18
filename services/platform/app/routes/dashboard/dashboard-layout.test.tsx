@@ -147,8 +147,23 @@ vi.mock('@/app/components/layout/adaptive-header', () => ({
   AdaptiveHeaderSlot: () => null,
 }));
 
-vi.mock('@/app/components/ui/navigation/navigation', () => ({
-  Navigation: () => null,
+vi.mock('@/app/components/layout/app-sidebar/sidebar-context', () => ({
+  SidebarProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  // The (unmocked) AppSidebarPlaceholder rendered by the skeleton branches
+  // reads the persisted width hint from this module.
+  readSidebarExpandedHint: () => undefined,
+}));
+
+vi.mock('@/app/components/layout/app-sidebar/app-sidebar', () => ({
+  AppSidebar: () => null,
+}));
+
+vi.mock('@/app/hooks/use-clock-offset', () => ({
+  ClockOffsetProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 vi.mock('@/app/components/user-button', () => ({

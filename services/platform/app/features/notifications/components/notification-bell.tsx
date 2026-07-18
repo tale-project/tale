@@ -15,8 +15,6 @@ import { NotificationListPanel } from './notification-list-panel';
 
 interface NotificationBellProps {
   organizationId: string;
-  /** Show a text label next to the bell (mobile nav uses this). */
-  label?: string;
 }
 
 /**
@@ -30,10 +28,7 @@ interface NotificationBellProps {
 const POPOVER_CONTENT_CLASSES =
   'z-50 min-w-[14.5rem] max-w-64 w-auto p-4 rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none';
 
-export function NotificationBell({
-  organizationId,
-  label,
-}: NotificationBellProps) {
+export function NotificationBell({ organizationId }: NotificationBellProps) {
   const { t: tNav } = useT('navigation');
   const { t: tNotifications } = useT('notifications');
   const [open, setOpen] = useState(false);
@@ -51,10 +46,7 @@ export function NotificationBell({
     <button
       type="button"
       aria-label={tNav('notifications')}
-      className={cn(
-        'hover:bg-muted relative flex items-center rounded-lg transition-colors cursor-pointer',
-        label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
-      )}
+      className="hover:bg-muted relative flex cursor-pointer items-center justify-center rounded-md p-2 transition-colors"
     >
       <span className="relative inline-flex">
         <Bell className="text-muted-foreground size-5 shrink-0" />
@@ -67,16 +59,8 @@ export function NotificationBell({
           </span>
         )}
       </span>
-      {label && <span className="text-sm font-medium">{label}</span>}
     </button>
   );
-
-  // The mobile-nav variant renders an inline text label next to the bell and
-  // doesn't need a tooltip — skip both the Popover + Tooltip overhead, just
-  // mount the plain button. (Mobile navigates via parent link logic.)
-  if (label) {
-    return buttonNode;
-  }
 
   // Composing PopoverPrimitive + TooltipPrimitive directly is the only way
   // to land both `asChild` triggers on the same `<button>`. Going through the

@@ -1,14 +1,13 @@
 @import '@tale/ui/globals.css';
 
 /*
- * Desktop side-nav rail width. Consumed by the dashboard layout
- * (`md:flex-[0_0_var(--nav-size)]`) for BOTH the real `Navigation` rail and the
- * `NavRailPlaceholder` skeleton so they share one geometry. Defining it here
- * (rather than leaving the flex-basis to resolve to `auto`/content width) keeps
- * the rail a fixed width from first paint — otherwise the column reflows as the
- * icon set hydrates, shifting the whole page on reload.
+ * Unified app sidebar: expanded panel ↔ collapsed icon rail. Consumed by the
+ * AppSidebar width animation AND its skeleton placeholder so both share one
+ * geometry (6px inset + 36px tile + 6px inset = 3rem collapsed). Fixed
+ * widths from first paint — otherwise the column reflows as content hydrates,
+ * shifting the whole page on reload.
  */
 :root {
-  --nav-size: 3.5rem;
-  --chat-history-width: 18rem;
+  --sidebar-width: 16rem;
+  --sidebar-width-collapsed: 3rem;
 }

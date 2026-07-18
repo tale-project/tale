@@ -2,27 +2,19 @@
 
 import { Stack } from '@tale/ui/layout';
 import { Link, useLocation } from '@tanstack/react-router';
-import { m } from 'framer-motion';
 import { useCallback, useMemo } from 'react';
 
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
   useNavigationItems,
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
-import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useChatLayout } from '../context/chat-layout-context';
-import { ChatHistorySidebar } from './chat-history-sidebar';
-
-const HISTORY_PANEL_WIDTH = 'var(--chat-history-width, 18rem)';
-
-interface ChatDashboardSidebarProps {
-  organizationId: string;
-}
+import { useSidebar } from './sidebar-context';
 
 function MobileNavLink({
   item,
@@ -118,32 +110,30 @@ function MobileNavigationList({
   );
 }
 
-export interface ChatMobileSidebarSheetProps {
+export interface MobileSidebarSheetProps {
   organizationId: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
 }
 
-/** Unified mobile drawer: primary nav destinations plus chat history. */
-export function ChatMobileSidebarSheet({
+/**
+ * Unified mobile drawer: primary nav destinations plus chat history. Mounted
+ * at shell level (via AppSidebar) so the chat header's hamburger and the ⌘H
+ * shortcut can open it from any dashboard route.
+ */
+export function MobileSidebarSheet({
   organizationId,
-  open,
-  onOpenChange,
-}: ChatMobileSidebarSheetProps) {
-  const { t } = useT('chat');
+}: MobileSidebarSheetProps) {
+  const { isMobileSheetOpen, setMobileSheetOpen } = useSidebar();
+  const { t: tNav } = useT('navigation');
   const handleNavigate = useCallback(() => {
-    onOpenChange(false);
-  }, [onOpenChange]);
-  const handleChatSelect = useCallback(() => {
-    onOpenChange(false);
-  }, [onOpenChange]);
+    setMobileSheetOpen(false);
+  }, [setMobileSheetOpen]);
 
   return (
     <Sheet
-      open={open}
-      onOpenChange={onOpenChange}
+      open={isMobileSheetOpen}
+      onOpenChange={setMobileSheetOpen}
       side="left"
-      title={t('unifiedSidebar.title')}
+      title={tNav('sidebar.title')}
       className="flex w-[min(100vw,20rem)] flex-col p-0 md:hidden"
       hideClose
     >
@@ -155,55 +145,11 @@ export function ChatMobileSidebarSheet({
         <div className="border-border min-h-0 flex-1 overflow-hidden border-t">
           <ChatHistorySidebar
             organizationId={organizationId}
-            onChatSelect={handleChatSelect}
+            onChatSelect={handleNavigate}
             className="h-full"
           />
         </div>
       </Stack>
     </Sheet>
-  );
-}
-
-/**
- * Desktop chat-history column beside the layout's shared nav rail. The icon
- * rail lives once in {@link DashboardLayout}; this panel only expands/collapses
- * the thread list so route transitions never mount a second Navigation.
- */
-export function ChatDashboardSidebar({
-  organizationId,
-}: ChatDashboardSidebarProps) {
-  const { isHistoryOpen } = useChatLayout();
-  const { t } = useT('chat');
-  const prefersReducedMotion = usePrefersReducedMotion();
-
-  const transition = prefersReducedMotion
-    ? { duration: 0 }
-    : { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as const };
-
-  return (
-    <aside
-      aria-label={t('unifiedSidebar.landmark')}
-      className="bg-background relative hidden h-full shrink-0 md:flex"
-    >
-      <m.div
-        id="chat-history-panel"
-        initial={false}
-        animate={{ width: isHistoryOpen ? HISTORY_PANEL_WIDTH : 0 }}
-        transition={transition}
-        className="relative overflow-hidden"
-        aria-hidden={!isHistoryOpen}
-      >
-        {/* Border lives on the fixed-width panel so `overflow-hidden` clips it
-            when collapsed — otherwise a zero-width aside still paints border-r
-            on top of main's border-l and the divider looks double-thick. */}
-        <Stack
-          gap={0}
-          className="bg-background border-border h-full overflow-hidden border-r"
-          style={{ width: HISTORY_PANEL_WIDTH }}
-        >
-          <ChatHistorySidebar organizationId={organizationId} />
-        </Stack>
-      </m.div>
-    </aside>
   );
 }

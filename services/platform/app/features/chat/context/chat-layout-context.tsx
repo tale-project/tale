@@ -86,8 +86,6 @@ interface ChatLayoutContextType {
   clearChatState: () => void;
   pendingMessage: PendingMessage | null;
   setPendingMessage: (message: PendingMessage | null) => void;
-  isHistoryOpen: boolean;
-  setIsHistoryOpen: (open: boolean) => void;
   selectedAgent: SelectedAgent | null;
   setSelectedAgent: (agent: SelectedAgent | null) => void;
   selectedModelOverrides: Record<string, string>;
@@ -156,13 +154,6 @@ export function ChatLayoutProvider({
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
-  );
-  const sidebarExpandedKey = user?.userId
-    ? `chat-dashboard-sidebar-expanded-${user.userId}-${organizationId}`
-    : `chat-dashboard-sidebar-expanded-${organizationId}`;
-  const [isHistoryOpen, setIsHistoryOpen] = usePersistedState(
-    sidebarExpandedKey,
-    false,
   );
   const [insertedPrompt, setInsertedPrompt] = useState<string | null>(null);
   const [quotedText, setQuotedText] = useState<string | null>(null);
@@ -261,8 +252,6 @@ export function ChatLayoutProvider({
       clearChatState,
       pendingMessage,
       setPendingMessage,
-      isHistoryOpen,
-      setIsHistoryOpen,
       selectedAgent,
       setSelectedAgent,
       selectedModelOverrides,
@@ -284,8 +273,6 @@ export function ChatLayoutProvider({
       pendingThreadId,
       clearChatState,
       pendingMessage,
-      isHistoryOpen,
-      setIsHistoryOpen,
       selectedAgent,
       setSelectedAgent,
       selectedModelOverrides,

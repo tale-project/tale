@@ -219,19 +219,19 @@ describe('UserButton', () => {
     expect(getDropdownTrigger(container)).toBeInTheDocument();
   });
 
-  it('renders with a label for mobile navigation', () => {
-    render(<UserButton label="Account" />);
-    expect(screen.getByText('Account')).toBeInTheDocument();
-  });
-
   it('shows tooltip text', () => {
     render(<UserButton />);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Manage account');
   });
 
-  it('shows custom tooltip text', () => {
-    render(<UserButton tooltipText="My profile" />);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('My profile');
+  it('sidebar variant: expanded row shows the display name inline, no tooltip', () => {
+    render(<UserButton sidebarExpanded />);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('sidebar variant: collapsed tile keeps the hover tooltip', () => {
+    render(<UserButton sidebarExpanded={false} />);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Manage account');
   });
 
   it('renders user icon', () => {
@@ -255,11 +255,6 @@ describe('UserButton', () => {
   it('renders dropdown trigger with organizationId from route params', () => {
     const { container } = render(<UserButton />);
     expect(getDropdownTrigger(container)).toBeInTheDocument();
-  });
-
-  it('does not render tooltip wrapper when label is provided', () => {
-    render(<UserButton label="Account" />);
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
   it('renders without crashing when team filter context is unavailable', () => {

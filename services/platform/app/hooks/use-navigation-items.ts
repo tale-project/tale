@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  MessageCircle,
+  SquarePen,
   BrainIcon,
   Workflow,
   Bot,
@@ -73,8 +73,14 @@ export function useNavigationItems(businessId: string): NavigationItems {
           to: '/dashboard/$id/chat',
           params: { id: businessId },
           href: `/dashboard/${businessId}/chat`,
-          icon: MessageCircle,
+          icon: SquarePen,
           shortcut: newChatShortcut,
+          // Exact match only: "New chat" is a verb, and the default
+          // startsWith matcher would keep it highlighted for every open
+          // thread (`/chat/<threadId>`) — the current thread's row in the
+          // history list carries that highlight instead.
+          isActivePath: (pathname) =>
+            pathname === `/dashboard/${businessId}/chat`,
         },
         {
           label: tProjects('title'),

@@ -123,18 +123,19 @@ export async function expectCannedReply(page: Page): Promise<void> {
   });
 }
 
-/** Desktop/mobile history toggle — label flips once the panel is open. */
+/** Desktop sidebar toggle — label flips once the panel is expanded. */
 function historySidebarToggle(page: Page): Locator {
   return page
-    .getByRole('button', { name: t('chat.showHistory') })
-    .or(page.getByRole('button', { name: t('chat.hideHistory') }))
+    .getByRole('button', { name: t('navigation.sidebar.expand') })
+    .or(page.getByRole('button', { name: t('navigation.sidebar.collapse') }))
     .first();
 }
 
 /**
- * Ensure the chat history column is expanded. After #2428 the open/closed
- * preference persists per user+org, so callers must not assume "Show chats" is
- * always present — only click when `aria-expanded` is false.
+ * Ensure the unified sidebar (nav + chat history) is expanded. The preference
+ * persists per user+org (default expanded), so callers must not assume the
+ * "Expand sidebar" label is present — only click when `aria-expanded` is
+ * false.
  */
 export async function ensureHistorySidebarOpen(page: Page): Promise<void> {
   const toggle = historySidebarToggle(page);

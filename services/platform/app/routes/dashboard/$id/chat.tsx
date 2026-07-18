@@ -10,7 +10,6 @@ import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspens
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
-import { ChatDashboardSidebar } from '@/app/features/chat/components/chat-dashboard-sidebar';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 import { ChatMessagesSkeleton } from '@/app/features/chat/components/chat-messages-skeleton';
@@ -38,7 +37,6 @@ import {
 } from '@/app/features/workspace/components/workspace-context';
 import { WorkspaceFilesProvider } from '@/app/features/workspace/components/workspace-files-context';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -389,57 +387,51 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
   return (
     <PageLayout className="bg-background h-full overflow-hidden">
-      <Row gap={0} align="stretch" className="min-h-0 flex-1 overflow-hidden">
+      <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
         <LayoutErrorBoundary organizationId={organizationId}>
-          <ChatDashboardSidebar organizationId={organizationId} />
+          <ChatHeader organizationId={organizationId} threadId={threadId} />
         </LayoutErrorBoundary>
 
-        <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          <LayoutErrorBoundary organizationId={organizationId}>
-            <ChatHeader organizationId={organizationId} threadId={threadId} />
-          </LayoutErrorBoundary>
-
-          {/* BranchProvider wraps the message column AND the right-side panes so
+        {/* BranchProvider wraps the message column AND the right-side panes so
               the canvas resolves files against the same active-branch thread the
               message list uses. Without this, the canvas reads files from the raw
               route threadId and branch-tip files vanish after streaming. */}
-          <BranchProvider threadId={threadId} organizationId={organizationId}>
-            {/* Chat column + right panel strip must stay in a row — BranchProvider
+        <BranchProvider threadId={threadId} organizationId={organizationId}>
+          {/* Chat column + right panel strip must stay in a row — BranchProvider
                 renders children through Context without a DOM wrapper, so this
                 Row is what keeps ChatPanel beside the scroller (not stacked under
                 ChatHeader, which collapses the message list to height 0). */}
-            <Row
-              gap={0}
-              align="stretch"
-              className="min-h-0 flex-1 overflow-hidden"
-            >
-              <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                <BudgetBanner organizationId={organizationId} />
-                <LayoutErrorBoundary organizationId={organizationId}>
-                  <ThreadGate
-                    organizationId={organizationId}
-                    threadId={threadId}
-                    newChatCount={newChatCount}
-                  />
-                </LayoutErrorBoundary>
-              </Stack>
+          <Row
+            gap={0}
+            align="stretch"
+            className="min-h-0 flex-1 overflow-hidden"
+          >
+            <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              <BudgetBanner organizationId={organizationId} />
+              <LayoutErrorBoundary organizationId={organizationId}>
+                <ThreadGate
+                  organizationId={organizationId}
+                  threadId={threadId}
+                  newChatCount={newChatCount}
+                />
+              </LayoutErrorBoundary>
+            </Stack>
 
-              {/* The four panes are registrars — they publish descriptors to the
+            {/* The four panes are registrars — they publish descriptors to the
                   unified right panel and render nothing themselves. The single
                   <ChatPanel> shell renders the shared strip / tabs / bodies. Plan
                   and Canvas always mount; the sandbox panes (Files + Live browser)
                   register only when `sandboxPanesAvailable`. */}
-              <PlanPane />
-              <CanvasPane organizationId={organizationId} />
-              <WorkspaceFilesPane available={sandboxPanesAvailable} />
-              <LiveBrowserPane available={sandboxPanesAvailable} />
-              <LayoutErrorBoundary organizationId={organizationId}>
-                <ChatPanel />
-              </LayoutErrorBoundary>
-            </Row>
-          </BranchProvider>
-        </Stack>
-      </Row>
+            <PlanPane />
+            <CanvasPane organizationId={organizationId} />
+            <WorkspaceFilesPane available={sandboxPanesAvailable} />
+            <LiveBrowserPane available={sandboxPanesAvailable} />
+            <LayoutErrorBoundary organizationId={organizationId}>
+              <ChatPanel />
+            </LayoutErrorBoundary>
+          </Row>
+        </BranchProvider>
+      </Stack>
     </PageLayout>
   );
 }
@@ -449,24 +441,22 @@ function ChatLayout() {
 
   return (
     <ChatLayoutProvider organizationId={organizationId}>
-      {/* Learns the client↔server clock offset from getThreadMeta.serverNow so
-          the sidebar's relative-time and the interface's thinking timer never
-          mix clocks. Wraps the whole chat surface (sidebar + interface). */}
-      <ClockOffsetProvider>
-        <ArenaModeProvider>
-          <WorkspaceProvider>
-            <WorkspaceFilesProvider>
-              <LiveBrowserProvider>
-                <ChatPanelProvider>
-                  <StreamingToolProvider>
-                    <ChatLayoutContent organizationId={organizationId} />
-                  </StreamingToolProvider>
-                </ChatPanelProvider>
-              </LiveBrowserProvider>
-            </WorkspaceFilesProvider>
-          </WorkspaceProvider>
-        </ArenaModeProvider>
-      </ClockOffsetProvider>
+      {/* The clock-offset provider lives in the dashboard shell now (the chat
+          history sidebar reads relative times on every route); this surface
+          only layers the chat-specific providers on top. */}
+      <ArenaModeProvider>
+        <WorkspaceProvider>
+          <WorkspaceFilesProvider>
+            <LiveBrowserProvider>
+              <ChatPanelProvider>
+                <StreamingToolProvider>
+                  <ChatLayoutContent organizationId={organizationId} />
+                </StreamingToolProvider>
+              </ChatPanelProvider>
+            </LiveBrowserProvider>
+          </WorkspaceFilesProvider>
+        </WorkspaceProvider>
+      </ArenaModeProvider>
     </ChatLayoutProvider>
   );
 }
