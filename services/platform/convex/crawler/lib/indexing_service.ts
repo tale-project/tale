@@ -34,7 +34,7 @@ import {
   extractParagraphHashes,
   filterBoilerplateParagraphs,
 } from './paragraph_dedup';
-import { reindexChunks } from './website_store';
+import { ensureWebsiteRow, reindexChunks } from './website_store';
 
 const INDEXING_CONCURRENCY = 5;
 const _EXECUTEMANY_BATCH_SIZE = 25;
@@ -130,6 +130,10 @@ export async function indexPage(
 
   // --- Hash update + page count query + skip check (transactional + retried) ---
   const { pageCounts, existing } = await transactWithRetry(sql, async (tx) => {
+    // A crawl chain that crossed an org's pool switch (BYO database turned
+    // on/off mid-scan) lands on a pool without the `websites` parent row —
+    // self-heal it so the URL insert below can't die on the domain FK.
+    await ensureWebsiteRow(tx, domain, orgSlug);
     await tx.unsafe(
       `INSERT INTO ${SCHEMA}.website_urls (domain, url, status, discovered_at)
                    VALUES ($1, $2, 'active', NOW())

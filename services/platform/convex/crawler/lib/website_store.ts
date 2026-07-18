@@ -88,17 +88,60 @@ export interface DiscoveredUrl {
   url: string;
 }
 
+/** Scan cadence a website row gets when nothing chose one explicitly (6h) —
+ *  shared by user-initiated registration and the background self-heal. */
+export const DEFAULT_SCAN_INTERVAL_SECONDS = 21600;
+
+/**
+ * Idempotently make sure the `websites` parent row (and, when the caller
+ * carries one, the org's membership row) exists on THIS pool before a
+ * `website_urls` write.
+ *
+ * Background crawl chains resolve their org's knowledge pool per action, so a
+ * chain that started before an org switched to (or away from) a bring-your-own
+ * database continues on a pool that never saw `registerWebsite` — its
+ * `website_urls` insert then dies on `website_urls_domain_fkey` and the scan
+ * wedges until someone re-registers the domain by hand. Ensuring the parent at
+ * the write site makes any pool switch self-heal on the next crawl instead.
+ *
+ * `registerWebsite` stays the semantic owner of user-initiated registration
+ * (interval choice, `first_membership` signal); this helper only backfills the
+ * minimal rows a write needs, preserving any existing row untouched.
+ */
+export async function ensureWebsiteRow(
+  tx: Pick<Sql, 'unsafe'>,
+  domain: string,
+  orgSlug?: string,
+): Promise<void> {
+  await tx.unsafe(
+    `INSERT INTO ${SCHEMA}.websites (domain, scan_interval, created_at, updated_at)
+               VALUES ($1, $2, NOW(), NOW())
+               ON CONFLICT (domain) DO NOTHING`,
+    [domain, DEFAULT_SCAN_INTERVAL_SECONDS],
+  );
+  if (orgSlug) {
+    await tx.unsafe(
+      `INSERT INTO ${SCHEMA}.website_org_memberships (domain, org_slug)
+                 VALUES ($1, $2)
+                 ON CONFLICT DO NOTHING`,
+      [domain, orgSlug],
+    );
+  }
+}
+
 /** Save discovered URLs. Returns number of newly inserted URLs (excludes dupes). */
 export async function saveDiscoveredUrls(
   sql: Sql,
   domain: string,
   urls: DiscoveredUrl[],
+  orgSlug?: string,
 ): Promise<number> {
   if (urls.length === 0) {
     return 0;
   }
   return withRetry(() =>
     sql.begin(async (tx) => {
+      await ensureWebsiteRow(tx, domain, orgSlug);
       const before = await tx.unsafe<{ count: string }[]>(
         `SELECT COUNT(*) FROM ${SCHEMA}.website_urls WHERE domain = $1`,
         [domain],
@@ -640,7 +683,7 @@ export interface RegisterWebsiteResult {
 export async function registerWebsite(
   sql: Sql,
   domain: string,
-  scanInterval = 21600,
+  scanInterval = DEFAULT_SCAN_INTERVAL_SECONDS,
   orgSlug?: string,
 ): Promise<RegisterWebsiteResult> {
   if (!orgSlug) {
