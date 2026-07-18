@@ -37,17 +37,19 @@ function NavRowSkeleton({ labelWidth }: { labelWidth: string }) {
  * Masked desktop sidebar shown while access resolves. Mirrors the unified
  * AppSidebar's default-expanded geometry — header, search row, nav rows, chats
  * region, pinned footer — so the live panel slots in without reflow. (A user
- * whose persisted preference is collapsed sees this settle from 18rem to the
- * rail once the live sidebar mounts — the per-user key isn't knowable before
- * auth resolves, and default-expanded is the common case.)
+ * whose persisted preference is collapsed sees this settle from the expanded
+ * width to the rail once the live sidebar mounts — the per-user key isn't
+ * knowable before auth resolves, and default-expanded is the common case.)
  */
 export function AppSidebarPlaceholder() {
   return (
-    <div className="bg-background hidden h-full w-(--sidebar-width) shrink-0 md:flex">
+    // Rail-width below `lg` (where the live sidebar is pinned collapsed),
+    // expanded-width from `lg` up — mirrors AppSidebar's viewport behaviour.
+    <div className="bg-background hidden h-full w-(--sidebar-width-collapsed) shrink-0 md:flex lg:w-(--sidebar-width)">
       <Skeletonize loading>
         <Stack gap={0} className="h-full w-full overflow-hidden">
           {/* Header: logo box + workspace name + collapse toggle */}
-          <div className="shrink-0 px-3 pt-3 pb-2">
+          <div className="shrink-0 px-2 pt-3 pb-4">
             <Row gap={0} className="h-8 gap-2.5">
               <Row gap={0} justify="center" className="size-8 shrink-0">
                 <SkeletonBox>
@@ -67,13 +69,13 @@ export function AppSidebarPlaceholder() {
             </Row>
           </div>
           {/* Search row */}
-          <div className="shrink-0 px-3 pb-2">
+          <div className="shrink-0 px-2 pb-2">
             <SkeletonBox fullWidth>
               <div className="h-8 rounded-md" />
             </SkeletonBox>
           </div>
           {/* Primary nav rows */}
-          <Stack gap={0} className="shrink-0 gap-0.5 px-3">
+          <Stack gap={0} className="shrink-0 gap-0.5 px-2">
             {NAV_LABEL_WIDTHS.slice(0, PLACEHOLDER_NAV_ITEMS).map(
               (labelWidth, i) => (
                 // eslint-disable-next-line react/no-array-index-key
@@ -84,7 +86,7 @@ export function AppSidebarPlaceholder() {
           {/* Chats region — approximates ChatHistorySidebar's own skeleton
               (section label + rows) so its real skeleton slots in seamlessly */}
           <Stack
-            gap={1}
+            gap={0}
             className="border-border mt-2 min-h-0 flex-1 overflow-hidden border-t px-2.5 py-3.5"
           >
             <Row gap={0} className="h-7 px-2">
@@ -94,7 +96,7 @@ export function AppSidebarPlaceholder() {
             </Row>
             {Array.from({ length: 6 }).map((_, i) => (
               // eslint-disable-next-line react/no-array-index-key
-              <Row key={i} gap={0} className="min-h-[1.5rem] px-2 py-1.5">
+              <Row key={i} gap={0} className="h-8 px-2">
                 <div style={{ width: `${82 - (i % 4) * 14}%` }}>
                   <SkeletonBox fullWidth>
                     <div className="h-3.5" />
@@ -104,7 +106,7 @@ export function AppSidebarPlaceholder() {
             ))}
           </Stack>
           {/* Pinned footer: bell tile + account row */}
-          <Stack gap={1} className="border-border shrink-0 border-t px-3 py-2">
+          <Stack gap={0} className="border-border shrink-0 border-t px-2 py-2">
             <Row gap={0} justify="center" className="size-8">
               <SkeletonBox>
                 <div className="size-5" />

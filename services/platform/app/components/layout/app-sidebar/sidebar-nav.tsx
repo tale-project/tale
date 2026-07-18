@@ -82,10 +82,7 @@ export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
           ? accentColor
             ? ''
             : 'bg-muted text-foreground'
-          : cn(
-              'hover:bg-muted/60 hover:text-foreground',
-              item.emphasis ? 'text-foreground' : 'text-muted-foreground',
-            ),
+          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
       )}
       style={{ ...rowWidthStyle(expanded), ...activeStyle }}
       data-active={isActive}
@@ -104,7 +101,6 @@ export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
       <span
         className={cn(
           'min-w-0 flex-1 truncate text-[13px]',
-          item.emphasis && 'font-medium',
           labelFadeClass(expanded),
         )}
       >
@@ -182,7 +178,7 @@ export function SidebarNav({ organizationId, expanded }: SidebarNavProps) {
   }, [isMac, navigate, organizationId]);
 
   return (
-    <nav aria-label={tCommon('aria.mainNavigation')} className="px-3">
+    <nav aria-label={tCommon('aria.mainNavigation')} className="px-2">
       <ul role="list" className="flex list-none flex-col gap-0.5">
         {primary.map((item) => (
           <SidebarNavItem key={item.href} item={item} expanded={expanded} />

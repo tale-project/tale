@@ -44,11 +44,6 @@ export interface NavItem {
    * sibling entries share a prefix and the default would over-match.
    */
   isActivePath?: (pathname: string) => boolean;
-  /**
-   * Render as the list's primary action (full-contrast label) even when
-   * inactive — used by "New chat", which is a verb among destinations.
-   */
-  emphasis?: boolean;
 }
 
 export interface NavigationItems {
@@ -80,7 +75,12 @@ export function useNavigationItems(businessId: string): NavigationItems {
           href: `/dashboard/${businessId}/chat`,
           icon: SquarePen,
           shortcut: newChatShortcut,
-          emphasis: true,
+          // Exact match only: "New chat" is a verb, and the default
+          // startsWith matcher would keep it highlighted for every open
+          // thread (`/chat/<threadId>`) — the current thread's row in the
+          // history list carries that highlight instead.
+          isActivePath: (pathname) =>
+            pathname === `/dashboard/${businessId}/chat`,
         },
         {
           label: tProjects('title'),

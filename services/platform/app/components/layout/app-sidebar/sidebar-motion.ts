@@ -3,25 +3,35 @@ import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /**
- * Shared motion vocabulary for the unified sidebar. The panel width tween
- * (framer) and the per-row width transitions (CSS) use the same duration and
- * curve so the whole panel folds as one surface — rows shrink to their 32px
- * icon tile exactly while the panel narrows to the 56px rail.
+ * Shared motion vocabulary for the unified sidebar. Every transition — the
+ * panel width, the per-row widths, the toggle's slide, the label fades — is a
+ * CSS transition on the same 250ms `--ease-out-quint` clock, so the whole
+ * panel folds as one surface: rows shrink to their 32px icon tile exactly
+ * while the panel narrows to the 56px rail, and the toggle rides the moving
+ * edge. One engine also means the pieces can never drift apart under load.
  */
 
-/** `--ease-out-quint` — decisive start, soft landing. */
-export const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
-export const PANEL_DURATION_S = 0.25;
+/** Panel width — the master timing every other sidebar transition follows. */
+export const PANEL_TRANSITION_CLASS =
+  '[transition:width_250ms_var(--ease-out-quint)] motion-reduce:transition-none';
 
 /**
- * Row width per state: the full inner row (panel minus the 12px insets) ↔ one
+ * The toggle's travel between the header's end (expanded) and the leading
+ * icon column (collapsed). Same distance, duration, and curve as the panel
+ * edge, so the button appears pinned to it.
+ */
+export const TOGGLE_SLIDE_CLASS =
+  '[transition:transform_250ms_var(--ease-out-quint)] motion-reduce:transition-none';
+
+/**
+ * Row width per state: the full inner row (panel minus the 8px insets) ↔ one
  * 32px icon tile. Rows animate their own width (instead of relying on the
  * panel clip alone) so hover/active fills, focus rings, and hit areas are
  * exactly tile-sized in the rail state.
  */
 export function rowWidthStyle(expanded: boolean): CSSProperties {
   return {
-    width: expanded ? 'calc(var(--sidebar-width, 18rem) - 1.5rem)' : '2rem',
+    width: expanded ? 'calc(var(--sidebar-width, 16rem) - 1rem)' : '2rem',
   };
 }
 

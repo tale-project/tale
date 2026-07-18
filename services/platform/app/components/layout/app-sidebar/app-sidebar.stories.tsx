@@ -26,12 +26,11 @@ interface NavItemData {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   isActive?: boolean;
-  emphasis?: boolean;
   badge?: number;
 }
 
 const sampleItems: NavItemData[] = [
-  { label: 'New chat', icon: SquarePen, emphasis: true },
+  { label: 'New chat', icon: SquarePen },
   { label: 'Projects', icon: Folder },
   { label: 'Knowledge', icon: BrainIcon },
   { label: 'Agents', icon: Bot, isActive: true },
@@ -60,12 +59,9 @@ function NavRowVisual({
             'relative flex h-8 items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-1.5 transition-colors',
             item.isActive
               ? 'bg-muted text-foreground'
-              : cn(
-                  'hover:bg-muted/60 hover:text-foreground',
-                  item.emphasis ? 'text-foreground' : 'text-muted-foreground',
-                ),
+              : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
           )}
-          style={{ width: expanded ? '16.5rem' : '2rem' }}
+          style={{ width: expanded ? '15rem' : '2rem' }}
           data-active={item.isActive}
         >
           <span className="relative flex size-5 shrink-0 items-center justify-center">
@@ -79,7 +75,6 @@ function NavRowVisual({
           <span
             className={cn(
               'min-w-0 flex-1 truncate text-[13px]',
-              item.emphasis && 'font-medium',
               expanded ? 'opacity-100' : 'opacity-0',
             )}
           >
@@ -91,31 +86,38 @@ function NavRowVisual({
   );
 }
 
-function SidebarShell({ expanded }: { expanded: boolean }) {
+function SidebarShell({
+  expanded,
+  pinned = false,
+}: {
+  expanded: boolean;
+  /** md–lg viewport: the rail is pinned collapsed — logo instead of toggle. */
+  pinned?: boolean;
+}) {
   const ToggleIcon = expanded ? PanelLeftClose : PanelLeftOpen;
   return (
     <div
       className="bg-background border-border flex h-[560px] flex-col overflow-hidden rounded-lg border"
-      style={{ width: expanded ? '18rem' : '3.5rem' }}
+      style={{ width: expanded ? '16rem' : '3rem' }}
     >
-      {/* Header: 32px logo box + name + (expanded) toggle */}
-      <div className="shrink-0 px-3 pt-3 pb-2">
+      {/* Header — expanded: 32px logo box + name + toggle at the row's end;
+          collapsed: only the toggle, in the leading icon column. */}
+      <div className="shrink-0 px-2 pt-3 pb-4">
         <div className="flex h-8 items-center gap-2.5">
-          <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded text-xs font-bold">
-            T
-          </div>
-          <span
-            className={cn(
-              'text-foreground min-w-0 flex-1 truncate text-sm font-semibold',
-              expanded ? 'opacity-100' : 'opacity-0',
-            )}
-          >
-            Tale
-          </span>
+          {(expanded || pinned) && (
+            <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded text-xs font-bold">
+              T
+            </div>
+          )}
           {expanded && (
+            <span className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">
+              Tale
+            </span>
+          )}
+          {!pinned && (
             <button
               type="button"
-              aria-label="Collapse sidebar"
+              aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
               className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
             >
               <ToggleIcon className="size-5" />
@@ -123,31 +125,20 @@ function SidebarShell({ expanded }: { expanded: boolean }) {
           )}
         </div>
       </div>
-      {!expanded && (
-        <div className="shrink-0 px-3 pb-2">
-          <button
-            type="button"
-            aria-label="Expand sidebar"
-            className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors"
-          >
-            <ToggleIcon className="size-5" />
-          </button>
-        </div>
-      )}
       {/* Search trigger */}
-      <div className="shrink-0 px-3 pb-2">
+      <div className="shrink-0 px-2 pb-2">
         <button
           type="button"
           aria-label="Search chat"
           className={cn(
-            'text-muted-foreground flex h-8 cursor-pointer items-center gap-2 overflow-hidden rounded-md border pl-2 transition-colors',
+            'text-muted-foreground flex h-8 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md border pl-1.5 transition-colors',
             expanded
               ? 'border-border bg-muted/50 hover:bg-muted pr-1.5'
               : 'hover:bg-muted border-transparent',
           )}
-          style={{ width: expanded ? '16.5rem' : '2rem' }}
+          style={{ width: expanded ? '15rem' : '2rem' }}
         >
-          <Search className="size-4 shrink-0" />
+          <Search className="size-5 shrink-0" />
           <span
             className={cn(
               'min-w-0 flex-1 truncate text-left text-[13px]',
@@ -167,7 +158,7 @@ function SidebarShell({ expanded }: { expanded: boolean }) {
         </button>
       </div>
       {/* Primary nav */}
-      <nav aria-label="Main navigation" className="px-3">
+      <nav aria-label="Main navigation" className="px-2">
         <ul className="flex list-none flex-col gap-0.5">
           {sampleItems.map((item) => (
             <NavRowVisual key={item.label} item={item} expanded={expanded} />
@@ -197,7 +188,7 @@ function SidebarShell({ expanded }: { expanded: boolean }) {
         )}
       </div>
       {/* Footer */}
-      <div className="border-border flex shrink-0 flex-col gap-1 border-t px-3 py-2">
+      <div className="border-border flex shrink-0 flex-col gap-0 border-t px-2 py-2">
         <button
           type="button"
           aria-label="Notifications"
@@ -209,7 +200,7 @@ function SidebarShell({ expanded }: { expanded: boolean }) {
           type="button"
           aria-label="Manage account"
           className="text-muted-foreground hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-1.5 transition-colors"
-          style={{ width: expanded ? '16.5rem' : '2rem' }}
+          style={{ width: expanded ? '15rem' : '2rem' }}
         >
           <UserCircle className="size-5 shrink-0" />
           <span
@@ -234,7 +225,7 @@ const meta: Meta = {
     docs: {
       description: {
         component: `
-The unified app sidebar: primary navigation, chat search trigger, and chat history in one shell-level panel present on every dashboard route. Expanded it is an 18rem labelled panel; collapsed, a 3.5rem icon rail of 32×32 tiles. Icons hold their position across states — collapse is a clip plus a label fade, driven by \`--sidebar-width\` / \`--sidebar-width-collapsed\`.
+The unified app sidebar: primary navigation, chat search trigger, and chat history in one shell-level panel present on every dashboard route. Expanded it is an 16rem labelled panel; collapsed, a 3rem icon rail of 32×32 tiles. Icons hold their position across states — collapse is a clip plus a label fade, driven by \`--sidebar-width\` / \`--sidebar-width-collapsed\`.
 
 ## Provider dependencies
 The full \`AppSidebar\` requires TanStack Router, \`SidebarProvider\`, and the Convex-backed chat history. These stories render a static visual replica of both states.
@@ -269,7 +260,19 @@ export const Collapsed: Story = {
     docs: {
       description: {
         story:
-          'The 3.5rem icon rail: 32×32 tiles, labels clipped and faded out, chat history hidden.',
+          'The 3rem icon rail: 32×32 tiles, labels clipped and faded out, chat history hidden.',
+      },
+    },
+  },
+};
+
+export const PinnedRail: Story = {
+  render: () => <SidebarShell expanded={false} pinned />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Between `md` and `lg` the rail is pinned collapsed: no expand toggle — the logo takes the leading slot instead.',
       },
     },
   },

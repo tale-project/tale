@@ -30,9 +30,9 @@ export function SidebarFooter({
     // in the leading icon column (stretched, its centered glyph would drift to
     // mid-panel and get clipped out entirely in the rail state).
     <Stack
-      gap={1}
+      gap={0}
       align="start"
-      className="border-border shrink-0 border-t px-3 py-2"
+      className="border-border shrink-0 border-t px-2 py-2"
     >
       <NotificationBell organizationId={organizationId} />
       {pinned.length > 0 && (

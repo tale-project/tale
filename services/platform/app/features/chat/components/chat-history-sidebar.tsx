@@ -499,7 +499,7 @@ export function ChatHistorySidebar({
             // placeholder itself would either collapse to 0 (non-fullWidth)
             // or be ignored by the mask (fullWidth).
             <Skeletonize loading>
-              <Stack gap={1} className="pb-2">
+              <Stack gap={0} className="pb-2">
                 <Row gap={0} className="h-7 px-2">
                   <SkeletonBox>
                     <div className="h-3 w-16" />
@@ -508,7 +508,7 @@ export function ChatHistorySidebar({
                 {Array.from({ length: 2 }).map((_, i) => (
                   <div
                     key={`project-${i}`}
-                    className="flex min-h-[1.5rem] items-center gap-1.5 px-2 py-1.5"
+                    className="flex h-8 items-center gap-1.5 px-2"
                   >
                     {/* Chevron + plain icon — matches the loaded folder row
                         (chevron `size-3.5` + plain-variant icon `size-3`)
@@ -536,11 +536,7 @@ export function ChatHistorySidebar({
                   </SkeletonBox>
                 </Row>
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <Row
-                    key={`chat-${i}`}
-                    gap={0}
-                    className="min-h-[1.5rem] px-2 py-1.5"
-                  >
+                  <Row key={`chat-${i}`} gap={0} className="h-8 px-2">
                     <div style={{ width: `${82 - (i % 4) * 14}%` }}>
                       <SkeletonBox fullWidth>
                         <div className="h-3.5" />
@@ -581,7 +577,7 @@ export function ChatHistorySidebar({
           ) : (
             <ChatRowContext.Provider value={rowContext}>
               <ChatDndProvider>
-                <Stack gap={1} className="pb-2">
+                <Stack gap={0} className="pb-2">
                   {/* PROJECTS — always rendered (even empty) so the section
                       never appears/disappears on drag and the "new project"
                       action always has a home. Each folder is a drop target. */}
@@ -621,7 +617,7 @@ export function ChatHistorySidebar({
                       type="button"
                       onClick={loadMore}
                       disabled={isLoadingMore}
-                      className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-50"
+                      className="text-muted-foreground hover:text-foreground flex h-8 items-center px-2 text-left text-[13px] transition-colors disabled:opacity-50"
                     >
                       {isLoadingMore
                         ? t('history.loadingMore')
@@ -641,7 +637,7 @@ export function ChatHistorySidebar({
             type="button"
             onClick={() => setArchivedExpanded(!archivedExpanded)}
             aria-expanded={archivedExpanded}
-            className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors"
+            className="hover:bg-muted/60 hover:text-foreground flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-left transition-colors"
           >
             <ChevronDown
               className={cn(
@@ -672,14 +668,14 @@ export function ChatHistorySidebar({
             inert={!archivedExpanded}
           >
             <Stack
-              gap={1}
+              gap={0}
               className="max-h-64 min-h-0 overflow-y-auto pt-1 pb-2"
             >
               {archivedChats.map((chat) => (
                 <Row
                   key={chat._id}
                   gap={2}
-                  className="group hover:bg-accent hover:text-accent-foreground relative rounded-md px-2 py-1.5 text-sm transition-colors"
+                  className="group hover:bg-muted/60 hover:text-foreground relative h-8 rounded-md px-2 text-[13px] transition-colors"
                 >
                   <button
                     type="button"
@@ -687,7 +683,7 @@ export function ChatHistorySidebar({
                     onClick={() => handleChatClick(chat._id)}
                     className="absolute inset-0 cursor-pointer rounded-md"
                   />
-                  <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+                  <span className="text-muted-foreground pointer-events-none relative z-10 flex h-full flex-1 items-center gap-1.5 truncate text-left leading-snug">
                     {isThreadHeld(chat._id) && (
                       <LegalHoldIndicator
                         organizationId={organizationId}
@@ -697,7 +693,7 @@ export function ChatHistorySidebar({
                     )}
                     <span className="truncate">{chat.title}</span>
                   </span>
-                  <div className="md:bg-accent z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:rounded-md md:opacity-0 md:group-hover:opacity-100">
+                  <div className="md:bg-muted z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:rounded-md md:opacity-0 md:group-hover:opacity-100">
                     <ChatActions
                       chat={{ id: chat._id, title: chat.title }}
                       currentChatId={currentThreadId}
@@ -712,7 +708,7 @@ export function ChatHistorySidebar({
                   type="button"
                   onClick={loadMoreArchived}
                   disabled={isLoadingMoreArchived}
-                  className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-50"
+                  className="text-muted-foreground hover:text-foreground flex h-8 items-center px-2 text-left text-[13px] transition-colors disabled:opacity-50"
                 >
                   {isLoadingMoreArchived
                     ? t('history.loadingMore')
@@ -840,11 +836,11 @@ function ProjectFolder({
           onClick={() => onSetCollapsed(!collapsed)}
           aria-expanded={!collapsed}
           aria-label={project.name}
-          className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors"
+          className="text-muted-foreground hover:bg-muted/60 hover:text-foreground flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-left transition-colors"
         >
           <ChevronDown
             className={cn(
-              'text-muted-foreground size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
+              'size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
               collapsed && '-rotate-90',
             )}
             aria-hidden
@@ -856,7 +852,7 @@ function ProjectFolder({
             size={16}
             variant="plain"
           />
-          <span className="flex-1 truncate text-sm leading-snug font-medium">
+          <span className="flex-1 truncate text-[13px] leading-snug">
             {project.name}
           </span>
           {isPinned && (
@@ -898,7 +894,7 @@ function ProjectFolder({
       >
         <div className="min-h-0 overflow-hidden">
           <Stack
-            gap={1}
+            gap={0}
             className="border-border/60 mt-1 ml-3.5 border-l pl-1.5"
           >
             {chats.length === 0 ? (
@@ -937,7 +933,7 @@ function LooseChatsDropZone({
 
   return (
     <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
-      <Stack gap={1}>{children}</Stack>
+      <Stack gap={0}>{children}</Stack>
       {isDragging && !hasChats && (
         <div
           className={cn(
@@ -1007,16 +1003,17 @@ function ChatRow({ chat }: { chat: ChatItem }) {
       data-testid="chat-history-row"
       data-thread-id={chat._id}
       className={cn(
-        'group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-        !isEditing &&
-          'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+        // Row anatomy mirrors the sidebar nav items: h-8, 13px, muted base
+        // text, muted fills — one rhythm from nav to chats.
+        'text-muted-foreground group relative flex h-8 items-center gap-2 rounded-md px-2 text-[13px] transition-colors',
+        !isEditing && 'hover:bg-muted/60 hover:text-foreground cursor-pointer',
         // Active row highlight — suppressed while THIS row is the drag source
         // so a dragged chat (faded placeholder) is never confused with the
         // selected chat, and its solid fill can't bleed over a drop-zone ring.
         ctx.currentThreadId === chat._id &&
           !isEditing &&
           !isDragging &&
-          'bg-accent text-accent-foreground',
+          'bg-muted text-foreground',
         isGenerating && 'animate-pulse',
         isDragging && 'opacity-40',
       )}
@@ -1037,7 +1034,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
           }}
           onBlur={() => ctx.onInputBlur(chat._id, draft)}
           aria-label={t('history.renameChat')}
-          className="ring-primary focus-visible:ring-primary min-h-[1.5rem] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
+          className="ring-primary focus-visible:ring-primary min-w-0 flex-1 rounded-sm bg-transparent px-1 text-[13px] leading-snug ring-1 outline-none focus-visible:ring-2"
         />
       ) : (
         <>
@@ -1060,7 +1057,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
             }}
             className="absolute inset-0 cursor-pointer rounded-md"
           />
-          <span className="pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+          <span className="pointer-events-none relative z-10 flex flex-1 items-center gap-1.5 truncate text-left leading-snug">
             {isPending && (
               <CircleDotIcon
                 className="text-warning size-3.5 shrink-0"
@@ -1123,7 +1120,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
           {/* On desktop the actions menu is an absolute overlay so it reserves
               no horizontal space until hover — the title gets the full width.
               On touch it stays in-flow and always visible. */}
-          <div className="md:bg-accent z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:rounded-md md:opacity-0 md:group-hover:opacity-100">
+          <div className="md:bg-muted z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:rounded-md md:opacity-0 md:group-hover:opacity-100">
             <ChatActions
               chat={{ id: chat._id, title: chat.title }}
               currentChatId={ctx.currentThreadId}

@@ -58,9 +58,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 
 vi.mock('@/app/hooks/use-is-mac', () => ({ useIsMac: () => false }));
 vi.mock('@/app/hooks/use-is-mobile', () => ({ useIsMobile: () => false }));
-vi.mock('@/app/hooks/use-prefers-reduced-motion', () => ({
-  usePrefersReducedMotion: () => true,
-}));
+vi.mock('@/app/hooks/use-is-desktop', () => ({ useIsDesktop: () => true }));
 
 vi.mock('@/app/hooks/use-navigation-items', () => ({
   useNavigationItems: () => ({
@@ -70,7 +68,6 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         to: '/dashboard/$id/chat',
         params: { id: 'org-1' },
         href: '/dashboard/org-1/chat',
-        emphasis: true,
       },
     ],
     pinned: [],

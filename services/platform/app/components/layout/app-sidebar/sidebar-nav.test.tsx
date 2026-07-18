@@ -68,7 +68,6 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         // A shortcut item: its accessible name must stay the plain label, with
         // the shortcut chip living only in the sighted-hover tooltip.
         shortcut: '⌥ ⌘ N',
-        emphasis: true,
       },
       {
         label: primaryLabels[1],

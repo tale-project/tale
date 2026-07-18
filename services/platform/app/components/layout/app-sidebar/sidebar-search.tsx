@@ -22,9 +22,9 @@ export interface SidebarSearchProps {
 /**
  * The search affordance: expanded it reads as an input row (with the ⌘K hint),
  * collapsed it is one more icon tile — either way it only opens the shared
- * SearchCommand palette; there is no second search implementation. The
- * `size-4` glyph is inset 8px so its center sits on the same 16px column as
- * the nav rows' `size-5` icons.
+ * SearchCommand palette; there is no second search implementation. Same
+ * `size-5` glyph and 6px inset as the nav rows, so its icon sits on the same
+ * column at the same weight.
  */
 export function SidebarSearch({ expanded }: SidebarSearchProps) {
   const { setSearchOpen } = useSidebar();
@@ -38,7 +38,7 @@ export function SidebarSearch({ expanded }: SidebarSearchProps) {
       onClick={() => setSearchOpen(true)}
       aria-label={t('searchChat')}
       className={cn(
-        'text-muted-foreground flex h-8 cursor-pointer items-center gap-2 overflow-hidden rounded-md border pl-2',
+        'text-muted-foreground flex h-8 cursor-pointer items-center gap-2.5 overflow-hidden rounded-md border pl-1.5',
         ROW_TRANSITION_CLASS,
         expanded
           ? 'border-border bg-muted/50 hover:bg-muted pr-1.5'
@@ -47,7 +47,7 @@ export function SidebarSearch({ expanded }: SidebarSearchProps) {
       )}
       style={rowWidthStyle(expanded)}
     >
-      <Search className="size-4 shrink-0" />
+      <Search className="size-5 shrink-0" />
       <span
         className={cn(
           'min-w-0 flex-1 truncate text-left text-[13px]',
