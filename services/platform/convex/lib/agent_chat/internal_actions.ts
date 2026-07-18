@@ -26,7 +26,13 @@ import {
 } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
+import { createRequestCapabilitiesTool } from '../../agent_tools/capabilities/request_capabilities_tool';
 import { createSpawnAgentTool } from '../../agent_tools/spawn_agent/create_spawn_agent_tool';
+import {
+  createToolGatingState,
+  isToolGatingEnabled,
+  lockedGroupsFor,
+} from '../../agent_tools/tool_gating';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { createUpdateProgressTool } from '../../agent_tools/update_progress/update_progress_tool';
 import { routeSeedValidator, routeTuningValidator } from '../../agents/schema';
@@ -529,6 +535,23 @@ export async function runGenerationCore(
         }
       : undefined;
 
+    // Two-tier tool gating (#2781): chat turns hide the heavyweight
+    // capability groups from the wire until requested. Excluded surfaces:
+    // external agents (own tool universe), image generation (bypasses the
+    // tool loop), spawned jobs (grants are already minimal). Prewarm turns
+    // DO gate — they must prime the same prompt-cache prefix a real turn
+    // sends. Kill-switch: TALE_TOOL_GATING=off.
+    const toolGatingActive =
+      isToolGatingEnabled() &&
+      // Real chat turns run as 'custom' (user-configurable agents); 'chat'
+      // is the legacy builtin path. Specialist utility types (web / file /
+      // integration / workflow / crm) and subagents keep their full sets.
+      (agentType === 'chat' || agentType === 'custom') &&
+      agentConfig.primaryBehavior !== 'external-agent' &&
+      agentConfig.primaryBehavior !== 'image-generation' &&
+      !args.jobRun;
+    const gatingState = createToolGatingState();
+
     let finalInstructions = agentConfig.instructions;
 
     // Wrap with mandatory governance system prompt (non-overridable)
@@ -551,6 +574,13 @@ export async function runGenerationCore(
     // per-turn/volatile relative to the cacheable persona+governance prefix.
     if (brandingSystemPromptAppend) {
       finalInstructions = finalInstructions + brandingSystemPromptAppend;
+    }
+    // Constant (cache-stable) pointer to the gated capabilities so the
+    // standing rules never reference a tool the model can't see.
+    if (toolGatingActive) {
+      finalInstructions =
+        finalInstructions +
+        '\n\nSome capability groups (code execution + file workspace, image tools, document writing, user location, worker delegation) start LOCKED to keep requests lean. When the task needs one, call `request_capabilities` with the group id first — it unlocks for the rest of the conversation.';
     }
 
     // Build hooks object from FunctionHandle strings
@@ -783,54 +813,75 @@ export async function runGenerationCore(
               )?.memories ?? false)
             : false;
 
+        // Filter tools: exclude rag_search/web when their retrieval mode
+        // is 'context' or 'off' (tool should only be available in 'tool'/'both').
+        // Drop `image` when the chat model handles images natively.
+        // (Hoisted out of the factory: tool gating needs the resolved name
+        // list too, for group scoping + per-step activeTools.)
+        const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
+        const webSearchMode = agentConfig.webSearchMode ?? 'off';
+        // Read from effectiveConfig so skill-declared convex tools
+        // (post-mergeSkillDependencies) actually reach the LLM.
+        const baseToolList = effectiveConfig.convexToolNames ?? [];
+        const autoInjected: string[] = [...baseToolList];
+        // `propose_memory` is offered only while personalization is active.
+        if (personalizationActive && !autoInjected.includes('propose_memory')) {
+          autoInjected.push('propose_memory');
+        }
+        // `generate_image` is always available to chat agents so any
+        // assistant — including whichever one the Auto router picks — can
+        // satisfy an explicit "create an image" request. It degrades
+        // gracefully (the tool reports unavailable) when the workspace has no
+        // image-generation model configured. Image-generation agents never
+        // reach this path (they bypass the tool loop), but guard anyway.
+        if (
+          agentConfig.primaryBehavior !== 'image-generation' &&
+          !autoInjected.includes('generate_image')
+        ) {
+          autoInjected.push('generate_image');
+        }
+        const filteredToolNames = autoInjected.filter((n): n is ToolName => {
+          if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
+          if (n === 'propose_memory' && !personalizationActive) return false;
+          if (
+            n === 'rag_search' &&
+            knowledgeMode !== 'tool' &&
+            knowledgeMode !== 'both'
+          )
+            return false;
+          if (
+            n === 'web' &&
+            webSearchMode !== 'tool' &&
+            webSearchMode !== 'both'
+          )
+            return false;
+          if (n === 'image' && useMultiModal) return false;
+          return true;
+        });
+
+        // Tool gating (#2781): the full name universe this agent could use
+        // (registry tools + per-turn extras, WITHOUT the meta-tool — the
+        // active-set computation appends it while anything stays locked).
+        const gatingToolNames: string[] = [
+          ...filteredToolNames,
+          ...Object.keys(allExtraTools ?? {}),
+        ];
+        const gatingApplies =
+          toolGatingActive &&
+          lockedGroupsFor(gatingToolNames, gatingState).length > 0;
+        const extraToolsWithGating = gatingApplies
+          ? (() => {
+              const metaTool = createRequestCapabilitiesTool({
+                state: gatingState,
+                threadId,
+                allToolNames: gatingToolNames,
+              });
+              return { ...allExtraTools, [metaTool.name]: metaTool.tool };
+            })()
+          : allExtraTools;
+
         // Create agent factory function from serializable config
         const createAgent = () => {
-          // Filter tools: exclude rag_search/web when their retrieval mode
-          // is 'context' or 'off' (tool should only be available in 'tool'/'both').
-          // Drop `image` when the chat model handles images natively.
-          const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
-          const webSearchMode = agentConfig.webSearchMode ?? 'off';
-          // Read from effectiveConfig so skill-declared convex tools
-          // (post-mergeSkillDependencies) actually reach the LLM.
-          const baseToolList = effectiveConfig.convexToolNames ?? [];
-          const autoInjected: string[] = [...baseToolList];
-          // `propose_memory` is offered only while personalization is active.
-          if (
-            personalizationActive &&
-            !autoInjected.includes('propose_memory')
-          ) {
-            autoInjected.push('propose_memory');
-          }
-          // `generate_image` is always available to chat agents so any
-          // assistant — including whichever one the Auto router picks — can
-          // satisfy an explicit "create an image" request. It degrades
-          // gracefully (the tool reports unavailable) when the workspace has no
-          // image-generation model configured. Image-generation agents never
-          // reach this path (they bypass the tool loop), but guard anyway.
-          if (
-            agentConfig.primaryBehavior !== 'image-generation' &&
-            !autoInjected.includes('generate_image')
-          ) {
-            autoInjected.push('generate_image');
-          }
-          const filteredToolNames = autoInjected.filter((n): n is ToolName => {
-            if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
-            if (n === 'propose_memory' && !personalizationActive) return false;
-            if (
-              n === 'rag_search' &&
-              knowledgeMode !== 'tool' &&
-              knowledgeMode !== 'both'
-            )
-              return false;
-            if (
-              n === 'web' &&
-              webSearchMode !== 'tool' &&
-              webSearchMode !== 'both'
-            )
-              return false;
-            if (n === 'image' && useMultiModal) return false;
-            return true;
-          });
           const config = createAgentConfig({
             name: agentConfig.name,
             instructions: finalInstructions,
@@ -839,7 +890,7 @@ export async function runGenerationCore(
             modelContextWindow: modelData.contextWindow,
             convexToolNames:
               filteredToolNames.length > 0 ? filteredToolNames : undefined,
-            extraTools: allExtraTools,
+            extraTools: extraToolsWithGating,
             maxSteps: agentConfig.maxSteps,
           });
           return new Agent(components.agent, config);
@@ -891,6 +942,14 @@ export async function runGenerationCore(
             responseStyle: agentConfig.responseStyle,
             routeSeed: agentConfig.routeSeed,
             replyLocaleHint: agentConfig.replyLocaleHint,
+            ...(gatingApplies
+              ? {
+                  toolGating: {
+                    state: gatingState,
+                    allToolNames: gatingToolNames,
+                  },
+                }
+              : {}),
           },
           {
             ctx,

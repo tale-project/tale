@@ -301,6 +301,31 @@ export const setLiveRoute = internalMutation({
 });
 
 /**
+ * Union new tool-gating unlocks into the thread's sticky set (#2781).
+ * Monotonic by design — see the `unlockedToolGroups` schema doc. Callers
+ * pass validated group ids (the `request_capabilities` tool rejects unknown
+ * ids before persisting).
+ */
+export const addUnlockedToolGroups = internalMutation({
+  args: {
+    threadId: v.string(),
+    groupIds: v.array(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await getThreadMetadataRow(ctx, args.threadId);
+    if (!row) return null;
+    const merged = [
+      ...new Set([...(row.unlockedToolGroups ?? []), ...args.groupIds]),
+    ];
+    if (merged.length !== (row.unlockedToolGroups ?? []).length) {
+      await ctx.db.patch(row._id, { unlockedToolGroups: merged });
+    }
+    return null;
+  },
+});
+
+/**
  * Correct `threadMetadata.agentSlug` after the external-thread agent lock
  * fires: `chatWithAgentTurn` patches the slug optimistically from the client
  * selection before the generation action can resolve agent configs, so when
