@@ -77,6 +77,19 @@ interface UploadOptions {
 // possible until a page reload.
 const UPLOAD_STALL_TIMEOUT_MS = 60_000;
 
+// Separate, deliberately generous deadline for everything AFTER the last byte
+// has been handed to the network stack. `progress` reports bytes written into
+// local/OS buffers, not bytes the store has acknowledged — so on a slow uplink
+// the bar sits at 100 % while buffers drain for minutes, then the store
+// commits the object and responds; no progress event ever fires again in that
+// window. Timing THAT phase with the 60 s inactivity window discarded an
+// otherwise-complete transfer (observed live: a 59.7 MB presigned PUT to R2
+// at ~90 KB/s reached 100 % and was aborted a minute later). Buffered bytes
+// are bounded by socket/proxy buffers (single-digit MB), so ten minutes
+// covers the worst realistic drain + server commit without reintroducing the
+// stuck-latch problem this watchdog exists to prevent.
+const UPLOAD_RESPONSE_DEADLINE_MS = 10 * 60_000;
+
 // Ceiling for the Convex upload mutations (`generateUploadUrl`,
 // `createDocumentFromUpload`). These are normally sub-second; if one never
 // settles (a wedged websocket) the per-file loop would hang forever with the
@@ -84,7 +97,7 @@ const UPLOAD_STALL_TIMEOUT_MS = 60_000;
 // hung call fails the file and releases the loop instead of wedging the dialog.
 const MUTATION_TIMEOUT_MS = 120_000;
 
-function uploadWithProgress(
+export function uploadWithProgress(
   url: string,
   file: File,
   contentType: string,
@@ -100,30 +113,41 @@ function uploadWithProgress(
     xhr.open(method, url);
     xhr.setRequestHeader('Content-Type', contentType);
 
-    // No-progress watchdog: (re)armed on every progress tick; if it ever
-    // fires, the transfer has stalled — abort so the promise settles.
+    // Two-phase watchdog: while bytes are flowing, (re)arm the short
+    // inactivity window on every progress tick; once the upload phase is
+    // over (`xhr.upload` 'load'), no further progress events exist by
+    // design, so switch to the long response deadline instead of letting
+    // the inactivity window kill a healthy request. Either timer firing
+    // aborts so the promise settles and the dialog latch releases.
     let stalled = false;
-    let stallTimer: ReturnType<typeof setTimeout> | undefined;
-    const clearStall = () => {
-      if (stallTimer !== undefined) clearTimeout(stallTimer);
+    let uploadPhaseDone = false;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const clearWatchdog = () => {
+      if (watchdog !== undefined) clearTimeout(watchdog);
     };
-    const armStall = () => {
-      clearStall();
-      stallTimer = setTimeout(() => {
+    const armWatchdog = (ms: number) => {
+      clearWatchdog();
+      watchdog = setTimeout(() => {
         stalled = true;
         xhr.abort();
-      }, UPLOAD_STALL_TIMEOUT_MS);
+      }, ms);
     };
 
     xhr.upload.addEventListener('progress', (e) => {
-      armStall();
+      // A late progress tick after the upload phase ended must not re-arm
+      // the short window over the response deadline.
+      if (!uploadPhaseDone) armWatchdog(UPLOAD_STALL_TIMEOUT_MS);
       if (e.lengthComputable) {
         onProgress(e.loaded, e.total);
       }
     });
+    xhr.upload.addEventListener('load', () => {
+      uploadPhaseDone = true;
+      armWatchdog(UPLOAD_RESPONSE_DEADLINE_MS);
+    });
 
     xhr.addEventListener('load', () => {
-      clearStall();
+      clearWatchdog();
       if (xhr.status >= 200 && xhr.status < 300) {
         if (method === 'PUT') {
           // S3 PUT returns an empty body (ETag header only); the ref is bound
@@ -142,11 +166,11 @@ function uploadWithProgress(
     });
 
     xhr.addEventListener('error', () => {
-      clearStall();
+      clearWatchdog();
       reject(new Error('Upload failed: network error'));
     });
     xhr.addEventListener('abort', () => {
-      clearStall();
+      clearWatchdog();
       reject(
         stalled
           ? new UploadTimeoutError('Upload stalled')
@@ -156,7 +180,7 @@ function uploadWithProgress(
 
     signal?.addEventListener('abort', () => xhr.abort(), { once: true });
 
-    armStall();
+    armWatchdog(UPLOAD_STALL_TIMEOUT_MS);
     xhr.send(file);
   });
 }
