@@ -1323,6 +1323,8 @@ import type * as skills_file_utils from "../skills/file_utils.js";
 import type * as skills_get_skill_audit_history from "../skills/get_skill_audit_history.js";
 import type * as skills_upload_mutations from "../skills/upload_mutations.js";
 import type * as sso_providers_validators from "../sso_providers/validators.js";
+import type * as status_node_ping from "../status/node_ping.js";
+import type * as status_node_ping_queries from "../status/node_ping_queries.js";
 import type * as streaming_helpers from "../streaming/helpers.js";
 import type * as streaming_http_actions from "../streaming/http_actions.js";
 import type * as streaming_internal_mutations from "../streaming/internal_mutations.js";
@@ -3103,6 +3105,8 @@ declare const fullApi: ApiFromModules<{
   "skills/get_skill_audit_history": typeof skills_get_skill_audit_history;
   "skills/upload_mutations": typeof skills_upload_mutations;
   "sso_providers/validators": typeof sso_providers_validators;
+  "status/node_ping": typeof status_node_ping;
+  "status/node_ping_queries": typeof status_node_ping_queries;
   "streaming/helpers": typeof streaming_helpers;
   "streaming/http_actions": typeof streaming_http_actions;
   "streaming/internal_mutations": typeof streaming_internal_mutations;
