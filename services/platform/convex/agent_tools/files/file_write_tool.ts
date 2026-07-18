@@ -67,28 +67,17 @@ export const fileWriteTool: ToolDefinition = {
   name: 'file_write' as const,
   availability: 'any' as const,
   tool: createTool({
-    description: `**file_write** — create or replace a file in the current thread's workspace.
+    description: `**file_write** — create or atomically replace one workspace file per call.
 
-Writes one file at a time. If a file already exists at \`path\` it is replaced atomically; otherwise a new entry is created.
+USE FOR: final deliverables → \`/user/output/report.md\` (write directly; no script detour); code to execute → \`file_write\` then \`run_code({entryPath: "/user/code/gen.py"})\` (\`/user/code/\` is the only executable location); intermediate data for a later \`run_code\`.
 
-USE THIS TO:
-- Save a final deliverable the user should see or download (\`/user/output/report.md\`, \`/user/output/landing.html\`, …)
-- Stage code you're about to execute (\`file_write({path: "/user/code/gen.py", ...})\` then \`run_code({entryPath: "/user/code/gen.py"})\`)
-- Materialize intermediate data the next \`run_code\` call should read
+Inside a \`run_code\` script the same rule applies: deliverables must be saved to \`/user/output/\` — files left in the cwd or \`/tmp\` are discarded when the container exits. Rewrite a skill example's bare \`output.xlsx\` as \`/user/output/output.xlsx\`.
 
-WHERE TO WRITE:
-- \`/user/output/\` — deliverables (reports, exports, rendered pages). Write them here directly; no script detour needed.
-- \`/user/code/\` — scripts + working files; this is the \`run_code\` cwd and the only executable location.
-- Inside a \`run_code\` script, the same rule applies: a deliverable the script produces must be saved to \`/user/output/\` — files left in the cwd or \`/tmp\` are discarded when the container exits. If a skill's example saves to a bare relative path like \`output.xlsx\`, rewrite it as \`/user/output/output.xlsx\`.
+QUOTAS: ≤ 10 MB per file; ≤ 100 files and ≤ 100 MB per workspace.
 
-QUOTAS:
-- ≤ 10 MB per file
-- ≤ 100 files per workspace
-- ≤ 100 MB per workspace (aggregate)
+Every result includes \`sandboxState\` — the current workspace manifest. Trust it over memory: a file listed there already exists, don't recreate it.
 
-Every result (success or failure) includes \`sandboxState\` — the current workspace manifest. Trust it over memory: a file listed there already exists, don't recreate it.
-
-The canvas (right pane) renders workspace files by extension automatically — \`.html\` opens in a sandboxed iframe, \`.svg\` renders inline, \`.md\` as markdown, \`.py\`/\`.ts\`/\`.json\` as syntax-highlighted code, image extensions inline, others as a download chip.`,
+The canvas renders workspace files by extension (\`.html\` sandboxed iframe, \`.svg\` inline, \`.md\` markdown, code highlighted, images inline, others a download chip).`,
     inputSchema: fileWriteArgs,
     execute: async (ctx: ToolCtx, args: FileWriteArgs) => {
       const { organizationId, threadId } = ctx;

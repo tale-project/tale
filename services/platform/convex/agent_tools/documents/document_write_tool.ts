@@ -55,30 +55,11 @@ export const documentWriteTool = {
   tool: createTool({
     description: `Save one or more files to the documents hub. Requires user approval — an approval card will be created. When telling the user the card is ready, do not reference its position (no "above" / "below") — just say the approval card has been created.
 
-USE THIS TOOL TO:
-• Save generated files (text, docx, pdf, excel, pptx) to the documents hub
-• Save multiple files at once in a single batch
-• Organize files into folders in the documents hub
+USE WHEN the user wants generated files (text, docx, pdf, excel, pptx) kept in the documents hub — "save to [folder]", "store in [folder]".
 
-WHEN TO USE THIS TOOL:
-• User says "save to [folder]", "store in [folder]", "download to [folder]", "put it in [folder]"
-• User wants to keep generated files in the documents hub
-• User specifies a folder/directory for file organization
+NOT FOR: generating files (use the text, docx, pdf, excel, or pptx tools first), searching (rag_search / document_find), or reading (document_retrieve).
 
-DO NOT USE THIS TOOL FOR:
-• Generating files — use text, docx, pdf, excel, or pptx tools first
-• Searching documents — use rag_search or document_find
-• Reading documents — use document_retrieve
-
-WORKFLOW:
-1. First generate file(s) using text (generate), docx (generate), pdf (generate), etc.
-2. Collect the fileStorageId from each tool result
-3. Call document_write with all fileStorageIds in the files array
-4. A single approval card will appear for the user to review and approve all files at once
-
-PARAMETERS:
-• files: REQUIRED — array of { fileId, title? } objects. fileId is the fileStorageId from a file generation tool. title optionally overrides the document title.
-• folderPath: Optional — target folder path (e.g. "reports/2026"). Created automatically if it doesn't exist. Applied to all files.`,
+WORKFLOW: generate the file(s) → collect each tool result's fileStorageId → call document_write once with all of them in the files array (fileId = fileStorageId; title optionally overrides) → a single approval card covers the whole batch.`,
     inputSchema: documentWriteArgs,
     execute: async (
       ctx: ToolCtx,

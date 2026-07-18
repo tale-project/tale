@@ -68,17 +68,11 @@ export const webTool: ToolDefinition = {
   tool: createTool({
     description: `Access web content in two modes:
 
-**fetch**: Fetch and extract content from any public URL. Supports web pages, PDFs, DOCX, PPTX, and images (PNG, JPG, GIF, WebP, etc.). Use the \`query\` parameter as an extraction instruction to guide what content to focus on.
+**fetch**: extract content from any public URL — web pages, PDFs, DOCX, PPTX, images. Use \`query\` as an extraction instruction to guide what to focus on.
 
-**search**: Search through websites that have been added to the organization's knowledge base. Only content from indexed knowledge base websites is searchable — this does NOT search the open internet. If the website you need isn't indexed, use fetch mode with a direct URL instead, or suggest the user add the website to their knowledge base.
+**search**: semantic search over websites added to the organization's knowledge base. Only indexed knowledge-base websites — this does NOT search the open internet. If the site you need isn't indexed, use fetch with a direct URL, or suggest the user add it to their knowledge base.
 
-IMPORTANT: Always cite the source URL for every piece of information you present from the results.
-
-EXAMPLES:
-- { mode: "fetch", url: "https://example.com/report.pdf", query: "Summarize the key findings" }
-- { mode: "fetch", url: "https://example.com/pricing" }
-- { mode: "search", query: "shipping policy" }
-- { mode: "search", query: "workflow patterns", domain: "docs.convex.dev" }`,
+IMPORTANT: Always cite the source URL for every piece of information you present from the results.`,
     inputSchema: webToolArgs,
     execute: async (ctx: ToolCtx, args) => {
       if (args.mode === 'fetch') {

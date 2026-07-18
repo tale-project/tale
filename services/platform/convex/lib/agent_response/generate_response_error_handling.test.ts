@@ -61,6 +61,11 @@ vi.mock('../agent_completion', () => ({
 const mockBuildStructuredContext = vi.fn();
 vi.mock('../context_management', () => ({
   buildStructuredContext: mockBuildStructuredContext,
+  loadStructuredHistory: vi.fn().mockResolvedValue({
+    messages: [],
+    toolMessageAges: new Map(),
+    approvals: [],
+  }),
   AGENT_CONTEXT_CONFIGS: {
     chat: {
       maxHistoryTokens: 25_000,

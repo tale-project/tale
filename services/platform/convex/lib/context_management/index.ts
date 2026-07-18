@@ -85,8 +85,10 @@ export {
 // Structured context builder (for collapsible <details> formatted context)
 export {
   buildStructuredContext,
+  loadStructuredHistory,
   type BuildStructuredContextParams,
   type StructuredContextResult,
+  type StructuredHistoryBundle,
 } from './structured_context_builder';
 
 // Message formatters

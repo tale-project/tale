@@ -87,39 +87,15 @@ export const documentFindTool: ToolDefinition = {
   availability: 'any',
   sandboxBridge: true,
   tool: createTool({
-    description: `Find and filter documents in the knowledge base.
+    description: `Find and filter documents in the knowledge base — by folder, extension, team, date range, or fuzzy file name; count matches via totalCount; paginate large sets.
 
-USE THIS TOOL TO:
-• Find documents in a specific folder
-• Filter by file type (extension), team, or date range
-• Search documents by file name (fuzzy match)
-• Count documents matching criteria (check totalCount in response)
-• Paginate through large result sets
+NOT FOR: semantic/content search → rag_search; reading indexed content → document_retrieve with the fileId; extracting data from uploaded files → pdf, docx, text, excel, image, or pptx tools with the fileId.
 
-DO NOT USE THIS TOOL FOR:
-• Semantic/content search — use rag_search instead
-• Reading indexed document content — use document_retrieve with the file ID (fileId) instead
-• Extracting data from uploaded files — use pdf, docx, text, excel, image, or pptx tools with the file ID (fileId) instead
+RESPONSE: documents [{fileId, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}] — fileId works with document_retrieve, the extraction tools, and any tool operating on stored files. totalCount is null when the scan limit was reached (count unknown — NOT zero results). If warning is present, results may be incomplete — narrow your filters before continuing.
 
-RESPONSE FIELDS:
-• documents: Array of {fileId, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
-  - fileId: The file ID. Use with document_retrieve, file extraction tools (pdf, docx, txt, excel, image, pptx), and any tool that operates on stored files.
-• totalCount: Total matching documents (number), or null if the scan limit was reached and the true count is unknown — this does NOT mean zero results.
-• hasMore: Whether more results are available
-• cursor: Pass to next call to get the next page
-• warning: null normally. If present, results may be incomplete — follow the guidance in the message.
+PAGINATION: first call omits cursor; while hasMore is true, pass back the returned cursor.
 
-PAGINATION:
-1. First call: omit cursor
-2. If hasMore is true, call again with the returned cursor value
-3. Repeat until hasMore is false
-
-TIPS:
-• Combine filters to narrow results (e.g., folderPath + extension + dateFrom)
-• For large document sets, always provide at least one filter (folderPath, extension, teamId, or date range) to ensure complete results
-• If warning is present in the response, narrow your filters before continuing
-• Default sort is newest first (createdAt desc)
-• Dates are interpreted as UTC`,
+TIPS: combine filters; for large document sets always provide at least one filter (folderPath, extension, teamId, or date range) to ensure complete results.`,
     inputSchema: documentFindArgs,
     execute: async (ctx, args): Promise<DocumentFindResult> => {
       return listDocuments(ctx, args);
