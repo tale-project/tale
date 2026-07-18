@@ -81,8 +81,8 @@ async function probeHttp(url: string): Promise<'listening' | 'down'> {
   try {
     await fetch(url, { signal: AbortSignal.timeout(3000) });
     return 'listening';
-  } catch (error) {
-    console.warn(`  · ${url} probe: ${String(error)}`);
+  } catch {
+    // Transport failure IS the diagnostic result — reported as 'down'.
     return 'down';
   }
 }

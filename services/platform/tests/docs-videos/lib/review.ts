@@ -14,6 +14,7 @@ import type { AudioPlan } from './audio-plan';
 import type { EpisodeSpec, Locale } from './episode';
 import { narrationFor } from './episode';
 import { ffmpegBin, runFfmpeg } from './ffmpeg';
+import { formatClock } from './format';
 import type { RecordedTimeline } from './recorder';
 import { stripAudioTags } from './vtt';
 
@@ -27,13 +28,6 @@ interface ReviewSheetInput {
   readonly draft: boolean;
   readonly durationMs: number;
   readonly sizeMb: number;
-}
-
-function formatClock(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}.${String(Math.round((ms % 1000) / 100))}`;
 }
 
 function escapeHtml(text: string): string {
