@@ -81,36 +81,14 @@ export const productReadTool: ToolDefinition = {
   name: 'product_read',
   availability: 'any',
   tool: createTool({
-    description: `Product catalog read tool for retrieving product information from the INTERNAL product database.
-
-SCOPE LIMITATION:
-This tool ONLY accesses the internal product catalog.
-DO NOT use this tool for products from external e-commerce systems - check [INTEGRATIONS] context and delegate to the integration agent instead.
+    description: `Read products from the INTERNAL catalog. External e-commerce products are NOT here — check [INTEGRATIONS] context and delegate to the integration agent instead.
 
 OPERATIONS:
-• 'list': Browse/search the catalog. Returns ONLY: _id, name, description, status, stock (fixed fields).
-  Supports filters: status (active/inactive/draft/archived), minStock (minimum stock level).
-  Use this to find products, then use 'get_by_id' to get full details.
-• 'get_by_id': Fetch one or more products by ID. Supports batch queries (pass multiple IDs).
-  Use 'fields' parameter to select which fields to return.
-• 'count': Count total products. Supports filters: status, minStock.
-  NOTE: If data volume is too large (cannot be counted within 3 pagination requests), returns a message indicating the data is too large to count.
+• 'list': browse/search; returns fixed fields (_id, name, description, status, stock); filters: status (active/inactive/draft/archived), minStock.
+• 'get_by_id': one or more IDs (batch in ONE call); pass 'fields' to select from _id, name, description, price, currency, status, category, imageUrl, stock, tags, externalId, lastUpdated, translations/metadata (HEAVY — avoid unless needed).
+• 'count': with optional status/minStock filters (may report "too large" past 3 pages).
 
-WORKFLOW:
-1. Use 'list' to browse/search products (returns: _id, name, description, status, stock)
-2. Use 'get_by_id' with the IDs you need to fetch full product details
-3. Use 'count' to get total product count (with optional filters)
-
-AVAILABLE FIELDS FOR get_by_id (select only what you need):
-• _id, name, description, price, currency, status, category, imageUrl, stock, tags, externalId, lastUpdated
-• translations, metadata (HEAVY - avoid unless specifically needed)
-
-BEST PRACTICES:
-• Use 'list' for browsing, 'get_by_id' for details - this minimizes token usage
-• Use status and minStock filters to narrow down results
-• Batch multiple product IDs in a single 'get_by_id' call instead of multiple calls
-• Specify 'fields' in get_by_id to minimize response size
-• Use 'count' with filters to get counts for specific subsets of products`,
+WORKFLOW: 'list' to find → 'get_by_id' (with 'fields') for details → 'count' for totals.`,
     inputSchema: productReadArgs,
     execute: async (
       ctx: ToolCtx,

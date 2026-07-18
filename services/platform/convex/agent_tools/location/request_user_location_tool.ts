@@ -28,17 +28,7 @@ export const requestUserLocationTool = {
   // primary-only: Same primary-turn card/resume model as request_human_input.
   availability: 'primary-only' as const,
   tool: createTool({
-    description: `**DIRECTLY call this tool** to request the user's geographic location.
-
-**WHEN TO USE:**
-• When you need to know where the user is located (e.g., weather, nearby places, local time, regional recommendations)
-• When the user asks a location-dependent question but hasn't provided their location
-
-**HOW IT WORKS:**
-• An approval card appears asking the user to share their browser location
-• The user can approve (shares city-level location) or deny
-• You will receive a city-level address (e.g., "Hangzhou, Zhejiang, China") — never raw coordinates
-• If denied, you will be informed and should proceed without location data
+    description: `**DIRECTLY call this tool** when you need the user's location and they haven't shared it. An approval card requests their browser location: approve → city-level address only (never raw coordinates); deny → proceed without location data.
 
 **AFTER CALLING - CRITICAL:**
 • You MUST STOP and produce your final response immediately

@@ -194,47 +194,19 @@ export const ragSearchTool = {
   availability: 'any' as const,
   sandboxBridge: true as const,
   tool: createTool({
-    description: `Knowledge base tool for searching, retrieving, and listing indexed documents.
+    description: `Knowledge base: search, retrieve, and list indexed documents.
 
 OPERATIONS:
-• 'search': Search the knowledge base for relevant document excerpts using hybrid search (BM25 + vector similarity). Returns numbered excerpts with relevance scores.
-• 'retrieve': Retrieve document content by file ID in paginated chunks (default 10 chunks per call). Use chunkStart/chunkEnd to paginate. Returns chunk range and totalChunks so you can fetch more. Use this to read uploaded files (PDF, DOCX, PPTX, TXT, XLSX, etc.).
-• 'list_indexed': List documents indexed in the Document Hub (does NOT include files uploaded in chat). Returns file names, file IDs, and modification dates.
+• 'search': hybrid search (BM25 + vector) over the knowledge base; returns scored excerpts. Use for KB lookups (policies, docs, stored content) or when exact field values are unknown.
+• 'retrieve': read a document by file ID in paginated chunks (default 10/call; chunkStart/chunkEnd to page; returns totalChunks). Use to read uploaded files (PDF, DOCX, XLSX, …).
+• 'list_indexed': list Document Hub documents (name, fileId, sourceModifiedAt; paginated via cursor — pass the returned cursor verbatim). Chat-uploaded files are NOT listed; their file IDs are already in the conversation.
 
-WHEN TO USE 'search':
-• Knowledge base lookups: policies, procedures, documentation
-• Questions about stored documents and content
-• Finding information when you don't know exact field values
+RULES:
+• If the user's message contains file IDs, search with 'fileIds' FIRST; on no relevant results retry without.
+• Folder-scoped asks ("search the contracts folder"): pass 'folderPath' (matches the folder + all subfolders); retry without it if nothing relevant.
+• When a user uploads a file to read/summarize/analyze → 'retrieve' it (or 'search' with a query for targeted lookup in large files).
 
-SEARCH STRATEGY — file ID priority:
-When the user's message contains file IDs (e.g. from uploaded attachments), ALWAYS pass those IDs in the 'fileIds' parameter first to search within those specific files. If that returns no relevant results, retry WITHOUT fileIds to perform a broader knowledge base search. This ensures uploaded/referenced files are prioritized while still falling back to the full knowledge base when needed.
-
-SEARCH SCOPING — folder filter:
-When the user asks to search within a specific folder ("search the contracts folder", "only look in Reports/2024"), pass 'folderPath'. It matches that Document Hub folder and all of its subfolders. If the folder-scoped search returns nothing relevant, retry without folderPath.
-
-WHEN TO USE 'retrieve':
-• Reading content of a specific uploaded file (paginated, 10 chunks per call by default)
-• When a user uploads a file and asks you to read, summarize, or analyze it
-• For large documents, retrieve returns the first page — use chunkStart/chunkEnd to read more, or use 'search' with a query for targeted lookup
-
-WHEN TO USE 'list_indexed':
-• See which documents are in the Document Hub (org/team knowledge base)
-• Get file IDs for use with the search or retrieve operations
-• Check when documents were last modified
-• NOTE: This only lists Document Hub files. Files uploaded in chat are NOT included — their file IDs are already in the conversation context.
-
-WHEN NOT TO USE:
-• "How many contacts?" → Use contact_read with operation='count'
-• "List all products" → Use product_read with operation='list'
-• "Look up a contact by email" → Use contact_read with operation='get_by_email'
-• For counting/listing/filtering structured data, use database tools instead
-• Browsing all documents (not just indexed) → Use document_find instead
-
-RESPONSE (list_indexed):
-• documents: Array of {fileId, name, sourceModifiedAt}
-• totalCount: Total matching documents (null if scan limit reached)
-• hasMore: Whether more results are available
-• cursor: Opaque pagination cursor. Pass the exact value to the next call to fetch the next page. Do not fabricate values.`,
+NOT for structured data: counts/lists/filters of contacts or products → contact_read / product_read / database tools; browsing ALL documents (not just indexed) → document_find.`,
     inputSchema: ragToolArgs,
     execute: async (ctx: ToolCtx, args) => {
       if (args.operation === 'list_indexed') {

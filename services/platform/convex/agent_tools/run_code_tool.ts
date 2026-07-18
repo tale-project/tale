@@ -286,24 +286,17 @@ export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
   availability: 'any' as const,
   tool: createTool({
-    description: `**run_code** — execute code in the thread's sandbox (Python 3, Node as ESM, bash). Pick a \`mode\`:
+    description: `**run_code** — execute code in the thread's sandbox (Python 3, Node as ESM, bash). Modes: \`inline\` (code + language) — a snippet run directly, like a shell: one-off commands, quick computations, sandbox inspection; not stored (re-runnable work → "script") · \`script\` (entryPath) — a \`file_write\`-staged workspace script; extension picks the interpreter · \`install\` — packages only (big installs / a separate checkpoint).
 
-- \`{"mode": "inline", "code": "ls -la /user/output", "language": "bash"}\` — run a snippet directly, like a shell. For one-off commands, quick computations, sandbox inspection. The snippet is not stored — for anything worth re-running or editing, use mode "script".
-- \`{"mode": "script", "entryPath": "/user/code/gen.py"}\` — run a workspace script. \`file_write\` it first; the extension picks the interpreter (.py / .js / .cjs / .mjs / .sh).
-- \`{"mode": "install", "packages": {"python": ["pandas"]}}\` — install packages without running code (use for big installs or a separate install checkpoint).
+PACKAGES: declare them in \`packages\` (works in every mode; the org policy gates them). Do NOT install ad-hoc from inline code — \`pip install x\` / \`npm install -g y\` are rejected with PREFER_PACKAGES (\`pip install -r\` and project-local \`npm install\` remain fine).
 
-PACKAGES: declare pip specs in \`packages.python\`, npm specs in \`packages.node\` — available on every mode; they install before the code runs and persist for later run_code calls in this turn. The org policy gates them. Do NOT install ad-hoc from inline code — \`pip install x\` / \`npm install -g y\` snippets are rejected with PREFER_PACKAGES (\`pip install -r\` and project-local \`npm install\` remain fine).
+MULTI-STEP: repeated run_code calls (no steps array); the sandbox session persists within the turn.
 
-MULTI-STEP: call run_code repeatedly — the sandbox session persists within the turn (installed packages, files under \`/user/output/\`). There is no steps array.
+PATHS: \`/user/code/\` your file_write scripts (what \`entryPath\` runs) · \`/user/output/\` deliverables — ONLY files written here are harvested back into the workspace and canvas (incl. prior runs' outputs) · \`/user/uploads/\` the user's files.
 
-PATHS (pre-populated from the thread workspace):
-- \`/user/code/\`    — scripts you authored via \`file_write\` (what \`entryPath\` runs);
-- \`/user/output/\`  — deliverables: ONLY files written here are harvested back into the workspace and canvas; previous runs' outputs also live here;
-- \`/user/uploads/\` — files the user uploaded into the thread.
+LIMITS: 1 GB memory · ≤16 harvested files/run.
 
-LIMITS: default 30s per run (\`timeoutMs\`, max 300s); declared package installs get their own budget (up to 5 min); 1 GB memory; max 16 harvested output files per run.
-
-Every result message embeds the run's terminal output (stdout inline, capped at 4 KB; stderr too on failure) plus a **\`sandboxState\`** manifest — the current files under each dir, each with its \`fileId\`. Read it before acting: don't regenerate an output already listed there, and hand a file's \`fileId\` to the \`image\` (analyze) or \`document_write\` tool.`,
+Results embed terminal output (stdout capped 4 KB; stderr on failure) and a \`sandboxState\` manifest (files per dir with \`fileId\`) — read it first: never regenerate an output already listed; hand a \`fileId\` to \`image\` (analyze) or \`document_write\`.`,
     // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {

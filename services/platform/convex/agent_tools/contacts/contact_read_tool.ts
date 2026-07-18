@@ -75,50 +75,16 @@ export const contactReadTool: ToolDefinition = {
   name: 'contact_read',
   availability: 'any',
   tool: createTool({
-    description: `Contact data read tool for retrieving contact information from the INTERNAL CRM database.
+    description: `Read contacts from the INTERNAL CRM database (people/organizations you correspond with: customers, leads, vendors).
 
-Contacts are the people and organizations you correspond with — customers, leads, vendors/suppliers, and other counterparts — kept in one internal directory.
-
-SCOPE LIMITATION:
-This tool ONLY accesses the internal CRM contact database.
-DO NOT use this tool for data from external systems - check [INTEGRATIONS] context and delegate to the integration agent instead.
-Example: Hotel guests, e-commerce customers, external system records are NOT in this database.
+INTERNAL ONLY: external-system records (hotel guests, e-commerce customers, …) are NOT here — check [INTEGRATIONS] context and delegate to the integration agent instead.
 
 OPERATIONS:
-• 'get_by_id': Fetch a single contact by their Convex ID. Use when you have a specific contact ID.
-• 'get_by_email': Fetch a single contact by their email address within the organization.
-• 'list': Paginate through all contacts for the organization. Use for browsing, searching, or bulk operations.
-• 'count': Count total contacts for the organization.
-  NOTE: If data volume is too large (cannot be counted within 3 pagination requests), returns a message indicating the data is too large to count.
+• 'get_by_id' (Convex ID) · 'get_by_email' · 'list' (paginated browse/search) · 'count' (may report "too large" past 3 pages).
 
-AVAILABLE FIELDS (select only what you need):
-System fields:
-• _id: Convex document ID (Id<"contacts">)
-• _creationTime: Document creation timestamp (number)
-• organizationId: Organization ID (string)
+FIELDS (pass 'fields' — select only what you need): _id, _creationTime, organizationId, name (recommended), email (recommended), phone, externalId, source, locale, address {street, city, state, country, postalCode}, tags, notes, metadata (CAN BE VERY LARGE — avoid unless needed; may hold custom attributes imported from external systems).
 
-Core contact fields:
-• name: Contact name (string, optional) - RECOMMENDED
-• email: Contact email (string, optional) - RECOMMENDED
-• phone: Contact phone number (string, optional)
-• externalId: External system ID (string or number, optional)
-• source: Data source - 'manual_import' | 'file_upload' | 'shopify' | ... (string)
-• locale: Contact locale/language preference (string, optional)
-• address: Contact address object with street, city, state, country, postalCode (optional)
-• tags: Free-form labels for the contact (string[], optional)
-• notes: Free-form notes about the contact (string, optional)
-
-Large/complex fields (use sparingly):
-• metadata: Additional metadata (object, optional) - CAN BE VERY LARGE
-
-BEST PRACTICES:
-• Always specify 'fields' to minimize response size and improve performance.
-• Avoid 'metadata' unless specifically needed - it can be very large.
-• Use 'list' with pagination (cursor) for large contact bases instead of fetching all at once.
-• Default numItems is 200; reduce if selecting many fields or heavy fields.
-• If hasMore is true, continue calling with the returned cursor to fetch all contacts.
-• Use 'count' to get total contact count. If data is too large, the response will indicate this.
-• If you need contact information not found in standard fields, check the 'metadata' field - it may contain additional custom attributes imported from external systems.`,
+USAGE: default numItems 200 (reduce for many/heavy fields); while hasMore, continue with the returned cursor.`,
     inputSchema: contactReadArgs,
     execute: async (
       ctx: ToolCtx,

@@ -247,17 +247,13 @@ export function createSpawnAgentTool(deps: SpawnAgentDeps) {
     // primary-only: jobs must not spawn jobs (recursion guard, design §6.1).
     availability: 'primary-only' as const,
     tool: createTool({
-      description: `Spawn a focused worker agent for ONE well-scoped task and get its result back. The worker runs non-interactively with EXACTLY the capabilities you grant it (a subset of your own, plus baseline workspace READ access), and its progress is shown to the user as a live job card.
-
-**When to use:** a sub-task that benefits from isolation — open-ended research, bulk extraction, drafting a long document — where a focused context beats doing it inline. For quick answers, just act yourself.
+      description: `Spawn a focused worker agent for ONE well-scoped task and get its result back. Non-interactive; runs with EXACTLY the capabilities you grant (a subset of your own + always-on workspace READ); progress shows as a live job card. Use when isolation helps (research, bulk extraction, long drafts); else act yourself.
 
 **Contract:**
-• You author the worker's task instructions; the platform adds its operating rules. Grant the SMALLEST tool set that can do the job.
-• The worker cannot talk to the user. If its result says it needs user input, ask the user yourself (request_human_input) — ask each question at most ONCE; never re-ask something the user already answered.
-• Out-of-grant requests are silently dropped — the result includes what was narrowed so you can adapt (e.g. a missing integration → tell the user to connect it, or do that part yourself).
-• If the job fails or is cut off, its partial progress is visible to the user; summarize honestly and continue yourself if you can.
-• The worker shares YOUR thread workspace and can ALWAYS read it: \`file_read\` and \`file_list\` are granted automatically (don't list them), and \`file_list\` resolves a workspace path to the \`fileId\` other tools take (e.g. \`image\` — grant it when the job must analyze workspace images). Tools that WRITE the workspace (file_write, file_edit, file_delete, run_code) are granted only when you list them.
-• When you grant a write-side workspace tool, the result carries \`sandboxState\` — the workspace after the job. Files listed there ALREADY EXIST (the user sees them on the canvas): reference them by path, NEVER rewrite them from the worker's text reply.
+• Grant the SMALLEST tool set that can do the job.
+• The worker cannot talk to the user — relay questions via request_human_input; ask each question at most ONCE; never re-ask something the user already answered.
+• Narrowed grants are reported back — adapt (connect the missing integration via the user, or do it yourself). On failure/cutoff partial progress stays visible; summarize honestly and continue yourself if you can.
+• The worker reads YOUR thread workspace (\`file_list\` maps paths to \`fileId\`s — grant \`image\` for workspace-image analysis). Write tools (file_write, file_edit, file_delete, run_code) apply only if listed; the result then carries \`sandboxState\` (the post-job workspace). Files listed there ALREADY EXIST (the user sees them on the canvas): reference them by path, NEVER rewrite them from the worker's text reply.
 
 **Grantable tools:** ${grantableToolLines(deps)}
 **Grantable methodologies:**

@@ -88,27 +88,13 @@ export const fileEditTool: ToolDefinition = {
   name: 'file_edit' as const,
   availability: 'any' as const,
   tool: createTool({
-    description: `**file_edit** — apply a targeted search-replace edit to an existing workspace file.
+    description: `**file_edit** — targeted search-replace in an existing workspace file: replaces \`old_string\` with \`new_string\`. The match is **literal** (whitespace and indentation included) — no regex, no wildcards. \`old_string\` must occur exactly once (else \`OLD_STRING_NOT_UNIQUE\` — widen the context or set \`replace_all\`). The edit is atomic (same file identity, new blob).
 
-USE THIS INSTEAD OF \`file_write\` WHEN:
-- You're changing a small region of a file you already wrote (a function body, a single line, a renamed identifier) — \`file_edit\` is dramatically cheaper than re-emitting the whole file.
-- You're iterating on code you just generated and want to keep the rest of the file byte-identical.
-
-USE \`file_write\` INSTEAD WHEN:
-- The file does not exist yet (\`file_edit\` errors with \`NOT_FOUND\` — only \`file_write\` creates files).
-- You're rewriting most of the file anyway.
-- The file is binary (images, PDFs, archives, Office docs — \`file_edit\` only handles text).
-
-HOW IT WORKS:
-- The tool finds the exact substring \`old_string\` in the file and replaces it with \`new_string\`.
-- \`old_string\` must match **literally**, including whitespace and indentation. No regex, no wildcards.
-- By default \`old_string\` must occur exactly once. If it appears multiple times the tool errors with \`OLD_STRING_NOT_UNIQUE\` and tells you how many matches it found — either widen \`old_string\` with more surrounding context, or pass \`replace_all: true\`.
-- \`new_string\` can be empty to delete \`old_string\`.
-- The edit is atomic: the file's row keeps its identity, the old storage blob is dropped, the new one takes its place.
+USE THIS over \`file_write\` for small changes to a file you already wrote — the rest stays byte-identical; far cheaper than re-emitting it. Use \`file_write\` instead when the file does not exist yet (\`file_edit\` errors \`NOT_FOUND\`; only \`file_write\` creates files), when you're rewriting most of it anyway, or for binary files (\`file_edit\` only handles text).
 
 QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
 
-Every result (success or failure) includes \`sandboxState\` — the current workspace manifest. Trust it over memory.`,
+Every result includes \`sandboxState\` — the current workspace manifest. Trust it over memory.`,
     inputSchema: fileEditArgs,
     execute: async (ctx: ToolCtx, args: FileEditArgs) => {
       const { organizationId, threadId } = ctx;
