@@ -11,11 +11,17 @@
  * `'system'`, a slug, or an email in an id-typed field therefore turns into
  * permanent error spam instead of a clean "not found".
  *
- * Convex document ids are lowercase base-32 strings around 32 characters. The
- * accepted range here is deliberately generous so a future id-length change
- * cannot reject real ids, while still excluding every realistic sentinel,
- * slug (dashes), or email (`@`, dots).
+ * Two shapes are accepted:
+ * - Production Convex document ids: lowercase base-32, roughly 32 characters.
+ *   The length band is deliberately generous so a future id-length change
+ *   cannot reject real ids, while still excluding every realistic sentinel,
+ *   slug (dashes), or email (`@`, dots).
+ * - `convex-test` synthetic ids: `<digits>;<tableName>` (e.g.
+ *   `10000;organization`). These are real document ids in the in-process
+ *   test backend and must reach `db.get` the same way production ids do.
  */
 export function looksLikeConvexDocumentId(value: string): boolean {
-  return /^[0-9a-z]{20,64}$/.test(value);
+  return (
+    /^[0-9a-z]{20,64}$/.test(value) || /^\d+;[a-zA-Z][a-zA-Z0-9_]*$/.test(value)
+  );
 }

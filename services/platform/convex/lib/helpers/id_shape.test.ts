@@ -13,6 +13,14 @@ describe('looksLikeConvexDocumentId', () => {
     );
   });
 
+  it('accepts convex-test synthetic document ids', () => {
+    // convex-test allocates ids as `<counter>;<tableName>`; these are real
+    // document ids in the in-process backend and must not be short-circuited.
+    expect(looksLikeConvexDocumentId('10000;organization')).toBe(true);
+    expect(looksLikeConvexDocumentId('1;user')).toBe(true);
+    expect(looksLikeConvexDocumentId('42;member')).toBe(true);
+  });
+
   it('rejects the sentinels and non-id strings that throw inside db.get', () => {
     // The 'system' actor sentinel — the observed "Invalid ID length 6" spam.
     expect(looksLikeConvexDocumentId('system')).toBe(false);
@@ -22,5 +30,8 @@ describe('looksLikeConvexDocumentId', () => {
     expect(looksLikeConvexDocumentId('ABCDEFGHIJKLMNOPQRSTUVWXYZ012345')).toBe(
       false,
     );
+    // Short alphanumeric fixtures used in mocked unit tests — not document ids.
+    expect(looksLikeConvexDocumentId('org1')).toBe(false);
+    expect(looksLikeConvexDocumentId('org_abc')).toBe(false);
   });
 });

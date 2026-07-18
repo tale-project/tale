@@ -31,6 +31,11 @@ interface OriginExtractionInput {
   region?: unknown;
 }
 
+/** True iff `err` is a Node ErrnoException with the given code. */
+function isErrnoCode(err: unknown, code: string): boolean {
+  return err instanceof Error && 'code' in err && err.code === code;
+}
+
 /**
  * Derive the browser-facing origin(s) for one org's connection file content.
  * With an explicit endpoint (MinIO/R2/Wasabi) the origin is the endpoint's.
@@ -107,7 +112,7 @@ export function collectOrgObjectStorageOrigins(configDir: string): string[] {
     } catch (err) {
       // Almost every org has no object-storage config — only warn on
       // anything other than the file simply not existing.
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if (!isErrnoCode(err, 'ENOENT')) {
         console.warn(`[org-storage-origins] cannot read ${file}`, err);
       }
       continue;

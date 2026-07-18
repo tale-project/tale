@@ -13,13 +13,17 @@ import { uploadFile } from './upload_file_direct';
 
 const uploadFileMock = vi.mocked(uploadFile);
 
+// Production-shaped document id so orgSlugFromId's syntactic gate lets the
+// mocked runQuery answer through (short fixtures like 'org-1' are rejected).
+const ORG_ID = 'jn7e5agwkrztazsh38bq0zt73n87e20w';
+
 const DEFAULT_METADATA = {
   fileName: 'document.pdf',
   contentType: 'application/pdf',
-  organizationId: 'org-1',
+  organizationId: ORG_ID,
 };
 
-const DEFAULT_ORG_ROW = { _id: 'org-1', slug: 'default' };
+const DEFAULT_ORG_ROW = { _id: ORG_ID, slug: 'default' };
 
 /**
  * `uploadDocument` no longer downloads the file into a Blob — the in-process
@@ -88,7 +92,7 @@ describe('uploadDocument', () => {
       fileName: 'contract.docx',
       contentType:
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      organizationId: 'org-1',
+      organizationId: ORG_ID,
     });
 
     await uploadDocument(ctx as never, FILE_ID);
@@ -105,7 +109,7 @@ describe('uploadDocument', () => {
       fileName: 'contract.docx',
       contentType:
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      organizationId: 'org-1',
+      organizationId: ORG_ID,
     });
 
     await uploadDocument(ctx as never, FILE_ID, {
@@ -123,7 +127,7 @@ describe('uploadDocument', () => {
     const ctx = createCtx({
       fileName: 'report',
       contentType: 'application/pdf',
-      organizationId: 'org-1',
+      organizationId: ORG_ID,
     });
 
     await uploadDocument(ctx as never, FILE_ID);
