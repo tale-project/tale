@@ -27,6 +27,7 @@ import {
   type ToolGatingState,
 } from '../tool_gating';
 
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- z.enum needs a non-empty tuple; GATED_TOOL_GROUPS is a non-empty const
 const GROUP_IDS = GATED_TOOL_GROUPS.map((g) => g.id) as [string, ...string[]];
 
 const requestCapabilitiesArgs = z.object({

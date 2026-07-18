@@ -32,9 +32,7 @@ import { createRequestCapabilitiesTool } from '../convex/agent_tools/capabilitie
 import {
   computeActiveToolNames,
   createToolGatingState,
-  GATED_TOOL_GROUPS,
   groupById,
-  lockedGroupsFor,
   REQUEST_CAPABILITIES_TOOL_NAME,
 } from '../convex/agent_tools/tool_gating';
 import { getToolRegistryMap } from '../convex/agent_tools/tool_registry';
