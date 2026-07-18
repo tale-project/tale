@@ -1,0 +1,69 @@
+/**
+ * {{episodeLabel}} — "{{titleEn}}". TODO: one line on what the episode
+ * teaches and the thread that carries it.
+ *
+ * Narration doctrine (produce-video skill): docs voice, written natively per
+ * locale — never translated word for word (write-translations). Storyboard
+ * FIRST (.agents/skills/produce-video/STORYBOARD.md), then a table read,
+ * then choreography. Scene ids join episode.ts ↔ scenes.ts — validate with
+ * `bun run docs:videos -- --episode {{id}} --stage check`.
+ */
+
+import type { EpisodeSpec } from '../../lib/episode';
+
+export const {{constName}}: EpisodeSpec = {
+  id: '{{id}}',
+  section: 'tutorials',
+  titleByLocale: {
+    en: '{{titleEn}}',
+    de: 'TODO — native German title',
+    fr: 'TODO — native French title',
+  },
+  episodeLabelByLocale: {
+    en: '{{episodeLabel}}',
+    de: '{{episodeLabel}}',
+    fr: '{{episodeLabel}}',
+  },
+  needsKnowledgeDb: {{needsKnowledgeDb}},
+  /** The series voices, pinned 2026-07-16 (audition history in ep1). */
+  voices: {
+    en: 'WZlYpi1yf6zJhNWXih74',
+    de: 'rKiu7lQ4c5P3az3745s3',
+    fr: 'QbsdzCokdlo98elkq4Pc',
+  },
+  /** One whole-episode generation per locale — consistent delivery. */
+  wholeTakeLocales: ['en', 'de', 'fr'],
+  // Typing a live chat prompt on camera? Add heroPromptByLocale and pair
+  // every locale with a DOCS_REPLIES match clause (lib/mocks/overrides/
+  // docs-replies.ts) — `--stage check` enforces the pairing.
+  scenes: [
+    {
+      id: 'title',
+      leadInMs: 1200,
+      narration: {
+        en: 'TODO — the opening line the title card plays under.',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      id: 'first-scene',
+      narration: {
+        en: 'TODO — write the story before the choreography.',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      id: 'outro',
+      // Post-narration room: the card holds ~2s, then the compose fade-out
+      // (1.5s) completes inside it — the ending must never feel cut off.
+      tailMs: 3600,
+      narration: {
+        en: 'TODO — the closing line over the outro card.',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+  ],
+} as const;
