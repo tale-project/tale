@@ -59,10 +59,14 @@ scene. End the episode by naming what the next one covers — the series is a se
 
 ## Adding an episode, in order
 
-1. Storyboard on paper: scenes, surfaces, the one wow moment, where the AI-literacy beat lands.
-2. Write `episode.ts` narration (en first, then de/fr natively) + any new mock replies
+1. Scaffold the pair: `bun run gen` → `video-episode` (spec + choreography skeleton with the
+   series voices and the warmup contract).
+2. Storyboard on paper: scenes, surfaces, the one wow moment, where the AI-literacy beat lands.
+3. Write `episode.ts` narration (en first, then de/fr natively) + any new mock replies
    (`lib/mocks/overrides/docs-replies.ts`) and demo-content the surfaces need (seeder, not takes).
-3. `--stage tts` once per locale; listen to two or three scenes before recording anything.
-4. Write `scenes.ts`; rehearse the risky interactions standalone before a full take.
-5. Record + compose per locale; run the SKILL.md ship checklist; embed on the docs pages
+   `--stage check` and `--stage plan` are instant — run them as you go.
+4. Write `scenes.ts`; rehearse the whole take free with `--mock-tts` (silence narration, draft
+   compose, review sheet) until the choreography fits every budget.
+5. `--stage tts` once per locale; listen to two or three scenes before recording anything.
+6. Record + compose per locale; run the SKILL.md ship checklist; embed on the docs pages
    (episode page + index row + any overview embeds) in all three locales.
