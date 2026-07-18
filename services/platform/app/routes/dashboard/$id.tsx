@@ -371,7 +371,9 @@ function DashboardLayout() {
                       {hasRole ? (
                         <AppSidebar organizationId={organizationId} />
                       ) : (
-                        <AppSidebarPlaceholder />
+                        <AppSidebarPlaceholder
+                          organizationId={organizationId}
+                        />
                       )}
 
                       <Stack
