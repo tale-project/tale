@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
   _resetStatusProbeCache,
+  _setNodeLaneProbeForTests,
   buildStatusFeed,
   type ComponentResult,
   probeServices,
@@ -32,8 +33,15 @@ function allOperationalFeedComponents(): StatusFeedComponent[] {
   return [{ id: 'convex', status: 'operational' }];
 }
 
+beforeEach(() => {
+  // The node-lane probe self-activates on ADMIN_KEY; a developer shell that
+  // exports one must not change which components these tests see.
+  vi.stubEnv('ADMIN_KEY', '');
+});
+
 afterEach(() => {
   _resetStatusProbeCache();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -144,6 +152,42 @@ describe('probeServices', () => {
     const [ra, rb, rc] = await Promise.all([a, b, c]);
     expect(ra).toBe(rb);
     expect(rb).toBe(rc);
+  });
+});
+
+describe('node-action lane probe', () => {
+  test('appears as a second component and keeps operational when up', async () => {
+    _setNodeLaneProbeForTests(() => Promise.resolve(true));
+    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.components.map((c) => c.id)).toEqual([
+      'convex',
+      'convexNodeActions',
+    ]);
+    expect(result.overall).toBe('operational');
+    // The node lane rides the admin client, not fetch — the single fetch is
+    // still the /version liveness probe.
+    expect(doFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('a wedged node lane degrades the status while V8 liveness stays green', async () => {
+    // The demo v0.3.8 incident shape: /version answered 200 while every
+    // 'use node' action died with "fetch failed" — the page must say
+    // degraded, not operational.
+    _setNodeLaneProbeForTests(() => Promise.resolve(false));
+    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.overall).toBe('degraded');
+    expect(
+      result.components.find((c) => c.id === 'convexNodeActions')?.up,
+    ).toBe(false);
+    expect(result.components.find((c) => c.id === 'convex')?.up).toBe(true);
+  });
+
+  test('absent without an ADMIN_KEY or override — dev keeps one component', async () => {
+    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.components.map((c) => c.id)).toEqual(['convex']);
   });
 });
 
@@ -300,6 +344,23 @@ describe('renderStatusPage', () => {
   test('uses French status words for fr locale', () => {
     expect(renderStatusPage(baseFeed, 'fr-FR')).toContain('>Opérationnel<');
     expect(renderStatusPage(outageFeed, 'fr-FR')).toContain('>Indisponible<');
+  });
+
+  test('renders the background-processing row when the node lane is down', () => {
+    const degraded: StatusFeed = {
+      status: 'degraded',
+      components: [
+        { id: 'convex', status: 'operational' },
+        { id: 'convexNodeActions', status: 'outage' },
+      ],
+      checkedAt: baseFeed.checkedAt,
+    };
+    const html = renderStatusPage(degraded, '');
+    expect(html).toContain('Partial degradation');
+    expect(html).toContain('Background processing');
+    expect(html).toContain('>Unavailable<');
+    // Still no stack names on the public surface.
+    expect(html).not.toContain('Convex');
   });
 
   test('marks status dots aria-hidden so screen readers rely on the text label', () => {
