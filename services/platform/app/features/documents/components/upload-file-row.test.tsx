@@ -80,6 +80,25 @@ describe('UploadFileRow', () => {
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
+  it('shows an indeterminate confirming state once all bytes are sent', () => {
+    render(
+      <UploadFileRow
+        {...baseProps}
+        status="finalizing"
+        bytesLoaded={1_200_000}
+        bytesTotal={1_200_000}
+      />,
+    );
+
+    // No frozen "100%" — the copy says what's actually happening.
+    expect(screen.getByText('Confirming upload…')).toBeInTheDocument();
+    expect(screen.queryByText('100%')).not.toBeInTheDocument();
+    // The bar is indeterminate: present, labelled, but with no value.
+    const bar = screen.getByRole('progressbar');
+    expect(bar).toHaveAccessibleName('Confirming upload of test-document.pdf');
+    expect(bar).not.toHaveAttribute('aria-valuenow');
+  });
+
   it('shows check icon for completed files', () => {
     render(<UploadFileRow {...baseProps} status="completed" />);
 
@@ -122,6 +141,18 @@ describe('UploadFileRow', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<UploadFileRow {...baseProps} />);
+      await checkAccessibility(container);
+    });
+
+    it('passes axe audit in the indeterminate confirming state', async () => {
+      const { container } = render(
+        <UploadFileRow
+          {...baseProps}
+          status="finalizing"
+          bytesLoaded={1_200_000}
+          bytesTotal={1_200_000}
+        />,
+      );
       await checkAccessibility(container);
     });
   });

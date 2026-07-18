@@ -2521,6 +2521,8 @@
       "fromMicrosoft365": "From Microsoft 365",
       "uploadInProgress": "Upload in progress",
       "uploadingFileNamed": "Uploading {fileName}",
+      "confirming": "Confirming upload…",
+      "confirmingFileNamed": "Confirming upload of {fileName}",
       "failedFileName": "{fileName} — Failed",
       "pleaseWaitForUpload": "Please wait for the current upload to complete",
       "noFilesSelected": "No files selected",

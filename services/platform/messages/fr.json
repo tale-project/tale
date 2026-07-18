@@ -2521,6 +2521,8 @@
       "fromMicrosoft365": "Depuis Microsoft 365",
       "uploadInProgress": "Téléversement en cours",
       "uploadingFileNamed": "Téléversement de {fileName}",
+      "confirming": "Confirmation du téléversement…",
+      "confirmingFileNamed": "Confirmation du téléversement de {fileName}",
       "failedFileName": "{fileName} — Échec",
       "pleaseWaitForUpload": "Merci de patienter jusqu'à la fin du téléversement en cours",
       "noFilesSelected": "Aucun fichier sélectionné",

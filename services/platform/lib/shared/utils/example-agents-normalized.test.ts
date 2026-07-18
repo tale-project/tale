@@ -26,9 +26,13 @@ const EXAMPLES_DIR = path.resolve(
 describe('builtin-configs/agents/*.json invariants', () => {
   // Recursive: agents moved to a tree layout (chat/, github/), and
   // a non-recursive listing silently shrank this gate to router.json only.
+  // Hidden directories are skipped: editor tooling drops stale copies into
+  // e.g. `.history/`, and those must not fail (or pass!) a gate about the
+  // configs that actually ship.
   const files = readdirSync(EXAMPLES_DIR, { recursive: true })
     .map(String)
     .filter((f) => f.endsWith('.json'))
+    .filter((f) => !f.split(path.sep).some((seg) => seg.startsWith('.')))
     .sort();
 
   it('discovered the agent tree, not just the domain root', () => {
