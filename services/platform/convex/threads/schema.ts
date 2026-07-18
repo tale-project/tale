@@ -310,6 +310,15 @@ export const threadMetadataTable = defineTable({
    * bounding runaway agent chatter.
    */
   agentReplyDepth: v.optional(v.number()),
+  /**
+   * Tool-gating unlocks (#2781): capability-group ids the model unlocked via
+   * `request_capabilities` on this thread. Sticky-grow only — groups are
+   * added, never removed — so the provider prompt-cache prefix stays stable
+   * across the thread's turns (a tool-set change invalidates it, so it must
+   * remain a rare, monotonic event). Group ids are defined in
+   * `agent_tools/tool_gating.ts`; unknown ids are ignored on read.
+   */
+  unlockedToolGroups: v.optional(v.array(v.string())),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

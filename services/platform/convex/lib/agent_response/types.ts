@@ -11,6 +11,7 @@ import type {
   ResponseStyleAdvice,
 } from '../../../lib/shared/response-tuning';
 import type { ActionCtx } from '../../_generated/server';
+import type { ToolGatingState } from '../../agent_tools/tool_gating';
 import type { AutoRouteReason } from '../../streaming/validators';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management';
@@ -105,6 +106,19 @@ export interface GenerateResponseConfig {
    * message-language rules still take precedence. Optional.
    */
   replyLocaleHint?: string;
+  /**
+   * Two-tier tool gating (#2781). Present only when gating applies to this
+   * turn. `state` is the turn's mutable unlock set — written by the
+   * `request_capabilities` tool, hydrated from the thread's persisted unlocks
+   * once threadMetadata resolves, and read by `prepareStep` to compute the
+   * per-step `activeTools`. In-process only (this config already carries
+   * functions); the legacy scheduled-action path simply omits it → gating off.
+   */
+  toolGating?: {
+    state: ToolGatingState;
+    /** The agent's full tool-name universe (registry + extras, no meta-tool). */
+    allToolNames: readonly string[];
+  };
 }
 
 /**

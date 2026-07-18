@@ -38,6 +38,10 @@ import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
+import {
+  computeActiveToolNames,
+  hydrateToolGatingState,
+} from '../../agent_tools/tool_gating';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import {
   finalizeSanitize,
@@ -191,7 +195,21 @@ export async function generateAgentResponse(
     responseStyle,
     routeSeed,
     replyLocaleHint,
+    toolGating,
   } = config;
+  // Per-step active-tool computation for two-tier gating (#2781): recomputed
+  // on every step so a `request_capabilities` unlock (which mutates
+  // `toolGating.state` during its execute) takes effect on the model's next
+  // step of the SAME stream. Cast: the SDK types activeTools as keyof TOOLS,
+  // unknowable behind the Agent abstraction.
+  const gatingActiveTools = () =>
+    toolGating
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- names are the Agent's own tool keys by construction
+        (computeActiveToolNames(
+          toolGating.allToolNames,
+          toolGating.state,
+        ) as never[])
+      : undefined;
   const {
     ctx,
     threadId,
@@ -885,6 +903,15 @@ export async function generateAgentResponse(
           ]),
     ]);
     const reasoningState = reasoningStateRow?.reasoningState ?? undefined;
+    // Fold the thread's persisted capability unlocks into the turn's gating
+    // state (same threadMetadata row the reasoning governor reads — no extra
+    // query). Must happen before the first step's activeTools are computed.
+    if (toolGating) {
+      hydrateToolGatingState(
+        toolGating.state,
+        reasoningStateRow?.unlockedToolGroups,
+      );
+    }
     // Assign the hoisted guardrails state from the parallel resolve above.
     [guardrailsSnapshot, resolvedOrgSlug] = guardrailsPair;
     // Auto-compaction rolling summary (compacted earlier turns). Injected into
@@ -1156,6 +1183,9 @@ export async function generateAgentResponse(
             // Reasoning knobs don't affect the cached prefix, so dropping them
             // here is safe.
             ...(providerOptions ? { providerOptions } : {}),
+            // Prime the SAME wire shape a gated real turn sends — a prewarm
+            // with all tools active would cache a prefix no real turn uses.
+            ...(toolGating ? { activeTools: gatingActiveTools() } : {}),
           },
           { storageOptions: { saveMessages: 'none' } },
         )
@@ -1396,6 +1426,16 @@ export async function generateAgentResponse(
                 firstTokenTime = Date.now();
               }
             },
+            // Two-tier tool gating: serialize only the active tools to the
+            // wire; prepareStep re-reads the unlock state before every step
+            // so a request_capabilities call activates its group on the very
+            // next step. Both keys are omitted entirely when gating is off.
+            ...(toolGating
+              ? {
+                  activeTools: gatingActiveTools(),
+                  prepareStep: () => ({ activeTools: gatingActiveTools() }),
+                }
+              : {}),
           },
           {
             contextOptions: {

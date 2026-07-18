@@ -24,6 +24,7 @@ import type * as agent_tools_agents_agent_read_tool from "../agent_tools/agents/
 import type * as agent_tools_agents_agent_write_tool from "../agent_tools/agents/agent_write_tool.js";
 import type * as agent_tools_approval_shared from "../agent_tools/approval_shared.js";
 import type * as agent_tools_automations_automation_search_tool from "../agent_tools/automations/automation_search_tool.js";
+import type * as agent_tools_capabilities_request_capabilities_tool from "../agent_tools/capabilities/request_capabilities_tool.js";
 import type * as agent_tools_contacts_contact_read_tool from "../agent_tools/contacts/contact_read_tool.js";
 import type * as agent_tools_contacts_contact_write_tool from "../agent_tools/contacts/contact_write_tool.js";
 import type * as agent_tools_contacts_helpers_count_contacts from "../agent_tools/contacts/helpers/count_contacts.js";
@@ -129,6 +130,7 @@ import type * as agent_tools_tasks_project_read_tool from "../agent_tools/tasks/
 import type * as agent_tools_tasks_project_write_tool from "../agent_tools/tasks/project_write_tool.js";
 import type * as agent_tools_tasks_task_read_tool from "../agent_tools/tasks/task_read_tool.js";
 import type * as agent_tools_tasks_task_write_tool from "../agent_tools/tasks/task_write_tool.js";
+import type * as agent_tools_tool_gating from "../agent_tools/tool_gating.js";
 import type * as agent_tools_tool_names from "../agent_tools/tool_names.js";
 import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js";
 import type * as agent_tools_types from "../agent_tools/types.js";
@@ -1802,6 +1804,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/agents/agent_write_tool": typeof agent_tools_agents_agent_write_tool;
   "agent_tools/approval_shared": typeof agent_tools_approval_shared;
   "agent_tools/automations/automation_search_tool": typeof agent_tools_automations_automation_search_tool;
+  "agent_tools/capabilities/request_capabilities_tool": typeof agent_tools_capabilities_request_capabilities_tool;
   "agent_tools/contacts/contact_read_tool": typeof agent_tools_contacts_contact_read_tool;
   "agent_tools/contacts/contact_write_tool": typeof agent_tools_contacts_contact_write_tool;
   "agent_tools/contacts/helpers/count_contacts": typeof agent_tools_contacts_helpers_count_contacts;
@@ -1907,6 +1910,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/tasks/project_write_tool": typeof agent_tools_tasks_project_write_tool;
   "agent_tools/tasks/task_read_tool": typeof agent_tools_tasks_task_read_tool;
   "agent_tools/tasks/task_write_tool": typeof agent_tools_tasks_task_write_tool;
+  "agent_tools/tool_gating": typeof agent_tools_tool_gating;
   "agent_tools/tool_names": typeof agent_tools_tool_names;
   "agent_tools/tool_registry": typeof agent_tools_tool_registry;
   "agent_tools/types": typeof agent_tools_types;
