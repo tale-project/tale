@@ -27,13 +27,10 @@ import {
   probeDurationMs,
   runFfmpeg,
 } from './ffmpeg';
+import { DOCS_PUBLIC_DIR } from './paths';
 import { framesDir, timelinePath, type RecordedTimeline } from './recorder';
 import { driftReport, driftViolations, MAX_DRIFT_MS } from './timeline';
 import { upsertVideoManifest, type VideoManifestEntry } from './video-manifest';
-
-const HERE = path.dirname(new URL(import.meta.url).pathname);
-const REPO_ROOT = path.resolve(HERE, '../../../../..');
-const DOCS_PUBLIC = path.join(REPO_ROOT, 'services/docs/public');
 
 const FPS = 30;
 const OUT_WIDTH = 1920;
@@ -109,7 +106,7 @@ export async function runComposeStage(
 
   const outDir = episode.diagnostic
     ? path.join(stateDir, 'out')
-    : path.join(DOCS_PUBLIC, 'videos', locale, episode.section, episode.id);
+    : path.join(DOCS_PUBLIC_DIR, 'videos', locale, episode.section, episode.id);
   mkdirSync(outDir, { recursive: true });
   const baseName = `${episode.id}.${locale}`;
   const mp4Path = path.join(outDir, `${baseName}.mp4`);
@@ -251,7 +248,7 @@ export async function runComposeStage(
 
   if (!episode.diagnostic) {
     const relative = (file: string) =>
-      path.relative(DOCS_PUBLIC, file).split(path.sep).join('/');
+      path.relative(DOCS_PUBLIC_DIR, file).split(path.sep).join('/');
     const entries: VideoManifestEntry[] = [
       {
         file: relative(mp4Path),
@@ -278,7 +275,7 @@ export async function runComposeStage(
         height: poster.height,
       },
     ];
-    upsertVideoManifest(DOCS_PUBLIC, entries);
+    upsertVideoManifest(DOCS_PUBLIC_DIR, entries);
     console.log(`  ✓ manifest updated (${entries.length} entries)`);
   }
 }

@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { probeDurationMs } from './ffmpeg';
+import { ffmpegBin, probeDurationMs, runFfmpeg } from './ffmpeg';
 
 const API_BASE = 'https://api.elevenlabs.io';
 const PREFERRED_MODEL = 'eleven_v3';
@@ -94,7 +94,16 @@ interface CacheSidecar {
   readonly characters: number;
 }
 
-function cacheKey(model: string, request: SynthesisRequest): string {
+/**
+ * Cache key of one per-scene generation. BYTE-STABLE CONTRACT: the JSON
+ * field set, order, and constant values must never change — every cached
+ * mp3 under `.state/tts-cache/` is keyed by this, and a drifted key
+ * re-bills the entire back catalog (pinned by tts-cache-key.test.ts).
+ */
+export function sceneCacheKey(
+  model: string,
+  request: SynthesisRequest,
+): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
@@ -161,7 +170,7 @@ export async function synthesize(
     model === PREFERRED_MODEL
       ? { text: request.text, voiceId: request.voiceId }
       : request;
-  const key = cacheKey(model, effective);
+  const key = sceneCacheKey(model, effective);
   const cacheDir = path.join(stateDir, 'tts-cache');
   const mp3Path = path.join(cacheDir, `${key}.mp3`);
   const sidecarPath = path.join(cacheDir, `${key}.json`);
@@ -227,6 +236,30 @@ const SLICE_LEAD_SEC = 0.08;
 const SLICE_TAIL_SEC = 0.15;
 
 /**
+ * Cache key of one whole-episode generation. Same byte-stability contract
+ * as `sceneCacheKey` (pinned by tts-cache-key.test.ts).
+ */
+export function wholeEpisodeCacheKey(
+  model: string,
+  voiceId: string,
+  joined: string,
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        kind: 'whole-episode-v1',
+        model,
+        voiceId,
+        joined,
+        settings: VOICE_SETTINGS,
+        seed: SEED,
+        format: OUTPUT_FORMAT,
+      }),
+    )
+    .digest('hex');
+}
+
+/**
  * Synthesize a whole episode's narration as ONE generation and slice it into
  * per-scene mp3s via the character-timestamp alignment. One generation means
  * one consistent delivery — per-scene generations audibly drift in tone
@@ -243,19 +276,7 @@ export async function synthesizeEpisodeWhole(
   const model = await resolveTtsModel();
   const spoken = texts.map((t) => t.trim());
   const joined = spoken.filter(Boolean).join('\n\n');
-  const key = createHash('sha256')
-    .update(
-      JSON.stringify({
-        kind: 'whole-episode-v1',
-        model,
-        voiceId,
-        joined,
-        settings: VOICE_SETTINGS,
-        seed: SEED,
-        format: OUTPUT_FORMAT,
-      }),
-    )
-    .digest('hex');
+  const key = wholeEpisodeCacheKey(model, voiceId, joined);
   const cacheDir = path.join(stateDir, 'tts-cache');
   const wholePath = path.join(cacheDir, `${key}.whole.mp3`);
   const sidecarPath = path.join(cacheDir, `${key}.whole.json`);
@@ -326,8 +347,6 @@ export async function synthesizeEpisodeWhole(
     ] ?? 0;
 
   // Locate each scene's character span inside `joined` and cut around it.
-  const { runFfmpeg: run } = await import('./ffmpeg');
-  const { ffmpegBin: bin } = await import('./ffmpeg');
   const slices: EpisodeSliceResult[] = [];
   const sidecarSlices: { file: string; durationMs: number }[] = [];
   let cursor = 0;
@@ -355,8 +374,8 @@ export async function synthesizeEpisodeWhole(
     previousEndSec = endSec;
     const file = `${key}.scene-${index}.mp3`;
     const slicePath = path.join(cacheDir, file);
-    await run(
-      bin(),
+    await runFfmpeg(
+      ffmpegBin(),
       [
         '-y',
         '-i',

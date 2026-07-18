@@ -32,6 +32,7 @@ import { installVideoCards } from './cards';
 import { Cursor } from './cursor';
 import type { EpisodeSpec, Locale } from './episode';
 import { contextLocale, localeT } from './i18n';
+import { SCREENSHOTS_STATE_DIR, STATE_DIR } from './paths';
 import {
   choreographyFor,
   type SceneChoreography,
@@ -40,13 +41,6 @@ import {
 import { planTimeline, type PlannedTimeline } from './timeline';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
-const SCREENSHOTS_STATE = path.join(
-  HERE,
-  '..',
-  '..',
-  'docs-screenshots',
-  '.state',
-);
 
 const VIEWPORT = { width: 1920, height: 1080 } as const;
 const DPR = 2;
@@ -85,7 +79,7 @@ function readOrgState(episode: EpisodeSpec, locale: Locale): OrgState {
   // en records against the shared docs-screenshots org; de/fr against their
   // own natively-seeded orgs (native task titles, documents, entries).
   if (locale === 'en') {
-    const orgStatePath = path.join(SCREENSHOTS_STATE, 'org.json');
+    const orgStatePath = path.join(SCREENSHOTS_STATE_DIR, 'org.json');
     if (!existsSync(orgStatePath)) {
       throw new Error(
         `No demo workspace at ${orgStatePath} — run \`bun run docs:screenshots\` once ` +
@@ -95,7 +89,7 @@ function readOrgState(episode: EpisodeSpec, locale: Locale): OrgState {
     const state = JSON.parse(readFileSync(orgStatePath, 'utf8')) as OrgState;
     return { orgId: state.orgId, projects: state.projects ?? {} };
   }
-  const localeOrgsPath = path.join(HERE, '..', '.state', 'locale-orgs.json');
+  const localeOrgsPath = path.join(STATE_DIR, 'locale-orgs.json');
   if (!existsSync(localeOrgsPath)) {
     throw new Error(
       `No locale orgs at ${localeOrgsPath} — run ` +
@@ -244,7 +238,7 @@ async function cleanupWowThread(
     return;
   const cleanupContext = await browser.newContext({
     baseURL: BASE_URL,
-    storageState: path.join(SCREENSHOTS_STATE, 'auth.json'),
+    storageState: path.join(SCREENSHOTS_STATE_DIR, 'auth.json'),
     viewport: VIEWPORT,
     locale: 'en-US',
     timezoneId: 'UTC',
@@ -461,8 +455,8 @@ export async function runRecordStage(
   try {
     const context = await browser.newContext({
       baseURL: BASE_URL,
-      ...(existsSync(path.join(SCREENSHOTS_STATE, 'auth.json'))
-        ? { storageState: path.join(SCREENSHOTS_STATE, 'auth.json') }
+      ...(existsSync(path.join(SCREENSHOTS_STATE_DIR, 'auth.json'))
+        ? { storageState: path.join(SCREENSHOTS_STATE_DIR, 'auth.json') }
         : {}),
       viewport: VIEWPORT,
       deviceScaleFactor: DPR,
