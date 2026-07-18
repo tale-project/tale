@@ -172,60 +172,13 @@ export const requestHumanInputTool = {
   tool: createTool({
     description: `**DIRECTLY call this tool** to ask the user a question and collect their response in the current chat.
 
-**MANDATORY — this tool is the ONLY way to collect user input:**
-• Whenever you need ANY information, confirmation, or decision from the user, you MUST call this tool — the user CANNOT reply to plain text in your response
-• Applies to: clarifications, missing values, confirmations, preferences, follow-up questions, disambiguation
+**MANDATORY — the ONLY way to collect user input:** whenever you need ANY information, confirmation, decision, clarification, missing value, preference, or disambiguation from the user, you MUST call this tool — the user CANNOT reply to plain text in your response. NEVER present options/choices as plain text or numbered lists — always this tool, so the user can interactively select. Do NOT delegate it, show JSON examples, or describe the card — calling it renders an interactive input card immediately.
 
-**IMPORTANT - DIRECT TOOL CALL:**
-• This is a DIRECT tool call - do NOT delegate to other agents to create human input requests
-• When you call this tool, an interactive input card will IMMEDIATELY appear in the chat UI
-• The user can respond by clicking options or typing text directly in the chat
-• Do NOT show JSON examples or code snippets - just call this tool directly
-• NEVER present options/choices as plain text — always use this tool so the user can interactively select
+**DISAMBIGUATION — multiple matches from a search:** never proceed with all matches or pick one arbitrarily. Call this tool with a single_select whose options carry distinguishing details (name, email, status), then STOP immediately — say you found N candidates and are waiting for their selection.
 
-**WHEN TO USE:**
-• When presenting multiple options, suggestions, or recommendations for the user to choose from
-• ANY time your response would list numbered/bulleted choices — use this tool instead of plain text
-• When you encounter multiple valid options and need user to decide
-• To clarify ambiguous requirements before proceeding
-• To get user confirmation for important or destructive actions
-• To collect structured information (e.g., contract details, user profiles, configuration)
+**HOW IT WORKS:** every call MUST include a top-level \`question\` (the heading shown above the inputs) AND \`fields\` (≥1); \`context\` is optional supporting detail, never a replacement for \`question\`. Field types: text · textarea · number / email / url / tel · single_select (ONE option, radio) · multi_select (one or more, checkboxes) · yes_no (binary confirmation). Select options must resolve to unique values — similar labels need explicit distinct \`value\` fields.
 
-**DISAMBIGUATION — multiple matches from a search:**
-When searching for a specific record and you find MULTIPLE candidates:
-1. Do NOT proceed with all matches or pick one arbitrarily
-2. Call this tool with format "single_select"
-3. Include distinguishing details in each option (name, email, status, etc.) so the user can tell them apart
-4. STOP immediately after calling — do not continue with other tools
-
-Example: user asks for "John's email" and you find 3 Johns → call this tool with 3 options, then stop and say you found 3 customers named John and are waiting for their selection.
-
-**HOW IT WORKS:**
-Every call MUST include a top-level **\`question\`** (string — the heading/prompt shown above the inputs) AND **\`fields\`** (at least one). \`context\` is optional supporting detail and never replaces \`question\`. Each field has a type that determines how it renders:
-
-**FIELD TYPES:**
-• text: Short single-line text input
-• textarea: Multi-line text input for longer content
-• number / email / url / tel: Specialized text inputs
-• single_select: User picks ONE option from a list (radio buttons). Each option must resolve to a unique value — if labels are similar, provide explicit distinct "value" fields.
-• multi_select: User picks ONE OR MORE options (checkboxes). Same uniqueness rule as single_select.
-• yes_no: Binary yes/no confirmation (defaults to Yes/No buttons)
-
-**EXAMPLE - Single question (one select field):**
-- question: "Which meal would you like?"
-- fields: [{ label: "Meal choice", type: "single_select", options: [{ label: "Creamy Garlic Pasta", description: "Italian comfort food" }, { label: "Mediterranean Bowl", description: "Quinoa with veggies" }, { label: "Thai Coconut Curry", description: "Aromatic curry with rice" }] }]
-
-**EXAMPLE - Confirmation (one yes_no field):**
-- question: "Please confirm"
-- fields: [{ label: "Delete these 3 records?", type: "yes_no", required: true }]
-
-**EXAMPLE - Collecting structured information (multiple fields):**
-- question: "Please provide the purchase contract details"
-- fields: [{ label: "Contract date", type: "text", required: true }, { label: "Seller company name", type: "text", required: true }, { label: "Seller address", type: "textarea" }, { label: "Buyer company name", type: "text", required: true }, { label: "Buyer address", type: "textarea" }, { label: "Payment terms", type: "single_select", options: [{ label: "Net 30" }, { label: "Net 60" }, { label: "Upon delivery" }] }]
-
-**EXAMPLE - Mixed field types:**
-- question: "Configure your notification preferences"
-- fields: [{ label: "Notification channels", type: "multi_select", required: true, options: [{ label: "Email" }, { label: "SMS" }, { label: "Slack" }] }, { label: "Custom webhook URL", type: "url" }, { label: "Enable daily digest?", type: "yes_no" }]
+Example: question: "Which meal would you like?" · fields: [{ label: "Meal choice", type: "single_select", options: [{ label: "Creamy Garlic Pasta", description: "Italian comfort food" }, { label: "Thai Coconut Curry" }] }]
 
 **AFTER CALLING - CRITICAL:**
 • An input card appears in the user's chat interface
