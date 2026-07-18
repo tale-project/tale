@@ -19,6 +19,8 @@ bun run gen:package    # packages/<name> — kind: react | typescript
 bun run gen:service    # services/<name> — kind: react | docker
 bun run gen:tool       # tools/<name>    — kind: typescript | shell
 bun run gen:skill      # .agents/skills/<name> or builtin-configs/skills/<name> — docs (SKILL.md + README)
+bun run gen:migration  # services/platform/convex/migrations/versions/<v>/<nn>_<slug> — kind: db | node | component | reference
+bun run gen:episode    # services/platform/tests/docs-videos/episodes/<id> — spec + choreography skeleton
 ```
 
 Each generator prompts for a **kind** (the skill generator for a **category**)
@@ -26,8 +28,8 @@ and scaffolds from the matching `templates/<category>/<kind>/` directory.
 
 ## Layout
 
-- `generators/` — one generator per category (`package`, `service`, `tool`, `skill`),
-  each selecting a variant via a `kind` prompt
+- `generators/` — one generator per category (`package`, `service`, `tool`, `skill`,
+  `migration`, `video-episode`), most selecting a variant via a `kind` prompt
 - `templates/<category>/<kind>/` — Handlebars (`.hbs`) and static templates
   rendered by the generators
 - `helpers/` — shared Handlebars helpers registered with Plop
