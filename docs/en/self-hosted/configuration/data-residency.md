@@ -61,6 +61,8 @@ Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only
 
 Org admins can manage this connection from **Settings > Organization data residency** too; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
 
+> **Allow the app's origin in the bucket's CORS policy.** Uploads and downloads run directly between the browser and the bucket via presigned URLs, so the bucket must accept cross-origin requests from your deployment's URL — allow that origin with the methods `GET`, `PUT`, and `HEAD` and all request headers (Cloudflare R2: the bucket's **Settings > CORS Policy**; AWS S3 and MinIO: the bucket's CORS configuration). The in-app connection test runs from the server, not the browser, so a missing CORS policy surfaces only later, as a failed upload.
+
 ### Moving pre-existing files into the bucket
 
 Connecting the bucket only reroutes **new** uploads; the blobs written before you connected it stay in Convex's `_storage` and keep working through the mixed references above. To bring that history onto your own infrastructure as well — the whole point of data residency — run the **blob backfill**: an operator action that copies each pre-existing blob into the org's bucket, verifies it round-trips byte-for-byte, rewrites every row that references it, and deletes the Convex copy.
