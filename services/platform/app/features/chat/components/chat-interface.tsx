@@ -1311,7 +1311,9 @@ export function ChatInterface({
               // md:pt-19 = the floating glass top bar (52px) + the list's own
               // 24px breathing room: at rest content clears the bar; once
               // scrolled it slides beneath the blur (the scroller spans the
-              // full column height behind the overlay).
+              // full column height behind the overlay). Send-snap / response
+              // slack read this padding-top as their top inset so a just-sent
+              // bubble stays fully visible under the glass, not at 16px.
               'flex flex-col overflow-y-visible p-4 sm:p-6 md:pt-19',
               showWelcome && 'flex-1 justify-center',
             )}

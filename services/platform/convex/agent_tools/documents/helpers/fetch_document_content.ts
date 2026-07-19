@@ -1,7 +1,7 @@
 import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 
-const MAX_CONTENT_CHARS = 50_000;
+export const MAX_CONTENT_CHARS = 50_000;
 
 export interface DocumentContentResult {
   fileId: string;

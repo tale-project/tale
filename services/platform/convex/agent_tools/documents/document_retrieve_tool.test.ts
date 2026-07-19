@@ -460,6 +460,164 @@ describe('retrieveDocument helper', () => {
   });
 });
 
+describe('transcript fallback (RAG index not ready)', () => {
+  const TRANSCRIPT = 'Source: https://youtu.be/abc\n\n[00:00:01] hello world';
+
+  /** Chat-attachment `fileMetadata` row carrying a completed transcript —
+   * the shape `insertSyntheticFileMetadata` (video captions) and
+   * `transcribe_audio` (Whisper) write before RAG indexing finishes. */
+  function transcriptRow(overrides?: Record<string, unknown>) {
+    return {
+      organizationId: ORG_ID,
+      storageId: 'chat-upload-1',
+      fileName: 'My Video.txt',
+      transcript: TRANSCRIPT,
+      transcriptionStatus: 'completed',
+      ragStatus: 'queued',
+      ...overrides,
+    };
+  }
+
+  it('serves the stored transcript while indexing is pending, without hitting RAG', async () => {
+    ({ ctx, runAction } = createCtx({
+      queryResults: [
+        null, // findDocumentByFileId — no hub row
+        transcriptRow(), // getByStorageId — transcript ready, index queued
+        [], // lookupVideoLinkSources
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    const result = await retrieveDocument(ctx, { fileId: 'chat-upload-1' });
+
+    expect(result.content).toBe(TRANSCRIPT);
+    expect(result.name).toBe('My Video.txt');
+    expect(result.chunkRange).toEqual({ start: 1, end: 1 });
+    expect(result.totalChunks).toBe(1);
+    expect(result.note).toMatch(/still in progress/);
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it('rescues ragStatus=failed when a transcript exists, noting the failure', async () => {
+    ({ ctx, runAction } = createCtx({
+      queryResults: [
+        null,
+        transcriptRow({ ragStatus: 'failed', ragError: 'embedder down' }),
+        [],
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    const result = await retrieveDocument(ctx, { fileId: 'chat-upload-1' });
+
+    expect(result.content).toBe(TRANSCRIPT);
+    expect(result.note).toMatch(/indexing failed/i);
+    expect(result.note).toContain('embedder down');
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it('wraps video-sourced fallback content as untrusted', async () => {
+    ({ ctx } = createCtx({
+      queryResults: [
+        null,
+        transcriptRow(),
+        [{ sourceUrl: 'https://youtu.be/abc' }], // lookupVideoLinkSources
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    const result = await retrieveDocument(ctx, { fileId: 'chat-upload-1' });
+
+    expect(result.content).toContain(
+      '<untrusted_source tool="document_retrieve" url="https://youtu.be/abc">',
+    );
+    expect(result.content).toContain(TRANSCRIPT);
+    expect(result.content.trimEnd()).toMatch(/<\/untrusted_source>$/);
+  });
+
+  it('paginates the transcript with the same chunk protocol', async () => {
+    const longTranscript =
+      'a'.repeat(2048) + 'b'.repeat(2048) + 'c'.repeat(500);
+    ({ ctx } = createCtx({
+      queryResults: [null, transcriptRow({ transcript: longTranscript }), []],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    const result = await retrieveDocument(ctx, {
+      fileId: 'chat-upload-1',
+      chunkStart: 2,
+      chunkEnd: 2,
+    });
+
+    expect(result.content).toBe('b'.repeat(2048));
+    expect(result.chunkRange).toEqual({ start: 2, end: 2 });
+    expect(result.totalChunks).toBe(3);
+  });
+
+  it('keeps the indexing error when transcription has not completed', async () => {
+    ({ ctx } = createCtx({
+      queryResults: [null, transcriptRow({ transcriptionStatus: 'running' })],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    await expect(
+      retrieveDocument(ctx, { fileId: 'chat-upload-1' }),
+    ).rejects.toThrow('still being indexed');
+  });
+
+  it('keeps the failed error when no transcript exists', async () => {
+    ({ ctx } = createCtx({
+      queryResults: [
+        null,
+        transcriptRow({
+          transcript: '',
+          ragStatus: 'failed',
+          ragError: 'crawler timeout',
+        }),
+      ],
+      ragResult: createRagResult(),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    await expect(
+      retrieveDocument(ctx, { fileId: 'chat-upload-1' }),
+    ).rejects.toThrow('RAG indexing failed');
+  });
+
+  it('leaves the note unset on the normal RAG path', async () => {
+    ({ ctx } = createCtx({
+      queryResults: [
+        null,
+        {
+          organizationId: ORG_ID,
+          storageId: 'chat-upload-1',
+          ragStatus: 'completed',
+        },
+        { slug: ORG_SLUG },
+        [],
+      ],
+      ragResult: createRagResult({ file_id: 'chat-upload-1' }),
+      organizationId: ORG_ID,
+      userId: USER_ID,
+    }));
+
+    const result = await retrieveDocument(ctx, { fileId: 'chat-upload-1' });
+
+    expect(result.note).toBeUndefined();
+  });
+});
+
 describe('documentRetrieveArgs schema validation', () => {
   it('accepts valid fileId only', () => {
     const result = documentRetrieveArgs.parse({ fileId: 'abc123' });

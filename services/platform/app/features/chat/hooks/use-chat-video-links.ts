@@ -61,6 +61,21 @@ const NON_TERMINAL: ReadonlySet<string> = new Set([
   'indexing',
 ]);
 
+/**
+ * Structured `code` off a ConvexError rejection, when present. Video-link
+ * mutations reject with codes that map 1:1 to `videoLink.errors.*` keys
+ * (retryCooldown, budgetExceeded, inFlightCap, …); unstructured errors
+ * return undefined so callers fall back to the generic copy.
+ */
+function convexErrorCode(err: unknown): string | undefined {
+  return err instanceof ConvexError &&
+    typeof err.data === 'object' &&
+    err.data !== null &&
+    'code' in err.data
+    ? String(err.data.code)
+    : undefined;
+}
+
 export interface UseChatVideoLinksResult {
   jobs: VideoLinkJob[];
   isAnyProcessing: boolean;
@@ -229,19 +244,9 @@ export function useChatVideoLinks(args: {
           });
           ingested += 1;
         } catch (err) {
-          // Surface the rejection to the user. ConvexError carries a
-          // structured `code` that maps 1:1 to `videoLink.errors.*` keys;
-          // unstructured errors fall back to the generic copy.
-          // After the `instanceof ConvexError`, type-check, and
-          // `'code' in err.data` narrowings, TS already knows
-          // `err.data.code: unknown` — no cast required.
-          const code =
-            err instanceof ConvexError &&
-            typeof err.data === 'object' &&
-            err.data !== null &&
-            'code' in err.data
-              ? String(err.data.code)
-              : undefined;
+          // Surface the rejection to the user; unstructured errors fall
+          // back to the generic copy.
+          const code = convexErrorCode(err);
           toast({
             title: tChat('videoLink.toast.ingestFailedTitle'),
             description: tChat(
@@ -294,9 +299,31 @@ export function useChatVideoLinks(args: {
 
   const retryJob = useCallback(
     async (jobId: Id<'videoLinkJobs'>) => {
-      await retryMutation({ jobId });
+      try {
+        await retryMutation({ jobId });
+      } catch (err) {
+        // The mutation refuses retries with structured codes — the 15-min
+        // bot-detection/rate-limit cooldown (`retryCooldown`), budget and
+        // in-flight caps — and the chip's onRetry discards the returned
+        // promise, so without this catch the refusal is an unhandled
+        // rejection and the click reads as dead. Same surfacing contract
+        // as `ingestUrlsFromText`; nothing upstream reacts to the retry
+        // outcome, so don't rethrow.
+        const code = convexErrorCode(err);
+        toast({
+          title: tChat('videoLink.toast.retryFailedTitle'),
+          description: tChat(
+            code ? `videoLink.errors.${code}` : 'videoLink.errors.generic',
+          ),
+          variant: 'destructive',
+        });
+        console.error(
+          '[useChatVideoLinks] retry failed:',
+          err instanceof Error ? err.message : err,
+        );
+      }
     },
-    [retryMutation],
+    [retryMutation, tChat],
   );
 
   return {

@@ -54,6 +54,7 @@ import type * as agent_tools_documents_helpers_fetch_document_comparison from ".
 import type * as agent_tools_documents_helpers_fetch_document_content from "../agent_tools/documents/helpers/fetch_document_content.js";
 import type * as agent_tools_documents_helpers_list_documents from "../agent_tools/documents/helpers/list_documents.js";
 import type * as agent_tools_documents_helpers_retrieve_document from "../agent_tools/documents/helpers/retrieve_document.js";
+import type * as agent_tools_documents_helpers_transcript_content from "../agent_tools/documents/helpers/transcript_content.js";
 import type * as agent_tools_documents_internal_actions from "../agent_tools/documents/internal_actions.js";
 import type * as agent_tools_documents_internal_mutations from "../agent_tools/documents/internal_mutations.js";
 import type * as agent_tools_files__shared from "../agent_tools/files/_shared.js";
@@ -772,6 +773,7 @@ import type * as lib_attachments_format_markdown from "../lib/attachments/format
 import type * as lib_attachments_index from "../lib/attachments/index.js";
 import type * as lib_attachments_process_attachments from "../lib/attachments/process_attachments.js";
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
+import type * as lib_attachments_resolve_transcript_identity from "../lib/attachments/resolve_transcript_identity.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
 import type * as lib_attachments_workspace_uploads from "../lib/attachments/workspace_uploads.js";
 import type * as lib_auth_e2e_harness from "../lib/auth/e2e_harness.js";
@@ -1462,6 +1464,8 @@ import type * as users_update_user_name from "../users/update_user_name.js";
 import type * as users_update_user_password from "../users/update_user_password.js";
 import type * as users_validators from "../users/validators.js";
 import type * as video_links_captions_parser from "../video_links/captions_parser.js";
+import type * as video_links_clone_transcript from "../video_links/clone_transcript.js";
+import type * as video_links_donor from "../video_links/donor.js";
 import type * as video_links_ingest_video_link from "../video_links/ingest_video_link.js";
 import type * as video_links_internal_mutations from "../video_links/internal_mutations.js";
 import type * as video_links_internal_queries from "../video_links/internal_queries.js";
@@ -1838,6 +1842,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/documents/helpers/fetch_document_content": typeof agent_tools_documents_helpers_fetch_document_content;
   "agent_tools/documents/helpers/list_documents": typeof agent_tools_documents_helpers_list_documents;
   "agent_tools/documents/helpers/retrieve_document": typeof agent_tools_documents_helpers_retrieve_document;
+  "agent_tools/documents/helpers/transcript_content": typeof agent_tools_documents_helpers_transcript_content;
   "agent_tools/documents/internal_actions": typeof agent_tools_documents_internal_actions;
   "agent_tools/documents/internal_mutations": typeof agent_tools_documents_internal_mutations;
   "agent_tools/files/_shared": typeof agent_tools_files__shared;
@@ -2556,6 +2561,7 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/index": typeof lib_attachments_index;
   "lib/attachments/process_attachments": typeof lib_attachments_process_attachments;
   "lib/attachments/register_files": typeof lib_attachments_register_files;
+  "lib/attachments/resolve_transcript_identity": typeof lib_attachments_resolve_transcript_identity;
   "lib/attachments/types": typeof lib_attachments_types;
   "lib/attachments/workspace_uploads": typeof lib_attachments_workspace_uploads;
   "lib/auth/e2e_harness": typeof lib_auth_e2e_harness;
@@ -3246,6 +3252,8 @@ declare const fullApi: ApiFromModules<{
   "users/update_user_password": typeof users_update_user_password;
   "users/validators": typeof users_validators;
   "video_links/captions_parser": typeof video_links_captions_parser;
+  "video_links/clone_transcript": typeof video_links_clone_transcript;
+  "video_links/donor": typeof video_links_donor;
   "video_links/ingest_video_link": typeof video_links_ingest_video_link;
   "video_links/internal_mutations": typeof video_links_internal_mutations;
   "video_links/internal_queries": typeof video_links_internal_queries;
