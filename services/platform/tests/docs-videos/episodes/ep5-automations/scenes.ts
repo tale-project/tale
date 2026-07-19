@@ -529,7 +529,7 @@ export const SCENES: readonly SceneChoreography[] = [
   {
     id: 'recap',
     run: async (rt) => {
-      const { page, cursor, cue } = rt;
+      const { cursor, cue } = rt;
       await cue(1.2);
       await cursor.click(rail(rt, '/chat'));
       await composer(rt).waitFor({ state: 'visible', timeout: 30_000 });
