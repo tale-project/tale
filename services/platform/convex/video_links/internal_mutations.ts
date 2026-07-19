@@ -320,6 +320,92 @@ export const insertSyntheticFileMetadata = internalMutation({
 });
 
 /**
+ * Donor-clone finalizer — sibling of `insertSyntheticFileMetadata` above,
+ * with two deliberate differences:
+ *   1. The transcript is stored VERBATIM: the donor text already carries
+ *      the provenance header (Source/Platform/Fetched/Method) from its
+ *      original ingest; re-prepending would double it and lie about the
+ *      fetch date.
+ *   2. The job patch is CAS-gated on status='indexing' — the clone action
+ *      runs async after `ingestVideoUrl` inserted the row, so a cancel
+ *      (or GC) can land in between; on a miss the stored blob is reaped
+ *      and no fileMetadata row is created.
+ */
+export const finalizeClonedTranscript = internalMutation({
+  args: {
+    jobId: v.id('videoLinkJobs'),
+    // Blob reference (`_storage` id or `s3:` ref) already stored by the
+    // clone action.
+    storageId: blobRefValidator,
+    organizationId: v.string(),
+    transcript: v.string(),
+    fileName: v.string(),
+    fileSize: v.number(),
+    transcriptionDurationSec: v.optional(v.number()),
+  },
+  returns: v.union(v.id('fileMetadata'), v.null()),
+  async handler(ctx, args) {
+    const job = await ctx.db.get(args.jobId);
+    if (!job || job.status !== 'indexing') {
+      // Cancel/GC raced the clone — reap the orphan blob and bail.
+      await deleteOrgBlobInMutation(
+        ctx,
+        args.organizationId,
+        args.storageId,
+        'video_links.finalizeClonedTranscript',
+      );
+      return null;
+    }
+
+    const fileMetadataId = await ctx.db.insert('fileMetadata', {
+      organizationId: job.organizationId,
+      storageId: args.storageId,
+      source: 'video_link',
+      fileName: args.fileName,
+      contentType: 'text/plain; charset=utf-8',
+      size: args.fileSize,
+      uploadedBy: job.uploadedBy,
+      ...(job.threadId !== undefined && { threadId: job.threadId }),
+      transcript: args.transcript,
+      transcriptionStatus: 'completed',
+      ...(args.transcriptionDurationSec !== undefined && {
+        transcriptionDurationSec: args.transcriptionDurationSec,
+      }),
+      // Same dual-status contract as insertSyntheticFileMetadata: the
+      // chip reads transcriptRagStatus, the retrieval gate reads the
+      // canonical ragStatus. RAG re-indexes the clone cheaply — its
+      // content-hash dedup (findExistingByHash → cloneFromExisting)
+      // recognizes the donor's identical bytes.
+      transcriptRagStatus: 'queued',
+      ragStatus: 'queued',
+      lifecycleStatus: 'active',
+      statusChangedAt: Date.now(),
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.file_metadata.internal_actions.uploadFileToRag,
+      {
+        organizationId: job.organizationId,
+        storageId: args.storageId,
+        fileName: args.fileName,
+        contentType: 'text/plain; charset=utf-8',
+      },
+    );
+
+    await ctx.db.patch(args.jobId, {
+      fileMetadataId,
+      storageId: args.storageId,
+      status: 'completed',
+      statusChangedAt: Date.now(),
+      progress: undefined,
+    });
+
+    return fileMetadataId;
+  },
+});
+
+/**
  * Cancellation/retry cleanup. Runs as a separate scheduled action so the
  * cancel mutation returns instantly and the user-visible chip flips
  * before the storage/RAG deletes complete (which can take seconds).

@@ -1462,6 +1462,8 @@ import type * as users_update_user_name from "../users/update_user_name.js";
 import type * as users_update_user_password from "../users/update_user_password.js";
 import type * as users_validators from "../users/validators.js";
 import type * as video_links_captions_parser from "../video_links/captions_parser.js";
+import type * as video_links_clone_transcript from "../video_links/clone_transcript.js";
+import type * as video_links_donor from "../video_links/donor.js";
 import type * as video_links_ingest_video_link from "../video_links/ingest_video_link.js";
 import type * as video_links_internal_mutations from "../video_links/internal_mutations.js";
 import type * as video_links_internal_queries from "../video_links/internal_queries.js";
@@ -3246,6 +3248,8 @@ declare const fullApi: ApiFromModules<{
   "users/update_user_password": typeof users_update_user_password;
   "users/validators": typeof users_validators;
   "video_links/captions_parser": typeof video_links_captions_parser;
+  "video_links/clone_transcript": typeof video_links_clone_transcript;
+  "video_links/donor": typeof video_links_donor;
   "video_links/ingest_video_link": typeof video_links_ingest_video_link;
   "video_links/internal_mutations": typeof video_links_internal_mutations;
   "video_links/internal_queries": typeof video_links_internal_queries;

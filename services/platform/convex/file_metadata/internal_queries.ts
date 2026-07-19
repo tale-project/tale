@@ -5,6 +5,13 @@ import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 
+export const getById = internalQuery({
+  args: { fileMetadataId: v.id('fileMetadata') },
+  async handler(ctx, args) {
+    return await ctx.db.get(args.fileMetadataId);
+  },
+});
+
 export const getByStorageId = internalQuery({
   args: {
     storageId: blobRefValidator,
