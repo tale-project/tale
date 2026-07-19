@@ -762,7 +762,17 @@ async function ensureTeams(
     .getByRole('button', { name: t('settings.teams.createTeam') })
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await settleList(page);
+  // The teams table hides its row-count footer entirely at zero rows — no
+  // role=status, no empty-state hero, just the header row — so a fresh org
+  // gives settleList nothing to latch onto. Settle on footer-or-table and,
+  // when the footer is absent, grant the query the same flash window
+  // settleListOrEmpty grants an empty state.
+  await expect(
+    page.getByRole('status').first().or(page.getByRole('table').first()),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  if (!(await isPresent(page.getByRole('status')))) {
+    await page.waitForTimeout(750);
+  }
   for (const team of teams) {
     if (await isPresent(page.getByRole('row').filter({ hasText: team })))
       continue;
