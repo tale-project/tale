@@ -56,7 +56,7 @@ export const SCENES: readonly SceneChoreography[] = [
     },
   },
   {
-    id: 'first-scene',
+    id: 'context',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
       // Unveiling the settled app IS the transition from the title card.
@@ -67,6 +67,32 @@ export const SCENES: readonly SceneChoreography[] = [
       // TODO: the scene's beats, each landing with the narration:
       //   await cue(3.2);
       //   await cursor.click(page.getByRole('link', { name: rt.t('…') }));
+    },
+  },
+  {
+    // Task blocks do the REAL work on camera; register anything created
+    // on `rt.ctx.cleanup` the moment it exists.
+    id: 'task-1',
+    run: async (_rt) => {
+      // TODO
+    },
+  },
+  {
+    id: 'pitfall',
+    run: async (_rt) => {
+      // TODO: show the failure, then the diagnosis path.
+    },
+  },
+  {
+    id: 'verify',
+    run: async (_rt) => {
+      // TODO: prove the outcome on a different surface.
+    },
+  },
+  {
+    id: 'recap',
+    run: async (_rt) => {
+      // TODO: usually the surface at rest; cursor hides here.
     },
   },
   {
