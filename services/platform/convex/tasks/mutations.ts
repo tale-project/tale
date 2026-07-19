@@ -36,9 +36,20 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import {
+  assertAgentAssigneeAllowedByProject,
+  assertHumanAssigneeAccess,
+  resolveUserAccessContext,
+} from '../projects/resolve_project_access';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { emitEvent } from '../workflows/triggers/emit_event';
-import { canClaimTask, checkProjectAccess, normalizeAssignee } from './access';
+import {
+  canClaimTask,
+  checkProjectAccess,
+  hasProjectAccess,
+  isAgentAllowedByProject,
+  normalizeAssignee,
+} from './access';
 import {
   cleanupRemovedAttachments,
   validateTaskAttachments,
@@ -346,6 +357,16 @@ export const createTask = mutation({
       assigneeId: args.assigneeId,
     });
     await assertAgentAssigneeLive(ctx, args.organizationId, assignee);
+    if (assignee?.assigneeType === 'user') {
+      await assertHumanAssigneeAccess(ctx, {
+        project,
+        organizationId: args.organizationId,
+        assigneeId: assignee.assigneeId,
+        callerId: auth.userId,
+      });
+    } else if (assignee?.assigneeType === 'agent') {
+      assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+    }
 
     if (args.parentTaskId) {
       const parent = await loadTaskOrThrow(ctx, args.parentTaskId);
@@ -710,6 +731,16 @@ export const assignTask = mutation({
       assigneeId: args.assigneeId,
     });
     await assertAgentAssigneeLive(ctx, task.organizationId, assignee);
+    if (assignee?.assigneeType === 'user') {
+      await assertHumanAssigneeAccess(ctx, {
+        project,
+        organizationId: task.organizationId,
+        assigneeId: assignee.assigneeId,
+        callerId: auth.userId,
+      });
+    } else if (assignee?.assigneeType === 'agent') {
+      assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+    }
     const previousAssigneeId = task.assigneeId ?? null;
 
     await ctx.db.patch(args.taskId, {
@@ -1521,6 +1552,13 @@ export const bulkUpdateTasks = mutation({
     const now = Date.now();
     const projectAccessCache = new Map<string, boolean>();
     const authCache = new Map<string, AuthContext | null>();
+    // The assignee is constant across the batch; cache its resolved access
+    // context per org and the resulting allow/deny per project.
+    const assigneeCtxByOrg = new Map<
+      string,
+      { role: string; teamIds: string[] } | null
+    >();
+    const assigneeAllowedByProject = new Map<string, boolean>();
 
     for (const taskId of args.taskIds) {
       const task = await ctx.db.get(taskId);
@@ -1601,6 +1639,46 @@ export const bulkUpdateTasks = mutation({
         (task.assigneeId ?? null) !== (assignee?.assigneeId ?? null);
       if (args.clearAssignee || assignee) {
         if (assignee) {
+          // Per-project assignee gate. Access is per-project, so skip a task
+          // whose project the assignee can't take rather than aborting the
+          // whole batch (mirrors the `canEdit` skip above). Reuses the
+          // `projectKey` computed for the canEdit gate earlier this iteration.
+          let allowed = assigneeAllowedByProject.get(projectKey);
+          if (allowed === undefined) {
+            const assigneeProject = await ctx.db.get(task.projectId);
+            if (!assigneeProject) {
+              allowed = false;
+            } else if (assignee.assigneeType === 'agent') {
+              allowed = isAgentAllowedByProject(
+                assigneeProject,
+                assignee.assigneeId,
+              );
+            } else if (assignee.assigneeId === auth.userId) {
+              allowed = true; // self-assign is always safe
+            } else {
+              let assigneeCtx = assigneeCtxByOrg.get(task.organizationId);
+              if (assigneeCtx === undefined) {
+                assigneeCtx = await resolveUserAccessContext(
+                  ctx,
+                  task.organizationId,
+                  assignee.assigneeId,
+                );
+                assigneeCtxByOrg.set(task.organizationId, assigneeCtx);
+              }
+              allowed =
+                assigneeCtx !== null &&
+                hasProjectAccess(
+                  assigneeProject,
+                  assigneeCtx.teamIds,
+                  assigneeCtx.role,
+                );
+            }
+            assigneeAllowedByProject.set(projectKey, allowed);
+          }
+          if (!allowed) {
+            skipped += 1;
+            continue;
+          }
           await assertAgentAssigneeLive(ctx, task.organizationId, assignee);
         }
         patch.assigneeType = assignee?.assigneeType;

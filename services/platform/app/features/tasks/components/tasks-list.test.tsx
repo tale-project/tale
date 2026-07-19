@@ -20,6 +20,13 @@ vi.mock('../hooks/use-actor-directory', () => ({
     currentUserId: null,
     resolveActor: () => null,
   }),
+  useAssignableActors: () => ({
+    assignableMembers: [],
+    assignableAgents: [],
+    agents: [],
+    currentUserId: null,
+    resolveActor: () => null,
+  }),
 }));
 
 function makeTask(

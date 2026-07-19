@@ -1242,6 +1242,7 @@ import type * as products_upsert_product_translation from "../products/upsert_pr
 import type * as products_validate_product_name from "../products/validate_product_name.js";
 import type * as products_validators from "../products/validators.js";
 import type * as projects_access from "../projects/access.js";
+import type * as projects_accessible_members from "../projects/accessible_members.js";
 import type * as projects_audit_actions from "../projects/audit_actions.js";
 import type * as projects_internal_queries from "../projects/internal_queries.js";
 import type * as projects_mutations from "../projects/mutations.js";
@@ -3032,6 +3033,7 @@ declare const fullApi: ApiFromModules<{
   "products/validate_product_name": typeof products_validate_product_name;
   "products/validators": typeof products_validators;
   "projects/access": typeof projects_access;
+  "projects/accessible_members": typeof projects_accessible_members;
   "projects/audit_actions": typeof projects_audit_actions;
   "projects/internal_queries": typeof projects_internal_queries;
   "projects/mutations": typeof projects_mutations;

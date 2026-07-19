@@ -17,6 +17,7 @@
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { listByOrganizationHandler } from '../members/queries';
+import { getProjectAccessibleUserIds } from '../projects/accessible_members';
 import type { MentionDirectoryEntry } from './mentions';
 
 /** Derive candidate `@handle`s for a member from email + display name. */
@@ -62,7 +63,12 @@ export async function buildMentionDirectory(
     const members = await listByOrganizationHandler(ctx, {
       organizationId: args.organizationId,
     });
+    // Only members who can access the project are mentionable — matches the
+    // assignee picker's scoping (`use-actor-directory`). `null` = org-wide.
+    const accessible = await getProjectAccessibleUserIds(ctx, args.project);
     for (const member of members) {
+      if (member.role === 'disabled') continue;
+      if (accessible && !accessible.has(member.userId)) continue;
       entries.push({
         type: 'user',
         id: member.userId,

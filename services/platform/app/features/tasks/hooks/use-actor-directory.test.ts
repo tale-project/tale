@@ -2,6 +2,8 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ i18n: { language: 'en' } }),
 }));
@@ -10,8 +12,31 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 
+interface MockMember {
+  userId: string;
+  displayName?: string;
+  email?: string;
+  role: string;
+}
+let mockMembers: MockMember[] = [];
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [] }),
+  useMembers: () => ({ members: mockMembers }),
+}));
+
+let mockProject: {
+  agentMode?: string;
+  allowedAgentSlugs?: string[];
+  recommendedAgentSlugs?: string[];
+} | null = null;
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProject: () => ({ project: mockProject }),
+}));
+
+let mockScope: { data: { orgWide: boolean; userIds: string[] } | undefined } = {
+  data: undefined,
+};
+vi.mock('@/app/hooks/use-convex-query', () => ({
+  useConvexQuery: () => mockScope,
 }));
 
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -46,7 +71,10 @@ vi.mock('@/app/features/agents/hooks/queries', () => ({
 }));
 
 // Import after mocks are set up (mirrors use-effective-agent.test.ts).
-const { useActorDirectory } = await import('./use-actor-directory');
+const { useActorDirectory, useAssignableActors } =
+  await import('./use-actor-directory');
+
+const PROJECT_ID = 'proj-1' as Id<'projects'>;
 
 describe('useActorDirectory — agent liveness filter (#2603)', () => {
   it('excludes an agent with no install row (never installed) from the assignable list', () => {
@@ -123,5 +151,86 @@ describe('useActorDirectory — resolveActor for a non-live agent (#2609)', () =
       name: 'ghost-agent',
       isAgent: true,
     });
+  });
+});
+
+describe('useAssignableActors — project-scoped candidates', () => {
+  it('drops disabled members even for an org-wide project', () => {
+    mockMembers = [
+      { userId: 'u1', displayName: 'One', role: 'member' },
+      { userId: 'u2', displayName: 'Two', role: 'disabled' },
+    ];
+    mockAgents = [];
+    mockInstalls = { data: [], isLoading: false };
+    mockProject = null;
+    mockScope = { data: { orgWide: true, userIds: [] } };
+
+    const { result } = renderHook(() =>
+      useAssignableActors('org-1', PROJECT_ID),
+    );
+    expect(result.current.assignableMembers.map((m) => m.id)).toEqual(['u1']);
+  });
+
+  it('filters members to the accessible set for a team-scoped project', () => {
+    mockMembers = [
+      { userId: 'u1', displayName: 'One', role: 'member' },
+      { userId: 'u2', displayName: 'Two', role: 'member' },
+      { userId: 'u3', displayName: 'Three', role: 'member' },
+    ];
+    mockAgents = [];
+    mockInstalls = { data: [], isLoading: false };
+    mockProject = null;
+    mockScope = { data: { orgWide: false, userIds: ['u1', 'u3'] } };
+
+    const { result } = renderHook(() =>
+      useAssignableActors('org-1', PROJECT_ID),
+    );
+    expect(result.current.assignableMembers.map((m) => m.id).sort()).toEqual([
+      'u1',
+      'u3',
+    ]);
+  });
+
+  it('falls back to org-wide (minus disabled) while the access query loads', () => {
+    mockMembers = [
+      { userId: 'u1', displayName: 'One', role: 'member' },
+      { userId: 'u2', displayName: 'Two', role: 'disabled' },
+    ];
+    mockAgents = [];
+    mockInstalls = { data: [], isLoading: false };
+    mockProject = null;
+    mockScope = { data: undefined }; // still loading
+
+    const { result } = renderHook(() =>
+      useAssignableActors('org-1', PROJECT_ID),
+    );
+    expect(result.current.assignableMembers.map((m) => m.id)).toEqual(['u1']);
+  });
+
+  it('restricts agents to the project allow-list, leaving the display list whole', () => {
+    mockMembers = [];
+    mockAgents = [
+      { name: 'scout', displayName: 'Scout' },
+      { name: 'intruder', displayName: 'Intruder' },
+    ];
+    mockInstalls = {
+      data: [
+        { agentSlug: 'scout', enabled: true },
+        { agentSlug: 'intruder', enabled: true },
+      ],
+      isLoading: false,
+    };
+    mockProject = { agentMode: 'restricted', allowedAgentSlugs: ['scout'] };
+    mockScope = { data: { orgWide: true, userIds: [] } };
+
+    const { result } = renderHook(() =>
+      useAssignableActors('org-1', PROJECT_ID),
+    );
+    expect(result.current.assignableAgents.map((a) => a.id)).toEqual(['scout']);
+    // The unfiltered directory still exposes both agents for display.
+    expect(result.current.agents.map((a) => a.id).sort()).toEqual([
+      'intruder',
+      'scout',
+    ]);
   });
 });

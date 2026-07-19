@@ -6,9 +6,13 @@ import {
   useListAgents,
 } from '@/app/features/agents/hooks/queries';
 import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
+import { useProject } from '@/app/features/projects/hooks/queries';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useListWorkflows } from '@/app/features/workflows/hooks/file-queries';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   getAgentDisplayCategory,
@@ -42,6 +46,8 @@ export interface AssignableActor {
   id: string;
   name: string;
   email?: string;
+  /** Org role (members only) — lets the assignable filter drop disabled users. */
+  role?: string;
 }
 
 export interface AssignableAgent extends AssignableActor {
@@ -81,6 +87,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
         id: m.userId,
         name: m.displayName || m.email || m.userId,
         email: m.email,
+        role: m.role,
       })),
     [members],
   );
@@ -261,8 +268,56 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     members: memberList,
     agents: agentList,
     currentUserId: me?.userId,
-    // `projectId` is accepted for forward-compat (scoping agents to a project)
-    // but the current directory is org-wide.
+    // `useActorDirectory` stays org-wide — it also resolves *historical* actors
+    // (comment authors, a current assignee who has since lost access), which a
+    // project filter would regress to raw ids. The project-scoped candidate
+    // lists for authoring live in `useAssignableActors` below.
     projectId,
   };
+}
+
+/**
+ * The assignee picker and `@`-mention autocomplete build their candidate lists
+ * from this: {@link useActorDirectory} narrowed to who can actually access the
+ * project. Members outside the project's team(s) are dropped, agents the project
+ * doesn't permit are dropped, and disabled members are always excluded. The
+ * unfiltered `members` / `agents` / `resolveActor` are still returned (spread
+ * from the directory) for *display* of historical/current actors.
+ *
+ * With no `projectId` the lists degrade to org-wide (all non-disabled members,
+ * all agents) — there is no project to scope to. While the access query is in
+ * flight, members fall back to org-wide; the backend guard is the real gate.
+ */
+export function useAssignableActors(
+  organizationId: string,
+  projectId?: Id<'projects'>,
+) {
+  const directory = useActorDirectory(organizationId, projectId);
+  const { members, agents } = directory;
+  const { project } = useProject(projectId);
+  const scope = useConvexQuery(
+    api.projects.queries.listAccessibleUserIds,
+    projectId ? { organizationId, projectId } : 'skip',
+  );
+
+  const assignableMembers = useMemo<AssignableActor[]>(() => {
+    const nonDisabled = members.filter((m) => m.role !== 'disabled');
+    if (!projectId || !scope.data || scope.data.orgWide) return nonDisabled;
+    const ids = new Set(scope.data.userIds);
+    return nonDisabled.filter((m) => ids.has(m.id));
+  }, [members, projectId, scope.data]);
+
+  const assignableAgents = useMemo<AssignableAgent[]>(() => {
+    if (project?.agentMode === 'restricted') {
+      const allowed = new Set(project.allowedAgentSlugs ?? []);
+      return agents.filter((a) => allowed.has(a.id));
+    }
+    // 'all' / unset: every agent, recommended ones first.
+    const recommended = new Set(project?.recommendedAgentSlugs ?? []);
+    return [...agents].sort(
+      (a, b) => Number(recommended.has(b.id)) - Number(recommended.has(a.id)),
+    );
+  }, [agents, project]);
+
+  return { ...directory, assignableMembers, assignableAgents };
 }
