@@ -14,7 +14,7 @@ import { isDrainingNow } from '../control/drain';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
-import { unbindDeferredJobs } from '../video_links/bind_for_send';
+import { cancelDeferredJobs } from '../video_links/bind_for_send';
 
 /**
  * While a deploy drain is active, queued messages must NOT start a new
@@ -616,11 +616,12 @@ export const deleteQueuedMessage = mutation({
     if (row.status !== 'queued' && row.status !== 'waiting_media') {
       return { deleted: false };
     }
-    // Abandoning a media-wait releases its bound video jobs: the unbound
-    // chips reappear in the composer (retry/remove flows take over) and the
-    // readiness watcher's next tick sees the row gone and stops.
+    // Abandoning a media-wait cancels its media too — the user dismissed
+    // the whole message, so its videos stop processing (skipped + cleanup)
+    // instead of reappearing in the composer as residue. The readiness
+    // watcher's next tick sees the row gone and stops.
     if (row.status === 'waiting_media' && row.videoJobIds !== undefined) {
-      await unbindDeferredJobs(ctx, row.videoJobIds, row.userId);
+      await cancelDeferredJobs(ctx, row.videoJobIds, row.userId);
     }
     // Persist-at-pick rows have no transcript copy while queued — only legacy
     // rows (saved at enqueue, in flight across the deploy) carry one.

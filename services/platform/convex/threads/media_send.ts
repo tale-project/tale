@@ -41,8 +41,8 @@ import { MAX_QUEUED_PER_THREAD } from './message_queue';
  *    inside indexing, so content is unreadable before terminal).
  *  - image: never gated.
  *  - video job `failed`: user action required — the row keeps waiting while
- *    the tray shows the failed chip's retry; deleting the row unbinds the
- *    chips back into the composer.
+ *    the tray shows the failed chip's retry; deleting the row cancels the
+ *    jobs outright (skipped + cleanup — no composer residue).
  */
 
 const READY_POLL_MS = 3_000;

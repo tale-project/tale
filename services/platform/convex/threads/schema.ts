@@ -471,7 +471,8 @@ export const chatMessageQueueTable = defineTable({
   /** Video-link jobs bound to this waiting send at enqueue (messageBoundAt
    * stamped so the composer releases the chips and no other send can bind
    * them). Their attachment payloads are built at start, when the jobs are
-   * terminal. Deleting the row unbinds them back into the composer. */
+   * terminal. Deleting the row CANCELS them (skipped + cleanup) — the user
+   * dismissed the whole message, so its media stops processing too. */
   videoJobIds: v.optional(v.array(v.id('videoLinkJobs'))),
   /** When the row entered waiting_media — watcher observability. */
   waitingSince: v.optional(v.number()),

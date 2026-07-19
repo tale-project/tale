@@ -1,3 +1,4 @@
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -89,18 +90,56 @@ export async function buildBoundJobAttachments(
   return out;
 }
 
-/** Delete-time release: clear `messageBoundAt` on the row owner's jobs so
- * the unbound chips reappear in the composer. */
-export async function unbindDeferredJobs(
+/**
+ * Delete-time cascade: cancelling a waiting send cancels its media too —
+ * the user dismissed the whole message, so the videos must not keep
+ * processing (nor reappear in the composer as residue). Mirrors
+ * `cancelVideoLink`'s semantics for an explicit id list: flip to
+ * 'skipped', propagate the Whisper early-exit, schedule the cleanup
+ * action. The unbind (`messageBoundAt: undefined`) happens in the same
+ * patch — `cleanupCancelledVideoLink` refuses message-bound rows, and
+ * these are only bound to a row that no longer exists.
+ */
+export async function cancelDeferredJobs(
   ctx: MutationCtx,
   jobIds: readonly Id<'videoLinkJobs'>[],
   userId: string,
 ): Promise<void> {
+  const now = Date.now();
   for (const jobId of jobIds) {
     const job = await ctx.db.get(jobId);
     if (!job) continue;
     if (job.uploadedBy !== userId) continue;
-    if (job.messageBoundAt === undefined) continue;
-    await ctx.db.patch(jobId, { messageBoundAt: undefined });
+    if (job.status === 'skipped') {
+      if (job.messageBoundAt !== undefined) {
+        await ctx.db.patch(jobId, { messageBoundAt: undefined });
+      }
+      continue;
+    }
+    await ctx.db.patch(jobId, {
+      messageBoundAt: undefined,
+      status: 'skipped',
+      statusChangedAt: now,
+    });
+    // Whisper-handoff in flight: also skip the fileMetadata transcription
+    // so transcribe_audio's early-exit fires (mirror cancelVideoLink).
+    if (
+      job.fileMetadataId &&
+      job.storageId &&
+      job.status === 'transcribing_handoff'
+    ) {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.updateFileTranscription,
+        {
+          storageId: job.storageId,
+          transcriptionStatus: 'skipped',
+        },
+      );
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.video_links.internal_mutations.cleanupCancelledVideoLink,
+      { jobId },
+    );
   }
 }

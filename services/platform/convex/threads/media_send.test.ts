@@ -13,7 +13,7 @@ import schema from '../schema';
 import {
   bindJobsForDeferredSend,
   buildBoundJobAttachments,
-  unbindDeferredJobs,
+  cancelDeferredJobs,
 } from '../video_links/bind_for_send';
 import { isMediaSendReady } from './media_send';
 
@@ -313,19 +313,24 @@ describe('deferred bind helpers', () => {
     expect(job?.messageBoundAt).toBeDefined();
   });
 
-  it('unbind releases only the owner rows', async () => {
+  it('row deletion cancels only the owner jobs (skipped + unbound)', async () => {
     const t = convexTest(schema, modules);
-    const own = await seedVideoJob(t, { messageBoundAt: 123 });
+    const own = await seedVideoJob(t, {
+      status: 'fetching_captions',
+      messageBoundAt: 123,
+    });
     const foreign = await seedVideoJob(t, {
       uploadedBy: 'someone_else',
       messageBoundAt: 456,
     });
 
-    await t.run(async (ctx) => unbindDeferredJobs(ctx, [own, foreign], USER));
+    await t.run(async (ctx) => cancelDeferredJobs(ctx, [own, foreign], USER));
 
     const ownRow = await t.run(async (ctx) => ctx.db.get(own));
     const foreignRow = await t.run(async (ctx) => ctx.db.get(foreign));
+    expect(ownRow?.status).toBe('skipped');
     expect(ownRow?.messageBoundAt).toBeUndefined();
+    expect(foreignRow?.status).toBe('completed');
     expect(foreignRow?.messageBoundAt).toBe(456);
   });
 
