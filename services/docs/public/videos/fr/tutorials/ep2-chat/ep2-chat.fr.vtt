@@ -1,232 +1,411 @@
 WEBVTT
 
 1
-00:00:01.200 --> 00:00:04.488
-Le chat, c’est la pièce où ton
-équipe rencontre les modèles.
+00:00:01.600 --> 00:00:03.217
+Bienvenue dans l’épisode deux.
 
 2
-00:00:04.488 --> 00:00:07.118
-Dans cet épisode : bien
-demander, quoi attacher,
+00:00:03.217 --> 00:00:05.642
+Aujourd’hui, on prend
+le temps avec le chat :
 
 3
-00:00:07.118 --> 00:00:11.173
-comment choisir un modèle — et
-distinguer une réponse solide d’une réponse
+00:00:05.642 --> 00:00:10.062
+tu vas poser deux fois la même question
+et voir pourquoi une réponse vaut plus que
 
 4
-00:00:11.173 --> 00:00:12.160
-simplement fluide.
+00:00:10.062 --> 00:00:14.428
+l’autre, vérifier une source, faire
+concourir deux modèles — et construire ceci :
 
 5
-00:00:13.760 --> 00:00:17.715
-Un chat commence dans le composeur —
-et c’est plus qu’une zone de texte.
+00:00:14.428 --> 00:00:17.824
+une synthèse d’une page, écrite
+dans le canevas à côté du chat.
 
 6
-00:00:17.715 --> 00:00:22.054
-Tu choisis quel agent répond, quel
-modèle tourne et quel contexte accompagne la
+00:00:17.824 --> 00:00:19.010
+C’est ici qu’on finit.
 
 7
-00:00:22.054 --> 00:00:22.754
-question.
+00:00:19.010 --> 00:00:21.920
+On avance étape par étape —
+en partant d’un chat vide.
 
 8
-00:00:22.754 --> 00:00:24.800
-Ces trois choix façonnent chaque réponse.
+00:00:29.400 --> 00:00:30.958
+Voici où chaque chat commence.
 
 9
-00:00:26.000 --> 00:00:27.995
-Regarde ce qui se passe sans contexte.
+00:00:30.958 --> 00:00:35.113
+Avant de taper quoi que ce soit, regarde
+la barre du bas : trois choix s’y font.
 
 10
-00:00:27.995 --> 00:00:32.194
-On demande ce que pensent nos clients de
-notre onboarding… et le modèle répond —
+00:00:35.113 --> 00:00:39.060
+Quel agent répond, quel modèle tourne,
+quel contexte accompagne la question.
 
 11
-00:00:32.194 --> 00:00:34.399
-fluide, assuré, et parfaitement générique.
+00:00:39.060 --> 00:00:43.320
+Ces trois choix décident de la réponse
+qui revient — alors mettons-les au travail.
 
 12
-00:00:34.399 --> 00:00:35.921
-Il n’a jamais vu tes clients.
+00:00:49.200 --> 00:00:50.640
+D’abord, une expérience.
 
 13
-00:00:35.921 --> 00:00:39.280
-Il comble le vide avec les
-motifs de ses données d’entraînement.
+00:00:50.640 --> 00:00:55.500
+On pose une question sur nos propres
+clients — sans rien donner à lire au modèle.
 
 14
-00:00:41.000 --> 00:00:43.027
-Maintenant le même sujet, ancré.
+00:00:55.500 --> 00:00:57.960
+On envoie… et regarde la réponse arriver.
 
 15
-00:00:43.027 --> 00:00:47.777
-On attache la revue support du T2… et
-on demande quoi corriger en priorité.
+00:00:57.960 --> 00:00:59.160
+Ça sonne bien, non ?
 
 16
-00:00:47.777 --> 00:00:50.500
-La réponse change de
-nature : tes chiffres,
+00:00:59.160 --> 00:01:01.440
+Assurée, bien structurée, raisonnable.
 
 17
-00:00:50.500 --> 00:00:54.680
-tes documents, des sources
-nommées que tu peux ouvrir et vérifier.
+00:01:05.000 --> 00:01:08.430
+Maintenant, lis-la avec moi
+— c’est exactement le piège.
 
 18
-00:00:58.000 --> 00:01:01.658
-C’est l’habitude qui change
-tout dans le travail avec l’IA.
+00:01:08.430 --> 00:01:12.350
+Pas un seul chiffre là-dedans ne
+vient de ton espace de travail.
 
 19
-00:01:01.658 --> 00:01:06.867
-Même modèle, même sujet — le contexte
-décide si tu reçois des mots plausibles ou tes
+00:01:12.350 --> 00:01:17.434
+Le modèle n’a jamais vu tes clients, alors
+il comble le vide avec les motifs de ses
 
 20
-00:01:06.867 --> 00:01:07.735
-propres faits.
+00:01:17.434 --> 00:01:18.843
+données d’entraînement.
 
 21
-00:01:07.735 --> 00:01:10.215
-Une réponse fluide n’est pas une preuve.
+00:01:18.843 --> 00:01:20.680
+Ça sonne juste — et ça devine.
 
 22
-00:01:10.215 --> 00:01:11.269
-Les sources, oui.
+00:01:23.380 --> 00:01:24.222
+Corrigeons ça.
 
 23
-00:01:11.269 --> 00:01:13.440
-Quand la réponse compte : ancre-la.
+00:01:24.222 --> 00:01:26.807
+Même sujet, nouveau
+chat — mais cette fois,
 
 24
-00:01:14.640 --> 00:01:16.978
-Le choix du modèle est
-la deuxième décision.
+00:01:26.807 --> 00:01:30.714
+on tape d’abord une arobase et on
+attache la revue support du T2.
 
 25
-00:01:16.978 --> 00:01:20.963
-Les modèles diffèrent — en vitesse, en
-coût, en profondeur de raisonnement.
+00:01:30.714 --> 00:01:34.260
+Le document part maintenant
+avec la question… et on envoie.
 
 26
-00:01:20.963 --> 00:01:25.320
-Avec Auto, Tale route chaque demande vers
-un choix raisonnable — le bon réglage la
+00:01:40.380 --> 00:01:41.584
+Regarde la différence.
 
 27
-00:01:25.320 --> 00:01:26.223
-plupart du temps.
+00:01:41.584 --> 00:01:45.963
+Les questions webhooks ont doublé depuis
+la version d’avril — c’est ton chiffre,
 
 28
-00:01:26.223 --> 00:01:28.880
-Mais tu peux fixer
-n’importe quel modèle autorisé.
+00:01:45.963 --> 00:01:46.894
+tiré de ta revue.
 
 29
-00:01:30.080 --> 00:01:33.417
-Et quand tu veux des preuves
-plutôt que des avis : lance une Arène.
+00:01:46.894 --> 00:01:50.342
+La réponse nomme ses sources et
+finit sur un correctif concret.
 
 30
-00:01:33.417 --> 00:01:35.260
-Un prompt, deux modèles, côte à côte.
+00:01:50.342 --> 00:01:51.491
+Même modèle qu’avant.
 
 31
-00:01:35.260 --> 00:01:38.248
-Regarde-les répondre au même
-brief… puis désigne le gagnant.
+00:01:51.491 --> 00:01:53.900
+On a seulement changé
+ce qu’il pouvait lire.
 
 32
-00:01:38.248 --> 00:01:42.431
-Tes verdicts alimentent les statistiques
-de l’espace de travail — le choix du modèle
+00:01:59.580 --> 00:02:02.069
+Et une réponse ancrée,
+tu peux l’interroger.
 
 33
-00:01:42.431 --> 00:01:45.120
-devient une décision
-mesurée, pas une affaire de goût.
+00:02:02.069 --> 00:02:05.067
+Dans le même fil, on
+demande : quel document le dit ?
 
 34
-00:01:54.080 --> 00:01:56.144
-Les gros livrables ont leur établi.
+00:02:05.067 --> 00:02:08.405
+La réponse nomme le fichier
+exact — la revue support du T2.
 
 35
-00:01:56.144 --> 00:01:58.916
-Demande un document —
-une synthèse, un rapport,
+00:02:08.405 --> 00:02:13.100
+Si une affirmation te paraît étrange plus
+tard, c’est la première question à poser.
 
 36
-00:01:58.916 --> 00:02:01.747
-une page — et le canevas
-s’ouvre à côté du chat.
+00:02:17.380 --> 00:02:19.600
+Une habitude de plus, tant qu’on y est.
 
 37
-00:02:01.747 --> 00:02:05.876
-Le résultat arrive comme un fichier
-: à lire, à retoucher, à partager.
+00:02:19.600 --> 00:02:21.820
+Cette réponse a tenu — alors disons-le.
 
 38
-00:02:05.876 --> 00:02:08.000
-Pas un mur de texte à copier-coller.
+00:02:21.820 --> 00:02:23.300
+Un clic sur le pouce levé.
 
 39
-00:02:13.080 --> 00:02:16.359
-Une chose encore habite ici
-: la recherche approfondie.
+00:02:23.300 --> 00:02:27.627
+La note atterrit dans les statistiques
+de feedback de ton espace de travail,
 
 40
-00:02:16.359 --> 00:02:18.863
-L’agent Chercheur planifie ses recherches,
+00:02:27.627 --> 00:02:29.107
+et l’épisode neuf les lit.
 
 41
-00:02:18.863 --> 00:02:23.811
-lit ce qu’il trouve sur le web ouvert, et
-rend un rapport avec ses sources nommées.
+00:02:29.107 --> 00:02:32.980
+Un clic — et ton équipe apprend
+quelles réponses méritent confiance.
 
 42
-00:02:23.811 --> 00:02:28.520
-La règle de l’ancrage que tu viens
-d’apprendre — elle s’étend jusqu’à Internet.
+00:02:36.880 --> 00:02:38.508
+Deuxième décision : le modèle.
 
 43
-00:02:29.720 --> 00:02:33.097
-Le chat, bien utilisé : ancrer
-tes questions dans tes documents,
+00:02:38.508 --> 00:02:39.647
+Ouvrons le sélecteur.
 
 44
-00:02:33.097 --> 00:02:37.213
-choisir les modèles sur preuves,
-laisser les grands livrables atterrir dans le
+00:02:39.647 --> 00:02:44.205
+Auto est le réglage par défaut — il route
+chaque demande vers un modèle raisonnable,
 
 45
-00:02:37.213 --> 00:02:37.913
-canevas.
+00:02:44.205 --> 00:02:47.026
+et pour les questions
+courantes, c’est le bon choix.
 
 46
-00:02:37.913 --> 00:02:41.976
-Prochain épisode : Connaissances — la
-bibliothèque d’où viennent les réponses
+00:02:47.026 --> 00:02:50.336
+Tu fixes un modèle précis quand
+la tâche sort de l’ordinaire.
 
 47
-00:02:41.976 --> 00:02:42.120
-ancrées.
+00:02:50.336 --> 00:02:51.041
+Mais lequel ?
 
 48
-00:02:43.320 --> 00:02:47.199
-Le guide du chat dans la documentation
-détaille tout ce que tu viens de voir,
+00:02:51.041 --> 00:02:52.560
+Allons chercher des preuves.
 
 49
-00:02:47.199 --> 00:02:48.559
-raccourcis clavier compris.
+00:02:55.060 --> 00:02:57.177
+Pour les preuves, il y a le mode Arène.
 
 50
-00:02:48.559 --> 00:02:50.120
+00:02:57.177 --> 00:02:59.511
+Nouveau chat, le menu
+plus… et on l’active.
+
+51
+00:02:59.511 --> 00:03:02.605
+Un prompt part maintenant
+vers deux modèles, côte à côte.
+
+52
+00:03:02.605 --> 00:03:06.894
+On demande une check-list de lancement —
+et les deux colonnes répondent au même
+
+53
+00:03:06.894 --> 00:03:07.220
+brief.
+
+54
+00:03:19.060 --> 00:03:20.791
+Prends le temps de comparer.
+
+55
+00:03:20.791 --> 00:03:23.696
+À gauche : court et net
+— cinq étapes, terminé.
+
+56
+00:03:23.696 --> 00:03:28.393
+À droite : le travail groupé par
+phase, avec deux risques absents à gauche —
+
+57
+00:03:28.393 --> 00:03:32.843
+quarante URL de blog sans décision,
+et aucun seuil convenu pour la passe
+
+58
+00:03:32.843 --> 00:03:33.708
+accessibilité.
+
+59
+00:03:33.708 --> 00:03:35.686
+Pour une liste rapide, A suffit.
+
+60
+00:03:35.686 --> 00:03:37.849
+On lance un site — alors on vote B.
+
+61
+00:03:37.849 --> 00:03:41.620
+Le verdict rejoint les mêmes
+statistiques que ton pouce levé.
+
+62
+00:03:49.360 --> 00:03:51.295
+Nouvelle tâche : un gros livrable.
+
+63
+00:03:51.295 --> 00:03:55.961
+On demande une synthèse d’une page pour
+la direction — le genre de chose que tu ne
+
+64
+00:03:55.961 --> 00:03:57.554
+veux jamais en mur de texte.
+
+65
+00:03:57.554 --> 00:04:00.513
+On envoie… et regarde à
+droite : le canevas s’ouvre,
+
+66
+00:04:00.513 --> 00:04:02.732
+et la synthèse arrive comme un fichier.
+
+67
+00:04:02.732 --> 00:04:05.520
+On passe en Aperçu — et
+ça se lit comme une page.
+
+68
+00:04:13.060 --> 00:04:15.892
+Et un fichier du canevas
+est un document de travail.
+
+69
+00:04:15.892 --> 00:04:17.744
+La direction la veut plus courte ?
+
+70
+00:04:17.744 --> 00:04:20.413
+On le dit dans le chat :
+réduis-la à trois puces.
+
+71
+00:04:20.413 --> 00:04:23.790
+L’agent réécrit le fichier sur
+place — même page, trois puces.
+
+72
+00:04:23.790 --> 00:04:27.220
+Rien à copier ailleurs ; tu
+retouches le document là où il est.
+
+73
+00:04:34.360 --> 00:04:37.252
+Encore un à signaler :
+la recherche approfondie.
+
+74
+00:04:37.252 --> 00:04:40.144
+Ouvre le menu plus — et
+la voilà, Deep research.
+
+75
+00:04:40.144 --> 00:04:43.519
+Active-la et le chat passe
+la main à l’agent Chercheur :
+
+76
+00:04:43.519 --> 00:04:48.400
+il planifie ses recherches, lit le web
+ouvert et rend un rapport avec ses sources
+
+77
+00:04:48.400 --> 00:04:49.100
+nommées.
+
+78
+00:04:49.100 --> 00:04:53.981
+Il lui faut un connecteur de recherche,
+alors on lui consacrera un épisode entier
+
+79
+00:04:53.981 --> 00:04:54.681
+plus tard.
+
+80
+00:04:54.681 --> 00:04:57.560
+La règle du jour — vérifie
+la source — vaut là aussi.
+
+81
+00:05:00.160 --> 00:05:01.787
+Voilà le chat, bien utilisé.
+
+82
+00:05:01.787 --> 00:05:04.751
+Tu as posé la même
+question sans ancrage puis avec,
+
+83
+00:05:04.751 --> 00:05:09.574
+vérifié une source, noté une réponse,
+tranché une Arène — et transformé du feedback
+
+84
+00:05:09.574 --> 00:05:13.235
+en synthèse dans le canevas,
+puis réduit le tout en une phrase.
+
+85
+00:05:13.235 --> 00:05:17.360
+Le guide du chat dans la doc
+détaille tout, raccourcis clavier compris.
+
+86
+00:05:19.360 --> 00:05:23.396
+La prochaine fois : les connaissances —
+c’est là que se trouvent les documents
+
+87
+00:05:23.396 --> 00:05:24.948
+derrière tes réponses ancrées.
+
+88
+00:05:24.948 --> 00:05:28.156
+Tu en indexeras un toi-même et
+tu verras les réponses changer.
+
+89
+00:05:28.156 --> 00:05:29.760
 À bientôt pour l’épisode trois.
 

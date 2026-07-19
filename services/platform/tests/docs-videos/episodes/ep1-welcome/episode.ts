@@ -83,7 +83,9 @@ export const EP1_WELCOME: EpisodeSpec = {
       chapterByLocale: { en: 'Chat', de: 'Chat', fr: 'Chat' },
       leadInMs: 1200,
       tailMs: 1400,
-      minMs: 16_500,
+      // Real fr audio runs ~19% shorter than the estimate — the @-mention +
+      // 60-char prompt typing needs this floor under the fastest locale.
+      minMs: 18_000,
       narration: {
         en: 'You can ask the model anything here. The real power is asking about your own work — so let’s do that. We attach a company document as context… the Q2 support review… and ask what customers said about onboarding last quarter. And send.',
         de: 'Du kannst das Modell hier alles fragen. Richtig stark wird es bei deiner eigenen Arbeit — also los. Wir hängen ein Firmendokument an … den Q2-Support-Bericht … und fragen, was Kunden im letzten Quartal zum Onboarding gesagt haben. Und abschicken.',

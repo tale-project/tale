@@ -11,13 +11,13 @@ Chaque page d'épisode porte la vidéo avec des sous-titres dans la langue de la
 
 <Card title="Épisode 1 — Bienvenue dans Tale" icon="play" href="/fr/tutorials/videos/welcome-to-tale">
 
-La visite : le chat ancré dans tes documents, des agents avec un mandat, des automatisations avec validation humaine et les contrôles qui te laissent aux commandes. Trois minutes.
+La visite guidée : poser une question ancrée, retrouver le fichier cité dans Connaissances, rencontrer l’agent qui a répondu et lire le journal d’une automatisation en marche. Trois minutes et demie.
 
 </Card>
 
 <Card title="Épisode 2 — Le chat, en profondeur" icon="play" href="/fr/tutorials/videos/chat-in-depth">
 
-La même question sans puis avec ancrage, le choix du modèle sur preuves en mode Arène, les grands livrables dans le canevas, et où vit la recherche approfondie. Trois minutes.
+Une vraie session de travail : la même question sans puis avec ancrage, un contrôle de source, un verdict d'Arène motivé, et une synthèse construite puis raccourcie sur le canevas. Cinq minutes et demie.
 
 </Card>
 

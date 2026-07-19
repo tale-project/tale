@@ -888,7 +888,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 2 — Chat, im Detail",
-      "description": "Die tägliche Oberfläche, gut genutzt — dieselbe Frage einmal ohne und einmal mit Verankerung, Modellwahl mit Belegen im Arena-Modus, große Ergebnisse im Canvas und der Ort der Tiefenrecherche."
+      "description": "Eine echte Arbeitssitzung — dieselbe Frage ohne und mit Verankerung, ein Quellen-Check, ein Arena-Urteil mit Begründung und ein Briefing, das im Canvas entsteht und dort gekürzt wird."
     }
   },
   "de:tutorials/videos/projects-with-ai": {
@@ -928,7 +928,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 1 — Willkommen bei Tale",
-      "description": "Ein Rundgang in gut drei Minuten — Chat, verankert in deinen eigenen Dokumenten, Agenten mit Auftrag, Automatisierungen mit menschlicher Freigabe und die Kontrolle über deine Daten."
+      "description": "Die geführte Tour durch den Arbeitsbereich — eine verankerte Frage stellen, die zitierte Datei im Wissen finden, den antwortenden Agenten kennenlernen und das Journal einer laufenden Automatisierung lesen."
     }
   },
   "de:tutorials/editor/workflow-with-approvals": {
@@ -2152,7 +2152,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 2 — Le chat, en profondeur",
-      "description": "La surface quotidienne, bien utilisée — la même question sans puis avec ancrage, le choix du modèle sur preuves en mode Arène, les grands livrables dans le canevas, et où vit la recherche approfondie."
+      "description": "Une vraie session de travail — la même question sans puis avec ancrage, un contrôle de source, un verdict d'Arène motivé, et une synthèse construite puis raccourcie sur le canevas."
     }
   },
   "fr:tutorials/videos/projects-with-ai": {
@@ -2192,7 +2192,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 1 — Bienvenue dans Tale",
-      "description": "Une visite de trois minutes — le chat ancré dans tes propres documents, des agents avec un mandat, des automatisations avec validation humaine et la gouvernance qui garde tes données à toi."
+      "description": "La visite guidée de l'espace de travail — poser une question ancrée, retrouver le fichier cité dans Connaissances, rencontrer l'agent qui a répondu et lire le journal d'une automatisation en marche."
     }
   },
   "fr:tutorials/editor/workflow-with-approvals": {
@@ -3416,7 +3416,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 2 — Chat, in depth",
-      "description": "The daily surface, used well — the same question asked ungrounded and grounded, model choice with evidence in Arena Mode, big deliverables in the canvas, and where deep research lives."
+      "description": "A real working session — the same question ungrounded and grounded, a source check, an Arena verdict with reasons, and a brief built and refined on the canvas."
     }
   },
   "en:tutorials/videos/projects-with-ai": {
@@ -3456,7 +3456,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 1 — Welcome to Tale",
-      "description": "A three-minute tour — chat grounded in your own documents, agents with a mandate, automations with human approval, and the governance that keeps your data yours."
+      "description": "The guided tour of the workspace — ask a grounded question, find the cited file in Knowledge, meet the agent that answered, and read a live automation's journal."
     }
   },
   "en:tutorials/editor/workflow-with-approvals": {

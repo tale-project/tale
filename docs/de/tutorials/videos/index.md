@@ -11,13 +11,13 @@ Jede Episodenseite trägt das Video mit Untertiteln in der Seitensprache, eine K
 
 <Card title="Episode 1 — Willkommen bei Tale" icon="play" href="/de/tutorials/videos/welcome-to-tale">
 
-Der Rundgang: Chat, verankert in deinen Dokumenten, Agenten mit klarem Auftrag, Automatisierungen mit menschlicher Freigabe und die Kontrollen, die dich am Steuer halten. Drei Minuten.
+Die geführte Tour: eine verankerte Frage stellen, die zitierte Datei im Wissen finden, den antwortenden Agenten kennenlernen und das Journal einer laufenden Automatisierung lesen. Gut vier Minuten.
 
 </Card>
 
 <Card title="Episode 2 — Chat, im Detail" icon="play" href="/de/tutorials/videos/chat-in-depth">
 
-Dieselbe Frage ohne und mit Verankerung, Modellwahl mit Belegen im Arena-Modus, große Ergebnisse im Canvas und der Ort der Tiefenrecherche. Gut drei Minuten.
+Eine echte Arbeitssitzung: dieselbe Frage ohne und mit Verankerung, ein Quellen-Check, ein begründetes Arena-Urteil und ein Briefing, das im Canvas entsteht und dort schrumpft. Gut sechs Minuten.
 
 </Card>
 

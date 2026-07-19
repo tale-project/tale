@@ -5,7 +5,7 @@
       "episode": "ep1-welcome",
       "locale": "de",
       "kind": "video",
-      "durationSec": 208.2,
+      "durationSec": 261.4,
       "width": 1920,
       "height": 1080
     },
@@ -14,7 +14,7 @@
       "episode": "ep1-welcome",
       "locale": "de",
       "kind": "captions",
-      "durationSec": 208.2
+      "durationSec": 261.4
     },
     {
       "file": "videos/de/tutorials/ep1-welcome/ep1-welcome.de.webp",
@@ -53,7 +53,7 @@
       "episode": "ep2-chat",
       "locale": "de",
       "kind": "video",
-      "durationSec": 201.8,
+      "durationSec": 384.9,
       "width": 1920,
       "height": 1080
     },
@@ -62,7 +62,7 @@
       "episode": "ep2-chat",
       "locale": "de",
       "kind": "captions",
-      "durationSec": 201.8
+      "durationSec": 384.9
     },
     {
       "file": "videos/de/tutorials/ep2-chat/ep2-chat.de.webp",
@@ -245,7 +245,7 @@
       "episode": "ep1-welcome",
       "locale": "en",
       "kind": "video",
-      "durationSec": 170.8,
+      "durationSec": 246.9,
       "width": 1920,
       "height": 1080
     },
@@ -254,7 +254,7 @@
       "episode": "ep1-welcome",
       "locale": "en",
       "kind": "captions",
-      "durationSec": 170.8
+      "durationSec": 246.9
     },
     {
       "file": "videos/en/tutorials/ep1-welcome/ep1-welcome.en.webp",
@@ -293,7 +293,7 @@
       "episode": "ep2-chat",
       "locale": "en",
       "kind": "video",
-      "durationSec": 188.7,
+      "durationSec": 343.6,
       "width": 1920,
       "height": 1080
     },
@@ -302,7 +302,7 @@
       "episode": "ep2-chat",
       "locale": "en",
       "kind": "captions",
-      "durationSec": 188.7
+      "durationSec": 343.6
     },
     {
       "file": "videos/en/tutorials/ep2-chat/ep2-chat.en.webp",
@@ -485,7 +485,7 @@
       "episode": "ep1-welcome",
       "locale": "fr",
       "kind": "video",
-      "durationSec": 169.3,
+      "durationSec": 216,
       "width": 1920,
       "height": 1080
     },
@@ -494,7 +494,7 @@
       "episode": "ep1-welcome",
       "locale": "fr",
       "kind": "captions",
-      "durationSec": 169.3
+      "durationSec": 216
     },
     {
       "file": "videos/fr/tutorials/ep1-welcome/ep1-welcome.fr.webp",
@@ -533,7 +533,7 @@
       "episode": "ep2-chat",
       "locale": "fr",
       "kind": "video",
-      "durationSec": 173.7,
+      "durationSec": 333.4,
       "width": 1920,
       "height": 1080
     },
@@ -542,7 +542,7 @@
       "episode": "ep2-chat",
       "locale": "fr",
       "kind": "captions",
-      "durationSec": 173.7
+      "durationSec": 333.4
     },
     {
       "file": "videos/fr/tutorials/ep2-chat/ep2-chat.fr.webp",
