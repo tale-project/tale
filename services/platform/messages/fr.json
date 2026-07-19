@@ -358,6 +358,34 @@
       "errors": {
         "loadFailed": "Impossible de charger les métriques",
         "unauthorized": "Tu n'as pas accès à ces métriques"
+      },
+      "errorType": {
+        "missing_api_key": "Clé API manquante",
+        "credit_exhausted": "Crédits épuisés",
+        "auth_error": "Erreur d'authentification",
+        "model_not_found": "Modèle introuvable",
+        "unsupported_parameter": "Paramètre non pris en charge",
+        "output_cap_too_high": "Limite de sortie trop élevée",
+        "token_limit": "Limite de tokens",
+        "rate_limited": "Limite de débit",
+        "content_filter": "Filtre de contenu",
+        "context_length": "Longueur du contexte",
+        "tool_failure": "Échec d'outil",
+        "provider_unreachable": "Fournisseur injoignable",
+        "provider_error": "Erreur du fournisseur",
+        "generic": "Autre"
+      },
+      "errorBreakdown": {
+        "title": "Erreurs",
+        "byType": "Par type d'erreur",
+        "recentTitle": "Erreurs récentes",
+        "noRecent": "Aucune erreur récente dans cette fenêtre",
+        "columns": {
+          "time": "Heure",
+          "type": "Type",
+          "model": "Modèle",
+          "agent": "Agent"
+        }
       }
     }
   },

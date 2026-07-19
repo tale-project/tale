@@ -21,6 +21,17 @@ function rollup(overrides: Record<string, unknown> = {}) {
     totalMessages: 10,
     errorCount: 1,
     errorRate: 0.1,
+    errors: {
+      byType: [{ key: 'credit_exhausted', count: 1 }],
+      recent: [
+        {
+          at: 1_700_000_000_000,
+          type: 'credit_exhausted',
+          model: 'gpt-4o',
+          agentSlug: 'researcher',
+        },
+      ],
+    },
     blockedCount: 0,
     blockedRate: 0,
     latency: {
@@ -75,6 +86,12 @@ describe('ChatHealthMetricsPage', () => {
     expect(screen.getByText('openai / gpt-4o')).toBeInTheDocument();
     // The `pinned` sentinel resolves to a friendly label, not the raw key.
     expect(screen.getByText('Pinned')).toBeInTheDocument();
+    // The Errors section renders the by-type breakdown + recent-errors list,
+    // with the classified code resolved to its short human label.
+    expect(screen.getByText('Errors')).toBeInTheDocument();
+    expect(screen.getByText('By error type')).toBeInTheDocument();
+    expect(screen.getByText('Recent errors')).toBeInTheDocument();
+    expect(screen.getAllByText('Credit exhausted').length).toBeGreaterThan(0);
   });
 
   it('shows the teaching panel when the org has no telemetry', () => {

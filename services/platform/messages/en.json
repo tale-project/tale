@@ -358,6 +358,34 @@
       "errors": {
         "loadFailed": "Couldn't load chat health metrics",
         "unauthorized": "You don't have access to chat health metrics"
+      },
+      "errorType": {
+        "missing_api_key": "Missing API key",
+        "credit_exhausted": "Credit exhausted",
+        "auth_error": "Auth error",
+        "model_not_found": "Model not found",
+        "unsupported_parameter": "Unsupported parameter",
+        "output_cap_too_high": "Output cap too high",
+        "token_limit": "Token limit",
+        "rate_limited": "Rate limited",
+        "content_filter": "Content filter",
+        "context_length": "Context length",
+        "tool_failure": "Tool failure",
+        "provider_unreachable": "Provider unreachable",
+        "provider_error": "Provider error",
+        "generic": "Other"
+      },
+      "errorBreakdown": {
+        "title": "Errors",
+        "byType": "By error type",
+        "recentTitle": "Recent errors",
+        "noRecent": "No recent errors in this window",
+        "columns": {
+          "time": "Time",
+          "type": "Type",
+          "model": "Model",
+          "agent": "Agent"
+        }
       }
     }
   },
