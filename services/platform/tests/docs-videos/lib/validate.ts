@@ -20,9 +20,51 @@ import type { EpisodeSpec } from './episode';
 import { LOCALES } from './episode';
 import type { ChoreographyModule } from './episodes';
 import { DEFAULT_TAIL_MS } from './timeline';
+import { toSpokenText } from './tts-text';
 
 /** The compose bookend: 1.5 s fade-out that must land inside the outro. */
 const FADE_OUT_ROOM_MS = 2000;
+
+/**
+ * A whole-take locale synthesizes the episode as ONE ElevenLabs request, and
+ * the API hard-caps a request at 5,000 characters. Error with headroom so the
+ * tts stage can never 400 mid-batch; warn on approach so the script gets
+ * tightened (or the locale flipped to per-scene) before billing.
+ */
+const WHOLE_TAKE_MAX_CHARS = 4800;
+const WHOLE_TAKE_WARN_CHARS = 4500;
+
+/** The in-depth series band (produce-video STORYBOARD.md): 600–700 EN words
+ * play 5–6 minutes at ~145 wpm; the bounds catch a tour-length or
+ * over-stuffed script early. Warning only — episode length is judgment. */
+const EN_WORDS_MIN = 450;
+const EN_WORDS_MAX = 750;
+
+/** Register smells the narration doctrine bans outright (STORYBOARD.md
+ * "Writing the narration") — warnings, never errors: voice stays a human
+ * call, the lint only flags the patterns that always read as essay prose. */
+const BANNED_NARRATION_PATTERNS: ReadonlyArray<{
+  readonly pattern: RegExp;
+  readonly hint: string;
+}> = [
+  {
+    pattern:
+      /\b(?:is|are) not (?:an? )?[^.;—]{1,40}[;—]\s*(?:it(?:'s| is)|they(?:'re| are))\b/iu,
+    hint: 'aphorism template ("X is not Y — it is Z") — say the concrete thing instead',
+  },
+  {
+    pattern: /\b(?:wiring|Verdrahtung|câblage)\b/iu,
+    hint: 'wiring metaphor — name the actual mechanism',
+  },
+  {
+    pattern: /\b(?:machinery|Maschinerie|machinerie)\b/iu,
+    hint: 'machinery metaphor — name the actual surface or setting',
+  },
+  {
+    pattern: /\bblast radius\b/iu,
+    hint: 'jargon nobody says aloud — describe what the role can actually touch',
+  },
+];
 
 export interface ValidationFinding {
   readonly severity: 'error' | 'warning';
@@ -115,6 +157,68 @@ export function validateEpisodeSpec(episode: EpisodeSpec): ValidationFinding[] {
       `${episode.id}/${outro.id}`,
       `last scene tailMs ${outro.tailMs ?? DEFAULT_TAIL_MS}ms < ${FADE_OUT_ROOM_MS}ms — the 1.5s fade-out will clip it`,
     );
+  }
+
+  if (!episode.diagnostic) {
+    // Whole-take budget: the joined spoken script (exactly as the tts stage
+    // joins it — respelled, trimmed, silent scenes dropped, '\n\n' seams)
+    // must clear the single-request cap with headroom.
+    for (const locale of episode.wholeTakeLocales ?? []) {
+      if (!completeLocales.includes(locale)) continue;
+      const joined = episode.scenes
+        .map((scene) =>
+          toSpokenText(scene.narration[locale] ?? '', locale).trim(),
+        )
+        .filter(Boolean)
+        .join('\n\n');
+      if (joined.length > WHOLE_TAKE_MAX_CHARS) {
+        error(
+          episode.id,
+          `${locale} whole-take script is ${joined.length} spoken chars — over the ` +
+            `${WHOLE_TAKE_MAX_CHARS} budget (ElevenLabs caps one request at 5,000): ` +
+            `tighten the script or drop ${locale} from wholeTakeLocales`,
+        );
+      } else if (joined.length > WHOLE_TAKE_WARN_CHARS) {
+        warning(
+          episode.id,
+          `${locale} whole-take script is ${joined.length} spoken chars — ` +
+            `approaching the ${WHOLE_TAKE_MAX_CHARS} budget; tighten before billing`,
+        );
+      }
+    }
+
+    // The in-depth band — EN carries the series pacing (de/fr are written
+    // natively against the same outline and inherit its shape).
+    if (completeLocales.includes('en')) {
+      const words = episode.scenes
+        .map((scene) => scene.narration.en ?? '')
+        .join(' ')
+        .split(/\s+/u)
+        .filter(Boolean).length;
+      if (words < EN_WORDS_MIN || words > EN_WORDS_MAX) {
+        warning(
+          episode.id,
+          `EN narration is ${words} words — outside the ${EN_WORDS_MIN}–${EN_WORDS_MAX} ` +
+            `in-depth band (~5–6 min at ~145 wpm; produce-video STORYBOARD.md)`,
+        );
+      }
+    }
+
+    // Banned register — the patterns that always read as essay prose.
+    for (const scene of episode.scenes) {
+      for (const locale of LOCALES) {
+        const narration = scene.narration[locale];
+        if (!narration) continue;
+        for (const { pattern, hint } of BANNED_NARRATION_PATTERNS) {
+          if (pattern.test(narration)) {
+            warning(
+              `${episode.id}/${scene.id}`,
+              `${locale} narration: ${hint}`,
+            );
+          }
+        }
+      }
+    }
   }
 
   // A hero prompt that pairs with no DOCS_REPLIES match clause streams the

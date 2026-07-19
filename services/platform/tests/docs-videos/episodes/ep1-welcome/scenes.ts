@@ -32,6 +32,14 @@ const ASSISTANT_NAME = {
 /** The hidden autoInstall triage automation (see docs-screenshots manifest). */
 const TRIAGE_AUTOMATION_PATH = 'projects__tasks__triage-unassigned';
 
+/** Catalog card name — locale-resolved DATA like the assistant's display
+ * name: the grid renders automation.json's `i18n` block per locale. */
+const RESOLVE_ISSUES_CARD_NAME = {
+  en: 'Resolve GitHub issues',
+  de: 'GitHub-Issues lösen',
+  fr: 'Résoudre les issues GitHub',
+} as const;
+
 /** A primary-rail link, located by target URL — immune to locale. */
 function rail(rt: SceneRuntime, path: string) {
   return rt.page
@@ -260,7 +268,9 @@ export const SCENES: readonly SceneChoreography[] = [
       await allTab.waitFor({ state: 'visible', timeout: 30_000 });
       await cue(2.0);
       await cursor.click(allTab);
-      const card = page.getByText('Resolve GitHub issues').first();
+      const card = page
+        .getByText(RESOLVE_ISSUES_CARD_NAME[rt.ctx.locale])
+        .first();
       await card.waitFor({ state: 'visible', timeout: 15_000 });
       await cue(5.5);
       await cursor.hover(card);

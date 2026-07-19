@@ -23,13 +23,18 @@ any asset under `services/docs/public/videos/**`, a `<Video>` embed on a docs pa
   choreography. The narration is the spine: scene budgets derive from its measured audio, so a
   script change re-plans the timeline and re-records the take. (Why: pacing edits after recording
   cost a full re-record anyway — do the cheap iteration on paper.)
-- **Narration is docs prose, spoken.** Docs voice per locale (write-translations: du/tu, no
-  bureaucratic German, no marketed French), written natively — never translated word for word.
-  Spoken UI vocabulary matches the shipped catalog (`Wissen`, `Connaissances`). Words a locale's
-  voice mis-reads (the brand, product terms) get a respelling in the pipeline's per-locale
-  pronunciation map — spoken text only, captions keep the real spelling. ElevenLabs audio
-  tags sparingly; punctuation and ellipses carry pacing. Claims must be true of the product —
-  narration ships in three languages and gets quoted back.
+- **Narration is a colleague showing you, spoken.** Contractions, short spoken sentences, action +
+  reason in the same breath, every real choice names a rejected alternative, one pitfall beat and
+  one verify beat per episode, closers recap what the viewer DID — never aphorisms (register rules
+  - banned-pattern list: [`STORYBOARD.md`](STORYBOARD.md)). Written natively per locale
+    (write-translations: du/tu, no bureaucratic German, no marketed French) — never translated word
+    for word. Spoken UI vocabulary matches the shipped catalog (`Wissen`, `Connaissances`). Words a
+    locale's voice mis-reads (the brand, product terms) get a respelling in the pipeline's
+    per-locale pronunciation map — spoken text only, captions keep the real spelling. ElevenLabs
+    audio tags sparingly; punctuation and ellipses carry pacing. A `wholeTakeLocales` locale bills
+    the episode as ONE request — its joined spoken script stays ≤4,500 chars (`--stage check`
+    guards the 5,000-char cap). Claims must be true of the product — narration ships in three
+    languages and gets quoted back.
 - **Rehearse free before you bill or record.** `--stage check` (instant: spec ↔ choreography ↔
   mock-reply pairing), `--stage plan` (instant: the timeline table from estimates), then a
   `--mock-tts` take (silence-narrated, auto-composed as a draft into `.state/`) prove the
@@ -82,6 +87,12 @@ await cursor.click(pickerDoc); // the viewer hears it, then sees it
 - [ ] **`bun run --filter @tale/docs test` green** — the videos contract plus the docs suite.
 - [ ] **Shared org left as seeded** — cleanup ran; `docs:screenshots --skip-seed --only chat-thread-reply` still captures pixel-equivalent.
 - [ ] **Docs pages updated in all three locales** (episode page + any embeds) per write-docs.
+- [ ] **Every task block does real work on camera** — click/type/submit/create; a hover-only
+      block is context, not a task (the in-depth arc, STORYBOARD.md).
+- [ ] **Pitfall + verify beats present** — one real failure shown and diagnosed; the outcome
+      proven on a different surface.
+- [ ] **Table read passed the banned-pattern list in every locale** (STORYBOARD.md register), and
+      `--stage check` is green — no whole-take budget or register warnings left standing.
 
 ## Companion files
 
