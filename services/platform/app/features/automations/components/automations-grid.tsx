@@ -13,6 +13,7 @@
  * `TabNavigation` (`AutomationsNavigation`) — not a toolbar pill strip. */
 import { Badge } from '@tale/ui/badge';
 import { EmptyState } from '@tale/ui/empty-state';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useNavigate } from '@tanstack/react-router';
@@ -54,9 +55,11 @@ import {
 } from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { resolveAutomationLocale } from '@/lib/shared/utils/resolve-automation-locale';
 import { downloadBase64File } from '@/lib/utils/download';
 
 import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
+import { useAutomationDisplay } from '../hooks/use-automation-text';
 import {
   type AutomationSummary,
   useAutomationCatalog,
@@ -129,13 +132,6 @@ function BundleInstallStateBadge({
   return <Badge variant="green">{t('install.installed')}</Badge>;
 }
 
-/** Search matches an automation's name or description. */
-function automationHaystack(
-  automation: AutomationSummary,
-): ReadonlyArray<string | undefined> {
-  return [automation.name, automation.description];
-}
-
 /**
  * The section an automation groups under: the top-level segment of its manifest
  * `folder` ('' = ungrouped → the trailing "General" section).
@@ -182,10 +178,11 @@ function NotInstalledMenu({
   onInstall: () => void;
 }) {
   const { t } = useT('automations');
+  const display = useAutomationDisplay()(automation);
   const { action: deleteAction, dialog: deleteDialog } =
     useAutomationDeleteAction({
       automationSlug: automation.slug,
-      automationName: automation.name,
+      automationName: display.name,
       organizationId,
     });
   const { mutateAsync: exportAutomation } = useExportAutomation();
@@ -229,7 +226,7 @@ function NotInstalledMenu({
     <>
       <EntityRowActions
         actions={actions}
-        ariaLabel={t('install.menuLabel', { name: automation.name })}
+        ariaLabel={t('install.menuLabel', { name: display.name })}
         disabled={isPending}
       />
       {isCustom && deleteDialog}
@@ -255,6 +252,7 @@ function InstalledBundleMenu({
   onReinstall: () => void;
 }) {
   const { t } = useT('automations');
+  const display = useAutomationDisplay()(bundle);
   const { uninstallBundle } = useAutomationInstallActions(organizationId);
   const { mutateAsync: exportAutomation } = useExportAutomation();
   const dialogs = useEntityRowDialogs(['uninstallBundle']);
@@ -325,7 +323,7 @@ function InstalledBundleMenu({
     <>
       <EntityRowActions
         actions={actions}
-        ariaLabel={t('install.menuLabel', { name: bundle.name })}
+        ariaLabel={t('install.menuLabel', { name: display.name })}
         disabled={busy}
       />
       <DeleteDialog
@@ -335,7 +333,7 @@ function InstalledBundleMenu({
         description={t('install.uninstallBundleDescription', {
           count: memberCount,
         })}
-        preview={{ primary: bundle.name }}
+        preview={{ primary: display.name }}
         warning={t('install.uninstallWarning')}
         deleteText={t('install.uninstallBundle')}
         isDeleting={busy}
@@ -376,6 +374,7 @@ export function AutomationsGrid({
   toolbarAction,
 }: AutomationsGridProps) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const navigate = useNavigate();
   // The catalog shows the UNION of the org's installed automations and the built-in
   // catalog, keyed by slug. An installed entry wins (it carries the full
@@ -387,16 +386,42 @@ export function AutomationsGrid({
   const { automations: catalog, isLoading: catalogLoading } =
     useAutomationCatalog(organizationId);
   const isLoading = installedLoading || catalogLoading;
-  const automations = useMemo(() => {
+  const unionAutomations = useMemo(() => {
     const unionBySlug = new Map<string, AutomationSummary>();
     for (const automation of catalog)
       unionBySlug.set(automation.slug, automation);
     for (const automation of installed)
       unionBySlug.set(automation.slug, automation);
-    return Array.from(unionBySlug.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    return Array.from(unionBySlug.values());
   }, [installed, catalog]);
+  // Manifest i18n (`AutomationSummary.i18n`) resolved ONCE per union entry —
+  // sort, search, and every rendered name/description read this map, so a card
+  // can never show a literal the manifest translates (the `use-automations`
+  // contract). The pure resolver rather than `useAutomationDisplay`: the hook
+  // returns a fresh closure per render, which would defeat this memo and every
+  // array derived from it.
+  const displayBySlug = useMemo(() => {
+    const map = new Map<string, { name: string; description: string }>();
+    for (const automation of unionAutomations) {
+      map.set(automation.slug, resolveAutomationLocale(automation, locale));
+    }
+    return map;
+  }, [unionAutomations, locale]);
+  const displayFor = useCallback(
+    (automation: AutomationSummary) =>
+      displayBySlug.get(automation.slug) ?? {
+        name: automation.name,
+        description: automation.description,
+      },
+    [displayBySlug],
+  );
+  const automations = useMemo(
+    () =>
+      [...unionAutomations].sort((a, b) =>
+        displayFor(a).name.localeCompare(displayFor(b).name, locale),
+      ),
+    [unionAutomations, displayFor, locale],
+  );
   // member slug → its owning bundle summary — installed members card under
   // Installed with an extra "Uninstall bundle" action.
   const bundleByMember = useMemo(() => {
@@ -460,6 +485,15 @@ export function AutomationsGrid({
           // members never card here.
           automations.filter((automation) => automation.hidden !== true),
     [automations, tab, bySlug],
+  );
+  // Search matches the card as RENDERED — the locale-resolved name and
+  // description (`useCatalogSearch` needs a referentially stable haystack fn).
+  const automationHaystack = useCallback(
+    (automation: AutomationSummary): ReadonlyArray<string | undefined> => {
+      const display = displayFor(automation);
+      return [display.name, display.description];
+    },
+    [displayFor],
   );
   const filteredAutomations = useCatalogSearch(
     tabbedAutomations,
@@ -546,6 +580,7 @@ export function AutomationsGrid({
       isBundle &&
       deriveBundleInstallStatus(automation.members ?? [], bySlug) !==
         'not-installed';
+    const display = displayFor(automation);
     const icon = (
       <CatalogCardIcon>
         <AutomationIcon
@@ -576,7 +611,9 @@ export function AutomationsGrid({
           ) : owningBundle ? (
             <AutomationMarker
               icon={Package}
-              label={t('bundle.partOf', { name: owningBundle.name })}
+              label={t('bundle.partOf', {
+                name: displayFor(owningBundle).name,
+              })}
             >
               {icon}
             </AutomationMarker>
@@ -588,8 +625,8 @@ export function AutomationsGrid({
             icon
           )
         }
-        title={automation.name}
-        description={automation.description}
+        title={display.name}
+        description={display.description}
         badge={
           isBundle ? (
             <BundleInstallStateBadge
@@ -620,7 +657,7 @@ export function AutomationsGrid({
               })
             : setPanelAutomation(automation)
         }
-        ariaLabel={automation.name}
+        ariaLabel={display.name}
         menu={
           bundleInstalled ? (
             <InstalledBundleMenu
@@ -631,7 +668,7 @@ export function AutomationsGrid({
           ) : isInstalled ? (
             <AutomationLifecycleActions
               automationSlug={automation.slug}
-              automationName={automation.name}
+              automationName={display.name}
               organizationId={organizationId}
               context="org"
               scope={automation.scope}
@@ -735,7 +772,7 @@ export function AutomationsGrid({
           }}
           organizationId={organizationId}
           automationSlug={wizardAutomation.slug}
-          automationName={wizardAutomation.name}
+          automationName={displayFor(wizardAutomation).name}
           scope={wizardAutomation.scope}
           requiredIntegrations={wizardAutomation.requiredIntegrations}
         />
@@ -748,7 +785,7 @@ export function AutomationsGrid({
           }}
           organizationId={organizationId}
           bundleSlug={wizardBundle.slug}
-          bundleName={wizardBundle.name}
+          bundleName={displayFor(wizardBundle).name}
           scope={wizardBundle.scope}
         />
       )}
