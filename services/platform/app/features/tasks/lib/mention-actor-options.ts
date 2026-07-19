@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 
-import { useProject } from '@/app/features/projects/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
 
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import { useAssignableActors } from '../hooks/use-actor-directory';
 import { memberInsertHandle } from './mention-handles';
 
 export const MAX_MENTION_OPTIONS = 8;
@@ -33,15 +32,12 @@ export function useMentionActorOptions(
   organizationId: string,
   projectId: Id<'projects'>,
 ): MentionActorOption[] {
-  const { members, agents, currentUserId } = useActorDirectory(
-    organizationId,
-    projectId,
-  );
-  const { project } = useProject(projectId);
+  const { assignableMembers, assignableAgents, currentUserId } =
+    useAssignableActors(organizationId, projectId);
 
   return useMemo(() => {
     const options: MentionActorOption[] = [];
-    for (const member of members) {
+    for (const member of assignableMembers) {
       // You never need to @mention yourself — leave the current user out.
       if (member.id === currentUserId) continue;
       const handle = memberInsertHandle(member);
@@ -55,16 +51,7 @@ export function useMentionActorOptions(
         });
       }
     }
-    const restricted = project?.agentMode === 'restricted';
-    const allowed = new Set(project?.allowedAgentSlugs ?? []);
-    const recommended = new Set(project?.recommendedAgentSlugs ?? []);
-    const mentionableAgents = restricted
-      ? agents.filter((a) => allowed.has(a.id))
-      : [...agents].sort(
-          (a, b) =>
-            Number(recommended.has(b.id)) - Number(recommended.has(a.id)),
-        );
-    for (const agent of mentionableAgents) {
+    for (const agent of assignableAgents) {
       options.push({
         type: 'agent',
         id: agent.id,
@@ -73,7 +60,7 @@ export function useMentionActorOptions(
       });
     }
     return options;
-  }, [members, agents, project, currentUserId]);
+  }, [assignableMembers, assignableAgents, currentUserId]);
 }
 
 export function filterMentionActorOptions(

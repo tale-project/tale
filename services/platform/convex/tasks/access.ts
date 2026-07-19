@@ -10,6 +10,7 @@ export {
   checkProjectAccess,
   getProjectTeamIds,
   hasProjectAccess,
+  isAgentAllowedByProject,
   isOrgWideProject,
   type ProjectAccessResult,
 } from '../projects/access';

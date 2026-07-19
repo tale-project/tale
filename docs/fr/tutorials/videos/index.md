@@ -35,7 +35,7 @@ Un agent construit de bout en bout à l'écran — instructions, connaissances, 
 
 <Card title="Épisode 5 — Automatisations & validations" icon="play" href="/fr/tutorials/videos/automations-and-approvals">
 
-L'automatisation de triage ouverte comme une recette, l'exécution rouge honnête, et une vraie carte de validation décidée à l'écran. L'IA rédige, les humains décident. Trois minutes.
+Utilise une automatisation en vrai : lis le workflow de triage, déclenche une exécution avec une tâche créée à l'écran, examine celle qui a échoué, et valide toi-même l'envoi d'un mail. Six minutes.
 
 </Card>
 

@@ -2736,6 +2736,50 @@
         },
         "optional": false
       },
+      "attachments": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "object",
+            "value": {
+              "fileId": {
+                "fieldType": {
+                  "type": "union",
+                  "value": [
+                    {
+                      "tableName": "_storage",
+                      "type": "id"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "optional": false
+              },
+              "fileName": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "fileSize": {
+                "fieldType": {
+                  "type": "number"
+                },
+                "optional": false
+              },
+              "fileType": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              }
+            }
+          }
+        },
+        "optional": true
+      },
       "claimedAt": {
         "ft": {
           "type": "number"
@@ -2818,6 +2862,10 @@
           "value": [
             {
               "type": "literal",
+              "value": "waiting_media"
+            },
+            {
+              "type": "literal",
               "value": "queued"
             },
             {
@@ -2865,6 +2913,22 @@
           "type": "string"
         },
         "optional": false
+      },
+      "videoJobIds": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "tableName": "videoLinkJobs",
+            "type": "id"
+          }
+        },
+        "optional": true
+      },
+      "waitingSince": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
       }
     },
     "configCache": {
@@ -6254,6 +6318,12 @@
         },
         "optional": false
       },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "outputTokens": {
         "ft": {
           "type": "number"
@@ -7440,6 +7510,14 @@
             {
               "type": "literal",
               "value": "sandbox_quota"
+            },
+            {
+              "type": "literal",
+              "value": "conversation_access"
+            },
+            {
+              "type": "literal",
+              "value": "conversation_routing"
             }
           ]
         },
@@ -12552,6 +12630,15 @@
       "title": {
         "ft": {
           "type": "string"
+        },
+        "optional": true
+      },
+      "unlockedToolGroups": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "string"
+          }
         },
         "optional": true
       },

@@ -34,11 +34,12 @@ const FADE_OUT_ROOM_MS = 2000;
 const WHOLE_TAKE_MAX_CHARS = 4800;
 const WHOLE_TAKE_WARN_CHARS = 4500;
 
-/** The in-depth series band (produce-video STORYBOARD.md): 600–700 EN words
- * play 5–6 minutes at ~145 wpm; the bounds catch a tour-length or
- * over-stuffed script early. Warning only — episode length is judgment. */
+/** The in-depth series band (produce-video STORYBOARD.md): 650–850 EN words
+ * play 6–7 minutes with tutorial pacing (the silence between beats is part
+ * of the runtime); the bounds catch a tour-length or over-stuffed script
+ * early. Warning only — episode length is judgment. */
 const EN_WORDS_MIN = 450;
-const EN_WORDS_MAX = 750;
+const EN_WORDS_MAX = 850;
 
 /** Register smells the narration doctrine bans outright (STORYBOARD.md
  * "Writing the narration") — warnings, never errors: voice stays a human
@@ -199,7 +200,7 @@ export function validateEpisodeSpec(episode: EpisodeSpec): ValidationFinding[] {
         warning(
           episode.id,
           `EN narration is ${words} words — outside the ${EN_WORDS_MIN}–${EN_WORDS_MAX} ` +
-            `in-depth band (~5–6 min at ~145 wpm; produce-video STORYBOARD.md)`,
+            `in-depth band (~6–7 min with tutorial pacing; produce-video STORYBOARD.md)`,
         );
       }
     }

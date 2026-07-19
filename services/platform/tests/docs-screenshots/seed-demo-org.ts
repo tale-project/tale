@@ -720,31 +720,58 @@ async function ensureMembers(
       .click();
     // type=password exposes no textbox role, and the show/hide toggle's label
     // also contains "Password" — match the label exactly. The field only
-    // exists for NEW accounts: adding an email that already has an account
-    // (the video locale orgs re-add the shared-org people) skips credentials.
+    // exists for NEW accounts — but it RENDERS until the async
+    // email-existence check answers, so probing it right after the email
+    // fill races the check: the seeder filled passwords for accounts that
+    // already exist (the video locale orgs re-add the shared-org people) and
+    // the submit flow forked into a state the loop never dismissed. Settle
+    // the check first: the existing-user hint appears, or the field is the
+    // truth.
+    const existingHint = dialog.getByText(
+      t('dialogs.addMember.existingUserHint'),
+    );
     const password = dialog.getByLabel(t('settings.form.password'), {
       exact: true,
     });
-    const needsPassword = await password
-      .waitFor({ state: 'visible', timeout: 3_000 })
-      .then(() => true)
-      .catch(() => false);
+    await expect(existingHint.or(password)).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
+    await page.waitForTimeout(750); // one flash window for a late hint
+    const needsPassword = !(await isPresent(existingHint));
     if (needsPassword) await password.fill(E2E_PASSWORD);
     await dialog
       .getByRole('button', { name: t('dialogs.addMember.title') })
       .click();
-    if (needsPassword) {
-      // A new credentialed member surfaces the shown-once credentials view;
-      // it stays open until acknowledged and would swallow the next
-      // iteration. Existing-account adds close the dialog directly.
-      const credentials = page.getByRole('dialog', {
-        name: t('dialogs.memberAdded.title'),
-      });
-      await expect(credentials).toBeVisible({ timeout: TIMEOUT.PERSIST });
+    // The "member added" view stays open until acknowledged — a NEW account
+    // carries the shown-once credentials, and an existing-account add shows
+    // the same confirmation without them. Acknowledge whichever appears; a
+    // new account MUST produce it (the credentials show exactly once).
+    const credentials = page.getByRole('dialog', {
+      name: t('dialogs.memberAdded.title'),
+    });
+    const confirmed = await credentials
+      .waitFor({
+        state: 'visible',
+        timeout: needsPassword ? TIMEOUT.PERSIST : 5_000,
+      })
+      .then(() => true)
+      .catch(() => false);
+    if (needsPassword && !confirmed) {
+      throw new Error(
+        `Adding ${member.email} never surfaced the credentials view.`,
+      );
+    }
+    if (confirmed) {
       await credentials
         .getByRole('button', { name: t('common.actions.done') })
         .click();
     }
+    // Whatever the path, the NEXT iteration needs a dialog-free page — an
+    // add that leaves any dialog standing hides the toolbar from ARIA and
+    // times out the following click with a misleading "not found".
+    await expect(page.getByRole('dialog')).toHaveCount(0, {
+      timeout: TIMEOUT.VISIBLE,
+    });
     await expect(page.getByText(member.email).first()).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
@@ -762,7 +789,17 @@ async function ensureTeams(
     .getByRole('button', { name: t('settings.teams.createTeam') })
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await settleList(page);
+  // The teams table hides its row-count footer entirely at zero rows — no
+  // role=status, no empty-state hero, just the header row — so a fresh org
+  // gives settleList nothing to latch onto. Settle on footer-or-table and,
+  // when the footer is absent, grant the query the same flash window
+  // settleListOrEmpty grants an empty state.
+  await expect(
+    page.getByRole('status').first().or(page.getByRole('table').first()),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  if (!(await isPresent(page.getByRole('status')))) {
+    await page.waitForTimeout(750);
+  }
   for (const team of teams) {
     if (await isPresent(page.getByRole('row').filter({ hasText: team })))
       continue;

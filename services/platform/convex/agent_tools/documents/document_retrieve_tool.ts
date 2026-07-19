@@ -65,7 +65,7 @@ NOT FOR: searching across documents → rag_search; listing/browsing the knowled
 
 PAGINATION: the response carries chunkRange {start, end} (1-indexed), totalChunks, and truncated (content capped at ~50K chars). First call: omit chunkStart/chunkEnd. Need more? Call again with chunkStart = chunkRange.end + 1. Max 100 chunks per call.
 
-INDEXING ERRORS: "still being indexed" → the chat attachment hasn't finished RAG indexing; wait briefly and retry once before reporting to the user. "RAG indexing failed" → the file cannot be retrieved; tell the user and stop, do not retry.`,
+INDEXING: video/audio transcripts are returned even while search indexing is pending or failed — a "note" field on the result says so; the text is complete, but rag_search may not cover that file yet. For other attachments: "still being indexed" → the chat attachment hasn't finished RAG indexing; wait briefly and retry once before reporting to the user. "RAG indexing failed" → the file cannot be retrieved; tell the user and stop, do not retry.`,
     inputSchema: documentRetrieveArgs,
     execute: async (ctx, args): Promise<DocumentRetrieveResult> => {
       return retrieveDocument(ctx, args);

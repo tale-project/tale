@@ -14,6 +14,10 @@ import { cn } from '@/lib/utils/cn';
 
 import { useDeleteQueuedMessage } from '../hooks/mutations';
 import { useSessionProgress } from '../hooks/queries';
+import {
+  WaitingMediaDetails,
+  type WaitingMediaAttachment,
+} from './waiting-media-details';
 
 /** An optimistic entry for a message whose enqueue mutation is still in
  * flight — rendered exactly like a 'queued' row so the send never appears to
@@ -27,7 +31,11 @@ interface TrayEntry {
   key: string;
   queueId?: Id<'chatMessageQueue'>;
   text: string;
-  status: 'queued' | 'claimed' | 'delivered';
+  status: 'waiting_media' | 'queued' | 'claimed' | 'delivered';
+  /** Media-wait rows: what the send waits on, for the live progress strip
+   * (`WaitingMediaDetails`) under the text line. */
+  attachments?: readonly WaitingMediaAttachment[];
+  videoJobIds?: readonly Id<'videoLinkJobs'>[];
   /** Entry left the waiting set (picked or removed) — kept briefly with a
    * fade-out so a fast pick reads as a deliberate move into the transcript,
    * not a flash. */
@@ -71,13 +79,21 @@ export function QueuedMessageTray({
   // drained into the next turn; their bubbles are saved, so they leave too.
   const live = useMemo<TrayEntry[]>(() => {
     const fromServer = (rows ?? []).flatMap<TrayEntry>((r) =>
-      r.status === 'queued' || r.status === 'delivered'
+      r.status === 'queued' ||
+      r.status === 'delivered' ||
+      r.status === 'waiting_media'
         ? [
             {
               key: r.queueId,
               queueId: r.queueId,
               text: r.text,
               status: r.status,
+              ...(r.attachments !== undefined && {
+                attachments: r.attachments,
+              }),
+              ...(r.videoJobIds !== undefined && {
+                videoJobIds: r.videoJobIds,
+              }),
             },
           ]
         : [],
@@ -148,53 +164,73 @@ export function QueuedMessageTray({
       {entries.map((entry) => {
         const statusText = entry.ghost
           ? t('queue.status.consumed')
-          : entry.status === 'delivered'
-            ? t('queue.status.delivered')
-            : agentLingering
-              ? t('queue.status.deliversNow')
-              : t('queue.status.queued');
+          : entry.status === 'waiting_media'
+            ? t('queue.status.waitingMedia')
+            : entry.status === 'delivered'
+              ? t('queue.status.delivered')
+              : agentLingering
+                ? t('queue.status.deliversNow')
+                : t('queue.status.queued');
         const queueId = entry.queueId;
+        const showMediaDetails =
+          !entry.ghost &&
+          entry.status === 'waiting_media' &&
+          ((entry.attachments?.length ?? 0) > 0 ||
+            (entry.videoJobIds?.length ?? 0) > 0);
         return (
           <li
             key={entry.key}
             className={cn(
-              'border-border bg-muted/40 text-foreground flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm',
+              'border-border bg-muted/40 text-foreground flex flex-col gap-1.5 rounded-lg border px-3 py-1.5 text-sm',
               'animate-in fade-in-0 slide-in-from-bottom-1 transition-opacity duration-300',
               entry.ghost && 'opacity-0',
             )}
           >
-            <Clock
-              className="text-muted-foreground size-3.5 shrink-0"
-              aria-hidden="true"
-            />
-            <span className="min-w-0 flex-1 truncate">{entry.text}</span>
-            <span className="text-muted-foreground shrink-0 text-xs italic">
-              {statusText}
-            </span>
-            {!entry.ghost && entry.status === 'queued' && queueId && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6 shrink-0"
-                aria-label={t('queue.tray.remove')}
-                onClick={() =>
-                  deleteQueued(
-                    { queueId },
-                    {
-                      onError: (err: unknown) => {
-                        console.warn('[queue-tray] delete failed', err);
-                        toast({
-                          title: t('queue.tray.removeFailed'),
-                          variant: 'destructive',
-                        });
-                      },
-                    },
-                  )
-                }
-              >
-                <X className="size-3.5" aria-hidden="true" />
-              </Button>
+            <div className="flex items-center gap-2">
+              <Clock
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1 truncate">{entry.text}</span>
+              <span className="text-muted-foreground shrink-0 text-xs italic">
+                {statusText}
+              </span>
+              {!entry.ghost &&
+                (entry.status === 'queued' ||
+                  entry.status === 'waiting_media') &&
+                queueId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 shrink-0"
+                    aria-label={t('queue.tray.remove')}
+                    onClick={() =>
+                      deleteQueued(
+                        { queueId },
+                        {
+                          onError: (err: unknown) => {
+                            console.warn('[queue-tray] delete failed', err);
+                            toast({
+                              title: t('queue.tray.removeFailed'),
+                              variant: 'destructive',
+                            });
+                          },
+                        },
+                      )
+                    }
+                  >
+                    <X className="size-3.5" aria-hidden="true" />
+                  </Button>
+                )}
+            </div>
+            {showMediaDetails && (
+              <WaitingMediaDetails
+                threadId={threadId}
+                organizationId={organizationId}
+                attachments={entry.attachments}
+                videoJobIds={entry.videoJobIds}
+              />
             )}
           </li>
         );
