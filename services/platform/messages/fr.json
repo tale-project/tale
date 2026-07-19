@@ -1364,6 +1364,7 @@
       },
       "toast": {
         "ingestFailedTitle": "Impossible d'ajouter cette vidéo",
+        "retryFailedTitle": "Impossible de réessayer cette vidéo",
         "bindFailedDescription": "Impossible de joindre la transcription vidéo — réessaie"
       }
     },
