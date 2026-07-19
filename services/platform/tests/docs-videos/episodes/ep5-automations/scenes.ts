@@ -8,7 +8,6 @@
 import {
   spaNavigate,
   type SceneChoreography,
-  type SceneContext,
   type SceneRuntime,
 } from '../../lib/scene';
 import { APPROVAL_FIELD_TEXT } from './episode';
@@ -21,6 +20,29 @@ const APPROVAL_FIELD_LABEL = {
   en: 'Final adjustments',
   de: 'Letzte Anpassungen',
   fr: 'Derniers ajustements',
+} as const;
+
+/** Catalog card names are locale-resolved DATA: the grid renders each
+ * automation.json's `i18n` block, so anchors must speak the take's locale —
+ * an English anchor fails every de/fr take (and before the grid fix, it
+ * silently PASSED on the untranslated cards). Values quote the manifests
+ * (fixtures config/default + builtin triage-unassigned). */
+const CATALOG_CARD_NAME = {
+  resolveGithubIssues: {
+    en: 'Resolve GitHub issues',
+    de: 'GitHub-Issues lösen',
+    fr: 'Résoudre les issues GitHub',
+  },
+  syncGmailEmails: {
+    en: 'Sync Gmail emails',
+    de: 'Gmail-E-Mails synchronisieren',
+    fr: 'Synchroniser les e-mails Gmail',
+  },
+  triageUnassigned: {
+    en: 'Triage unassigned tasks',
+    de: 'Unzugewiesene Aufgaben sichten',
+    fr: 'Trier les tâches non assignées',
+  },
 } as const;
 
 function rail(rt: SceneRuntime, path: string) {
@@ -41,14 +63,6 @@ function sendButton(rt: SceneRuntime) {
 }
 
 const THREAD_URL = /\/chat\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
-
-function registerThreadForCleanup(ctx: SceneContext, threadId: string): void {
-  const existing = ctx.notes.get('cleanupThreadIds');
-  ctx.notes.set(
-    'cleanupThreadIds',
-    existing ? `${existing},${threadId}` : threadId,
-  );
-}
 
 export async function warmup(
   page: import('@playwright/test').Page,
@@ -101,12 +115,18 @@ export const SCENES: readonly SceneChoreography[] = [
       await allTab.waitFor({ state: 'visible', timeout: 30_000 });
       await cue(3.0);
       await cursor.click(allTab);
-      const github = page.getByText('Resolve GitHub issues').first();
+      const github = page
+        .getByText(CATALOG_CARD_NAME.resolveGithubIssues[rt.ctx.locale])
+        .first();
       await github.waitFor({ state: 'visible', timeout: 15_000 });
       await cue(6.5);
       await cursor.hover(github);
       await cue(10.0);
-      await cursor.hover(page.getByText('Sync Gmail emails').first());
+      await cursor.hover(
+        page
+          .getByText(CATALOG_CARD_NAME.syncGmailEmails[rt.ctx.locale])
+          .first(),
+      );
     },
   },
   {
@@ -122,7 +142,9 @@ export const SCENES: readonly SceneChoreography[] = [
       await cue(2.6);
       await cursor.click(installedTab);
       const triage = page
-        .getByRole('button', { name: /Triage unassigned tasks/ })
+        .getByRole('button', {
+          name: CATALOG_CARD_NAME.triageUnassigned[ctx.locale],
+        })
         .first();
       await triage.waitFor({ state: 'visible', timeout: 15_000 });
       await cue(6.4);
@@ -197,7 +219,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       const threadId = THREAD_URL.exec(page.url())?.[1];
-      if (threadId) registerThreadForCleanup(ctx, threadId);
+      if (threadId) ctx.cleanup.thread(threadId);
       // The pending card carries the draft; wait on its field label.
       const field = page
         .getByRole('textbox', { name: APPROVAL_FIELD_LABEL[ctx.locale] })

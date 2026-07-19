@@ -35,7 +35,6 @@ export const SPIKE_SYNC: EpisodeSpec = {
   },
   needsKnowledgeDb: false,
   voices: EP1_WELCOME.voices,
-  heroPromptByLocale: { en: '', de: '', fr: '' },
   scenes: [
     {
       id: 'title',

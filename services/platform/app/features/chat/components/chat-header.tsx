@@ -4,121 +4,44 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Row } from '@tale/ui/layout';
 import {
-  SearchCommand,
-  type SearchCommandLabels,
-  type SearchResult,
-} from '@tale/ui/search';
-import { useNavigate } from '@tanstack/react-router';
-import {
   MessagesSquare,
   Download,
   Ellipsis,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Share,
 } from 'lucide-react';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { useIsMac } from '@/app/hooks/use-is-mac';
-import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
+import { useSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { ChatMobileSidebarSheet } from './chat-dashboard-sidebar';
+import { useChatLayout } from '../context/chat-layout-context';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
-import { createThreadsSearchSource } from './threads-search-source';
+
 interface ChatHeaderProps {
   organizationId: string;
   threadId?: string;
 }
 
+/**
+ * Chat-surface header. On desktop it always renders: the leading toggle
+ * collapses/expands the chat sub-panel (persisted via ChatLayoutProvider),
+ * and the per-thread actions (Share + overflow) join it while a thread is
+ * open. The mobile bar keeps its hamburger + search buttons, wired to the
+ * shared sidebar state (drawer + palette).
+ */
 export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
-  const navigate = useNavigate();
-  const { isHistoryOpen, setIsHistoryOpen } = useChatLayout();
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const { isMobileSheetOpen, setMobileSheetOpen, setSearchOpen } = useSidebar();
+  const { isHistoryPanelOpen, toggleHistoryPanel } = useChatLayout();
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const isMac = useIsMac();
 
   const { t: tChat } = useT('chat');
-  const { t: tDialogs } = useT('dialogs');
-  const { formatDateHeader } = useFormatDate();
-  const teamFilter = useOptionalTeamFilter();
-  const selectedTeamId = teamFilter?.selectedTeamId ?? undefined;
-
-  // Chat search now runs on the shared `@tale/ui` SearchCommand, backed by a
-  // threads source. Chat-specific copy comes from the `dialogs.searchChat`
-  // keys; the rest of the chrome resolves from the shared `search` namespace.
-  const threadsSource = useMemo(
-    () =>
-      createThreadsSearchSource({
-        organizationId,
-        teamId: selectedTeamId,
-        untitledLabel: tDialogs('searchChat.untitledChat'),
-        formatGroup: (creationTime) => formatDateHeader(new Date(creationTime)),
-      }),
-    [organizationId, selectedTeamId, tDialogs, formatDateHeader],
-  );
-
-  const searchLabels = useMemo<Partial<SearchCommandLabels>>(
-    () => ({
-      title: tDialogs('searchChat.title'),
-      placeholder: tDialogs('searchChat.placeholder'),
-      loading: tDialogs('searchChat.loading'),
-      noResultsTitle: tDialogs('searchChat.noResults'),
-    }),
-    [tDialogs],
-  );
-
-  const handleSelectThread = useCallback(
-    (result: SearchResult) => {
-      void navigate({
-        to: '/dashboard/$id/chat/$threadId',
-        params: { id: organizationId, threadId: result.id },
-      });
-    },
-    [navigate, organizationId],
-  );
-
-  const findShortcut = isMac ? '⌘ K' : 'CTRL + K';
-  const historyShortcut = isMac ? '⌘ H' : 'CTRL + H';
-
-  const handleToggleSearch = useCallback(() => {
-    setIsSearchOpen((prev) => !prev);
-  }, []);
-
-  const handleToggleSidebar = useCallback(() => {
-    const isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (isMobile) {
-      setIsMobileSidebarOpen((prev) => !prev);
-    } else {
-      setIsHistoryOpen(!isHistoryOpen);
-    }
-  }, [isHistoryOpen, setIsHistoryOpen]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const isMod = isMac ? e.metaKey : e.ctrlKey;
-      if (isMod && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleToggleSearch();
-        return;
-      }
-      if (isMod && !e.shiftKey && (e.key === 'h' || e.key === 'H')) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleToggleSidebar();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isMac, handleToggleSearch, handleToggleSidebar]);
 
   // The per-thread voice toggle moved to the composer (next to dictation),
   // so the header dropdown now only carries the export action.
@@ -140,101 +63,64 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
 
   return (
     <>
-      <ChatMobileSidebarSheet
-        organizationId={organizationId}
-        open={isMobileSidebarOpen}
-        onOpenChange={setIsMobileSidebarOpen}
-      />
-
-      <div className="border-border bg-background/95 hidden h-13 items-center border-b px-4 backdrop-blur-xs md:flex">
-        <Tooltip
-          content={
-            <>
-              {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
-              <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
-                {historyShortcut}
-              </span>
-            </>
-          }
-          side="bottom"
-          contentClassName="py-1.5"
-        >
+      {/* Frosted floating bar: an absolute overlay on the message column
+          (its parent is `relative` in the chat layout), so content scrolls
+          BENEATH the blur. The glass layer is taller than the controls row
+          and dissolves to transparent — gradient tint + a mask on the
+          backdrop blur, kept on its own layer so the controls stay crisp.
+          pointer-events pass through everywhere except the buttons. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
+        <div
+          aria-hidden
+          className="from-background/75 absolute inset-x-0 top-0 h-18 bg-gradient-to-b to-transparent [mask-image:linear-gradient(to_bottom,black_40%,transparent)] backdrop-blur-md"
+        />
+        <div className="relative flex h-13 items-center px-4">
           <Button
             size="icon"
             variant="ghost"
-            onClick={handleToggleSidebar}
+            onClick={toggleHistoryPanel}
             aria-label={
-              isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
+              isHistoryPanelOpen ? tChat('hideHistory') : tChat('showHistory')
             }
-            aria-expanded={isHistoryOpen}
-            aria-controls="chat-history-panel"
-            // Negative margin pulls the icon's glyph to the header's content
-            // edge so it lines up with page titles (which start at px-4), since
-            // a ghost icon button carries its own p-2 inset. Same idiom as the
-            // onboarding wizard's leading Back button.
-            className={cn(
-              '-ml-2',
-              isHistoryOpen && 'bg-accent text-accent-foreground',
+            aria-expanded={isHistoryPanelOpen}
+            aria-controls="chat-sub-panel"
+            className="pointer-events-auto -ml-2"
+          >
+            {isHistoryPanelOpen ? (
+              <PanelLeftClose className={baseIconClasses} />
+            ) : (
+              <PanelLeftOpen className={baseIconClasses} />
             )}
-          >
-            <MessagesSquare
-              className={cn(
-                baseIconClasses,
-                isHistoryOpen && 'text-accent-foreground',
-              )}
-            />
           </Button>
-        </Tooltip>
-
-        <Tooltip
-          content={
+          <div className="min-w-0 flex-1" />
+          {threadId && (
             <>
-              {isSearchOpen ? tChat('hideSearch') : tChat('searchChat')}
-              <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
-                {findShortcut}
-              </span>
+              <Button
+                variant="ghost"
+                onClick={() => setIsShareDialogOpen(true)}
+                aria-label={tChat('share.button')}
+                className="text-muted-foreground pointer-events-auto gap-1.5"
+              >
+                <Share className="size-4" />
+                {tChat('share.button')}
+              </Button>
+              <DropdownMenu
+                trigger={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={tChat('moreActions')}
+                    className="pointer-events-auto"
+                  >
+                    <Ellipsis className={baseIconClasses} />
+                  </Button>
+                }
+                items={headerMenuItems}
+                align="end"
+              />
             </>
-          }
-          side="bottom"
-          contentClassName="py-1.5"
-        >
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleToggleSearch}
-            aria-label={tChat('searchChat')}
-          >
-            <Search className={baseIconClasses} />
-          </Button>
-        </Tooltip>
-
-        {threadId && (
-          <>
-            <div className="flex-1" />
-            <Button
-              variant="ghost"
-              onClick={() => setIsShareDialogOpen(true)}
-              aria-label={tChat('share.button')}
-              className="text-muted-foreground gap-1.5"
-            >
-              <Share className="size-4" />
-              {tChat('share.button')}
-            </Button>
-            <DropdownMenu
-              trigger={
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={tChat('moreActions')}
-                >
-                  <Ellipsis className={baseIconClasses} />
-                </Button>
-              }
-              items={headerMenuItems}
-              align="end"
-            />
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       <AdaptiveHeaderRoot className="md:hidden">
@@ -242,23 +128,23 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           <Button
             size="icon"
             variant="ghost"
-            onClick={handleToggleSidebar}
+            onClick={() => setMobileSheetOpen(!isMobileSheetOpen)}
             aria-label={
-              isMobileSidebarOpen ? tChat('hideHistory') : tChat('showHistory')
+              isMobileSheetOpen ? tChat('hideHistory') : tChat('showHistory')
             }
-            aria-expanded={isMobileSidebarOpen}
+            aria-expanded={isMobileSheetOpen}
           >
             <MessagesSquare
               className={cn(
                 baseIconClasses,
-                isMobileSidebarOpen && 'text-accent-foreground',
+                isMobileSheetOpen && 'text-accent-foreground',
               )}
             />
           </Button>
           <Button
             size="icon"
             variant="ghost"
-            onClick={handleToggleSearch}
+            onClick={() => setSearchOpen(true)}
             title={tChat('searchChat')}
           >
             <Search className={baseIconClasses} />
@@ -290,17 +176,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           )}
         </Row>
       </AdaptiveHeaderRoot>
-
-      <SearchCommand
-        open={isSearchOpen}
-        onOpenChange={setIsSearchOpen}
-        source={threadsSource}
-        labels={searchLabels}
-        getGroupLabel={(key) => key}
-        recentsStorageKey="tale.platform.chat.recentSearches.v1"
-        minQueryLength={1}
-        onSelect={handleSelectThread}
-      />
 
       {threadId && (
         <>

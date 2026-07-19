@@ -57,7 +57,7 @@ Safety and architecture invariants — they hold even where no linter covers the
 - **Accessibility is WCAG 2.1 AA** — real HTML, keyboard reachable, visible focus, labelled controls, AA contrast.
 - **Commits** follow `.commitlintrc.json` (atomic, imperative, ≤72-char header); branch off `main`, never commit to it. **Never add `Co-Authored-By` or "Generated with Claude Code" / any attribution line** — `.husky/commit-msg` strips Cursor/Claude attribution trailers before commitlint runs.
 - **A change is rarely one file** — sweep the concept's blast radius (`search-codebase`): a user-visible string → every locale (+ docs); a new UI element → label + a11y + docs + tests; an env var / flag / API field → docs + `.env.example` + the READMEs. The guards catch the big ones — run them.
-- **Scaffold a new part** (service / package / tool / skill / migration) from a template (`bun run gen …`), never hand-rolled — so it carries the standard configs and test layout.
+- **Scaffold a new part** (service / package / tool / skill / migration / video episode) from a template (`bun run gen …`), never hand-rolled — so it carries the standard configs and test layout.
 - **Instructions are docs too** — change a path, command, or pattern a skill or this file documents, and update it in the same change (`bun run skills:check` guards the skill set).
 
 ## Skills and guides index

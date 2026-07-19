@@ -100,6 +100,10 @@ interface DropdownMenuProps {
   trigger: ReactNode;
   items: DropdownMenuGroup[];
   align?: 'start' | 'center' | 'end';
+  /** Side the menu opens on. @default 'bottom' (Radix default) */
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  /** Gap between the trigger and the menu. @default 4 */
+  sideOffset?: number;
   contentClassName?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -336,6 +340,8 @@ export function DropdownMenu({
   trigger,
   items,
   align,
+  side,
+  sideOffset,
   contentClassName,
   open,
   onOpenChange,
@@ -378,7 +384,8 @@ export function DropdownMenu({
       )}
       <DropdownMenuPrimitive.Portal>
         <DropdownMenuPrimitive.Content
-          sideOffset={4}
+          side={side}
+          sideOffset={sideOffset ?? 4}
           align={align}
           collisionPadding={16}
           onClick={(e) => e.stopPropagation()}

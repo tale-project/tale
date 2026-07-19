@@ -1221,13 +1221,8 @@
       "voiceModeDisable": "Vorlesen beenden"
     },
     "searchChat": "Chat durchsuchen",
-    "hideSearch": "Suche ausblenden",
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
-    "unifiedSidebar": {
-      "title": "Menü",
-      "landmark": "Dashboard-Seitenleiste"
-    },
     "newProject": "Neues Projekt",
     "typeMessageHere": "Gib hier deine Nachricht ein...",
     "send": "Nachricht senden",
@@ -4667,7 +4662,11 @@
     "orgDataResidency": "Datenresidenz der Organisation",
     "runtimes": "Runtimes",
     "sandboxes": "Sandboxes",
-    "enterpriseSso": "Enterprise-SSO"
+    "enterpriseSso": "Enterprise-SSO",
+    "sidebar": {
+      "landmark": "Dashboard-Seitenleiste",
+      "title": "Menü"
+    }
   },
   "notificationPreferences": {
     "title": "Benachrichtigungen",

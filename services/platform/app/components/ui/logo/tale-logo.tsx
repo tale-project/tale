@@ -8,7 +8,7 @@ export const TaleLogo = () => {
 
   if (logoUrl) {
     return (
-      <div className="flex size-8 items-center justify-center">
+      <div className="flex size-9 items-center justify-center">
         <Image
           priority
           src={logoUrl}
@@ -22,7 +22,7 @@ export const TaleLogo = () => {
   }
 
   return (
-    <div className="flex size-8 items-center justify-center">
+    <div className="flex size-9 items-center justify-center">
       <Image
         priority
         src={`${basePath}/assets/logo-black.svg`}

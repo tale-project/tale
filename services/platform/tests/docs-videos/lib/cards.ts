@@ -14,10 +14,10 @@ import path from 'node:path';
 
 import type { Page } from '@playwright/test';
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
-const REPO_ROOT = path.resolve(HERE, '../../../../..');
+import { DOCS_PUBLIC_DIR } from './paths';
+
 const LOGO_SVG = readFileSync(
-  path.join(REPO_ROOT, 'services/docs/public/images/logo-text-white.svg'),
+  path.join(DOCS_PUBLIC_DIR, 'images/logo-text-white.svg'),
   'utf8',
 );
 

@@ -3,8 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Row, Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useParams, useNavigate, useRouter } from '@tanstack/react-router';
 import {
@@ -15,6 +13,7 @@ import {
   MoreHorizontal,
   Pin,
   PinOff,
+  Search,
   Share2Icon,
   SquarePen,
 } from 'lucide-react';
@@ -31,6 +30,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import { useSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
@@ -62,6 +62,7 @@ import {
   useChatDraggable,
   useProjectDropZone,
 } from './chat-history-dnd';
+import { ChatHistorySkeleton } from './chat-history-skeleton';
 import { LegalHoldIndicator } from './legal-hold-indicator';
 
 const emptySubscribe = () => () => {};
@@ -128,6 +129,14 @@ function useChatRowContext() {
 }
 
 /**
+ * Pins a section header to the top of the scrolling list. Opaque background so
+ * scrolled rows disappear under it; z-20 clears the rows' own z-10 hover
+ * overlays (actions menu, drop hints). The next sticky header slides over the
+ * previous one at the section boundary — the classic stacked-sections read.
+ */
+const STICKY_SECTION_HEADER_CLASS = 'bg-background sticky top-0 z-20';
+
+/**
  * Uppercase section label ("PROJECTS" / "CHATS") with an optional right-aligned
  * action slot. Fixed height so a header with an action button doesn't sit taller
  * than one without.
@@ -162,15 +171,11 @@ function SidebarSectionHeader({
 
 interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
   organizationId: string;
-  onSearchOpen?: () => void;
-  onNewChat?: () => void;
   onChatSelect?: () => void;
 }
 
 export function ChatHistorySidebar({
   organizationId,
-  onSearchOpen,
-  onNewChat,
   onChatSelect,
   className,
   ...restProps
@@ -181,7 +186,6 @@ export function ChatHistorySidebar({
   const params = useParams({ strict: false });
   // TanStack Router useParams with strict: false returns unknown params — cast required
   const currentThreadId = params.threadId;
-  const [isMac, setIsMac] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [archivedExpanded, setArchivedExpanded] = usePersistedState(
     'chat-sidebar-archived-expanded',
@@ -191,6 +195,7 @@ export function ChatHistorySidebar({
     Record<string, boolean>
   >('chat-sidebar-collapsed-projects', {});
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const { setSearchOpen } = useSidebar();
   const isMounted = useIsMounted();
   const { toast } = useToast();
 
@@ -356,37 +361,6 @@ export function ChatHistorySidebar({
     [projects],
   );
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const platform = (
-        navigator.platform ||
-        navigator.userAgent ||
-        ''
-      ).toLowerCase();
-      setIsMac(platform.includes('mac'));
-    }
-  }, []);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const isMod = isMac ? e.metaKey : e.ctrlKey;
-
-      if (isMod && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        onSearchOpen?.();
-        return;
-      }
-
-      if (isMod && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
-        e.preventDefault();
-        onNewChat?.();
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isMac, onSearchOpen, onNewChat]);
-
   const handleChatClick = useCallback(
     (threadId: string) => {
       void navigate({
@@ -496,16 +470,35 @@ export function ChatHistorySidebar({
   // Defined once and reused by both the empty-state and populated headers so
   // the "new project" affordance always lives on the right of the PROJECTS
   // header row (and never as a tiny icon floating in the panel header).
+  // `-mr-1.5` pulls both header actions onto the same vertical axis as the
+  // rows' "..." overlay (size-6 at right-1 → center 16px from the row edge).
   const newProjectButton = (
-    <Tooltip content={t('newProject')} side="bottom" contentClassName="py-1.5">
+    <Tooltip content={t('newProject')} side="right" contentClassName="py-1.5">
       <Button
         size="icon"
         variant="ghost"
         onClick={() => setCreateProjectOpen(true)}
         aria-label={t('newProject')}
-        className="text-muted-foreground -my-1 size-7 shrink-0"
+        className="text-muted-foreground -my-1 -mr-1.5 size-7 shrink-0"
       >
         <FolderPlus className="size-4" />
+      </Button>
+    </Tooltip>
+  );
+
+  // The chat search affordance: one icon on the CHATS header (mirrors the
+  // "new project" affordance above) that opens the shared ⌘K palette —
+  // there is no second search implementation.
+  const searchChatButton = (
+    <Tooltip content={t('searchChat')} side="right" contentClassName="py-1.5">
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => setSearchOpen(true)}
+        aria-label={t('searchChat')}
+        className="text-muted-foreground -my-1 -mr-1.5 size-7 shrink-0"
+      >
+        <Search className="size-4" />
       </Button>
     </Tooltip>
   );
@@ -519,7 +512,7 @@ export function ChatHistorySidebar({
         // full-height mobile Sheet (which passes `p-0`, opting out of the
         // Sheet primitive's own safe-area padding).
         'flex flex-[1_1_0] flex-col overflow-hidden px-2.5 py-3.5',
-        'pt-[calc(0.875rem+var(--safe-top))] pb-[calc(0.875rem+var(--safe-bottom))] pl-[calc(0.625rem+var(--safe-left))]',
+        'pt-[calc(0.625rem+var(--safe-top))] pb-[calc(0.875rem+var(--safe-bottom))] pl-[calc(0.625rem+var(--safe-left))]',
         className,
       )}
       {...restProps}
@@ -527,65 +520,10 @@ export function ChatHistorySidebar({
       <Stack gap={0} className="min-h-0 flex-1 overflow-y-auto">
         <Stack as="section" gap={0}>
           {showSkeleton ? (
-            // Mirror the loaded sidebar geometry (Projects header + folder rows,
-            // Chats header + chat rows) so the reveal is a mask swap, not a
-            // layout change. The varied label widths live on plain flex-item
-            // wrappers (a % width resolves against the row there), with a
-            // `fullWidth` box filling each wrapper — a % width on the hidden
-            // placeholder itself would either collapse to 0 (non-fullWidth)
-            // or be ignored by the mask (fullWidth).
-            <Skeletonize loading>
-              <Stack gap={1} className="pb-2">
-                <Row gap={0} className="h-7 px-2">
-                  <SkeletonBox>
-                    <div className="h-3 w-16" />
-                  </SkeletonBox>
-                </Row>
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <div
-                    key={`project-${i}`}
-                    className="flex min-h-[1.5rem] items-center gap-1.5 px-2 py-1.5"
-                  >
-                    {/* Chevron + plain icon — matches the loaded folder row
-                        (chevron `size-3.5` + plain-variant icon `size-3`)
-                        instead of the legacy colored chip the skeleton used
-                        to suggest. */}
-                    <SkeletonBox>
-                      <div className="size-3.5 rounded-sm" />
-                    </SkeletonBox>
-                    <SkeletonBox>
-                      <div className="size-3 rounded-sm" />
-                    </SkeletonBox>
-                    <div style={{ width: `${58 - i * 14}%` }}>
-                      <SkeletonBox fullWidth>
-                        <div className="h-3.5" />
-                      </SkeletonBox>
-                    </div>
-                  </div>
-                ))}
-                <Row
-                  gap={0}
-                  className="border-border mt-1.5 h-7 border-t px-2 pt-2.5"
-                >
-                  <SkeletonBox>
-                    <div className="h-3 w-12" />
-                  </SkeletonBox>
-                </Row>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Row
-                    key={`chat-${i}`}
-                    gap={0}
-                    className="min-h-[1.5rem] px-2 py-1.5"
-                  >
-                    <div style={{ width: `${82 - (i % 4) * 14}%` }}>
-                      <SkeletonBox fullWidth>
-                        <div className="h-3.5" />
-                      </SkeletonBox>
-                    </div>
-                  </Row>
-                ))}
-              </Stack>
-            </Skeletonize>
+            // Shared with ChatSubPanelPlaceholder (the boot-shell /
+            // access-resolving stand-in) so the pre-data panel and this
+            // loading state are pixel-identical.
+            <ChatHistorySkeleton />
           ) : isEmpty && sortedProjects.length === 0 ? (
             <>
               <SidebarSectionHeader
@@ -617,13 +555,14 @@ export function ChatHistorySidebar({
           ) : (
             <ChatRowContext.Provider value={rowContext}>
               <ChatDndProvider>
-                <Stack gap={1} className="pb-2">
+                <Stack gap={0} className="gap-0.5 pb-2">
                   {/* PROJECTS — always rendered (even empty) so the section
                       never appears/disappears on drag and the "new project"
                       action always has a home. Each folder is a drop target. */}
                   <SidebarSectionHeader
                     label={t('projectsSection')}
                     action={newProjectButton}
+                    className={STICKY_SECTION_HEADER_CLASS}
                   />
                   {sortedProjects.map((project) => (
                     <ProjectFolder
@@ -642,9 +581,19 @@ export function ChatHistorySidebar({
                       drop target: a chat dragged here (from a project) is moved
                       back out to "Chats". Always rendered so that target exists
                       even when every chat currently lives in a project. */}
+                  {/* Divider as its own element (not padding inside the h-7
+                      header) so the CHATS header box is pixel-identical to
+                      PROJECTS'. Margins account for the list's 2px flex gap:
+                      6+2 above the border, 8+2 below = the same 8/10 rhythm
+                      as every other section boundary. */}
+                  <div
+                    aria-hidden
+                    className="border-border mt-1.5 mb-2 border-t"
+                  />
                   <SidebarSectionHeader
                     label={t('chatsSection')}
-                    className="border-border mt-1.5 border-t pt-2.5"
+                    action={searchChatButton}
+                    className={STICKY_SECTION_HEADER_CLASS}
                   />
                   <LooseChatsDropZone hasChats={looseChats.length > 0}>
                     {looseChats.map((chat) => (
@@ -657,7 +606,7 @@ export function ChatHistorySidebar({
                       type="button"
                       onClick={loadMore}
                       disabled={isLoadingMore}
-                      className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-50"
+                      className="text-muted-foreground hover:text-foreground flex h-8 items-center px-2 text-left text-[13px] transition-colors disabled:opacity-50"
                     >
                       {isLoadingMore
                         ? t('history.loadingMore')
@@ -672,12 +621,12 @@ export function ChatHistorySidebar({
       </Stack>
 
       {archivedChats && archivedChats.length > 0 && (
-        <section className="border-border mt-2 shrink-0 border-t pt-2">
+        <section className="border-border mt-2 shrink-0 border-t pt-2.5">
           <button
             type="button"
             onClick={() => setArchivedExpanded(!archivedExpanded)}
             aria-expanded={archivedExpanded}
-            className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors"
+            className="hover:bg-muted/60 hover:text-foreground flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-left transition-colors"
           >
             <ChevronDown
               className={cn(
@@ -708,14 +657,14 @@ export function ChatHistorySidebar({
             inert={!archivedExpanded}
           >
             <Stack
-              gap={1}
-              className="max-h-64 min-h-0 overflow-y-auto pt-1 pb-2"
+              gap={0}
+              className="max-h-64 min-h-0 gap-0.5 overflow-y-auto pt-1 pb-2"
             >
               {archivedChats.map((chat) => (
                 <Row
                   key={chat._id}
                   gap={2}
-                  className="group hover:bg-accent hover:text-accent-foreground relative rounded-md px-2 py-1.5 text-sm transition-colors"
+                  className="text-muted-foreground group hover:bg-muted/60 hover:text-foreground relative h-8 cursor-pointer rounded-md px-2 text-[13px] transition-colors"
                 >
                   <button
                     type="button"
@@ -723,7 +672,7 @@ export function ChatHistorySidebar({
                     onClick={() => handleChatClick(chat._id)}
                     className="absolute inset-0 cursor-pointer rounded-md"
                   />
-                  <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+                  <span className="pointer-events-none relative z-10 flex h-full flex-1 items-center gap-1.5 truncate text-left leading-snug">
                     {isThreadHeld(chat._id) && (
                       <LegalHoldIndicator
                         organizationId={organizationId}
@@ -733,7 +682,7 @@ export function ChatHistorySidebar({
                     )}
                     <span className="truncate">{chat.title}</span>
                   </span>
-                  <div className="md:bg-accent z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:rounded-md md:opacity-0 md:group-hover:opacity-100">
+                  <div className="z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:has-[[data-state=open]]:opacity-100">
                     <ChatActions
                       chat={{ id: chat._id, title: chat.title }}
                       currentChatId={currentThreadId}
@@ -748,7 +697,7 @@ export function ChatHistorySidebar({
                   type="button"
                   onClick={loadMoreArchived}
                   disabled={isLoadingMoreArchived}
-                  className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-50"
+                  className="text-muted-foreground hover:text-foreground flex h-8 items-center px-2 text-left text-[13px] transition-colors disabled:opacity-50"
                 >
                   {isLoadingMoreArchived
                     ? t('history.loadingMore')
@@ -870,17 +819,23 @@ function ProjectFolder({
 
   return (
     <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
-      <Row gap={0} className="group relative">
+      {/* The hover fill lives on the wrapper (not the disclosure button) so
+          the row stays highlighted while the pointer is over the "..."
+          overlay — a sibling of the button. */}
+      <Row
+        gap={0}
+        className="group hover:bg-muted/60 relative rounded-md transition-colors"
+      >
         <button
           type="button"
           onClick={() => onSetCollapsed(!collapsed)}
           aria-expanded={!collapsed}
           aria-label={project.name}
-          className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors"
+          className="text-muted-foreground group-hover:text-foreground flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] transition-colors"
         >
           <ChevronDown
             className={cn(
-              'text-muted-foreground size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
+              'size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
               collapsed && '-rotate-90',
             )}
             aria-hidden
@@ -892,22 +847,27 @@ function ProjectFolder({
             size={16}
             variant="plain"
           />
-          <span className="flex-1 truncate text-sm leading-snug font-medium">
+          <span className="flex-1 truncate text-[13px] leading-snug">
             {project.name}
           </span>
           {isPinned && (
+            // Hides on hover (desktop) like the count below — the actions
+            // overlay lands on this edge and the pin would show through it.
             <Pin
-              className="text-muted-foreground size-3 shrink-0"
+              className="text-muted-foreground size-3 shrink-0 md:group-hover:opacity-0 md:group-has-[[data-state=open]]:opacity-0"
               aria-label={t('pinned')}
             />
           )}
-          {/* Count hides on hover (desktop) to make room for the actions
-              menu, mirroring the chat row's share-icon behavior. */}
-          <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-xs leading-5 font-medium md:group-hover:opacity-0">
-            {chats.length}
-          </span>
+          {/* Plain count, no chip — omitted entirely for empty folders. Hides
+              on hover (desktop) to make room for the actions menu, mirroring
+              the chat row's share-icon behavior. */}
+          {chats.length > 0 && (
+            <span className="text-muted-foreground text-xs leading-5 font-medium tabular-nums md:group-hover:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
+              {chats.length}
+            </span>
+          )}
         </button>
-        <div className="z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100">
+        <div className="z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:has-[[data-state=open]]:opacity-100">
           <DropdownMenu
             align="end"
             trigger={
@@ -934,8 +894,8 @@ function ProjectFolder({
       >
         <div className="min-h-0 overflow-hidden">
           <Stack
-            gap={1}
-            className="border-border/60 mt-1 ml-3.5 border-l pl-1.5"
+            gap={0}
+            className="border-border/60 mt-1 ml-3.5 gap-0.5 border-l pl-1.5"
           >
             {chats.length === 0 ? (
               <Text
@@ -973,7 +933,9 @@ function LooseChatsDropZone({
 
   return (
     <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
-      <Stack gap={1}>{children}</Stack>
+      <Stack gap={0} className="gap-0.5">
+        {children}
+      </Stack>
       {isDragging && !hasChats && (
         <div
           className={cn(
@@ -1043,16 +1005,17 @@ function ChatRow({ chat }: { chat: ChatItem }) {
       data-testid="chat-history-row"
       data-thread-id={chat._id}
       className={cn(
-        'group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-        !isEditing &&
-          'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+        // Row anatomy mirrors the sidebar nav items: h-8, 13px, muted base
+        // text, muted fills — one rhythm from nav to chats.
+        'text-muted-foreground group relative flex h-8 items-center gap-2 rounded-md px-2 text-[13px] transition-colors',
+        !isEditing && 'hover:bg-muted/60 hover:text-foreground cursor-pointer',
         // Active row highlight — suppressed while THIS row is the drag source
         // so a dragged chat (faded placeholder) is never confused with the
         // selected chat, and its solid fill can't bleed over a drop-zone ring.
         ctx.currentThreadId === chat._id &&
           !isEditing &&
           !isDragging &&
-          'bg-accent text-accent-foreground',
+          'bg-muted text-foreground',
         isGenerating && 'animate-pulse',
         isDragging && 'opacity-40',
       )}
@@ -1073,7 +1036,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
           }}
           onBlur={() => ctx.onInputBlur(chat._id, draft)}
           aria-label={t('history.renameChat')}
-          className="ring-primary focus-visible:ring-primary min-h-[1.5rem] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
+          className="ring-primary focus-visible:ring-primary min-w-0 flex-1 rounded-sm bg-transparent px-1 text-[13px] leading-snug ring-1 outline-none focus-visible:ring-2"
         />
       ) : (
         <>
@@ -1096,7 +1059,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
             }}
             className="absolute inset-0 cursor-pointer rounded-md"
           />
-          <span className="pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+          <span className="pointer-events-none relative z-10 flex flex-1 items-center gap-1.5 truncate text-left leading-snug">
             {isPending && (
               <CircleDotIcon
                 className="text-warning size-3.5 shrink-0"
@@ -1133,7 +1096,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
           </span>
           {chat.isShared && (
             <Share2Icon
-              className="text-muted-foreground pointer-events-none relative z-10 size-3 shrink-0 md:group-hover:hidden"
+              className="text-muted-foreground pointer-events-none relative z-10 size-3 shrink-0 md:group-hover:hidden md:group-has-[[data-state=open]]:hidden"
               aria-label={t('share.sharedIndicator')}
             />
           )}
@@ -1152,14 +1115,14 @@ function ChatRow({ chat }: { chat: ChatItem }) {
               the menu is in-flow there. Suppressed when a new-response badge
               is showing so the row doesn't crowd. */}
           {!hasNewResponse && relativeAge !== null && (
-            <span className="text-muted-foreground pointer-events-none relative z-10 hidden shrink-0 text-xs tabular-nums md:inline md:group-hover:hidden">
+            <span className="text-muted-foreground pointer-events-none relative z-10 hidden shrink-0 text-xs tabular-nums md:inline md:group-hover:hidden md:group-has-[[data-state=open]]:hidden">
               {relativeAge}
             </span>
           )}
           {/* On desktop the actions menu is an absolute overlay so it reserves
               no horizontal space until hover — the title gets the full width.
               On touch it stays in-flow and always visible. */}
-          <div className="md:bg-accent z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:rounded-md md:opacity-0 md:group-hover:opacity-100">
+          <div className="z-10 shrink-0 opacity-100 transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:has-[[data-state=open]]:opacity-100">
             <ChatActions
               chat={{ id: chat._id, title: chat.title }}
               currentChatId={ctx.currentThreadId}

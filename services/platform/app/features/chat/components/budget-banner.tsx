@@ -38,7 +38,9 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
   return (
     <div
       className={cn(
-        'flex items-center gap-2 border-b px-4 py-2',
+        // md:mt-13 clears the chat top bar, which floats as an absolute
+        // glass overlay over the message column on desktop.
+        'flex items-center gap-2 border-b px-4 py-2 md:mt-13',
         budgetStatus.exceeded
           ? 'bg-destructive/10 border-destructive/30'
           : 'bg-warning/10 border-warning/30',

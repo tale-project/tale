@@ -1,8 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { Row, Stack, VStack } from '@tale/ui/layout';
-import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,9 +13,11 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
+import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
+import { AppSidebarPlaceholder } from '@/app/components/layout/app-sidebar/app-sidebar-placeholder';
+import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-context';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { DirtyBlockerProvider } from '@/app/components/ui/editor';
-import { Navigation } from '@/app/components/ui/navigation/navigation';
 import { UserButton } from '@/app/components/user-button';
 import {
   AbilityContext,
@@ -27,8 +27,10 @@ import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
+import { ChatSubPanelPlaceholder } from '@/app/features/chat/components/chat-sub-panel-placeholder';
 import { ProvisioningBanner } from '@/app/features/organization/components/provisioning-banner';
 import { configKeys } from '@/app/hooks/config-query-keys';
+import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
@@ -332,193 +334,90 @@ function DashboardLayout() {
         <TeamFilterProvider organizationId={organizationId}>
           <DirtyBlockerProvider>
             <AdaptiveHeaderProvider>
-              {/* Shell alerts sit above nav + main so page headers (chat toolbar,
+              <SidebarProvider>
+                {/* Learns the client↔server clock offset from getThreadMeta.serverNow
+                  so the sidebar's chat-history relative times and the chat
+                  interface's timers share one clock frame on every route. */}
+                <ClockOffsetProvider>
+                  {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
                   inside #main-content pushed those headers down and looked broken. */}
-              <div className="flex h-full w-full flex-col overflow-hidden">
-                {hasRole && (
-                  <TwoFactorGraceBanner organizationId={organizationId} />
-                )}
-                {hasRole && (
-                  <TwoFactorLowBackupCodesBanner
-                    organizationId={organizationId}
-                  />
-                )}
-                {hasRole && (
-                  <ProvisioningBanner organizationId={organizationId} />
-                )}
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-                  {/* Safe-area inset clears the notch; the inner fixed-height row
+                  <div className="flex h-full w-full flex-col overflow-hidden">
+                    {hasRole && (
+                      <TwoFactorGraceBanner organizationId={organizationId} />
+                    )}
+                    {hasRole && (
+                      <TwoFactorLowBackupCodesBanner
+                        organizationId={organizationId}
+                      />
+                    )}
+                    {hasRole && (
+                      <ProvisioningBanner organizationId={organizationId} />
+                    )}
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+                      {/* Safe-area inset clears the notch; the inner fixed-height row
                       vertically centers the title and profile button so neither
                       sits high/low in the bar on notch devices. */}
-                  <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-                    <Row gap={2} className="min-h-12">
-                      <div className="min-w-0 flex-1">
-                        <AdaptiveHeaderSlot />
-                      </div>
-                      <UserButton align="end" />
-                    </Row>
-                  </header>
+                      <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                        <Row gap={2} className="min-h-12">
+                          <div className="min-w-0 flex-1">
+                            <AdaptiveHeaderSlot />
+                          </div>
+                          <UserButton align="end" />
+                        </Row>
+                      </header>
 
-                  <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-                    {hasRole ? (
-                      <Navigation organizationId={organizationId} />
-                    ) : (
-                      <NavRailPlaceholder />
-                    )}
-                  </div>
-
-                  <Stack
-                    id="main-content"
-                    as="main"
-                    tabIndex={-1}
-                    gap={0}
-                    className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
-                  >
-                    {hasRole && <ChangelogToastTrigger />}
-                    {hasRole ? (
-                      isSwitching ? (
-                        <FullPageCenter>
-                          <VStack gap={3} align="center">
-                            <Spinner
-                              size="lg"
-                              label={tSettings('organization.switchingLabel')}
-                            />
-                            <Text variant="muted" className="text-sm">
-                              {tSettings('organization.switching')}
-                            </Text>
-                          </VStack>
-                        </FullPageCenter>
+                      {hasRole ? (
+                        <AppSidebar organizationId={organizationId} />
                       ) : (
-                        <Outlet />
-                      )
-                    ) : null}
-                  </Stack>
-                  {hasRole && (
-                    <MobileBottomNav organizationId={organizationId} />
-                  )}
-                </div>
-              </div>
+                        <AppSidebarPlaceholder />
+                      )}
+
+                      <Stack
+                        id="main-content"
+                        as="main"
+                        tabIndex={-1}
+                        gap={0}
+                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
+                      >
+                        {hasRole && <ChangelogToastTrigger />}
+                        {!hasRole && (
+                          // While access resolves, hold the chat sub-panel's
+                          // slot (CSS-gated to open-panel chat navigations)
+                          // so the real panel slots in without a late pop.
+                          <ChatSubPanelPlaceholder />
+                        )}
+                        {hasRole ? (
+                          isSwitching ? (
+                            <FullPageCenter>
+                              <VStack gap={3} align="center">
+                                <Spinner
+                                  size="lg"
+                                  label={tSettings(
+                                    'organization.switchingLabel',
+                                  )}
+                                />
+                                <Text variant="muted" className="text-sm">
+                                  {tSettings('organization.switching')}
+                                </Text>
+                              </VStack>
+                            </FullPageCenter>
+                          ) : (
+                            <Outlet />
+                          )
+                        ) : null}
+                      </Stack>
+                      {hasRole && (
+                        <MobileBottomNav organizationId={organizationId} />
+                      )}
+                    </div>
+                  </div>
+                </ClockOffsetProvider>
+              </SidebarProvider>
             </AdaptiveHeaderProvider>
           </DirtyBlockerProvider>
         </TeamFilterProvider>
       </AbilityLoadingContext.Provider>
     </AbilityContext.Provider>
-  );
-}
-
-// One masked nav icon — mirrors the real NavigationItem footprint: a `size-5`
-// glyph centered in a `p-2 rounded-lg` hover target. Used for both the primary
-// list and the pinned footer buttons so the rail reads as a populated nav.
-function NavIconSkeleton() {
-  return (
-    <Row gap={0} justify="center" className="rounded-lg p-2">
-      <SkeletonBox>
-        <div className="size-5" />
-      </SkeletonBox>
-    </Row>
-  );
-}
-
-// The full primary nav (chat, projects, conversations, knowledge, agents,
-// settings). The real list is CASL-gated down to a few items and
-// the gated count isn't known until access resolves, so the placeholder
-// optimistically renders the whole set — that's a pixel match for the common
-// admin/owner case and only over-draws a slot or two for limited members. The
-// middle is a top-aligned `flex-1` region with a pinned footer, so the count
-// never reflows the rail; it only sets which icon slots the placeholder fills.
-const PLACEHOLDER_NAV_ITEMS = 7;
-
-// Masked desktop side-nav rail shown while access resolves. Mirrors the real
-// Navigation geometry — logo, primary icon list, and the pinned footer (bell +
-// user avatar) — so it slots in without reflow.
-function NavRailPlaceholder() {
-  return (
-    <Skeletonize loading>
-      <Stack gap={0} className="border-border h-full">
-        <Row gap={0} justify="center" className="flex-shrink-0 py-3">
-          <Row gap={0} justify="center" className="size-8">
-            <SkeletonBox>
-              <div className="size-5" />
-            </SkeletonBox>
-          </Row>
-        </Row>
-        <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4">
-          <div className="space-y-2">
-            {Array.from({ length: PLACEHOLDER_NAV_ITEMS }, (_, i) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <NavIconSkeleton key={i} />
-            ))}
-          </div>
-        </div>
-        <Stack gap={2} align="center" className="flex-shrink-0 py-3">
-          {/* Notification bell */}
-          <NavIconSkeleton />
-          {/* UserButton avatar */}
-          <Row gap={0} justify="center" className="rounded-lg p-2">
-            <SkeletonCircle>
-              <div className="size-5" />
-            </SkeletonCircle>
-          </Row>
-        </Stack>
-      </Stack>
-    </Skeletonize>
-  );
-}
-
-// Full-frame dashboard chrome for the redirect routes (`/dashboard`,
-// `/dashboard/create-organization`) that have no Outlet/nav of their own and
-// just need the shell to show while they resolve which org to route to.
-// Mirrors the resolved layout's outer frame so the real chrome slots in without
-// reflow.
-export function DashboardShellFrame() {
-  return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
-      {/* Mobile top bar — mirrors the resolved chat header (the default
-          landing): a leading cluster of action icons + the trailing account
-          avatar, so the real header slots in without reflow. Matches the
-          DashboardLayout header geometry above (px-4, min-h-12). */}
-      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-        <Skeletonize loading>
-          <Row gap={2} className="min-h-12">
-            {/* Leading action icons (sidebar menu / search). */}
-            <Row gap={0} align="stretch" className="flex-1">
-              {Array.from({ length: 2 }, (_, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <Row key={i} gap={0} justify="center" className="p-2">
-                  <SkeletonBox>
-                    <div className="size-5" />
-                  </SkeletonBox>
-                </Row>
-              ))}
-            </Row>
-            {/* Trailing account avatar (UserButton). */}
-            <Row gap={0} justify="center" className="p-2">
-              <SkeletonCircle>
-                <div className="size-5" />
-              </SkeletonCircle>
-            </Row>
-          </Row>
-        </Skeletonize>
-      </div>
-
-      {/* Desktop side nav */}
-      <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-        <NavRailPlaceholder />
-      </div>
-
-      <Stack
-        as="main"
-        gap={0}
-        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
-      />
-
-      {/* Mobile bottom-nav placeholder */}
-      <Row
-        gap={0}
-        align="stretch"
-        className="bg-background border-border min-h-12 border-t pb-(--safe-bottom) md:hidden"
-      />
-    </div>
   );
 }

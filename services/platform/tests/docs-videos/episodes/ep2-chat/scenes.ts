@@ -1,7 +1,7 @@
 /**
  * Episode 2 choreography — one surface (chat), four on-camera prompts, four
  * created threads. Every thread the take creates is registered under the
- * `cleanupThreadIds` note and deleted off camera by the recorder's cleanup,
+ * cleanup registry (`ctx.cleanup.thread`) and deleted off camera,
  * even when the take aborts. Same rules of the road as Episode 1: rail links
  * by href, UI chrome via the locale catalog, seeded content via
  * `videoContentFor`, readiness on state — `cue()` is the only clock.
@@ -11,7 +11,6 @@ import { videoContentFor } from '../../lib/locale-content';
 import {
   spaNavigate,
   type SceneChoreography,
-  type SceneContext,
   type SceneRuntime,
 } from '../../lib/scene';
 import {
@@ -52,19 +51,10 @@ function sendButton(rt: SceneRuntime) {
 
 const THREAD_URL = /\/chat\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
 
-/** Register a thread for the recorder's off-camera cleanup (multi-thread). */
-function registerThreadForCleanup(ctx: SceneContext, threadId: string): void {
-  const existing = ctx.notes.get('cleanupThreadIds');
-  ctx.notes.set(
-    'cleanupThreadIds',
-    existing ? `${existing},${threadId}` : threadId,
-  );
-}
-
-/** Capture the thread id from the current URL and register it. */
+/** Capture the thread id from the current URL and register its cleanup. */
 function registerCurrentThread(rt: SceneRuntime): void {
   const threadId = THREAD_URL.exec(rt.page.url())?.[1];
-  if (threadId) registerThreadForCleanup(rt.ctx, threadId);
+  if (threadId) rt.ctx.cleanup.thread(threadId);
 }
 
 /**
@@ -135,7 +125,7 @@ export async function warmup(
   await page.keyboard.press('Enter');
   await page.waitForURL(THREAD_URL, { timeout: 20_000 });
   const warmThread = THREAD_URL.exec(page.url())?.[1];
-  if (warmThread) registerThreadForCleanup(ctx, warmThread);
+  if (warmThread) ctx.cleanup.thread(warmThread);
   await page
     .getByText(CANVAS_BRIEF_HEADING[ctx.locale])
     .first()

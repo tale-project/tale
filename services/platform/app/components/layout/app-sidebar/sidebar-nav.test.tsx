@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
-import { Navigation } from './navigation';
+import { SidebarNav } from './sidebar-nav';
 
 // Labels are shared between the mocked nav-items hook (read inside the hoisted
 // factory) and the assertions below, so the two can never drift apart.
@@ -91,7 +91,7 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         icon: Network,
       },
       {
-        // External items render a native <a> — the other branch the fix touches.
+        // External items render a native <a> — the other branch.
         label: externalLabel,
         to: 'https://help.example.com',
         params: {},
@@ -104,24 +104,10 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
   }),
 }));
 
-// These leaf widgets pull in Convex/auth; stub them so the test stays hermetic
-// and focused on the rail links that own the bug.
-vi.mock('@/app/features/notifications/components/notification-bell', () => ({
-  NotificationBell: () => null,
-}));
-
-vi.mock('@/app/components/user-button', () => ({
-  UserButton: () => null,
-}));
-
-vi.mock('@/app/components/ui/logo/tale-logo', () => ({
-  TaleLogo: () => <span>Tale</span>,
-}));
-
-describe('Navigation', () => {
+describe('SidebarNav', () => {
   describe('accessibility', () => {
-    it('exposes a discernible accessible name on every icon-only rail link', () => {
-      render(<Navigation organizationId="test-org" />);
+    it('exposes a discernible accessible name on every icon tile link', () => {
+      render(<SidebarNav organizationId="test-org" />);
 
       // Regression for #1975: the label used to live only in a hover tooltip, so
       // each link had an empty accessible name. Each destination must now be
@@ -131,8 +117,8 @@ describe('Navigation', () => {
       }
     });
 
-    it('passes an axe link-name audit (no unnamed links)', async () => {
-      const { container } = render(<Navigation organizationId="test-org" />);
+    it('passes an axe link-name audit', async () => {
+      const { container } = render(<SidebarNav organizationId="test-org" />);
       await waitFor(() => checkAccessibility(container));
     });
   });

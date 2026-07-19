@@ -2,9 +2,10 @@
 
 import { Stack } from '@tale/ui/layout';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { SubPanel } from '@/app/components/layout/sub-panel';
 import { useAbility } from '@/app/hooks/use-ability';
 import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
@@ -216,55 +217,55 @@ export function SettingsRail({
   };
 
   return (
-    <Stack
-      aria-label={tNav('userSettings')}
-      as="nav"
-      gap={6}
-      className="bg-background border-border w-60 shrink-0 overflow-y-auto border-r py-6 pr-3 pl-4"
-    >
-      {sections.map((section) => {
-        const visible = section.items.filter(
-          (item) => !item.can || ability.can(item.can[0], item.can[1]),
-        );
-        if (visible.length === 0) return null;
+    <SubPanel as="nav" ariaLabel={tNav('userSettings')}>
+      <Stack gap={6} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        {sections.map((section) => {
+          const visible = section.items.filter(
+            (item) => !item.can || ability.can(item.can[0], item.can[1]),
+          );
+          if (visible.length === 0) return null;
 
-        return (
-          <Stack key={section.key} gap={1}>
-            <div className="px-2">
-              <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
-                {tSettings(`menu.railSections.${section.labelKey}`)}
-              </span>
-            </div>
-            <ul className="flex flex-col gap-0.5 pt-2">
-              {visible.map((item) =>
-                item.kind === 'leaf' ? (
-                  <RailRow
-                    key={item.path}
-                    href={`${base}/${item.path}`}
-                    label={tNav(item.labelKey)}
-                    active={isLeafActive(item)}
-                  />
-                ) : (
-                  <RailExpandableGroup
-                    key={item.path}
-                    href={`${base}/${item.path}`}
-                    label={tNav(item.labelKey)}
-                    active={isGroupActive(item)}
-                    childrenItems={item.children}
-                    pathname={pathname}
-                  />
-                ),
-              )}
-            </ul>
-          </Stack>
-        );
-      })}
-    </Stack>
+          return (
+            <Stack key={section.key} gap={1}>
+              <div className="px-2">
+                <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+                  {tSettings(`menu.railSections.${section.labelKey}`)}
+                </span>
+              </div>
+              <ul className="flex flex-col gap-0.5 pt-2">
+                {visible.map((item) =>
+                  item.kind === 'leaf' ? (
+                    <RailRow
+                      key={item.path}
+                      href={`${base}/${item.path}`}
+                      label={tNav(item.labelKey)}
+                      active={isLeafActive(item)}
+                    />
+                  ) : (
+                    <RailExpandableGroup
+                      key={item.path}
+                      href={`${base}/${item.path}`}
+                      label={tNav(item.labelKey)}
+                      active={isGroupActive(item)}
+                      childrenItems={item.children}
+                      pathname={pathname}
+                    />
+                  ),
+                )}
+              </ul>
+            </Stack>
+          );
+        })}
+      </Stack>
+    </SubPanel>
   );
 }
 
+// Mirrors the unified app sidebar's row anatomy (h-8, rounded-md, 13px text,
+// muted hover fill, inset focus ring) so the two panels read as siblings on
+// settings routes.
 const ROW_BASE =
-  'flex items-center rounded-md px-2 py-1.5 text-[13px] transition-colors';
+  'flex h-8 items-center rounded-md px-2 text-[13px] transition-colors focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none';
 
 function RailRow({
   href,
@@ -286,7 +287,7 @@ function RailRow({
           ROW_BASE,
           active
             ? 'bg-muted text-foreground font-medium'
-            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
           className,
         )}
       >
@@ -325,7 +326,6 @@ function RailExpandableGroup({
     if (active) setOpen(true);
   }, [active]);
 
-  const Chevron = open ? ChevronDown : ChevronRight;
   // Highlight the collapsed parent when the current page lives inside it, so
   // the active location stays visible; expanded, the child row carries it.
   const parentActive = active && !open;
@@ -338,33 +338,53 @@ function RailExpandableGroup({
         aria-expanded={open}
         className={cn(
           ROW_BASE,
-          'w-full justify-between text-left',
+          'w-full cursor-pointer justify-between text-left',
           parentActive
             ? 'bg-muted text-foreground font-medium'
-            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
         )}
       >
         <span>{label}</span>
-        <Chevron aria-hidden className="text-muted-foreground size-3.5" />
+        <ChevronRight
+          aria-hidden
+          className={cn(
+            'text-muted-foreground size-3.5 transition-transform duration-200 ease-out motion-reduce:transition-none',
+            open && 'rotate-90',
+          )}
+        />
       </button>
-      {open && childrenItems.length > 0 && (
-        <ul className="mt-0.5 flex flex-col gap-0.5">
-          {childrenItems.map((child) => {
-            const childHref = `${href}/${child.slug}`;
-            const childActive =
-              pathname === childHref || pathname.startsWith(`${childHref}/`);
-            return (
-              <RailRow
-                key={child.slug}
-                href={childHref}
-                label={child.label}
-                active={childActive}
-                className="pl-5"
-              />
-            );
-          })}
-        </ul>
-      )}
+      {/* Same animated disclosure as the chat sidebar's sections — the grid
+          row trick animates to content height without JS measurement. */}
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        <div className="min-h-0 overflow-hidden">
+          {childrenItems.length > 0 && (
+            <ul className="mt-0.5 flex flex-col gap-0.5 pb-0.5">
+              {childrenItems.map((child) => {
+                const childHref = `${href}/${child.slug}`;
+                const childActive =
+                  pathname === childHref ||
+                  pathname.startsWith(`${childHref}/`);
+                return (
+                  <RailRow
+                    key={child.slug}
+                    href={childHref}
+                    label={child.label}
+                    active={childActive}
+                    className="pl-5"
+                  />
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
     </li>
   );
 }

@@ -34,6 +34,11 @@ import {
   useState,
 } from 'react';
 
+import {
+  labelFadeClass,
+  ROW_TRANSITION_CLASS,
+  rowWidthStyle,
+} from '@/app/components/layout/app-sidebar/sidebar-motion';
 import { IosInstallSheet } from '@/app/components/pwa/ios-install-sheet';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
@@ -135,25 +140,18 @@ function MenuRowCollapsible({
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
-  /** Optional label to show next to the icon (for mobile navigation) */
-  label?: string;
-  /** Optional custom tooltip text (defaults to "Manage account") */
-  tooltipText?: string;
   /**
-   * Called whenever a dropdown item navigates to a different route. Lets a
-   * parent surface (e.g. the mobile navigation Sheet) close itself so the
-   * destination page isn't covered by a stale overlay. Theme / locale /
-   * org-switcher toggles deliberately do NOT call this — they don't change
-   * the current route.
+   * Unified-sidebar footer variant. When set, the trigger renders as a
+   * sidebar row — a 36px icon tile that widens to a full labelled row (the
+   * member display name) while `true` — sharing the sidebar's width/fade
+   * motion. The hover tooltip only renders while collapsed.
    */
-  onNavigate?: () => void;
+  sidebarExpanded?: boolean;
 }
 
 export function UserButton({
   align = 'start',
-  label,
-  tooltipText,
-  onNavigate,
+  sidebarExpanded,
 }: UserButtonProps) {
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
@@ -383,7 +381,6 @@ export function UserButton({
               to: '/dashboard/$id/chat',
               params: { id: organizationId },
             });
-            onNavigate?.();
           }
         };
 
@@ -602,23 +599,28 @@ export function UserButton({
     lastSeenVersion,
     markChangelogSeen,
     hasUnseenVersion,
-    onNavigate,
     closeMenu,
   ]);
+
+  const isSidebarVariant = sidebarExpanded !== undefined;
 
   const triggerContent = (
     <button
       ref={menuTriggerRef}
       type="button"
-      aria-label={
-        label ? undefined : (tooltipText ?? t('userButton.manageAccount'))
-      }
+      aria-label={t('userButton.manageAccount')}
       className={cn(
-        'relative flex items-center rounded-lg transition-colors hover:bg-muted cursor-pointer',
-        label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
+        'relative flex items-center transition-colors hover:bg-muted cursor-pointer',
+        isSidebarVariant
+          ? cn(
+              'h-9 gap-2.5 overflow-hidden rounded-md pl-2 pr-2',
+              ROW_TRANSITION_CLASS,
+            )
+          : 'justify-center p-2 rounded-md',
       )}
+      style={isSidebarVariant ? rowWidthStyle(sidebarExpanded) : undefined}
     >
-      <div className="relative">
+      <div className="relative shrink-0">
         <UserCircle className="text-muted-foreground size-5 shrink-0" />
         {hasUnseenVersion && (
           <>
@@ -630,10 +632,16 @@ export function UserButton({
           </>
         )}
       </div>
-      {label && (
-        <Text as="span" variant="label">
-          {label}
-        </Text>
+      {isSidebarVariant && (
+        <span
+          aria-hidden
+          className={cn(
+            'text-muted-foreground min-w-0 flex-1 truncate text-left text-[13px]',
+            labelFadeClass(sidebarExpanded ?? false),
+          )}
+        >
+          {displayName}
+        </span>
       )}
     </button>
   );
@@ -659,7 +667,9 @@ export function UserButton({
 
   const contentClassName = 'w-64';
 
-  if (label) {
+  // The expanded sidebar row shows the display name inline, so the hover
+  // tooltip only exists for the icon-only/collapsed tile.
+  if (isSidebarVariant && sidebarExpanded) {
     return (
       <>
         <DropdownMenu
@@ -686,7 +696,12 @@ export function UserButton({
               </TooltipPrimitive.Trigger>
             }
             items={menuItems}
-            align={align}
+            // On the rail the menu opens beside the tile: 16px offset = the
+            // tile's 8px inset to the rail edge + an 8px gap to the nav
+            // (matches the notification popover).
+            align={isSidebarVariant ? (align ?? 'end') : align}
+            side={isSidebarVariant ? 'right' : undefined}
+            sideOffset={isSidebarVariant ? 16 : undefined}
             open={open}
             onOpenChange={handleOpenChange}
             contentClassName={contentClassName}
@@ -696,7 +711,7 @@ export function UserButton({
             sideOffset={4}
             className="bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
           >
-            {tooltipText ?? t('userButton.manageAccount')}
+            {t('userButton.manageAccount')}
           </TooltipPrimitive.Content>
         </TooltipPrimitive.Root>
       </TooltipPrimitive.Provider>

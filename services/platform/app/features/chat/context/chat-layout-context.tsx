@@ -86,8 +86,6 @@ interface ChatLayoutContextType {
   clearChatState: () => void;
   pendingMessage: PendingMessage | null;
   setPendingMessage: (message: PendingMessage | null) => void;
-  isHistoryOpen: boolean;
-  setIsHistoryOpen: (open: boolean) => void;
   selectedAgent: SelectedAgent | null;
   setSelectedAgent: (agent: SelectedAgent | null) => void;
   selectedModelOverrides: Record<string, string>;
@@ -131,6 +129,12 @@ interface ChatLayoutContextType {
    */
   pendingSandboxWorkdir: string;
   setPendingSandboxWorkdir: (workdir: string) => void;
+  /**
+   * Chat sub-panel (project/chat history) visibility on desktop. Persisted
+   * per user+org; toggled from the chat top bar.
+   */
+  isHistoryPanelOpen: boolean;
+  toggleHistoryPanel: () => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -156,13 +160,6 @@ export function ChatLayoutProvider({
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
-  );
-  const sidebarExpandedKey = user?.userId
-    ? `chat-dashboard-sidebar-expanded-${user.userId}-${organizationId}`
-    : `chat-dashboard-sidebar-expanded-${organizationId}`;
-  const [isHistoryOpen, setIsHistoryOpen] = usePersistedState(
-    sidebarExpandedKey,
-    false,
   );
   const [insertedPrompt, setInsertedPrompt] = useState<string | null>(null);
   const [quotedText, setQuotedText] = useState<string | null>(null);
@@ -222,6 +219,22 @@ export function ChatLayoutProvider({
     [setRawModelOverrides],
   );
 
+  // Org-scoped, NOT user-scoped like the other keys here, on purpose: the
+  // pre-hydration script in index.html reads this exact key before auth (or
+  // any JS bundle) runs to decide whether the served boot shell shows the
+  // chat sub-panel skeleton — it can't know the user id. A user-scoped key
+  // would also flip mid-session (this provider mounts before `user`
+  // resolves), re-reading storage under the new key and visibly sliding a
+  // collapsed panel open/shut on every reload. Panel visibility is layout
+  // chrome, device-scoped like `tale-theme`.
+  const [isHistoryPanelOpen, setHistoryPanelOpen] = usePersistedState(
+    `chat-history-panel-open-${organizationId}`,
+    true,
+  );
+  const toggleHistoryPanel = useCallback(() => {
+    setHistoryPanelOpen((prev) => !prev);
+  }, [setHistoryPanelOpen]);
+
   const capabilityKey = user?.userId
     ? `enabled-capabilities-${user.userId}-${organizationId}`
     : `enabled-capabilities-${organizationId}`;
@@ -261,8 +274,6 @@ export function ChatLayoutProvider({
       clearChatState,
       pendingMessage,
       setPendingMessage,
-      isHistoryOpen,
-      setIsHistoryOpen,
       selectedAgent,
       setSelectedAgent,
       selectedModelOverrides,
@@ -279,13 +290,13 @@ export function ChatLayoutProvider({
       setDismissedImageKey,
       pendingSandboxWorkdir,
       setPendingSandboxWorkdir,
+      isHistoryPanelOpen,
+      toggleHistoryPanel,
     }),
     [
       pendingThreadId,
       clearChatState,
       pendingMessage,
-      isHistoryOpen,
-      setIsHistoryOpen,
       selectedAgent,
       setSelectedAgent,
       selectedModelOverrides,
@@ -297,6 +308,8 @@ export function ChatLayoutProvider({
       editingImageRef,
       dismissedImageKey,
       pendingSandboxWorkdir,
+      isHistoryPanelOpen,
+      toggleHistoryPanel,
     ],
   );
 

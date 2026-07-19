@@ -4,6 +4,7 @@ import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
+import { injectBootShellPlugin } from './vite-plugins/inject-boot-shell';
 import { injectEnv } from './vite-plugins/inject-env';
 import { serveBrandingImages } from './vite-plugins/serve-branding-images';
 import { serveCanvasPreview } from './vite-plugins/serve-canvas-preview';
@@ -215,6 +216,10 @@ export default defineConfig({
     serveStatus(),
     serveWebdav(),
     serveScreencast(),
+    // Before injectEnv: its middlewares only patch `res.end`, and the patch
+    // must be installed before injectEnv's preview SPA-fallback middleware
+    // (below) writes the HTML response it intercepts.
+    injectBootShellPlugin(),
     // After the route-serving plugins: its `configurePreviewServer` middleware
     // is the SPA-navigation fallback (serves index.html with __ENV__ injected),
     // so the specific route handlers above must register first. Its dev-time

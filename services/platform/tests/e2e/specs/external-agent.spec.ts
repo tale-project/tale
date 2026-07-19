@@ -204,7 +204,9 @@ test.describe('external agent (Cursor)', () => {
         exact: true,
       })
       .click();
-    await expect(page.getByText(PRIMARY_RUNTIME_MODEL)).toBeVisible();
+    await expect(
+      page.getByText(PRIMARY_RUNTIME_MODEL, { exact: true }),
+    ).toBeVisible();
 
     await modelInput.fill(FALLBACK_RUNTIME_MODEL);
     await page
@@ -213,7 +215,9 @@ test.describe('external agent (Cursor)', () => {
         exact: true,
       })
       .click();
-    await expect(page.getByText(FALLBACK_RUNTIME_MODEL)).toBeVisible();
+    await expect(
+      page.getByText(FALLBACK_RUNTIME_MODEL, { exact: true }),
+    ).toBeVisible();
 
     await saveAndExpectToast(page);
     await reloadAndSettle(
@@ -223,10 +227,14 @@ test.describe('external agent (Cursor)', () => {
       }),
     );
 
-    await expect(page.getByText(PRIMARY_RUNTIME_MODEL)).toBeVisible({
+    await expect(
+      page.getByText(PRIMARY_RUNTIME_MODEL, { exact: true }),
+    ).toBeVisible({
       timeout: TIMEOUT.VISIBLE,
     });
-    await expect(page.getByText(FALLBACK_RUNTIME_MODEL)).toBeVisible();
+    await expect(
+      page.getByText(FALLBACK_RUNTIME_MODEL, { exact: true }),
+    ).toBeVisible();
   });
 
   test('chat picker lists the Cursor agent with a runtime model selector', async ({

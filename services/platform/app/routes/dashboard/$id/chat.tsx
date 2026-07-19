@@ -10,7 +10,6 @@ import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspens
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
-import { ChatDashboardSidebar } from '@/app/features/chat/components/chat-dashboard-sidebar';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 import { ChatMessagesSkeleton } from '@/app/features/chat/components/chat-messages-skeleton';
@@ -18,6 +17,7 @@ import {
   ChatPanelProvider,
   useChatPanel,
 } from '@/app/features/chat/components/chat-panel/chat-panel-context';
+import { ChatSubPanel } from '@/app/features/chat/components/chat-sub-panel';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
@@ -38,7 +38,6 @@ import {
 } from '@/app/features/workspace/components/workspace-context';
 import { WorkspaceFilesProvider } from '@/app/features/workspace/components/workspace-files-context';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -247,9 +246,11 @@ function ThreadGate({
     return (
       <SuspenseBoundary
         fallback={
+          // md:pt-19 clears the floating glass top bar (52px + the list's
+          // own 24px breathing room) so the skeleton isn't obscured.
           <Stack
             gap={0}
-            className="h-full min-h-0 flex-1 overflow-y-auto px-4 sm:px-6"
+            className="h-full min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 md:pt-19"
           >
             <ChatMessagesSkeleton />
           </Stack>
@@ -389,16 +390,19 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
   return (
     <PageLayout className="bg-background h-full overflow-hidden">
-      <Row gap={0} align="stretch" className="min-h-0 flex-1 overflow-hidden">
+      <Row
+        gap={0}
+        align="stretch"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden"
+      >
+        {/* The chat section's sub-panel (search / new chat / history) is a
+            full-height sibling of the conversation column — the chat top bar
+            belongs to the conversation, not to the panel. */}
         <LayoutErrorBoundary organizationId={organizationId}>
-          <ChatDashboardSidebar organizationId={organizationId} />
+          <ChatSubPanel organizationId={organizationId} />
         </LayoutErrorBoundary>
 
         <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          <LayoutErrorBoundary organizationId={organizationId}>
-            <ChatHeader organizationId={organizationId} threadId={threadId} />
-          </LayoutErrorBoundary>
-
           {/* BranchProvider wraps the message column AND the right-side panes so
               the canvas resolves files against the same active-branch thread the
               message list uses. Without this, the canvas reads files from the raw
@@ -411,9 +415,21 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
             <Row
               gap={0}
               align="stretch"
-              className="min-h-0 flex-1 overflow-hidden"
+              className="min-h-0 min-w-0 flex-1 overflow-hidden"
             >
-              <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              {/* `relative`: the chat top bar floats over THIS column as a
+                  frosted overlay (messages scroll beneath it); the right
+                  panes stay outside its footprint. */}
+              <Stack
+                gap={0}
+                className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+              >
+                <LayoutErrorBoundary organizationId={organizationId}>
+                  <ChatHeader
+                    organizationId={organizationId}
+                    threadId={threadId}
+                  />
+                </LayoutErrorBoundary>
                 <BudgetBanner organizationId={organizationId} />
                 <LayoutErrorBoundary organizationId={organizationId}>
                   <ThreadGate
@@ -449,24 +465,22 @@ function ChatLayout() {
 
   return (
     <ChatLayoutProvider organizationId={organizationId}>
-      {/* Learns the client↔server clock offset from getThreadMeta.serverNow so
-          the sidebar's relative-time and the interface's thinking timer never
-          mix clocks. Wraps the whole chat surface (sidebar + interface). */}
-      <ClockOffsetProvider>
-        <ArenaModeProvider>
-          <WorkspaceProvider>
-            <WorkspaceFilesProvider>
-              <LiveBrowserProvider>
-                <ChatPanelProvider>
-                  <StreamingToolProvider>
-                    <ChatLayoutContent organizationId={organizationId} />
-                  </StreamingToolProvider>
-                </ChatPanelProvider>
-              </LiveBrowserProvider>
-            </WorkspaceFilesProvider>
-          </WorkspaceProvider>
-        </ArenaModeProvider>
-      </ClockOffsetProvider>
+      {/* The clock-offset provider lives in the dashboard shell now (the chat
+          history sidebar reads relative times on every route); this surface
+          only layers the chat-specific providers on top. */}
+      <ArenaModeProvider>
+        <WorkspaceProvider>
+          <WorkspaceFilesProvider>
+            <LiveBrowserProvider>
+              <ChatPanelProvider>
+                <StreamingToolProvider>
+                  <ChatLayoutContent organizationId={organizationId} />
+                </StreamingToolProvider>
+              </ChatPanelProvider>
+            </LiveBrowserProvider>
+          </WorkspaceFilesProvider>
+        </WorkspaceProvider>
+      </ArenaModeProvider>
     </ChatLayoutProvider>
   );
 }

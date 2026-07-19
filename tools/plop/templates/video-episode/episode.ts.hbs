@@ -1,0 +1,119 @@
+/**
+ * {{episodeLabel}} — "{{titleEn}}". TODO: one line on what the episode
+ * teaches and the thread that carries it.
+ *
+ * Narration doctrine (produce-video skill): a competent colleague showing
+ * you at your desk — contractions, short spoken sentences, action + reason
+ * in the same breath, every real choice names a rejected alternative, one
+ * pitfall beat + one verify beat per episode, closers recap what the viewer
+ * DID (never aphorisms). Written natively per locale — never translated
+ * word for word (write-translations). Storyboard FIRST
+ * (.agents/skills/produce-video/STORYBOARD.md), then a table read, then
+ * choreography. Scene ids join episode.ts ↔ scenes.ts — validate with
+ * `bun run docs:videos -- --episode {{id}} --stage check`.
+ */
+
+import type { EpisodeSpec } from '../../lib/episode';
+
+export const {{constName}}: EpisodeSpec = {
+  id: '{{id}}',
+  section: 'tutorials',
+  titleByLocale: {
+    en: '{{titleEn}}',
+    de: 'TODO — native German title',
+    fr: 'TODO — native French title',
+  },
+  episodeLabelByLocale: {
+    en: '{{episodeLabel}}',
+    de: '{{episodeLabel}}',
+    fr: '{{episodeLabel}}',
+  },
+  needsKnowledgeDb: {{needsKnowledgeDb}},
+  /** The series voices, pinned 2026-07-16 (audition history in ep1). */
+  voices: {
+    en: 'WZlYpi1yf6zJhNWXih74',
+    de: 'rKiu7lQ4c5P3az3745s3',
+    fr: 'QbsdzCokdlo98elkq4Pc',
+  },
+  /** EN ships as ONE whole-take generation (consistent delivery) and its
+   * JOINED spoken script must stay ≤4,500 chars (~700 words) — `--stage
+   * check` guards the 5,000-char ElevenLabs request cap. de/fr synthesize
+   * per-scene: no episode-level cap, and a single-scene edit re-bills only
+   * that scene. */
+  wholeTakeLocales: ['en'],
+  // Typing a live chat prompt on camera? Add heroPromptByLocale and pair
+  // every locale with a DOCS_REPLIES match clause (lib/mocks/overrides/
+  // docs-replies.ts) — `--stage check` enforces the pairing.
+  scenes: [
+    {
+      id: 'title',
+      leadInMs: 1200,
+      narration: {
+        en: 'TODO — cold open over the END-STATE surface: promise the concrete outcome the viewer will have produced by the outro.',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      // Context: where we are, what already exists here, the job to be done.
+      id: 'context',
+      narration: {
+        en: 'TODO',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      // Task block 1 of 2–4. Every block contains a REAL interaction
+      // (click/type/submit — never hover-only): do it, say why this choice
+      // over the rejected alternative, observe the result on screen.
+      id: 'task-1',
+      narration: {
+        en: 'TODO',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      // Pitfall: a real failure or classic mistake shown and diagnosed —
+      // chapter card "When it fails" (chapterByLocale on this scene).
+      id: 'pitfall',
+      narration: {
+        en: 'TODO',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      // Verify: prove the outcome on a DIFFERENT surface (journal row,
+      // audit entry, cited answer, updated table).
+      id: 'verify',
+      narration: {
+        en: 'TODO',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      // Recap: the verbs the viewer just did + the docs page by name +
+      // what the next episode covers.
+      id: 'recap',
+      narration: {
+        en: 'TODO',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+    {
+      id: 'outro',
+      // Post-narration room: the card holds ~2s, then the compose fade-out
+      // (1.5s) completes inside it — the ending must never feel cut off.
+      tailMs: 3600,
+      narration: {
+        en: 'TODO — the closing line over the outro card.',
+        de: 'TODO',
+        fr: 'TODO',
+      },
+    },
+  ],
+} as const;

@@ -17,6 +17,7 @@ import {
   createScreencastRelayHandler,
   type ScreencastWsData,
 } from './lib/screencast-relay';
+import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
 import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
 import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
@@ -320,6 +321,29 @@ function getBasePath(): string {
 }
 
 let indexHtmlTemplate: string | null = null;
+
+// Prerendered dashboard boot shell (dist/boot-shell.html, written by
+// scripts/prerender-boot-shell.tsx after `vite build`). Injected into #root
+// for dashboard navigations so the first paint shows the sidebar rail —
+// before any JS runs. A missing artifact degrades to the empty-#root
+// behaviour (memoized so prod doesn't stat per request; dev hot-reload
+// re-reads like the index template).
+let bootShellTemplate: string | null | undefined;
+
+async function readBootShellTemplate(): Promise<string | null> {
+  if (!DEV_HOT_RELOAD && bootShellTemplate !== undefined) {
+    return bootShellTemplate;
+  }
+  const file = Bun.file(join(distDir, 'boot-shell.html'));
+  const content = (await file.exists()) ? await file.text() : null;
+  if (content === null && bootShellTemplate === undefined) {
+    console.warn(
+      'Missing dist/boot-shell.html — dashboard first paint falls back to an empty shell (did the build run prerender-boot-shell?)',
+    );
+  }
+  bootShellTemplate = content;
+  return content;
+}
 
 // In `docker:dev` hot-reload, the entrypoint's frontend watcher rebuilds
 // dist/index.html on every change with freshly content-hashed chunk names (and
@@ -906,6 +930,17 @@ export function createApp(
         /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
         `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
       );
+
+    // Dashboard navigations get the prerendered boot shell injected into
+    // #root — the SPA's stand-in for SSR: the sidebar rail is already on
+    // screen before the bundle loads. Script-free markup, so it needs no
+    // nonce from the CSP pass below.
+    if (shouldServeBootShell(pathname, basePath)) {
+      const shell = await readBootShellTemplate();
+      if (shell) {
+        html = injectBootShell(html, shell);
+      }
+    }
 
     // Inject the dev live-reload poller before nonce-stamping so it is covered
     // by the same CSP nonce pass as index.html's own scripts.

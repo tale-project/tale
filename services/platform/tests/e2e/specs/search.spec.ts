@@ -4,15 +4,16 @@ import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
- * Chat command-palette thread search. The palette (shared `SearchCommand` in the
- * chat header) is wired to a threads source: a query ≥2 chars runs a backend
- * search over message content and surfaces matching threads. To get a
- * deterministic match, the spec seeds a thread carrying a unique marker, then
- * searches for it. The marker lives in the user's own message (stored
- * regardless of LLM mode), so the assertion holds in mock and live modes. The
- * palette is opened via the header search button (stable across OS) and closed
- * with Escape (its close-button label is in the `@tale/ui` search namespace,
- * which the service-only `t()` can't resolve).
+ * Chat command-palette thread search. The palette (shared `SearchCommand`,
+ * mounted at shell level by the unified sidebar) is wired to a threads source:
+ * a query ≥2 chars runs a backend search over message content and surfaces
+ * matching threads. To get a deterministic match, the spec seeds a thread
+ * carrying a unique marker, then searches for it. The marker lives in the
+ * user's own message (stored regardless of LLM mode), so the assertion holds
+ * in mock and live modes. The palette is opened via the sidebar's search
+ * trigger (stable across OS) and closed with Escape (its close-button label is
+ * in the `@tale/ui` search namespace, which the service-only `t()` can't
+ * resolve).
  */
 
 test('opens the chat command palette, finds a thread, and closes', async ({
@@ -29,7 +30,8 @@ test('opens the chat command palette, finds a thread, and closes', async ({
   const threadId = await sendNewThreadMessage(page, seedMessage);
 
   try {
-    // Open the palette via the header search button.
+    // Open the palette via the sidebar's search trigger (first in DOM; the
+    // mobile bar's copy is display:none on this desktop viewport).
     await page
       .getByRole('button', { name: t('chat.searchChat') })
       .first()
