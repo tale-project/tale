@@ -118,3 +118,17 @@ export function checkProjectAccess(
   const canEdit = EDITOR_ROLES.has(userRole);
   return { canRead: true, canEdit, canAdminister: false };
 }
+
+/**
+ * Whether a specific agent may be assigned or run in a project. A project in
+ * `agentMode: 'restricted'` only permits its `allowedAgentSlugs`; any other mode
+ * ('all' / unset) permits every org agent. Liveness (installed + enabled) is a
+ * separate gate (`assertAgentAssigneeLive`).
+ */
+export function isAgentAllowedByProject(
+  project: { agentMode?: string; allowedAgentSlugs?: string[] },
+  agentSlug: string,
+): boolean {
+  if (project.agentMode !== 'restricted') return true;
+  return (project.allowedAgentSlugs ?? []).includes(agentSlug);
+}

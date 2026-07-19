@@ -42,10 +42,12 @@ let mockDirectoryAgents: AssignableAgent[] = mockAgents.filter(
 );
 
 vi.mock('../hooks/use-actor-directory', () => ({
-  useActorDirectory: () => ({
-    members: [
+  useAssignableActors: () => ({
+    assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
     ],
+    assignableAgents: mockDirectoryAgents,
+    // The unfiltered directory list is still returned for current-value display.
     agents: mockDirectoryAgents,
     currentUserId: 'user-1',
     resolveActor: () => ({

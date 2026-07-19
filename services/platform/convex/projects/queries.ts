@@ -23,6 +23,7 @@ import {
   hasProjectAccess,
   isOrgWideProject,
 } from './access';
+import { getProjectAccessibleUserIds } from './accessible_members';
 import {
   projectIntegrationsModeValidator,
   projectKnowledgeModeValidator,
@@ -153,6 +154,36 @@ export const listProjects = query({
     }
 
     return visible;
+  },
+});
+
+/**
+ * The user IDs that can be ASSIGNED work in a project — i.e. those who can
+ * access it. Powers the task assignee picker + `@`-mention autocomplete so they
+ * never offer a user who cannot see the project (see `use-actor-directory`).
+ *
+ * `orgWide: true` (with empty `userIds`) means no team restriction — the client
+ * shows every non-disabled member. Otherwise `userIds` is the exact accessible
+ * set (admins/owners ∪ the project's team members). Fails closed to
+ * `{ orgWide: false, userIds: [] }` when the project isn't in the active org or
+ * the caller can't read it.
+ */
+export const listAccessibleUserIds = query({
+  args: { organizationId: v.string(), projectId: v.id('projects') },
+  returns: v.object({ orgWide: v.boolean(), userIds: v.array(v.string()) }),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return { orgWide: false, userIds: [] };
+    }
+    const auth = await getAuthContext(ctx, args.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) {
+      return { orgWide: false, userIds: [] };
+    }
+    const set = await getProjectAccessibleUserIds(ctx, project);
+    return set === null
+      ? { orgWide: true, userIds: [] }
+      : { orgWide: false, userIds: [...set] };
   },
 });
 

@@ -5,17 +5,51 @@
  * role, team ids — and fails CLOSED (no access) on any resolution error.
  */
 
-import type { Id } from '../_generated/dataModel';
+import { ConvexError } from 'convex/values';
+
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { checkProjectAccess, type ProjectAccessResult } from './access';
+import {
+  checkProjectAccess,
+  hasProjectAccess,
+  isAgentAllowedByProject,
+  type ProjectAccessResult,
+} from './access';
 
 export const NO_PROJECT_ACCESS: ProjectAccessResult = {
   canRead: false,
   canEdit: false,
   canAdminister: false,
 };
+
+/**
+ * Resolve a user's org role + team IDs, or `null` when that can't be proven
+ * (user removed mid-request, auth mirror miss). Shared by the project-access
+ * resolvers below; fails CLOSED so a resolution error never leaks access.
+ */
+export async function resolveUserAccessContext(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+  userId: string,
+): Promise<{ role: string; teamIds: string[] } | null> {
+  try {
+    const member = await getOrganizationMember(ctx, organizationId, {
+      userId,
+      email: undefined,
+      name: undefined,
+    });
+    const teamIds = await getUserTeamIds(ctx, member.userId);
+    return { role: member.role, teamIds };
+  } catch (err) {
+    console.warn(
+      '[projects/resolve_project_access] user access context resolve failed',
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
 
 /**
  * Resolve the caller's access matrix on a project by id.
@@ -34,22 +68,55 @@ export async function resolveProjectAccessForUser(
   if (!project || project.organizationId !== args.organizationId) {
     return NO_PROJECT_ACCESS;
   }
+  const context = await resolveUserAccessContext(
+    ctx,
+    args.organizationId,
+    args.userId,
+  );
+  if (!context) return NO_PROJECT_ACCESS;
+  return checkProjectAccess(project, context.teamIds, context.role);
+}
 
-  try {
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: args.userId,
-      email: undefined,
-      name: undefined,
-    });
-    const userTeamIds = await getUserTeamIds(ctx, member.userId);
-    return checkProjectAccess(project, userTeamIds, member.role);
-  } catch (err) {
-    // Membership resolution failing (user removed mid-request, auth mirror
-    // miss) means no provable access — deny rather than leak.
-    console.warn(
-      '[projects/resolve_project_access] membership resolve failed',
-      err instanceof Error ? err.message : err,
-    );
-    return NO_PROJECT_ACCESS;
+/**
+ * Guard a HUMAN task assignee: they must be able to read the project they'd be
+ * assigned work in. Self-assignment is always allowed — the caller already
+ * passed the project's write gate. Throws `ASSIGNEE_NO_PROJECT_ACCESS`.
+ */
+export async function assertHumanAssigneeAccess(
+  ctx: QueryCtx | MutationCtx,
+  args: {
+    project: Doc<'projects'>;
+    organizationId: string;
+    assigneeId: string;
+    callerId: string;
+  },
+): Promise<void> {
+  if (args.assigneeId === args.callerId) return;
+  const context = await resolveUserAccessContext(
+    ctx,
+    args.organizationId,
+    args.assigneeId,
+  );
+  if (
+    context &&
+    hasProjectAccess(args.project, context.teamIds, context.role)
+  ) {
+    return;
+  }
+  throw new ConvexError({ code: 'ASSIGNEE_NO_PROJECT_ACCESS' });
+}
+
+/**
+ * Guard an AGENT task assignee against the project's agent restriction: a
+ * `restricted`-mode project only permits its `allowedAgentSlugs`. Throws
+ * `AGENT_NOT_ALLOWED_IN_PROJECT`. (Liveness is a separate gate,
+ * `assertAgentAssigneeLive`.)
+ */
+export function assertAgentAssigneeAllowedByProject(
+  project: Pick<Doc<'projects'>, 'agentMode' | 'allowedAgentSlugs'>,
+  agentSlug: string,
+): void {
+  if (!isAgentAllowedByProject(project, agentSlug)) {
+    throw new ConvexError({ code: 'AGENT_NOT_ALLOWED_IN_PROJECT' });
   }
 }

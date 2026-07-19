@@ -13,10 +13,11 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { looksLikeCodeTask } from '@/lib/shared/agents/display-category';
 
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import { useAssignableActors } from '../hooks/use-actor-directory';
 import type { TaskActorType } from '../lib/display';
 import { AssigneeAvatar } from './assignee-avatar';
 
@@ -45,7 +46,7 @@ export function AssigneePicker({
   afterTrigger,
 }: {
   organizationId: string;
-  projectId?: string;
+  projectId?: Id<'projects'>;
   assigneeType?: TaskActorType;
   assigneeId?: string;
   onAssign: (type: TaskActorType, id: string) => void;
@@ -62,10 +63,13 @@ export function AssigneePicker({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const { members, agents, currentUserId, resolveActor } = useActorDirectory(
-    organizationId,
-    projectId,
-  );
+  const {
+    assignableMembers,
+    assignableAgents,
+    agents,
+    currentUserId,
+    resolveActor,
+  } = useAssignableActors(organizationId, projectId);
   const [open, setOpen] = useState(false);
 
   const resolved =
@@ -119,16 +123,16 @@ export function AssigneePicker({
   );
 
   const platformAgents = useMemo(
-    () => agents.filter((a) => a.displayCategory === 'agent'),
-    [agents],
+    () => assignableAgents.filter((a) => a.displayCategory === 'agent'),
+    [assignableAgents],
   );
   const codingAgents = useMemo(
-    () => agents.filter((a) => a.displayCategory === 'coding-agent'),
-    [agents],
+    () => assignableAgents.filter((a) => a.displayCategory === 'coding-agent'),
+    [assignableAgents],
   );
 
   const options = useMemo<SearchableSelectOption[]>(() => {
-    const sortedMembers = [...members].sort((a, b) =>
+    const sortedMembers = [...assignableMembers].sort((a, b) =>
       a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
     );
     const memberOptions: SearchableSelectOption[] = sortedMembers.map((m) => ({
@@ -174,7 +178,7 @@ export function AssigneePicker({
 
     return [...memberOptions, ...agentSections];
   }, [
-    members,
+    assignableMembers,
     platformAgents,
     codingAgents,
     currentUserId,
