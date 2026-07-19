@@ -367,7 +367,9 @@ export function ChatHealthMetricsPageView({
       </StatCardGrid>
 
       <MetricsSection title={t('chatHealth.routing.title')}>
-        <Grid md={3} gap={6}>
+        {/* 1 column on small screens, 2 on md+. The model breakdown spans the
+            full width on its own row so its long model IDs get maximum room. */}
+        <Grid md={2} gap={6}>
           <RoutingBreakdown
             title={t('chatHealth.routing.byReason')}
             items={reasonItems}
@@ -378,23 +380,29 @@ export function ChatHealthMetricsPageView({
             items={agentItems}
             total={total}
           />
-          <RoutingBreakdown
-            title={t('chatHealth.routing.byModel')}
-            items={modelItems}
-            total={total}
-          />
+          <div className="md:col-span-2">
+            <RoutingBreakdown
+              title={t('chatHealth.routing.byModel')}
+              items={modelItems}
+              total={total}
+            />
+          </div>
         </Grid>
       </MetricsSection>
 
       <MetricsSection title={t('chatHealth.errorBreakdown.title')}>
-        <Stack gap={6}>
+        {/* Same responsive grid as Routing: 1 column on small, 2 on md+. The
+            recent-errors list is a wide table, so it spans the full width. */}
+        <Grid md={2} gap={6}>
           <RoutingBreakdown
             title={t('chatHealth.errorBreakdown.byType')}
             items={errorTypeItems}
             total={errorTotal}
           />
-          <RecentErrorsList items={recentErrorItems} />
-        </Stack>
+          <div className="md:col-span-2">
+            <RecentErrorsList items={recentErrorItems} />
+          </div>
+        </Grid>
       </MetricsSection>
     </MetricsLayout>
   );
