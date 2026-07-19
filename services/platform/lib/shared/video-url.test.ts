@@ -272,9 +272,84 @@ describe('extractVideoUrls', () => {
     expect(out).toHaveLength(2);
   });
 
-  it('rejects http:// URLs', () => {
+  it('upgrades http:// to https:// for allowlisted video hosts', () => {
     const out = extractVideoUrls('http://youtu.be/abc');
-    expect(out).toHaveLength(0);
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe('https://youtu.be/abc');
+    // pastedToken keeps the original spelling so the send-time literal
+    // strip still finds it in the textarea.
+    expect(out[0].pastedToken).toBe('http://youtu.be/abc');
+  });
+
+  it('still rejects http:// URLs from non-video hosts', () => {
+    expect(extractVideoUrls('http://example.com/article')).toHaveLength(0);
+  });
+
+  it('chips a protocol-less youtube watch URL', () => {
+    const out = extractVideoUrls(
+      'try for example: youtube.com/watch?v=dQw4w9WgXcQ without protocol',
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe('https://youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(out[0].platform).toBe('youtube');
+    expect(out[0].pastedToken).toBe('youtube.com/watch?v=dQw4w9WgXcQ');
+  });
+
+  it('chips www. and short-host bare forms', () => {
+    expect(extractVideoUrls('www.youtube.com/watch?v=abc')[0]?.url).toBe(
+      'https://www.youtube.com/watch?v=abc',
+    );
+    expect(extractVideoUrls('youtu.be/abc')[0]?.url).toBe(
+      'https://youtu.be/abc',
+    );
+    expect(extractVideoUrls('see vimeo.com/12345 today')[0]?.platform).toBe(
+      'vimeo',
+    );
+  });
+
+  it('never chips bare tokens from non-video hosts', () => {
+    expect(
+      extractVideoUrls('see example.com/article and docs.python.org/3/library'),
+    ).toHaveLength(0);
+  });
+
+  it('requires a path on bare tokens (homepage never chips)', () => {
+    expect(extractVideoUrls('I like youtube.com a lot')).toHaveLength(0);
+    expect(extractVideoUrls('youtube.com/ maybe')).toHaveLength(0);
+  });
+
+  it('does not double-match the host inside a full URL', () => {
+    const out = extractVideoUrls('https://youtu.be/abc');
+    expect(out).toHaveLength(1);
+    expect(out[0].pastedToken).toBe('https://youtu.be/abc');
+  });
+
+  it('dedups the bare and https forms of the same video to one chip', () => {
+    const out = extractVideoUrls('https://youtu.be/abc and youtu.be/abc');
+    expect(out).toHaveLength(1);
+    expect(out[0].pastedToken).toBe('https://youtu.be/abc');
+  });
+
+  it('ignores bare tokens inside code blocks', () => {
+    expect(extractVideoUrls('run `youtu.be/abc` locally')).toHaveLength(0);
+  });
+
+  it('strips trailing punctuation on bare tokens, keeping pastedToken as-is', () => {
+    const out = extractVideoUrls('watch youtube.com/watch?v=abc.');
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe('https://youtube.com/watch?v=abc');
+    expect(out[0].pastedToken).toBe('youtube.com/watch?v=abc.');
+  });
+
+  it('keeps first-occurrence order across mixed protocol forms', () => {
+    const out = extractVideoUrls(
+      'youtu.be/first then https://youtu.be/second then http://youtu.be/third',
+    );
+    expect(out.map((u) => u.url)).toEqual([
+      'https://youtu.be/first',
+      'https://youtu.be/second',
+      'https://youtu.be/third',
+    ]);
   });
 
   it('rejects URLs that fail isSafeVideoUrl', () => {
