@@ -50,6 +50,9 @@ How an episode is authored — read alongside the worked example,
 - **Cold-open on the end state.** End the warmup on the episode's OUTCOME surface (the finished
   run journal, the built agent, the connected integration) so the title card reveals over it —
   the opening narration promises the concrete result the viewer will have produced by the outro.
+  When the narration NAMES the surface ("this page is where we'll end up"), the card must lift
+  BEFORE those words play — fade it at a cue inside the title scene, never leave it covering a
+  surface the voice is pointing at.
 - **Locale-resolved UI text is DATA, never a literal anchor.** Catalog card names (each
   automation.json's `i18n` block), the builtin agent's display name, and any other
   manifest-translated string get a per-locale map in `scenes.ts` (see `CATALOG_CARD_NAME` in

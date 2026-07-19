@@ -122,8 +122,14 @@ export const SCENES: readonly SceneChoreography[] = [
   {
     // Cold open: the card reveals over the run journal (the end state).
     id: 'title',
-    run: async ({ page }) => {
+    run: async (rt) => {
+      const { page, cue } = rt;
       await page.evaluate(() => window.__taleVideoCard?.reveal());
+      // The card lifts as the voice reaches "This page — the run journal" —
+      // the surface must be VISIBLE while the narration names it, not hidden
+      // behind the card until the next scene.
+      await cue(17.0);
+      await page.evaluate(() => window.__taleVideoCard?.fadeOutAndRemove(700));
     },
   },
   {
@@ -131,7 +137,6 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'context',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
-      await page.evaluate(() => window.__taleVideoCard?.fadeOutAndRemove(700));
       await spaNavigate(
         page,
         `/dashboard/${ctx.orgId}/projects/${relaunchId(ctx)}/tasks/board`,
@@ -384,7 +389,13 @@ export const SCENES: readonly SceneChoreography[] = [
       await page.waitForURL(new RegExp(`/automations/`), { timeout: 15_000 });
       await cue(7.0);
       await cursor.click(pageTab(rt, 'executions'));
-      const completed = page.getByText(rt.t('common.status.completed')).first();
+      // Row-scoped like the failure scene: after expanding, the first
+      // "Completed" TEXT node may sit inside the expanded detail, not the
+      // row header — the collapse click needs the row itself.
+      const completed = page
+        .getByRole('row')
+        .filter({ hasText: rt.t('common.status.completed') })
+        .first();
       await completed.waitFor({ state: 'visible', timeout: 30_000 });
       await cue(10.5);
       await cursor.click(completed);
@@ -396,6 +407,12 @@ export const SCENES: readonly SceneChoreography[] = [
       if (await reason.isVisible().catch(() => false)) {
         await cursor.hover(reason);
       }
+      // Close the run again — the next scene clicks the FAILED row, and an
+      // expanded run above it reflows the list mid-click (the cursor landed
+      // between rows on camera) and pollutes page-wide text matches.
+      await cue(20.0);
+      await cursor.click(completed);
+      await page.waitForTimeout(500);
     },
   },
   {
@@ -404,15 +421,22 @@ export const SCENES: readonly SceneChoreography[] = [
     run: async (rt) => {
       const { page, cursor, cue } = rt;
       await cursor.click(pageTab(rt, 'executions'));
-      const failed = page.getByText(rt.t('common.status.failed')).first();
+      // Anchor the ROW, not any text node — an expanded neighbour's JSON can
+      // contain the same words, and a text-node match re-measured mid-reflow
+      // dropped the click between rows on camera. Let the list settle first.
+      const failed = page
+        .getByRole('row')
+        .filter({ hasText: rt.t('common.status.failed') })
+        .first();
       await failed.waitFor({ state: 'visible', timeout: 15_000 });
+      await page.waitForTimeout(500);
       await cue(3.5);
       await cursor.click(failed);
       await page
         .waitForLoadState('networkidle', { timeout: 8_000 })
         .catch(() => {});
       await cue(11.0);
-      const errorText = page.getByText(/validation|schema|error/i).first();
+      const errorText = page.getByText(/validation|schema/i).first();
       if (await errorText.isVisible().catch(() => false)) {
         await cursor.hover(errorText);
       }
