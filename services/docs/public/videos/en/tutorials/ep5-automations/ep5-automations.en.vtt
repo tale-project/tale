@@ -1,188 +1,370 @@
 WEBVTT
 
 1
-00:00:01.200 --> 00:00:03.028
-Agents answer when you ask.
+00:00:01.200 --> 00:00:05.076
+By the end of this episode, you’ll
+have run an automation yourself,
 
 2
-00:00:03.028 --> 00:00:07.971
-Automations act on their own — on
-schedules, on events, on incoming work.
+00:00:05.076 --> 00:00:08.142
+watched it triage a real
+task, debugged a failed run,
 
 3
-00:00:07.971 --> 00:00:11.425
-This episode: how they
-run, how they fail honestly,
+00:00:08.142 --> 00:00:11.092
+and approved an outbound
+email with your own click.
 
 4
-00:00:11.425 --> 00:00:14.337
-and the card that
-keeps a person in charge.
+00:00:11.092 --> 00:00:14.910
+That’s the whole arc — let’s
+start where it ends: the run journal.
 
 5
-00:00:15.937 --> 00:00:19.159
-The catalog is a library
-of ready-made bundles:
+00:00:16.110 --> 00:00:17.077
+Here’s the job.
 
 6
-00:00:19.159 --> 00:00:23.409
-sync a mailbox, resolve GitHub
-issues, keep documents indexed.
+00:00:17.077 --> 00:00:22.428
+New tasks land on this board all day, and
+someone has to read each one and pick the
 
 7
-00:00:23.409 --> 00:00:27.385
-Each one packs workflows,
-agents, and views — one install,
+00:00:22.428 --> 00:00:23.202
+right owner.
 
 8
-00:00:27.385 --> 00:00:30.127
-and it files itself into your workspace.
+00:00:23.202 --> 00:00:28.230
+We’ll hand that to an automation — and
+you’ll see exactly how far to trust it.
 
 9
-00:00:31.327 --> 00:00:34.691
-This workspace already
-runs one: task triage.
+00:00:29.830 --> 00:00:32.284
+First: where automations come from.
 
 10
-00:00:34.691 --> 00:00:40.597
-Every new task gets scored, and the
-automation decides — assign it to an agent,
+00:00:32.284 --> 00:00:37.473
+The catalog ships ready-made ones —
+sync a mailbox, resolve GitHub issues.
 
 11
-00:00:40.597 --> 00:00:43.139
-or leave a suggestion for a human.
+00:00:37.473 --> 00:00:41.540
+One install, and they file
+themselves into your workspace.
 
 12
-00:00:43.139 --> 00:00:44.485
-Let us open it up.
+00:00:42.740 --> 00:00:46.005
+Click a bundle and you
+see exactly what you’d get:
 
 13
-00:00:45.685 --> 00:00:50.358
-Inside, the automation reads like
-a recipe: a trigger, then steps.
+00:00:46.005 --> 00:00:49.009
+the workflows, the
+agents, the views it ships.
 
 14
-00:00:50.358 --> 00:00:55.385
-A step scores the task with an
-agent, a step routes it, a step reports.
+00:00:49.009 --> 00:00:51.229
+Nothing runs until you install it.
 
 15
-00:00:55.385 --> 00:01:00.555
-No black box — you can read exactly
-what will happen before it ever runs.
+00:00:51.229 --> 00:00:54.820
+We can skip it today — the
+one we need is already here.
 
 16
-00:01:01.755 --> 00:01:03.707
-Every run leaves a journal.
+00:00:56.020 --> 00:00:57.956
+Under Installed: task triage.
 
 17
-00:01:03.707 --> 00:01:07.899
-Green rows completed; each
-one lists what the trigger saw,
+00:00:57.956 --> 00:01:03.095
+It set itself up with this workspace,
+and it’s been running quietly the whole
 
 18
-00:01:07.899 --> 00:01:10.284
-what each step did, what it cost.
+00:01:03.095 --> 00:01:03.795
+series.
 
 19
-00:01:10.284 --> 00:01:14.115
-Automation you can audit is
-automation you can trust.
+00:01:03.795 --> 00:01:07.900
+Before we trust it any further,
+let’s read what it actually does.
 
 20
-00:01:15.315 --> 00:01:18.710
-And here is the row that
-matters most: a red one.
+00:01:09.100 --> 00:01:14.327
+Here’s the workflow behind it — and you
+can read it before you ever let it run.
 
 21
-00:01:18.710 --> 00:01:21.758
-A step returned data
-that failed validation,
+00:01:14.327 --> 00:01:16.775
+A trigger at the top: every new task.
 
 22
-00:01:21.758 --> 00:01:25.361
-the run stopped, and the
-journal says exactly where.
+00:01:16.775 --> 00:01:19.951
+Then three steps — score
+the task with an agent,
 
 23
-00:01:25.361 --> 00:01:31.111
-Automations fail sometimes — the
-difference between a toy and a tool is whether the
+00:01:19.951 --> 00:01:22.861
+route it on the score,
+report what happened.
 
 24
-00:01:31.111 --> 00:01:32.705
-failure has an address.
+00:01:24.061 --> 00:01:28.620
+Open the score step and you see
+exactly what the agent has to return:
 
 25
-00:01:33.905 --> 00:01:35.558
-Now the centerpiece.
+00:01:28.620 --> 00:01:32.782
+a candidate, a confidence
+number, a reason — structured output,
 
 26
-00:01:35.558 --> 00:01:39.442
-We ask for a customer
-reply — drafted AND sent.
+00:01:32.782 --> 00:01:33.707
+with a schema.
 
 27
-00:01:39.442 --> 00:01:42.582
-The agent writes the draft… and stops.
+00:01:33.707 --> 00:01:35.755
+That schema is your safety net.
 
 28
-00:01:42.582 --> 00:01:46.383
-This card is the
-boundary: the draft is ready,
+00:01:35.755 --> 00:01:40.380
+If the model returns anything else,
+the run stops instead of guessing.
 
 29
-00:01:46.383 --> 00:01:50.184
-but touching the
-outside world needs a person.
+00:01:40.380 --> 00:01:43.155
+Remember that — it comes back in a minute.
 
 30
-00:01:50.184 --> 00:01:52.995
-We read it, we decide, we approve.
+00:01:44.355 --> 00:01:48.065
+The Triggers tab says when
+it wakes up: every new task,
 
 31
-00:01:59.905 --> 00:02:05.488
-AI drafts, people decide — episode one
-made the promise, this is the wiring.
+00:01:48.065 --> 00:01:51.505
+and every task someone
+moves from Backlog to To do.
 
 32
-00:02:05.488 --> 00:02:10.777
-And notice what approvals really buy
-you: not less automation, but more.
+00:01:51.505 --> 00:01:57.105
+The first step filters out tasks that
+already have an owner — those need no triage.
 
 33
-00:02:10.777 --> 00:02:16.948
-You can afford to automate the risky work
-precisely because the risky step waits for
+00:01:58.305 --> 00:02:00.655
+You don’t have to wait for a trigger.
 
 34
-00:02:16.948 --> 00:02:17.242
-you.
+00:02:00.655 --> 00:02:03.830
+Test workflow shows the
+exact input a run expects,
 
 35
-00:02:18.442 --> 00:02:21.957
-Automations: readable
-recipes, honest journals,
+00:02:03.830 --> 00:02:06.815
+and Execute writes a
+real run into the journal.
 
 36
-00:02:21.957 --> 00:02:25.098
-and a human gate on the steps that matter.
+00:02:06.815 --> 00:02:11.705
+We’ll go one better and trigger it the
+way your team will — with a real task.
 
 37
-00:02:25.098 --> 00:02:30.482
-Next episode: projects — where your
-team and its agents share one board.
+00:02:12.905 --> 00:02:17.017
+So — a real task: ‘Prepare
+the launch-day social posts’.
 
 38
-00:02:31.682 --> 00:02:36.440
-The automations and approvals
-sections of the documentation carry the full
+00:02:17.017 --> 00:02:18.633
+Create… and hands off.
 
 39
-00:02:36.440 --> 00:02:37.140
-reference.
+00:02:18.633 --> 00:02:23.406
+A few seconds pass, and the
+assignee lands on the card by itself.
 
 40
-00:02:37.140 --> 00:02:38.562
+00:02:23.406 --> 00:02:27.812
+The automation read it, scored
+it, and picked the Assistant.
+
+41
+00:02:27.812 --> 00:02:29.575
+Nobody touched anything.
+
+42
+00:02:32.905 --> 00:02:35.591
+The proof lives with the automation.
+
+43
+00:02:35.591 --> 00:02:39.172
+Back through the rail:
+Automations, task triage,
+
+44
+00:02:39.172 --> 00:02:42.902
+Executions — and there’s
+the new row, seconds old.
+
+45
+00:02:42.902 --> 00:02:47.751
+Open it and read: what the
+trigger saw, the score and its reason,
+
+46
+00:02:47.751 --> 00:02:50.064
+the route, what each step cost.
+
+47
+00:02:50.064 --> 00:02:51.705
+Every run leaves this.
+
+48
+00:02:52.905 --> 00:02:56.271
+Now the row that teaches
+you the most: a red one.
+
+49
+00:02:56.271 --> 00:02:59.775
+Read the journal top to
+bottom — the trigger fired,
+
+50
+00:02:59.775 --> 00:03:02.592
+the score step ran… and there it stopped.
+
+51
+00:03:02.592 --> 00:03:06.165
+The agent’s answer was
+missing the confidence field,
+
+52
+00:03:06.165 --> 00:03:11.661
+so the schema rejected it, and the run
+failed instead of assigning a task on bad
+
+53
+00:03:11.661 --> 00:03:12.361
+data.
+
+54
+00:03:12.361 --> 00:03:14.615
+That’s your safety net, doing its job.
+
+55
+00:03:15.815 --> 00:03:18.065
+And the failure has a fix path.
+
+56
+00:03:18.065 --> 00:03:23.073
+The journal names the step; the
+step holds the prompt and the schema;
+
+57
+00:03:23.073 --> 00:03:25.541
+Configuration carries the retries.
+
+58
+00:03:25.541 --> 00:03:30.185
+Journal, step, fix, run again —
+that’s the whole debugging loop.
+
+59
+00:03:31.385 --> 00:03:34.623
+One more boundary
+matters: the outside world.
+
+60
+00:03:34.623 --> 00:03:39.372
+We ask the Assistant to draft a
+reply to a customer — and send it.
+
+61
+00:03:39.372 --> 00:03:42.826
+The draft streams in…
+and then everything stops.
+
+62
+00:03:42.826 --> 00:03:47.647
+Sending mail leaves the workspace,
+so that step waits for a person.
+
+63
+00:03:47.647 --> 00:03:47.935
+You.
+
+64
+00:03:57.385 --> 00:03:59.383
+Read the draft — it’s good.
+
+65
+00:03:59.383 --> 00:04:05.008
+We type one note in the box, submit
+the response… and only now does the mail
+
+66
+00:04:05.008 --> 00:04:06.192
+actually go out.
+
+67
+00:04:06.192 --> 00:04:08.116
+The agent did the writing.
+
+68
+00:04:08.116 --> 00:04:09.745
+The send stayed yours.
+
+69
+00:04:11.385 --> 00:04:14.889
+Last stop: the audit log, under Settings.
+
+70
+00:04:14.889 --> 00:04:20.358
+There’s our approval — who
+decided, what, and when: seconds ago.
+
+71
+00:04:20.358 --> 00:04:23.776
+’, you don’t reconstruct it from memory.
+
+72
+00:04:23.776 --> 00:04:26.425
+You open this page and read it.
+
+73
+00:04:27.625 --> 00:04:28.978
+That’s automations.
+
+74
+00:04:28.978 --> 00:04:33.322
+You read a workflow before
+trusting it, triggered a real run,
+
+75
+00:04:33.322 --> 00:04:36.954
+followed its journal,
+traced a failure to its step,
+
+76
+00:04:36.954 --> 00:04:38.734
+and kept the send button.
+
+77
+00:04:38.734 --> 00:04:41.939
+The automations and
+approvals docs go deeper.
+
+78
+00:04:41.939 --> 00:04:46.425
+Next episode: projects — your
+team and its agents at one board.
+
+79
+00:04:47.625 --> 00:04:52.682
+Everything you just did is written up
+in the documentation, step by step.
+
+80
+00:04:52.682 --> 00:04:54.275
 See you in episode six.
 

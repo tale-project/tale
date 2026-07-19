@@ -59,13 +59,13 @@ function rail(rt: SceneRuntime, path: string) {
     .first();
 }
 
-/** An automation-page tab, located by target URL — immune to locale. */
+/** An automation-page tab, located by target URL — immune to locale. The
+ * Editor tab is the DEFAULT tab: its link carries the bare automation path,
+ * no `?tab=` param. */
 function pageTab(rt: SceneRuntime, tab: string) {
-  return rt.page
-    .locator(
-      `main a[href="/dashboard/${rt.ctx.orgId}/automations/${TRIAGE_AUTOMATION_PATH}?tab=${tab}"]`,
-    )
-    .first();
+  const base = `/dashboard/${rt.ctx.orgId}/automations/${TRIAGE_AUTOMATION_PATH}`;
+  const href = tab === 'editor' ? base : `${base}?tab=${tab}`;
+  return rt.page.locator(`main a[href="${href}"]`).first();
 }
 
 function composer(rt: SceneRuntime) {
@@ -142,7 +142,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.place(1450, 700);
       await cue(1.2);
       await cursor.show();
-      await cue(3.5);
+      await cue(6.0);
       await cursor.hover(ready);
     },
   },
@@ -151,7 +151,7 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'catalog',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
-      await cue(1.5);
+      await cue(2.5);
       await cursor.click(rail(rt, '/automations'));
       const allTab = page
         .locator(
@@ -159,15 +159,15 @@ export const SCENES: readonly SceneChoreography[] = [
         )
         .first();
       await allTab.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(4.0);
+      await cue(5.5);
       await cursor.click(allTab);
       const github = page
         .getByText(CATALOG_CARD_NAME.resolveGithubIssues[rt.ctx.locale])
         .first();
       await github.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(6.5);
+      await cue(9.0);
       await cursor.hover(github);
-      await cue(8.5);
+      await cue(12.0);
       await cursor.hover(
         page
           .getByText(CATALOG_CARD_NAME.syncGmailEmails[rt.ctx.locale])
@@ -185,18 +185,18 @@ export const SCENES: readonly SceneChoreography[] = [
           name: CATALOG_CARD_NAME.resolveGithubIssues[ctx.locale],
         })
         .first();
-      await cue(0.8);
+      await cue(2.0);
       await cursor.click(card);
       const panel = page.getByRole('dialog').last();
       await panel.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(5.0);
+      await cue(7.0);
       const contents = panel
         .getByText(CATALOG_CARD_NAME.resolveGithubIssues[ctx.locale])
         .first();
       if (await contents.isVisible().catch(() => false)) {
         await cursor.hover(contents);
       }
-      await cue(9.5);
+      await cue(12.5);
       await page.keyboard.press('Escape');
       await panel.waitFor({ state: 'hidden', timeout: 10_000 });
     },
@@ -211,7 +211,7 @@ export const SCENES: readonly SceneChoreography[] = [
           `main a[href="/dashboard/${ctx.orgId}/automations?tab=installed"]`,
         )
         .first();
-      await cue(0.8);
+      await cue(1.0);
       await cursor.click(installedTab);
       const triage = page
         .getByRole('button', {
@@ -219,7 +219,7 @@ export const SCENES: readonly SceneChoreography[] = [
         })
         .first();
       await triage.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(6.5);
+      await cue(7.5);
       await cursor.click(triage);
       await page.waitForURL(new RegExp(`/automations/`), { timeout: 15_000 });
     },
@@ -236,12 +236,12 @@ export const SCENES: readonly SceneChoreography[] = [
       await page
         .waitForLoadState('networkidle', { timeout: 10_000 })
         .catch(() => {});
-      await cue(4.5);
+      await cue(6.5);
       const trigger = page.getByText(/task/i).first();
       if (await trigger.isVisible().catch(() => false)) {
         await cursor.hover(trigger);
       }
-      await cue(7.5);
+      await cue(10.0);
       const stepNode = page.getByText('score', { exact: false }).first();
       if (await stepNode.isVisible().catch(() => false)) {
         await cursor.hover(stepNode);
@@ -254,19 +254,19 @@ export const SCENES: readonly SceneChoreography[] = [
     run: async (rt) => {
       const { page, cursor, cue } = rt;
       const stepNode = page.getByText('score', { exact: false }).first();
-      await cue(0.8);
+      await cue(1.5);
       if (await stepNode.isVisible().catch(() => false)) {
         await cursor.click(stepNode);
       }
       await page
         .waitForLoadState('networkidle', { timeout: 6_000 })
         .catch(() => {});
-      await cue(6.0);
+      await cue(8.0);
       const schema = page.getByText(/confidence/i).first();
       if (await schema.isVisible().catch(() => false)) {
         await cursor.hover(schema);
       }
-      await cue(14.0);
+      await cue(16.5);
       await page.keyboard.press('Escape');
     },
   },
@@ -280,7 +280,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await page
         .waitForLoadState('networkidle', { timeout: 8_000 })
         .catch(() => {});
-      await cue(4.5);
+      await cue(5.0);
       const eventRow = page.getByText(/task\.created/i).first();
       if (await eventRow.isVisible().catch(() => false)) {
         await cursor.hover(eventRow);
@@ -292,7 +292,7 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'tester',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
-      await cue(0.8);
+      await cue(1.2);
       await cursor.click(pageTab(rt, 'editor'));
       const testButton = page
         .getByRole('button', {
@@ -300,13 +300,13 @@ export const SCENES: readonly SceneChoreography[] = [
         })
         .first();
       await testButton.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(3.0);
+      await cue(3.5);
       await cursor.click(testButton);
       const input = page.getByText(rt.t('workflows.tester.inputLabel')).first();
       await input.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(7.0);
+      await cue(8.0);
       await cursor.hover(input);
-      await cue(11.5);
+      await cue(13.0);
       const execute = page
         .getByRole('button', { name: rt.t('workflows.tester.execute') })
         .first();
@@ -336,18 +336,18 @@ export const SCENES: readonly SceneChoreography[] = [
         CAMERA_TASK_TITLE[ctx.locale],
         `/dashboard/${ctx.orgId}/projects/${relaunchId(ctx)}/tasks/board`,
       );
-      await cue(1.5);
+      await cue(1.8);
       await cursor.click(createButton);
       const dialog = page.getByRole('dialog', {
         name: rt.t('tasks.actions.create'),
       });
       await dialog.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(3.0);
+      await cue(3.5);
       await cursor.click(
         dialog.getByRole('textbox', { name: rt.t('tasks.fields.title') }),
       );
-      await page.keyboard.type(CAMERA_TASK_TITLE[ctx.locale], { delay: 40 });
-      await cue(6.5);
+      await page.keyboard.type(CAMERA_TASK_TITLE[ctx.locale], { delay: 46 });
+      await cue(8.0);
       await cursor.click(
         dialog.getByRole('button', { name: rt.t('tasks.actions.create') }),
       );
@@ -357,7 +357,7 @@ export const SCENES: readonly SceneChoreography[] = [
         .filter({ hasText: CAMERA_TASK_TITLE[ctx.locale] })
         .first();
       await card.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(9.0);
+      await cue(11.5);
       await cursor.hover(card);
       // The honest "the automation took it" signal: the assignee avatar.
       await card
@@ -371,7 +371,7 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'live-journal',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
-      await cue(1.5);
+      await cue(1.8);
       await cursor.click(rail(rt, '/automations'));
       const triage = page
         .getByRole('button', {
@@ -379,19 +379,19 @@ export const SCENES: readonly SceneChoreography[] = [
         })
         .first();
       await triage.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(3.5);
+      await cue(4.5);
       await cursor.click(triage);
       await page.waitForURL(new RegExp(`/automations/`), { timeout: 15_000 });
-      await cue(5.0);
+      await cue(7.0);
       await cursor.click(pageTab(rt, 'executions'));
       const completed = page.getByText(rt.t('common.status.completed')).first();
       await completed.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(8.0);
+      await cue(10.5);
       await cursor.click(completed);
       await page
         .waitForLoadState('networkidle', { timeout: 8_000 })
         .catch(() => {});
-      await cue(13.0);
+      await cue(16.0);
       const reason = page.getByText(/0[.,]8/).first();
       if (await reason.isVisible().catch(() => false)) {
         await cursor.hover(reason);
@@ -406,12 +406,12 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(pageTab(rt, 'executions'));
       const failed = page.getByText(rt.t('common.status.failed')).first();
       await failed.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(2.5);
+      await cue(3.5);
       await cursor.click(failed);
       await page
         .waitForLoadState('networkidle', { timeout: 8_000 })
         .catch(() => {});
-      await cue(9.0);
+      await cue(11.0);
       const errorText = page.getByText(/validation|schema|error/i).first();
       if (await errorText.isVisible().catch(() => false)) {
         await cursor.hover(errorText);
@@ -423,17 +423,17 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'diagnose',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
-      await cue(1.5);
+      await cue(2.0);
       await cursor.click(pageTab(rt, 'editor'));
       await page
         .waitForLoadState('networkidle', { timeout: 8_000 })
         .catch(() => {});
-      await cue(4.0);
+      await cue(5.0);
       const stepNode = page.getByText('score', { exact: false }).first();
       if (await stepNode.isVisible().catch(() => false)) {
         await cursor.hover(stepNode);
       }
-      await cue(7.0);
+      await cue(9.5);
       await cursor.click(pageTab(rt, 'configuration'));
       await page
         .waitForLoadState('networkidle', { timeout: 8_000 })
@@ -445,22 +445,23 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'approval',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
+      await cue(8.5);
       await cursor.click(rail(rt, '/chat'));
       await composer(rt).waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(2.0);
+      await cue(10.5);
       await cursor.click(composer(rt));
       await page.keyboard.type(ctx.heroPrompt, { delay: 30 });
-      await cue(6.0);
+      await cue(15.5);
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       const threadId = THREAD_URL.exec(page.url())?.[1];
       if (threadId) ctx.cleanup.thread(threadId);
-      // The pending card carries the draft; wait on its field label.
+      // The pending card carries the draft; wait on its field label — the
+      // hover follows the card's own appearance, not a narration second.
       const field = page
         .getByRole('textbox', { name: APPROVAL_FIELD_LABEL[ctx.locale] })
         .first();
       await field.waitFor({ state: 'visible', timeout: 60_000 });
-      await cue(18.0);
       await cursor.hover(field);
     },
   },
@@ -472,10 +473,10 @@ export const SCENES: readonly SceneChoreography[] = [
       const field = page
         .getByRole('textbox', { name: APPROVAL_FIELD_LABEL[ctx.locale] })
         .first();
-      await cue(2.5);
+      await cue(3.5);
       await cursor.click(field);
       await page.keyboard.type(APPROVAL_FIELD_TEXT[ctx.locale], { delay: 34 });
-      await cue(7.0);
+      await cue(8.5);
       await cursor.click(
         page.getByRole('button', {
           name: rt.t('humanInputRequest.submit'),
@@ -497,7 +498,7 @@ export const SCENES: readonly SceneChoreography[] = [
       );
       const row = page.getByRole('row').nth(1);
       await row.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(4.0);
+      await cue(5.5);
       await cursor.hover(row);
     },
   },
@@ -505,10 +506,10 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'recap',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
-      await cue(1.0);
+      await cue(1.2);
       await cursor.click(rail(rt, '/chat'));
       await composer(rt).waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(2.5);
+      await cue(3.0);
       await cursor.hide();
     },
   },

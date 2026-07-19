@@ -59,7 +59,8 @@ How an episode is authored — read alongside the worked example,
 ## The in-depth arc
 
 An episode is a guide, not a tour: the viewer DOES something real and can repeat it afterwards.
-The arc, mapped onto the scene grammar (14–19 scenes, 5–6 minutes; ep1 stays the short trailer):
+The arc, mapped onto the scene grammar (14–19 scenes, 650–850 EN words, 6–7 minutes with
+tutorial pacing; ep1 stays the short trailer):
 
 | Block            | Scenes   | Chapter card    | What it does                                                                                      |
 | ---------------- | -------- | --------------- | ------------------------------------------------------------------------------------------------- |
@@ -77,8 +78,23 @@ scenes breathe via `minMs` floors — the cursor works unhurried while the voice
 
 ## Writing the narration
 
-The register is **a competent colleague showing you at your desk** — not an essayist. Checkable
-rules, enforced by the table read (and the objective ones by `--stage check`):
+The register is **a competent colleague showing you at your desk** — not an essayist. And the
+delivery is **tutorial grammar: signpost → action → observation → meaning.** The voice announces
+every move BEFORE it happens ("Now let's open the workflow itself"), the viewer watches it
+happen, then the voice says what appeared and why it matters. A cut the narration didn't announce
+is a jump-scare in a tutorial; a surface described only while it's already changing is one nobody
+can follow. Open the episode with a real welcome that sets expectations ("we'll go step by
+step"), not a sprint into content.
+
+**Silence does the pacing, not words.** A viewer following along needs time to SEE what was just
+said: hold ~2–2.5 s after every page switch before the voice resumes (chapter `leadInMs`
+2200–2600), give every landed point a `tailMs` beat (1400–1800) before the next move, and floor
+scenes generously with `minMs` — an in-depth episode runs ~6–7 minutes, and the extra time over
+the narration is quiet, watchable holds, never faster speech or denser sentences. (Owner
+feedback on the first pilot cut: "it's going too fast, switching pages without explaining —
+nobody can follow this." The fix was silence and signposts, not fewer facts.)
+
+Checkable rules, enforced by the table read (and the objective ones by `--stage check`):
 
 - **Spoken language.** Contractions wherever a person would use them ("let's", "here's",
   "you'll"). Sentences average ≤16 words. If you wouldn't say it across a desk, cut it.
