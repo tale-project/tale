@@ -55,6 +55,8 @@ describe('computeChatHealthStats', () => {
     const out = computeChatHealthStats([], OPTS);
     expect(out.totalMessages).toBe(0);
     expect(out.errorRate).toBe(0);
+    expect(out.errors.byType).toEqual([]);
+    expect(out.errors.recent).toEqual([]);
     expect(out.blockedRate).toBe(0);
     expect(out.latency.durationMs).toEqual({ p50: null, p95: null, count: 0 });
     expect(out.latency.timeToFirstTokenMs.count).toBe(0);
@@ -88,6 +90,74 @@ describe('computeChatHealthStats', () => {
     expect(out.errorRate).toBeCloseTo(0.25, 10);
     expect(out.blockedCount).toBe(1);
     expect(out.blockedRate).toBeCloseTo(0.25, 10);
+  });
+
+  it('classifies errored turns by type and collects the recent ones', () => {
+    const out = computeChatHealthStats(
+      [
+        row({
+          _creationTime: 5,
+          error:
+            'Uncaught Error: This request requires more credits, or an amount greater than your balance. You can only afford 2117.',
+          model: 'gpt-4o',
+          agentSlug: 'researcher',
+        }),
+        row({
+          _creationTime: 4,
+          error: '429 Too Many Requests: rate limit exceeded',
+        }),
+        row({
+          _creationTime: 3,
+          error: 'Provider returned a 500 Internal Server Error',
+        }),
+        row({ _creationTime: 2, error: 'This operation was aborted' }), // → generic
+        row({ _creationTime: 1, error: '' }), // empty string is NOT an error
+        row({ _creationTime: 0 }), // absent error is NOT counted
+      ],
+      OPTS,
+    );
+
+    expect(out.errorCount).toBe(4);
+    const byType = Object.fromEntries(
+      out.errors.byType.map((e) => [e.key, e.count]),
+    );
+    expect(byType.credit_exhausted).toBe(1);
+    expect(byType.rate_limited).toBe(1);
+    expect(byType.provider_error).toBe(1);
+    expect(byType.generic).toBe(1);
+    // Non-errors never bucket: the tally sums to exactly the error count.
+    expect(out.errors.byType.reduce((n, e) => n + e.count, 0)).toBe(4);
+
+    // recent preserves scan order and projects the turn's type/model/agent.
+    expect(out.errors.recent).toHaveLength(4);
+    expect(out.errors.recent[0]).toEqual({
+      at: 5,
+      type: 'credit_exhausted',
+      model: 'gpt-4o',
+      agentSlug: 'researcher',
+    });
+    expect(out.errors.recent.map((r) => r.type)).toEqual([
+      'credit_exhausted',
+      'rate_limited',
+      'provider_error',
+      'generic',
+    ]);
+  });
+
+  it('caps recent errored turns at 20 while still tallying all by type', () => {
+    const rows = Array.from({ length: 25 }, (_, i) =>
+      row({ _creationTime: i, error: '429 rate limit exceeded' }),
+    );
+    const out = computeChatHealthStats(rows, {
+      windowStartMs: null,
+      maxScan: 1000,
+    });
+    expect(out.errorCount).toBe(25);
+    const byType = Object.fromEntries(
+      out.errors.byType.map((e) => [e.key, e.count]),
+    );
+    expect(byType.rate_limited).toBe(25);
+    expect(out.errors.recent).toHaveLength(20);
   });
 
   it('computes latency percentiles only over rows that carry the metric', () => {

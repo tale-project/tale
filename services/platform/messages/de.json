@@ -358,6 +358,34 @@
       "errors": {
         "loadFailed": "Chat-Metriken konnten nicht geladen werden",
         "unauthorized": "Du hast keinen Zugriff auf die Chat-Metriken"
+      },
+      "errorType": {
+        "missing_api_key": "API-Schlüssel fehlt",
+        "credit_exhausted": "Guthaben aufgebraucht",
+        "auth_error": "Authentifizierungsfehler",
+        "model_not_found": "Modell nicht gefunden",
+        "unsupported_parameter": "Parameter nicht unterstützt",
+        "output_cap_too_high": "Ausgabelimit zu hoch",
+        "token_limit": "Token-Limit",
+        "rate_limited": "Ratenlimit",
+        "content_filter": "Inhaltsfilter",
+        "context_length": "Kontextlänge",
+        "tool_failure": "Tool-Fehler",
+        "provider_unreachable": "Anbieter nicht erreichbar",
+        "provider_error": "Anbieterfehler",
+        "generic": "Sonstige"
+      },
+      "errorBreakdown": {
+        "title": "Fehler",
+        "byType": "Nach Fehlertyp",
+        "recentTitle": "Letzte Fehler",
+        "noRecent": "Keine aktuellen Fehler in diesem Zeitraum",
+        "columns": {
+          "time": "Zeit",
+          "type": "Typ",
+          "model": "Modell",
+          "agent": "Agent"
+        }
       }
     }
   },

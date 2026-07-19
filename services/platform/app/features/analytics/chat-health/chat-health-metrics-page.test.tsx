@@ -21,6 +21,17 @@ function rollup(overrides: Record<string, unknown> = {}) {
     totalMessages: 10,
     errorCount: 1,
     errorRate: 0.1,
+    errors: {
+      byType: [{ key: 'credit_exhausted', count: 1 }],
+      recent: [
+        {
+          at: 1_700_000_000_000,
+          type: 'credit_exhausted',
+          model: 'gpt-4o',
+          agentSlug: 'researcher',
+        },
+      ],
+    },
     blockedCount: 0,
     blockedRate: 0,
     latency: {
@@ -38,7 +49,13 @@ function rollup(overrides: Record<string, unknown> = {}) {
         { key: 'pinned', count: 4 },
       ],
       byAgentSlug: [{ key: 'researcher', count: 6 }],
-      byModel: [{ provider: 'openai', model: 'gpt-4o', count: 10 }],
+      byModel: [
+        {
+          provider: 'openrouter',
+          model: 'anthropic/claude-4.5-haiku-20251001',
+          count: 10,
+        },
+      ],
     },
     tokens: { input: 100, output: 50, total: 150 },
     costCents: 12,
@@ -72,9 +89,23 @@ describe('ChatHealthMetricsPage', () => {
     expect(screen.getByText('Routing')).toBeInTheDocument();
     // Routing dimensions + a resolved model label.
     expect(screen.getByText('By agent')).toBeInTheDocument();
-    expect(screen.getByText('openai / gpt-4o')).toBeInTheDocument();
+    // The model breakdown leads with the MODEL name — the provider is identical
+    // across rows and a provider-first label would truncate to a useless prefix.
+    // The full `provider / model` rides in the hover title, not visible text.
+    expect(
+      screen.getByText('anthropic/claude-4.5-haiku-20251001'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('openrouter / anthropic/claude-4.5-haiku-20251001'),
+    ).not.toBeInTheDocument();
     // The `pinned` sentinel resolves to a friendly label, not the raw key.
     expect(screen.getByText('Pinned')).toBeInTheDocument();
+    // The Errors section renders the by-type breakdown + recent-errors list,
+    // with the classified code resolved to its short human label.
+    expect(screen.getByText('Errors')).toBeInTheDocument();
+    expect(screen.getByText('By error type')).toBeInTheDocument();
+    expect(screen.getByText('Recent errors')).toBeInTheDocument();
+    expect(screen.getAllByText('Credit exhausted').length).toBeGreaterThan(0);
   });
 
   it('shows the teaching panel when the org has no telemetry', () => {
