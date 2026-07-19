@@ -10,8 +10,15 @@ import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 
 interface VideoLinkChipProps {
   job: VideoLinkJob;
-  onCancel: () => void;
+  /** Omit to hide the chip's own remove button — the queue tray does this
+   * because its row already carries the whole-message cancel; two ✕ with
+   * different scopes on one line read as duplicates. */
+  onCancel?: () => void;
   onRetry: () => void;
+  /** Drop the chip's own card chrome (border/background/rounding) —
+   * for hosts that already draw a card around it (the queue tray's
+   * waiting row), where a card-in-card reads as clutter. */
+  flat?: boolean;
 }
 
 const PROCESSING_STATUSES: ReadonlySet<string> = new Set([
@@ -40,7 +47,12 @@ const PROCESSING_STATUSES: ReadonlySet<string> = new Set([
  * Tap targets are ≥44pt and the cancel/retry buttons are visible on
  * touch devices (not hover-gated) per the mobile B6 review.
  */
-export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
+export function VideoLinkChip({
+  job,
+  onCancel,
+  onRetry,
+  flat = false,
+}: VideoLinkChipProps) {
   const { t: tChat } = useT('chat');
 
   const isProcessing = PROCESSING_STATUSES.has(job.displayStatus);
@@ -89,10 +101,15 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
         // `message-bubble.tsx`'s user-bubble width — same breakpoint
         // prevents a sm-lg-viewport bounce where the chip is wider than
         // the bubble that replaces it on send.
-        'group/chip flex max-w-full items-center gap-2 rounded-2xl border px-3 py-1.5 text-sm lg:max-w-md',
+        'group/chip flex max-w-full items-center gap-2 text-sm lg:max-w-md',
+        !flat && 'rounded-2xl border px-3 py-1.5',
         isFailed
-          ? 'border-destructive/40 bg-destructive/5 text-destructive'
-          : 'border-border bg-muted/40 text-foreground',
+          ? flat
+            ? 'text-destructive'
+            : 'border-destructive/40 bg-destructive/5 text-destructive'
+          : flat
+            ? 'text-foreground'
+            : 'border-border bg-muted/40 text-foreground',
       )}
     >
       <span aria-hidden="true" className="shrink-0 text-base leading-none">
@@ -167,14 +184,16 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
           <RotateCcw className="size-4" />
         </button>
       )}
-      <button
-        type="button"
-        onClick={onCancel}
-        aria-label={tChat('videoLink.actions.removeLink')}
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
-      >
-        <X className="size-4" />
-      </button>
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label={tChat('videoLink.actions.removeLink')}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <X className="size-4" />
+        </button>
+      )}
     </div>
   );
 }

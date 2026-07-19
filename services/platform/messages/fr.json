@@ -1234,6 +1234,7 @@
       "full": "La file d'attente des messages est pleine",
       "status": {
         "queued": "En file d'attente — sera pris en compte après l'étape en cours",
+        "waitingMedia": "En attente des pièces jointes — envoi automatique dès que tout est prêt",
         "delivered": "Transmis — en attente de la réponse de l'agent",
         "deliversNow": "Transmission en cours",
         "consumed": "Pris en compte"

@@ -1234,6 +1234,7 @@
       "full": "Die Nachrichten-Warteschlange ist voll",
       "status": {
         "queued": "Eingereiht — wird nach dem aktuellen Schritt übernommen",
+        "waitingMedia": "Wartet auf die Anhänge — wird automatisch gesendet, sobald alles bereit ist",
         "delivered": "Übermittelt — warte auf die Antwort des Agenten",
         "deliversNow": "Wird gerade zugestellt",
         "consumed": "Übernommen"

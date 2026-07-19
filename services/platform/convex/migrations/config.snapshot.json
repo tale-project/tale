@@ -100388,6 +100388,44 @@
       ],
       "type": "object"
     },
+    "governance.conversationAccessConfigSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "restrictAssigned": {
+          "type": "boolean"
+        }
+      },
+      "required": ["restrictAssigned"],
+      "type": "object"
+    },
+    "governance.conversationRoutingConfigSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "address": {
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                "type": "string"
+              },
+              "teamId": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string"
+              }
+            },
+            "required": ["address"],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["rules"],
+      "type": "object"
+    },
     "governance.dataNoticeConfigSchema": {
       "additionalProperties": false,
       "properties": {
@@ -101711,6 +101749,46 @@
           "type": "string"
         }
       },
+      "type": "object"
+    },
+    "object_storage.objectStorageConnectionFileSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "endpoint": {
+          "format": "uri",
+          "type": "string"
+        },
+        "forcePathStyle": {
+          "type": "boolean"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "region": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["region", "forcePathStyle", "bucket"],
+      "type": "object"
+    },
+    "object_storage.objectStorageConnectionSecretsSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "accessKeyId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "secretAccessKey": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["accessKeyId", "secretAccessKey"],
       "type": "object"
     },
     "organizations.memberRoleSchema": {

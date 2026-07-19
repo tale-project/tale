@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { autoRouteReasonValidator } from '../streaming/validators';
 import { chatTypeValidator, threadStatusValidator } from './validators';
 
@@ -430,6 +431,11 @@ export const chatMessageQueueTable = defineTable({
   /** Exact content; drain prompt + steer payload source. */
   text: v.string(),
   status: v.union(
+    // Send-then-wait: parked until every tracked medium below is
+    // terminal-ready, then started as its OWN turn by the readiness
+    // watcher (threads/media_send.ts) — never enters the text drain
+    // paths (they filter exact statuses and never see this literal).
+    v.literal('waiting_media'),
     v.literal('queued'),
     v.literal('claimed'),
     v.literal('delivered'),
@@ -447,6 +453,29 @@ export const chatMessageQueueTable = defineTable({
   createdAt: v.number(),
   claimedAt: v.optional(v.number()),
   deliveredAt: v.optional(v.number()),
+
+  // --- media-wait facet (status='waiting_media' rows only) ---------------
+  /** Committed upload attachments snapshot (bytes already in storage — the
+   * composer still gates on isUploading). Forwarded verbatim to
+   * runChatTurnGeneration at start. */
+  attachments: v.optional(
+    v.array(
+      v.object({
+        fileId: blobRefValidator,
+        fileName: v.string(),
+        fileType: v.string(),
+        fileSize: v.number(),
+      }),
+    ),
+  ),
+  /** Video-link jobs bound to this waiting send at enqueue (messageBoundAt
+   * stamped so the composer releases the chips and no other send can bind
+   * them). Their attachment payloads are built at start, when the jobs are
+   * terminal. Deleting the row CANCELS them (skipped + cleanup) — the user
+   * dismissed the whole message, so its media stops processing too. */
+  videoJobIds: v.optional(v.array(v.id('videoLinkJobs'))),
+  /** When the row entered waiting_media — watcher observability. */
+  waitingSince: v.optional(v.number()),
 })
   .index('by_threadId_status', ['threadId', 'status'])
   .index('by_organizationId', ['organizationId']);

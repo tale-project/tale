@@ -848,7 +848,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 5 — Automatisierungen & Freigaben",
-      "description": "Die Triage-Automatisierung aufgeklappt wie ein Rezept — Editor, Auslöser, das Laufprotokoll mit seiner ehrlichen roten Zeile — und dann die Freigabekarte - eine echte offene Entscheidung, vor der Kamera getroffen."
+      "description": "Nutze eine laufende Automatisierung von Anfang bis Ende — lies den Triage-Workflow, löse einen echten Lauf vom Board aus, untersuche den fehlgeschlagenen Lauf und gib eine ausgehende E-Mail selbst frei."
     }
   },
   "de:tutorials/videos/people-roles-and-teams": {
@@ -2112,7 +2112,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 5 — Automatisations & validations",
-      "description": "L'automatisation de triage ouverte comme une recette — éditeur, déclencheurs, le journal d'exécution et sa ligne rouge honnête — puis la carte de validation - une vraie décision en attente, prise à l'écran."
+      "description": "Utilise une automatisation en vrai, de bout en bout — lis le workflow de triage, déclenche une vraie exécution depuis le tableau, examine celle qui a échoué, et valide toi-même l'envoi d'un e-mail."
     }
   },
   "fr:tutorials/videos/people-roles-and-teams": {
@@ -3376,7 +3376,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 5 — Automations & approvals",
-      "description": "The triage automation opened like a recipe — editor, triggers, the run journal with its honest red row — then the approval card - a real pending decision, made on camera."
+      "description": "Use a live automation end to end — read the triage workflow, trigger a real run from the board, debug the run that failed, and approve an outbound email yourself."
     }
   },
   "en:tutorials/videos/people-roles-and-teams": {

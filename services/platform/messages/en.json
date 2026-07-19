@@ -1234,6 +1234,7 @@
       "full": "Message queue is full",
       "status": {
         "queued": "Queued — will be picked up after the current step",
+        "waitingMedia": "Waiting for attachments to finish processing — sends automatically",
         "delivered": "Delivered — waiting for the agent to respond",
         "deliversNow": "Delivering now",
         "consumed": "Picked up"

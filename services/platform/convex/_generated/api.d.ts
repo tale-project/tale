@@ -1405,6 +1405,7 @@ import type * as threads_internal_mutations from "../threads/internal_mutations.
 import type * as threads_internal_queries from "../threads/internal_queries.js";
 import type * as threads_list_archived_threads from "../threads/list_archived_threads.js";
 import type * as threads_list_threads from "../threads/list_threads.js";
+import type * as threads_media_send from "../threads/media_send.js";
 import type * as threads_message_queue from "../threads/message_queue.js";
 import type * as threads_mutations from "../threads/mutations.js";
 import type * as threads_queries from "../threads/queries.js";
@@ -1463,6 +1464,7 @@ import type * as users_types from "../users/types.js";
 import type * as users_update_user_name from "../users/update_user_name.js";
 import type * as users_update_user_password from "../users/update_user_password.js";
 import type * as users_validators from "../users/validators.js";
+import type * as video_links_bind_for_send from "../video_links/bind_for_send.js";
 import type * as video_links_captions_parser from "../video_links/captions_parser.js";
 import type * as video_links_clone_transcript from "../video_links/clone_transcript.js";
 import type * as video_links_donor from "../video_links/donor.js";
@@ -3193,6 +3195,7 @@ declare const fullApi: ApiFromModules<{
   "threads/internal_queries": typeof threads_internal_queries;
   "threads/list_archived_threads": typeof threads_list_archived_threads;
   "threads/list_threads": typeof threads_list_threads;
+  "threads/media_send": typeof threads_media_send;
   "threads/message_queue": typeof threads_message_queue;
   "threads/mutations": typeof threads_mutations;
   "threads/queries": typeof threads_queries;
@@ -3251,6 +3254,7 @@ declare const fullApi: ApiFromModules<{
   "users/update_user_name": typeof users_update_user_name;
   "users/update_user_password": typeof users_update_user_password;
   "users/validators": typeof users_validators;
+  "video_links/bind_for_send": typeof video_links_bind_for_send;
   "video_links/captions_parser": typeof video_links_captions_parser;
   "video_links/clone_transcript": typeof video_links_clone_transcript;
   "video_links/donor": typeof video_links_donor;

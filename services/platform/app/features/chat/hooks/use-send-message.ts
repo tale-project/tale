@@ -170,6 +170,16 @@ function buildThreadTitle(message: string): string {
   return message.length > 50 ? message.slice(0, 50) + '...' : message;
 }
 
+export interface SendMessageOptions {
+  /**
+   * Composer saw media still processing at click time (RAG-indexing files,
+   * running transcriptions, in-flight video jobs). The send parks as a
+   * `waiting_media` queue row (convex/threads/media_send.ts) instead of
+   * dispatching; the readiness watcher starts the turn server-side.
+   */
+  deferForMedia?: boolean;
+}
+
 interface ArenaParams {
   isArenaMode: boolean;
   modelA: string | null;
@@ -325,6 +335,7 @@ export function useSendMessage({
       attachments?: FileAttachment[],
       videoLinkSnapshot?: VideoLinkJob[],
       kbReferences?: KbMention[],
+      options?: SendMessageOptions,
     ) => {
       if (sendingRef.current) return;
 
@@ -437,15 +448,52 @@ export function useSendMessage({
       const pastedTokensToStrip: string[] = [];
       const snapshotJobIds: Array<Id<'videoLinkJobs'>> = [];
       const boundJobIdsLocal: Array<Id<'videoLinkJobs'>> = [];
+
+      const currentArena = arenaRef.current;
+      const modelA = currentArena?.modelA;
+      const modelB = currentArena?.modelB;
+      const isArena = currentArena?.isArenaMode && modelA && modelB;
+
+      // Send-then-wait: media was still processing at click time — the
+      // composer flags pending files (options), and a not-yet-completed
+      // video job in the snapshot flags itself. Such a send parks as a
+      // `waiting_media` queue row (convex/threads/media_send.ts) instead of
+      // dispatching; the readiness watcher starts the turn server-side.
+      // Arena keeps the old completed-only behaviour (its send fans out to
+      // two threads; deferral there is an explicit follow-up).
+      const deferForMedia =
+        !isArena &&
+        (options?.deferForMedia === true ||
+          (videoLinkSnapshot?.some(
+            (j) =>
+              j.messageBoundAt === undefined &&
+              j.lifecycleStatus !== 'trashed' &&
+              j.displayStatus !== 'completed' &&
+              j.displayStatus !== 'failed' &&
+              j.displayStatus !== 'skipped',
+          ) ??
+            false));
+
       if (videoLinkSnapshot && videoLinkSnapshot.length > 0) {
         for (const job of videoLinkSnapshot) {
           // Re-assert the bind predicate to defend against a stale
           // snapshot (a chip status flipping between the click-handler
           // read and this point). Server bind would also skip these
           // rows, so optimistic and persisted stay aligned.
-          if (job.displayStatus !== 'completed') continue;
           if (job.messageBoundAt !== undefined) continue;
           if (job.lifecycleStatus === 'trashed') continue;
+          if (deferForMedia) {
+            // Deferred path: the enqueue mutation claims the jobs and the
+            // turn start builds their payloads — collect ids + strip every
+            // pasted token now (completed AND in-flight), push no payloads
+            // (the server would double them otherwise).
+            if (job.displayStatus === 'skipped') continue;
+            if (job.displayStatus === 'failed') continue;
+            snapshotJobIds.push(job.jobId);
+            pastedTokensToStrip.push(job.pastedToken);
+            continue;
+          }
+          if (job.displayStatus !== 'completed') continue;
           if (!job.storageId) continue;
           // fileType sentinel matches the bind mutation's output —
           // `isAudioOrVideo` in start_agent_chat.ts picks the video icon
@@ -464,11 +512,6 @@ export function useSendMessage({
           boundJobIdsLocal.push(job.jobId);
         }
       }
-
-      const currentArena = arenaRef.current;
-      const modelA = currentArena?.modelA;
-      const modelB = currentArena?.modelB;
-      const isArena = currentArena?.isArenaMode && modelA && modelB;
 
       // Arena compares two models on ONE chosen agent, so it can't run in
       // "Auto" mode — it needs an explicit selection. Fail fast before any
@@ -565,6 +608,59 @@ export function useSendMessage({
             }`,
           );
         }
+      }
+
+      // --- Send-then-wait (media still processing) -----------------------
+      // Park the send as a waiting_media queue row and return: the thread
+      // exists (created here for welcome-page sends), the composer clears,
+      // and the QUEUE TRAY is the visible representation — no optimistic
+      // bubble (the pipeline saves the real user message when the readiness
+      // watcher starts the turn). KB references never reach this branch —
+      // the composer blocks the @-mention + processing-media combination.
+      if (deferForMedia) {
+        try {
+          let ensuredThreadId = threadId;
+          if (!ensuredThreadId) {
+            const title = buildThreadTitle(messageToSend);
+            ensuredThreadId = await createThread({
+              organizationId,
+              title,
+              chatType: 'general',
+              teamId,
+            });
+            setPendingThreadId(ensuredThreadId);
+            const navThreadId = ensuredThreadId;
+            startTransition(() => {
+              void navigate({
+                to: '/dashboard/$id/chat/$threadId',
+                params: { id: organizationId, threadId: navThreadId },
+              });
+            });
+          }
+          await convexClient.mutation(api.threads.media_send.enqueueMediaSend, {
+            threadId: ensuredThreadId,
+            organizationId,
+            message: messageToSend,
+            agentSlug: agentSlugToSend,
+            modelId: modelId || undefined,
+            ...(mutationAttachments.length > 0 && {
+              attachments: mutationAttachments,
+            }),
+            ...(snapshotJobIds.length > 0 && { videoJobIds: snapshotJobIds }),
+          });
+        } catch (err) {
+          // Same rollback contract as a failed dispatch: chips + KB pins
+          // return, the caller (chat-interface) restores the typed draft.
+          if (unmarkJobsSent && snapshotJobIds.length > 0) {
+            unmarkJobsSent(snapshotJobIds);
+          }
+          rollbackKbMentions();
+          toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+          sendingRef.current = false;
+          throw err instanceof Error ? err : new Error(String(err));
+        }
+        sendingRef.current = false;
+        return;
       }
 
       // Show optimistic message AFTER precheck so it reflects any mask

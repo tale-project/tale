@@ -53,9 +53,13 @@ export function SteerStatusProvider({
     const map = new Map<string, SteerStatus>();
     if (rows) {
       // Persist-at-pick: the transcript bubble's id is `savedMessageId`
-      // (created at the pick); legacy rows carry it as `messageId`. A waiting
-      // deferred row has no bubble yet — the queue tray renders it instead.
-      for (const r of rows) map.set(r.savedMessageId ?? r.messageId, r.status);
+      // (created at the pick); legacy rows carry it as `messageId`.
+      for (const r of rows) {
+        // A media-wait row has no bubble by definition (the pipeline saves
+        // its message only at start) — the queue tray renders it instead.
+        if (r.status === 'waiting_media') continue;
+        map.set(r.savedMessageId ?? r.messageId, r.status);
+      }
     }
     return map;
   }, [rows]);
