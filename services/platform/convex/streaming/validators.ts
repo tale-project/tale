@@ -56,6 +56,10 @@ export const messageMetadataValidator = v.object({
   _creationTime: v.number(),
   messageId: v.string(),
   threadId: v.string(),
+  // Owning organization — tenancy partition for admin observability rollups.
+  // Optional: backfilled from the row's thread for legacy rows; unset when the
+  // thread is missing or carries no org. See `streaming/schema.ts`.
+  organizationId: v.optional(v.string()),
   model: v.string(),
   provider: v.string(),
   agentSlug: v.optional(v.string()),

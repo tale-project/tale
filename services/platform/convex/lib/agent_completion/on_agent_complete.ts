@@ -152,6 +152,11 @@ export async function onAgentComplete(
             {
               messageId,
               threadId,
+              // Tenancy partition for admin observability rollups — the org is
+              // already in scope here (also passed to the usage ledger + audit
+              // log below). Stamps new rows so the per-org chat-health rollup
+              // sees live data without a thread join.
+              organizationId,
               model: result.model,
               provider: result.provider,
               agentSlug: args.agentSlug,

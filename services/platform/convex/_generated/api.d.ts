@@ -972,6 +972,7 @@ import type * as members_mutations from "../members/mutations.js";
 import type * as members_queries from "../members/queries.js";
 import type * as members_types from "../members/types.js";
 import type * as members_validators from "../members/validators.js";
+import type * as message_metadata_chat_health_stats from "../message_metadata/chat_health_stats.js";
 import type * as message_metadata_internal_mutations from "../message_metadata/internal_mutations.js";
 import type * as message_metadata_queries from "../message_metadata/queries.js";
 import type * as migrations from "../migrations.js";
@@ -1065,6 +1066,7 @@ import type * as migrations_versions_v0_3_4_43_retire_standalone_workflow_instal
 import type * as migrations_versions_v0_3_4_44_realign_conversation_last_message_at_migration from "../migrations/versions/v0_3_4/44_realign_conversation_last_message_at/migration.js";
 import type * as migrations_versions_v0_3_4_45_add_conversation_assignee_migration from "../migrations/versions/v0_3_4/45_add_conversation_assignee/migration.js";
 import type * as migrations_versions_v0_3_4_46_add_conversation_assignee_team_migration from "../migrations/versions/v0_3_4/46_add_conversation_assignee_team/migration.js";
+import type * as migrations_versions_v0_3_7_01_backfill_message_metadata_org_id_migration from "../migrations/versions/v0_3_7/01_backfill_message_metadata_org_id/migration.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -2754,6 +2756,7 @@ declare const fullApi: ApiFromModules<{
   "members/queries": typeof members_queries;
   "members/types": typeof members_types;
   "members/validators": typeof members_validators;
+  "message_metadata/chat_health_stats": typeof message_metadata_chat_health_stats;
   "message_metadata/internal_mutations": typeof message_metadata_internal_mutations;
   "message_metadata/queries": typeof message_metadata_queries;
   migrations: typeof migrations;
@@ -2847,6 +2850,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_3_4/44_realign_conversation_last_message_at/migration": typeof migrations_versions_v0_3_4_44_realign_conversation_last_message_at_migration;
   "migrations/versions/v0_3_4/45_add_conversation_assignee/migration": typeof migrations_versions_v0_3_4_45_add_conversation_assignee_migration;
   "migrations/versions/v0_3_4/46_add_conversation_assignee_team/migration": typeof migrations_versions_v0_3_4_46_add_conversation_assignee_team_migration;
+  "migrations/versions/v0_3_7/01_backfill_message_metadata_org_id/migration": typeof migrations_versions_v0_3_7_01_backfill_message_metadata_org_id_migration;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;

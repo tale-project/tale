@@ -12,6 +12,15 @@ import {
 export const messageMetadataTable = defineTable({
   messageId: v.string(),
   threadId: v.string(),
+  // Owning organization — the tenancy partition for admin observability
+  // rollups (per-org chat-health metrics scan `by_organizationId` over a time
+  // window on the row's own `_creationTime`). Optional for backward
+  // compatibility: rows written before this field are backfilled from their
+  // thread (`threadMetadata.organizationId` via `by_threadId`) by the Phase 10
+  // migration; rows whose thread is missing or itself carries no org stay unset
+  // and are excluded from org-scoped rollups. New writes populate it from
+  // `OnAgentCompleteArgs.organizationId`.
+  organizationId: v.optional(v.string()),
   model: v.string(),
   provider: v.string(),
   // Owning assistant slug. Optional for backward compatibility with rows
@@ -72,4 +81,10 @@ export const messageMetadataTable = defineTable({
   costEstimateCents: v.optional(v.number()),
 })
   .index('by_messageId', ['messageId'])
-  .index('by_threadId', ['threadId']);
+  .index('by_threadId', ['threadId'])
+  // Per-org admin observability rollups: scan an org's rows newest-first over a
+  // time window via the implicit trailing `_creationTime`
+  // (`.eq('organizationId', org).gte('_creationTime', windowStart)`). Rows with
+  // no org (legacy / thread without org) sort under `undefined` and are never
+  // returned by an org-equality scan — tenant isolation holds at the index.
+  .index('by_organizationId', ['organizationId']);

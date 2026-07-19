@@ -45,6 +45,7 @@ import { migration as m0_3_4_40 } from '../versions/v0_3_4/40_remap_wf_default_p
 import { migration as m0_3_4_42 } from '../versions/v0_3_4/42_retire_github_agent_installs/migration';
 import { migration as m0_3_4_43 } from '../versions/v0_3_4/43_retire_standalone_workflow_installs/migration';
 import { migration as m0_3_4_44 } from '../versions/v0_3_4/44_realign_conversation_last_message_at/migration';
+import { migration as m0_3_7_01 } from '../versions/v0_3_7/01_backfill_message_metadata_org_id/migration';
 import { migration as m0_3_3_01 } from '../versions/v0_3_3/01_normalize_auth_user_emails/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
@@ -905,6 +906,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.3.7/01_backfill_message_metadata_org_id",
+    semver: "0.3.7",
+    numericId: 1,
+    slug: "backfill_message_metadata_org_id",
+    title: "Backfill messageMetadata.organizationId from thread",
+    description: "Sets messageMetadata.organizationId from each row's thread (threadMetadata.by_threadId) so per-org observability rollups scope and window at the index. Idempotent skip-if-set up; down clears organizationId.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -956,6 +969,7 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.3.4/42_retire_github_agent_installs": composeDb(requireMeta("0.3.4/42_retire_github_agent_installs"), m0_3_4_42),
   "0.3.4/43_retire_standalone_workflow_installs": composeDb(requireMeta("0.3.4/43_retire_standalone_workflow_installs"), m0_3_4_43),
   "0.3.4/44_realign_conversation_last_message_at": composeDb(requireMeta("0.3.4/44_realign_conversation_last_message_at"), m0_3_4_44),
+  "0.3.7/01_backfill_message_metadata_org_id": composeDb(requireMeta("0.3.7/01_backfill_message_metadata_org_id"), m0_3_7_01),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

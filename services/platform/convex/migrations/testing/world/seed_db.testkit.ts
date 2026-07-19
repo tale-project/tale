@@ -327,6 +327,26 @@ export async function seedWorldDb(
     // kind:'chat' survivor is injected at the 0.2.96 boundary instead.
   });
 
+  // --- messageMetadata — per-message chat telemetry. Seeded WITHOUT
+  // --- organizationId (the pre-0.3.7 state); 0.3.7/01 backfills it from the
+  // --- owning thread and `down` clears it back to this. The orphan row (a
+  // --- threadId with no threadMetadata — e.g. its thread was retention-pruned)
+  // --- exercises the skip branch and proves org-less rows never join an
+  // --- org-scoped rollup. Only messageId/threadId/model/provider are set —
+  // --- the 0.2.84-required fields; everything else is optional. ------------
+  await db.insert('messageMetadata', {
+    messageId: 'msg_alpha_chat_1',
+    threadId: 'thread_alpha_chat_1', // resolves to alpha.id via threadMetadata
+    model: 'gpt-4o',
+    provider: 'openai',
+  });
+  await db.insert('messageMetadata', {
+    messageId: 'msg_alpha_orphan',
+    threadId: 'thread_alpha_orphan', // no threadMetadata row → stays unset
+    model: 'gpt-4o',
+    provider: 'openai',
+  });
+
   // --- customers / vendors — 0.3.4/22+23 copy them into contacts; the edge
   // --- rows (source only) prove the nameless/emailless merge path ------------
   const customerAcme = await db.insert('customers', {

@@ -15,6 +15,10 @@ export const saveMessageMetadata = internalMutation({
   args: {
     messageId: v.string(),
     threadId: v.string(),
+    // Owning organization — the tenancy partition for admin observability
+    // rollups. Optional so callers without an org context (and legacy tests)
+    // still write; stamped from `OnAgentCompleteArgs.organizationId`.
+    organizationId: v.optional(v.string()),
     model: v.optional(v.string()),
     provider: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
@@ -61,6 +65,9 @@ export const saveMessageMetadata = internalMutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
+        // Preserve an org stamped on the first turn — continuation paths
+        // (tool approvals, delegation resume) re-save without it.
+        organizationId: args.organizationId ?? existing.organizationId,
         model: args.model ?? existing.model,
         provider: args.provider ?? existing.provider,
         agentSlug: args.agentSlug ?? existing.agentSlug,
@@ -95,6 +102,7 @@ export const saveMessageMetadata = internalMutation({
     return await ctx.db.insert('messageMetadata', {
       messageId: args.messageId,
       threadId: args.threadId,
+      organizationId: args.organizationId,
       model: args.model ?? '',
       provider: args.provider ?? '',
       agentSlug: args.agentSlug,

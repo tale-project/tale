@@ -313,6 +313,52 @@
         }
       },
       "sentimentTrend": "Stimmung im Zeitverlauf"
+    },
+    "chatHealth": {
+      "title": "Chat-Zustand",
+      "description": "Fehlerrate, Antwortlatenz und Routing über die Assistenten-Antworten deiner Organisation.",
+      "cards": {
+        "errorRate": "Fehlerrate",
+        "errorRateDetail": "{errors} von {total} Antworten",
+        "responseP95": "Antwortzeit p95",
+        "firstTokenP95": "Erstes Token p95",
+        "messages": "Assistenten-Antworten",
+        "msValue": "{value} ms",
+        "secValue": "{value} s",
+        "p50Detail": "p50 {value}"
+      },
+      "routing": {
+        "title": "Routing",
+        "byReason": "Nach Routing-Grund",
+        "byAgent": "Nach Agent",
+        "byModel": "Nach Modell",
+        "unattributed": "Nicht zugeordnet",
+        "turnsTooltip": "{count} Antworten",
+        "reasons": {
+          "singleCandidate": "Einziger Kandidat",
+          "trivial": "Trivial",
+          "cached": "Zwischengespeichert",
+          "classified": "Klassifiziert",
+          "fallback": "Fallback",
+          "pinned": "Angeheftet"
+        }
+      },
+      "cappedNotice": {
+        "title": "Aktuelle Aktivität wird angezeigt",
+        "description": "Dieser Zeitraum enthält mehr Antworten, als ein Durchlauf erfassen kann. Die Werte decken die neuesten Antworten ab; verkleinere den Zeitraum für vollständige Abdeckung."
+      },
+      "periodEmpty": {
+        "title": "Keine Aktivität in diesem Zeitraum",
+        "description": "Im gewählten Zeitraum wurden keine Assistenten-Antworten aufgezeichnet. Wähle einen längeren Zeitraum."
+      },
+      "empty": {
+        "title": "Noch keine Chat-Aktivität",
+        "description": "Sobald dein Team mit Assistenten chattet, erscheinen hier Metriken zu Antwortzeit, Fehlern und Routing."
+      },
+      "errors": {
+        "loadFailed": "Chat-Metriken konnten nicht geladen werden",
+        "unauthorized": "Du hast keinen Zugriff auf die Chat-Metriken"
+      }
     }
   },
   "approvalCommon": {
@@ -4097,6 +4143,7 @@
     "groups": {
       "usage": "Nutzung",
       "feedback": "Feedback",
+      "chat-health": "Chat-Zustand",
       "automations": "Automatisierungen",
       "projects": "Projekte"
     },
