@@ -12,12 +12,20 @@ import {
   fetchDocumentContent,
   type DocumentContentResult,
 } from './fetch_document_content';
+import { buildTranscriptContentResult } from './transcript_content';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 export type RetrieveDocumentArgs = z.infer<typeof documentRetrieveArgs>;
 
-export type DocumentRetrieveResult = DocumentContentResult;
+export type DocumentRetrieveResult = DocumentContentResult & {
+  /**
+   * Present when the content was served directly from the stored transcript
+   * because RAG indexing is still pending or has failed. Tells the model the
+   * text is complete but `rag_search` may not cover this file yet.
+   */
+  note?: string;
+};
 
 export async function retrieveDocument(
   ctx: ToolCtx,
@@ -45,6 +53,10 @@ export async function retrieveDocument(
     internal.documents.internal_queries.findDocumentByFileId,
     { organizationId, fileId: args.fileId },
   );
+
+  // Set when the row's RAG index isn't ready but the content is already
+  // readable from the row itself (transcript-backed chat attachments).
+  let directResult: DocumentRetrieveResult | null = null;
 
   if (document) {
     // Project files pass when this chat's verified project scope covers the
@@ -85,28 +97,68 @@ export async function retrieveDocument(
       );
     }
 
-    if (fileMetadata.ragStatus === 'failed') {
-      throw new Error(
-        `RAG indexing failed for file "${args.fileId}": ` +
-          `${fileMetadata.ragError ?? 'unknown error'}. ` +
-          'Cannot retrieve content.',
-      );
-    }
-
     if (fileMetadata.ragStatus !== 'completed') {
-      const status = fileMetadata.ragStatus ?? 'pending';
-      throw new Error(
-        `File "${args.fileId}" is still being indexed (status: ${status}). ` +
-          'Try again shortly.',
-      );
+      // Transcript-backed rows (video-link captions, audio Whisper) carry
+      // the full text on the row before indexing even starts — the RAG
+      // index is derived from that same text. Serve the source directly
+      // instead of failing on a derived index that lags (queued/running)
+      // or died (failed): unlike plain uploads, the composer unblocks the
+      // moment the transcript lands, so this window is user-reachable.
+      const transcript =
+        fileMetadata.transcriptionStatus === 'completed' &&
+        typeof fileMetadata.transcript === 'string' &&
+        fileMetadata.transcript.length > 0
+          ? fileMetadata.transcript
+          : null;
+
+      if (transcript !== null) {
+        const note =
+          fileMetadata.ragStatus === 'failed'
+            ? 'Search indexing failed for this file' +
+              (fileMetadata.ragError ? ` (${fileMetadata.ragError})` : '') +
+              '. The content in this result was read directly from the ' +
+              'stored transcript — it is the complete text, but rag_search ' +
+              'cannot find this file.'
+            : 'Search indexing is still in progress for this file. The ' +
+              'content in this result was read directly from the stored ' +
+              'transcript — it is the complete text, but rag_search may ' +
+              'not find this file yet.';
+        directResult = {
+          ...buildTranscriptContentResult({
+            fileId: args.fileId,
+            fileName: fileMetadata.fileName,
+            transcript,
+            chunkStart: args.chunkStart,
+            chunkEnd: args.chunkEnd,
+          }),
+          note,
+        };
+      } else if (fileMetadata.ragStatus === 'failed') {
+        throw new Error(
+          `RAG indexing failed for file "${args.fileId}": ` +
+            `${fileMetadata.ragError ?? 'unknown error'}. ` +
+            'Cannot retrieve content.',
+        );
+      } else {
+        const status = fileMetadata.ragStatus ?? 'pending';
+        throw new Error(
+          `File "${args.fileId}" is still being indexed (status: ${status}). ` +
+            'Try again shortly.',
+        );
+      }
     }
   }
 
-  const orgSlug = await orgSlugFromId(ctx, organizationId);
-  const result = await fetchDocumentContent(ctx, orgSlug, args.fileId, {
-    chunkStart: args.chunkStart,
-    chunkEnd: args.chunkEnd,
-  });
+  let result: DocumentRetrieveResult;
+  if (directResult !== null) {
+    result = directResult;
+  } else {
+    const orgSlug = await orgSlugFromId(ctx, organizationId);
+    result = await fetchDocumentContent(ctx, orgSlug, args.fileId, {
+      chunkStart: args.chunkStart,
+      chunkEnd: args.chunkEnd,
+    });
+  }
 
   // Prompt-injection defense: transcripts/captions reaching the agent via
   // this tool originate from attacker-controlled video metadata (uploader,
@@ -131,6 +183,7 @@ export async function retrieveDocument(
     totalChars: result.totalChars,
     truncated: result.truncated,
     wrappedAsUntrusted: videoSources.length > 0,
+    servedFromTranscript: directResult !== null,
   });
 
   return result;

@@ -11,7 +11,7 @@ import {
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 
-import { TOP_INSET } from '../scroll-constants';
+import { resolveTopInset } from '../scroll-constants';
 
 interface UseChatScrollParams {
   /** URL thread id — drives the thread-open scroll (restore or bottom). */
@@ -153,7 +153,8 @@ export function clearSavedThreadScrollTops() {
  *                       per tick, so late-resolving history heights converge
  *                       on the true position.
  *  - 'bottom'        → the live bottom.
- *  - 'last-user-top' → the last user message's top at TOP_INSET (send/edit
+ *  - 'last-user-top' → the last user message's top at the live top inset
+ *                       (content padding-top / TOP_INSET fallback — send/edit
  *                       snap, thread first-open). Re-resolved per tick
  *                       against the live element, so response-slack
  *                       corrections and late-settling content keep the
@@ -278,9 +279,10 @@ export interface ChatScroll {
   showScrollButton: boolean;
   /**
    * Force-snap signal: scrolls the just-sent user message to the viewport
-   * top (TOP_INSET) on the next content settle, REGARDLESS of whether the
-   * user had scrolled away. This is the ONLY thing that scrolls the chat
-   * besides explicit user actions — AI generation growth never does.
+   * top (content padding-top inset) on the next content settle, REGARDLESS
+   * of whether the user had scrolled away. This is the ONLY thing that
+   * scrolls the chat besides explicit user actions — AI generation growth
+   * never does.
    *
    *  - `true`  → INSTANT snap (the FIRST message of a chat — it must render
    *    at its position without any visible scrolling).
@@ -435,6 +437,12 @@ export function useChatScroll({
       );
     };
 
+    // Match response-slack: content padding-top clears the floating glass
+    // header on md+ (`md:pt-19`). A hardcoded TOP_INSET alone lands short
+    // bubbles under the blur.
+    const getTopInset = (): number =>
+      resolveTopInset(parseFloat(getComputedStyle(content).paddingTop) || 0);
+
     const resolveHoldTarget = (hold: ScrollHold): number =>
       resolveSnapTargetTop({
         kind: hold.kind,
@@ -443,7 +451,7 @@ export function useChatScroll({
         clientHeight: container.clientHeight,
         lastUserTop:
           hold.kind === 'last-user-top' ? getLastUserTop() : undefined,
-        topInset: TOP_INSET,
+        topInset: getTopInset(),
       });
 
     const applyHold = (hold: ScrollHold) => {
@@ -684,12 +692,16 @@ export function useChatScroll({
           c.getBoundingClientRect().top +
           c.scrollTop
         : undefined;
+    const contentEl = contentRef.current;
+    const topInset = resolveTopInset(
+      contentEl ? parseFloat(getComputedStyle(contentEl).paddingTop) || 0 : 0,
+    );
     const decision = resolveThreadOpenTarget({
       savedTop,
       scrollHeight: c.scrollHeight,
       clientHeight: c.clientHeight,
       lastUserTop,
-      topInset: TOP_INSET,
+      topInset,
     });
     // Keep the RAW saved top in a position hold (not the clamped first
     // target): content below the estimate-based fold grows as real heights
@@ -713,6 +725,7 @@ export function useChatScroll({
     threadId,
     messagesLength,
     containerRef,
+    contentRef,
     lastUserMessageRef,
     beginHold,
     reseedScrollTrackers,

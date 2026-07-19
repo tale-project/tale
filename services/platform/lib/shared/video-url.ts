@@ -25,6 +25,13 @@
  * "This site isn't supported" chip for every non-video paste. The
  * server's `ingestVideoUrl` mutation still accepts any https URL —
  * the allowlist lives in the chat-input flow, not the ingest contract.
+ *
+ * Protocol repair: pastes of ALLOWLISTED hosts without a scheme
+ * (`youtube.com/watch?v=…`) or with `http://` are upgraded to https
+ * before validation — users paste address-bar fragments constantly and
+ * every supported platform is HSTS-only, so the upgrade recovers clear
+ * intent without ever fetching over http. Non-allowlisted bare/http
+ * tokens still die at the platform gate and stay plain text.
  */
 
 interface ExtractedVideoUrl {
@@ -233,6 +240,58 @@ function stripTrailingNoise(token: string): string {
 }
 
 const URL_RE = /\bhttps:\/\/[^\s<>"'`]+/gi;
+/**
+ * `http://` form of a video link. Upgraded to https before the safety
+ * pipeline — we never fetch over http; every supported platform is
+ * HSTS-only. Non-allowlisted http links still die at the platform gate,
+ * so the https-only ingest policy is unchanged.
+ */
+const HTTP_URL_RE = /\bhttp:\/\/[^\s<>"'`]+/gi;
+/**
+ * Protocol-less form (`youtube.com/watch?v=…`, `www.youtu.be/x`). Host +
+ * MANDATORY non-empty path — a bare `youtube.com` homepage never chips.
+ * The boundary group excludes `/`, `:`, and `@`, so hosts inside a full
+ * URL (`https://youtube.com/…`) or an email never double-match. This
+ * regex is deliberately generic about hosts: the closed `detectPlatform`
+ * allowlist downstream is the single decision point, so ordinary prose
+ * domains (`example.com/docs`) are dropped there, never chipped.
+ */
+const BARE_URL_RE =
+  /(?:^|[\s<>("'[])((?:[a-z0-9-]+\.)+[a-z]{2,}\/[^\s<>"'`]+)/gi;
+
+/** A URL-shaped token found in pasted text: the exact original substring
+ * plus the https form to validate/ingest, positioned for first-occurrence
+ * ordering across the three scan passes. */
+interface UrlCandidate {
+  original: string;
+  url: string;
+  index: number;
+}
+
+function collectUrlCandidates(text: string): UrlCandidate[] {
+  const candidates: UrlCandidate[] = [];
+  for (const m of text.matchAll(URL_RE)) {
+    candidates.push({ original: m[0], url: m[0], index: m.index ?? 0 });
+  }
+  for (const m of text.matchAll(HTTP_URL_RE)) {
+    candidates.push({
+      original: m[0],
+      url: `https://${m[0].slice('http://'.length)}`,
+      index: m.index ?? 0,
+    });
+  }
+  for (const m of text.matchAll(BARE_URL_RE)) {
+    const token = m[1];
+    candidates.push({
+      original: token,
+      url: `https://${token}`,
+      // `m.index` points at the boundary char; anchor on the token itself
+      // so cross-pass ordering compares like with like.
+      index: (m.index ?? 0) + m[0].length - token.length,
+    });
+  }
+  return candidates.sort((a, b) => a.index - b.index);
+}
 
 /**
  * Extract up to `maxUrls` deduped, sanitized video URLs from free text.
@@ -240,12 +299,15 @@ const URL_RE = /\bhttps:\/\/[^\s<>"'`]+/gi;
  * Algorithm:
  *  1. Strip fenced/inline code blocks (preserves blockquotes — those are
  *     legitimate forwarding, not quotation).
- *  2. Regex-match `\bhttps:\/\/[^\s<>"'`]+`.
- *  3. Per match, strip trailing punctuation + markdown emphasis (captures
- *     the cleaned URL but ALSO records the ORIGINAL substring as
+ *  2. Collect candidates in three passes — `https://` as-is, `http://`
+ *     upgraded to https, and protocol-less host/path tokens with https
+ *     prepended — sorted by text position (first occurrence wins).
+ *  3. Per candidate, strip trailing punctuation + markdown emphasis
+ *     (captures the cleaned URL but ALSO records the ORIGINAL substring as
  *     `pastedToken` for later literal-replace stripping at send time).
  *  4. Drop entries that fail `isSafeVideoUrl` or `isPlaylistUrl`.
- *  5. Dedup post-normalize (`normalizeUrlForHash`); first occurrence wins.
+ *  5. Dedup post-normalize (`normalizeUrlForHash`) — the https and bare
+ *     forms of the same video collapse to one chip.
  *  6. Cap to `maxUrls` (default 3) — pastes of 100 URLs are an abuse vector.
  */
 export function extractVideoUrls(
@@ -257,17 +319,17 @@ export function extractVideoUrls(
   const out: ExtractedVideoUrl[] = [];
   const seen = new Set<string>();
 
-  for (const match of cleaned.matchAll(URL_RE)) {
+  for (const candidate of collectUrlCandidates(cleaned)) {
     if (out.length >= maxUrls) break;
-    const original = match[0];
-    const cleanedUrl = stripTrailingNoise(original);
+    const cleanedUrl = stripTrailingNoise(candidate.url);
     if (cleanedUrl.length === 0) continue;
     if (!isSafeVideoUrl(cleanedUrl)) continue;
     if (isPlaylistUrl(cleanedUrl)) continue;
     const platform = detectPlatform(cleanedUrl);
     // Closed allowlist: skip anything that isn't a recognized video host.
     // Prevents the chat composer from spawning a yt-dlp job (and red
-    // "site isn't supported" chip) for ordinary links like GitHub URLs.
+    // "site isn't supported" chip) for ordinary links like GitHub URLs —
+    // and keeps the http/bare passes from widening what can chip.
     if (platform === 'generic') continue;
     const dedupKey = normalizeUrlForHash(cleanedUrl);
     if (seen.has(dedupKey)) continue;
@@ -275,9 +337,10 @@ export function extractVideoUrls(
     out.push({
       url: cleanedUrl,
       // pastedToken preserves the original text-as-pasted (including any
-      // stripped trailing punctuation) so use-send-message.ts can do a
-      // literal String.replace on the textarea content.
-      pastedToken: original,
+      // stripped trailing punctuation and the original protocol-less /
+      // http:// spelling) so use-send-message.ts can do a literal
+      // String.replace on the textarea content.
+      pastedToken: candidate.original,
       platform,
     });
   }

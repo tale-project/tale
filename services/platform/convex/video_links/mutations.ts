@@ -16,6 +16,7 @@ import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { findReusableTranscriptDonor } from './donor';
 
 /** Per-org cap on in-flight video-link jobs. Prevents one org from soaking
  * all 32 Node-action slots with concurrent yt-dlp/Whisper work. */
@@ -224,6 +225,97 @@ export const ingestVideoUrl = mutation({
         await ctx.db.patch(existing._id, { pastedToken: args.pastedToken });
       }
       return existing._id;
+    }
+
+    // Transcript reuse: the same URL already transcribed anywhere in this
+    // org (any thread, any user, ≤30 days — see donor.ts) attaches a clone
+    // of the existing transcript instead of re-running yt-dlp. This is
+    // what makes remove→re-add instant (and immune to bot-wall re-fetch
+    // failures), and collapses org-wide duplicate pastes to one fetch.
+    // Placed BEFORE the in-flight cap on purpose: a clone consumes no
+    // yt-dlp/Whisper slot, so it must not be starved by (or count against
+    // admission to) the org's three fetch slots.
+    const donor = await findReusableTranscriptDonor(
+      ctx,
+      args.organizationId,
+      sourceUrlHash,
+      now,
+    );
+    if (donor) {
+      const jobId = await ctx.db.insert('videoLinkJobs', {
+        organizationId: args.organizationId,
+        ...(args.threadId !== undefined && { threadId: args.threadId }),
+        uploadedBy: userId,
+        sourceUrl: args.url,
+        sourceUrlHash,
+        sourcePlatform: serverPlatform,
+        pastedToken: args.pastedToken,
+        // 'indexing' (not 'completed') until the clone action lands the
+        // fileMetadata row — the chip shows the existing "Indexing…"
+        // label and the watchdog's 5-min 'indexing' window covers a
+        // wedged clone.
+        status: 'indexing',
+        statusChangedAt: now,
+        attempts: 0,
+        lifecycleStatus: 'active',
+        // Video metadata rides over from the donor job so the chip and
+        // the message-time provenance join render identically to a
+        // fresh ingest.
+        ...(donor.job.videoTitle !== undefined && {
+          videoTitle: donor.job.videoTitle,
+        }),
+        ...(donor.job.videoUploader !== undefined && {
+          videoUploader: donor.job.videoUploader,
+        }),
+        ...(donor.job.videoDurationSec !== undefined && {
+          videoDurationSec: donor.job.videoDurationSec,
+        }),
+        ...(donor.job.videoLanguage !== undefined && {
+          videoLanguage: donor.job.videoLanguage,
+        }),
+        ...(donor.job.videoChapters !== undefined && {
+          videoChapters: donor.job.videoChapters,
+        }),
+        ...(donor.job.transcriptSource !== undefined && {
+          transcriptSource: donor.job.transcriptSource,
+        }),
+        ...(donor.job.captionTrackKind !== undefined && {
+          captionTrackKind: donor.job.captionTrackKind,
+        }),
+        ...(donor.job.captionLang !== undefined && {
+          captionLang: donor.job.captionLang,
+        }),
+      });
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.video_links.clone_transcript.cloneTranscriptFromDonor,
+        {
+          jobId,
+          donorFileMetadataId: donor.meta._id,
+          organizationId: args.organizationId,
+        },
+      );
+
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: userId,
+        actorType: 'user',
+        action: 'video_link.ingest',
+        category: 'data',
+        resourceType: 'video_link_job',
+        resourceId: String(jobId),
+        status: 'success',
+        metadata: {
+          sourcePlatform: serverPlatform,
+          sourceUrlHash,
+          reusedTranscript: true,
+          donorJobId: String(donor.job._id),
+          ...(args.threadId !== undefined && { threadId: args.threadId }),
+        },
+      });
+
+      return jobId;
     }
 
     // Per-org in-flight concurrency cap. Cheap index-scoped iteration —

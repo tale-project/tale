@@ -1429,6 +1429,7 @@
       },
       "toast": {
         "ingestFailedTitle": "Couldn't add this video",
+        "retryFailedTitle": "Couldn't retry this video",
         "bindFailedDescription": "Couldn't attach the video transcript — please retry"
       }
     },

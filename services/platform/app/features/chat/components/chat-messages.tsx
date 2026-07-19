@@ -25,7 +25,7 @@ import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
 import { VoiceOutputProvider } from '../hooks/voice-output-context';
-import { TOP_INSET } from '../scroll-constants';
+import { resolveTopInset } from '../scroll-constants';
 import type { RouteReason } from '../utils/route-reason';
 import { hasThoughtSteps } from '../utils/thought-predicates';
 import { ApprovalCardRenderer } from './approval-card-renderer';
@@ -78,8 +78,9 @@ function useVirtualizedMessagesFlag(): boolean {
   return enabled;
 }
 
-// TOP_INSET imported from ../scroll-constants — shared with use-chat-scroll
-// so the slack formula and the send-snap target always agree.
+// resolveTopInset imported from ../scroll-constants — shared with
+// use-chat-scroll so the slack formula and the send-snap target always agree
+// (both read the content wrapper's padding-top).
 
 /**
  * Native "virtualization-lite": history messages (everything before the
@@ -97,7 +98,7 @@ const HISTORY_CONTENT_VISIBILITY =
 /**
  * Pure slack formula: how tall the response area must be so that scrolling
  * to the bottom positions the last user message at the viewport top (with
- * TOP_INSET breathing room). Matches assistant-ui's ViewportSlack pattern.
+ * the live top inset). Matches assistant-ui's ViewportSlack pattern.
  * A user message taller than the viewport naturally yields 0 — its top still
  * anchors at the viewport top via the send-snap scroll target.
  * Exported for unit testing.
@@ -140,13 +141,18 @@ function computeResponseMinHeight(
   const padBottom = contentWrapper
     ? parseFloat(getComputedStyle(contentWrapper).paddingBottom) || 0
     : 0;
+  // padding-top is the clearance for the floating glass header on md+
+  // (`md:pt-19`); must match use-chat-scroll's send-snap inset.
+  const padTop = contentWrapper
+    ? parseFloat(getComputedStyle(contentWrapper).paddingTop) || 0
+    : 0;
 
   return computeSlackPx({
     viewportH: container.clientHeight,
     userMsgH,
     gap,
     padBottom,
-    topInset: TOP_INSET,
+    topInset: resolveTopInset(padTop),
   });
 }
 
