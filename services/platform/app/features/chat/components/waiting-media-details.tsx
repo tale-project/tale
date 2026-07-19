@@ -70,11 +70,19 @@ export function WaitingMediaDetails({
     );
   }, [jobRows, videoJobIds]);
 
+  // Reconstruct FileAttachment objects rather than asserting the row shape —
+  // the queue only stores the four fields the status hooks need, and a cast
+  // trips `no-unsafe-type-assertion` (FileAttachment is narrower via optionals).
   const fileAttachments = useMemo(
-    () =>
-      (attachments ?? []).filter(
-        (a) => !a.fileType.startsWith('image/'),
-      ) as unknown as FileAttachment[], // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- row attachments carry the same {fileId,fileName,fileType,fileSize} shape; fileId is the branded BlobRef string the queries accept.
+    (): FileAttachment[] =>
+      (attachments ?? [])
+        .filter((a) => !a.fileType.startsWith('image/'))
+        .map((a) => ({
+          fileId: a.fileId,
+          fileName: a.fileName,
+          fileType: a.fileType,
+          fileSize: a.fileSize,
+        })),
     [attachments],
   );
   const { statusMap: indexingStatuses } = useFileIndexingStatus(
