@@ -52,6 +52,13 @@ export const migration = defineDbMigration({
   subjects: { tables: ['messageMetadata', 'threadMetadata'] },
   table: 'messageMetadata',
 
+  // messageMetadata rows are heavy — contextWindow is capped at 500K chars
+  // (message_metadata/internal_mutations.ts) plus reasoning + tool I/O — so the
+  // default 100 rows/txn reads past Convex's 16 MiB per-transaction read limit.
+  // Page in small batches; this backfill is one-time and resumable, so the extra
+  // transactions cost nothing.
+  batchSize: 8,
+
   // IDEMPOTENT per-row forward transform: a replayed, already-stamped row is a
   // no-op (the runner replays the crash batch on resume).
   async up(ctx, doc) {
