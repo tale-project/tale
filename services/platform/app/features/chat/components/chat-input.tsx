@@ -92,7 +92,14 @@ interface ChatInputProps extends Omit<
     message: string,
     attachments?: FileAttachment[],
     kbReferences?: KbMention[],
+    options?: { deferForMedia?: boolean },
   ) => void;
+  /**
+   * Disables the send-then-wait deferral (arena mode: the send fans out to
+   * two threads and deferral there is an explicit follow-up) — processing
+   * media falls back to blocking the send button as before.
+   */
+  mediaDeferDisabled?: boolean;
   onStopGenerating?: () => void;
   isLoading?: boolean;
   /**
@@ -292,6 +299,7 @@ export function ChatInput({
   videoLinkJobs = [],
   isProcessingVideo = false,
   hasFailedVideoJobs = false,
+  mediaDeferDisabled = false,
   ingestVideoUrlsFromText,
   cancelVideoJob,
   retryVideoJob,
@@ -349,21 +357,34 @@ export function ChatInput({
   const { pending: pasteIngestPending, ingest: ingestVideoUrls } =
     useVideoUrlIngest(ingestVideoUrlsFromText, organizationId, i18n.language);
 
-  // Single source of truth for the media-processing states that block send.
-  // `mediaBlockReason` names the active one (precedence order) for the send-
-  // button tooltip; `mediaBlocksSend` is the OR consumed by the send-gate and
-  // the disabled state. `pasteIngestPending` (blocks send, no tooltip) and
-  // `sendBlocked` (carries its own reason string) stay separate.
-  const mediaBlockReason: MediaBlockReason | null = isTranscribing
-    ? 'transcribing'
-    : isProcessingVideo
-      ? 'processingVideo'
-      : hasFailedVideoJobs
-        ? 'failedVideo'
-        : hasFailedAudioJobs
-          ? 'failedAudio'
+  // Send-then-wait: processing media no longer blocks Send — the send parks
+  // as a waiting_media queue row and the readiness watcher starts the turn
+  // when everything is ready. Deferral is unavailable in two cases, which
+  // keep the old blocking behaviour: arena (`mediaDeferDisabled`) and a send
+  // carrying `@`-mention KB references (the deferred path doesn't transport
+  // those). Failed media ALWAYS blocks — the user retries/removes in place.
+  // Raw prop read (kbMentionsEnabled derives later): a non-empty mentions
+  // list only exists when the feature is on.
+  const kbRefsPinned = (kbMentions?.length ?? 0) > 0;
+  const mediaDeferUnavailable = mediaDeferDisabled || kbRefsPinned;
+  // `mediaBlockReason` names the active blocker (precedence order) for the
+  // send-button tooltip; `mediaBlocksSend` is the OR consumed by the
+  // send-gate and the disabled state. `pasteIngestPending` (blocks send, no
+  // tooltip) and `sendBlocked` (carries its own reason string) stay separate.
+  const mediaBlockReason: MediaBlockReason | null = hasFailedVideoJobs
+    ? 'failedVideo'
+    : hasFailedAudioJobs
+      ? 'failedAudio'
+      : mediaDeferUnavailable && isTranscribing
+        ? 'transcribing'
+        : mediaDeferUnavailable && isProcessingVideo
+          ? 'processingVideo'
           : null;
   const mediaBlocksSend = mediaBlockReason !== null;
+  // What the current composer state would defer on at send time.
+  const deferForMedia =
+    !mediaDeferUnavailable &&
+    (isIndexing || isTranscribing || isProcessingVideo);
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     alt: string;
@@ -758,7 +779,7 @@ export function ChatInput({
       (queueSend && (!value.trim() || attachments.length > 0)) ||
       disabled ||
       isUploading ||
-      isIndexing ||
+      (mediaDeferUnavailable && isIndexing) ||
       mediaBlocksSend ||
       pasteIngestPending ||
       sendBlocked
@@ -803,7 +824,13 @@ export function ChatInput({
         : undefined;
     setMentionTrigger(null);
 
-    onSendMessage(messageToSend, attachmentsToSend, kbRefsToSend);
+    if (deferForMedia) {
+      onSendMessage(messageToSend, attachmentsToSend, kbRefsToSend, {
+        deferForMedia: true,
+      });
+    } else {
+      onSendMessage(messageToSend, attachmentsToSend, kbRefsToSend);
+    }
   };
 
   const imageAttachments = useMemo(
@@ -1466,7 +1493,7 @@ export function ChatInput({
                     : (!value.trim() && attachments.length === 0) ||
                       inputDisabled ||
                       isUploading ||
-                      isIndexing ||
+                      (mediaDeferUnavailable && isIndexing) ||
                       mediaBlocksSend ||
                       pasteIngestPending ||
                       sendBlocked;

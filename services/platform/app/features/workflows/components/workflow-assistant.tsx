@@ -132,6 +132,10 @@ function WorkflowAssistantContent({
         indexingStatuses={indexingStatuses}
         isTranscribing={isTranscribing}
         transcriptionStatuses={transcriptionStatuses}
+        // The assistant's send path (useAssistantChat) has no waiting_media
+        // route yet — keep the pre-deferral blocking UX so an allowed click
+        // is never a silent no-op.
+        mediaDeferDisabled
       />
     </Stack>
   );

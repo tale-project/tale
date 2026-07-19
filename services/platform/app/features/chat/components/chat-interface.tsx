@@ -877,6 +877,7 @@ export function ChatInterface({
     message: string,
     sentAttachments?: FileAttachment[],
     kbReferences?: KbMention[],
+    options?: { deferForMedia?: boolean },
   ) => {
     // Queue mode: a turn is running on this external-agent thread — enqueue
     // instead of dispatching. Text-only (ChatInput blocks attachment sends in
@@ -951,12 +952,19 @@ export function ChatInterface({
     // `clearInputValue()` — without this, the chip lingers in the
     // composer for the 50-200 ms `bindCompletedJobsToMessage` round-trip
     // and the user reads it as "the input box doesn't clear quickly".
-    const videoLinkSnapshot = videoLinkJobs.filter(
-      (j) =>
-        j.displayStatus === 'completed' &&
-        j.messageBoundAt === undefined &&
-        j.lifecycleStatus !== 'trashed' &&
-        j.storageId !== undefined,
+    // Deferred sends (media still processing) carry EVERY sendable chip —
+    // in-flight jobs included, the enqueue mutation claims them; direct
+    // sends keep the completed-only predicate.
+    const videoLinkSnapshot = videoLinkJobs.filter((j) =>
+      options?.deferForMedia === true
+        ? j.messageBoundAt === undefined &&
+          j.lifecycleStatus !== 'trashed' &&
+          j.displayStatus !== 'skipped' &&
+          j.displayStatus !== 'failed'
+        : j.displayStatus === 'completed' &&
+          j.messageBoundAt === undefined &&
+          j.lifecycleStatus !== 'trashed' &&
+          j.storageId !== undefined,
     );
     const snapshotJobIds = videoLinkSnapshot.map((j) => j.jobId);
     if (snapshotJobIds.length > 0) {
@@ -993,6 +1001,7 @@ export function ChatInterface({
         finalAttachments,
         videoLinkSnapshot,
         kbReferences,
+        options,
       );
     } catch (err) {
       // Restore the draft so the user can retry or edit. The chip
@@ -1465,7 +1474,7 @@ export function ChatInterface({
         ) : threadStatusPending ? null : (
           <FileUpload.Root>
             <div className="px-3">
-              {isExternalAgentThread && dataThreadId && (
+              {dataThreadId && (
                 <QueuedMessageTray
                   threadId={dataThreadId}
                   organizationId={organizationId}
@@ -1502,6 +1511,7 @@ export function ChatInterface({
                 }
                 isLoading={isLoading}
                 queueModeActive={queueModeActive}
+                mediaDeferDisabled={isArenaMode}
                 disabled={hasNoAgents || hasActiveApproval || missingKeyBlocked}
                 disabledReason={
                   hasNoAgents

@@ -27,7 +27,7 @@ interface TrayEntry {
   key: string;
   queueId?: Id<'chatMessageQueue'>;
   text: string;
-  status: 'queued' | 'claimed' | 'delivered';
+  status: 'waiting_media' | 'queued' | 'claimed' | 'delivered';
   /** Entry left the waiting set (picked or removed) — kept briefly with a
    * fade-out so a fast pick reads as a deliberate move into the transcript,
    * not a flash. */
@@ -71,7 +71,9 @@ export function QueuedMessageTray({
   // drained into the next turn; their bubbles are saved, so they leave too.
   const live = useMemo<TrayEntry[]>(() => {
     const fromServer = (rows ?? []).flatMap<TrayEntry>((r) =>
-      r.status === 'queued' || r.status === 'delivered'
+      r.status === 'queued' ||
+      r.status === 'delivered' ||
+      r.status === 'waiting_media'
         ? [
             {
               key: r.queueId,
@@ -148,11 +150,13 @@ export function QueuedMessageTray({
       {entries.map((entry) => {
         const statusText = entry.ghost
           ? t('queue.status.consumed')
-          : entry.status === 'delivered'
-            ? t('queue.status.delivered')
-            : agentLingering
-              ? t('queue.status.deliversNow')
-              : t('queue.status.queued');
+          : entry.status === 'waiting_media'
+            ? t('queue.status.waitingMedia')
+            : entry.status === 'delivered'
+              ? t('queue.status.delivered')
+              : agentLingering
+                ? t('queue.status.deliversNow')
+                : t('queue.status.queued');
         const queueId = entry.queueId;
         return (
           <li
@@ -171,31 +175,33 @@ export function QueuedMessageTray({
             <span className="text-muted-foreground shrink-0 text-xs italic">
               {statusText}
             </span>
-            {!entry.ghost && entry.status === 'queued' && queueId && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6 shrink-0"
-                aria-label={t('queue.tray.remove')}
-                onClick={() =>
-                  deleteQueued(
-                    { queueId },
-                    {
-                      onError: (err: unknown) => {
-                        console.warn('[queue-tray] delete failed', err);
-                        toast({
-                          title: t('queue.tray.removeFailed'),
-                          variant: 'destructive',
-                        });
+            {!entry.ghost &&
+              (entry.status === 'queued' || entry.status === 'waiting_media') &&
+              queueId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 shrink-0"
+                  aria-label={t('queue.tray.remove')}
+                  onClick={() =>
+                    deleteQueued(
+                      { queueId },
+                      {
+                        onError: (err: unknown) => {
+                          console.warn('[queue-tray] delete failed', err);
+                          toast({
+                            title: t('queue.tray.removeFailed'),
+                            variant: 'destructive',
+                          });
+                        },
                       },
-                    },
-                  )
-                }
-              >
-                <X className="size-3.5" aria-hidden="true" />
-              </Button>
-            )}
+                    )
+                  }
+                >
+                  <X className="size-3.5" aria-hidden="true" />
+                </Button>
+              )}
           </li>
         );
       })}

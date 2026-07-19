@@ -171,6 +171,10 @@ function EmbeddedChatContent({
         removeAttachment={removeAttachment}
         clearAttachments={clearAttachments}
         isIndexing={isIndexing}
+        // Embedded surfaces keep the pre-deferral blocking UX: their send
+        // path (use-embedded-chat) has no waiting_media route yet, so an
+        // allowed-but-deferred click would be a silent no-op here.
+        mediaDeferDisabled
         indexingStatuses={indexingStatuses}
         isTranscribing={isTranscribing}
         transcriptionStatuses={transcriptionStatuses}

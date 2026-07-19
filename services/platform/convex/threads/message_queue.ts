@@ -14,6 +14,7 @@ import { isDrainingNow } from '../control/drain';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
+import { unbindDeferredJobs } from '../video_links/bind_for_send';
 
 /**
  * While a deploy drain is active, queued messages must NOT start a new
@@ -612,8 +613,14 @@ export const deleteQueuedMessage = mutation({
       return { deleted: false };
     }
     // claimed/delivered/consumed are already (being) handed to the agent.
-    if (row.status !== 'queued') {
+    if (row.status !== 'queued' && row.status !== 'waiting_media') {
       return { deleted: false };
+    }
+    // Abandoning a media-wait releases its bound video jobs: the unbound
+    // chips reappear in the composer (retry/remove flows take over) and the
+    // readiness watcher's next tick sees the row gone and stops.
+    if (row.status === 'waiting_media' && row.videoJobIds !== undefined) {
+      await unbindDeferredJobs(ctx, row.videoJobIds, row.userId);
     }
     // Persist-at-pick rows have no transcript copy while queued — only legacy
     // rows (saved at enqueue, in flight across the deploy) carry one.
@@ -639,12 +646,27 @@ export const listQueuedMessages = query({
       savedMessageId: v.optional(v.string()),
       text: v.string(),
       status: v.union(
+        v.literal('waiting_media'),
         v.literal('queued'),
         v.literal('claimed'),
         v.literal('delivered'),
         v.literal('consumed'),
       ),
       createdAt: v.number(),
+      /** Media-wait rows only: what the send is waiting on, so the tray can
+       * render the live chip/file status alongside the parked text. */
+      attachments: v.optional(
+        v.array(
+          v.object({
+            fileId: v.string(),
+            fileName: v.string(),
+            fileType: v.string(),
+            fileSize: v.number(),
+          }),
+        ),
+      ),
+      videoJobIds: v.optional(v.array(v.id('videoLinkJobs'))),
+      waitingSince: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -672,6 +694,9 @@ export const listQueuedMessages = query({
       text: r.text,
       status: r.status,
       createdAt: r.createdAt,
+      ...(r.attachments !== undefined && { attachments: r.attachments }),
+      ...(r.videoJobIds !== undefined && { videoJobIds: r.videoJobIds }),
+      ...(r.waitingSince !== undefined && { waitingSince: r.waitingSince }),
     }));
   },
 });
