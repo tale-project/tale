@@ -49,6 +49,7 @@ import {
   samlLoginHandler,
   samlAcsHandler,
 } from './enterprise_sso/http_handlers';
+import { sandboxBlobServeHandler } from './files/sandbox_blob_http';
 import { imageProxyHandler } from './images/http_actions';
 import {
   executeIntegrationHandler,
@@ -303,6 +304,15 @@ http.route({
   path: '/api/image-proxy',
   method: 'GET',
   handler: imageProxyHandler,
+});
+
+// Sandbox staging lane for org-bucket blobs — HMAC-token-gated, streams the
+// bytes through so the SSRF-locked session container never sees a bucket
+// credential. See files/sandbox_blob_http.ts.
+http.route({
+  path: '/api/sandbox-blob',
+  method: 'GET',
+  handler: sandboxBlobServeHandler,
 });
 
 /**

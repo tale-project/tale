@@ -32,8 +32,13 @@ import {
 } from '../../agent_tools/files/_shared';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
-import { putBlob, readBlobBytes } from '../../lib/storage/blob_access';
+import {
+  deleteBlob,
+  putBlob,
+  readBlobBytes,
+} from '../../lib/storage/blob_access';
 import { convexStorageId, type BlobRef } from '../../lib/storage/blob_ref';
+import { buildSandboxBlobStageUrl } from '../../lib/storage/sandbox_stage_token';
 import {
   drainSessionExecResilient,
   sessionDeleteFiles,
@@ -44,6 +49,22 @@ import {
 
 const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 16;
 const OUTPUT_DIR = '/user/output';
+
+/** Read-back ceiling per harvested output file — mirror of the runnerd
+ * daemon's FILE_READ_MAX_BYTES (services/sandbox-runtime/daemon/src/main.ts);
+ * keep the two in sync. Checked against the listing size BEFORE reading so an
+ * oversize output is reported as skipped instead of surfacing as an opaque
+ * read failure. */
+const HARVEST_READ_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Inline-staging ceiling for the no-stage-token fallback lane — mirror of
+ * the runnerd daemon's INLINE_MAX_BYTES (1 MB decoded; its base64 form also
+ * has to fit the 1.5 MB per-request stage budget in session_client). */
+const INLINE_STAGE_MAX_BYTES = 1 * 1024 * 1024;
+
+function formatMb(n: number): string {
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 /** Hidden staging area for inline `run_code` snippets, under the executable
  * `/user/code` surface but never a threadFile — so it is invisible to
@@ -95,6 +116,15 @@ export interface SessionExecResultShape {
     size: number;
     contentType: string;
   }>;
+  /** Workspace files that could NOT be staged into the container (org-bucket
+   * blob over the inline cap on a deployment without stage tokens, a missing
+   * blob, a daemon-side refusal). The run still executes — scripts just don't
+   * see these paths; surfaced on the run_code result so the model knows. */
+  stagingSkipped?: Array<{ path: string; reason: string }>;
+  /** `/user/output` files that could NOT be harvested back (over the
+   * read-back cap, rejected by the workspace quota, storage failure). The
+   * run itself still succeeds; surfaced on the run_code result. */
+  harvestSkipped?: Array<{ path: string; reason: string }>;
 }
 
 function interpreterCommand(absPath: string): string[] | null {
@@ -236,6 +266,110 @@ export async function runStepsInSession(
   };
 }
 
+export interface WorkspaceStageRow {
+  organizationId: string;
+  path: string;
+  storageId: BlobRef;
+  size: number;
+  source: 'user_upload' | 'agent_write' | 'run_output';
+}
+
+/**
+ * Decide how each workspace row reaches the container — exported for unit
+ * tests; {@link executeCodeInSession} is the sole production caller.
+ *
+ * Both primary lanes are URL fetches by the in-container daemon over the
+ * sandbox-reachable `convex` alias (capped at its 100 MB FETCH_MAX_BYTES): a
+ * Convex `_storage` blob by its capability URL, an org-bucket `s3:` blob via
+ * the token-gated `/api/sandbox-blob` stream route (the sandbox net has no
+ * route to the org's S3 endpoint, and a presigned bucket URL must never enter
+ * the container). Deployments without an HMAC root to sign stage tokens fall
+ * back to inline base64, bounded by the daemon's 1 MB inline cap. Whatever
+ * cannot be staged lands in `stagingSkipped` and is surfaced on the run
+ * result — the model must never be left guessing why a listed workspace file
+ * is absent.
+ */
+export async function planWorkspaceStaging(
+  ctx: ActionCtx,
+  rows: WorkspaceStageRow[],
+  opts: {
+    organizationId: string;
+    /** Fresh session ⇒ true: re-stage prior `run_output` files too; a warm
+     * session already has them on disk. */
+    includeRunOutputs: boolean;
+    stageOrgSlug: string | null;
+  },
+): Promise<{
+  toStage: Array<{ path: string; url?: string; contentBase64?: string }>;
+  stagingSkipped: Array<{ path: string; reason: string }>;
+}> {
+  const toStage: Array<{ path: string; url?: string; contentBase64?: string }> =
+    [];
+  const stagingSkipped: Array<{ path: string; reason: string }> = [];
+  for (const r of rows) {
+    if (r.organizationId !== opts.organizationId) continue;
+    if (r.source === 'run_output' && !opts.includeRunOutputs) continue;
+    const rowConvexId = convexStorageId(r.storageId);
+    if (rowConvexId !== null) {
+      const raw = await ctx.storage.getUrl(rowConvexId);
+      if (raw === null) {
+        stagingSkipped.push({
+          path: r.path,
+          reason: 'stored bytes are missing',
+        });
+        continue;
+      }
+      toStage.push({
+        path: stagePathOf(r.path),
+        url: toSandboxStorageUrl(raw),
+      });
+      continue;
+    }
+    const stageUrl = await buildSandboxBlobStageUrl(
+      String(r.storageId),
+      opts.organizationId,
+    );
+    if (stageUrl !== null) {
+      toStage.push({ path: stagePathOf(r.path), url: stageUrl });
+      continue;
+    }
+    // No HMAC root to sign a stage token with — legacy inline lane.
+    if (opts.stageOrgSlug === null) {
+      stagingSkipped.push({
+        path: r.path,
+        reason: 'organization unresolvable for its storage bucket',
+      });
+      continue;
+    }
+    if (r.size > INLINE_STAGE_MAX_BYTES) {
+      stagingSkipped.push({
+        path: r.path,
+        reason: `${formatMb(r.size)} org-bucket file exceeds the ${formatMb(
+          INLINE_STAGE_MAX_BYTES,
+        )} inline staging cap (no stage-token key configured on this deployment)`,
+      });
+      continue;
+    }
+    try {
+      const bytes = await readBlobBytes(ctx, opts.stageOrgSlug, r.storageId);
+      toStage.push({
+        path: stagePathOf(r.path),
+        contentBase64: Buffer.from(bytes).toString('base64'),
+      });
+    } catch (err) {
+      console.warn(
+        `[session_exec] S3 thread-file read failed for ${r.path}:`,
+        err instanceof Error ? err.message : err,
+      );
+      stagingSkipped.push({
+        path: r.path,
+        reason: 'reading the org-bucket bytes failed',
+      });
+    }
+  }
+  return { toStage, stagingSkipped };
+}
+
 /**
  * Session-exec + threadFiles harvest: run `stepPaths` via {@link
  * runStepsInSession}, then harvest top-level `/user/output` — storing only
@@ -279,22 +413,48 @@ export async function runAndHarvestInSession(
   // Harvest top-level /user/output, upserting only new/changed files (sha256).
   // Install-only runs skip it — an install can't produce deliverables, and the
   // sha256 dedupe would re-read every existing output file for nothing.
+  // A file that CANNOT come back (over the read cap, workspace quota, storage
+  // hiccup) is recorded in `harvestSkipped` and never fails the run — the
+  // script did its work; losing the whole result over one oversize deliverable
+  // punished exactly the successful case.
   const files: Array<{
     path: string;
     storageId: string;
     size: number;
     contentType: string;
   }> = [];
+  const harvestSkipped: Array<{ path: string; reason: string }> = [];
   const entries =
     args.stepPaths.length === 0
       ? []
       : ((await sessionListFiles(sessionId, OUTPUT_DIR)) ?? []);
   for (const e of entries) {
     if (e.type !== 'file') continue;
-    if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) break;
     const absPath = `${OUTPUT_DIR}/${e.name}`;
+    if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) {
+      harvestSkipped.push({
+        path: absPath,
+        reason: `over the ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN}-file per-run harvest cap`,
+      });
+      continue;
+    }
+    if (e.size > HARVEST_READ_MAX_BYTES) {
+      harvestSkipped.push({
+        path: absPath,
+        reason: `${formatMb(e.size)} exceeds the ${formatMb(
+          HARVEST_READ_MAX_BYTES,
+        )} per-file harvest cap — split the output or have the user download it another way`,
+      });
+      continue;
+    }
     const read = await sessionReadFile(sessionId, absPath);
-    if (read === null) continue;
+    if (read === null) {
+      harvestSkipped.push({
+        path: absPath,
+        reason: 'read from sandbox failed',
+      });
+      continue;
+    }
     const buf = Buffer.from(read.bytes);
     const sha256 = createHash('sha256').update(buf).digest('hex');
     const existing = await ctx.runQuery(
@@ -317,28 +477,52 @@ export async function runAndHarvestInSession(
     const ab = new ArrayBuffer(buf.byteLength);
     new Uint8Array(ab).set(buf);
     const harvestBytes = new Uint8Array(ab);
-    let storageId: BlobRef;
-    if (orgSlug !== null) {
-      storageId = await putBlob(ctx, orgSlug, harvestBytes, contentType);
-    } else {
-      storageId = await ctx.storage.store(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
-        new Blob([harvestBytes as BlobPart], { type: contentType }),
+    let storageId: BlobRef | null = null;
+    try {
+      if (orgSlug !== null) {
+        storageId = await putBlob(ctx, orgSlug, harvestBytes, contentType);
+      } else {
+        storageId = await ctx.storage.store(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
+          new Blob([harvestBytes as BlobPart], { type: contentType }),
+        );
+      }
+      await ctx.runMutation(
+        internal.thread_files.internal_mutations.upsertThreadFile,
+        {
+          organizationId,
+          threadId: workspaceThreadId,
+          path: absPath,
+          storageId,
+          size: buf.byteLength,
+          contentType,
+          sha256,
+          source: 'run_output' as const,
+        },
       );
-    }
-    await ctx.runMutation(
-      internal.thread_files.internal_mutations.upsertThreadFile,
-      {
-        organizationId,
-        threadId: workspaceThreadId,
+    } catch (err) {
+      // Quota/validation rejection after the blob copy — reap the orphan
+      // (mirrors workspace_uploads' filing reap).
+      if (storageId !== null) {
+        try {
+          const copyConvexId = convexStorageId(storageId);
+          if (copyConvexId !== null) {
+            await ctx.storage.delete(copyConvexId);
+          } else if (orgSlug !== null) {
+            await deleteBlob(ctx, orgSlug, storageId);
+          }
+        } catch (delErr) {
+          console.warn('[session_exec] harvest orphan cleanup failed:', delErr);
+        }
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[session_exec] harvest skipped ${absPath}: ${message}`);
+      harvestSkipped.push({
         path: absPath,
-        storageId,
-        size: buf.byteLength,
-        contentType,
-        sha256,
-        source: 'run_output' as const,
-      },
-    );
+        reason: `not saved to the workspace: ${message}`,
+      });
+      continue;
+    }
     // A fileMetadata row per harvested blob (was a documented follow-up): a
     // follow-up consumer of the storage id — e.g. a workflow `document.create`
     // filing a produced artifact — resolves name/type through fileMetadata and
@@ -380,6 +564,7 @@ export async function runAndHarvestInSession(
     stderrPreview: run.stderr.slice(0, 4096),
     durationMs: Date.now() - startedAt,
     files,
+    ...(harvestSkipped.length > 0 && { harvestSkipped }),
   };
 }
 
@@ -455,6 +640,12 @@ export const executeCodeInSession = internalAction({
         contentType: v.string(),
       }),
     ),
+    stagingSkipped: v.optional(
+      v.array(v.object({ path: v.string(), reason: v.string() })),
+    ),
+    harvestSkipped: v.optional(
+      v.array(v.object({ path: v.string(), reason: v.string() })),
+    ),
   }),
   handler: async (ctx, args): Promise<SessionExecResultShape> => {
     const inputsError = execInputsError(args);
@@ -471,57 +662,25 @@ export const executeCodeInSession = internalAction({
     // Stage inputs. On a fresh session, reconstruct the whole workspace from
     // threadFiles; on a warm/resumed one, only re-stage the mutable inputs
     // (scripts/uploads) — prior `run_output` files persist in the workspace.
-    //
-    // Backend split: a Convex `_storage` blob is staged by URL (the
-    // in-container daemon fetches it over the sandbox-reachable `convex`
-    // alias). An `s3:` blob CANNOT be fetched from the sandbox — the
-    // `--internal` sandbox net has no route to the org's S3 endpoint — so its
-    // bytes are read here (node) and staged inline as base64 (bounded by the
-    // 10 MB THREAD_FILE_MAX_BYTES cap on every workspace file).
+    // Lane routing (storage-backend split, inline fallback, skip surfacing)
+    // lives in `planWorkspaceStaging` above.
     const rows = await ctx.runQuery(
       internal.thread_files.internal_queries.listThreadFiles,
       { threadId: args.threadId },
     );
     const stageOrgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
-    const toStage: {
-      path: string;
-      url?: string;
-      contentBase64?: string;
-    }[] = [];
-    for (const r of rows as Array<{
-      organizationId: string;
-      path: string;
-      storageId: BlobRef;
-      source: 'user_upload' | 'agent_write' | 'run_output';
-    }>) {
-      if (r.organizationId !== args.organizationId) continue;
-      if (r.source === 'run_output' && !created) continue;
-      const rowConvexId = convexStorageId(r.storageId);
-      if (rowConvexId !== null) {
-        const raw = await ctx.storage.getUrl(rowConvexId);
-        if (raw === null) continue;
-        toStage.push({
-          path: stagePathOf(r.path),
-          url: toSandboxStorageUrl(raw),
-        });
-        continue;
-      }
-      if (stageOrgSlug === null) continue;
-      try {
-        const bytes = await readBlobBytes(ctx, stageOrgSlug, r.storageId);
-        toStage.push({
-          path: stagePathOf(r.path),
-          contentBase64: Buffer.from(bytes).toString('base64'),
-        });
-      } catch (err) {
-        console.warn(
-          `[session_exec] S3 thread-file read failed for ${r.path}:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
-    }
+    const { toStage, stagingSkipped } = await planWorkspaceStaging(
+      ctx,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listThreadFiles codegen rows
+      rows as WorkspaceStageRow[],
+      {
+        organizationId: args.organizationId,
+        includeRunOutputs: created,
+        stageOrgSlug,
+      },
+    );
     if (toStage.length > 0) {
-      await sessionStageFiles(
+      const stageResult = await sessionStageFiles(
         sessionId,
         toStage.map((f) =>
           f.url !== undefined
@@ -529,6 +688,14 @@ export const executeCodeInSession = internalAction({
             : { path: f.path, contentBase64: f.contentBase64 ?? '' },
         ),
       );
+      // Daemon-side refusals (unsafe path, fetch failure, over the fetch cap)
+      // were previously discarded — carry them into the surfaced skips.
+      for (const s of stageResult.skipped) {
+        console.warn(
+          `[session_exec] daemon refused to stage ${s.path}: ${s.reason}`,
+        );
+        stagingSkipped.push({ path: `/user/${s.path}`, reason: s.reason });
+      }
     }
 
     // Inline mode: stage the snippet as a hidden one-shot script and run it
@@ -557,7 +724,7 @@ export const executeCodeInSession = internalAction({
     }
 
     try {
-      return await runAndHarvestInSession(ctx, {
+      const result = await runAndHarvestInSession(ctx, {
         organizationId: args.organizationId,
         workspaceThreadId: args.threadId,
         sessionId,
@@ -567,6 +734,7 @@ export const executeCodeInSession = internalAction({
         }),
         ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
       });
+      return stagingSkipped.length > 0 ? { ...result, stagingSkipped } : result;
     } finally {
       if (inlinePath !== undefined) {
         await sessionDeleteFiles(sessionId, [inlinePath]).catch(

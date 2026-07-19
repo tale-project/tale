@@ -95,6 +95,7 @@ import {
   sessionReadFile,
   sessionStageFiles,
 } from './helpers/session_client';
+import { stageUrlForBlobRef } from './helpers/stage_url';
 import {
   reconcileBuiltinSkills,
   stageIntegrationSkills,
@@ -534,11 +535,17 @@ export async function folderStageFiles(
   const dir = as.replace(/\/+$/, '');
   const staged: SessionStageFile[] = [];
   for (const file of files) {
-    const raw = await ctx.storage.getUrl(toId<'_storage'>(file.fileId));
-    if (!raw) continue; // blob purged under a live row — skip, don't fail
+    // Blob-aware: a BYO-bucket org's documents carry `s3:` refs, which stage
+    // via the token-gated stream route instead of a `_storage` capability URL.
+    const url = await stageUrlForBlobRef(
+      ctx,
+      String(file.fileId),
+      organizationId,
+    );
+    if (url === null) continue; // blob purged under a live row — skip, don't fail
     staged.push({
       path: `${pathPrefix}${dir}/${file.name}`,
-      url: toSandboxStorageUrl(raw),
+      url,
     });
   }
   return staged;
@@ -692,13 +699,17 @@ export const runSandboxScript = internalAction({
             url: await storeAsUrl(input.from.content),
           });
         } else if ('fileId' in input.from) {
-          const raw = await ctx.storage.getUrl(
-            toId<'_storage'>(input.from.fileId),
+          const url = await stageUrlForBlobRef(
+            ctx,
+            input.from.fileId,
+            args.organizationId,
           );
-          if (!raw) return fail(`input file not found: ${input.from.fileId}`);
+          if (url === null) {
+            return fail(`input file not found: ${input.from.fileId}`);
+          }
           stageInputs.push({
             path: `uploads/${input.as}`,
-            url: toSandboxStorageUrl(raw),
+            url,
           });
         } else {
           const staged = await folderStageFiles(
@@ -1669,11 +1680,15 @@ export const runSandboxAgent = internalAction({
               contentBase64: Buffer.from(input.from.content).toString('base64'),
             });
           } else if ('fileId' in input.from) {
-            const raw = await ctx.storage.getUrl(
-              toId<'_storage'>(input.from.fileId),
+            const url = await stageUrlForBlobRef(
+              ctx,
+              input.from.fileId,
+              args.organizationId,
             );
-            if (!raw) return fail(`input file not found: ${input.from.fileId}`);
-            stageFiles.push({ path: input.as, url: toSandboxStorageUrl(raw) });
+            if (url === null) {
+              return fail(`input file not found: ${input.from.fileId}`);
+            }
+            stageFiles.push({ path: input.as, url });
           } else {
             const staged = await folderStageFiles(
               ctx,
