@@ -239,6 +239,16 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
  * Actionable inbox keys mirrored for server-side email rendering. Kept honest by
  * `notification_messages.test.ts` against the `inbox` namespace subset in
  * messages/{en,de,fr}.json.
+ *
+ * EVERY key an actionable-notification path can emit MUST be listed here (and so
+ * mirrored in `INBOX_I18N`) — otherwise the email falls back to the raw key.
+ * `email_key_coverage.test.ts` enforces that: it scans both the code emitters
+ * and the builtin automations for actionable `titleKey`/`bodyKey`s and fails if
+ * any is unmirrored. Sources beyond the individual code paths:
+ *   - `taskReviewReminder*` / `taskReviewEscalated*` — `remind-reviewers` automation
+ *   - `humanInputEscalated*` — `remind-reviewers` automation
+ *   - `taskSlaEscalated*` — `enforce-slas` automation
+ *   - `conversationTeamAssigned*` — `collab/notify.ts` team hand-off
  */
 export const ACTIONABLE_INBOX_KEYS = [
   'taskAssigned',
@@ -250,13 +260,24 @@ export const ACTIONABLE_INBOX_KEYS = [
   'taskReviewRequested',
   'taskReviewRequestedBody',
   'taskReviewRequestedBodyNoAgent',
+  'taskReviewReminder',
+  'taskReviewReminderBody',
+  'taskReviewEscalated',
+  'taskReviewEscalatedBody',
   'agentEscalation',
   'agentEscalationBody',
+  'humanInputEscalated',
+  'humanInputEscalatedBody',
+  'taskSlaEscalated',
+  'taskSlaEscalatedBody',
   'conversationInboundMessage',
   'conversationInboundMessageBody',
   'conversationAssigned',
   'conversationAssignedBody',
   'conversationAssignedByBody',
+  'conversationTeamAssigned',
+  'conversationTeamAssignedBody',
+  'conversationTeamAssignedByBody',
   'email.cta',
   'email.footer',
 ] as const;
@@ -274,8 +295,20 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} finished "{taskTitle}" — approve or request changes.',
     taskReviewRequestedBodyNoAgent:
       'Agent work on "{taskTitle}" is ready for review — approve or request changes.',
+    taskReviewReminder: 'Review reminder',
+    taskReviewReminderBody:
+      'Agent work on "{title}" is still waiting for your review.',
+    taskReviewEscalated: 'Review overdue',
+    taskReviewEscalatedBody:
+      'A review on "{title}" has been waiting for over a day.',
     agentEscalation: 'Agent escalation',
     agentEscalationBody: '{agent} escalated: {reason}',
+    humanInputEscalated: 'Workflow waiting on input',
+    humanInputEscalatedBody:
+      'A workflow has been waiting on human input for {ageHours} hours.',
+    taskSlaEscalated: 'Overdue task escalated',
+    taskSlaEscalatedBody:
+      '"{title}" is significantly overdue and needs attention.',
     conversationInboundMessage: 'New conversation message',
     conversationInboundMessageBody:
       'From {sender}: "{subject}" — open your Inbox to reply.',
@@ -284,6 +317,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'You were assigned the conversation "{subject}" — open your Inbox to reply.',
     conversationAssignedByBody:
       '{actor} assigned you the conversation "{subject}" — open your Inbox to reply.',
+    conversationTeamAssigned: 'Conversation queued to your team',
+    conversationTeamAssignedBody:
+      'The conversation "{subject}" was queued to your team — open your Inbox to reply.',
+    conversationTeamAssignedByBody:
+      '{actor} queued the conversation "{subject}" to your team — open your Inbox to reply.',
     'email.cta': 'Open in Tale',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
@@ -300,8 +338,20 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} hat "{taskTitle}" abgeschlossen — freigeben oder Änderungen anfordern.',
     taskReviewRequestedBodyNoAgent:
       'Agenten-Arbeit an "{taskTitle}" ist bereit zur Prüfung — freigeben oder Änderungen anfordern.',
+    taskReviewReminder: 'Review-Erinnerung',
+    taskReviewReminderBody:
+      'Agenten-Arbeit an "{title}" wartet weiterhin auf dein Review.',
+    taskReviewEscalated: 'Review überfällig',
+    taskReviewEscalatedBody:
+      'Ein Review zu "{title}" wartet seit über einem Tag.',
     agentEscalation: 'Agenten-Eskalation',
     agentEscalationBody: '{agent} hat eskaliert: {reason}',
+    humanInputEscalated: 'Workflow wartet auf Eingabe',
+    humanInputEscalatedBody:
+      'Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.',
+    taskSlaEscalated: 'Überfällige Aufgabe eskaliert',
+    taskSlaEscalatedBody:
+      '"{title}" ist deutlich überfällig und braucht Aufmerksamkeit.',
     conversationInboundMessage: 'Neue Konversationsnachricht',
     conversationInboundMessageBody:
       'Von {sender}: "{subject}" — öffne deine Inbox, um zu antworten.',
@@ -310,6 +360,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Dir wurde die Konversation "{subject}" zugewiesen — öffne deine Inbox, um zu antworten.',
     conversationAssignedByBody:
       '{actor} hat dir die Konversation "{subject}" zugewiesen — öffne deine Inbox, um zu antworten.',
+    conversationTeamAssigned: 'Konversation deinem Team zugewiesen',
+    conversationTeamAssignedBody:
+      'Die Konversation "{subject}" wurde deinem Team zugewiesen — öffne deine Inbox, um zu antworten.',
+    conversationTeamAssignedByBody:
+      '{actor} hat die Konversation "{subject}" deinem Team zugewiesen — öffne deine Inbox, um zu antworten.',
     'email.cta': 'In Tale öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
@@ -326,8 +381,20 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.',
     taskReviewRequestedBodyNoAgent:
       "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
+    taskReviewReminder: 'Rappel de revue',
+    taskReviewReminderBody:
+      "Le travail de l'agent sur « {title} » attend toujours votre revue.",
+    taskReviewEscalated: 'Revue en retard',
+    taskReviewEscalatedBody:
+      "Une revue sur « {title} » attend depuis plus d'un jour.",
     agentEscalation: "Escalade d'agent",
     agentEscalationBody: '{agent} a escaladé : {reason}',
+    humanInputEscalated: "Workflow en attente d'une saisie",
+    humanInputEscalatedBody:
+      'Un workflow attend une saisie humaine depuis {ageHours} heures.',
+    taskSlaEscalated: 'Tâche en retard escaladée',
+    taskSlaEscalatedBody:
+      '« {title} » est nettement en retard et demande votre attention.',
     conversationInboundMessage: 'Nouveau message de conversation',
     conversationInboundMessageBody:
       'De {sender} : « {subject} » — ouvre ta boîte de réception pour répondre.',
@@ -336,6 +403,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       "La conversation « {subject} » t'a été assignée — ouvre ta boîte de réception pour répondre.",
     conversationAssignedByBody:
       "{actor} t'a assigné la conversation « {subject} » — ouvre ta boîte de réception pour répondre.",
+    conversationTeamAssigned: 'Conversation assignée à ton équipe',
+    conversationTeamAssignedBody:
+      'La conversation « {subject} » a été assignée à ton équipe — ouvre ta boîte de réception pour répondre.',
+    conversationTeamAssignedByBody:
+      '{actor} a assigné la conversation « {subject} » à ton équipe — ouvre ta boîte de réception pour répondre.',
     'email.cta': 'Ouvrir dans Tale',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',
