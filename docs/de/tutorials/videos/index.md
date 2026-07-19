@@ -35,7 +35,7 @@ Ein Agent, vor der Kamera gebaut — Anweisungen, Wissensbereich, Werkzeuge, Mod
 
 <Card title="Episode 5 — Automatisierungen & Freigaben" icon="play" href="/de/tutorials/videos/automations-and-approvals">
 
-Die Triage-Automatisierung wie ein Rezept aufgeklappt, der ehrliche rote Lauf und eine echte Freigabekarte, vor der Kamera entschieden. KI entwirft, Menschen entscheiden. Gut drei Minuten.
+Nutze eine laufende Automatisierung von Anfang bis Ende: Lies den Triage-Workflow, löse mit einer vor der Kamera erstellten Aufgabe einen echten Lauf aus, untersuche den fehlgeschlagenen Lauf und gib eine ausgehende Mail selbst frei. Sieben Minuten.
 
 </Card>
 

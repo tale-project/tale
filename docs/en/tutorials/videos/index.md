@@ -35,7 +35,7 @@ An agent built end to end on camera — instructions, knowledge scope, tools, mo
 
 <Card title="Episode 5 — Automations & approvals" icon="play" href="/tutorials/videos/automations-and-approvals">
 
-Use a live automation end to end: read the triage workflow, trigger a real run with a task created on camera, debug the run that failed, and approve an outbound email yourself. Five minutes.
+Use a live automation end to end: read the triage workflow, trigger a real run with a task created on camera, debug the run that failed, and approve an outbound email yourself. Six minutes.
 
 </Card>
 

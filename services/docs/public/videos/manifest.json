@@ -125,7 +125,7 @@
       "episode": "ep5-automations",
       "locale": "de",
       "kind": "video",
-      "durationSec": 191.4,
+      "durationSec": 423.6,
       "width": 1920,
       "height": 1080
     },
@@ -134,7 +134,7 @@
       "episode": "ep5-automations",
       "locale": "de",
       "kind": "captions",
-      "durationSec": 191.4
+      "durationSec": 423.6
     },
     {
       "file": "videos/de/tutorials/ep5-automations/ep5-automations.de.webp",
@@ -365,7 +365,7 @@
       "episode": "ep5-automations",
       "locale": "en",
       "kind": "video",
-      "durationSec": 297.9,
+      "durationSec": 380.3,
       "width": 1920,
       "height": 1080
     },
@@ -374,7 +374,7 @@
       "episode": "ep5-automations",
       "locale": "en",
       "kind": "captions",
-      "durationSec": 297.9
+      "durationSec": 380.3
     },
     {
       "file": "videos/en/tutorials/ep5-automations/ep5-automations.en.webp",
@@ -605,7 +605,7 @@
       "episode": "ep5-automations",
       "locale": "fr",
       "kind": "video",
-      "durationSec": 154.6,
+      "durationSec": 378.3,
       "width": 1920,
       "height": 1080
     },
@@ -614,7 +614,7 @@
       "episode": "ep5-automations",
       "locale": "fr",
       "kind": "captions",
-      "durationSec": 154.6
+      "durationSec": 378.3
     },
     {
       "file": "videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp",
