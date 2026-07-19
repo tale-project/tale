@@ -112,109 +112,124 @@ export async function fileAttachmentsIntoWorkspace(
     planned.length > 0
       ? await orgSlugFromIdOrNull(ctx, args.organizationId)
       : null;
-  await Promise.all(
-    planned.map(async ({ attachment, path }) => {
-      try {
-        let bytes: Uint8Array;
-        const convexId = convexStorageId(attachment.fileId);
-        if (convexId !== null) {
-          const blob = await ctx.storage.get(convexId);
-          if (blob === null) {
-            failed += 1;
-            console.warn(
-              `[workspace_uploads] attachment blob missing for ${path} (${attachment.fileId})`,
-            );
-            return;
-          }
-          bytes = new Uint8Array(await blob.arrayBuffer());
-        } else {
-          if (orgSlug === null) {
-            failed += 1;
-            console.warn(
-              `[workspace_uploads] org unresolvable; cannot read S3 attachment for ${path}`,
-            );
-            return;
-          }
-          bytes = await readBlobBytes(ctx, orgSlug, attachment.fileId);
-        }
-        const sha256 = await sha256Hex(bytes);
-        const contentType =
-          attachment.fileType.trim().length > 0
-            ? attachment.fileType
-            : 'application/octet-stream';
-        // Re-send of unchanged bytes (regenerate, duplicate upload): skip
-        // before copying so no orphan blob is ever stored.
-        const existing = await ctx.runQuery(
-          internal.thread_files.internal_queries.getThreadFileByPath,
-          { threadId: args.workspaceThreadId, path },
-        );
-        if (
-          existing !== null &&
-          existing.sha256 === sha256 &&
-          existing.source === 'user_upload'
-        ) {
-          unchanged += 1;
+  const fileOne = async ({
+    attachment,
+    path,
+  }: WorkspaceUploadPlan['planned'][number]): Promise<void> => {
+    try {
+      let bytes: Uint8Array;
+      const convexId = convexStorageId(attachment.fileId);
+      if (convexId !== null) {
+        const blob = await ctx.storage.get(convexId);
+        if (blob === null) {
+          failed += 1;
+          console.warn(
+            `[workspace_uploads] attachment blob missing for ${path} (${attachment.fileId})`,
+          );
           return;
         }
-        // Backend-aware copy: the org's own bucket when configured, else
-        // Convex `_storage` (putBlob routes; a null slug forces `_storage`).
-        let copyId: BlobRef;
-        if (orgSlug !== null) {
-          copyId = await putBlob(ctx, orgSlug, bytes, contentType);
-        } else {
-          const ab = new ArrayBuffer(bytes.byteLength);
-          new Uint8Array(ab).set(bytes);
-          copyId = await ctx.storage.store(
-            new Blob([ab], { type: contentType }),
+        bytes = new Uint8Array(await blob.arrayBuffer());
+      } else {
+        if (orgSlug === null) {
+          failed += 1;
+          console.warn(
+            `[workspace_uploads] org unresolvable; cannot read S3 attachment for ${path}`,
           );
+          return;
         }
-        try {
-          await ctx.runMutation(
-            internal.thread_files.internal_mutations.upsertThreadFile,
-            {
-              organizationId: args.organizationId,
-              threadId: args.workspaceThreadId,
-              path,
-              storageId: copyId,
-              size: bytes.byteLength,
-              contentType,
-              sha256,
-              source: 'user_upload' as const,
-              // Only images carry a hint. Anything else stays unhinted so the
-              // viewer's inference decides — stamping 'attachment' here made
-              // every non-image upload permanently download-only, unlike the
-              // agent-written twin of the same file (#2677).
-              ...(contentType.startsWith('image/')
-                ? { renderHint: 'image' as const }
-                : {}),
-            },
-          );
-          filed += 1;
-        } catch (err) {
-          // Quota/validation rejection — reap the now-orphaned copy blob.
-          try {
-            const copyConvexId = convexStorageId(copyId);
-            if (copyConvexId !== null) {
-              await ctx.storage.delete(copyConvexId);
-            } else if (orgSlug !== null) {
-              await deleteBlob(ctx, orgSlug, copyId);
-            }
-          } catch (delErr) {
-            console.warn(
-              '[workspace_uploads] orphan copy cleanup failed:',
-              delErr,
-            );
-          }
-          throw err;
-        }
-      } catch (err) {
-        failed += 1;
-        console.warn(
-          `[workspace_uploads] filing ${path} failed (attachment still readable via chat):`,
-          err,
-        );
+        bytes = await readBlobBytes(ctx, orgSlug, attachment.fileId);
       }
-    }),
+      const sha256 = await sha256Hex(bytes);
+      const contentType =
+        attachment.fileType.trim().length > 0
+          ? attachment.fileType
+          : 'application/octet-stream';
+      // Re-send of unchanged bytes (regenerate, duplicate upload): skip
+      // before copying so no orphan blob is ever stored.
+      const existing = await ctx.runQuery(
+        internal.thread_files.internal_queries.getThreadFileByPath,
+        { threadId: args.workspaceThreadId, path },
+      );
+      if (
+        existing !== null &&
+        existing.sha256 === sha256 &&
+        existing.source === 'user_upload'
+      ) {
+        unchanged += 1;
+        return;
+      }
+      // Backend-aware copy: the org's own bucket when configured, else
+      // Convex `_storage` (putBlob routes; a null slug forces `_storage`).
+      let copyId: BlobRef;
+      if (orgSlug !== null) {
+        copyId = await putBlob(ctx, orgSlug, bytes, contentType);
+      } else {
+        const ab = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(ab).set(bytes);
+        copyId = await ctx.storage.store(new Blob([ab], { type: contentType }));
+      }
+      try {
+        await ctx.runMutation(
+          internal.thread_files.internal_mutations.upsertThreadFile,
+          {
+            organizationId: args.organizationId,
+            threadId: args.workspaceThreadId,
+            path,
+            storageId: copyId,
+            size: bytes.byteLength,
+            contentType,
+            sha256,
+            source: 'user_upload' as const,
+            // Only images carry a hint. Anything else stays unhinted so the
+            // viewer's inference decides — stamping 'attachment' here made
+            // every non-image upload permanently download-only, unlike the
+            // agent-written twin of the same file (#2677).
+            ...(contentType.startsWith('image/')
+              ? { renderHint: 'image' as const }
+              : {}),
+          },
+        );
+        filed += 1;
+      } catch (err) {
+        // Quota/validation rejection — reap the now-orphaned copy blob.
+        try {
+          const copyConvexId = convexStorageId(copyId);
+          if (copyConvexId !== null) {
+            await ctx.storage.delete(copyConvexId);
+          } else if (orgSlug !== null) {
+            await deleteBlob(ctx, orgSlug, copyId);
+          }
+        } catch (delErr) {
+          console.warn(
+            '[workspace_uploads] orphan copy cleanup failed:',
+            delErr,
+          );
+        }
+        throw err;
+      }
+    } catch (err) {
+      failed += 1;
+      console.warn(
+        `[workspace_uploads] filing ${path} failed (attachment still readable via chat):`,
+        err,
+      );
+    }
+  };
+  // Each copy holds the whole file in memory (read + sha256 + backend copy),
+  // so with the per-file cap at 100 MB an all-concurrent batch of 20 could
+  // transiently need gigabytes. Small files keep the concurrent lane (the
+  // pre-raise worst case every deployment already absorbed); large ones run
+  // one at a time.
+  const LARGE_COPY_THRESHOLD_BYTES = 10 * 1024 * 1024;
+  const smallPlanned = planned.filter(
+    (p) => p.attachment.fileSize <= LARGE_COPY_THRESHOLD_BYTES,
   );
+  const largePlanned = planned.filter(
+    (p) => p.attachment.fileSize > LARGE_COPY_THRESHOLD_BYTES,
+  );
+  await Promise.all(smallPlanned.map(fileOne));
+  for (const p of largePlanned) {
+    await fileOne(p);
+  }
   return { filed, unchanged, skipped: skipped.length + failed };
 }

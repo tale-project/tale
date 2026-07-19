@@ -92,7 +92,7 @@ export const fileEditTool: ToolDefinition = {
 
 USE THIS over \`file_write\` for small changes to a file you already wrote — the rest stays byte-identical; far cheaper than re-emitting it. Use \`file_write\` instead when the file does not exist yet (\`file_edit\` errors \`NOT_FOUND\`; only \`file_write\` creates files), when you're rewriting most of it anyway, or for binary files (\`file_edit\` only handles text).
 
-QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
+QUOTAS: same workspace as \`file_write\` — ≤ 100 MB per file, ≤ 100 files and ≤ 1 GB per workspace.
 
 Every result includes \`sandboxState\` — the current workspace manifest. Trust it over memory.`,
     inputSchema: fileEditArgs,

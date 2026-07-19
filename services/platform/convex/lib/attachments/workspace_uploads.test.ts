@@ -3,9 +3,13 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { DOCUMENT_MAX_FILE_SIZE } from '../../../lib/shared/file-types';
 import type { Id } from '../../_generated/dataModel';
 import { MAX_ATTACHMENTS_PER_TURN } from '../../agents/external_agent/attachment_files';
-import { THREAD_FILE_MAX_BYTES } from '../../thread_files/schema';
+import {
+  THREAD_FILE_MAX_BYTES,
+  THREAD_WORKSPACE_MAX_BYTES,
+} from '../../thread_files/schema';
 import type { FileAttachment } from './types';
 import { buildWorkspaceUploadPlan } from './workspace_uploads';
 
@@ -49,6 +53,25 @@ describe('buildWorkspaceUploadPlan', () => {
     ]);
     expect(plan.planned.map((p) => p.path)).toEqual(['/user/uploads/ok.bin']);
     expect(plan.skipped).toEqual([{ name: 'huge.bin', reason: 'too_large' }]);
+  });
+
+  // Regression for the 30MB-log bug: a cap below the upload cap silently
+  // withheld legitimately uploaded files from the sandbox. Every file the
+  // upload gate accepts must also pass the workspace filing gate.
+  it('files anything the upload cap accepts', () => {
+    expect(THREAD_FILE_MAX_BYTES).toBeGreaterThanOrEqual(
+      DOCUMENT_MAX_FILE_SIZE,
+    );
+    expect(THREAD_WORKSPACE_MAX_BYTES).toBeGreaterThanOrEqual(
+      THREAD_FILE_MAX_BYTES,
+    );
+    const plan = buildWorkspaceUploadPlan([
+      att('upload-cap.bin', DOCUMENT_MAX_FILE_SIZE),
+    ]);
+    expect(plan.planned.map((p) => p.path)).toEqual([
+      '/user/uploads/upload-cap.bin',
+    ]);
+    expect(plan.skipped).toEqual([]);
   });
 
   it('caps the batch at the per-turn attachment limit', () => {

@@ -73,7 +73,7 @@ USE FOR: final deliverables → \`/user/output/report.md\` (write directly; no s
 
 Inside a \`run_code\` script the same rule applies: deliverables must be saved to \`/user/output/\` — files left in the cwd or \`/tmp\` are discarded when the container exits. Rewrite a skill example's bare \`output.xlsx\` as \`/user/output/output.xlsx\`.
 
-QUOTAS: ≤ 10 MB per file; ≤ 100 files and ≤ 100 MB per workspace.
+QUOTAS: ≤ 10 MB content per file_write call; workspace ≤ 100 files and ≤ 1 GB total (≤ 100 MB per file — user uploads and run outputs may be larger than one file_write can emit).
 
 Every result includes \`sandboxState\` — the current workspace manifest. Trust it over memory: a file listed there already exists, don't recreate it.
 
