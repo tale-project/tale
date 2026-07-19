@@ -804,6 +804,37 @@ interface DocsTriageScore {
  * cannot start assigning agents inside the e2e suite.
  */
 const DOCS_TRIAGE_SCORES: readonly DocsTriageScore[] = [
+  // ——— Video pipeline: Episode 5 on-camera task (one per locale) ———
+  // Created live on the relaunch board to fire the task.created trigger the
+  // viewer just read; scores above the auto-assign bar so the assignment
+  // lands on camera. Archived off camera after the take.
+  {
+    task: 'prepare the launch-day social posts',
+    score: {
+      slug: 'assistant',
+      confidence: 0.81,
+      reason:
+        'Social copy is drafting work, and the brand guidelines and content inventory are indexed.',
+    },
+  },
+  {
+    task: 'social-posts für den launch-tag vorbereiten',
+    score: {
+      slug: 'assistant',
+      confidence: 0.81,
+      reason:
+        'Social-Texte sind Schreibarbeit; Markenrichtlinien und Content-Inventar sind indexiert.',
+    },
+  },
+  {
+    task: 'préparer les posts sociaux du jour j',
+    score: {
+      slug: 'assistant',
+      confidence: 0.81,
+      reason:
+        'Les posts sont un travail de rédaction ; la charte et l’inventaire de contenu sont indexés.',
+    },
+  },
   // ——— Video pipeline: Episode 6 on-camera task (one per locale) ———
   // Created live on the relaunch board; scores above the auto-assign bar so
   // the agent visibly takes the card. Archived off camera after the take.

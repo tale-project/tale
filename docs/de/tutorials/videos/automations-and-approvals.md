@@ -1,25 +1,26 @@
 ---
 title: Episode 5 — Automatisierungen & Freigaben
-description: Die Triage-Automatisierung aufgeklappt wie ein Rezept — Editor, Auslöser, das Laufprotokoll mit seiner ehrlichen roten Zeile — und dann die Freigabekarte - eine echte offene Entscheidung, vor der Kamera getroffen.
+description: Nutze eine laufende Automatisierung von Anfang bis Ende — lies den Triage-Workflow, löse einen echten Lauf vom Board aus, untersuche den fehlgeschlagenen Lauf und gib eine ausgehende E-Mail selbst frei.
 ---
 
-Agenten antworten auf Anfrage; Automatisierungen handeln von selbst. Diese Episode öffnet die installierte Triage-Automatisierung von vorne bis hinten — den Workflow, den du lesen kannst, bevor er läuft, das Protokoll, das jeder Lauf hinterlässt, die rote Zeile, die Scheitern mit Adresse zeigt — und dann das Herzstück der Serie: Ein Agent entwirft eine Kundenantwort nach draußen und hält an einer Freigabekarte, bis ein Mensch entscheidet. Vor laufender Kamera.
+Am Ende dieser Episode hast du eine Automatisierung wirklich benutzt: Du liest den installierten Triage-Workflow, bevor du ihm vertraust, erstellst eine Aufgabe und siehst zu, wie sie vor der Kamera bewertet und zugewiesen wird, verfolgst diesen Lauf in seinem Journal, öffnest den fehlgeschlagenen und gehst ihm bis zu seinem Schritt nach — und gibst eine ausgehende Kundenmail mit deinem eigenen Klick frei. Sekunden später findest du die Entscheidung im Audit-Log. Schritt für Schritt, in einem Tempo zum Mitmachen.
 
-<Video src="/videos/de/tutorials/ep5-automations/ep5-automations.de.mp4" poster="/videos/de/tutorials/ep5-automations/ep5-automations.de.webp" captions="/videos/de/tutorials/ep5-automations/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11, mit Untertiteln)">
+<Video src="/videos/de/tutorials/ep5-automations/ep5-automations.de.mp4" poster="/videos/de/tutorials/ep5-automations/ep5-automations.de.webp" captions="/videos/de/tutorials/ep5-automations/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (7:04, mit Untertiteln)">
 
 </Video>
 
 ## Was die Episode zeigt
 
-| Ab   | Szene                                                                      |
-| ---- | -------------------------------------------------------------------------- |
-| 0:18 | Der Katalog: fertige Pakete, Installation mit einem Klick                  |
-| 0:37 | Die installierte Triage-Automatisierung                                    |
-| 0:54 | Der Workflow, lesbar wie ein Rezept — Auslöser, dann Schritte              |
-| 1:13 | Das Laufprotokoll: was jeder Schritt sah, tat und kostete                  |
-| 1:31 | Der ehrliche rote Lauf — Scheitern mit Adresse                             |
-| 1:53 | Die Freigabekarte: eine entworfene Antwort wartet auf einen Menschen       |
-| 2:19 | KI entwirft, Menschen entscheiden — warum Tore mehr Automatisierung kaufen |
+| Ab   | Szene                                                      |
+| ---- | ---------------------------------------------------------- |
+| 0:28 | Der Job: ein Board voller Aufgaben ohne Besitzer           |
+| 0:51 | Der Katalog, und was dir ein Paket-Panel zeigt             |
+| 1:59 | Den Workflow lesen: Auslöser, Bewertungsschritt, Schema    |
+| 3:09 | Der Tester — und der ehrliche Weg zu einem echten Lauf     |
+| 3:30 | Eine echte Aufgabe, vor der Kamera erstellt und zugewiesen |
+| 4:26 | Der rote Lauf, bis zu seinem Schritt untersucht            |
+| 5:16 | Die Freigabekarte: lesen, ergänzen, absenden               |
+| 6:08 | Die Entscheidung im Audit-Log                              |
 
 ## Wie es weitergeht
 

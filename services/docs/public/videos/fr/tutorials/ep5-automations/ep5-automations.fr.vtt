@@ -1,218 +1,445 @@
 WEBVTT
 
 1
-00:00:01.200 --> 00:00:03.162
-Les agents répondent quand tu demandes.
+00:00:01.600 --> 00:00:03.384
+Bienvenue dans l’épisode cinq.
 
 2
-00:00:03.162 --> 00:00:05.728
-Les automatisations
-agissent seules — sur planning,
+00:00:03.384 --> 00:00:06.774
+Aujourd’hui, on prend le
+temps avec les automatisations :
 
 3
-00:00:05.728 --> 00:00:07.841
-sur événements, sur le travail qui arrive.
+00:00:06.774 --> 00:00:10.759
+tu vas en lancer une toi-même, la
+regarder prendre une vraie tâche,
 
 4
-00:00:07.841 --> 00:00:09.954
-Dans cet épisode : comment elles tournent,
+00:00:10.759 --> 00:00:15.517
+examiner une exécution qui a échoué, et
+valider l’envoi d’un e-mail — d’un clic.
 
 5
-00:00:09.954 --> 00:00:14.080
-comment elles échouent honnêtement, et la
-carte qui garde un humain aux commandes.
+00:00:15.517 --> 00:00:17.063
+On avance étape par étape.
 
 6
-00:00:15.680 --> 00:00:18.984
-Le catalogue est une
-bibliothèque de lots prêts à l’emploi :
+00:00:17.063 --> 00:00:20.275
+Cette page — les exécutions
+— c’est notre destination.
 
 7
-00:00:18.984 --> 00:00:22.068
-synchroniser une boîte mail,
-résoudre des issues GitHub,
+00:00:20.275 --> 00:00:22.000
+Mais commençons par le début.
 
 8
-00:00:22.068 --> 00:00:23.665
-garder les documents indexés.
+00:00:29.400 --> 00:00:33.010
+Voici un tableau de projet —
+l’épisode six le visite en détail.
 
 9
-00:00:23.665 --> 00:00:27.024
-Chacun regroupe workflows,
-agents et vues — une installation,
+00:00:33.010 --> 00:00:35.875
+Pour l’instant, regarde
+juste la colonne À faire :
 
 10
-00:00:27.024 --> 00:00:28.400
-et il se range tout seul.
+00:00:35.875 --> 00:00:38.511
+des tâches nouvelles,
+encore sans responsable.
 
 11
-00:00:29.600 --> 00:00:32.818
-Cet espace en fait déjà
-tourner une : le triage des tâches.
+00:00:38.511 --> 00:00:41.777
+Quelqu’un doit lire chacune
+et choisir la bonne personne.
 
 12
-00:00:32.818 --> 00:00:37.345
-Chaque nouvelle tâche reçoit un score, et
-l’automatisation décide — l’assigner à un
+00:00:41.777 --> 00:00:45.560
+C’est exactement ce travail qu’on
+va confier à une automatisation.
 
 13
-00:00:37.345 --> 00:00:39.800
-agent, ou laisser une
-suggestion à un humain.
+00:00:49.200 --> 00:00:52.317
+D’abord, voyons d’où
+viennent les automatisations.
 
 14
-00:00:39.800 --> 00:00:40.400
-Ouvrons-la.
+00:00:52.317 --> 00:00:56.868
+On ouvre Automatisations dans la
+barre latérale… puis l’onglet Toutes les
 
 15
-00:00:41.600 --> 00:00:45.057
-À l’intérieur,
-l’automatisation se lit comme une recette :
+00:00:56.868 --> 00:00:57.865
+automatisations.
 
 16
-00:00:45.057 --> 00:00:46.964
-un déclencheur, puis des étapes.
+00:00:57.865 --> 00:01:02.665
+Voici le catalogue : des lots prêts à
+l’emploi — synchroniser une boîte mail,
 
 17
-00:00:46.964 --> 00:00:51.077
-Une étape note la tâche avec un
-agent, une la route, une rend compte.
+00:01:02.665 --> 00:01:04.348
+résoudre des issues GitHub.
 
 18
-00:00:51.077 --> 00:00:55.964
-Pas de boîte noire — tu peux lire
-exactement ce qui va se passer avant la première
+00:01:04.348 --> 00:01:07.840
+Une installation, et ils se
+mettent en place tout seuls.
 
 19
-00:00:55.964 --> 00:00:56.560
-exécution.
+00:01:10.340 --> 00:01:13.243
+Avant d’installer quoi que ce
+soit, tu peux regarder dedans.
 
 20
-00:00:57.760 --> 00:00:59.686
-Chaque exécution laisse un journal.
+00:01:13.243 --> 00:01:15.420
+On clique sur un lot…
+et un panneau s’ouvre :
 
 21
-00:00:59.686 --> 00:01:03.923
-Les lignes vertes sont terminées ;
-chacune montre ce que le déclencheur a vu,
+00:01:15.420 --> 00:01:18.130
+les workflows, les agents et
+les vues qu’il apporterait.
 
 22
-00:01:03.923 --> 00:01:06.454
-ce que chaque étape a
-fait, ce que ça a coûté.
+00:01:18.130 --> 00:01:19.195
+Rien ne tourne encore.
 
 23
-00:01:06.454 --> 00:01:10.800
-Une automatisation qu’on peut auditer
-est une automatisation qu’on peut croire.
+00:01:19.195 --> 00:01:22.340
+On le referme — ce qu’il nous
+faut aujourd’hui est déjà installé.
 
 24
-00:01:12.000 --> 00:01:14.726
-Et voici la ligne qui
-compte le plus : une rouge.
+00:01:29.340 --> 00:01:31.514
+Ici, côté Installées :
+le triage des tâches.
 
 25
-00:01:14.726 --> 00:01:17.897
-Une étape a renvoyé des
-données refusées à la validation,
+00:01:31.514 --> 00:01:35.368
+Il est arrivé avec l’espace de travail
+et tourne discrètement depuis le début.
 
 26
-00:01:17.897 --> 00:01:21.179
-l’exécution s’est arrêtée, et
-le journal dit exactement où.
+00:01:35.368 --> 00:01:39.272
+Ouvrons-le pour lire ce qu’il fait
+vraiment — ça vaut toujours le coup avant de
 
 27
-00:01:21.179 --> 00:01:25.629
-Les automatisations échouent parfois —
-la différence entre un jouet et un outil,
+00:01:39.272 --> 00:01:41.100
+faire confiance à une automatisation.
 
 28
-00:01:25.629 --> 00:01:27.520
-c’est que l’échec ait une adresse.
+00:01:47.940 --> 00:01:50.537
+Voici le workflow
+derrière l’automatisation.
 
 29
-00:01:28.720 --> 00:01:30.660
-Maintenant, la pièce maîtresse.
+00:01:50.537 --> 00:01:53.312
+Prends un instant pour
+le lire, de haut en bas.
 
 30
-00:01:30.660 --> 00:01:33.851
-On demande une réponse
-client — rédigée ET envoyée.
+00:01:53.312 --> 00:01:55.614
+Un déclencheur : chaque nouvelle tâche.
 
 31
-00:01:33.851 --> 00:01:36.354
-L’agent écrit le brouillon… et s’arrête.
+00:01:55.614 --> 00:01:58.152
+Puis trois étapes — un
+agent note la tâche,
 
 32
-00:01:36.354 --> 00:01:39.670
-Cette carte est la
-frontière : le brouillon est prêt,
+00:01:58.152 --> 00:02:00.986
+le score décide de la
+route, un rapport s’écrit.
 
 33
-00:01:39.670 --> 00:01:42.986
-mais toucher le monde
-extérieur demande une personne.
+00:02:00.986 --> 00:02:02.580
+C’est tout ce qu’elle fait.
 
 34
-00:01:42.986 --> 00:01:44.800
-On lit, on décide, on valide.
+00:02:07.340 --> 00:02:11.091
+Maintenant, cliquons sur l’étape
+de score pour la voir de près.
 
 35
-00:01:54.720 --> 00:01:58.583
-L’IA rédige, les humains décident
-— l’épisode un a fait la promesse,
+00:02:11.091 --> 00:02:14.009
+Voilà ce que l’agent doit
+renvoyer : un candidat,
 
 36
-00:01:58.583 --> 00:01:59.549
-voici le câblage.
+00:02:14.009 --> 00:02:17.224
+un niveau de confiance et
+une raison — un format fixe,
 
 37
-00:01:59.549 --> 00:02:02.617
-Et regarde ce que les
-validations t’offrent vraiment :
+00:02:17.224 --> 00:02:17.924
+un schéma.
 
 38
-00:02:02.617 --> 00:02:04.776
-pas moins d’automatisation, mais plus.
+00:02:17.924 --> 00:02:22.330
+Si le modèle renvoie autre chose,
+l’exécution s’arrête au lieu de deviner.
 
 39
-00:02:04.776 --> 00:02:09.435
-Tu peux te permettre d’automatiser le
-travail risqué précisément parce que l’étape
+00:02:22.330 --> 00:02:25.500
+Retiens ce schéma — on va le
+recroiser dans une minute.
 
 40
-00:02:09.435 --> 00:02:10.400
-risquée t’attend.
+00:02:28.340 --> 00:02:30.083
+L’onglet suivant : Déclencheurs.
 
 41
-00:02:11.600 --> 00:02:14.092
-Les automatisations :
-des recettes lisibles,
+00:02:30.083 --> 00:02:33.842
+C’est là qu’on voit quand elle se
+réveille — à chaque nouvelle tâche,
 
 42
-00:02:14.092 --> 00:02:18.170
-des journaux honnêtes, et une porte
-humaine sur les étapes qui comptent.
+00:02:33.842 --> 00:02:37.111
+et quand quelqu’un passe une
+tâche du backlog à « À faire ».
 
 43
-00:02:18.170 --> 00:02:22.587
-Prochain épisode : les projets — où ton
-équipe et ses agents partagent un même
+00:02:37.111 --> 00:02:40.980
+Les tâches qui ont déjà un
+responsable sont ignorées : rien à trier là.
 
 44
-00:02:22.587 --> 00:02:23.040
-tableau.
+00:02:45.340 --> 00:02:48.800
+Il existe aussi un moyen sûr
+d’essayer : Tester le workflow.
 
 45
-00:02:24.240 --> 00:02:28.922
-Les sections Automatisations et
-Validations de la documentation portent la référence
+00:02:48.800 --> 00:02:51.684
+Tu y vois l’entrée exacte
+qu’une exécution attend,
 
 46
-00:02:28.922 --> 00:02:29.622
-complète.
+00:02:51.684 --> 00:02:54.971
+et Exécuter écrirait une
+vraie exécution dans le journal.
 
 47
-00:02:29.622 --> 00:02:31.040
+00:02:54.971 --> 00:02:59.008
+On va faire mieux, cela dit — la
+déclencher comme ton équipe le fera :
+
+48
+00:02:59.008 --> 00:03:00.220
+avec une vraie tâche.
+
+49
+00:03:05.940 --> 00:03:07.238
+Retour sur le tableau.
+
+50
+00:03:07.238 --> 00:03:12.136
+On crée une tâche — « Préparer les posts
+sociaux du jour J » — et maintenant… on ne
+
+51
+00:03:12.136 --> 00:03:13.257
+touche plus à rien.
+
+52
+00:03:13.257 --> 00:03:14.260
+Regarde la carte.
+
+53
+00:03:14.260 --> 00:03:18.450
+Quelques secondes… et voilà : une
+assignation est apparue, toute seule.
+
+54
+00:03:18.450 --> 00:03:21.460
+L’automatisation a lu,
+noté, et choisi l’Assistant.
+
+55
+00:03:33.540 --> 00:03:34.411
+Vérifions ça.
+
+56
+00:03:34.411 --> 00:03:39.774
+On retourne dans Automatisations… on
+ouvre le triage des tâches… puis son onglet
+
+57
+00:03:39.774 --> 00:03:40.511
+Exécutions.
+
+58
+00:03:40.511 --> 00:03:45.136
+La voilà — l’exécution la plus
+récente, vieille de quelques secondes.
+
+59
+00:03:45.136 --> 00:03:49.627
+On l’ouvre, et là tu peux tout
+relire : ce que le déclencheur a vu,
+
+60
+00:03:49.627 --> 00:03:52.980
+le score et sa raison, et
+le coût de chaque étape.
+
+61
+00:03:58.540 --> 00:04:02.514
+Et maintenant, l’exécution qui
+t’apprend le plus — cette ligne rouge.
+
+62
+00:04:02.514 --> 00:04:04.875
+Ouvrons-la et lisons le journal ensemble.
+
+63
+00:04:04.875 --> 00:04:08.273
+Le déclencheur est passé,
+l’étape de score a tourné… et là,
+
+64
+00:04:08.273 --> 00:04:12.016
+arrêt : la réponse de l’agent
+n’avait pas le niveau de confiance,
+
+65
+00:04:12.016 --> 00:04:13.571
+donc le schéma l’a refusée.
+
+66
+00:04:13.571 --> 00:04:18.063
+L’exécution a échoué — volontairement —
+plutôt que d’assigner une tâche sur de
+
+67
+00:04:18.063 --> 00:04:19.100
+mauvaises données.
+
+68
+00:04:23.340 --> 00:04:25.826
+Et la réparation suit un chemin clair.
+
+69
+00:04:25.826 --> 00:04:28.574
+Le journal a nommé l’étape ; dans l’étape,
+
+70
+00:04:28.574 --> 00:04:31.649
+le prompt et le schéma ;
+et sous Configuration,
+
+71
+00:04:31.649 --> 00:04:32.499
+les reprises.
+
+72
+00:04:32.499 --> 00:04:36.620
+Journal, étape, correction, on
+relance — c’est toute la boucle.
+
+73
+00:04:41.340 --> 00:04:45.937
+Il reste une question : que se passe-t-il
+quand une automatisation veut sortir vers
+
+74
+00:04:45.937 --> 00:04:46.657
+l’extérieur ?
+
+75
+00:04:46.657 --> 00:04:48.042
+Allons voir dans le chat.
+
+76
+00:04:48.042 --> 00:04:52.362
+On demande à l’Assistant de rédiger une
+réponse à un client — et de l’envoyer.
+
+77
+00:04:52.362 --> 00:04:54.688
+Le brouillon apparaît… puis tout s’arrête.
+
+78
+00:04:54.688 --> 00:04:59.340
+Envoyer un e-mail sort de l’espace de
+travail, donc cette étape attend une personne.
+
+79
+00:05:13.340 --> 00:05:15.318
+Prends le temps de lire le brouillon.
+
+80
+00:05:15.318 --> 00:05:16.018
+Il est bon.
+
+81
+00:05:16.018 --> 00:05:18.745
+On ajoute une petite note…
+et on soumet la réponse.
+
+82
+00:05:18.745 --> 00:05:21.578
+C’est seulement maintenant
+que le mail part vraiment.
+
+83
+00:05:21.578 --> 00:05:24.460
+L’agent l’a écrit — mais
+l’envoyer, c’était ta décision.
+
+84
+00:05:33.740 --> 00:05:36.960
+Dernier arrêt : le journal
+d’audit, dans les réglages.
+
+85
+00:05:36.960 --> 00:05:41.254
+Voici la validation qu’on vient de
+faire — qui a décidé, quoi, et quand.
+
+86
+00:05:41.254 --> 00:05:45.369
+Si un jour on te demande qui a
+envoyé ce mail, pas besoin de mémoire.
+
+87
+00:05:45.369 --> 00:05:46.860
+Cette page s’en souvient.
+
+88
+00:05:50.340 --> 00:05:51.472
+Et voilà l’épisode.
+
+89
+00:05:51.472 --> 00:05:54.450
+Tu as lu un workflow
+avant de lui faire confiance,
+
+90
+00:05:54.450 --> 00:05:57.369
+déclenché une vraie
+exécution, suivi son journal,
+
+91
+00:05:57.369 --> 00:06:02.194
+remonté un échec jusqu’à son étape — et
+gardé le dernier mot sur un mail sortant.
+
+92
+00:06:02.194 --> 00:06:06.660
+La doc sur les automatisations et les
+validations approfondit chaque sujet.
+
+93
+00:06:08.660 --> 00:06:12.801
+La prochaine fois : les projets — où ton
+équipe et ses agents partagent un même
+
+94
+00:06:12.801 --> 00:06:13.501
+tableau.
+
+95
+00:06:13.501 --> 00:06:14.740
 À bientôt pour l’épisode six.
 

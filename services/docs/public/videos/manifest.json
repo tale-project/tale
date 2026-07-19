@@ -25,6 +25,222 @@
       "height": 1080
     },
     {
+      "file": "videos/de/tutorials/ep10-developers/ep10-developers.de.mp4",
+      "episode": "ep10-developers",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 158.4,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep10-developers/ep10-developers.de.vtt",
+      "episode": "ep10-developers",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 158.4
+    },
+    {
+      "file": "videos/de/tutorials/ep10-developers/ep10-developers.de.webp",
+      "episode": "ep10-developers",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep2-chat/ep2-chat.de.mp4",
+      "episode": "ep2-chat",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 201.8,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep2-chat/ep2-chat.de.vtt",
+      "episode": "ep2-chat",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 201.8
+    },
+    {
+      "file": "videos/de/tutorials/ep2-chat/ep2-chat.de.webp",
+      "episode": "ep2-chat",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.mp4",
+      "episode": "ep3-knowledge",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 202.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.vtt",
+      "episode": "ep3-knowledge",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 202.6
+    },
+    {
+      "file": "videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.webp",
+      "episode": "ep3-knowledge",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep4-agent/ep4-agent.de.mp4",
+      "episode": "ep4-agent",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 198.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep4-agent/ep4-agent.de.vtt",
+      "episode": "ep4-agent",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 198.6
+    },
+    {
+      "file": "videos/de/tutorials/ep4-agent/ep4-agent.de.webp",
+      "episode": "ep4-agent",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep5-automations/ep5-automations.de.mp4",
+      "episode": "ep5-automations",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 423.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep5-automations/ep5-automations.de.vtt",
+      "episode": "ep5-automations",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 423.6
+    },
+    {
+      "file": "videos/de/tutorials/ep5-automations/ep5-automations.de.webp",
+      "episode": "ep5-automations",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep6-projects/ep6-projects.de.mp4",
+      "episode": "ep6-projects",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 167.5,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep6-projects/ep6-projects.de.vtt",
+      "episode": "ep6-projects",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 167.5
+    },
+    {
+      "file": "videos/de/tutorials/ep6-projects/ep6-projects.de.webp",
+      "episode": "ep6-projects",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.mp4",
+      "episode": "ep7-integrations",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 172.2,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.vtt",
+      "episode": "ep7-integrations",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 172.2
+    },
+    {
+      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.webp",
+      "episode": "ep7-integrations",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep8-people/ep8-people.de.mp4",
+      "episode": "ep8-people",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 155.7,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep8-people/ep8-people.de.vtt",
+      "episode": "ep8-people",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 155.7
+    },
+    {
+      "file": "videos/de/tutorials/ep8-people/ep8-people.de.webp",
+      "episode": "ep8-people",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep9-governance/ep9-governance.de.mp4",
+      "episode": "ep9-governance",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 211,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/de/tutorials/ep9-governance/ep9-governance.de.vtt",
+      "episode": "ep9-governance",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 211
+    },
+    {
+      "file": "videos/de/tutorials/ep9-governance/ep9-governance.de.webp",
+      "episode": "ep9-governance",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
       "file": "videos/en/tutorials/ep1-welcome/ep1-welcome.en.mp4",
       "episode": "ep1-welcome",
       "locale": "en",
@@ -43,6 +259,222 @@
     {
       "file": "videos/en/tutorials/ep1-welcome/ep1-welcome.en.webp",
       "episode": "ep1-welcome",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep10-developers/ep10-developers.en.mp4",
+      "episode": "ep10-developers",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 128.4,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep10-developers/ep10-developers.en.vtt",
+      "episode": "ep10-developers",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 128.4
+    },
+    {
+      "file": "videos/en/tutorials/ep10-developers/ep10-developers.en.webp",
+      "episode": "ep10-developers",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep2-chat/ep2-chat.en.mp4",
+      "episode": "ep2-chat",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 188.7,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep2-chat/ep2-chat.en.vtt",
+      "episode": "ep2-chat",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 188.7
+    },
+    {
+      "file": "videos/en/tutorials/ep2-chat/ep2-chat.en.webp",
+      "episode": "ep2-chat",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.mp4",
+      "episode": "ep3-knowledge",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 183.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.vtt",
+      "episode": "ep3-knowledge",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 183.6
+    },
+    {
+      "file": "videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.webp",
+      "episode": "ep3-knowledge",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep4-agent/ep4-agent.en.mp4",
+      "episode": "ep4-agent",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 166.8,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep4-agent/ep4-agent.en.vtt",
+      "episode": "ep4-agent",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 166.8
+    },
+    {
+      "file": "videos/en/tutorials/ep4-agent/ep4-agent.en.webp",
+      "episode": "ep4-agent",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep5-automations/ep5-automations.en.mp4",
+      "episode": "ep5-automations",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 380.3,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep5-automations/ep5-automations.en.vtt",
+      "episode": "ep5-automations",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 380.3
+    },
+    {
+      "file": "videos/en/tutorials/ep5-automations/ep5-automations.en.webp",
+      "episode": "ep5-automations",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep6-projects/ep6-projects.en.mp4",
+      "episode": "ep6-projects",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 141.1,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep6-projects/ep6-projects.en.vtt",
+      "episode": "ep6-projects",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 141.1
+    },
+    {
+      "file": "videos/en/tutorials/ep6-projects/ep6-projects.en.webp",
+      "episode": "ep6-projects",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.mp4",
+      "episode": "ep7-integrations",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 150.4,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.vtt",
+      "episode": "ep7-integrations",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 150.4
+    },
+    {
+      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.webp",
+      "episode": "ep7-integrations",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep8-people/ep8-people.en.mp4",
+      "episode": "ep8-people",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 135.2,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep8-people/ep8-people.en.vtt",
+      "episode": "ep8-people",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 135.2
+    },
+    {
+      "file": "videos/en/tutorials/ep8-people/ep8-people.en.webp",
+      "episode": "ep8-people",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep9-governance/ep9-governance.en.mp4",
+      "episode": "ep9-governance",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 180.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/en/tutorials/ep9-governance/ep9-governance.en.vtt",
+      "episode": "ep9-governance",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 180.6
+    },
+    {
+      "file": "videos/en/tutorials/ep9-governance/ep9-governance.en.webp",
+      "episode": "ep9-governance",
       "locale": "en",
       "kind": "poster",
       "width": 1920,
@@ -73,54 +505,6 @@
       "height": 1080
     },
     {
-      "file": "videos/de/tutorials/ep10-developers/ep10-developers.de.mp4",
-      "episode": "ep10-developers",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 158.4,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep10-developers/ep10-developers.de.vtt",
-      "episode": "ep10-developers",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 158.4
-    },
-    {
-      "file": "videos/de/tutorials/ep10-developers/ep10-developers.de.webp",
-      "episode": "ep10-developers",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep10-developers/ep10-developers.en.mp4",
-      "episode": "ep10-developers",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 128.4,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep10-developers/ep10-developers.en.vtt",
-      "episode": "ep10-developers",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 128.4
-    },
-    {
-      "file": "videos/en/tutorials/ep10-developers/ep10-developers.en.webp",
-      "episode": "ep10-developers",
-      "locale": "en",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
       "file": "videos/fr/tutorials/ep10-developers/ep10-developers.fr.mp4",
       "episode": "ep10-developers",
       "locale": "fr",
@@ -140,54 +524,6 @@
       "file": "videos/fr/tutorials/ep10-developers/ep10-developers.fr.webp",
       "episode": "ep10-developers",
       "locale": "fr",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep2-chat/ep2-chat.de.mp4",
-      "episode": "ep2-chat",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 201.8,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep2-chat/ep2-chat.de.vtt",
-      "episode": "ep2-chat",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 201.8
-    },
-    {
-      "file": "videos/de/tutorials/ep2-chat/ep2-chat.de.webp",
-      "episode": "ep2-chat",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep2-chat/ep2-chat.en.mp4",
-      "episode": "ep2-chat",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 188.7,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep2-chat/ep2-chat.en.vtt",
-      "episode": "ep2-chat",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 188.7
-    },
-    {
-      "file": "videos/en/tutorials/ep2-chat/ep2-chat.en.webp",
-      "episode": "ep2-chat",
-      "locale": "en",
       "kind": "poster",
       "width": 1920,
       "height": 1080
@@ -217,54 +553,6 @@
       "height": 1080
     },
     {
-      "file": "videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.mp4",
-      "episode": "ep3-knowledge",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 202.6,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.vtt",
-      "episode": "ep3-knowledge",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 202.6
-    },
-    {
-      "file": "videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.webp",
-      "episode": "ep3-knowledge",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.mp4",
-      "episode": "ep3-knowledge",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 183.6,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.vtt",
-      "episode": "ep3-knowledge",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 183.6
-    },
-    {
-      "file": "videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.webp",
-      "episode": "ep3-knowledge",
-      "locale": "en",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
       "file": "videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4",
       "episode": "ep3-knowledge",
       "locale": "fr",
@@ -284,54 +572,6 @@
       "file": "videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.webp",
       "episode": "ep3-knowledge",
       "locale": "fr",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep4-agent/ep4-agent.de.mp4",
-      "episode": "ep4-agent",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 198.6,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep4-agent/ep4-agent.de.vtt",
-      "episode": "ep4-agent",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 198.6
-    },
-    {
-      "file": "videos/de/tutorials/ep4-agent/ep4-agent.de.webp",
-      "episode": "ep4-agent",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep4-agent/ep4-agent.en.mp4",
-      "episode": "ep4-agent",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 166.8,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep4-agent/ep4-agent.en.vtt",
-      "episode": "ep4-agent",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 166.8
-    },
-    {
-      "file": "videos/en/tutorials/ep4-agent/ep4-agent.en.webp",
-      "episode": "ep4-agent",
-      "locale": "en",
       "kind": "poster",
       "width": 1920,
       "height": 1080
@@ -361,59 +601,11 @@
       "height": 1080
     },
     {
-      "file": "videos/de/tutorials/ep5-automations/ep5-automations.de.mp4",
-      "episode": "ep5-automations",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 191.4,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep5-automations/ep5-automations.de.vtt",
-      "episode": "ep5-automations",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 191.4
-    },
-    {
-      "file": "videos/de/tutorials/ep5-automations/ep5-automations.de.webp",
-      "episode": "ep5-automations",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep5-automations/ep5-automations.en.mp4",
-      "episode": "ep5-automations",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 162.2,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep5-automations/ep5-automations.en.vtt",
-      "episode": "ep5-automations",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 162.2
-    },
-    {
-      "file": "videos/en/tutorials/ep5-automations/ep5-automations.en.webp",
-      "episode": "ep5-automations",
-      "locale": "en",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
       "file": "videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4",
       "episode": "ep5-automations",
       "locale": "fr",
       "kind": "video",
-      "durationSec": 154.6,
+      "durationSec": 378.3,
       "width": 1920,
       "height": 1080
     },
@@ -422,60 +614,12 @@
       "episode": "ep5-automations",
       "locale": "fr",
       "kind": "captions",
-      "durationSec": 154.6
+      "durationSec": 378.3
     },
     {
       "file": "videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp",
       "episode": "ep5-automations",
       "locale": "fr",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep6-projects/ep6-projects.de.mp4",
-      "episode": "ep6-projects",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 167.5,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep6-projects/ep6-projects.de.vtt",
-      "episode": "ep6-projects",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 167.5
-    },
-    {
-      "file": "videos/de/tutorials/ep6-projects/ep6-projects.de.webp",
-      "episode": "ep6-projects",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep6-projects/ep6-projects.en.mp4",
-      "episode": "ep6-projects",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 141.1,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep6-projects/ep6-projects.en.vtt",
-      "episode": "ep6-projects",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 141.1
-    },
-    {
-      "file": "videos/en/tutorials/ep6-projects/ep6-projects.en.webp",
-      "episode": "ep6-projects",
-      "locale": "en",
       "kind": "poster",
       "width": 1920,
       "height": 1080
@@ -505,54 +649,6 @@
       "height": 1080
     },
     {
-      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.mp4",
-      "episode": "ep7-integrations",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 172.2,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.vtt",
-      "episode": "ep7-integrations",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 172.2
-    },
-    {
-      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.webp",
-      "episode": "ep7-integrations",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.mp4",
-      "episode": "ep7-integrations",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 150.4,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.vtt",
-      "episode": "ep7-integrations",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 150.4
-    },
-    {
-      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.webp",
-      "episode": "ep7-integrations",
-      "locale": "en",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
       "file": "videos/fr/tutorials/ep7-integrations/ep7-integrations.fr.mp4",
       "episode": "ep7-integrations",
       "locale": "fr",
@@ -577,54 +673,6 @@
       "height": 1080
     },
     {
-      "file": "videos/de/tutorials/ep8-people/ep8-people.de.mp4",
-      "episode": "ep8-people",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 155.7,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep8-people/ep8-people.de.vtt",
-      "episode": "ep8-people",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 155.7
-    },
-    {
-      "file": "videos/de/tutorials/ep8-people/ep8-people.de.webp",
-      "episode": "ep8-people",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep8-people/ep8-people.en.mp4",
-      "episode": "ep8-people",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 135.2,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep8-people/ep8-people.en.vtt",
-      "episode": "ep8-people",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 135.2
-    },
-    {
-      "file": "videos/en/tutorials/ep8-people/ep8-people.en.webp",
-      "episode": "ep8-people",
-      "locale": "en",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
       "file": "videos/fr/tutorials/ep8-people/ep8-people.fr.mp4",
       "episode": "ep8-people",
       "locale": "fr",
@@ -644,54 +692,6 @@
       "file": "videos/fr/tutorials/ep8-people/ep8-people.fr.webp",
       "episode": "ep8-people",
       "locale": "fr",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep9-governance/ep9-governance.de.mp4",
-      "episode": "ep9-governance",
-      "locale": "de",
-      "kind": "video",
-      "durationSec": 211,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/de/tutorials/ep9-governance/ep9-governance.de.vtt",
-      "episode": "ep9-governance",
-      "locale": "de",
-      "kind": "captions",
-      "durationSec": 211
-    },
-    {
-      "file": "videos/de/tutorials/ep9-governance/ep9-governance.de.webp",
-      "episode": "ep9-governance",
-      "locale": "de",
-      "kind": "poster",
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep9-governance/ep9-governance.en.mp4",
-      "episode": "ep9-governance",
-      "locale": "en",
-      "kind": "video",
-      "durationSec": 180.6,
-      "width": 1920,
-      "height": 1080
-    },
-    {
-      "file": "videos/en/tutorials/ep9-governance/ep9-governance.en.vtt",
-      "episode": "ep9-governance",
-      "locale": "en",
-      "kind": "captions",
-      "durationSec": 180.6
-    },
-    {
-      "file": "videos/en/tutorials/ep9-governance/ep9-governance.en.webp",
-      "episode": "ep9-governance",
-      "locale": "en",
       "kind": "poster",
       "width": 1920,
       "height": 1080

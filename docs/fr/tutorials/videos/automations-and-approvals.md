@@ -1,25 +1,26 @@
 ---
 title: Épisode 5 — Automatisations & validations
-description: L'automatisation de triage ouverte comme une recette — éditeur, déclencheurs, le journal d'exécution et sa ligne rouge honnête — puis la carte de validation - une vraie décision en attente, prise à l'écran.
+description: Utilise une automatisation en vrai, de bout en bout — lis le workflow de triage, déclenche une vraie exécution depuis le tableau, examine celle qui a échoué, et valide toi-même l'envoi d'un e-mail.
 ---
 
-Les agents répondent quand on demande ; les automatisations agissent seules. Cet épisode ouvre l'automatisation de triage installée, de bout en bout — le workflow qu'on peut lire avant qu'il tourne, le journal que laisse chaque exécution, la ligne rouge qui montre l'échec avec une adresse — puis la pièce maîtresse de la série : un agent rédige une réponse client sortante et s'arrête sur une carte de validation jusqu'à ce qu'une personne décide. À l'écran.
+À la fin de cet épisode, tu auras vraiment utilisé une automatisation : tu lis le workflow de triage installé avant de lui faire confiance, tu crées une tâche et la regardes se faire noter et assigner à l'écran, tu suis cette exécution dans son journal, tu ouvres celle qui a échoué et tu la remontes jusqu'à son étape — puis tu valides l'envoi d'un e-mail client d'un clic, et tu retrouves la décision dans le journal d'audit quelques secondes plus tard. Étape par étape, à un rythme qu'on peut suivre.
 
-<Video src="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34, sous-titres disponibles)">
+<Video src="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (6:18, sous-titres disponibles)">
 
 </Video>
 
 ## Ce que montre l'épisode
 
-| À    | Scène                                                                                 |
-| ---- | ------------------------------------------------------------------------------------- |
-| 0:14 | Le catalogue : des lots prêts, installés en un clic                                   |
-| 0:29 | L'automatisation de triage installée                                                  |
-| 0:41 | Le workflow lu comme une recette — déclencheur, puis étapes                           |
-| 0:57 | Le journal d'exécution : ce que chaque étape a vu, fait, coûté                        |
-| 1:11 | L'exécution rouge honnête — l'échec avec une adresse                                  |
-| 1:28 | La carte de validation : une réponse rédigée attend une personne                      |
-| 1:54 | L'IA rédige, les humains décident — pourquoi les portes offrent plus d'automatisation |
+| À    | Scène                                                  |
+| ---- | ------------------------------------------------------ |
+| 0:27 | Le job : un tableau de tâches sans responsable         |
+| 0:48 | Le catalogue, et ce qu'un panneau de lot te montre     |
+| 1:45 | Lire le workflow : déclencheur, étape de score, schéma |
+| 2:44 | Le testeur — et la façon honnête de déclencher         |
+| 3:03 | Une vraie tâche, créée et assignée à l'écran           |
+| 3:57 | L'exécution rouge, remontée jusqu'à son étape          |
+| 4:39 | La carte de validation : lire, ajuster, soumettre      |
+| 5:31 | La décision dans le journal d'audit                    |
 
 ## Pour continuer
 
