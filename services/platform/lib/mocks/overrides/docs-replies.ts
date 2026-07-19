@@ -226,6 +226,33 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       'Une seule modification — un exemple complet de webhook dans la check-list — traite le moteur de croissance et comble la lacune d’un coup.',
     ].join('\n'),
   },
+  // ——— Video pipeline: Episode 2 source check (one entry per locale) ———
+  // The follow-up turn on the GROUNDED thread: the viewer asks which document
+  // backs the previous answer, and the reply names the exact seeded files
+  // (docs-screenshots demo-content / docs-videos locale-content). Prompts live
+  // in `tests/docs-videos/episodes/ep2-chat/episode.ts` (FOLLOWUP_PROMPT) and
+  // MUST contain these match clauses verbatim.
+  {
+    match: 'which document says that',
+    reasoning:
+      'The webhook claim traces to the attached Q2 support review; the checklist gap to the onboarding checklist. Naming both files.',
+    reply:
+      'The webhook numbers come from **q2-support-review.txt** — the Q2 support review attached above. It reports webhook questions doubling after the April release and calls out the missing worked example. The checklist gap comes from **onboarding-checklist.txt**. Open either file to check the wording yourself.',
+  },
+  {
+    match: 'welches dokument sagt das',
+    reasoning:
+      'Die Webhook-Aussage stammt aus dem angehängten Q2-Support-Bericht, die Checklisten-Lücke aus der Onboarding-Checkliste. Beide Dateien werden benannt.',
+    reply:
+      'Die Webhook-Zahlen stehen in **q2-support-bericht.txt** — dem oben angehängten Q2-Support-Bericht. Er weist die Verdopplung der Webhook-Fragen nach dem April-Release aus und nennt das fehlende durchgerechnete Beispiel. Die Checklisten-Lücke stammt aus **onboarding-checkliste.txt**. Öffne beide Dateien und prüfe den Wortlaut selbst.',
+  },
+  {
+    match: 'quel document le dit',
+    reasoning:
+      'L’affirmation sur les webhooks vient de la revue support du T2 jointe ; la lacune de la check-list, du document d’onboarding. Les deux fichiers sont nommés.',
+    reply:
+      'Les chiffres webhooks viennent de **revue-support-t2.txt** — la revue support du T2 jointe plus haut. Elle rapporte le doublement des questions webhooks depuis la version d’avril et pointe l’exemple complet manquant. La lacune de la check-list vient de **check-list-onboarding.txt**. Ouvre les deux fichiers pour vérifier la formulation.',
+  },
   // ——— Video pipeline: Episode 3 wow (one entry per locale) ———
   // The take ADDS a knowledge entry on camera (the returns pilot,
   // tests/docs-videos/episodes/ep3-knowledge — deleted off camera after the
@@ -446,6 +473,94 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
             '',
             'Ajouter un exemple complet de webhook à la check-list d’onboarding — cela répond',
             'aux deux frictions principales à la fois. Charge : un sprint.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
+  // ——— Video pipeline: Episode 2 canvas refinement (one entry per locale) ———
+  // The second turn on the canvas thread: one plain sentence, and the
+  // `file_write` overwrites the SAME path the first brief landed on — the
+  // pane shows the trimmed version in place. Each locale keeps its brief's H1
+  // (the pane anchor) and carries the refined-marker line
+  // (`CANVAS_REFINED_MARKER` in tests/docs-videos/episodes/ep2-chat/) that
+  // exists ONLY in this version — the take's "rewrite landed" anchor.
+  {
+    match: 'cut it to three bullets',
+    reasoning:
+      'Rewriting the brief in place: same file, same heading — the three themes compressed to one bullet each, the recommendation kept.',
+    reply:
+      'Done — the brief is down to three bullets, in the same file on the canvas. Ask me for the long version any time.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/onboarding-brief.md',
+          content: [
+            '# Onboarding — what customers told us in Q2',
+            '',
+            '**The three-bullet version for leadership.**',
+            '',
+            '- **Setup takes too long** — raised in every onboarding call; the slow step is configuration, not the product.',
+            '- **Webhook setup is unclear** — questions doubled since the April release; still no worked example anywhere.',
+            '- **Shared projects drive adoption** — praised in two of three calls; start onboardings inside one.',
+            '',
+            'Next step: a worked webhook example in the onboarding checklist. Owner: onboarding squad.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
+  {
+    match: 'kürze es auf drei stichpunkte',
+    reasoning:
+      'Gleiche Datei, gleiche Überschrift — die drei Themen schrumpfen auf je einen Punkt, die Empfehlung bleibt. Das Briefing entsteht an Ort und Stelle neu.',
+    reply:
+      'Erledigt — das Briefing steht jetzt in drei Punkten, in derselben Datei im Canvas. Sag Bescheid, wenn du die lange Fassung wieder brauchst.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/onboarding-briefing.md',
+          content: [
+            '# Onboarding — das Kundenfeedback aus Q2',
+            '',
+            '**Die Drei-Punkte-Fassung für die Geschäftsleitung.**',
+            '',
+            '- **Die Einrichtung dauert zu lange** — in jedem Onboarding-Gespräch genannt; die Konfiguration bremst, nicht das Produkt.',
+            '- **Die Webhook-Einrichtung ist unklar** — Fragen nach dem April-Release verdoppelt; ein durchgerechnetes Beispiel fehlt weiterhin.',
+            '- **Gemeinsame Projekte überzeugen** — in zwei von drei Gesprächen gelobt; Onboardings am besten direkt im gemeinsamen Projekt starten.',
+            '',
+            'Nächster Schritt: ein durchgerechnetes Webhook-Beispiel in der Onboarding-Checkliste.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
+  {
+    match: 'réduis-la à trois puces',
+    reasoning:
+      'Même fichier, même titre — chaque thème condensé en une puce, la recommandation conservée. La synthèse se réécrit sur place.',
+    reply:
+      'C’est fait — la synthèse tient en trois puces, dans le même fichier sur le canevas. Demande la version longue quand tu veux.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/synthese-onboarding.md',
+          content: [
+            '# Onboarding — ce que les clients nous ont dit au T2',
+            '',
+            '**La version en trois puces pour la direction.**',
+            '',
+            '- **La mise en place prend trop de temps** — mentionné à chaque appel ; la configuration ralentit, pas le produit.',
+            '- **La configuration des webhooks est floue** — questions doublées depuis avril ; toujours pas d’exemple complet.',
+            '- **Les projets partagés font adopter le produit** — salués dans deux appels sur trois ; démarrer chaque onboarding dans un projet partagé.',
+            '',
+            'Prochaine étape : un exemple complet de webhook dans la check-list d’onboarding.',
             '',
           ].join('\n'),
         },

@@ -1,24 +1,31 @@
 /**
- * Episode 1 choreography. Scene ids pair 1:1 with the narration in
- * episode.ts; `cue(sec)` waits until that second of the running narration so
- * actions land with the voice ("…we will attach a document" → the picker
- * opens). Rules of the road (produce-video skill):
+ * Episode 1 choreography — the trailer tour in tutorial grammar: every move
+ * is announced by the voice BEFORE the cursor makes it, and every stop shows
+ * an artifact (the streamed grounded answer, the cited file's row in
+ * Knowledge, the Assistant's detail page, the triage journal). Rules of the
+ * road (produce-video skill):
  *
  *  - Navigation between app surfaces is CLIENT-SIDE wherever possible — the
  *    cursor really clicks the nav rail (TanStack Router links, no reload).
- *    The three URL jumps that cannot be clicked (deep automation tab, the
- *    project board, the outro card) happen at scene start, inside a widened
- *    lead-in, so the load flash sits between scenes, not under narration.
+ *    The URL jumps that cannot be clicked (the triage executions tab, the
+ *    project board, the providers page) happen at scene start, inside a
+ *    widened lead-in, so the swap sits in silence, never under narration.
  *  - Element targets are locale-proof: rail links by href, UI chrome via the
- *    locale's own catalog (`t`), seeded CONTENT via `videoContentFor` — the
- *    de/fr takes run against their own natively-seeded orgs.
+ *    locale's own catalog (`t`), seeded CONTENT via `videoContentFor`, and
+ *    manifest-translated names via per-locale DATA maps — the de/fr takes
+ *    run against their own natively-seeded orgs.
  *  - Every readiness wait is on state (locators), never on time.
+ *
+ * cue() timings are first-pass against the EN narration — tuned per locale
+ * against the review sheet during the `--mock-tts` rehearsal before
+ * anything bills.
  */
 
 import { videoContentFor } from '../../lib/locale-content';
 import {
   spaNavigate,
   type SceneChoreography,
+  type SceneContext,
   type SceneRuntime,
 } from '../../lib/scene';
 
@@ -29,15 +36,25 @@ const ASSISTANT_NAME = {
   de: 'Assistent',
   fr: 'Assistant',
 } as const;
-/** The hidden autoInstall triage automation (see docs-screenshots manifest). */
+
+/** The hidden autoInstall triage automation (docs-screenshots contract). */
 const TRIAGE_AUTOMATION_PATH = 'projects__tasks__triage-unassigned';
 
-/** Catalog card name — locale-resolved DATA like the assistant's display
- * name: the grid renders automation.json's `i18n` block per locale. */
-const RESOLVE_ISSUES_CARD_NAME = {
-  en: 'Resolve GitHub issues',
-  de: 'GitHub-Issues lösen',
-  fr: 'Résoudre les issues GitHub',
+/** Catalog card names are locale-resolved DATA: the grid renders each
+ * automation.json's `i18n` block, so anchors must speak the take's locale —
+ * an English anchor fails every de/fr take. Values quote the manifests
+ * (fixtures config/default). */
+const CATALOG_CARD_NAME = {
+  resolveGithubIssues: {
+    en: 'Resolve GitHub issues',
+    de: 'GitHub-Issues lösen',
+    fr: 'Résoudre les issues GitHub',
+  },
+  syncGmailEmails: {
+    en: 'Sync Gmail emails',
+    de: 'Gmail-E-Mails synchronisieren',
+    fr: 'Synchroniser les e-mails Gmail',
+  },
 } as const;
 
 /** A primary-rail link, located by target URL — immune to locale. */
@@ -69,7 +86,7 @@ const THREAD_URL = /\/chat\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
  */
 export async function warmup(
   page: import('@playwright/test').Page,
-  ctx: import('../../lib/scene').SceneContext,
+  ctx: SceneContext,
 ): Promise<void> {
   const content = videoContentFor(ctx.locale);
   const relaunch = ctx.projects.get(content.projects[0]?.name ?? '');
@@ -120,46 +137,52 @@ export async function warmup(
 
 export const SCENES: readonly SceneChoreography[] = [
   {
+    // Cold open: the card reveals over the settled chat, and lifts as the
+    // voice reaches "Here's where we start" — the surface must be VISIBLE
+    // while the narration names it, not hidden until the next scene.
     id: 'title',
-    run: async ({ page }) => {
+    run: async (rt) => {
+      const { page, cue } = rt;
       await page.evaluate(() => window.__taleVideoCard?.reveal());
+      await cue(12.5);
+      await page.evaluate(() => window.__taleVideoCard?.fadeOutAndRemove(700));
     },
   },
   {
-    // "This is your workspace… everything one sidebar click away."
-    // The cursor walks the rail as the narration names each area.
+    // "…read the sidebar" — the cursor walks the rail top to bottom as the
+    // narration names each area, in tour order. No navigation yet.
     id: 'dashboard',
     run: async (rt) => {
-      const { page, cursor, cue } = rt;
-      // The app is already loaded and settled under the card — unveiling it
-      // IS the scene transition. No page load happens on camera.
-      await page.evaluate(() => window.__taleVideoCard?.fadeOutAndRemove(700));
+      const { cursor, cue } = rt;
       await composer(rt).waitFor({ state: 'visible', timeout: 15_000 });
       await cursor.place(1450, 700);
       await cue(1.4);
       await cursor.show();
+      await cue(4.6);
       await cursor.hover(rail(rt, '/chat'));
-      await cue(3.2);
+      await cue(5.8);
       await cursor.hover(rail(rt, '/projects'));
-      await cue(4.4);
+      await cue(6.8);
       await cursor.hover(rail(rt, '/agents'));
-      await cue(5.3);
+      await cue(7.8);
       await cursor.hover(rail(rt, '/automations'));
-      await cue(6.4);
+      await cue(9.8);
       await cursor.hover(rail(rt, '/documents'));
-      await cue(12.6);
-      await cursor.click(rail(rt, '/chat'));
     },
   },
   {
-    // "…attach a company document as context… and ask…" — the wow setup:
-    // @-mention picker over the org's own documents, then the typed question.
+    // The hero ask. The chapter scene does its OWN navigation: the rail
+    // click opens the (already-current) chat route on camera, then the
+    // @-mention picker attaches the org's own document, then the question.
     id: 'chat-ask',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
-      await cue(0.4);
+      await cue(1.0);
+      await cursor.click(rail(rt, '/chat'));
+      await composer(rt).waitFor({ state: 'visible', timeout: 15_000 });
+      await cue(5.8);
       await cursor.click(composer(rt));
-      await cue(4.0);
+      await cue(8.6);
       await page.keyboard.type('@', { delay: 60 });
       // Scoped to the mention LISTBOX — a bare text match can resolve to a
       // thread-history row once any thread mentions the same document.
@@ -168,11 +191,11 @@ export const SCENES: readonly SceneChoreography[] = [
         .getByRole('option', { name: videoContentFor(ctx.locale).wowSourceDoc })
         .first();
       await pickerDoc.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(5.2);
+      await cue(10.2);
       await cursor.click(pickerDoc);
-      await cue(6.6);
+      await cue(11.8);
       await page.keyboard.type(ctx.heroPrompt, { delay: 42 });
-      await cue(11.6);
+      await cue(15.4);
       await cursor.click(sendButton(rt));
       await page.waitForURL(THREAD_URL, { timeout: 20_000 });
       const threadId = THREAD_URL.exec(page.url())?.[1];
@@ -186,7 +209,7 @@ export const SCENES: readonly SceneChoreography[] = [
     run: async (rt) => {
       const { page, cursor, cue } = rt;
       await sendButton(rt).waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(8.2);
+      await cue(10.6);
       const source = page
         .locator('[data-message-role="assistant"] strong')
         .first();
@@ -201,7 +224,7 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'ai-grounding',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
-      await cue(14.0);
+      await cue(13.6);
       const source = page
         .locator('[data-message-role="assistant"] strong')
         .nth(1);
@@ -211,41 +234,46 @@ export const SCENES: readonly SceneChoreography[] = [
     },
   },
   {
-    // Knowledge: the documents table with its Indexed badges.
+    // Close the loop: find the exact file the answer cited. The row is the
+    // artifact; the Indexed badge is the "ready" evidence.
     id: 'knowledge',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
       const wowDoc = videoContentFor(rt.ctx.locale).wowSourceDoc;
+      await cue(5.4);
       await cursor.click(rail(rt, '/documents'));
       await page
         .getByText(wowDoc)
         .first()
         .waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(3.5);
       const row = page.getByRole('row').filter({ hasText: wowDoc }).first();
+      await cue(8.4);
       await cursor.hover(row);
-      await cue(6.5);
-      await cursor.hover(
-        row.getByText(rt.t('documents.rag.status.indexed')).first(),
-      );
+      await cue(10.2);
+      const badge = row.getByText(rt.t('documents.rag.status.indexed')).first();
+      if (await badge.isVisible().catch(() => false)) {
+        await cursor.hover(badge);
+      }
     },
   },
   {
-    // Agents: open the builtin Chat folder, then the Assistant agent.
+    // Agents: open the builtin Chat folder, then the Assistant — the agent
+    // behind the reply we just read.
     id: 'agents',
     run: async (rt) => {
       const { page, cursor, cue } = rt;
+      await cue(3.4);
       await cursor.click(rail(rt, '/agents'));
       const folder = page.getByRole('row', { name: 'Chat' }).first();
       await folder.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(2.2);
+      await cue(5.6);
       await cursor.click(folder);
       const agent = page
         .getByRole('row')
         .filter({ hasText: ASSISTANT_NAME[rt.ctx.locale] })
         .first();
       await agent.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(4.8);
+      await cue(7.4);
       await cursor.click(agent);
       // The agent detail route is the unambiguous "we arrived" signal — the
       // list keeps a hidden 'Assistant' span around after navigation.
@@ -253,33 +281,50 @@ export const SCENES: readonly SceneChoreography[] = [
     },
   },
   {
-    // Automations: the catalog ("triage, drafting, routing…").
+    // Automations: the catalog ("syncing a mailbox… resolving issues"),
+    // then a glance at the Installed tab link — the signpost into the
+    // triage journal the next scene opens.
     id: 'automations',
     run: async (rt) => {
-      const { page, cursor, cue } = rt;
+      const { page, cursor, cue, ctx } = rt;
+      await cue(4.4);
       await cursor.click(rail(rt, '/automations'));
       // "Installed" / "All automations" are links, not tabs — locale-proof
       // by their target URL.
       const allTab = page
-        .locator(
-          `main a[href="/dashboard/${rt.ctx.orgId}/automations?tab=all"]`,
-        )
+        .locator(`main a[href="/dashboard/${ctx.orgId}/automations?tab=all"]`)
         .first();
       await allTab.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(2.0);
+      await cue(6.0);
       await cursor.click(allTab);
-      const card = page
-        .getByText(RESOLVE_ISSUES_CARD_NAME[rt.ctx.locale])
+      const gmail = page
+        .getByText(CATALOG_CARD_NAME.syncGmailEmails[ctx.locale])
         .first();
-      await card.waitFor({ state: 'visible', timeout: 15_000 });
-      await cue(5.5);
-      await cursor.hover(card);
+      await gmail.waitFor({ state: 'visible', timeout: 15_000 });
+      await cue(8.8);
+      await cursor.hover(gmail);
+      await cue(10.2);
+      await cursor.hover(
+        page
+          .getByText(CATALOG_CARD_NAME.resolveGithubIssues[ctx.locale])
+          .first(),
+      );
+      await cue(12.8);
+      const installedTab = page
+        .locator(
+          `main a[href="/dashboard/${ctx.orgId}/automations?tab=installed"]`,
+        )
+        .first();
+      if (await installedTab.isVisible().catch(() => false)) {
+        await cursor.hover(installedTab);
+      }
     },
   },
   {
-    // Approvals beat over the execution log — runs, statuses, one honest
-    // failure. (A staged pending-approval card is Episode 5 material; the
-    // log is where "acting on the world" is visible today.)
+    // The triage journal — the deep executions tab cannot be clicked, so
+    // the jump happens at scene start inside the widened lead-in. Rows are
+    // anchored as ROWS (an expanded neighbour's JSON can contain the same
+    // status words — the ep5 lesson).
     id: 'approvals',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
@@ -287,19 +332,25 @@ export const SCENES: readonly SceneChoreography[] = [
         page,
         `/dashboard/${ctx.orgId}/automations/${TRIAGE_AUTOMATION_PATH}?tab=executions`,
       );
-      await page
-        .getByText(rt.t('common.status.completed'))
-        .first()
-        .waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(6.0);
-      const failed = page.getByText(rt.t('common.status.failed')).first();
+      const completed = page
+        .getByRole('row')
+        .filter({ hasText: rt.t('common.status.completed') })
+        .first();
+      await completed.waitFor({ state: 'visible', timeout: 30_000 });
+      await cue(3.0);
+      await cursor.hover(completed);
+      await cue(6.8);
+      const failed = page
+        .getByRole('row')
+        .filter({ hasText: rt.t('common.status.failed') })
+        .first();
       if (await failed.isVisible().catch(() => false)) {
         await cursor.hover(failed);
       }
     },
   },
   {
-    // Projects: the relaunch board, mid-flight.
+    // Projects: the relaunch board, mid-flight (cut under the veil).
     id: 'projects',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
@@ -320,9 +371,9 @@ export const SCENES: readonly SceneChoreography[] = [
       );
       const firstTask = page.getByText(content.boardReadyTask).first();
       await firstTask.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(3.8);
+      await cue(5.2);
       await cursor.hover(firstTask);
-      await cue(6.8);
+      await cue(8.8);
       await cursor.hover(page.getByText(content.boardHoverTask).first());
     },
   },
@@ -337,14 +388,25 @@ export const SCENES: readonly SceneChoreography[] = [
         .getByText('OpenRouter')
         .first()
         .waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(4.5);
+      await cue(3.0);
+      await cursor.hover(page.getByText('OpenRouter').first());
+      await cue(9.2);
       await cursor.click(
         page.getByRole('button', { name: rt.t('navigation.governance') }),
       );
-      await cue(6.2);
+      await cue(10.8);
       await cursor.click(
         page.getByRole('link', { name: rt.t('governance.groups.logs') }),
       );
+      const row = page.getByRole('row').nth(1);
+      const arrived = await row
+        .waitFor({ state: 'visible', timeout: 15_000 })
+        .then(() => true)
+        .catch(() => false);
+      await cue(12.8);
+      if (arrived) {
+        await cursor.hover(row);
+      }
     },
   },
   {
@@ -352,9 +414,10 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'recap',
     run: async (rt) => {
       const { cursor, cue } = rt;
+      await cue(1.2);
       await cursor.click(rail(rt, '/chat'));
       await composer(rt).waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(1.2);
+      await cue(3.4);
       await cursor.hide();
     },
   },

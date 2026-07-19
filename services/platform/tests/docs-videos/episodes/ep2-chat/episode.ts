@@ -1,18 +1,23 @@
 /**
- * Episode 2 — "Chat, in depth". The deep dive Episode 1's recap promised:
- * attachments, model choice, and research. One surface (the chat), one core
- * AI-literacy beat played as a two-act contrast — the SAME topic asked
- * ungrounded (fluent, confident, generic) and grounded (numbers, named
- * sources) — then evidence-based model choice (Arena), the canvas workbench,
- * and an honest look at deep research (shown, not faked: a live run cannot be
- * scripted deterministically).
+ * Episode 2 — "Chat, in depth", rebuilt on the in-depth arc the Episode 5
+ * pilot locked in. The viewer WORKS a real chat session on camera: asks the
+ * same topic ungrounded (fluent, generic — the episode's pitfall, read
+ * together) and grounded (@-mentioned Q2 review, cited numbers), questions
+ * the grounded answer and gets the exact file back, thumbs-up the answer
+ * that held (feedback analytics, episode nine), decides an Arena vote on
+ * evidence, and builds a canvas brief — then trims it with one plain
+ * sentence. Model picker and deep research stay short read-beats.
  *
- * Narration doctrine as Episode 1: docs voice, native per locale, spoken UI
- * vocabulary from the shipped catalog (de "Rechercheur", fr "Chercheur",
- * fr "canevas", de/en "Canvas", "Arena-Modus"/"Mode Arène"). The four
- * on-camera prompts pair 1:1 with `lib/mocks/overrides/docs-replies.ts`:
- * ungrounded + grounded (this file's constants), the canvas brief, and the
- * Arena launch-checklist prompt whose per-model variants ship `byModel`.
+ * Register (produce-video STORYBOARD.md): tutorial grammar — announce every
+ * move before it happens, then observe, then say why. Silence does the
+ * pacing: chapter lead-ins 2.2–2.6 s, tail beats after landed points,
+ * generous minMs floors.
+ *
+ * The six on-camera prompts pair 1:1 with `lib/mocks/overrides/
+ * docs-replies.ts`: ungrounded + grounded + canvas + Arena exist today;
+ * FOLLOWUP_PROMPT and CANVAS_REFINE_PROMPT need the two NEW triplets
+ * (delivered with this rewrite) — until those land, their turns would
+ * stream the synthetic e2e canned reply.
  */
 
 import type { EpisodeSpec, Locale } from '../../lib/episode';
@@ -24,11 +29,35 @@ export const UNGROUNDED_PROMPT: Record<Locale, string> = {
   fr: 'Que pensent nos clients de notre onboarding ?',
 };
 
+/**
+ * Follow-up turn on the GROUNDED thread — the source check. Pairs with the
+ * NEW docs-replies triplet (match clauses: 'which document says that' /
+ * 'welches dokument sagt das' / 'quel document le dit'); the reply names the
+ * exact seeded file the grounded answer cited (locale-content wowSourceDoc).
+ */
+export const FOLLOWUP_PROMPT: Record<Locale, string> = {
+  en: 'Which document says that?',
+  de: 'Welches Dokument sagt das?',
+  fr: 'Quel document le dit ?',
+};
+
 /** Canvas ask — pairs with the `file_write` tool-scripted docs reply. */
 export const CANVAS_PROMPT: Record<Locale, string> = {
   en: 'Turn the onboarding feedback into a one-page brief for the leadership team.',
   de: 'Mach aus dem Onboarding-Feedback ein einseitiges Briefing für die Geschäftsleitung.',
   fr: 'Transforme les retours d’onboarding en une synthèse d’une page pour la direction.',
+};
+
+/**
+ * Canvas refinement turn — the brief rewritten in place. Pairs with the NEW
+ * `file_write` docs-replies triplet (match clauses: 'cut it to three
+ * bullets' / 'kürze es auf drei stichpunkte' / 'réduis-la à trois puces');
+ * the tool overwrites the SAME file path the first brief landed on.
+ */
+export const CANVAS_REFINE_PROMPT: Record<Locale, string> = {
+  en: 'Cut it to three bullets.',
+  de: 'Kürze es auf drei Stichpunkte.',
+  fr: 'Réduis-la à trois puces.',
 };
 
 /**
@@ -56,6 +85,15 @@ export const CANVAS_BRIEF_HEADING: Record<Locale, string> = {
   en: 'Onboarding — what customers told us in Q2',
   de: 'Onboarding — das Kundenfeedback aus Q2',
   fr: 'Onboarding — ce que les clients nous ont dit au T2',
+};
+
+/** A line that exists ONLY in the refined (three-bullet) brief — the honest
+ * "the file was rewritten in place" anchor, absent from the first version.
+ * Quotes the NEW canvas-refine docs-replies content verbatim. */
+export const CANVAS_REFINED_MARKER: Record<Locale, string> = {
+  en: 'The three-bullet version for leadership.',
+  de: 'Die Drei-Punkte-Fassung für die Geschäftsleitung.',
+  fr: 'La version en trois puces pour la direction.',
 };
 
 export const EP2_CHAT: EpisodeSpec = {
@@ -86,114 +124,205 @@ export const EP2_CHAT: EpisodeSpec = {
   },
   scenes: [
     {
+      // Cold open over the END STATE: the finished brief on the canvas
+      // (written by the warmup). The card lifts BEFORE the voice names it.
       id: 'title',
-      leadInMs: 1200,
+      leadInMs: 1600,
+      minMs: 27_000,
       narration: {
-        en: 'Chat is the room where your team meets the models. In this episode: how to ask well, what to attach, how to choose a model — and how to tell a solid answer from a fluent one.',
-        de: 'Der Chat ist der Raum, in dem dein Team den Modellen begegnet. In dieser Episode: gut fragen, Kontext anhängen, das Modell wählen — und eine belastbare Antwort von einer bloß flüssigen unterscheiden.',
-        fr: 'Le chat, c’est la pièce où ton équipe rencontre les modèles. Dans cet épisode : bien demander, quoi attacher, comment choisir un modèle — et distinguer une réponse solide d’une réponse simplement fluide.',
+        en: 'Welcome to episode two. Today we slow down and really learn chat: you’ll ask the same question twice and see why one answer is worth more, check a source, put two models head to head — and build this: a one-page brief, written onto the canvas next to the chat. That’s where we’ll end up. We’ll go step by step, starting from an empty chat.',
+        de: 'Willkommen zu Episode zwei. Heute nehmen wir uns Zeit für den Chat: Du stellst dieselbe Frage zweimal und siehst, warum eine Antwort mehr wert ist, prüfst eine Quelle, lässt zwei Modelle gegeneinander antreten — und baust das hier: ein einseitiges Briefing, direkt im Canvas neben dem Chat. Genau hier enden wir. Wir gehen Schritt für Schritt vor — und starten mit einem leeren Chat.',
+        fr: 'Bienvenue dans l’épisode deux. Aujourd’hui, on prend le temps avec le chat : tu vas poser deux fois la même question et voir pourquoi une réponse vaut plus que l’autre, vérifier une source, faire concourir deux modèles — et construire ceci : une synthèse d’une page, écrite dans le canevas à côté du chat. C’est ici qu’on finit. On avance étape par étape — en partant d’un chat vide.',
       },
     },
     {
-      id: 'composer',
-      leadInMs: 900,
+      // The composer: three choices before any typing (cut to /chat home).
+      id: 'context',
+      chapterByLocale: {
+        en: 'The composer',
+        de: 'Die Eingabezeile',
+        fr: 'Le composeur',
+      },
+      chapterTransition: 'cut',
+      leadInMs: 2400,
+      tailMs: 1600,
+      minMs: 20_000,
       narration: {
-        en: 'A chat starts in the composer, and the composer is more than a text box. You choose which agent answers, which model runs, and what context rides along. Those three choices shape every answer you will get.',
-        de: 'Ein Chat beginnt im Eingabefeld — und das kann mehr als Text. Du wählst, welcher Agent antwortet, welches Modell rechnet und welcher Kontext mitfährt. Diese drei Entscheidungen prägen jede Antwort.',
-        fr: 'Un chat commence dans le composeur — et c’est plus qu’une zone de texte. Tu choisis quel agent répond, quel modèle tourne et quel contexte accompagne la question. Ces trois choix façonnent chaque réponse.',
+        en: 'Here’s where every chat starts. Before we type anything, look at the bottom bar — it holds three choices. Which agent answers, which model runs, and what context you attach. Those three decide what kind of answer comes back. So let’s put them to work.',
+        de: 'Hier beginnt jeder Chat. Bevor wir etwas tippen, schau auf die Leiste unten: Dort triffst du drei Entscheidungen. Welcher Agent antwortet, welches Modell rechnet, und welcher Kontext mitkommt. Diese drei bestimmen, welche Antwort zurückkommt — also setzen wir sie ein.',
+        fr: 'Voici où chaque chat commence. Avant de taper quoi que ce soit, regarde la barre du bas : trois choix s’y font. Quel agent répond, quel modèle tourne, quel contexte accompagne la question. Ces trois choix décident de la réponse qui revient — alors mettons-les au travail.',
       },
     },
     {
+      // Task block 1 — grounding. The ungrounded ask, typed and sent live.
       id: 'ask-ungrounded',
       chapterByLocale: { en: 'Grounding', de: 'Verankerung', fr: 'Ancrage' },
-      // Typing the prompt + send + the generic reply streaming to the end.
-      minMs: 15_000,
-      narration: {
-        en: 'Watch what happens without context. We ask how customers feel about our onboarding… and the model answers — fluent, confident, and completely generic. It has never seen your customers. It is filling the gap with patterns from its training data.',
-        de: 'Schau, was ohne Kontext passiert. Wir fragen, wie zufrieden unsere Kunden mit dem Onboarding sind … und das Modell antwortet — flüssig, selbstsicher und völlig generisch. Es hat deine Kunden nie gesehen. Es füllt die Lücke mit Mustern aus seinen Trainingsdaten.',
-        fr: 'Regarde ce qui se passe sans contexte. On demande ce que pensent nos clients de notre onboarding… et le modèle répond — fluide, assuré, et parfaitement générique. Il n’a jamais vu tes clients. Il comble le vide avec les motifs de ses données d’entraînement.',
-      },
-    },
-    {
-      id: 'attach-grounded',
-      // Mention picker + longer prompt + reasoning + grounded reply stream.
+      leadInMs: 2200,
+      tailMs: 1500,
       minMs: 17_000,
       narration: {
-        en: 'Now the same topic, grounded. We attach the Q2 support review… and ask what to fix first. The answer changes character: your numbers, your documents, named sources you can open and check.',
-        de: 'Jetzt dasselbe Thema, verankert. Wir hängen den Q2-Support-Bericht an … und fragen, was zuerst zu beheben ist. Die Antwort wechselt den Charakter: deine Zahlen, deine Dokumente, benannte Quellen zum Nachprüfen.',
-        fr: 'Maintenant le même sujet, ancré. On attache la revue support du T2… et on demande quoi corriger en priorité. La réponse change de nature : tes chiffres, tes documents, des sources nommées que tu peux ouvrir et vérifier.',
+        en: 'First, an experiment. We ask about our own customers — without giving the model anything to read. We send it… and watch the answer stream in. Sounds good, doesn’t it? Confident, well structured, reasonable.',
+        de: 'Zuerst ein Experiment. Wir fragen nach unseren eigenen Kunden — ohne dem Modell etwas zum Lesen zu geben. Absenden … und sieh der Antwort beim Ankommen zu. Klingt gut, oder? Selbstsicher, sauber gegliedert, vernünftig.',
+        fr: 'D’abord, une expérience. On pose une question sur nos propres clients — sans rien donner à lire au modèle. On envoie… et regarde la réponse arriver. Ça sonne bien, non ? Assurée, bien structurée, raisonnable.',
       },
     },
     {
-      id: 'grounding-lesson',
-      // Calm scene: the camera holds on the grounded answer. Stillness is the
-      // point — no choreography beyond a slow source hover.
+      // The pitfall, made explicit: the fluent answer read together, slowly.
+      id: 'pitfall',
+      leadInMs: 1000,
+      tailMs: 1700,
+      minMs: 18_000,
       narration: {
-        en: 'This is the one habit that changes everything about working with AI. Same model, same topic — the context decides whether you get plausible words or your own facts. A fluent answer is not evidence. Sources are. When the answer matters, ground it.',
-        de: 'Das ist die eine Gewohnheit, die die Arbeit mit KI verändert. Gleiches Modell, gleiches Thema — der Kontext entscheidet, ob du plausible Worte bekommst oder deine eigenen Fakten. Eine flüssige Antwort ist kein Beleg. Quellen sind es. Wenn es darauf ankommt: verankern.',
-        fr: 'C’est l’habitude qui change tout dans le travail avec l’IA. Même modèle, même sujet — le contexte décide si tu reçois des mots plausibles ou tes propres faits. Une réponse fluide n’est pas une preuve. Les sources, oui. Quand la réponse compte : ancre-la.',
+        en: 'Now read it with me — because this is the trap. Not one number in there comes from your workspace. The model has never seen your customers, so it fills the gap with patterns from its training data. It sounds right — and it’s guessing.',
+        de: 'Jetzt lies sie mit mir — denn genau das ist die Falle. Keine einzige Zahl darin stammt aus deinem Arbeitsbereich. Das Modell hat deine Kunden nie gesehen, also füllt es die Lücke mit Mustern aus seinen Trainingsdaten. Es klingt richtig — und es rät.',
+        fr: 'Maintenant, lis-la avec moi — c’est exactement le piège. Pas un seul chiffre là-dedans ne vient de ton espace de travail. Le modèle n’a jamais vu tes clients, alors il comble le vide avec les motifs de ses données d’entraînement. Ça sonne juste — et ça devine.',
       },
     },
     {
-      id: 'model-choice',
-      chapterByLocale: { en: 'Models', de: 'Modelle', fr: 'Modèles' },
-      // Opening the picker, an unhurried scan over the catalog, close.
-      minMs: 10_000,
+      // The grounded re-ask: fresh chat, @-mention the Q2 review, same topic.
+      id: 'ask-grounded',
+      leadInMs: 1000,
+      tailMs: 1500,
+      minMs: 17_000,
       narration: {
-        en: 'The model picker is the second decision. Models differ — in speed, in cost, in how deeply they reason. Auto lets Tale route each request to a sensible default, and for most work that is the right call. But you can pin any model your workspace allows.',
-        de: 'Die Modellwahl ist die zweite Entscheidung. Modelle unterscheiden sich — in Tempo, Kosten und Denktiefe. Mit Auto wählt Tale für jede Anfrage einen vernünftigen Standard, und meistens ist das die richtige Wahl. Du kannst aber jedes freigegebene Modell festlegen.',
-        fr: 'Le choix du modèle est la deuxième décision. Les modèles diffèrent — en vitesse, en coût, en profondeur de raisonnement. Avec Auto, Tale route chaque demande vers un choix raisonnable — le bon réglage la plupart du temps. Mais tu peux fixer n’importe quel modèle autorisé.',
+        en: 'Let’s fix that. Same topic, fresh chat — but this time we type an at-sign first and attach the Q2 support review. The document now rides along with the question… and we send it.',
+        de: 'Das beheben wir. Gleiches Thema, neuer Chat — aber diesmal tippen wir zuerst ein @-Zeichen und hängen den Q2-Support-Bericht an. Das Dokument reist jetzt mit der Frage mit … und wir senden ab.',
+        fr: 'Corrigeons ça. Même sujet, nouveau chat — mais cette fois, on tape d’abord une arobase et on attache la revue support du T2. Le document part maintenant avec la question… et on envoie.',
       },
     },
     {
-      id: 'arena',
-      // Plus menu → Arena → prompt → two columns stream → verdict. The
-      // longest choreography of the episode.
-      minMs: 24_000,
+      // The grounded answer, observed calmly: the number, the named source.
+      id: 'grounded-answer',
+      leadInMs: 1000,
+      tailMs: 1700,
+      minMs: 18_000,
       narration: {
-        en: 'And when you want evidence instead of opinions, run an Arena. One prompt, two models, side by side. Watch them answer the same brief… then call the winner. Your verdicts flow into the workspace analytics — over time, model choice becomes a measured decision, not a taste.',
-        de: 'Und wenn du Belege statt Meinungen willst: starte eine Arena. Ein Prompt, zwei Modelle, Seite an Seite. Sieh zu, wie beide denselben Auftrag beantworten … und küre dann den Sieger. Deine Urteile fließen in die Auswertungen des Arbeitsbereichs — Modellwahl wird so mit der Zeit eine gemessene Entscheidung, kein Bauchgefühl.',
-        fr: 'Et quand tu veux des preuves plutôt que des avis : lance une Arène. Un prompt, deux modèles, côte à côte. Regarde-les répondre au même brief… puis désigne le gagnant. Tes verdicts alimentent les statistiques de l’espace de travail — le choix du modèle devient une décision mesurée, pas une affaire de goût.',
+        en: 'Look at the difference. Webhook questions doubled after the April release — that’s your number, from your review. The answer names its sources and ends with one concrete fix. Same model as before. The only thing we changed is what it could read.',
+        de: 'Sieh dir den Unterschied an. Webhook-Fragen haben sich nach dem April-Release verdoppelt — das ist deine Zahl, aus deinem Bericht. Die Antwort nennt ihre Quellen und endet mit einem konkreten Fix. Gleiches Modell wie eben. Geändert haben wir nur, was es lesen konnte.',
+        fr: 'Regarde la différence. Les questions webhooks ont doublé depuis la version d’avril — c’est ton chiffre, tiré de ta revue. La réponse nomme ses sources et finit sur un correctif concret. Même modèle qu’avant. On a seulement changé ce qu’il pouvait lire.',
       },
     },
     {
-      id: 'canvas',
-      chapterByLocale: { en: 'Canvas', de: 'Canvas', fr: 'Canevas' },
-      // New thread + typing + reasoning + the file landing + pane opening.
+      // Task block 2 — the source check: a follow-up turn, same thread.
+      id: 'follow-up',
+      chapterByLocale: { en: 'Sources', de: 'Quellen', fr: 'Sources' },
+      leadInMs: 2200,
+      tailMs: 1600,
       minMs: 19_000,
       narration: {
-        en: 'Big deliverables get their own workbench. Ask for a document — a brief, a report, a page — and the canvas opens next to the chat. The result lands as a file you can read, refine, and share. Not a wall of chat text you copy-paste out of.',
-        de: 'Große Ergebnisse bekommen eine eigene Werkbank. Bitte um ein Dokument — ein Briefing, einen Bericht, eine Seite — und neben dem Chat öffnet sich das Canvas. Das Ergebnis liegt als Datei vor: lesen, verfeinern, teilen. Keine Textwand zum Herauskopieren.',
-        fr: 'Les gros livrables ont leur établi. Demande un document — une synthèse, un rapport, une page — et le canevas s’ouvre à côté du chat. Le résultat arrive comme un fichier : à lire, à retoucher, à partager. Pas un mur de texte à copier-coller.',
+        en: 'Here’s what a grounded answer unlocks: you can question it. In the same thread, we ask — which document says that? And the reply names the exact file, the Q2 support review. When a claim looks off later, this is the question to ask.',
+        de: 'Und eine verankerte Antwort kannst du befragen. Im selben Thread fragen wir: Welches Dokument sagt das? Die Antwort nennt die genaue Datei — den Q2-Support-Bericht. Wenn dir später eine Aussage seltsam vorkommt, ist das deine erste Rückfrage.',
+        fr: 'Et une réponse ancrée, tu peux l’interroger. Dans le même fil, on demande : quel document le dit ? La réponse nomme le fichier exact — la revue support du T2. Si une affirmation te paraît étrange plus tard, c’est la première question à poser.',
       },
     },
     {
+      // Verify beat: the thumbs-up, on camera — where the rating goes.
+      id: 'thumbs-up',
+      leadInMs: 1000,
+      tailMs: 1600,
+      minMs: 16_000,
+      narration: {
+        en: 'One more habit while we’re here. This answer held up — so let’s say so. We click the thumbs-up under it. That rating lands in your workspace’s feedback analytics, and episode nine reads them. It’s one click — and your team learns which answers to trust.',
+        de: 'Noch eine Gewohnheit, wo wir schon hier sind. Diese Antwort hat gehalten — also sagen wir das. Ein Klick auf den Daumen nach oben. Die Bewertung landet in den Feedback-Auswertungen deines Arbeitsbereichs, und Episode neun liest sie. Ein Klick — und dein Team lernt, welchen Antworten es trauen kann.',
+        fr: 'Une habitude de plus, tant qu’on y est. Cette réponse a tenu — alors disons-le. Un clic sur le pouce levé. La note atterrit dans les statistiques de feedback de ton espace de travail, et l’épisode neuf les lit. Un clic — et ton équipe apprend quelles réponses méritent confiance.',
+      },
+    },
+    {
+      // Task block 3 opener — the model decision: Auto vs pinning.
+      id: 'model-choice',
+      chapterByLocale: { en: 'Models', de: 'Modelle', fr: 'Modèles' },
+      leadInMs: 2300,
+      tailMs: 1500,
+      minMs: 17_000,
+      narration: {
+        en: 'Second decision: the model. Let’s open the picker. Auto is the default — it routes each request to a sensible model, and for everyday questions that’s the right call. Pin a specific model when the task is unusual. But how do you pick one? Let’s get evidence.',
+        de: 'Zweite Entscheidung: das Modell. Öffnen wir die Auswahl. Auto ist der Standard — es wählt für jede Anfrage ein passendes Modell, und für Alltagsfragen ist das die richtige Wahl. Ein bestimmtes Modell fixierst du, wenn die Aufgabe ungewöhnlich ist. Aber woher weißt du, welches? Holen wir uns Belege.',
+        fr: 'Deuxième décision : le modèle. Ouvrons le sélecteur. Auto est le réglage par défaut — il route chaque demande vers un modèle raisonnable, et pour les questions courantes, c’est le bon choix. Tu fixes un modèle précis quand la tâche sort de l’ordinaire. Mais lequel ? Allons chercher des preuves.',
+      },
+    },
+    {
+      // Arena: plus menu → Arena Mode → one prompt, two columns.
+      id: 'arena',
+      leadInMs: 1000,
+      tailMs: 1500,
+      minMs: 24_000,
+      narration: {
+        en: 'For evidence, chat has Arena mode. We start a fresh chat, open the plus menu… and switch it on. One prompt now goes to two models, side by side. We ask for a launch checklist — and both columns answer the same brief.',
+        de: 'Für Belege gibt es den Arena-Modus. Neuer Chat, das Plus-Menü … und einschalten. Ein Prompt geht jetzt an zwei Modelle, Seite an Seite. Wir bitten um eine Launch-Checkliste — und beide Spalten beantworten denselben Auftrag.',
+        fr: 'Pour les preuves, il y a le mode Arène. Nouveau chat, le menu plus… et on l’active. Un prompt part maintenant vers deux modèles, côte à côte. On demande une check-list de lancement — et les deux colonnes répondent au même brief.',
+      },
+    },
+    {
+      // The verdict: read both columns, name the difference, vote B.
+      id: 'arena-verdict',
+      leadInMs: 1000,
+      tailMs: 1700,
+      minMs: 29_000,
+      narration: {
+        en: 'Take your time and compare. The left one is short and tidy — five steps, done. The right one groups the work by phase and flags two risks the left one skipped: forty unmapped blog URLs, and no agreed bar for the accessibility sweep. For a quick list, A would do. We’re running a launch — so we vote B. The verdict feeds the same analytics as your thumbs-up.',
+        de: 'Nimm dir Zeit zum Vergleichen. Links: kurz und aufgeräumt — fünf Schritte, fertig. Rechts: nach Phasen gruppiert, mit zwei Risiken, die links fehlen — vierzig Blog-URLs ohne Entscheidung und keine vereinbarte Schweregrenze für den Accessibility-Durchgang. Für eine schnelle Liste reicht A. Wir launchen eine Website — also stimmen wir für B. Das Urteil fließt in dieselben Auswertungen wie dein Daumen von eben.',
+        fr: 'Prends le temps de comparer. À gauche : court et net — cinq étapes, terminé. À droite : le travail groupé par phase, avec deux risques absents à gauche — quarante URL de blog sans décision, et aucun seuil convenu pour la passe accessibilité. Pour une liste rapide, A suffit. On lance un site — alors on vote B. Le verdict rejoint les mêmes statistiques que ton pouce levé.',
+      },
+    },
+    {
+      // Task block 4 — the canvas: a deliverable lands as a file.
+      id: 'canvas',
+      chapterByLocale: { en: 'Canvas', de: 'Canvas', fr: 'Canevas' },
+      leadInMs: 2300,
+      tailMs: 1600,
+      // Rehearsal: the canvas open + file stream + Preview switch overran a
+      // 22 s floor by up to 1.7 s (en) — the writing animation owns the pace.
+      minMs: 25_000,
+      narration: {
+        en: 'New task: a big deliverable. We ask for a one-page brief for the leadership team — the kind of thing you never want as a wall of chat text. Send… and watch the right side: the canvas opens, and the brief lands as a file. We switch to Preview — and it reads like a page.',
+        de: 'Neue Aufgabe: ein großes Ergebnis. Wir bitten um ein einseitiges Briefing für die Geschäftsleitung — so etwas willst du nie als Textwand im Chat. Absenden … und schau nach rechts: Das Canvas öffnet sich, und das Briefing landet als Datei. Wir schalten auf Vorschau — und es liest sich wie eine Seite.',
+        fr: 'Nouvelle tâche : un gros livrable. On demande une synthèse d’une page pour la direction — le genre de chose que tu ne veux jamais en mur de texte. On envoie… et regarde à droite : le canevas s’ouvre, et la synthèse arrive comme un fichier. On passe en Aperçu — et ça se lit comme une page.',
+      },
+    },
+    {
+      // The refinement: one plain sentence rewrites the file in place.
+      id: 'canvas-refine',
+      leadInMs: 1000,
+      tailMs: 1700,
+      minMs: 20_000,
+      narration: {
+        en: 'And a canvas file is a working document. Leadership wants it shorter? We say so, in plain words: cut it to three bullets. The agent rewrites the file in place — same page, three bullets. Nothing to copy anywhere; you refine the document right where it is.',
+        de: 'Und eine Canvas-Datei ist ein Arbeitsdokument. Die Geschäftsleitung will es kürzer? Dann sagen wir das im Chat: Kürze es auf drei Stichpunkte. Der Agent schreibt die Datei an Ort und Stelle um — gleiche Seite, drei Punkte. Kein Kopieren in ein anderes Programm; du verfeinerst das Dokument da, wo es liegt.',
+        fr: 'Et un fichier du canevas est un document de travail. La direction la veut plus courte ? On le dit dans le chat : réduis-la à trois puces. L’agent réécrit le fichier sur place — même page, trois puces. Rien à copier ailleurs ; tu retouches le document là où il est.',
+      },
+    },
+    {
+      // Deep research, shown honestly: the Modes entry, the Researcher.
       id: 'research',
       chapterByLocale: { en: 'Research', de: 'Recherche', fr: 'Recherche' },
-      // Agent picker open, Researcher selected, the deep-research chip shown.
-      minMs: 9_000,
+      leadInMs: 2300,
+      tailMs: 1600,
+      minMs: 17_000,
       narration: {
-        en: 'One more thing lives here: deep research. The Researcher agent plans its own searches, reads what it finds on the open web, and returns a report with named sources. The grounding rule you just learned — it extends all the way to the internet.',
-        de: 'Eines wohnt noch hier: die Tiefenrecherche. Der Agent Rechercheur plant seine Suchen selbst, liest, was er im offenen Web findet, und liefert einen Bericht mit benannten Quellen. Die Verankerungs-Regel von eben — sie reicht bis ins Internet.',
-        fr: 'Une chose encore habite ici : la recherche approfondie. L’agent Chercheur planifie ses recherches, lit ce qu’il trouve sur le web ouvert, et rend un rapport avec ses sources nommées. La règle de l’ancrage que tu viens d’apprendre — elle s’étend jusqu’à Internet.',
+        en: 'One more to point out: deep research. Open the plus menu, and there it is — Deep research. Turn it on and the chat hands off to the Researcher agent: it plans its own searches, reads the open web, and returns a report with named sources. It needs a search connector, so we’ll give it a full episode of its own later. Today’s rule — check the source — applies there too.',
+        de: 'Noch eines zum Zeigen: die Tiefenrecherche. Öffne das Plus-Menü — und da ist sie, Deep research. Schaltest du sie ein, übergibt der Chat an den Rechercheur-Agenten: Er plant seine Suchen selbst, liest im offenen Web und liefert einen Bericht mit benannten Quellen. Er braucht einen Such-Connector, deshalb bekommt er später eine eigene Episode. Die Regel von heute — prüf die Quelle — gilt auch dort.',
+        fr: 'Encore un à signaler : la recherche approfondie. Ouvre le menu plus — et la voilà, Deep research. Active-la et le chat passe la main à l’agent Chercheur : il planifie ses recherches, lit le web ouvert et rend un rapport avec ses sources nommées. Il lui faut un connecteur de recherche, alors on lui consacrera un épisode entier plus tard. La règle du jour — vérifie la source — vaut là aussi.',
       },
     },
     {
+      // Recap over a fresh chat at rest: the verbs, the docs page, ep3 next.
       id: 'recap',
+      leadInMs: 1000,
+      tailMs: 1500,
+      minMs: 18_000,
       narration: {
-        en: 'Chat, used well: ground your questions in your documents, pick models on evidence, let big answers land in the canvas. Next episode: Knowledge — the library your grounded answers come from.',
-        de: 'Chat, gut genutzt: Fragen in deinen Dokumenten verankern, Modelle nach Belegen wählen, große Ergebnisse ins Canvas. Nächste Episode: Wissen — die Bibliothek, aus der verankerte Antworten kommen.',
-        fr: 'Le chat, bien utilisé : ancrer tes questions dans tes documents, choisir les modèles sur preuves, laisser les grands livrables atterrir dans le canevas. Prochain épisode : Connaissances — la bibliothèque d’où viennent les réponses ancrées.',
+        en: 'And that’s chat, used well. You asked the same question ungrounded and grounded, checked a source, rated an answer, judged an Arena — and turned feedback into a brief on the canvas, then cut it down with one sentence. The chat guide in the docs covers all of it, keyboard shortcuts included.',
+        de: 'Das war der Chat, gut genutzt. Du hast dieselbe Frage ohne und mit Verankerung gestellt, eine Quelle geprüft, eine Antwort bewertet, eine Arena entschieden — und aus Feedback ein Briefing im Canvas gemacht, dann mit einem Satz gekürzt. Der Chat-Leitfaden in der Doku vertieft alles, Tastaturkürzel inklusive.',
+        fr: 'Voilà le chat, bien utilisé. Tu as posé la même question sans ancrage puis avec, vérifié une source, noté une réponse, tranché une Arène — et transformé du feedback en synthèse dans le canevas, puis réduit le tout en une phrase. Le guide du chat dans la doc détaille tout, raccourcis clavier compris.',
       },
     },
     {
       id: 'outro',
-      // Same post-narration room as Episode 1: card holds, fade completes inside it.
       tailMs: 3600,
       narration: {
-        en: 'The chat guide in the documentation covers everything you saw here, keyboard shortcuts included. See you in episode three.',
-        de: 'Der Chat-Leitfaden in der Dokumentation vertieft alles, was du gesehen hast — Tastaturkürzel inklusive. Bis zur dritten Episode.',
-        fr: 'Le guide du chat dans la documentation détaille tout ce que tu viens de voir, raccourcis clavier compris. À bientôt pour l’épisode trois.',
+        en: 'Next time: Knowledge — where the documents behind your grounded answers live. You’ll index one yourself and watch the answers change. See you in episode three.',
+        de: 'Nächstes Mal: Wissen — da liegen die Dokumente hinter deinen verankerten Antworten. Du indexierst selbst eines und siehst, wie sich Antworten ändern. Bis zur dritten Episode.',
+        fr: 'La prochaine fois : les connaissances — c’est là que se trouvent les documents derrière tes réponses ancrées. Tu en indexeras un toi-même et tu verras les réponses changer. À bientôt pour l’épisode trois.',
       },
     },
   ],
