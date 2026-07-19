@@ -54,6 +54,7 @@ import type * as agent_tools_documents_helpers_fetch_document_comparison from ".
 import type * as agent_tools_documents_helpers_fetch_document_content from "../agent_tools/documents/helpers/fetch_document_content.js";
 import type * as agent_tools_documents_helpers_list_documents from "../agent_tools/documents/helpers/list_documents.js";
 import type * as agent_tools_documents_helpers_retrieve_document from "../agent_tools/documents/helpers/retrieve_document.js";
+import type * as agent_tools_documents_helpers_transcript_content from "../agent_tools/documents/helpers/transcript_content.js";
 import type * as agent_tools_documents_internal_actions from "../agent_tools/documents/internal_actions.js";
 import type * as agent_tools_documents_internal_mutations from "../agent_tools/documents/internal_mutations.js";
 import type * as agent_tools_files__shared from "../agent_tools/files/_shared.js";
@@ -1836,6 +1837,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/documents/helpers/fetch_document_content": typeof agent_tools_documents_helpers_fetch_document_content;
   "agent_tools/documents/helpers/list_documents": typeof agent_tools_documents_helpers_list_documents;
   "agent_tools/documents/helpers/retrieve_document": typeof agent_tools_documents_helpers_retrieve_document;
+  "agent_tools/documents/helpers/transcript_content": typeof agent_tools_documents_helpers_transcript_content;
   "agent_tools/documents/internal_actions": typeof agent_tools_documents_internal_actions;
   "agent_tools/documents/internal_mutations": typeof agent_tools_documents_internal_mutations;
   "agent_tools/files/_shared": typeof agent_tools_files__shared;
