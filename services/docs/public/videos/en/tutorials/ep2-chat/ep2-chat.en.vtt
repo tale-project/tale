@@ -1,216 +1,393 @@
 WEBVTT
 
 1
-00:00:01.200 --> 00:00:04.302
-Chat is the room where
-your team meets the models.
+00:00:01.600 --> 00:00:03.113
+Welcome to episode two.
 
 2
-00:00:04.302 --> 00:00:07.342
-In this episode: how to
-ask well, what to attach,
+00:00:03.113 --> 00:00:08.640
+Today we slow down and really learn chat:
+you’ll ask the same question twice and see
 
 3
-00:00:07.342 --> 00:00:11.870
-how to choose a model — and how to
-tell a solid answer from a fluent one.
+00:00:08.640 --> 00:00:11.601
+why one answer is worth
+more, check a source,
 
 4
-00:00:13.470 --> 00:00:18.333
-A chat starts in the composer, and
-the composer is more than a text box.
+00:00:11.601 --> 00:00:14.562
+put two models head to
+head — and build this:
 
 5
-00:00:18.333 --> 00:00:23.668
-You choose which agent answers, which
-model runs, and what context rides along.
+00:00:14.562 --> 00:00:18.444
+a one-page brief, written onto
+the canvas next to the chat.
 
 6
-00:00:23.668 --> 00:00:27.180
-Those three choices shape
-every answer you will get.
+00:00:18.444 --> 00:00:20.155
+That’s where we’ll end up.
 
 7
-00:00:28.380 --> 00:00:30.719
-Watch what happens without context.
+00:00:20.155 --> 00:00:23.510
+We’ll go step by step,
+starting from an empty chat.
 
 8
-00:00:30.719 --> 00:00:35.999
-We ask how customers feel about our
-onboarding… and the model answers — fluent,
+00:00:29.400 --> 00:00:31.529
+Here’s where every chat starts.
 
 9
-00:00:35.999 --> 00:00:38.271
-confident, and completely generic.
+00:00:31.529 --> 00:00:36.541
+Before we type anything, look at the
+bottom bar — it holds three choices.
 
 10
-00:00:38.271 --> 00:00:40.477
-It has never seen your customers.
+00:00:36.541 --> 00:00:41.141
+Which agent answers, which model
+runs, and what context you attach.
 
 11
-00:00:40.477 --> 00:00:44.420
-It is filling the gap with
-patterns from its training data.
+00:00:41.141 --> 00:00:44.574
+Those three decide what
+kind of answer comes back.
 
 12
-00:00:45.620 --> 00:00:47.853
-Now the same topic, grounded.
+00:00:44.574 --> 00:00:46.360
+So let’s put them to work.
 
 13
-00:00:47.853 --> 00:00:52.397
-We attach the Q2 support
-review… and ask what to fix first.
+00:00:50.160 --> 00:00:51.685
+First, an experiment.
 
 14
-00:00:52.397 --> 00:00:55.708
-The answer changes
-character: your numbers,
+00:00:51.685 --> 00:00:57.132
+We ask about our own customers —
+without giving the model anything to read.
 
 15
-00:00:55.708 --> 00:00:59.790
-your documents, named
-sources you can open and check.
+00:00:57.132 --> 00:01:00.255
+We send it… and watch
+the answer stream in.
 
 16
-00:01:02.620 --> 00:01:07.812
-This is the one habit that changes
-everything about working with AI.
+00:01:00.255 --> 00:01:01.998
+Sounds good, doesn’t it?
 
 17
-00:01:07.812 --> 00:01:14.225
-Same model, same topic — the context
-decides whether you get plausible words or your
+00:01:01.998 --> 00:01:04.830
+Confident, well structured, reasonable.
 
 18
-00:01:14.225 --> 00:01:14.988
-own facts.
+00:01:07.330 --> 00:01:10.491
+Now read it with me —
+because this is the trap.
 
 19
-00:01:14.988 --> 00:01:17.431
-A fluent answer is not evidence.
+00:01:10.491 --> 00:01:13.854
+Not one number in there
+comes from your workspace.
 
 20
-00:01:17.431 --> 00:01:18.347
-Sources are.
+00:01:13.854 --> 00:01:19.437
+The model has never seen your customers,
+so it fills the gap with patterns from its
 
 21
-00:01:18.347 --> 00:01:21.020
-When the answer matters, ground it.
+00:01:19.437 --> 00:01:20.379
+training data.
 
 22
-00:01:22.220 --> 00:01:25.093
-The model picker is the second decision.
+00:01:20.379 --> 00:01:22.800
+It sounds right — and it’s guessing.
 
 23
-00:01:25.093 --> 00:01:29.475
-Models differ — in speed, in
-cost, in how deeply they reason.
+00:01:25.500 --> 00:01:26.565
+Let’s fix that.
 
 24
-00:01:29.475 --> 00:01:33.497
-Auto lets Tale route each
-request to a sensible default,
+00:01:26.565 --> 00:01:32.314
+Same topic, fresh chat — but this time we
+type an at-sign first and attach the Q2
 
 25
-00:01:33.497 --> 00:01:36.442
-and for most work that is the right call.
+00:01:32.314 --> 00:01:33.379
+support review.
 
 26
-00:01:36.442 --> 00:01:39.890
-But you can pin any
-model your workspace allows.
+00:01:33.379 --> 00:01:37.849
+The document now rides along
+with the question… and we send it.
 
 27
-00:01:41.090 --> 00:01:45.458
-And when you want evidence
-instead of opinions, run an Arena.
+00:01:42.500 --> 00:01:44.026
+Look at the difference.
 
 28
-00:01:45.458 --> 00:01:48.108
-One prompt, two models, side by side.
+00:01:44.026 --> 00:01:48.736
+Webhook questions doubled after the
+April release — that’s your number,
 
 29
-00:01:48.108 --> 00:01:52.047
-Watch them answer the same
-brief… then call the winner.
+00:01:48.736 --> 00:01:49.864
+from your review.
 
 30
-00:01:52.047 --> 00:01:56.344
-Your verdicts flow into the
-workspace analytics — over time,
+00:01:49.864 --> 00:01:53.844
+The answer names its sources
+and ends with one concrete fix.
 
 31
-00:01:56.344 --> 00:02:00.210
-model choice becomes a
-measured decision, not a taste.
+00:01:53.844 --> 00:01:55.237
+Same model as before.
 
 32
-00:02:05.090 --> 00:02:08.068
-Big deliverables get their own workbench.
+00:01:55.237 --> 00:01:58.421
+The only thing we
+changed is what it could read.
 
 33
-00:02:08.068 --> 00:02:13.951
-Ask for a document — a brief, a report, a
-page — and the canvas opens next to the
+00:02:02.321 --> 00:02:06.490
+Here’s what a grounded answer
+unlocks: you can question it.
 
 34
-00:02:13.951 --> 00:02:14.651
-chat.
+00:02:06.490 --> 00:02:10.306
+In the same thread, we ask
+— which document says that?
 
 35
-00:02:14.651 --> 00:02:18.936
-The result lands as a file you
-can read, refine, and share.
+00:02:10.306 --> 00:02:14.404
+And the reply names the exact
+file, the Q2 support review.
 
 36
-00:02:18.936 --> 00:02:21.940
-Not a wall of chat text
-you copy-paste out of.
+00:02:14.404 --> 00:02:18.503
+When a claim looks off later,
+this is the question to ask.
 
 37
-00:02:24.090 --> 00:02:26.809
-One more thing lives here: deep research.
+00:02:21.103 --> 00:02:23.238
+One more habit while we’re here.
 
 38
-00:02:26.809 --> 00:02:29.727
-The Researcher agent
-plans its own searches,
+00:02:23.238 --> 00:02:25.774
+This answer held up — so let’s say so.
 
 39
-00:02:29.727 --> 00:02:34.833
-reads what it finds on the open web,
-and returns a report with named sources.
+00:02:25.774 --> 00:02:27.909
+We click the thumbs-up under it.
 
 40
-00:02:34.833 --> 00:02:39.939
-The grounding rule you just learned —
-it extends all the way to the internet.
+00:02:27.909 --> 00:02:31.713
+That rating lands in your
+workspace’s feedback analytics,
 
 41
-00:02:41.139 --> 00:02:45.586
-Chat, used well: ground your
-questions in your documents,
+00:02:31.713 --> 00:02:33.582
+and episode nine reads them.
 
 42
-00:02:45.586 --> 00:02:50.267
-pick models on evidence, let
-big answers land in the canvas.
+00:02:33.582 --> 00:02:37.653
+It’s one click — and your team
+learns which answers to trust.
 
 43
-00:02:50.267 --> 00:02:55.729
-Next episode: Knowledge — the
-library your grounded answers come from.
+00:02:41.553 --> 00:02:43.417
+Second decision: the model.
 
 44
-00:02:56.929 --> 00:03:01.496
-The chat guide in the
-documentation covers everything you saw here,
+00:02:43.417 --> 00:02:44.936
+Let’s open the picker.
 
 45
-00:03:01.496 --> 00:03:03.405
-keyboard shortcuts included.
+00:02:44.936 --> 00:02:49.424
+Auto is the default — it routes
+each request to a sensible model,
 
 46
-00:03:03.405 --> 00:03:05.109
+00:02:49.424 --> 00:02:52.807
+and for everyday
+questions that’s the right call.
+
+47
+00:02:52.807 --> 00:02:55.983
+Pin a specific model
+when the task is unusual.
+
+48
+00:02:55.983 --> 00:02:57.640
+But how do you pick one?
+
+49
+00:02:57.640 --> 00:02:58.953
+Let’s get evidence.
+
+50
+00:03:01.453 --> 00:03:03.911
+For evidence, chat has Arena mode.
+
+51
+00:03:03.911 --> 00:03:08.249
+We start a fresh chat, open
+the plus menu… and switch it on.
+
+52
+00:03:08.249 --> 00:03:11.719
+One prompt now goes to
+two models, side by side.
+
+53
+00:03:11.719 --> 00:03:16.853
+We ask for a launch checklist — and
+both columns answer the same brief.
+
+54
+00:03:25.453 --> 00:03:27.421
+Take your time and compare.
+
+55
+00:03:27.421 --> 00:03:31.066
+The left one is short and
+tidy — five steps, done.
+
+56
+00:03:31.066 --> 00:03:36.898
+The right one groups the work by phase
+and flags two risks the left one skipped:
+
+57
+00:03:36.898 --> 00:03:42.147
+forty unmapped blog URLs, and no
+agreed bar for the accessibility sweep.
+
+58
+00:03:42.147 --> 00:03:44.261
+For a quick list, A would do.
+
+59
+00:03:44.261 --> 00:03:47.031
+We’re running a launch — so we vote B.
+
+60
+00:03:47.031 --> 00:03:51.043
+The verdict feeds the same
+analytics as your thumbs-up.
+
+61
+00:03:55.753 --> 00:03:57.675
+New task: a big deliverable.
+
+62
+00:03:57.675 --> 00:04:03.235
+We ask for a one-page brief for the
+leadership team — the kind of thing you never
+
+63
+00:04:03.235 --> 00:04:05.157
+want as a wall of chat text.
+
+64
+00:04:05.157 --> 00:04:10.648
+Send… and watch the right side: the
+canvas opens, and the brief lands as a file.
+
+65
+00:04:10.648 --> 00:04:13.943
+We switch to Preview —
+and it reads like a page.
+
+66
+00:04:19.453 --> 00:04:22.333
+And a canvas file is a working document.
+
+67
+00:04:22.333 --> 00:04:24.349
+Leadership wants it shorter?
+
+68
+00:04:24.349 --> 00:04:28.021
+We say so, in plain words:
+cut it to three bullets.
+
+69
+00:04:28.021 --> 00:04:32.628
+The agent rewrites the file in
+place — same page, three bullets.
+
+70
+00:04:32.628 --> 00:04:37.523
+Nothing to copy anywhere; you
+refine the document right where it is.
+
+71
+00:04:41.523 --> 00:04:43.958
+One more to point out: deep research.
+
+72
+00:04:43.958 --> 00:04:47.380
+Open the plus menu, and
+there it is — Deep research.
+
+73
+00:04:47.380 --> 00:04:51.197
+Turn it on and the chat hands
+off to the Researcher agent:
+
+74
+00:04:51.197 --> 00:04:54.224
+it plans its own
+searches, reads the open web,
+
+75
+00:04:54.224 --> 00:04:56.857
+and returns a report with named sources.
+
+76
+00:04:56.857 --> 00:05:01.990
+It needs a search connector, so we’ll
+give it a full episode of its own later.
+
+77
+00:05:01.990 --> 00:05:05.413
+Today’s rule — check the
+source — applies there too.
+
+78
+00:05:08.013 --> 00:05:09.854
+And that’s chat, used well.
+
+79
+00:05:09.854 --> 00:05:13.400
+You asked the same
+question ungrounded and grounded,
+
+80
+00:05:13.400 --> 00:05:18.787
+checked a source, rated an answer,
+judged an Arena — and turned feedback into a
+
+81
+00:05:18.787 --> 00:05:22.606
+brief on the canvas, then
+cut it down with one sentence.
+
+82
+00:05:22.606 --> 00:05:27.583
+The chat guide in the docs covers all
+of it, keyboard shortcuts included.
+
+83
+00:05:29.583 --> 00:05:34.707
+Next time: Knowledge — where the
+documents behind your grounded answers live.
+
+84
+00:05:34.707 --> 00:05:38.367
+You’ll index one yourself
+and watch the answers change.
+
+85
+00:05:38.367 --> 00:05:40.031
 See you in episode three.
 

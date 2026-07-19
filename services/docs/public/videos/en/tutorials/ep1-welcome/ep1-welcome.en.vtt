@@ -1,217 +1,276 @@
 WEBVTT
 
 1
-00:00:01.200 --> 00:00:04.918
-This is Tale — the workspace
-where your team puts AI to work.
+00:00:01.600 --> 00:00:04.548
+Welcome to Tale — and
+welcome to this series.
 
 2
-00:00:04.918 --> 00:00:09.916
-Over the next three minutes, you will see
-how it fits together — and what it takes
+00:00:04.548 --> 00:00:09.264
+This first episode is the quick
+tour: we’ll walk the workspace together,
 
 3
-00:00:09.916 --> 00:00:10.830
-to use AI well.
+00:00:09.264 --> 00:00:14.308
+one area at a time, and you’ll watch it
+answer a real question along the way.
 
 4
-00:00:12.430 --> 00:00:13.920
-This is your workspace.
+00:00:14.308 --> 00:00:16.470
+Here’s where we start — the chat.
 
 5
-00:00:13.920 --> 00:00:16.771
-Chat with AI models,
-projects for your team,
+00:00:19.200 --> 00:00:23.619
+Before we type anything, take
+a second to read the sidebar.
 
 6
-00:00:16.771 --> 00:00:22.214
-agents, automations, and the knowledge
-your company runs on — everything one sidebar
+00:00:23.619 --> 00:00:27.589
+Chat at the top — then
+projects, agents, automations,
 
 7
-00:00:22.214 --> 00:00:22.927
-click away.
+00:00:27.589 --> 00:00:30.510
+and the knowledge your company runs on.
 
 8
-00:00:22.927 --> 00:00:27.270
-Let us start where your team will
-spend most of its time: the chat.
+00:00:30.510 --> 00:00:34.480
+Every stop on today’s tour
+is one click in this rail.
 
 9
-00:00:28.470 --> 00:00:30.246
-You can ask a model anything.
+00:00:37.180 --> 00:00:39.853
+You can ask the model anything here.
 
 10
-00:00:30.246 --> 00:00:33.002
-The real power is
-asking about your own work.
+00:00:39.853 --> 00:00:44.606
+The real power is asking about
+your own work — so let’s do that.
 
 11
-00:00:33.002 --> 00:00:37.840
-We will attach a company document as
-context… and ask what customers said about
+00:00:44.606 --> 00:00:50.250
+We attach a company document as
+context… the Q2 support review… and ask what
 
 12
-00:00:37.840 --> 00:00:39.310
+00:00:50.250 --> 00:00:53.592
+customers said about
 onboarding last quarter.
 
 13
-00:00:42.970 --> 00:00:47.847
-Tale shows the model’s reasoning first,
-then streams the answer — grounded in your
+00:00:53.592 --> 00:00:54.260
+And send.
 
 14
-00:00:47.847 --> 00:00:49.869
-documents, with its sources named.
+00:00:56.460 --> 00:00:58.394
+Now watch what comes back.
 
 15
-00:00:49.869 --> 00:00:52.130
-Not a guess you have to take on faith.
+00:00:58.394 --> 00:01:02.410
+First, the model’s
+reasoning — how it plans to answer.
 
 16
-00:00:53.470 --> 00:00:57.071
-Because here is the honest
-truth about language models:
+00:01:02.410 --> 00:01:05.162
+Then the answer itself, streaming in.
 
 17
-00:00:57.071 --> 00:01:00.476
-without your context, they
-answer anyway — fluently,
+00:01:05.162 --> 00:01:09.252
+And read the last line: it
+names the documents it used.
 
 18
-00:01:00.476 --> 00:01:02.637
-confidently, and sometimes wrong.
+00:01:09.252 --> 00:01:10.590
+Keep that in mind.
 
 19
-00:01:02.637 --> 00:01:04.209
-That is a hallucination.
+00:01:13.090 --> 00:01:14.936
+Here’s why that matters.
 
 20
-00:01:04.209 --> 00:01:09.513
-Grounding every answer in your own
-documents turns AI from a smooth talker into a
+00:01:14.936 --> 00:01:19.166
+Without your documents, a
+model still answers — fluent,
 
 21
-00:01:09.513 --> 00:01:11.150
-colleague you can verify.
+00:01:19.166 --> 00:01:21.550
+confident, and sometimes wrong.
 
 22
-00:01:12.350 --> 00:01:13.891
-That context lives here.
+00:01:21.550 --> 00:01:24.088
+It has never seen your customers.
 
 23
-00:01:13.891 --> 00:01:17.037
-Knowledge holds your
-documents, crawled websites,
+00:01:24.088 --> 00:01:30.010
+Grounded like this, every claim traces
+back to a file you can open and check.
 
 24
-00:01:17.037 --> 00:01:19.926
-and structured records
-— indexed, searchable,
+00:01:32.710 --> 00:01:37.983
+The answer cited the Q2 support
+review — so let’s find that exact file.
 
 25
-00:01:19.926 --> 00:01:22.750
-and citable by every
-agent in the workspace.
+00:01:37.983 --> 00:01:43.108
+We open Knowledge in the sidebar…
+and there it is, indexed and ready.
 
 26
-00:01:23.950 --> 00:01:27.380
+00:01:43.108 --> 00:01:48.530
+Everything in this library, your
+agents can search and cite the same way.
+
+27
+00:01:51.030 --> 00:01:54.294
+Next question: who answered us just now?
+
+28
+00:01:54.294 --> 00:01:59.516
+We open Agents… the Chat folder…
+and here it is — the Assistant.
+
+29
+00:01:59.516 --> 00:02:03.759
 An agent is AI with a job
 description: instructions,
 
-27
-00:01:27.380 --> 00:01:30.348
+30
+00:02:03.759 --> 00:02:07.431
 a model, tools, and the
 knowledge it may use.
 
-28
-00:01:30.348 --> 00:01:33.910
-Build it once, and your
-whole team can put it to work.
-
-29
-00:01:35.110 --> 00:01:40.619
-Automations handle the work nobody
-should do by hand: triage, drafting, routing.
-
-30
-00:01:40.619 --> 00:01:45.990
-They run on triggers and schedules, and
-every run leaves a full execution log.
-
 31
-00:01:47.890 --> 00:01:52.076
-And when an automation wants to
-act on the world — send the email,
+00:02:07.431 --> 00:02:10.532
+Build it once; the whole team uses it.
 
 32
-00:01:52.076 --> 00:01:55.945
-change the record — it can be
-required to ask a person first.
+00:02:13.032 --> 00:02:17.754
+Agents can also work while
+nobody’s watching — that’s automations.
 
 33
-00:01:55.945 --> 00:01:57.531
-AI drafts, people decide.
+00:02:17.754 --> 00:02:23.692
+We open the catalog: ready-made bundles,
+like syncing a mailbox or resolving GitHub
 
 34
-00:01:57.531 --> 00:02:01.970
-That one principle prevents most of
-what can go wrong with automation.
+00:02:23.692 --> 00:02:24.392
+issues.
 
 35
-00:02:03.870 --> 00:02:07.243
-Projects bring the team and
-the AI to the same table:
+00:02:24.392 --> 00:02:30.044
+One of them came with this workspace —
+task triage — and it’s been running this
 
 36
-00:02:07.243 --> 00:02:12.398
-shared files, tasks, and discussions,
-with agents working alongside your people —
+00:02:30.044 --> 00:02:30.632
+whole time.
 
 37
-00:02:12.398 --> 00:02:13.670
-not instead of them.
+00:02:34.332 --> 00:02:36.937
+Here’s its journal: one run per row.
 
 38
-00:02:15.570 --> 00:02:18.614
-And you stay in control
-of the machinery itself.
+00:02:36.937 --> 00:02:42.148
+Each row shows what triggered it and
+how it ended — this red one failed,
 
 39
-00:02:18.614 --> 00:02:21.721
-You choose which AI
-providers run your workloads,
+00:02:42.148 --> 00:02:43.089
+and says why.
 
 40
-00:02:21.721 --> 00:02:25.970
-pin your data to a region, and
-audit every action in the workspace.
+00:02:43.089 --> 00:02:47.142
+And before a run may send
+anything out of the workspace,
 
 41
-00:02:27.170 --> 00:02:30.332
-That is Tale: answers
-grounded in your truth,
+00:02:47.142 --> 00:02:49.965
+it has to wait for a person’s approval.
 
 42
-00:02:30.332 --> 00:02:34.197
-agents with a mandate,
-automation with human oversight.
+00:02:49.965 --> 00:02:52.932
+Episode five opens this page up properly.
 
 43
-00:02:34.197 --> 00:02:38.273
-In the next episode, we go
-deeper into chat — attachments,
+00:02:57.032 --> 00:03:00.141
+Now, where does the
+team see all this work?
 
 44
-00:02:38.273 --> 00:02:40.170
-model choice, and research.
+00:03:00.141 --> 00:03:01.009
+In Projects.
 
 45
-00:02:41.370 --> 00:02:45.679
-Everything you saw is in the
-documentation, alongside this series.
+00:03:01.009 --> 00:03:05.926
+This board is the website
+relaunch: tasks moving from To do to Done,
 
 46
-00:02:45.679 --> 00:02:47.180
+00:03:05.926 --> 00:03:10.842
+owners on the cards — your people
+and your agents on the same board.
+
+47
+00:03:14.842 --> 00:03:16.368
+Last stop: Settings.
+
+48
+00:03:16.368 --> 00:03:22.624
+You choose which AI providers run your
+requests — and which region your data stays
+
+49
+00:03:22.624 --> 00:03:23.324
+in.
+
+50
+00:03:23.324 --> 00:03:27.978
+And under Governance, the audit
+log: every action lands here,
+
+51
+00:03:27.978 --> 00:03:29.720
+with a name and a time on it.
+
+52
+00:03:32.320 --> 00:03:33.756
+And that’s the tour.
+
+53
+00:03:33.756 --> 00:03:37.275
+You asked a question
+grounded in a real document,
+
+54
+00:03:37.275 --> 00:03:41.871
+found that document in the
+library, met the agent that answered,
+
+55
+00:03:41.871 --> 00:03:44.241
+and read an automation’s journal.
+
+56
+00:03:44.241 --> 00:03:48.120
+From here, every episode
+takes one area and goes deep.
+
+57
+00:03:50.120 --> 00:03:55.256
+Next time: chat, properly —
+attachments, choosing the right model,
+
+58
+00:03:55.256 --> 00:03:57.279
+and research with sources.
+
+59
+00:03:57.279 --> 00:04:01.481
+Everything you saw today is
+in the docs, page by page.
+
+60
+00:04:01.481 --> 00:04:03.272
 See you in episode two.
 

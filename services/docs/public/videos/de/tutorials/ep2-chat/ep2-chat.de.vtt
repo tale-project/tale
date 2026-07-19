@@ -1,234 +1,416 @@
 WEBVTT
 
 1
-00:00:01.200 --> 00:00:05.932
-Der Chat ist der Raum, in dem
-dein Team den Modellen begegnet.
+00:00:01.600 --> 00:00:03.594
+Willkommen zu Episode zwei.
 
 2
-00:00:05.932 --> 00:00:09.596
-In dieser Episode: gut
-fragen, Kontext anhängen,
+00:00:03.594 --> 00:00:09.280
+Heute nehmen wir uns Zeit für den Chat:
+Du stellst dieselbe Frage zweimal und
 
 3
-00:00:09.596 --> 00:00:15.092
-das Modell wählen — und eine
-belastbare Antwort von einer bloß flüssigen
+00:00:09.280 --> 00:00:13.785
+siehst, warum eine Antwort mehr
+wert ist, prüfst eine Quelle,
 
 4
-00:00:15.092 --> 00:00:16.160
-unterscheiden.
+00:00:13.785 --> 00:00:18.437
+lässt zwei Modelle gegeneinander
+antreten — und baust das hier:
 
 5
-00:00:17.760 --> 00:00:22.439
-Ein Chat beginnt im Eingabefeld
-— und das kann mehr als Text.
+00:00:18.437 --> 00:00:22.720
+ein einseitiges Briefing,
+direkt im Canvas neben dem Chat.
 
 6
-00:00:22.439 --> 00:00:28.422
-Du wählst, welcher Agent antwortet,
-welches Modell rechnet und welcher Kontext
+00:00:22.720 --> 00:00:24.271
+Genau hier enden wir.
 
 7
-00:00:28.422 --> 00:00:29.122
-mitfährt.
+00:00:24.271 --> 00:00:29.440
+Wir gehen Schritt für Schritt vor —
+und starten mit einem leeren Chat.
 
 8
-00:00:29.122 --> 00:00:32.640
-Diese drei
-Entscheidungen prägen jede Antwort.
+00:00:32.540 --> 00:00:34.285
+Hier beginnt jeder Chat.
 
 9
-00:00:33.840 --> 00:00:36.028
-Schau, was ohne Kontext passiert.
+00:00:34.285 --> 00:00:37.994
+Bevor wir etwas tippen,
+schau auf die Leiste unten:
 
 10
-00:00:36.028 --> 00:00:41.332
-Wir fragen, wie zufrieden unsere Kunden
-mit dem Onboarding sind … und das Modell
+00:00:37.994 --> 00:00:40.612
+Dort triffst du drei Entscheidungen.
 
 11
-00:00:41.332 --> 00:00:44.979
-antwortet — flüssig,
-selbstsicher und völlig generisch.
+00:00:40.612 --> 00:00:46.285
+Welcher Agent antwortet, welches Modell
+rechnet, und welcher Kontext mitkommt.
 
 12
-00:00:44.979 --> 00:00:47.101
-Es hat deine Kunden nie gesehen.
+00:00:46.285 --> 00:00:51.740
+Diese drei bestimmen, welche Antwort
+zurückkommt — also setzen wir sie ein.
 
 13
-00:00:47.101 --> 00:00:50.880
-Es füllt die Lücke mit
-Mustern aus seinen Trainingsdaten.
+00:00:55.540 --> 00:00:57.251
+Zuerst ein Experiment.
 
 14
-00:00:52.080 --> 00:00:54.356
-Jetzt dasselbe Thema, verankert.
+00:00:57.251 --> 00:01:03.627
+Wir fragen nach unseren eigenen Kunden —
+ohne dem Modell etwas zum Lesen zu geben.
 
 15
-00:00:54.356 --> 00:00:59.832
-Wir hängen den Q2-Support-Bericht an …
-und fragen, was zuerst zu beheben ist.
+00:01:03.627 --> 00:01:07.437
+Absenden … und sieh der
+Antwort beim Ankommen zu.
 
 16
-00:00:59.832 --> 00:01:03.316
-Die Antwort wechselt den
-Charakter: deine Zahlen,
+00:01:07.437 --> 00:01:08.759
+Klingt gut, oder?
 
 17
-00:01:03.316 --> 00:01:06.800
-deine Dokumente, benannte
-Quellen zum Nachprüfen.
+00:01:08.759 --> 00:01:12.180
+Selbstsicher, sauber
+gegliedert, vernünftig.
 
 18
-00:01:09.080 --> 00:01:13.700
-Das ist die eine Gewohnheit,
-die die Arbeit mit KI verändert.
+00:01:14.680 --> 00:01:18.506
+Jetzt lies sie mit mir —
+denn genau das ist die Falle.
 
 19
-00:01:13.700 --> 00:01:18.093
-Gleiches Modell, gleiches
-Thema — der Kontext entscheidet,
+00:01:18.506 --> 00:01:22.616
+Keine einzige Zahl darin
+stammt aus deinem Arbeitsbereich.
 
 20
-00:01:18.093 --> 00:01:22.410
-ob du plausible Worte
-bekommst oder deine eigenen Fakten.
+00:01:22.616 --> 00:01:28.285
+Das Modell hat deine Kunden nie gesehen,
+also füllt es die Lücke mit Mustern aus
 
 21
-00:01:22.410 --> 00:01:25.212
-Eine flüssige Antwort ist kein Beleg.
+00:01:28.285 --> 00:01:29.844
+seinen Trainingsdaten.
 
 22
-00:01:25.212 --> 00:01:26.424
-Quellen sind es.
+00:01:29.844 --> 00:01:32.040
+Es klingt richtig — und es rät.
 
 23
-00:01:26.424 --> 00:01:29.000
-Wenn es darauf ankommt: verankern.
+00:01:34.740 --> 00:01:36.006
+Das beheben wir.
 
 24
-00:01:30.200 --> 00:01:33.240
-Die Modellwahl ist die
-zweite Entscheidung.
+00:01:36.006 --> 00:01:42.655
+Gleiches Thema, neuer Chat — aber diesmal
+tippen wir zuerst ein @-Zeichen und hängen
 
 25
-00:01:33.240 --> 00:01:37.482
-Modelle unterscheiden sich —
-in Tempo, Kosten und Denktiefe.
+00:01:42.655 --> 00:01:44.713
+den Q2-Support-Bericht an.
 
 26
-00:01:37.482 --> 00:01:42.077
-Mit Auto wählt Tale für jede
-Anfrage einen vernünftigen Standard,
+00:01:44.713 --> 00:01:49.700
+Das Dokument reist jetzt mit der
+Frage mit … und wir senden ab.
 
 27
-00:01:42.077 --> 00:01:44.834
-und meistens ist das die richtige Wahl.
+00:01:52.200 --> 00:01:54.132
+Sieh dir den Unterschied an.
 
 28
-00:01:44.834 --> 00:01:48.440
-Du kannst aber jedes
-freigegebene Modell festlegen.
+00:01:54.132 --> 00:01:59.722
+Webhook-Fragen haben sich nach dem
+April-Release verdoppelt — das ist deine Zahl,
 
 29
-00:01:49.640 --> 00:01:54.015
-Und wenn du Belege statt
-Meinungen willst: starte eine Arena.
+00:01:59.722 --> 00:02:01.033
+aus deinem Bericht.
 
 30
-00:01:54.015 --> 00:01:56.956
-Ein Prompt, zwei Modelle, Seite an Seite.
+00:02:01.033 --> 00:02:05.518
+Die Antwort nennt ihre Quellen
+und endet mit einem konkreten Fix.
 
 31
-00:01:56.956 --> 00:02:02.407
-Sieh zu, wie beide denselben Auftrag
-beantworten … und küre dann den Sieger.
+00:02:05.518 --> 00:02:07.243
+Gleiches Modell wie eben.
 
 32
-00:02:02.407 --> 00:02:08.288
-Deine Urteile fließen in die Auswertungen
-des Arbeitsbereichs — Modellwahl wird so
+00:02:07.243 --> 00:02:10.280
+Geändert haben wir
+nur, was es lesen konnte.
 
 33
-00:02:08.288 --> 00:02:12.520
-mit der Zeit eine gemessene
-Entscheidung, kein Bauchgefühl.
+00:02:14.180 --> 00:02:17.846
+Und eine verankerte
+Antwort kannst du befragen.
 
 34
-00:02:13.720 --> 00:02:17.374
-Große Ergebnisse
-bekommen eine eigene Werkbank.
+00:02:17.846 --> 00:02:22.136
+Im selben Thread fragen wir:
+Welches Dokument sagt das?
 
 35
-00:02:17.374 --> 00:02:21.417
-Bitte um ein Dokument —
-ein Briefing, einen Bericht,
+00:02:22.136 --> 00:02:26.815
+Die Antwort nennt die genaue
+Datei — den Q2-Support-Bericht.
 
 36
-00:02:21.417 --> 00:02:25.693
-eine Seite — und neben dem
-Chat öffnet sich das Canvas.
+00:02:26.815 --> 00:02:32.820
+Wenn dir später eine Aussage seltsam
+vorkommt, ist das deine erste Rückfrage.
 
 37
-00:02:25.693 --> 00:02:30.358
-Das Ergebnis liegt als Datei
-vor: lesen, verfeinern, teilen.
+00:02:35.420 --> 00:02:38.383
+Noch eine Gewohnheit,
+wo wir schon hier sind.
 
 38
-00:02:30.358 --> 00:02:33.000
-Keine Textwand zum Herauskopieren.
+00:02:38.383 --> 00:02:41.544
+Diese Antwort hat
+gehalten — also sagen wir das.
 
 39
-00:02:34.200 --> 00:02:37.248
-Eines wohnt noch hier:
-die Tiefenrecherche.
+00:02:41.544 --> 00:02:43.849
+Ein Klick auf den Daumen nach oben.
 
 40
-00:02:37.248 --> 00:02:40.651
-Der Agent Rechercheur
-plant seine Suchen selbst,
+00:02:43.849 --> 00:02:48.656
+Die Bewertung landet in den
+Feedback-Auswertungen deines Arbeitsbereichs,
 
 41
-00:02:40.651 --> 00:02:46.038
-liest, was er im offenen Web findet,
-und liefert einen Bericht mit benannten
+00:02:48.656 --> 00:02:50.434
+und Episode neun liest sie.
 
 42
-00:02:46.038 --> 00:02:46.738
-Quellen.
+00:02:50.434 --> 00:02:54.780
+Ein Klick — und dein Team lernt,
+welchen Antworten es trauen kann.
 
 43
-00:02:46.738 --> 00:02:51.000
-Die Verankerungs-Regel von eben
-— sie reicht bis ins Internet.
+00:02:58.680 --> 00:03:01.109
+Zweite Entscheidung: das Modell.
 
 44
-00:02:52.200 --> 00:02:56.926
-Chat, gut genutzt: Fragen in
-deinen Dokumenten verankern,
+00:03:01.109 --> 00:03:02.855
+Öffnen wir die Auswahl.
 
 45
-00:02:56.926 --> 00:03:01.652
-Modelle nach Belegen wählen,
-große Ergebnisse ins Canvas.
+00:03:02.855 --> 00:03:08.244
+Auto ist der Standard — es wählt für
+jede Anfrage ein passendes Modell,
 
 46
-00:03:01.652 --> 00:03:08.120
-Nächste Episode: Wissen — die
-Bibliothek, aus der verankerte Antworten kommen.
+00:03:08.244 --> 00:03:11.887
+und für Alltagsfragen
+ist das die richtige Wahl.
 
 47
-00:03:09.320 --> 00:03:13.196
-Der Chat-Leitfaden in der
-Dokumentation vertieft alles,
+00:03:11.887 --> 00:03:17.124
+Ein bestimmtes Modell fixierst du,
+wenn die Aufgabe ungewöhnlich ist.
 
 48
-00:03:13.196 --> 00:03:16.508
-was du gesehen hast —
-Tastaturkürzel inklusive.
+00:03:17.124 --> 00:03:19.325
+Aber woher weißt du, welches?
 
 49
-00:03:16.508 --> 00:03:18.200
+00:03:19.325 --> 00:03:20.920
+Holen wir uns Belege.
+
+50
+00:03:23.420 --> 00:03:26.258
+Für Belege gibt es den Arena-Modus.
+
+51
+00:03:26.258 --> 00:03:29.826
+Neuer Chat, das
+Plus-Menü … und einschalten.
+
+52
+00:03:29.826 --> 00:03:34.205
+Ein Prompt geht jetzt an
+zwei Modelle, Seite an Seite.
+
+53
+00:03:34.205 --> 00:03:40.530
+Wir bitten um eine Launch-Checkliste —
+und beide Spalten beantworten denselben
+
+54
+00:03:40.530 --> 00:03:41.180
+Auftrag.
+
+55
+00:03:47.420 --> 00:03:49.731
+Nimm dir Zeit zum Vergleichen.
+
+56
+00:03:49.731 --> 00:03:53.660
+Links: kurz und aufgeräumt
+— fünf Schritte, fertig.
+
+57
+00:03:53.660 --> 00:03:57.357
+Rechts: nach Phasen
+gruppiert, mit zwei Risiken,
+
+58
+00:03:57.357 --> 00:04:03.211
+die links fehlen — vierzig Blog-URLs
+ohne Entscheidung und keine vereinbarte
+
+59
+00:04:03.211 --> 00:04:06.754
+Schweregrenze für den
+Accessibility-Durchgang.
+
+60
+00:04:06.754 --> 00:04:09.296
+Für eine schnelle Liste reicht A.
+
+61
+00:04:09.296 --> 00:04:13.225
+Wir launchen eine Website
+— also stimmen wir für B.
+
+62
+00:04:13.225 --> 00:04:18.540
+Das Urteil fließt in dieselben
+Auswertungen wie dein Daumen von eben.
+
+63
+00:04:22.540 --> 00:04:25.159
+Neue Aufgabe: ein großes Ergebnis.
+
+64
+00:04:25.159 --> 00:04:31.628
+Wir bitten um ein einseitiges Briefing für
+die Geschäftsleitung — so etwas willst du
+
+65
+00:04:31.628 --> 00:04:33.553
+nie als Textwand im Chat.
+
+66
+00:04:33.553 --> 00:04:37.943
+Absenden … und schau nach
+rechts: Das Canvas öffnet sich,
+
+67
+00:04:37.943 --> 00:04:40.562
+und das Briefing landet als Datei.
+
+68
+00:04:40.562 --> 00:04:45.260
+Wir schalten auf Vorschau — und
+es liest sich wie eine Seite.
+
+69
+00:04:47.860 --> 00:04:51.394
+Und eine Canvas-Datei
+ist ein Arbeitsdokument.
+
+70
+00:04:51.394 --> 00:04:54.160
+Die Geschäftsleitung will es kürzer?
+
+71
+00:04:54.160 --> 00:04:58.616
+Dann sagen wir das im Chat:
+Kürze es auf drei Stichpunkte.
+
+72
+00:04:58.616 --> 00:05:04.685
+Der Agent schreibt die Datei an Ort und
+Stelle um — gleiche Seite, drei Punkte.
+
+73
+00:05:04.685 --> 00:05:11.060
+Kein Kopieren in ein anderes Programm; du
+verfeinerst das Dokument da, wo es liegt.
+
+74
+00:05:15.060 --> 00:05:18.063
+Noch eines zum Zeigen:
+die Tiefenrecherche.
+
+75
+00:05:18.063 --> 00:05:21.695
+Öffne das Plus-Menü — und
+da ist sie, Deep research.
+
+76
+00:05:21.695 --> 00:05:26.375
+Schaltest du sie ein, übergibt der
+Chat an den Rechercheur-Agenten:
+
+77
+00:05:26.375 --> 00:05:31.963
+Er plant seine Suchen selbst, liest im
+offenen Web und liefert einen Bericht mit
+
+78
+00:05:31.963 --> 00:05:33.220
+benannten Quellen.
+
+79
+00:05:33.220 --> 00:05:38.738
+Er braucht einen Such-Connector, deshalb
+bekommt er später eine eigene Episode.
+
+80
+00:05:38.738 --> 00:05:42.580
+Die Regel von heute — prüf
+die Quelle — gilt auch dort.
+
+81
+00:05:45.180 --> 00:05:47.437
+Das war der Chat, gut genutzt.
+
+82
+00:05:47.437 --> 00:05:51.726
+Du hast dieselbe Frage ohne
+und mit Verankerung gestellt,
+
+83
+00:05:51.726 --> 00:05:54.962
+eine Quelle geprüft,
+eine Antwort bewertet,
+
+84
+00:05:54.962 --> 00:06:00.455
+eine Arena entschieden — und aus
+Feedback ein Briefing im Canvas gemacht,
+
+85
+00:06:00.455 --> 00:06:02.562
+dann mit einem Satz gekürzt.
+
+86
+00:06:02.562 --> 00:06:07.980
+Der Chat-Leitfaden in der Doku
+vertieft alles, Tastaturkürzel inklusive.
+
+87
+00:06:09.980 --> 00:06:15.462
+Nächstes Mal: Wissen — da liegen die
+Dokumente hinter deinen verankerten Antworten.
+
+88
+00:06:15.462 --> 00:06:19.755
+Du indexierst selbst eines und
+siehst, wie sich Antworten ändern.
+
+89
+00:06:19.755 --> 00:06:21.340
 Bis zur dritten Episode.
 

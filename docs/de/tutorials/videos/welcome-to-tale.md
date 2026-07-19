@@ -1,28 +1,26 @@
 ---
 title: Episode 1 — Willkommen bei Tale
-description: Ein Rundgang in gut drei Minuten — Chat, verankert in deinen eigenen Dokumenten, Agenten mit Auftrag, Automatisierungen mit menschlicher Freigabe und die Kontrolle über deine Daten.
+description: Die geführte Tour durch den Arbeitsbereich — eine verankerte Frage stellen, die zitierte Datei im Wissen finden, den antwortenden Agenten kennenlernen und das Journal einer laufenden Automatisierung lesen.
 ---
 
-Die Auftaktepisode zeigt den ganzen Arbeitsbereich einmal von vorne bis hinten und benennt die drei Ideen, zu denen die Serie immer wieder zurückkehrt: Antworten, die du überprüfen kannst, Automatisierung mit menschlicher Aufsicht und Kontrolle darüber, wo deine Daten liegen und welche Modelle sie berühren. Sieh sie vor dem Schnellstart, und der Rest der Dokumentation wirkt beim Ankommen vertraut.
+Die Auftaktepisode geht den Arbeitsbereich Bereich für Bereich durch — in einem Tempo zum Mitschauen. Du stellst eine echte Frage, verankert in einem Firmendokument, siehst die Antwort ihre Quellen benennen und schließt dann den Kreis: die zitierte Datei im Wissen finden, den Assistenten kennenlernen, der geantwortet hat, und das Journal einer Automatisierung lesen, die die ganze Zeit lief. Jede Station zeigt ein echtes Artefakt — nichts wird behauptet, was nicht auf dem Bildschirm steht.
 
-<Video src="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:28, mit Untertiteln)">
+<Video src="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (4:21, mit Untertiteln)">
 
 </Video>
 
 ## Was die Episode zeigt
 
-| Ab   | Szene                                                                                      |
-| ---- | ------------------------------------------------------------------------------------------ |
-| 0:15 | Der Arbeitsbereich und seine Bereiche — Chat, Projekte, Agenten, Automatisierungen, Wissen |
-| 0:35 | Die Frage nach der eigenen Arbeit: ein Dokument als Kontext angehängt                      |
-| 0:51 | Die Antwort streamt — erst die Überlegung, dann die benannten Quellen                      |
-| 1:04 | Warum Verankerung zählt: Halluzinationen, und wie du überprüfst                            |
-| 1:26 | Wissen — Dokumente, Websites, strukturierte Daten                                          |
-| 1:42 | Agenten: Anweisungen, Modell, Werkzeuge, Wissen                                            |
-| 1:56 | Automatisierungen und das Ausführungsprotokoll                                             |
-| 2:11 | Mensch in der Schleife: KI entwirft, Menschen entscheiden                                  |
-| 2:31 | Projekte — Team und KI an einem Tisch                                                      |
-| 2:44 | Richtlinien: Anbieter, Datenresidenz, Audit-Protokolle                                     |
+| Ab   | Szene                                                       |
+| ---- | ----------------------------------------------------------- |
+| 0:20 | Die Seitenleiste lesen: jede Station der Tour, eine Leiste  |
+| 0:42 | Die erste Frage — ein Dokument als Kontext angehängt        |
+| 1:20 | Warum Verankerung zählt (und was eine Halluzination ist)    |
+| 1:40 | Der Kreis schließt sich: die zitierte Datei im Wissen       |
+| 1:58 | Der Assistent — ein Agent ist KI mit Stellenprofil          |
+| 2:21 | Automatisierungen: der Katalog und ein Journal echter Läufe |
+| 3:08 | Projekte: deine Leute und deine Agenten an einem Board      |
+| 3:26 | Kontrolle: Anbieter, Datenresidenz und das Audit-Log        |
 
 ## Wie es weitergeht
 

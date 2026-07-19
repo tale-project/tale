@@ -11,13 +11,13 @@ Every episode page carries the video with captions in the page's language, a cha
 
 <Card title="Episode 1 — Welcome to Tale" icon="play" href="/tutorials/videos/welcome-to-tale">
 
-The tour: chat grounded in your documents, agents with a mandate, automations with human approval, and the controls that keep you in charge. Three minutes.
+The guided tour: ask a grounded question, find the cited file in Knowledge, meet the agent that answered, and read a live automation's journal. Four minutes.
 
 </Card>
 
 <Card title="Episode 2 — Chat, in depth" icon="play" href="/tutorials/videos/chat-in-depth">
 
-The same question ungrounded and grounded, model choice with evidence in Arena Mode, big deliverables in the canvas, and where deep research lives. Three minutes.
+A real working session: the same question ungrounded and grounded, a source check, a reasoned Arena verdict, and a brief built and refined on the canvas. Six minutes.
 
 </Card>
 
