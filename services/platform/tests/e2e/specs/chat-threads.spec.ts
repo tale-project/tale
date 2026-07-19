@@ -1,7 +1,6 @@
 import {
   composer,
   deleteThreadById,
-  ensureHistorySidebarOpen,
   expectCannedReply,
   sendNewThreadMessage,
 } from '../helpers/chat';
@@ -29,8 +28,8 @@ test('starts a thread, reopens it by URL, then deletes it', async ({
   const threadId = await sendNewThreadMessage(page, message);
   await expectCannedReply(page);
 
-  // Open the history sidebar and confirm the populated "Chats" section renders.
-  await ensureHistorySidebarOpen(page);
+  // The chat sub-panel is always visible on chat routes at desktop width —
+  // confirm the populated "Chats" section renders.
   await expect(
     page.getByText(t('chat.chatsSection'), { exact: true }).first(),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });

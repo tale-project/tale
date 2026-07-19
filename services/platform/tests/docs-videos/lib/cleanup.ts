@@ -84,11 +84,9 @@ async function deleteThreads(
   await page.goto(`/dashboard/${orgId}/chat`, {
     waitUntil: 'domcontentloaded',
   });
-  const { deleteThreadById, ensureHistorySidebarOpen } =
-    await import('../../e2e/helpers/chat');
-  // Thread rows render only inside the history drawer — open it before any
-  // existence check, or every row reads as "gone".
-  await ensureHistorySidebarOpen(page);
+  const { deleteThreadById } = await import('../../e2e/helpers/chat');
+  // Thread rows live in the chat sub-panel, always visible on chat routes
+  // at desktop width — no drawer to open first.
   for (const id of threadIds) {
     // The app deletes some registered threads itself (an Arena branch on
     // exit) — skip rows that are already gone instead of timing out.

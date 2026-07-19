@@ -7,6 +7,8 @@ import {
   MessagesSquare,
   Download,
   Ellipsis,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Share,
 } from 'lucide-react';
@@ -17,6 +19,7 @@ import { useSidebar } from '@/app/components/layout/app-sidebar/sidebar-context'
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
 
@@ -26,14 +29,15 @@ interface ChatHeaderProps {
 }
 
 /**
- * Chat-surface header. The sidebar toggle, search affordance, and their ⌘H/⌘K
- * bindings live in the shell's unified sidebar now — on desktop this header
- * only carries the per-thread actions (Share + overflow), so it renders
- * nothing without a thread. The mobile bar keeps its hamburger + search
- * buttons, wired to the shared sidebar state (drawer + palette).
+ * Chat-surface header. On desktop it always renders: the leading toggle
+ * collapses/expands the chat sub-panel (persisted via ChatLayoutProvider),
+ * and the per-thread actions (Share + overflow) join it while a thread is
+ * open. The mobile bar keeps its hamburger + search buttons, wired to the
+ * shared sidebar state (drawer + palette).
  */
 export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const { isMobileSheetOpen, setMobileSheetOpen, setSearchOpen } = useSidebar();
+  const { isHistoryPanelOpen, toggleHistoryPanel } = useChatLayout();
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
@@ -59,32 +63,65 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
 
   return (
     <>
-      {threadId && (
-        <div className="border-border bg-background/95 hidden h-13 items-center justify-end border-b px-4 backdrop-blur-xs md:flex">
+      {/* Frosted floating bar: an absolute overlay on the message column
+          (its parent is `relative` in the chat layout), so content scrolls
+          BENEATH the blur. The glass layer is taller than the controls row
+          and dissolves to transparent — gradient tint + a mask on the
+          backdrop blur, kept on its own layer so the controls stay crisp.
+          pointer-events pass through everywhere except the buttons. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
+        <div
+          aria-hidden
+          className="from-background/75 absolute inset-x-0 top-0 h-18 bg-gradient-to-b to-transparent [mask-image:linear-gradient(to_bottom,black_40%,transparent)] backdrop-blur-md"
+        />
+        <div className="relative flex h-13 items-center px-4">
           <Button
+            size="icon"
             variant="ghost"
-            onClick={() => setIsShareDialogOpen(true)}
-            aria-label={tChat('share.button')}
-            className="text-muted-foreground gap-1.5"
-          >
-            <Share className="size-4" />
-            {tChat('share.button')}
-          </Button>
-          <DropdownMenu
-            trigger={
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={tChat('moreActions')}
-              >
-                <Ellipsis className={baseIconClasses} />
-              </Button>
+            onClick={toggleHistoryPanel}
+            aria-label={
+              isHistoryPanelOpen ? tChat('hideHistory') : tChat('showHistory')
             }
-            items={headerMenuItems}
-            align="end"
-          />
+            aria-expanded={isHistoryPanelOpen}
+            aria-controls="chat-sub-panel"
+            className="pointer-events-auto -ml-2"
+          >
+            {isHistoryPanelOpen ? (
+              <PanelLeftClose className={baseIconClasses} />
+            ) : (
+              <PanelLeftOpen className={baseIconClasses} />
+            )}
+          </Button>
+          <div className="min-w-0 flex-1" />
+          {threadId && (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => setIsShareDialogOpen(true)}
+                aria-label={tChat('share.button')}
+                className="text-muted-foreground pointer-events-auto gap-1.5"
+              >
+                <Share className="size-4" />
+                {tChat('share.button')}
+              </Button>
+              <DropdownMenu
+                trigger={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={tChat('moreActions')}
+                    className="pointer-events-auto"
+                  >
+                    <Ellipsis className={baseIconClasses} />
+                  </Button>
+                }
+                items={headerMenuItems}
+                align="end"
+              />
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <AdaptiveHeaderRoot className="md:hidden">
         <Row gap={0} align="stretch" className="flex-1">

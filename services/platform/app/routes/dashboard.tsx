@@ -7,12 +7,12 @@ import {
 } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
+import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
-import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';

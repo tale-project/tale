@@ -302,7 +302,7 @@ export function ChatActions({
         trigger={
           <Button
             variant="ghost"
-            className="p-1"
+            className="size-6 p-1"
             size="icon"
             aria-label={tChat('moreActions')}
           >

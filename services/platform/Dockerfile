@@ -104,6 +104,7 @@ ENV NODE_ENV=production
 # SEO server, so no source markdown is needed at request time.
 WORKDIR /app/services/platform
 RUN bun --bun vite build \
+    && bun scripts/prerender-boot-shell.tsx \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo
 WORKDIR /app
 

@@ -1,8 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { Row, Stack, VStack } from '@tale/ui/layout';
-import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -29,6 +27,7 @@ import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
+import { ChatSubPanelPlaceholder } from '@/app/features/chat/components/chat-sub-panel-placeholder';
 import { ProvisioningBanner } from '@/app/features/organization/components/provisioning-banner';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
@@ -335,7 +334,7 @@ function DashboardLayout() {
         <TeamFilterProvider organizationId={organizationId}>
           <DirtyBlockerProvider>
             <AdaptiveHeaderProvider>
-              <SidebarProvider organizationId={organizationId}>
+              <SidebarProvider>
                 {/* Learns the client↔server clock offset from getThreadMeta.serverNow
                   so the sidebar's chat-history relative times and the chat
                   interface's timers share one clock frame on every route. */}
@@ -371,9 +370,7 @@ function DashboardLayout() {
                       {hasRole ? (
                         <AppSidebar organizationId={organizationId} />
                       ) : (
-                        <AppSidebarPlaceholder
-                          organizationId={organizationId}
-                        />
+                        <AppSidebarPlaceholder />
                       )}
 
                       <Stack
@@ -384,6 +381,12 @@ function DashboardLayout() {
                         className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
                       >
                         {hasRole && <ChangelogToastTrigger />}
+                        {!hasRole && (
+                          // While access resolves, hold the chat sub-panel's
+                          // slot (CSS-gated to open-panel chat navigations)
+                          // so the real panel slots in without a late pop.
+                          <ChatSubPanelPlaceholder />
+                        )}
                         {hasRole ? (
                           isSwitching ? (
                             <FullPageCenter>
@@ -416,60 +419,5 @@ function DashboardLayout() {
         </TeamFilterProvider>
       </AbilityLoadingContext.Provider>
     </AbilityContext.Provider>
-  );
-}
-
-// Full-frame dashboard chrome for the redirect routes (`/dashboard`,
-// `/dashboard/create-organization`) that have no Outlet/nav of their own and
-// just need the shell to show while they resolve which org to route to.
-// Mirrors the resolved layout's outer frame so the real chrome slots in without
-// reflow.
-export function DashboardShellFrame() {
-  return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
-      {/* Mobile top bar — mirrors the resolved chat header (the default
-          landing): a leading cluster of action icons + the trailing account
-          avatar, so the real header slots in without reflow. Matches the
-          DashboardLayout header geometry above (px-4, min-h-12). */}
-      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-        <Skeletonize loading>
-          <Row gap={2} className="min-h-12">
-            {/* Leading action icons (sidebar menu / search). */}
-            <Row gap={0} align="stretch" className="flex-1">
-              {Array.from({ length: 2 }, (_, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <Row key={i} gap={0} justify="center" className="p-2">
-                  <SkeletonBox>
-                    <div className="size-5" />
-                  </SkeletonBox>
-                </Row>
-              ))}
-            </Row>
-            {/* Trailing account avatar (UserButton). */}
-            <Row gap={0} justify="center" className="p-2">
-              <SkeletonCircle>
-                <div className="size-5" />
-              </SkeletonCircle>
-            </Row>
-          </Row>
-        </Skeletonize>
-      </div>
-
-      {/* Desktop sidebar */}
-      <AppSidebarPlaceholder />
-
-      <Stack
-        as="main"
-        gap={0}
-        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
-      />
-
-      {/* Mobile bottom-nav placeholder */}
-      <Row
-        gap={0}
-        align="stretch"
-        className="bg-background border-border min-h-12 border-t pb-(--safe-bottom) md:hidden"
-      />
-    </div>
   );
 }

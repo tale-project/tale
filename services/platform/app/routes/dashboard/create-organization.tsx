@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
+import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { OnboardingWizard } from '@/app/features/organization/components/onboarding/onboarding-wizard';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
-import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/create-organization')({

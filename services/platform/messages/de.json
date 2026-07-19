@@ -4617,8 +4617,6 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise-SSO",
     "sidebar": {
-      "collapse": "Seitenleiste einklappen",
-      "expand": "Seitenleiste ausklappen",
       "landmark": "Dashboard-Seitenleiste",
       "title": "Menü"
     }

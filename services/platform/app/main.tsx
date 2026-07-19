@@ -33,42 +33,73 @@ function ColdLoadProbe() {
   return null;
 }
 
-const root = document.getElementById('root');
-if (!root) throw new Error('Missing #root element');
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('Missing #root element');
+// Narrowed alias: the non-null check above doesn't flow into the hoisted
+// renderApp function declaration below.
+const root: HTMLElement = rootElement;
 
-createRoot(root).render(
-  <StrictMode>
-    <SiteUrlProvider>
-      {/* convex/react's provider with our own Better Auth bridge
+// React's first commit replaces #root's children — including the
+// server-injected boot shell (lib/shared/boot-shell.ts). Mounting while the
+// router is still resolving the initial location (the session fetch in
+// /dashboard's beforeLoad, route chunk imports) would commit a router with
+// no matches yet: a tree with zero host nodes, i.e. a blank flash between
+// the served shell and the first real frame. Resolve the initial matches
+// first — the static shell stays on screen for exactly that window — so the
+// first commit already paints the resolved route (on dashboard navigations,
+// the same shell frame the served HTML shows). Redirects thrown in
+// beforeLoad (e.g. signed-out → /log-in) are handled inside load(); a
+// failure falls through to render so the router's own error surface owns
+// it. RouterProvider's mount load then re-runs as a background transition
+// over the already-active matches (the router.invalidate() path — stable
+// match ids, no remount), which keeps the current frame rendered.
+function renderApp() {
+  markColdLoad('router-loaded');
+  createRoot(root).render(<App />);
+}
+
+router
+  .load()
+  .catch((error: unknown) => {
+    console.warn('Initial route load failed; mounting anyway', error);
+  })
+  .finally(renderApp);
+
+function App() {
+  return (
+    <StrictMode>
+      <SiteUrlProvider>
+        {/* convex/react's provider with our own Better Auth bridge
           (use-auth-from-better-auth) instead of ConvexBetterAuthProvider: the
           bridge pre-authenticates the WS with the persisted last-known token
           and runs the session + token HTTP hops in parallel (epic #2386).
           ConvexBetterAuthProvider is this same wrapper plus a cross-domain
           one-time-token effect Tale doesn't use. */}
-      <ConvexProviderWithAuth
-        client={convexQueryClient.convexClient}
-        useAuth={useAuthFromBetterAuth}
-      >
-        <ColdLoadProbe />
-        <AppShell
-          i18n={i18n}
-          locale={{ mode: 'client', onChange: loadDayjsLocale }}
-          theme
+        <ConvexProviderWithAuth
+          client={convexQueryClient.convexClient}
+          useAuth={useAuthFromBetterAuth}
         >
-          <QueryClientProvider client={queryClient}>
-            <LazyMotion features={domAnimation} strict>
-              <BrandingProvider>
-                <BackupCodesDialogProvider>
-                  <OnlineGate>
-                    <RouterProvider router={router} />
-                  </OnlineGate>
-                  <SwUpdateListener />
-                </BackupCodesDialogProvider>
-              </BrandingProvider>
-            </LazyMotion>
-          </QueryClientProvider>
-        </AppShell>
-      </ConvexProviderWithAuth>
-    </SiteUrlProvider>
-  </StrictMode>,
-);
+          <ColdLoadProbe />
+          <AppShell
+            i18n={i18n}
+            locale={{ mode: 'client', onChange: loadDayjsLocale }}
+            theme
+          >
+            <QueryClientProvider client={queryClient}>
+              <LazyMotion features={domAnimation} strict>
+                <BrandingProvider>
+                  <BackupCodesDialogProvider>
+                    <OnlineGate>
+                      <RouterProvider router={router} />
+                    </OnlineGate>
+                    <SwUpdateListener />
+                  </BackupCodesDialogProvider>
+                </BrandingProvider>
+              </LazyMotion>
+            </QueryClientProvider>
+          </AppShell>
+        </ConvexProviderWithAuth>
+      </SiteUrlProvider>
+    </StrictMode>
+  );
+}

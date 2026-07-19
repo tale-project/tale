@@ -4,9 +4,9 @@ import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
+import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
-import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 

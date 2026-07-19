@@ -1286,7 +1286,11 @@ export function ChatInterface({
       </h2>
       <PageDropOverlay show={isPageDragOver} />
       {showArena ? (
-        <ArenaSplitView organizationId={organizationId} />
+        // md:pt-13 clears the floating glass top bar (an absolute overlay on
+        // the message column) so the arena's own toolbars stay visible.
+        <div className="flex min-h-0 flex-1 flex-col md:pt-13">
+          <ArenaSplitView organizationId={organizationId} />
+        </div>
       ) : (
         // Dedicated scroller. The chat input footer is a flex SIBLING below —
         // never inside the scroll container — so it cannot move with content
@@ -1304,7 +1308,11 @@ export function ChatInterface({
           <div
             ref={contentRef}
             className={cn(
-              'flex flex-col overflow-y-visible p-4 sm:p-6',
+              // md:pt-19 = the floating glass top bar (52px) + the list's own
+              // 24px breathing room: at rest content clears the bar; once
+              // scrolled it slides beneath the blur (the scroller spans the
+              // full column height behind the overlay).
+              'flex flex-col overflow-y-visible p-4 sm:p-6 md:pt-19',
               showWelcome && 'flex-1 justify-center',
             )}
           >

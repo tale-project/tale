@@ -97,7 +97,9 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
           <PopoverPrimitive.Content
             align="end"
             side="right"
-            sideOffset={8}
+            // 16px = the tile's 8px inset to the rail edge + an 8px gap to
+            // the nav (matches the account menu).
+            sideOffset={16}
             // Radix renders the popover content as `role="dialog"`; give it an
             // accessible name so screen readers announce it as the
             // "Notifications" dialog rather than an unnamed one (WCAG 4.1.2).
