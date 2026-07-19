@@ -49,7 +49,13 @@ function rollup(overrides: Record<string, unknown> = {}) {
         { key: 'pinned', count: 4 },
       ],
       byAgentSlug: [{ key: 'researcher', count: 6 }],
-      byModel: [{ provider: 'openai', model: 'gpt-4o', count: 10 }],
+      byModel: [
+        {
+          provider: 'openrouter',
+          model: 'anthropic/claude-4.5-haiku-20251001',
+          count: 10,
+        },
+      ],
     },
     tokens: { input: 100, output: 50, total: 150 },
     costCents: 12,
@@ -83,7 +89,15 @@ describe('ChatHealthMetricsPage', () => {
     expect(screen.getByText('Routing')).toBeInTheDocument();
     // Routing dimensions + a resolved model label.
     expect(screen.getByText('By agent')).toBeInTheDocument();
-    expect(screen.getByText('openai / gpt-4o')).toBeInTheDocument();
+    // The model breakdown leads with the MODEL name — the provider is identical
+    // across rows and a provider-first label would truncate to a useless prefix.
+    // The full `provider / model` rides in the hover title, not visible text.
+    expect(
+      screen.getByText('anthropic/claude-4.5-haiku-20251001'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('openrouter / anthropic/claude-4.5-haiku-20251001'),
+    ).not.toBeInTheDocument();
     // The `pinned` sentinel resolves to a friendly label, not the raw key.
     expect(screen.getByText('Pinned')).toBeInTheDocument();
     // The Errors section renders the by-type breakdown + recent-errors list,

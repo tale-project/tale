@@ -54,6 +54,9 @@ interface ChatHealthMetricsPageProps {
 interface RoutingItem {
   label: string;
   count: number;
+  /** Full, untruncated text for the hover tooltip when `label` is clipped.
+   *  Defaults to `label` when omitted. */
+  title?: string;
 }
 
 /**
@@ -89,9 +92,21 @@ function RoutingBreakdown({
         <Text variant="caption">—</Text>
       ) : (
         <Stack gap={2}>
-          {items.map((item) => (
-            <HStack key={item.label} align="center" justify="between" gap={3}>
-              <Text className="min-w-0 flex-1 truncate text-sm">
+          {items.map((item, i) => (
+            // Key includes the index because dropping the provider from the
+            // model label lets two providers' same-named models collide.
+            <HStack
+              key={`${item.label}-${i}`}
+              align="center"
+              justify="between"
+              gap={3}
+            >
+              {/* `title` surfaces the full text on hover so a clipped label
+                  (long model/agent name) is still readable. */}
+              <Text
+                className="min-w-0 flex-1 truncate text-sm"
+                title={item.title ?? item.label}
+              >
                 {item.label}
               </Text>
               {/* ProgressBar shows the share % inline; the exact turn count
@@ -175,10 +190,16 @@ function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
                   {item.typeLabel}
                 </Badge>
               </span>
-              <Text className="min-w-0 flex-1 truncate text-sm">
+              <Text
+                className="min-w-0 flex-1 truncate text-sm"
+                title={item.model}
+              >
                 {item.model}
               </Text>
-              <Text className="text-fg-muted w-32 shrink-0 truncate text-right text-sm">
+              <Text
+                className="text-fg-muted w-32 shrink-0 truncate text-right text-sm"
+                title={item.agentSlug}
+              >
                 {item.agentSlug}
               </Text>
             </HStack>
@@ -243,8 +264,13 @@ export function ChatHealthMetricsPageView({
   const agentItems: RoutingItem[] = (stats?.routing.byAgentSlug ?? []).map(
     (a) => ({ label: agentLabel(a.key), count: a.count }),
   );
+  // Lead with the MODEL, not the provider: providers are often identical across
+  // rows (e.g. every model on `openrouter`), so a provider-first label truncates
+  // to the same useless prefix and hides the only part that differs. The full
+  // `provider / model` rides in the hover title.
   const modelItems: RoutingItem[] = (stats?.routing.byModel ?? []).map((m) => ({
-    label: m.provider ? `${m.provider} / ${m.model}` : m.model,
+    label: m.model,
+    title: m.provider ? `${m.provider} / ${m.model}` : m.model,
     count: m.count,
   }));
 
