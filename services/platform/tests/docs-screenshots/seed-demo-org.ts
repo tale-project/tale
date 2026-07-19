@@ -742,14 +742,26 @@ async function ensureMembers(
     await dialog
       .getByRole('button', { name: t('dialogs.addMember.title') })
       .click();
-    if (needsPassword) {
-      // A new credentialed member surfaces the shown-once credentials view;
-      // it stays open until acknowledged and would swallow the next
-      // iteration. Existing-account adds close the dialog directly.
-      const credentials = page.getByRole('dialog', {
-        name: t('dialogs.memberAdded.title'),
-      });
-      await expect(credentials).toBeVisible({ timeout: TIMEOUT.PERSIST });
+    // The "member added" view stays open until acknowledged — a NEW account
+    // carries the shown-once credentials, and an existing-account add shows
+    // the same confirmation without them. Acknowledge whichever appears; a
+    // new account MUST produce it (the credentials show exactly once).
+    const credentials = page.getByRole('dialog', {
+      name: t('dialogs.memberAdded.title'),
+    });
+    const confirmed = await credentials
+      .waitFor({
+        state: 'visible',
+        timeout: needsPassword ? TIMEOUT.PERSIST : 5_000,
+      })
+      .then(() => true)
+      .catch(() => false);
+    if (needsPassword && !confirmed) {
+      throw new Error(
+        `Adding ${member.email} never surfaced the credentials view.`,
+      );
+    }
+    if (confirmed) {
       await credentials
         .getByRole('button', { name: t('common.actions.done') })
         .click();
