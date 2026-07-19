@@ -69,9 +69,7 @@ function SettingsLayout() {
           >
             <SettingsMobileActionBar />
             <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-              <div className="hidden md:flex">
-                <SettingsRail organizationId={organizationId} />
-              </div>
+              <SettingsRail organizationId={organizationId} />
               <ContentArea
                 className={cn(
                   'min-w-0 overflow-y-auto',

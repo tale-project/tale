@@ -106,8 +106,8 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
 
 describe('SidebarNav', () => {
   describe('accessibility', () => {
-    it('exposes a discernible accessible name on every collapsed icon link', () => {
-      render(<SidebarNav organizationId="test-org" expanded={false} />);
+    it('exposes a discernible accessible name on every icon tile link', () => {
+      render(<SidebarNav organizationId="test-org" />);
 
       // Regression for #1975: the label used to live only in a hover tooltip, so
       // each link had an empty accessible name. Each destination must now be
@@ -117,37 +117,9 @@ describe('SidebarNav', () => {
       }
     });
 
-    it('keeps the same accessible names in the expanded state', () => {
-      render(<SidebarNav organizationId="test-org" expanded />);
-
-      for (const name of [...primaryLabels, externalLabel]) {
-        expect(screen.getByRole('link', { name })).toBeInTheDocument();
-      }
-    });
-
-    it('passes an axe link-name audit in both states', async () => {
-      const { container, rerender } = render(
-        <SidebarNav organizationId="test-org" expanded={false} />,
-      );
-      await waitFor(() => checkAccessibility(container));
-
-      rerender(<SidebarNav organizationId="test-org" expanded />);
+    it('passes an axe link-name audit', async () => {
+      const { container } = render(<SidebarNav organizationId="test-org" />);
       await waitFor(() => checkAccessibility(container));
     });
-  });
-
-  it('shows visible labels only while expanded (collapsed labels are faded out)', () => {
-    const { rerender } = render(
-      <SidebarNav organizationId="test-org" expanded={false} />,
-    );
-    // The label span is always rendered (it fades/clips during the width
-    // animation) — collapsed it must be opacity-0.
-    const label = screen.getByText(primaryLabels[1]);
-    expect(label.className).toContain('opacity-0');
-
-    rerender(<SidebarNav organizationId="test-org" expanded />);
-    expect(screen.getByText(primaryLabels[1]).className).toContain(
-      'opacity-100',
-    );
   });
 });

@@ -696,7 +696,12 @@ export function UserButton({
               </TooltipPrimitive.Trigger>
             }
             items={menuItems}
-            align={align}
+            // On the rail the menu opens beside the tile: 16px offset = the
+            // tile's 8px inset to the rail edge + an 8px gap to the nav
+            // (matches the notification popover).
+            align={isSidebarVariant ? (align ?? 'end') : align}
+            side={isSidebarVariant ? 'right' : undefined}
+            sideOffset={isSidebarVariant ? 16 : undefined}
             open={open}
             onOpenChange={handleOpenChange}
             contentClassName={contentClassName}

@@ -53,6 +53,15 @@ const loadingThreads = () => ({
   loadMore: vi.fn(),
 });
 
+vi.mock('@/app/components/layout/app-sidebar/sidebar-context', () => ({
+  useSidebar: () => ({
+    isMobileSheetOpen: false,
+    setMobileSheetOpen: vi.fn(),
+    isSearchOpen: false,
+    setSearchOpen: vi.fn(),
+  }),
+}));
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({}),

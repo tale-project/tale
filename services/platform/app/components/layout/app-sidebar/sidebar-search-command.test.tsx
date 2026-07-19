@@ -40,7 +40,7 @@ vi.mock('@/app/hooks/use-convex-auth', () => ({
 
 function renderPalette() {
   return render(
-    <SidebarProvider organizationId="org-1">
+    <SidebarProvider>
       <SidebarSearchCommand organizationId="org-1" />
     </SidebarProvider>,
   );

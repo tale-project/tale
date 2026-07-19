@@ -14,12 +14,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import {
-  labelFadeClass,
-  ROW_TRANSITION_CLASS,
-  rowWidthStyle,
-  TOOLTIP_SHORTCUT_CLASS,
-} from './sidebar-motion';
+import { TOOLTIP_SHORTCUT_CLASS } from './sidebar-motion';
 
 function isPathMatch(itemHref: string, currentPath: string): boolean {
   if (itemHref === currentPath) return true;
@@ -29,16 +24,15 @@ function isPathMatch(itemHref: string, currentPath: string): boolean {
 
 export interface SidebarNavItemProps {
   item: NavItem;
-  /** Sidebar state: full labelled row (true) ↔ 36×36 icon tile (false). */
-  expanded: boolean;
 }
 
 /**
- * One primary-nav row. Constant geometry across states: the icon sits 6px into
- * the row in both, so expand/collapse only animates the row width (in sync
- * with the panel) and fades the label — icons never move.
+ * One primary-nav tile: a 36×36 icon-only link. The label rides along as the
+ * accessible name (`aria-label`); the sighted-hover affordance is the
+ * right-side tooltip (with a shortcut chip for items owning a global
+ * binding).
  */
-export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
+export function SidebarNavItem({ item }: SidebarNavItemProps) {
   const location = useLocation();
   const pathname = location.pathname;
   const ability = useAbility();
@@ -60,11 +54,7 @@ export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
       ? { backgroundColor: `${accentColor}26`, color: accentColor }
       : undefined;
 
-  // Collapsed rows are icon-only, so each link carries its label as an
-  // `aria-label` for the accessible name; the sighted-hover affordance is the
-  // right-side tooltip (with a shortcut chip for items owning a global
-  // binding). Expanded rows show the label, so the tooltip drops away.
-  const tooltipContent = expanded ? null : item.shortcut ? (
+  const tooltipContent = item.shortcut ? (
     <>
       {item.label}
       <span className={TOOLTIP_SHORTCUT_CLASS}>{item.shortcut}</span>
@@ -76,15 +66,14 @@ export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
   const rowContent = (
     <div
       className={cn(
-        'relative flex h-9 items-center gap-2.5 overflow-hidden rounded-md pr-2 pl-2',
-        ROW_TRANSITION_CLASS,
+        'relative flex size-9 items-center justify-center rounded-md transition-colors',
         isActive
           ? accentColor
             ? ''
             : 'bg-muted text-foreground'
           : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
       )}
-      style={{ ...rowWidthStyle(expanded), ...activeStyle }}
+      style={activeStyle}
       data-active={isActive}
     >
       <span className="relative flex size-5 shrink-0 items-center justify-center">
@@ -97,14 +86,6 @@ export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
             {item.badge > 99 ? '99+' : item.badge}
           </span>
         )}
-      </span>
-      <span
-        className={cn(
-          'min-w-0 flex-1 truncate text-[13px]',
-          labelFadeClass(expanded),
-        )}
-      >
-        {item.label}
       </span>
     </div>
   );
@@ -145,11 +126,10 @@ export function SidebarNavItem({ item, expanded }: SidebarNavItemProps) {
 
 export interface SidebarNavProps {
   organizationId: string;
-  expanded: boolean;
 }
 
 /** The primary destinations list (owns the global new-chat shortcut). */
-export function SidebarNav({ organizationId, expanded }: SidebarNavProps) {
+export function SidebarNav({ organizationId }: SidebarNavProps) {
   const { t: tCommon } = useT('common');
   const { primary } = useNavigationItems(organizationId);
   const navigate = useNavigate();
@@ -178,10 +158,10 @@ export function SidebarNav({ organizationId, expanded }: SidebarNavProps) {
   }, [isMac, navigate, organizationId]);
 
   return (
-    <nav aria-label={tCommon('aria.mainNavigation')} className="px-1.5">
-      <ul role="list" className="flex list-none flex-col gap-0.5">
+    <nav aria-label={tCommon('aria.mainNavigation')}>
+      <ul role="list" className="flex list-none flex-col gap-2">
         {primary.map((item) => (
-          <SidebarNavItem key={item.href} item={item} expanded={expanded} />
+          <SidebarNavItem key={item.href} item={item} />
         ))}
       </ul>
     </nav>

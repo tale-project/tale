@@ -5,6 +5,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { SubPanel } from '@/app/components/layout/sub-panel';
 import { useAbility } from '@/app/hooks/use-ability';
 import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
@@ -216,50 +217,47 @@ export function SettingsRail({
   };
 
   return (
-    <Stack
-      aria-label={tNav('userSettings')}
-      as="nav"
-      gap={6}
-      className="bg-background border-border w-60 shrink-0 overflow-y-auto border-r px-3 py-4"
-    >
-      {sections.map((section) => {
-        const visible = section.items.filter(
-          (item) => !item.can || ability.can(item.can[0], item.can[1]),
-        );
-        if (visible.length === 0) return null;
+    <SubPanel as="nav" ariaLabel={tNav('userSettings')}>
+      <Stack gap={6} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        {sections.map((section) => {
+          const visible = section.items.filter(
+            (item) => !item.can || ability.can(item.can[0], item.can[1]),
+          );
+          if (visible.length === 0) return null;
 
-        return (
-          <Stack key={section.key} gap={1}>
-            <div className="px-2">
-              <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
-                {tSettings(`menu.railSections.${section.labelKey}`)}
-              </span>
-            </div>
-            <ul className="flex flex-col gap-0.5 pt-2">
-              {visible.map((item) =>
-                item.kind === 'leaf' ? (
-                  <RailRow
-                    key={item.path}
-                    href={`${base}/${item.path}`}
-                    label={tNav(item.labelKey)}
-                    active={isLeafActive(item)}
-                  />
-                ) : (
-                  <RailExpandableGroup
-                    key={item.path}
-                    href={`${base}/${item.path}`}
-                    label={tNav(item.labelKey)}
-                    active={isGroupActive(item)}
-                    childrenItems={item.children}
-                    pathname={pathname}
-                  />
-                ),
-              )}
-            </ul>
-          </Stack>
-        );
-      })}
-    </Stack>
+          return (
+            <Stack key={section.key} gap={1}>
+              <div className="px-2">
+                <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+                  {tSettings(`menu.railSections.${section.labelKey}`)}
+                </span>
+              </div>
+              <ul className="flex flex-col gap-0.5 pt-2">
+                {visible.map((item) =>
+                  item.kind === 'leaf' ? (
+                    <RailRow
+                      key={item.path}
+                      href={`${base}/${item.path}`}
+                      label={tNav(item.labelKey)}
+                      active={isLeafActive(item)}
+                    />
+                  ) : (
+                    <RailExpandableGroup
+                      key={item.path}
+                      href={`${base}/${item.path}`}
+                      label={tNav(item.labelKey)}
+                      active={isGroupActive(item)}
+                      childrenItems={item.children}
+                      pathname={pathname}
+                    />
+                  ),
+                )}
+              </ul>
+            </Stack>
+          );
+        })}
+      </Stack>
+    </SubPanel>
   );
 }
 

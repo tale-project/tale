@@ -151,9 +151,6 @@ vi.mock('@/app/components/layout/app-sidebar/sidebar-context', () => ({
   SidebarProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
-  // The (unmocked) AppSidebarPlaceholder rendered by the skeleton branches
-  // reads the persisted width hint from this module.
-  readSidebarExpandedHint: () => undefined,
 }));
 
 vi.mock('@/app/components/layout/app-sidebar/app-sidebar', () => ({

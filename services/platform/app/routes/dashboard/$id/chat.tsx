@@ -17,6 +17,7 @@ import {
   ChatPanelProvider,
   useChatPanel,
 } from '@/app/features/chat/components/chat-panel/chat-panel-context';
+import { ChatSubPanel } from '@/app/features/chat/components/chat-sub-panel';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
@@ -245,9 +246,11 @@ function ThreadGate({
     return (
       <SuspenseBoundary
         fallback={
+          // md:pt-19 clears the floating glass top bar (52px + the list's
+          // own 24px breathing room) so the skeleton isn't obscured.
           <Stack
             gap={0}
-            className="h-full min-h-0 flex-1 overflow-y-auto px-4 sm:px-6"
+            className="h-full min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 md:pt-19"
           >
             <ChatMessagesSkeleton />
           </Stack>
@@ -387,51 +390,72 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
   return (
     <PageLayout className="bg-background h-full overflow-hidden">
-      <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
+      <Row
+        gap={0}
+        align="stretch"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden"
+      >
+        {/* The chat section's sub-panel (search / new chat / history) is a
+            full-height sibling of the conversation column — the chat top bar
+            belongs to the conversation, not to the panel. */}
         <LayoutErrorBoundary organizationId={organizationId}>
-          <ChatHeader organizationId={organizationId} threadId={threadId} />
+          <ChatSubPanel organizationId={organizationId} />
         </LayoutErrorBoundary>
 
-        {/* BranchProvider wraps the message column AND the right-side panes so
+        <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          {/* BranchProvider wraps the message column AND the right-side panes so
               the canvas resolves files against the same active-branch thread the
               message list uses. Without this, the canvas reads files from the raw
               route threadId and branch-tip files vanish after streaming. */}
-        <BranchProvider threadId={threadId} organizationId={organizationId}>
-          {/* Chat column + right panel strip must stay in a row — BranchProvider
+          <BranchProvider threadId={threadId} organizationId={organizationId}>
+            {/* Chat column + right panel strip must stay in a row — BranchProvider
                 renders children through Context without a DOM wrapper, so this
                 Row is what keeps ChatPanel beside the scroller (not stacked under
                 ChatHeader, which collapses the message list to height 0). */}
-          <Row
-            gap={0}
-            align="stretch"
-            className="min-h-0 flex-1 overflow-hidden"
-          >
-            <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
-              <BudgetBanner organizationId={organizationId} />
-              <LayoutErrorBoundary organizationId={organizationId}>
-                <ThreadGate
-                  organizationId={organizationId}
-                  threadId={threadId}
-                  newChatCount={newChatCount}
-                />
-              </LayoutErrorBoundary>
-            </Stack>
+            <Row
+              gap={0}
+              align="stretch"
+              className="min-h-0 min-w-0 flex-1 overflow-hidden"
+            >
+              {/* `relative`: the chat top bar floats over THIS column as a
+                  frosted overlay (messages scroll beneath it); the right
+                  panes stay outside its footprint. */}
+              <Stack
+                gap={0}
+                className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+              >
+                <LayoutErrorBoundary organizationId={organizationId}>
+                  <ChatHeader
+                    organizationId={organizationId}
+                    threadId={threadId}
+                  />
+                </LayoutErrorBoundary>
+                <BudgetBanner organizationId={organizationId} />
+                <LayoutErrorBoundary organizationId={organizationId}>
+                  <ThreadGate
+                    organizationId={organizationId}
+                    threadId={threadId}
+                    newChatCount={newChatCount}
+                  />
+                </LayoutErrorBoundary>
+              </Stack>
 
-            {/* The four panes are registrars — they publish descriptors to the
+              {/* The four panes are registrars — they publish descriptors to the
                   unified right panel and render nothing themselves. The single
                   <ChatPanel> shell renders the shared strip / tabs / bodies. Plan
                   and Canvas always mount; the sandbox panes (Files + Live browser)
                   register only when `sandboxPanesAvailable`. */}
-            <PlanPane />
-            <CanvasPane organizationId={organizationId} />
-            <WorkspaceFilesPane available={sandboxPanesAvailable} />
-            <LiveBrowserPane available={sandboxPanesAvailable} />
-            <LayoutErrorBoundary organizationId={organizationId}>
-              <ChatPanel />
-            </LayoutErrorBoundary>
-          </Row>
-        </BranchProvider>
-      </Stack>
+              <PlanPane />
+              <CanvasPane organizationId={organizationId} />
+              <WorkspaceFilesPane available={sandboxPanesAvailable} />
+              <LiveBrowserPane available={sandboxPanesAvailable} />
+              <LayoutErrorBoundary organizationId={organizationId}>
+                <ChatPanel />
+              </LayoutErrorBoundary>
+            </Row>
+          </BranchProvider>
+        </Stack>
+      </Row>
     </PageLayout>
   );
 }

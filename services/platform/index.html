@@ -29,6 +29,56 @@
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="Tale" />
+    <!-- Pre-hydration theme (same script as web/docs): sets the `.dark`
+         class before first paint so the server-injected boot shell and the
+         page background render in the user's theme with no light flash.
+         Key mirrors @tale/ui ThemeProvider's STORAGE_KEY. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('tale-theme');
+          var prefersDark = window.matchMedia(
+            '(prefers-color-scheme: dark)',
+          ).matches;
+          var resolved =
+            stored === 'dark' || (stored !== 'light' && prefersDark)
+              ? 'dark'
+              : 'light';
+          if (resolved === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+          document.documentElement.style.colorScheme = resolved;
+        } catch (error) {
+          console.warn('Failed to apply the pre-hydration theme', error);
+        }
+      })();
+    </script>
+    <!-- Pre-hydration boot-shell state: when the navigation targets a chat
+         route (shared-view routes excluded — they render no panel) and the
+         persisted chat sub-panel state is open, reveal the panel skeleton
+         baked into the served boot shell before any JS or CSS runs. Key
+         mirrors ChatLayoutProvider's `chat-history-panel-open-<orgId>`
+         (org-scoped precisely so this script can read it pre-auth); the
+         class is consumed by ChatSubPanelPlaceholder's
+         `[.boot-chat-panel-open_&]` variant. -->
+    <script>
+      (function () {
+        try {
+          var match = window.location.pathname.match(
+            /\/dashboard\/([^/]+)\/chat(?:\/(?!shared\/)|$)/,
+          );
+          if (!match) return;
+          var stored = localStorage.getItem(
+            'chat-history-panel-open-' + match[1],
+          );
+          if (stored !== 'false') {
+            document.documentElement.classList.add('boot-chat-panel-open');
+          }
+        } catch (error) {
+          console.warn('Failed to apply the boot chat-panel state', error);
+        }
+      })();
+    </script>
     <title>Tale</title>
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link

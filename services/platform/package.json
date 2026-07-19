@@ -7,7 +7,7 @@
     "setup": "echo 'Dependencies managed by root workspace'",
     "dev": "bun scripts/dev.ts",
     "dev:fast": "TALE_DEV_SKIP_DOCKER=1 bun scripts/dev.ts",
-    "build": "bun run configs:validate && bun --bun vite build",
+    "build": "bun run configs:validate && bun --bun vite build && bun scripts/prerender-boot-shell.tsx",
     "start": "bun --bun vite preview",
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",

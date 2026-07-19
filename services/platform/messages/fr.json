@@ -4617,8 +4617,6 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "SSO d'entreprise",
     "sidebar": {
-      "collapse": "Réduire la barre latérale",
-      "expand": "Développer la barre latérale",
       "landmark": "Barre latérale du tableau de bord",
       "title": "Menu"
     }

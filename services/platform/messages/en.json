@@ -4617,8 +4617,6 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise SSO",
     "sidebar": {
-      "collapse": "Collapse sidebar",
-      "expand": "Expand sidebar",
       "landmark": "Dashboard sidebar",
       "title": "Menu"
     }
