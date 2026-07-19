@@ -23,15 +23,25 @@ import { AutomationsGrid, type AutomationsGridProps } from './automations-grid';
  * automation navigates to its automation page. Every card also carries a ⋯ menu.
  */
 
-const { useAutomationsMock, useAutomationCatalogMock } = vi.hoisted(() => ({
-  useAutomationsMock: vi.fn(),
-  useAutomationCatalogMock: vi.fn(),
-}));
+const { useAutomationsMock, useAutomationCatalogMock, localeMock } = vi.hoisted(
+  () => ({
+    useAutomationsMock: vi.fn(),
+    useAutomationCatalogMock: vi.fn(),
+    localeMock: vi.fn(),
+  }),
+);
 
 vi.mock('../hooks/use-automations', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/use-automations')>()),
   useAutomations: useAutomationsMock,
   useAutomationCatalog: useAutomationCatalogMock,
+}));
+
+// The grid resolves every manifest name/description through the active locale
+// (the `use-automations` i18n contract) — settable per test, `en` by default.
+vi.mock('@tale/ui/i18n/locale-provider', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/i18n/locale-provider')>()),
+  useLocale: () => localeMock(),
 }));
 
 // Install-state map, settable per test: empty ⇒ every card renders the
@@ -144,6 +154,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   installMock.mockResolvedValue(undefined);
   mockInstallStates = new Map();
+  localeMock.mockReturnValue({ locale: 'en', setLocale: vi.fn() });
 });
 
 describe('AutomationsGrid catalog/installed union (#1979)', () => {
@@ -575,6 +586,137 @@ describe('AutomationsGrid tabs + badges', () => {
     expect(screen.getByText('A discoverable automation.')).not.toContainElement(
       labels,
     );
+  });
+});
+
+// #2806-series: the catalog card must render through the manifest's inline
+// `i18n` block (the `use-automations` contract — "never the literals
+// directly"). The de/fr docs videos shipped with English card titles because
+// the grid was the one automation surface reading the literals.
+describe('AutomationsGrid manifest i18n (the automation translates itself)', () => {
+  const triageAutomation = () =>
+    automationSummary({
+      slug: 'projects/tasks/triage-unassigned',
+      name: 'Triage unassigned tasks',
+      description: 'Scores new tasks and routes them.',
+      i18n: {
+        de: {
+          name: 'Unzugewiesene Aufgaben sichten',
+          description: 'Bewertet neue Aufgaben und leitet sie weiter.',
+        },
+      },
+    });
+
+  it('renders the resolved name, description, and aria-label for the active locale', async () => {
+    localeMock.mockReturnValue({ locale: 'de', setLocale: vi.fn() });
+    useAutomationsMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [triageAutomation()],
+      isLoading: false,
+      error: null,
+    });
+
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
+
+    expect(
+      screen.getByText('Unzugewiesene Aufgaben sichten'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Bewertet neue Aufgaben und leitet sie weiter.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Triage unassigned tasks'),
+    ).not.toBeInTheDocument();
+    // The whole-card button carries the RESOLVED accessible name.
+    expect(
+      screen.getByRole('button', { name: 'Unzugewiesene Aufgaben sichten' }),
+    ).toBeInTheDocument();
+  });
+
+  it('sorts the grid by the resolved names, not the literals', async () => {
+    localeMock.mockReturnValue({ locale: 'de', setLocale: vi.fn() });
+    useAutomationsMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [
+        // EN order: Archive < Sync — the DE names invert it.
+        automationSummary({
+          slug: 'archive-mailbox',
+          name: 'Archive mailbox',
+          i18n: { de: { name: 'Postfach archivieren' } },
+        }),
+        automationSummary({
+          slug: 'sync-tasks',
+          name: 'Sync tasks',
+          i18n: { de: { name: 'Aufgaben synchronisieren' } },
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
+
+    expect(
+      screen
+        .getAllByText(/Postfach archivieren|Aufgaben synchronisieren/)
+        .map((el) => el.textContent),
+    ).toStrictEqual(['Aufgaben synchronisieren', 'Postfach archivieren']);
+  });
+
+  it('matches search against the resolved text, not the hidden literals', async () => {
+    localeMock.mockReturnValue({ locale: 'de', setLocale: vi.fn() });
+    useAutomationsMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [triageAutomation()],
+      isLoading: false,
+      error: null,
+    });
+
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    const search = screen.getByRole('textbox');
+
+    await user.type(search, 'sichten');
+    expect(
+      screen.getByText('Unzugewiesene Aufgaben sichten'),
+    ).toBeInTheDocument();
+
+    // The English literal is not on the card — searching it finds nothing.
+    await user.clear(search);
+    await user.type(search, 'unassigned');
+    expect(
+      screen.queryByText('Unzugewiesene Aufgaben sichten'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('falls back to the manifest literals without an i18n block', async () => {
+    localeMock.mockReturnValue({ locale: 'de', setLocale: vi.fn() });
+    useAutomationsMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [automationSummary()],
+      isLoading: false,
+      error: null,
+    });
+
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
+
+    expect(screen.getByText('Sample Automation')).toBeInTheDocument();
+    expect(screen.getByText('A discoverable automation.')).toBeInTheDocument();
   });
 });
 
