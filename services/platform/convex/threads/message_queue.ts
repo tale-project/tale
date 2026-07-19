@@ -14,6 +14,7 @@ import { isDrainingNow } from '../control/drain';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
+import { cancelDeferredJobs } from '../video_links/bind_for_send';
 
 /**
  * While a deploy drain is active, queued messages must NOT start a new
@@ -612,8 +613,15 @@ export const deleteQueuedMessage = mutation({
       return { deleted: false };
     }
     // claimed/delivered/consumed are already (being) handed to the agent.
-    if (row.status !== 'queued') {
+    if (row.status !== 'queued' && row.status !== 'waiting_media') {
       return { deleted: false };
+    }
+    // Abandoning a media-wait cancels its media too — the user dismissed
+    // the whole message, so its videos stop processing (skipped + cleanup)
+    // instead of reappearing in the composer as residue. The readiness
+    // watcher's next tick sees the row gone and stops.
+    if (row.status === 'waiting_media' && row.videoJobIds !== undefined) {
+      await cancelDeferredJobs(ctx, row.videoJobIds, row.userId);
     }
     // Persist-at-pick rows have no transcript copy while queued — only legacy
     // rows (saved at enqueue, in flight across the deploy) carry one.
@@ -639,12 +647,27 @@ export const listQueuedMessages = query({
       savedMessageId: v.optional(v.string()),
       text: v.string(),
       status: v.union(
+        v.literal('waiting_media'),
         v.literal('queued'),
         v.literal('claimed'),
         v.literal('delivered'),
         v.literal('consumed'),
       ),
       createdAt: v.number(),
+      /** Media-wait rows only: what the send is waiting on, so the tray can
+       * render the live chip/file status alongside the parked text. */
+      attachments: v.optional(
+        v.array(
+          v.object({
+            fileId: v.string(),
+            fileName: v.string(),
+            fileType: v.string(),
+            fileSize: v.number(),
+          }),
+        ),
+      ),
+      videoJobIds: v.optional(v.array(v.id('videoLinkJobs'))),
+      waitingSince: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -665,13 +688,31 @@ export const listQueuedMessages = query({
     // Send order: the strip renders these in the order the user typed them.
     // The index is keyed on (threadId, status), so the collect is unordered.
     rows.sort((a, b) => a.createdAt - b.createdAt);
-    return rows.map((r) => ({
-      queueId: r._id,
-      messageId: r.messageId,
-      savedMessageId: r.deferredPersist ? r.savedMessageId : r.messageId,
-      text: r.text,
-      status: r.status,
-      createdAt: r.createdAt,
-    }));
+    // Optional media-wait fields assigned after the base object — a
+    // conditional spread inside `.map` trips `oxc/no-map-spread`.
+    return rows.map((r) => {
+      const entry: {
+        queueId: typeof r._id;
+        messageId: string;
+        savedMessageId: string | undefined;
+        text: string;
+        status: typeof r.status;
+        createdAt: number;
+        attachments?: typeof r.attachments;
+        videoJobIds?: typeof r.videoJobIds;
+        waitingSince?: number;
+      } = {
+        queueId: r._id,
+        messageId: r.messageId,
+        savedMessageId: r.deferredPersist ? r.savedMessageId : r.messageId,
+        text: r.text,
+        status: r.status,
+        createdAt: r.createdAt,
+      };
+      if (r.attachments !== undefined) entry.attachments = r.attachments;
+      if (r.videoJobIds !== undefined) entry.videoJobIds = r.videoJobIds;
+      if (r.waitingSince !== undefined) entry.waitingSince = r.waitingSince;
+      return entry;
+    });
   },
 });
