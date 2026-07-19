@@ -720,15 +720,24 @@ async function ensureMembers(
       .click();
     // type=password exposes no textbox role, and the show/hide toggle's label
     // also contains "Password" — match the label exactly. The field only
-    // exists for NEW accounts: adding an email that already has an account
-    // (the video locale orgs re-add the shared-org people) skips credentials.
+    // exists for NEW accounts — but it RENDERS until the async
+    // email-existence check answers, so probing it right after the email
+    // fill races the check: the seeder filled passwords for accounts that
+    // already exist (the video locale orgs re-add the shared-org people) and
+    // the submit flow forked into a state the loop never dismissed. Settle
+    // the check first: the existing-user hint appears, or the field is the
+    // truth.
+    const existingHint = dialog.getByText(
+      t('dialogs.addMember.existingUserHint'),
+    );
     const password = dialog.getByLabel(t('settings.form.password'), {
       exact: true,
     });
-    const needsPassword = await password
-      .waitFor({ state: 'visible', timeout: 3_000 })
-      .then(() => true)
-      .catch(() => false);
+    await expect(existingHint.or(password)).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
+    await page.waitForTimeout(750); // one flash window for a late hint
+    const needsPassword = !(await isPresent(existingHint));
     if (needsPassword) await password.fill(E2E_PASSWORD);
     await dialog
       .getByRole('button', { name: t('dialogs.addMember.title') })
@@ -745,6 +754,12 @@ async function ensureMembers(
         .getByRole('button', { name: t('common.actions.done') })
         .click();
     }
+    // Whatever the path, the NEXT iteration needs a dialog-free page — an
+    // add that leaves any dialog standing hides the toolbar from ARIA and
+    // times out the following click with a misleading "not found".
+    await expect(page.getByRole('dialog')).toHaveCount(0, {
+      timeout: TIMEOUT.VISIBLE,
+    });
     await expect(page.getByText(member.email).first()).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
