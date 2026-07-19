@@ -687,16 +687,31 @@ export const listQueuedMessages = query({
     // Send order: the strip renders these in the order the user typed them.
     // The index is keyed on (threadId, status), so the collect is unordered.
     rows.sort((a, b) => a.createdAt - b.createdAt);
-    return rows.map((r) => ({
-      queueId: r._id,
-      messageId: r.messageId,
-      savedMessageId: r.deferredPersist ? r.savedMessageId : r.messageId,
-      text: r.text,
-      status: r.status,
-      createdAt: r.createdAt,
-      ...(r.attachments !== undefined && { attachments: r.attachments }),
-      ...(r.videoJobIds !== undefined && { videoJobIds: r.videoJobIds }),
-      ...(r.waitingSince !== undefined && { waitingSince: r.waitingSince }),
-    }));
+    // Optional media-wait fields assigned after the base object — a
+    // conditional spread inside `.map` trips `oxc/no-map-spread`.
+    return rows.map((r) => {
+      const entry: {
+        queueId: typeof r._id;
+        messageId: string;
+        savedMessageId: string | undefined;
+        text: string;
+        status: typeof r.status;
+        createdAt: number;
+        attachments?: typeof r.attachments;
+        videoJobIds?: typeof r.videoJobIds;
+        waitingSince?: number;
+      } = {
+        queueId: r._id,
+        messageId: r.messageId,
+        savedMessageId: r.deferredPersist ? r.savedMessageId : r.messageId,
+        text: r.text,
+        status: r.status,
+        createdAt: r.createdAt,
+      };
+      if (r.attachments !== undefined) entry.attachments = r.attachments;
+      if (r.videoJobIds !== undefined) entry.videoJobIds = r.videoJobIds;
+      if (r.waitingSince !== undefined) entry.waitingSince = r.waitingSince;
+      return entry;
+    });
   },
 });
