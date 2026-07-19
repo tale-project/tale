@@ -47,6 +47,7 @@ import {
 import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
+import { resolveTranscriptAttachmentIdentities } from '../../lib/attachments/resolve_transcript_identity';
 import { createDebugLog } from '../../lib/debug_log';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
@@ -263,7 +264,16 @@ async function stageChatAttachments(
     orgSlug: string | null;
   },
 ): Promise<{ prompt: string; additionalDirs: string[] }> {
-  const plan = buildAttachmentStagePlan(opts.promptMessageId, opts.attachments);
+  // Video-link transcripts arrive under their display identity (the
+  // 'video/mp4' routing sentinel + extension-less title) while the blob is
+  // transcript text — restore the real fileName/contentType so the staged
+  // file AND the preamble line the agent reads are honest (see
+  // resolve_transcript_identity.ts).
+  const attachments = await resolveTranscriptAttachmentIdentities(
+    ctx,
+    opts.attachments,
+  );
+  const plan = buildAttachmentStagePlan(opts.promptMessageId, attachments);
   const entries: {
     path: string;
     url?: string;

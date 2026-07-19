@@ -773,6 +773,7 @@ import type * as lib_attachments_format_markdown from "../lib/attachments/format
 import type * as lib_attachments_index from "../lib/attachments/index.js";
 import type * as lib_attachments_process_attachments from "../lib/attachments/process_attachments.js";
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
+import type * as lib_attachments_resolve_transcript_identity from "../lib/attachments/resolve_transcript_identity.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
 import type * as lib_attachments_workspace_uploads from "../lib/attachments/workspace_uploads.js";
 import type * as lib_auth_e2e_harness from "../lib/auth/e2e_harness.js";
@@ -2556,6 +2557,7 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/index": typeof lib_attachments_index;
   "lib/attachments/process_attachments": typeof lib_attachments_process_attachments;
   "lib/attachments/register_files": typeof lib_attachments_register_files;
+  "lib/attachments/resolve_transcript_identity": typeof lib_attachments_resolve_transcript_identity;
   "lib/attachments/types": typeof lib_attachments_types;
   "lib/attachments/workspace_uploads": typeof lib_attachments_workspace_uploads;
   "lib/auth/e2e_harness": typeof lib_auth_e2e_harness;

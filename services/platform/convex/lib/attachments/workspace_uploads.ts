@@ -34,6 +34,7 @@ import { THREAD_FILE_MAX_BYTES } from '../../thread_files/schema';
 import { orgSlugFromIdOrNull } from '../helpers/org_slug';
 import { deleteBlob, putBlob, readBlobBytes } from '../storage/blob_access';
 import { convexStorageId, type BlobRef } from '../storage/blob_ref';
+import { resolveTranscriptAttachmentIdentities } from './resolve_transcript_identity';
 import type { FileAttachment } from './types';
 
 const UPLOADS_PATH_PREFIX = '/user/uploads';
@@ -88,7 +89,15 @@ export async function fileAttachmentsIntoWorkspace(
     attachments: readonly FileAttachment[];
   },
 ): Promise<{ filed: number; unchanged: number; skipped: number }> {
-  const { planned, skipped } = buildWorkspaceUploadPlan(args.attachments);
+  // Video-link transcripts arrive under their display identity (the
+  // 'video/mp4' routing sentinel + extension-less title) while the blob is
+  // transcript text — restore the real fileName/contentType before anything
+  // lands on disk (see resolve_transcript_identity.ts).
+  const attachments = await resolveTranscriptAttachmentIdentities(
+    ctx,
+    args.attachments,
+  );
+  const { planned, skipped } = buildWorkspaceUploadPlan(attachments);
   for (const s of skipped) {
     console.warn(
       `[workspace_uploads] not filing "${s.name}" into /user/uploads: ${s.reason}`,
