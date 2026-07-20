@@ -21,20 +21,142 @@
 
 import { v } from 'convex/values';
 
+import { formatModelRef } from '../../../lib/shared/utils/model-ref';
 import { internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
+import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 import { sessionIdForThread } from '../../sandbox/session_naming';
 import {
   sessionCreate,
   sessionDestroy,
+  sessionEnvPatch,
   sessionIsAlive,
 } from './helpers/session_client';
+import {
+  applyGatewayConfig,
+  hashVirtualKey,
+  mintVirtualKey,
+  provisionProviders,
+  resolveGatewayRoutingFromRef,
+} from './llm_gateway_admin';
 
 const OWNER_TYPE = 'thread';
 // run_code is untrusted user code — keep the hardened one-shot posture
 // (uid 65534). (A long-lived `run_code` profile that also drops the
 // cumulative-CPU ulimit is a follow-up on the sandbox side.)
 const PROFILE = 'default' as const;
+
+// Vision lane (tale-vision CLI in run_code execs): per-session gateway key
+// budget + TTL. Small on purpose — vision-only, one turn's worth of images.
+const VISION_BUDGET_CENTS = (() => {
+  const parsed = Number(process.env.RUN_CODE_VISION_BUDGET_CENTS ?? '200');
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 200;
+})();
+const VISION_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+// Always the sandbox-network alias (hardcoded in the runtime NO_PROXY); kept
+// separate from SANDBOX_LLM_GATEWAY_URL so host-run convex doesn't leak a
+// host-only URL into the container (same split as run_external_agent.ts).
+const VISION_GATEWAY_URL =
+  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://sandbox-llm-gateway:8080';
+
+/**
+ * Arm the vision lane on a freshly (re)created thread session: mint a gateway
+ * virtual key scoped to ONLY the org's vision-tagged model and patch
+ * `TALE_GATEWAY_URL`/`TALE_GATEWAY_TOKEN`/`TALE_VISION_MODEL` into the
+ * session env store, so the baked `tale-vision` CLI works from run_code
+ * execs.
+ *
+ * Best-effort BY DESIGN — a posture difference from the external-agent path,
+ * where a gateway-auth failure fails the turn (fail-closed): here vision is a
+ * convenience capability, so ANY failure (no vision-tagged model, gateway
+ * down, provisioning error) logs, and the session comes up without vision —
+ * the CLI then exits 2 with an actionable message. Ordering matters: the
+ * token row is inserted BEFORE the env patch so a crash can never leave an
+ * injected-but-untracked key; turn-end teardown revokes every token row of
+ * the session (session_teardown.ts) including stale ones from mid-turn
+ * recreates. A reaped container always needs a fresh mint — the plaintext key
+ * exists only in the container's in-memory env store, never on the platform.
+ */
+export async function armVisionLane(
+  ctx: ActionCtx,
+  args: { organizationId: string; threadId: string; sessionId: string },
+): Promise<void> {
+  const started = Date.now();
+  try {
+    // Throws when the org has no vision-tagged model → graceful skip.
+    const vision = await resolveLanguageModel(ctx, {
+      tag: 'vision',
+      organizationId: args.organizationId,
+    });
+    const visionModelRef = formatModelRef({
+      providerName: vision.modelData.providerName,
+      modelId: vision.modelData.modelId,
+    });
+    const gatewayModel =
+      resolveGatewayRoutingFromRef(visionModelRef).gatewayModel;
+
+    // Chat sessions never provision the gateway otherwise. mintVirtualKey
+    // fails closed on a missing provider key, so a provisioning failure
+    // surfaces as a skipped lane, never an over-permissive key (same layering
+    // as run_external_agent.ts).
+    const gatewayProviders = await loadOrgGatewayProviders(
+      ctx,
+      args.organizationId,
+    );
+    if (gatewayProviders.length > 0) {
+      await provisionProviders(args.organizationId, gatewayProviders);
+    }
+    await applyGatewayConfig();
+
+    const minted = await mintVirtualKey({
+      budgetCents: VISION_BUDGET_CENTS,
+      allowedModels: [visionModelRef],
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+    });
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.insertSessionToken,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        tokenHash: hashVirtualKey(minted.key),
+        llmGatewayKeyId: minted.keyId,
+        scope: {
+          agentKind: 'run_code_vision',
+          allowedModels: [visionModelRef],
+          integrationGrants: [],
+          toolGrants: [],
+          budgetCents: VISION_BUDGET_CENTS,
+          threadId: args.threadId,
+        },
+        expiresAt: Date.now() + VISION_TOKEN_TTL_MS,
+      },
+    );
+    const denied = await sessionEnvPatch(args.sessionId, {
+      set: {
+        TALE_GATEWAY_URL: VISION_GATEWAY_URL,
+        TALE_GATEWAY_TOKEN: minted.key,
+        TALE_VISION_MODEL: gatewayModel,
+      },
+    });
+    if (denied.length > 0) {
+      console.warn(
+        `[thread_session] vision env names denied by runnerd:`,
+        denied,
+      );
+    }
+    console.log(
+      `[thread_session] vision lane armed for ${args.sessionId} in ${Date.now() - started}ms (model ${gatewayModel})`,
+    );
+  } catch (err) {
+    console.warn(
+      `[thread_session] vision lane not armed for ${args.sessionId} after ${Date.now() - started}ms (run_code continues without tale-vision):`,
+      err,
+    );
+  }
+}
 
 /**
  * Ensure the thread's session exists and is live; create or resume it.
@@ -76,6 +198,11 @@ export const ensureThreadSession = internalAction({
         internal.sandbox.session_mutations.resumeStoppedSession,
         { organizationId: args.organizationId, sessionId },
       );
+      await armVisionLane(ctx, {
+        organizationId: args.organizationId,
+        threadId: args.threadId,
+        sessionId,
+      });
       return { sessionId, created: false };
     }
 
@@ -111,6 +238,11 @@ export const ensureThreadSession = internalAction({
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
       rowId,
       status: 'active',
+    });
+    await armVisionLane(ctx, {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      sessionId,
     });
     return { sessionId, created: true };
   },
