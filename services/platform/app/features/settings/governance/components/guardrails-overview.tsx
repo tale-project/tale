@@ -363,6 +363,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         // chrome. EmptyState itself is borderless by design.
         <div className="border-border overflow-hidden rounded-lg border">
           <EmptyState
+            icon={Shield}
             title={t('guardrailsOverview.recentEvents.empty.title')}
             description={t('guardrailsOverview.recentEvents.empty.description')}
           />

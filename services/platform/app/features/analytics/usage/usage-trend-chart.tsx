@@ -3,12 +3,14 @@
 import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
+import { BarChart3 } from 'lucide-react';
 
 import {
   seriesToLegend,
   TrendBarChart,
   type ChartSeries,
 } from '@/app/components/metrics/charts';
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 
@@ -107,25 +109,29 @@ export function UsageTrendChart({
     return formatNumber(value);
   };
 
+  // Same anatomy as Top Voice Models / Per-User Usage: section title outside
+  // the bordered frame, card chrome without an inner title or different fill.
   return (
-    <ChartCard
-      title={t(`usage.metric.${metric}`)}
-      isEmpty={!hasData}
-      emptyTitle={t('usage.empty.title')}
-      emptyDescription={t('usage.empty.description')}
-      legend={
-        metric === 'tokens' ? (
-          <ChartLegend items={seriesToLegend(chartSeries)} />
-        ) : undefined
-      }
-    >
-      <TrendBarChart
-        data={data}
-        series={chartSeries}
-        xKey="label"
-        yTickFormatter={formatYTick}
-        valueFormatter={valueFormatter}
-      />
-    </ChartCard>
+    <MetricsSection title={t(`usage.metric.${metric}`)}>
+      <ChartCard
+        isEmpty={!hasData}
+        emptyIcon={BarChart3}
+        emptyTitle={t('usage.empty.title')}
+        emptyDescription={t('usage.empty.description')}
+        legend={
+          metric === 'tokens' ? (
+            <ChartLegend items={seriesToLegend(chartSeries)} />
+          ) : undefined
+        }
+      >
+        <TrendBarChart
+          data={data}
+          series={chartSeries}
+          xKey="label"
+          yTickFormatter={formatYTick}
+          valueFormatter={valueFormatter}
+        />
+      </ChartCard>
+    </MetricsSection>
   );
 }

@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-const toastMock = vi.fn();
-vi.mock('@/app/hooks/use-toast', () => ({
-  toast: (...args: unknown[]) => toastMock(...args),
-}));
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -64,7 +59,6 @@ beforeEach(() => {
   blockerState.proceed = vi.fn();
   blockerState.reset = vi.fn();
   capturedBlockerOpts = undefined;
-  toastMock.mockClear();
 });
 
 describe('DirtyBlockerProvider', () => {
@@ -114,63 +108,14 @@ describe('DirtyBlockerProvider', () => {
     expect(capturedBlockerOpts?.enableBeforeUnload()).toBe(true);
   });
 
-  it('offers Save & Leave when every dirty source registered a save, and runs it before proceeding', async () => {
-    const user = userEvent.setup();
-    const save = vi.fn().mockResolvedValue(undefined);
+  it('offers Keep editing and Discard & Leave only', () => {
     blockerState.status = 'blocked';
     render(
       <DirtyBlockerProvider>
-        <Source dirty options={{ save }} />
-      </DirtyBlockerProvider>,
-    );
-
-    const saveButton = screen.getByRole('button', {
-      name: 'common.unsavedChanges.saveAndLeave',
-    });
-    await user.click(saveButton);
-
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    expect(blockerState.proceed).toHaveBeenCalledTimes(1);
-    expect(toastMock).not.toHaveBeenCalled();
-  });
-
-  it('keeps the user on the page (reset + toast) when Save & Leave fails', async () => {
-    const user = userEvent.setup();
-    const save = vi.fn().mockRejectedValue(new Error('boom'));
-    blockerState.status = 'blocked';
-    render(
-      <DirtyBlockerProvider>
-        <Source dirty options={{ save }} />
-      </DirtyBlockerProvider>,
-    );
-
-    await user.click(
-      screen.getByRole('button', {
-        name: 'common.unsavedChanges.saveAndLeave',
-      }),
-    );
-
-    await waitFor(() => expect(blockerState.reset).toHaveBeenCalled());
-    expect(blockerState.proceed).not.toHaveBeenCalled();
-    expect(toastMock).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: 'destructive' }),
-    );
-  });
-
-  it('degrades to Stay/Discard when a dirty source has no save path', () => {
-    blockerState.status = 'blocked';
-    render(
-      <DirtyBlockerProvider>
-        <Source dirty options={{ save: vi.fn() }} />
         <Source dirty />
       </DirtyBlockerProvider>,
     );
 
-    expect(
-      screen.queryByRole('button', {
-        name: 'common.unsavedChanges.saveAndLeave',
-      }),
-    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'common.unsavedChanges.stay' }),
     ).toBeInTheDocument();
@@ -179,5 +124,27 @@ describe('DirtyBlockerProvider', () => {
         name: 'common.unsavedChanges.discardAndLeave',
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {
+        name: 'common.unsavedChanges.saveAndLeave',
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('proceeds on Discard & Leave', async () => {
+    const user = userEvent.setup();
+    blockerState.status = 'blocked';
+    render(
+      <DirtyBlockerProvider>
+        <Source dirty />
+      </DirtyBlockerProvider>,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'common.unsavedChanges.discardAndLeave',
+      }),
+    );
+    expect(blockerState.proceed).toHaveBeenCalledTimes(1);
   });
 });

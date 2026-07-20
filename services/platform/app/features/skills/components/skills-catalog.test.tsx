@@ -84,7 +84,8 @@ const SKILLS = [
   {
     slug: 'broken-skill',
     status: 'corrupted',
-    message: 'SKILL.md could not be parsed',
+    message:
+      'YAML parse error: Nested mappings are not allowed in compact mappings at line 2, column 14: description: broken',
   },
 ] as SkillListEntry[];
 
@@ -112,9 +113,10 @@ describe('SkillsCatalog', () => {
 
   it('badges a broken row and shows its read-error message', () => {
     render(<SkillsCatalog organizationId="org-1" />);
+    // Short generic badge; specific failure lives in the description.
     expect(screen.getByText('Failed to read SKILL.md')).toBeInTheDocument();
     expect(
-      screen.getByText('SKILL.md could not be parsed'),
+      screen.getByText(/YAML parse error: Nested mappings are not allowed/),
     ).toBeInTheDocument();
   });
 

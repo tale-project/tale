@@ -215,11 +215,9 @@ export function useFormEditor<T extends FieldValues>({
 
   const isValid = schema ? form.formState.isValid : true;
 
-  // Register with the page-level DirtyBlockerProvider. A valid draft also
-  // registers its save path so the navigation dialog can offer "Save & Leave"
-  // (#2572); an invalid one registers none — that save could only fail — and
-  // the dialog degrades to Stay/Discard.
-  useRegisterDirtySource(isDirty, isValid ? { save: doSave } : undefined);
+  // Register with the page-level DirtyBlockerProvider so navigation away
+  // prompts before discarding unsaved edits.
+  useRegisterDirtySource(isDirty);
 
   const submit = useCallback(
     (e?: { preventDefault: () => void }) => {

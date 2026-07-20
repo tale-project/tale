@@ -1036,6 +1036,7 @@ export function AutomationPage({
       >
         <ContentArea>
           <EmptyState
+            icon={LayoutGrid}
             title={t('notFound.title')}
             description={t('notFound.description')}
           />

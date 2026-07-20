@@ -12,10 +12,6 @@ import { useT } from '@/lib/i18n/client';
 
 import { useListSkills } from '../hooks/queries';
 import { toSkillRows } from '../lib/skill-rows';
-import {
-  resolveSkillLoadErrorPresentation,
-  skillLoadErrorSummaryKey,
-} from '../utils/skill-load-error';
 
 export interface SkillBindingsMode {
   selected: string[];
@@ -79,19 +75,9 @@ export function SkillBindingsSelect({
       filteredSkills.map((skill) => {
         const hasError = Boolean(skill.status);
         const errorDescription = hasError
-          ? (() => {
-              const presentation = resolveSkillLoadErrorPresentation(
-                skill.status,
-                skill.message,
-              );
-              const key = skillLoadErrorSummaryKey(presentation);
-              return presentation.line != null
-                ? t(key, {
-                    line: presentation.line,
-                    defaultValue: 'YAML syntax error (line {line})',
-                  })
-                : t(key, { defaultValue: 'Failed to read SKILL.md' });
-            })()
+          ? t('skills.columns.loadError', {
+              defaultValue: 'Failed to read SKILL.md',
+            })
           : undefined;
         return {
           value: skill.slug,

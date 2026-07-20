@@ -334,13 +334,8 @@ export function AgentNavigation({
   // dialog fires on navigation away from the agent editor. The config state
   // lives in `AgentConfigProvider` ABOVE the tab routes, so switching tabs
   // inside `basePath` loses nothing — scope the blocker to leaving the agent
-  // (#2572). A valid draft also registers its save path so the dialog can
-  // offer "Save & Leave"; an invalid one deliberately doesn't (that save is
-  // guaranteed to fail server-side).
-  useRegisterDirtySource(isDirty, {
-    scopePath: basePath,
-    ...(isValid && { save: doSave }),
-  });
+  // (#2572).
+  useRegisterDirtySource(isDirty, { scopePath: basePath });
 
   const handleLoadHistory = useCallback(async () => {
     setIsLoadingHistory(true);

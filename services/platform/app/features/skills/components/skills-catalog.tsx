@@ -300,8 +300,8 @@ export function SkillsCatalog({
                 </CatalogCardIcon>
               }
               title={row.name}
-              // A broken row's description is its backend read-error message —
-              // the badge already carries the localized "failed to read" state.
+              // Badge stays short and generic; the description carries the
+              // specific failure (YAML parse, missing frontmatter, etc.).
               description={row.status ? row.message : row.description}
               badge={
                 row.status ? (

@@ -1149,22 +1149,25 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           </SettingsSection>
 
           {/* SCIM stays inline (its own generate/regenerate/disable lifecycle,
-              independent of the SSO config Save). */}
+              independent of the SSO config Save). Status sits in `action` so it
+              scans next to the title — same placement as deployment Built-in. */}
           <SettingsSection
             className="border-border border-t pt-8"
             title={t('integrations.enterpriseSso.scim.section')}
             description={t('integrations.enterpriseSso.scim.help')}
-          >
-            <Stack gap={4} className={FIELD_COLUMN}>
-              {config?.scim.enabled ? (
+            action={
+              config?.scim.enabled ? (
                 <Badge variant="green" dot>
                   {t('integrations.enterpriseSso.scim.enabled')}
                 </Badge>
               ) : (
-                <Badge variant="outline">
+                <Badge variant="slate" dot>
                   {t('integrations.enterpriseSso.scim.disabled')}
                 </Badge>
-              )}
+              )
+            }
+          >
+            <Stack gap={4} className={FIELD_COLUMN}>
               {scimToken ? (
                 <Stack gap={2}>
                   <Text variant="muted" className="text-sm">

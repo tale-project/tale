@@ -13,7 +13,6 @@ import {
 } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { DirtySourceContext, type DirtySourceEntry } from './use-dirty-source';
@@ -54,27 +53,14 @@ function isWithinScope(scopePath: string, pathname: string): boolean {
 
 interface DirtyBlockerProviderProps {
   children: ReactNode;
-  /**
-   * When supplied, the navigation dialog renders a third "Save & Leave"
-   * button that awaits this callback before proceeding. A failed save
-   * keeps the user on the page and surfaces a destructive toast.
-   * Pages with section-scoped saves (e.g. governance) omit it so the
-   * dialog stays a two-button choice. Without it, "Save & Leave" is still
-   * offered whenever EVERY dirty source registered its own `save`.
-   */
-  onSaveAll?: () => Promise<void>;
 }
 
-export function DirtyBlockerProvider({
-  children,
-  onSaveAll,
-}: DirtyBlockerProviderProps) {
+export function DirtyBlockerProvider({ children }: DirtyBlockerProviderProps) {
   const { t } = useT('common');
   const [sources, setSources] = useState<Map<string, DirtySourceEntry>>(
     () => new Map(),
   );
   const bypassRef = useRef(false);
-  const [isSavingLeave, setIsSavingLeave] = useState(false);
 
   const anyDirty = useMemo(
     () => Array.from(sources.values()).some((entry) => entry.dirty),
@@ -87,8 +73,7 @@ export function DirtyBlockerProvider({
       if (
         existing &&
         existing.dirty === entry.dirty &&
-        existing.scopePath === entry.scopePath &&
-        existing.save === entry.save
+        existing.scopePath === entry.scopePath
       ) {
         return prev;
       }
@@ -159,51 +144,6 @@ export function DirtyBlockerProvider({
     blocker.proceed?.();
   }, [blocker]);
 
-  // "Save & Leave" is available when the page supplied a save-all, or when
-  // every DIRTY source registered its own save path (an invalid draft
-  // deliberately registers none, so the dialog degrades to Stay/Discard).
-  const dirtyEntries = useMemo(
-    () => Array.from(sources.values()).filter((entry) => entry.dirty),
-    [sources],
-  );
-  const canSaveAndLeave =
-    onSaveAll !== undefined ||
-    (dirtyEntries.length > 0 &&
-      dirtyEntries.every((entry) => entry.save !== undefined));
-
-  const handleSaveAndLeave = useCallback(async () => {
-    setIsSavingLeave(true);
-    try {
-      if (onSaveAll) {
-        await onSaveAll();
-      } else {
-        // Sequential (not parallel) so a failure stops before later saves
-        // commit — the surviving dirty flags keep the remaining edits armed.
-        for (const entry of sourcesRef.current.values()) {
-          if (entry.dirty && entry.save) await entry.save();
-        }
-      }
-      // Mirror discard: clear the registry so an in-flight re-evaluation of
-      // `shouldBlockFn` can't re-prompt while the saved sources' effects are
-      // still catching up.
-      setSources((prev) => (prev.size === 0 ? prev : new Map()));
-      blocker.proceed?.();
-    } catch (err) {
-      blocker.reset?.();
-      toast({
-        title: t('actions.save'),
-        description: err instanceof Error ? err.message : String(err),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingLeave(false);
-    }
-  }, [blocker, onSaveAll, t]);
-
-  const description = canSaveAndLeave
-    ? t('unsavedChanges.descriptionThreeButton')
-    : t('unsavedChanges.descriptionTwoButton');
-
   return (
     <DirtyBlockerControlContext.Provider value={control}>
       <DirtySourceContext.Provider value={sourceRegistry}>
@@ -214,14 +154,14 @@ export function DirtyBlockerProvider({
             if (!open) handleStay();
           }}
           title={t('unsavedChanges.title')}
-          description={description}
+          description={t('unsavedChanges.description')}
           footer={
             <>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={handleStay}
-                disabled={isSavingLeave}
+                autoFocus
               >
                 {t('unsavedChanges.stay')}
               </Button>
@@ -229,21 +169,9 @@ export function DirtyBlockerProvider({
                 type="button"
                 variant="destructive"
                 onClick={handleDiscardAndLeave}
-                disabled={isSavingLeave}
               >
                 {t('unsavedChanges.discardAndLeave')}
               </Button>
-              {canSaveAndLeave && (
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={() => void handleSaveAndLeave()}
-                  isLoading={isSavingLeave}
-                  autoFocus
-                >
-                  {t('unsavedChanges.saveAndLeave')}
-                </Button>
-              )}
             </>
           }
         />

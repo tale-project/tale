@@ -17,11 +17,9 @@ interface MetricsSectionProps {
 }
 
 /**
- * The shared titled section for metrics bodies (top-N tables, arena summary…):
- * one h3 heading style + the standard `gap-3` rhythm, replacing the hand-rolled
- * header row every table used to carry. Charts keep their own chrome
- * (`ChartCard` owns its title); everything else on a metrics page sits in one
- * of these.
+ * The shared titled section for metrics bodies (charts, top-N tables, arena
+ * summary…): one h3 heading style + the standard `gap-3` rhythm. Section titles
+ * sit outside the bordered frame so charts and tables share the same chrome.
  */
 export function MetricsSection({
   title,

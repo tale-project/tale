@@ -22,6 +22,70 @@ export interface SlugOption extends SearchableSelectOption {
   description?: string;
 }
 
+interface ProjectSlugListAddProps {
+  value: string[];
+  onChange: (next: string[]) => void;
+  options: ReadonlyArray<SlugOption>;
+  addLabel: string;
+  disabled?: boolean;
+}
+
+/**
+ * Header-side "Add agent/model" control. Lives next to the section title so
+ * empty lists don't leave a lone CTA under the mode radios.
+ */
+export function ProjectSlugListAdd({
+  value,
+  onChange,
+  options,
+  addLabel,
+  disabled,
+}: ProjectSlugListAddProps) {
+  const { t: tCommon } = useT('common');
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const selectedSet = useMemo(() => new Set(value), [value]);
+  const remainingOptions = useMemo(
+    () =>
+      pruneEmptyAgentSections(
+        options.filter((opt) => !selectedSet.has(opt.value)),
+      ),
+    [options, selectedSet],
+  );
+
+  const handleAdd = useCallback(
+    (slug: string) => {
+      if (selectedSet.has(slug)) return;
+      onChange([...value, slug]);
+      setPickerOpen(false);
+    },
+    [selectedSet, value, onChange],
+  );
+
+  if (disabled || remainingOptions.length === 0) return null;
+
+  return (
+    <SearchableSelect
+      value={null}
+      onValueChange={handleAdd}
+      options={remainingOptions}
+      open={pickerOpen}
+      onOpenChange={setPickerOpen}
+      align="end"
+      contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
+      searchPlaceholder={tCommon('search.placeholder')}
+      emptyText={tCommon('search.noResults')}
+      aria-label={addLabel}
+      trigger={
+        <Button type="button" variant="secondary" size="sm" className="gap-2">
+          <Plus className="size-4" aria-hidden="true" />
+          {addLabel}
+        </Button>
+      }
+    />
+  );
+}
+
 interface ProjectSlugListEditorProps {
   /** Slugs currently selected, in defined order. */
   value: string[];
@@ -29,14 +93,12 @@ interface ProjectSlugListEditorProps {
   onChange: (next: string[]) => void;
   /** Full catalog of selectable items. */
   options: ReadonlyArray<SlugOption>;
-  /** Label for the "Add" button. */
-  addLabel: string;
   /**
    * When `restricted`, an empty list is a lockout — render a destructive
    * banner. When `recommended`, an empty list is fine (nothing is pinned).
    */
   mode: 'recommended' | 'restricted';
-  /** Disable adds/removes (e.g. while a mutation is in flight). */
+  /** Disable removes/reorders (e.g. while a mutation is in flight). */
   disabled?: boolean;
 }
 
@@ -47,27 +109,19 @@ interface SlugRow extends ReorderItem {
 }
 
 /**
- * Ordered list editor for project slug lists, modelled on the
- * `ReorderList` component used in agents settings. Selected items are
- * rendered as draggable rows with up/down arrows + remove buttons; the
- * "Add" button opens a searchable picker that appends to the end.
- *
- * Used by [project-agents-tab.tsx] to drive `recommendedAgentSlugs`,
- * `allowedAgentSlugs`, `recommendedModels`, and `allowedModels`. The
- * caller controls the option label shape (agents pass agent slugs;
- * models pass `<provider>:<id>` refs).
+ * Ordered list editor for project slug lists. Selected items are draggable
+ * rows with up/down + remove. Adding is owned by {@link ProjectSlugListAdd}
+ * in the section header (same pattern as Files → New folder).
  */
 export function ProjectSlugListEditor({
   value,
   onChange,
   options,
-  addLabel,
   mode,
   disabled,
 }: ProjectSlugListEditorProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Optimistic local order. The parent's `value` lags behind by a Convex
   // roundtrip, so driving the list straight from it would make framer-motion
@@ -96,16 +150,6 @@ export function ProjectSlugListEditor({
     [onChange],
   );
 
-  const selectedSet = useMemo(() => new Set(localValue), [localValue]);
-
-  const remainingOptions = useMemo(
-    () =>
-      pruneEmptyAgentSections(
-        options.filter((opt) => !selectedSet.has(opt.value)),
-      ),
-    [options, selectedSet],
-  );
-
   const optionByValue = useMemo(() => {
     const map = new Map<string, SlugOption>();
     for (const opt of options) map.set(opt.value, opt);
@@ -113,13 +157,8 @@ export function ProjectSlugListEditor({
   }, [options]);
 
   // Framer Motion's `Reorder.Group` / `Reorder.Item` tracks items by
-  // reference identity. If we recreated every SlugRow object on each
-  // render, adding a new item would make every existing row look "new"
-  // to Framer Motion — triggering a full set of layout animations and
-  // visually skewing the list (and any sibling Reorder.Group sharing the
-  // page). Cache rows in a ref-backed map keyed by slug so existing rows
-  // keep their object reference unless their visible content actually
-  // changed.
+  // reference identity. Cache rows in a ref-backed map keyed by slug so
+  // existing rows keep their object reference unless content changed.
   const rowsByIdRef = useRef(new Map<string, SlugRow>());
   const rows = useMemo<SlugRow[]>(() => {
     const result: SlugRow[] = [];
@@ -146,9 +185,6 @@ export function ProjectSlugListEditor({
         result.push(fresh);
       }
     }
-    // GC dropped slugs so the cache doesn't grow unbounded. Build a
-    // disposable array of keys-to-delete instead of spreading the
-    // iterator (oxlint flags spread-over-iterables on the hot path).
     const toDelete: string[] = [];
     for (const cachedId of rowsByIdRef.current.keys()) {
       if (!liveIds.has(cachedId)) toDelete.push(cachedId);
@@ -191,16 +227,9 @@ export function ProjectSlugListEditor({
     [localValue, commit],
   );
 
-  const handleAdd = useCallback(
-    (slug: string) => {
-      if (selectedSet.has(slug)) return;
-      commit([...localValue, slug]);
-      setPickerOpen(false);
-    },
-    [selectedSet, localValue, commit],
-  );
-
   const isLockedOut = mode === 'restricted' && localValue.length === 0;
+
+  if (rows.length === 0 && !isLockedOut) return null;
 
   return (
     <Stack gap={3}>
@@ -217,11 +246,6 @@ export function ProjectSlugListEditor({
           dragHandleLabel={tCommon('drag')}
           removeLabel={tCommon('remove')}
           renderItem={({ item }) => (
-            // Label-only inside the row. Long descriptions (e.g. agent
-            // bios) used to be inlined with `shrink-0` and overflowed —
-            // they're still discoverable in the searchable picker when
-            // adding, and we surface them as a `title` tooltip here for
-            // power users who want to recall the context on hover.
             <Row
               gap={2}
               align="baseline"
@@ -251,27 +275,6 @@ export function ProjectSlugListEditor({
             {t('editor.slugEditorEmptyLockout')}
           </Text>
         </div>
-      ) : null}
-
-      {!disabled && remainingOptions.length > 0 ? (
-        <SearchableSelect
-          value={null}
-          onValueChange={handleAdd}
-          options={remainingOptions}
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          align="start"
-          contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
-          searchPlaceholder={tCommon('search.placeholder')}
-          emptyText={tCommon('search.noResults')}
-          aria-label={addLabel}
-          trigger={
-            <Button type="button" variant="ghost">
-              <Plus className="size-4" aria-hidden="true" />
-              {addLabel}
-            </Button>
-          }
-        />
       ) : null}
     </Stack>
   );

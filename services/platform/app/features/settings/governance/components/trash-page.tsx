@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
-import { Undo2 } from 'lucide-react';
+import { Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -239,6 +239,7 @@ export function TrashPage({ organizationId }: Props) {
         <Skeletonize loading={loading} label={t('trash.title', 'Trash')}>
           {!loading && rows.length === 0 ? (
             <EmptyState
+              icon={Trash2}
               title={t('trash.emptyTitle', 'Trash is empty')}
               description={t(
                 'trash.empty',

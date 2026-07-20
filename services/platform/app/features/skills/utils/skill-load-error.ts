@@ -62,28 +62,6 @@ export function resolveSkillLoadErrorPresentation(
   return { kind: 'generic' };
 }
 
-export function skillLoadErrorSummaryKey(
-  presentation: SkillLoadErrorPresentation,
-): string {
-  if (presentation.kind === 'yaml_syntax' && presentation.line != null) {
-    return 'skills.loadError.yamlSyntaxLine';
-  }
-  return SUMMARY_KEYS[presentation.kind];
-}
-
-const SUMMARY_KEYS: Record<SkillLoadErrorKind, string> = {
-  yaml_syntax: 'skills.loadError.yamlSyntax',
-  missing_frontmatter: 'skills.loadError.missingFrontmatter',
-  unclosed_frontmatter: 'skills.loadError.unclosedFrontmatter',
-  frontmatter_too_large: 'skills.loadError.frontmatterTooLarge',
-  invalid_frontmatter: 'skills.loadError.invalidFrontmatter',
-  empty_frontmatter: 'skills.loadError.emptyFrontmatter',
-  not_found: 'skills.loadError.notFound',
-  symlink: 'skills.loadError.symlink',
-  inaccessible: 'skills.loadError.inaccessible',
-  generic: 'skills.loadError.generic',
-};
-
 export function skillLoadErrorDetailTitleKey(
   presentation: SkillLoadErrorPresentation,
 ): string {

@@ -97,13 +97,16 @@ function ProjectsMetricsRoute() {
     />
   );
 
-  return (
-    // `fullWidth`: `ProjectMetricsPage` lays its charts out on a two-column
-    // grid designed for the full pane, wider than the `max-w-3xl` standard
-    // settings measure (#2567).
-    <SettingsPage fullWidth>
-      <Skeletonize loading={projectsLoading}>
-        {selectedProjectId ? (
+  // `fullWidth`: `ProjectMetricsPage` lays its charts out on a two-column
+  // grid designed for the full pane, wider than the `max-w-3xl` standard
+  // settings measure (#2567). Empty path also uses `fitToContainer` so
+  // EmptyState can vertically center in the remaining pane (Integrations
+  // pattern); the selected-project path stays content-sized so charts
+  // scroll with the outer settings scroller.
+  if (selectedProjectId) {
+    return (
+      <SettingsPage fullWidth>
+        <Skeletonize loading={projectsLoading}>
           <ProjectMetricsPage
             as="h3"
             toolbarStart={projectPicker}
@@ -111,20 +114,31 @@ function ProjectsMetricsRoute() {
             periodDays={periodDays}
             onChangePeriod={handleChangePeriod}
           />
-        ) : (
-          <MetricsLayout
-            as="h3"
-            title={tTasks('metrics.title')}
-            description={tTasks('metrics.description')}
-            toolbar={projectPicker}
-          >
-            <EmptyState
-              icon={BarChart3}
-              title={t('projects.emptyTitle')}
-              description={t('projects.emptyDescription')}
-            />
-          </MetricsLayout>
-        )}
+        </Skeletonize>
+      </SettingsPage>
+    );
+  }
+
+  return (
+    <SettingsPage fullWidth fitToContainer>
+      <Skeletonize
+        loading={projectsLoading}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <MetricsLayout
+          as="h3"
+          title={tTasks('metrics.title')}
+          description={tTasks('metrics.description')}
+          toolbar={projectPicker}
+          className="min-h-0 flex-1"
+        >
+          <EmptyState
+            icon={BarChart3}
+            title={t('projects.emptyTitle')}
+            description={t('projects.emptyDescription')}
+            className="min-h-0"
+          />
+        </MetricsLayout>
       </Skeletonize>
     </SettingsPage>
   );

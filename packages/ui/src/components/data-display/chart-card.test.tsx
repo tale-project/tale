@@ -37,6 +37,20 @@ describe('ChartCard', () => {
       expect(screen.queryByText('chart body')).not.toBeInTheDocument();
     });
 
+    it('omits the in-card title when the parent owns the section heading', () => {
+      render(
+        <ChartCard isEmpty emptyTitle="No data yet">
+          <div>chart body</div>
+        </ChartCard>,
+      );
+      // EmptyState still has a heading; the card chrome itself has none.
+      expect(
+        screen.getByRole('heading', { name: 'No data yet' }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('heading')).toHaveLength(1);
+      expect(screen.queryByText('chart body')).not.toBeInTheDocument();
+    });
+
     it('renders an info tooltip trigger when given a tooltip', () => {
       render(
         <ChartCard title="Trend" tooltip="What this shows">
