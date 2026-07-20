@@ -18,7 +18,8 @@
  * Closes the cross-tenant authz gap on every public action in
  * `agents/file_actions.ts`, `integrations/file_actions.ts`,
  * `threads/{edit_and_branch,fork_and_chat}.ts`,
- * `conversations/actions.ts`, and `workflows/triggers/actions.ts`.
+ * `conversations/actions.ts`, `workflows/triggers/actions.ts`, and
+ * `onedrive/actions.ts`.
  *
  * Throws `ConvexError` with stable `code` so UI can dispatch:
  *  - `UNAUTHENTICATED` — no auth user.

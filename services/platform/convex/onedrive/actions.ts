@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   importFiles as importFilesImpl,
   type ImportItem,
@@ -65,6 +66,10 @@ export const importFiles = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
+    // Membership gate on the caller-supplied org — the import writes
+    // documents (and, below, installs the sync engine) into that org.
+    await requireOrgMembershipById(ctx, args.organizationId);
+
     const tokenResult = await withMicrosoftToken(ctx);
     if (!tokenResult.success) {
       return {

@@ -23,6 +23,12 @@ vi.mock('../_generated/api', () => ({
   },
 }));
 
+const mockRequireOrgMembershipById = vi.fn();
+vi.mock('../lib/auth/require_org_membership', () => ({
+  requireOrgMembershipById: (...args: unknown[]) =>
+    mockRequireOrgMembershipById(...args),
+}));
+
 const mockWithMicrosoftToken = vi.fn();
 vi.mock('./with_microsoft_token', () => ({
   withMicrosoftToken: (...args: unknown[]) => mockWithMicrosoftToken(...args),
@@ -64,6 +70,11 @@ function createMockCtx() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockRequireOrgMembershipById.mockResolvedValue({
+    orgId: 'org1',
+    orgSlug: 'acme',
+    userId: 'user_1',
+  });
   mockWithMicrosoftToken.mockResolvedValue({
     success: true,
     token: 'tok',
@@ -108,6 +119,26 @@ describe('importFiles — sync-import engine opt-in', () => {
     );
 
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('a caller outside the org is rejected before any install or import', async () => {
+    mockRequireOrgMembershipById.mockRejectedValue(new Error('ORG_FORBIDDEN'));
+
+    const ctx = createMockCtx();
+    await expect(
+      importHandler(
+        ctx as never,
+        {
+          items: [],
+          organizationId: 'someone-elses-org',
+          importType: 'sync',
+        } as never,
+      ),
+    ).rejects.toThrow('ORG_FORBIDDEN');
+
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    expect(mockImportFilesImpl).not.toHaveBeenCalled();
+    expect(mockWithMicrosoftToken).not.toHaveBeenCalled();
   });
 
   it('a failed Microsoft token bails before any install or import', async () => {
