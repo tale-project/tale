@@ -77,7 +77,7 @@
       "episode": "ep3-knowledge",
       "locale": "de",
       "kind": "video",
-      "durationSec": 202.6,
+      "durationSec": 406.2,
       "width": 1920,
       "height": 1080
     },
@@ -86,7 +86,7 @@
       "episode": "ep3-knowledge",
       "locale": "de",
       "kind": "captions",
-      "durationSec": 202.6
+      "durationSec": 406.2
     },
     {
       "file": "videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.webp",
@@ -317,7 +317,7 @@
       "episode": "ep3-knowledge",
       "locale": "en",
       "kind": "video",
-      "durationSec": 183.6,
+      "durationSec": 349.5,
       "width": 1920,
       "height": 1080
     },
@@ -326,7 +326,7 @@
       "episode": "ep3-knowledge",
       "locale": "en",
       "kind": "captions",
-      "durationSec": 183.6
+      "durationSec": 349.5
     },
     {
       "file": "videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.webp",
@@ -557,7 +557,7 @@
       "episode": "ep3-knowledge",
       "locale": "fr",
       "kind": "video",
-      "durationSec": 165.1,
+      "durationSec": 342.2,
       "width": 1920,
       "height": 1080
     },
@@ -566,7 +566,7 @@
       "episode": "ep3-knowledge",
       "locale": "fr",
       "kind": "captions",
-      "durationSec": 165.1
+      "durationSec": 342.2
     },
     {
       "file": "videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.webp",

@@ -880,7 +880,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 3 — Wissen",
-      "description": "Die Bibliothek hinter jeder verankerten Antwort — Dokumente und Indexierung, gepflegte Einträge, typisierte Datensätze, der Website-Crawler und die Zugriffsbereiche, die entscheiden, wer was liest."
+      "description": "Einen Fakt hineinlegen und zitiert zurückbekommen — ein Wissenseintrag vor der Kamera, das Abzeichen „Indexiert\" erklärt, ein Datensatz nachgeschlagen, die Crawler-Grenze gelesen und die Falle veralteten Wissens live gezeigt."
     }
   },
   "de:tutorials/videos/chat-in-depth": {
@@ -2144,7 +2144,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 3 — Connaissances",
-      "description": "La bibliothèque derrière chaque réponse ancrée — documents et indexation, entrées entretenues, fiches typées, le crawler de sites web et les périmètres qui décident qui lit quoi."
+      "description": "Déposer un fait et le retrouver cité — une entrée créée à l'écran, le badge « Indexé » expliqué, une fiche consultée, la limite du crawler lue, et le piège du savoir périmé montré en direct."
     }
   },
   "fr:tutorials/videos/chat-in-depth": {
@@ -3408,7 +3408,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 3 — Knowledge",
-      "description": "The library behind every grounded answer — documents and indexing, curated entries, typed records, the website crawler, and the scopes that decide who reads what."
+      "description": "Put a fact in and get it back cited — a knowledge entry created on camera, the Indexed badge explained, a record looked up, the crawler's boundary read, and a stale-knowledge trap shown live."
     }
   },
   "en:tutorials/videos/chat-in-depth": {

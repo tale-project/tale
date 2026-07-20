@@ -140,7 +140,7 @@ async function ensureTriageStaged(
   page: Page,
   orgId: string,
   relaunchProjectId: string,
-  staged: { green: string; red: string },
+  staged: { green: string; red: string; suggested: string },
 ): Promise<void> {
   // 1. Installed?
   await page.goto(`/dashboard/${orgId}/automations/${TRIAGE_PATH}`, {
@@ -175,7 +175,7 @@ async function ensureTriageStaged(
     name: t('tasks.actions.create'),
   });
   await newTaskButton.waitFor({ state: 'visible', timeout: 20_000 });
-  for (const title of [staged.green, staged.red]) {
+  for (const title of [staged.green, staged.red, staged.suggested]) {
     if (
       await page
         .getByText(title, { exact: true })

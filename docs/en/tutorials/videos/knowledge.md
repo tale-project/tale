@@ -1,26 +1,27 @@
 ---
 title: Episode 3 — Knowledge
-description: The library behind every grounded answer — documents and indexing, curated entries, typed records, the website crawler, and the scopes that decide who reads what.
+description: Put a fact in and get it back cited — a knowledge entry created on camera, the Indexed badge explained, a record looked up, the crawler's boundary read, and a stale-knowledge trap shown live.
 ---
 
-The grounded answers of episode 2 all came from one place. This episode opens that place up: what the Indexed badge really means (and why indexing is not training), a knowledge entry added on camera and cited by an agent two minutes later, typed records beside prose documents, the crawler's honest anonymous-visitor boundary, and the scope switches that make visibility a decision instead of an accident.
+The grounded answers of episode 2 all came from one place; this episode works in it. You add a real fact as a knowledge entry, learn what the Indexed badge actually means (and why indexing is not training), look a price up in a typed record, read the crawler's scan interval, open the control that limits a document to one team — and then meet the failure you'll actually hit: not a missing fact, an outdated one. At the end, a fresh chat cites the entry you created minutes earlier.
 
-<Video src="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.mp4" poster="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.webp" captions="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.vtt" lang="en" title="Episode 3 — Knowledge" caption="Episode 3 — Knowledge (3:03, captions available)">
+<Video src="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.mp4" poster="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.webp" captions="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.vtt" lang="en" title="Episode 3 — Knowledge" caption="Episode 3 — Knowledge (5:50, captions available)">
 
 </Video>
 
 ## What the episode shows
 
-| At   | Scene                                                               |
-| ---- | ------------------------------------------------------------------- |
-| 0:12 | Documents and the indexing pipeline — what the Indexed badge means  |
-| 0:30 | Indexing is not training: retrieval at answer time, source attached |
-| 0:49 | A knowledge entry added live — topic, content, save                 |
-| 1:08 | Typed records: products with real fields, values not guesses        |
-| 1:25 | The crawler: a domain, a rhythm, an anonymous-visitor boundary      |
-| 1:42 | Scopes: the smallest library that does the job                      |
-| 2:02 | The curation habit — the model believes what you give it            |
-| 2:21 | The proof: the fresh entry answered and named as the source         |
+| At   | Scene                                                         |
+| ---- | ------------------------------------------------------------- |
+| 0:27 | The map: Documents, entries, websites, products — one tab row |
+| 0:54 | Entry vs document vs record — picking the right shape         |
+| 1:18 | A knowledge entry created live: topic, content, save          |
+| 1:44 | What Indexed means — retrieval at answer time, not training   |
+| 2:11 | A real lookup in a typed record                               |
+| 2:37 | The crawler: a domain, a scan interval, an honest boundary    |
+| 3:09 | Who reads what: a document assigned to a team                 |
+| 3:41 | The stale-knowledge trap, asked live                          |
+| 4:35 | The proof: a fresh chat cites the entry you just created      |
 
 ## Where to go next
 

@@ -56,8 +56,13 @@ interface VideoDemoContent {
   readonly discussionTitle: string;
   /** The document the wow scene attaches — first in `documents` by contract. */
   readonly wowSourceDoc: string;
-  /** Green-run + red-run trigger tasks staged for the executions log. */
-  readonly stagedTasks: { readonly green: string; readonly red: string };
+  /** Green-run + red-run + below-the-bar suggestion tasks staged for the
+   * executions log and the Episode 6 non-assignment beat. */
+  readonly stagedTasks: {
+    readonly green: string;
+    readonly red: string;
+    readonly suggested: string;
+  };
   /** Board-scene targets: readiness/first hover, then the second hover. */
   readonly boardReadyTask: string;
   readonly boardHoverTask: string;
@@ -428,6 +433,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     stagedTasks: {
       green: 'Sign off the launch checklist',
       red: 'Prepare the rollback plan',
+      suggested: 'Sign off the launch checklist',
     },
     boardReadyTask: 'Sign off the launch checklist',
     boardHoverTask: 'Finalize homepage copy with marketing',
@@ -446,6 +452,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     stagedTasks: {
       green: 'Launch-Checkliste freigeben',
       red: 'Rollback-Plan vorbereiten',
+      suggested: 'Go-live-Freigabe erteilen',
     },
     boardReadyTask: 'Launch-Checkliste freigeben',
     boardHoverTask: 'Startseiten-Texte mit Marketing abstimmen',
@@ -464,6 +471,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     stagedTasks: {
       green: 'Valider la check-list de lancement',
       red: 'Préparer le plan de rollback',
+      suggested: 'Donner le feu vert à la mise en ligne',
     },
     boardReadyTask: 'Valider la check-list de lancement',
     boardHoverTask: 'Finaliser les textes d’accueil avec le marketing',
