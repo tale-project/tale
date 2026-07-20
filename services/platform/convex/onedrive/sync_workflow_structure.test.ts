@@ -21,6 +21,8 @@ const MANIFEST_PATH = fileURLToPath(
 );
 
 const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8')) as {
+  hidden?: unknown;
+  autoInstall?: unknown;
   workflow?: unknown;
 };
 const parsed = workflowJsonSchema.safeParse(manifest.workflow);
@@ -98,9 +100,12 @@ describe('onedrive sync workflow: structure', () => {
     expect(p.itemName).toBe('{{loop.item.itemName}}');
   });
 
-  it('declares the schedule that drives the sync loop', () => {
+  it('declares EXACTLY ONE schedule that drives the sync loop', () => {
+    // One engine, one cron: the install pipeline materializes a wfSchedules
+    // row per declared trigger, so a second entry here would double-run every
+    // org's sync.
     const schedules = doc.triggers?.schedules ?? [];
-    expect(schedules.length).toBeGreaterThanOrEqual(1);
+    expect(schedules).toHaveLength(1);
     expect(schedules[0].cron).toBeTruthy();
   });
 
@@ -108,5 +113,18 @@ describe('onedrive sync workflow: structure', () => {
     const raw = readFileSync(MANIFEST_PATH, 'utf-8');
     expect(raw).not.toContain('workflow_processing_records');
     expect(raw).not.toContain('backoffHours');
+  });
+});
+
+describe('onedrive sync engine: install posture', () => {
+  it('is hidden — an engine, never a catalog card', () => {
+    expect(manifest.hidden).toBe(true);
+  });
+
+  it('is NOT autoInstall — the engine lands when a member sets up a sync import, not at org creation', () => {
+    // `importFiles` (actions.ts) schedules the targeted idempotent install on
+    // the first sync import; preinstalling would run a no-op cron in every
+    // org that never touches OneDrive.
+    expect(manifest.autoInstall).toBeUndefined();
   });
 });

@@ -27,10 +27,10 @@ export const upsertSyncConfig = internalMutation({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    // Presence of the sync engine (the `onedrive/sync-files` autoInstall
-    // automation) is guaranteed by default-automation provisioning at
-    // org-create / deploy / catalog resync, and the sync-import action
-    // re-runs the idempotent provisioner — no per-upsert compensation.
+    // Presence of the sync engine (the hidden `onedrive/sync-files`
+    // automation) is guaranteed by the sync-import action (`actions.ts
+    // importFiles`), which schedules an idempotent targeted install the
+    // moment a member sets up a sync — no per-upsert compensation.
     return await createOneDriveSyncConfig(ctx, args);
   },
 });

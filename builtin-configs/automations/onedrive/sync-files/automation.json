@@ -12,7 +12,6 @@
     }
   },
   "hidden": true,
-  "autoInstall": true,
   "icon": "refresh-cw",
   "labels": ["Knowledge", "OneDrive"],
   "scope": "org",
