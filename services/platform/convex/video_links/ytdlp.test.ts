@@ -46,6 +46,24 @@ describe('classifyYtDlpStderr', () => {
     );
   });
 
+  it('classifies geo-blocks across yt-dlp phrasings', () => {
+    // Verbatim stderr from a real CH/LI-restricted video: "not" and
+    // "available" are non-contiguous here, which the old pattern missed.
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [youtube] h7LDFVd8DSk: The uploader has not made this video available in your country\n' +
+          'This video is available in Switzerland, Liechtenstein.\n' +
+          'You might want to use a VPN or a proxy server (with --proxy) to workaround.\n',
+      ),
+    ).toBe('geoblocked');
+    expect(
+      classifyYtDlpStderr('ERROR: This video is not available in your country'),
+    ).toBe('geoblocked');
+    expect(
+      classifyYtDlpStderr('The video is not available in your region'),
+    ).toBe('geoblocked');
+  });
+
   it('falls back to transient for anything unrecognized', () => {
     expect(classifyYtDlpStderr('some unexpected network blip')).toBe(
       'transient',
