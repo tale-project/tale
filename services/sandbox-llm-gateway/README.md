@@ -1,10 +1,10 @@
 # @tale/sandbox-llm-gateway
 
-The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) core). The single path from an in-sandbox coding agent (Claude Code / OpenCode) to an LLM.
+The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) core). The single path from in-sandbox code to an LLM — coding agents (Claude Code / OpenCode), and the `tale-vision` CLI that chat `run_code` execs use for image analysis.
 
 ## Overview
 
-Raw provider API keys live ONLY here and in the platform. The sandbox holds a session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at session destroy. The platform is the source of truth for providers/models; it provisions the gateway via the management API on session create (`convex/node_only/sandbox/llm_gateway_admin.ts`).
+Raw provider API keys live ONLY here and in the platform. The sandbox holds a session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at session destroy. The platform is the source of truth for providers/models; it provisions the gateway via the management API on session create (`convex/node_only/sandbox/llm_gateway_admin.ts`). Chat run_code sessions mint a narrower key still: vision-model-only, small budget (`armVisionLane`, `convex/node_only/sandbox/thread_session.ts`).
 
 Dual-homed onto two Docker networks:
 
