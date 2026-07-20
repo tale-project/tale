@@ -105,6 +105,30 @@ await assertContains('node present', 65534, 'v', 'node --version');
 await assertOk('uv present', 65534, 'command -v uv');
 // bun + bunx — many JS/TS projects (Tale included) use them.
 await assertOk('bun present', 65534, 'command -v bun && command -v bunx');
+// Batch vision CLI — chat run_code execs run at this uid.
+await assertOk(
+  'tale-vision present',
+  65534,
+  'test -x /usr/local/bin/tale-vision',
+);
+await assertOk(
+  'tale-vision venv imports Pillow under -E',
+  65534,
+  '/opt/tale-vision/bin/python -E -c "import PIL"',
+);
+// The shim must neutralize the per-exec user PYTHONPATH (entrypoint.sh
+// prepends /user/.runtime/deps/python) or a user-installed fake PIL could
+// shadow the venv's.
+await assertOk(
+  'tale-vision shim runs python -E -s',
+  65534,
+  "grep -q ' -E -s ' /usr/local/bin/tale-vision",
+);
+await assertOk(
+  'venv PIL immune to PYTHONPATH shadowing',
+  65534,
+  `mkdir -p /workspace/fake/PIL && printf 'raise RuntimeError("shadowed")\\n' > /workspace/fake/PIL/__init__.py && PYTHONPATH=/workspace/fake /opt/tale-vision/bin/python -E -c 'import PIL; assert "tale-vision" in PIL.__file__, PIL.__file__'`,
+);
 
 console.log('');
 console.log('--- agent session role (uid 10001) ---');
@@ -354,6 +378,12 @@ print("OPENCLAW_WRAPPER_FLAGS_OK")
 }
 await assertOk('agent on PATH', 10001, 'command -v agent');
 await assertOk('agent --version runs', 10001, 'agent --version');
+// Coding agents (session role) shell out to the same vision CLI.
+await assertOk(
+  'tale-vision usable at agent uid',
+  10001,
+  'test -x /usr/local/bin/tale-vision && /opt/tale-vision/bin/python -E -c "import PIL"',
+);
 // HOME on the workspace volume must be writable for agent state.
 await assertOk(
   'HOME writable for agent state',
@@ -558,6 +588,101 @@ console.log(
   } finally {
     if (cid) await ok(['docker', 'rm', '-f', cid]);
   }
+}
+
+console.log('');
+console.log('--- tale-vision analyzes against a stub gateway ---');
+// End-to-end inside the image at the run_code uid: stub Anthropic-Messages
+// server (429 first, then 200), 3000×1500 noise PNG → assert downscale
+// (payload < original, longest edge ≤ --max-edge), NDJSON shape, retry, and
+// the per-turn cache short-circuiting the second run. No real model/key.
+{
+  const functional = `
+import base64, json, os, subprocess, threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+state = {"count": 0}
+
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        state["count"] += 1
+        if self.headers.get("authorization") != "Bearer sk-bf-test":
+            self.send_response(401); self.end_headers(); return
+        n = int(self.headers.get("content-length", 0))
+        body = json.loads(self.rfile.read(n))
+        img = body["messages"][0]["content"][0]["source"]["data"]
+        with open("/workspace/sent.bin", "wb") as f:
+            f.write(base64.b64decode(img))
+        if state["count"] == 1:
+            self.send_response(429); self.end_headers(); return
+        payload = json.dumps(
+            {"content": [{"type": "text", "text": f"OK#{state['count']}"}]}
+        ).encode()
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def log_message(self, *args):
+        pass
+
+srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+port = srv.server_address[1]
+
+vp = "/opt/tale-vision/bin/python"
+subprocess.run(
+    [vp, "-E", "-c",
+     "import os; from PIL import Image; "
+     "Image.frombytes('RGB', (3000, 1500), os.urandom(3000*1500*3))"
+     ".save('/workspace/big.png')"],
+    check=True,
+)
+env = dict(
+    os.environ,
+    TALE_GATEWAY_URL=f"http://127.0.0.1:{port}",
+    TALE_GATEWAY_TOKEN="sk-bf-test",
+    TALE_VISION_MODEL="stub-vision",
+    TMPDIR="/workspace",
+)
+
+r1 = subprocess.run(
+    ["tale-vision", "/workspace/big.png", "--max-edge", "2000"],
+    capture_output=True, text=True, env=env,
+)
+assert r1.returncode == 0, f"first run failed: {r1.stderr[:300]}"
+line1 = json.loads(r1.stdout.strip().splitlines()[-1])
+assert line1["ok"] and line1["cached"] is False and line1["text"] == "OK#2", line1
+assert state["count"] == 2, state  # 429 → retried → 200
+
+sent = os.path.getsize("/workspace/sent.bin")
+orig = os.path.getsize("/workspace/big.png")
+assert 0 < sent < orig, (sent, orig)
+edge = subprocess.run(
+    [vp, "-E", "-c",
+     "from PIL import Image; print(max(Image.open('/workspace/sent.bin').size))"],
+    capture_output=True, text=True, check=True,
+).stdout.strip()
+assert int(edge) <= 2000, edge
+
+r2 = subprocess.run(
+    ["tale-vision", "/workspace/big.png", "--max-edge", "2000"],
+    capture_output=True, text=True, env=env,
+)
+line2 = json.loads(r2.stdout.strip().splitlines()[-1])
+assert r2.returncode == 0 and line2["cached"] is True, (r2.returncode, line2)
+assert line2["text"] == "OK#2", line2
+assert state["count"] == 2, state  # cache hit → no new gateway call
+
+print("TALE_VISION_FUNCTIONAL_OK")
+`;
+  await assertContains(
+    'tale-vision downscale/retry/cache against a stub gateway',
+    65534,
+    'TALE_VISION_FUNCTIONAL_OK',
+    `python3 - <<'PYEOF'\n${functional}\nPYEOF`,
+  );
 }
 
 console.log('');

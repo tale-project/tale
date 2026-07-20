@@ -314,6 +314,8 @@ MULTI-STEP: repeated run_code calls (no steps array); the sandbox session persis
 
 PATHS: \`/user/code/\` your file_write scripts (what \`entryPath\` runs) · \`/user/output/\` deliverables — ONLY files written here are harvested back into the workspace and canvas (incl. prior runs' outputs) · \`/user/uploads/\` the user's files.
 
+VISION: \`tale-vision <image-paths...> [--question "..."]\` analyzes images with the org's vision model (NDJSON line per image; results cached for the turn, so re-runs are free). For large batches raise timeoutMs (max 300000) and chunk across run_code calls.
+
 LIMITS: 1 GB memory · ≤16 harvested files/run.
 
 Results embed terminal output (stdout capped 4 KB; stderr on failure) and a \`sandboxState\` manifest (files per dir with \`fileId\`) — read it first: never regenerate an output already listed; hand a \`fileId\` to \`image\` (analyze) or \`document_write\`.`,

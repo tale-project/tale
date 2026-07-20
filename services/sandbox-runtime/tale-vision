@@ -1,0 +1,435 @@
+#!/usr/bin/env python3
+"""tale-vision — batch image analysis for in-sandbox code, via the platform
+LLM gateway.
+
+Analyzes images with the org's vision model THROUGH THE PLATFORM GATEWAY, so
+no raw provider key ever enters the container — the same lane as
+`tale-vision-transcribe` (which stays the single-image Read-hook polyfill;
+this CLI is the batch/code-facing superset).
+
+  tale-vision <image-path>... [--question "..."]   one NDJSON line per input
+  tale-vision - < image.png                        read one image from stdin
+
+Env contract (injected by the platform when the org has a vision model):
+  TALE_GATEWAY_URL    gateway root, e.g. http://sandbox-llm-gateway:8080
+  TALE_GATEWAY_TOKEN  session virtual key (sent as Bearer)
+  TALE_VISION_MODEL   gateway model id (`--model` overrides)
+
+Behaviour:
+  * Downscales before upload (longest edge `--max-edge`, default 2000):
+    vision models downsample anyway, so this is model-lossless and cuts the
+    payload by orders of magnitude for screenshots. Re-encoding is
+    deterministic (fixed params, no timestamps) so cache keys are stable.
+  * Caches results per (processed bytes, question, model) under
+    /user/.cache/tale-vision — re-running after a run_code timeout is free
+    for already-analyzed images within the turn.
+  * Bounded concurrency, per-image timeout, retry with backoff on 429/5xx,
+    continue-on-error per image; each NDJSON line is flushed immediately so
+    partial output survives an exec timeout.
+  * Animated inputs: first frame only.
+
+Output: one JSON object per line —
+  {"path": ..., "ok": true,  "text": ..., "cached": true|false}
+  {"path": ..., "ok": false, "error": ...}
+
+Exit codes: 0 all inputs ok · 1 any input failed · 2 usage/config error.
+"""
+
+import argparse
+import base64
+import hashlib
+import io
+import json
+import os
+import random
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+ANTHROPIC_VERSION = "2023-06-01"
+MAX_TOKENS = 1024
+# The gateway lives on the sandbox-internal docker network — never route it
+# through an egress proxy, whatever HTTP(S)_PROXY says (Node's fetch in
+# tale-vision-transcribe ignores proxy env for the same reason).
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+RETRY_ATTEMPTS = 3
+RETRY_BASE_S = 0.5
+# Keep the original bytes verbatim when already small enough; re-encoded
+# JPEGs step q85→q75→q65 until they fit. Anything the encoder cannot get
+# under the hard cap is refused per-image (the gateway/model would anyway).
+PASSTHROUGH_MAX_BYTES = 1_572_864  # 1.5 MiB
+HARD_PAYLOAD_MAX_BYTES = 4 * 1024 * 1024
+JPEG_QUALITIES = (85, 75, 65)
+
+DEFAULT_PROMPT = (
+    "Describe this image and extract its text and any structured fields "
+    "verbatim. Preserve numbers, dates, and identifiers exactly."
+)
+
+MEDIA_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+
+_pil_modules = None
+_pil_checked = False
+
+
+def _pil():
+    """Lazy PIL import: the baked venv always has Pillow; host test runs may
+    not, in which case images pass through un-downscaled (size-guarded)."""
+    global _pil_modules, _pil_checked
+    if not _pil_checked:
+        _pil_checked = True
+        try:
+            from PIL import Image, ImageOps  # noqa: PLC0415
+
+            _pil_modules = (Image, ImageOps)
+        except ImportError:
+            _pil_modules = None
+    return _pil_modules
+
+
+def sniff_media_type(data):
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+class ImageError(Exception):
+    """Per-image failure (bad input, oversize, gateway error) — the batch
+    continues; the message becomes the NDJSON `error` field."""
+
+
+def prepare_image(data, max_edge):
+    """Return (payload_bytes, media_type), downscaled/re-encoded when needed.
+
+    Deterministic: same input bytes + same max_edge → same output bytes
+    (fixed resample/quality, no metadata added), so the cache key is stable
+    across re-runs.
+    """
+    if len(data) == 0:
+        raise ImageError("empty input")
+    pil = _pil()
+    if pil is None:
+        media = sniff_media_type(data)
+        if media is None:
+            raise ImageError("unrecognized image format (expected PNG/JPEG/WebP/GIF)")
+        if len(data) > HARD_PAYLOAD_MAX_BYTES:
+            raise ImageError(
+                f"image is {len(data)} bytes > {HARD_PAYLOAD_MAX_BYTES} and Pillow "
+                "is unavailable to downscale it — provide a smaller image"
+            )
+        return data, media
+
+    image_mod, imageops_mod = pil
+    try:
+        img = image_mod.open(io.BytesIO(data))
+        img.load()
+    except Exception as err:
+        raise ImageError(f"could not decode image: {err}") from err
+
+    original_format = (img.format or "").upper()
+    img = imageops_mod.exif_transpose(img)
+    needs_resize = max(img.size) > max_edge
+
+    # Small enough and already in a wire format the model accepts → send the
+    # original bytes verbatim (best fidelity, cheapest, trivially stable key).
+    if (
+        not needs_resize
+        and len(data) <= PASSTHROUGH_MAX_BYTES
+        and original_format in ("PNG", "JPEG", "WEBP", "GIF")
+    ):
+        return data, f"image/{'jpeg' if original_format == 'JPEG' else original_format.lower()}"
+
+    if needs_resize:
+        scale = max_edge / max(img.size)
+        new_size = (
+            max(1, round(img.size[0] * scale)),
+            max(1, round(img.size[1] * scale)),
+        )
+        img = img.resize(new_size, image_mod.Resampling.LANCZOS)
+
+    # PNG stays PNG when that stays small (UI screenshots: text legibility over
+    # size); everything else — or a fat PNG — goes lossy JPEG, stepping the
+    # quality down until it fits.
+    if original_format == "PNG":
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        if buf.tell() <= PASSTHROUGH_MAX_BYTES:
+            return buf.getvalue(), "image/png"
+
+    if img.mode in ("RGBA", "LA", "P", "PA"):
+        rgba = img.convert("RGBA")
+        flat = image_mod.new("RGB", rgba.size, (255, 255, 255))
+        flat.paste(rgba, mask=rgba.split()[-1])
+        img = flat
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
+    for quality in JPEG_QUALITIES:
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        if buf.tell() <= PASSTHROUGH_MAX_BYTES:
+            return buf.getvalue(), "image/jpeg"
+    if buf.tell() <= HARD_PAYLOAD_MAX_BYTES:
+        return buf.getvalue(), "image/jpeg"
+    raise ImageError(
+        f"image still {buf.tell()} bytes after downscaling to edge {max_edge} "
+        f"and JPEG q{JPEG_QUALITIES[-1]} — try a smaller --max-edge"
+    )
+
+
+def cache_dir():
+    for candidate in (
+        "/user/.cache/tale-vision",
+        os.path.join(tempfile.gettempdir(), "tale-vision"),
+    ):
+        try:
+            os.makedirs(candidate, exist_ok=True)
+            if os.access(candidate, os.W_OK):
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def cache_key(payload, question, model):
+    h = hashlib.sha256()
+    h.update(payload)
+    h.update(b"\x00")
+    h.update(question.encode("utf-8"))
+    h.update(b"\x00")
+    h.update(model.encode("utf-8"))
+    return h.hexdigest()
+
+
+def cache_get(directory, key):
+    if directory is None:
+        return None
+    try:
+        with open(os.path.join(directory, f"{key}.json"), encoding="utf-8") as f:
+            entry = json.load(f)
+        text = entry.get("text")
+        return text if isinstance(text, str) else None
+    except (OSError, ValueError):
+        return None
+
+
+def cache_put(directory, key, text):
+    if directory is None:
+        return
+    path = os.path.join(directory, f"{key}.json")
+    try:
+        tmp = f"{path}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"text": text}, f)
+        os.replace(tmp, path)
+    except OSError as err:
+        print(f"tale-vision: cache write failed: {err}", file=sys.stderr)
+
+
+def call_gateway(cfg, payload, media_type, question, deadline):
+    """POST the Anthropic Messages request; retry 429/5xx/transient network
+    errors with jittered backoff, all bounded by the per-image deadline."""
+    body = json.dumps(
+        {
+            "model": cfg["model"],
+            "max_tokens": MAX_TOKENS,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64.b64encode(payload).decode("ascii"),
+                            },
+                        },
+                        {"type": "text", "text": question},
+                    ],
+                }
+            ],
+        }
+    ).encode("utf-8")
+
+    last_error = "unknown error"
+    for attempt in range(RETRY_ATTEMPTS):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ImageError(f"timed out ({last_error})")
+        req = urllib.request.Request(
+            f"{cfg['url']}/anthropic/v1/messages",
+            data=body,
+            headers={
+                "content-type": "application/json",
+                "authorization": f"Bearer {cfg['token']}",
+                "anthropic-version": ANTHROPIC_VERSION,
+            },
+            method="POST",
+        )
+        retryable = False
+        try:
+            with _OPENER.open(req, timeout=remaining) as res:
+                raw = res.read().decode("utf-8", "replace")
+            parsed = json.loads(raw)
+            blocks = parsed.get("content")
+            text = "\n".join(
+                b.get("text", "")
+                for b in blocks
+                if isinstance(b, dict) and b.get("type") == "text"
+            ).strip() if isinstance(blocks, list) else ""
+            return text or "(vision model returned no text)"
+        except urllib.error.HTTPError as err:
+            detail = err.read().decode("utf-8", "replace")[:500]
+            last_error = f"vision model call failed (status {err.code}): {detail}"
+            retryable = err.code == 429 or 500 <= err.code < 600
+        except urllib.error.URLError as err:
+            last_error = f"vision gateway request failed: {err.reason}"
+            retryable = True
+        except (TimeoutError, json.JSONDecodeError, OSError) as err:
+            last_error = f"vision gateway request failed: {err}"
+            retryable = True
+        if not retryable or attempt == RETRY_ATTEMPTS - 1:
+            raise ImageError(last_error)
+        backoff = RETRY_BASE_S * (2**attempt) + random.uniform(0, 0.25)
+        time.sleep(min(backoff, max(0.0, deadline - time.monotonic())))
+    raise ImageError(last_error)
+
+
+def analyze_one(cfg, label, data):
+    payload, media_type = prepare_image(data, cfg["max_edge"])
+    key = cache_key(payload, cfg["question"], cfg["model"])
+    cached = cache_get(cfg["cache_dir"], key)
+    if cached is not None:
+        return {"path": label, "ok": True, "text": cached, "cached": True}
+    deadline = time.monotonic() + cfg["timeout"]
+    text = call_gateway(cfg, payload, media_type, cfg["question"], deadline)
+    cache_put(cfg["cache_dir"], key, text)
+    return {"path": label, "ok": True, "text": text, "cached": False}
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        prog="tale-vision",
+        description="Analyze images with the org's vision model via the "
+        "platform LLM gateway. Prints one NDJSON line per input. Animated "
+        "inputs: first frame only.",
+    )
+    parser.add_argument(
+        "paths",
+        nargs="+",
+        metavar="path",
+        help="image files (PNG/JPEG/WebP/GIF); '-' reads one image from stdin",
+    )
+    parser.add_argument(
+        "--question",
+        default=DEFAULT_PROMPT,
+        help="what to ask about each image (default: describe + extract text)",
+    )
+    parser.add_argument(
+        "--max-edge",
+        type=int,
+        default=2000,
+        help="downscale so the longest edge is at most this (default 2000)",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=3,
+        help="images analyzed in parallel (default 3)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=60,
+        help="per-image seconds incl. retries (default 60)",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="override TALE_VISION_MODEL",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv):
+    args = parse_args(argv)
+    url = (os.environ.get("TALE_GATEWAY_URL") or "").rstrip("/")
+    token = os.environ.get("TALE_GATEWAY_TOKEN") or ""
+    model = args.model or os.environ.get("TALE_VISION_MODEL") or ""
+    if not url or not token or not model:
+        print(
+            "tale-vision: the vision lane is not configured for this session "
+            "(missing TALE_GATEWAY_URL / TALE_GATEWAY_TOKEN / TALE_VISION_MODEL) "
+            "— no vision model is available here.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.paths.count("-") > 1:
+        print("tale-vision: '-' (stdin) may be given only once", file=sys.stderr)
+        return 2
+    if args.max_edge < 1 or args.concurrency < 1 or args.timeout <= 0:
+        print(
+            "tale-vision: --max-edge/--concurrency/--timeout must be positive",
+            file=sys.stderr,
+        )
+        return 2
+
+    cfg = {
+        "url": url,
+        "token": token,
+        "model": model,
+        "question": args.question,
+        "max_edge": args.max_edge,
+        "timeout": args.timeout,
+        "cache_dir": cache_dir(),
+    }
+
+    stdout_lock = threading.Lock()
+    any_failed = False
+
+    def emit(line):
+        with stdout_lock:
+            print(json.dumps(line, ensure_ascii=False), flush=True)
+
+    def run(label):
+        if label == "-":
+            data = sys.stdin.buffer.read()
+        else:
+            with open(label, "rb") as f:
+                data = f.read()
+        return analyze_one(cfg, label, data)
+
+    with ThreadPoolExecutor(max_workers=min(args.concurrency, len(args.paths))) as pool:
+        futures = {pool.submit(run, label): label for label in args.paths}
+        for future in as_completed(futures):
+            label = futures[future]
+            try:
+                emit(future.result())
+            except ImageError as err:
+                any_failed = True
+                emit({"path": label, "ok": False, "error": str(err)})
+            except OSError as err:
+                any_failed = True
+                emit({"path": label, "ok": False, "error": f"could not read input: {err}"})
+
+    return 1 if any_failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -34,6 +34,7 @@ ARG PI_CODING_AGENT_VERSION=0.80.3
 ARG OPENCLAW_VERSION=2026.6.11
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
+ARG PILLOW_VERSION=12.3.0
 ARG TARGETARCH
 
 # Runtime additions — fontconfig + DejaVu so Pillow/matplotlib render text,
@@ -434,6 +435,18 @@ COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrat
 COPY services/sandbox-runtime/tale-vision-transcribe /usr/local/bin/tale-vision-transcribe
 COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-read-hook
 
+# Batch vision CLI for in-sandbox code (`run_code` scripts and coding agents):
+# analyzes images via the platform LLM gateway with the session virtual key —
+# same no-provider-key-in-container lane as tale-vision-transcribe (which stays
+# the single-image Read-hook polyfill). Pillow lives in a dedicated venv and
+# the shim runs `python -E -s` so the per-exec user deps that entrypoint.sh
+# prepends onto PYTHONPATH (/user/.runtime/deps/python) can never shadow PIL.
+RUN python3 -m venv /opt/tale-vision \
+    && /opt/tale-vision/bin/pip install --no-cache-dir "Pillow==${PILLOW_VERSION}" \
+    && printf '#!/bin/sh\nexec /opt/tale-vision/bin/python -E -s /opt/tale-vision/cli.py "$@"\n' \
+       > /usr/local/bin/tale-vision
+COPY services/sandbox-runtime/tale-vision /opt/tale-vision/cli.py
+
 # Human-control MCP bridge: a dependency-free stdio MCP server exposing
 # request_human_control({reason}). The agent calls it to hand the live browser
 # to a human (CAPTCHA/login/2FA); the platform observes the tool_use, parks the
@@ -445,6 +458,7 @@ COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
       /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-integrations-mcp \
       /usr/local/bin/tale-vision-transcribe /usr/local/bin/tale-vision-read-hook \
+      /usr/local/bin/tale-vision \
       /usr/local/bin/tale-human-control-mcp \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate

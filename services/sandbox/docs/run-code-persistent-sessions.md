@@ -93,6 +93,20 @@ session STOPPED (workspace preserved) → next turn resumes it
 - **Create hook:** first `run_code` of a turn. `run_code_tool.ts` already has
   `threadId` in `ctx`; it ensures/reuses the `thr-<threadId>` session and
   dispatches the exec into it instead of `spawnerExecute`.
+- **Vision lane (on create AND resume-after-reap):** right after
+  `sessionCreate`/`resumeStoppedSession`, `armVisionLane`
+  (`node_only/sandbox/thread_session.ts`) best-effort mints a gateway virtual
+  key scoped to ONLY the org's vision-tagged model
+  (`RUN_CODE_VISION_BUDGET_CENTS`, default 200¢/session), inserts its
+  `sandboxSessionTokens` row (with `llmGatewayKeyId`, so the normal teardown
+  revoke covers it), then patches
+  `TALE_GATEWAY_URL`/`TALE_GATEWAY_TOKEN`/`TALE_VISION_MODEL` into the session
+  env store — the contract the baked `tale-vision` CLI reads from run_code
+  execs. Any failure logs and the session comes up without vision (the CLI
+  exits 2 with an actionable message). A reaped-then-recreated container
+  always re-mints: the plaintext key exists only in the container's in-memory
+  env store; the superseded row stays budget-capped until teardown revokes
+  every row of the session.
 - **Stop hook:** `clearGenerationStatus` (`threads/internal_mutations.ts:427`)
   is the one place every terminal path converges (normal completion, user
   cancel, 35-min stale-recovery). It's a _mutation_, so it **schedules** an
@@ -297,6 +311,11 @@ required, though it remains a possible future cleanup.
   stop-schedule call in `clearGenerationStatus` / `cancel_generation` /
   `recover_stuck_chat_turns`, `file_write` live-stage, a `run_code` resource
   profile, and thread-delete → `destroySession`.
+- **Vision lane:** `armVisionLane` in `thread_session.ts` (mint + token row +
+  env patch, best-effort), the baked `tale-vision` CLI + its Pillow venv in
+  the runtime image, and one VISION line in the `run_code` tool description.
+  Teardown/revoke paths unchanged — the token row's `llmGatewayKeyId` rides
+  the existing `revokeTokensForSession` sweep.
 - **Unchanged (the compat win):** Canvas, file cards, `file_read`/`file_list`,
   `threadFiles` schema, all read `threadFiles` as before.
 - **Reused as-is:** `session_client` (create/exec/attach/stop/destroy/stage/
