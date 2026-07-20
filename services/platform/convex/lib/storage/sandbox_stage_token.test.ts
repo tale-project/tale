@@ -62,7 +62,16 @@ describe('signStageToken / verifyStageToken', () => {
   it('rejects a tampered signature and malformed tokens', async () => {
     vi.stubEnv(KEY_ENV, KEY);
     const token = (await signStageToken({ ref: REF, org: ORG })) ?? '';
-    const flipped = token.slice(0, -1) + (token.endsWith('A') ? 'B' : 'A');
+    // Flip a mid-signature base64url char — the trailing char of a 32-byte
+    // HMAC encoding only carries padding bits, so A↔B there often leaves the
+    // decoded bytes unchanged and the token still verifies.
+    const [version, payloadB64, sigB64 = ''] = token.split('.');
+    const mid = Math.floor(sigB64.length / 2);
+    const flippedSig =
+      sigB64.slice(0, mid) +
+      (sigB64[mid] === 'A' ? 'B' : 'A') +
+      sigB64.slice(mid + 1);
+    const flipped = `${version}.${payloadB64}.${flippedSig}`;
     expect((await verifyStageToken(flipped)).ok).toBe(false);
     expect(await verifyStageToken('')).toEqual({
       ok: false,
