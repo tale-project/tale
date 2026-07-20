@@ -1,215 +1,422 @@
 WEBVTT
 
 1
-00:00:01.200 --> 00:00:05.598
-Jede verankerte Antwort in
-dieser Serie kommt aus einem Ort.
+00:00:01.600 --> 00:00:03.720
+Willkommen zu Episode drei.
 
 2
-00:00:05.598 --> 00:00:09.922
-In dieser Episode: die
-Wissensbibliothek — was hineinkommt,
+00:00:03.720 --> 00:00:07.175
+Heute nehmen wir uns
+Zeit für Wissen: alles,
 
 3
-00:00:09.922 --> 00:00:13.440
-wie es durchsuchbar wird
-und wer was sehen darf.
+00:00:07.175 --> 00:00:12.515
+was dein Assistent über deine
+Firma weiß — und wie es dorthin kommt.
 
 4
-00:00:15.040 --> 00:00:16.863
-Dokumente wohnen hier.
+00:00:12.515 --> 00:00:18.876
+Du legst selbst einen echten Fakt an, und
+ein paar Minuten später bekommst du ihn
 
 5
-00:00:16.863 --> 00:00:22.831
-Berichte, Richtlinien, Notizen —
-ablegen, und die Indexierung übernimmt:
+00:00:18.876 --> 00:00:21.782
+zitiert zurück, mit benannter Quelle.
 
 6
-00:00:22.831 --> 00:00:28.550
-Text extrahieren, in Passagen
-teilen, jede Passage auffindbar machen.
+00:00:21.782 --> 00:00:24.452
+Wir gehen Schritt für Schritt vor.
 
 7
-00:00:28.550 --> 00:00:33.440
-Das Abzeichen „Indexiert"
-heißt: bereit, zitiert zu werden.
+00:00:24.452 --> 00:00:29.399
+Diese Seite — die
+Wissenseinträge — hier wird dein Fakt landen.
 
 8
-00:00:34.640 --> 00:00:38.609
-Ein Punkt verdient Präzision:
-Indexieren ist kein Training.
+00:00:29.399 --> 00:00:31.520
+Aber sehen wir uns erst um.
 
 9
-00:00:38.609 --> 00:00:41.165
-Deine Dokumente verändern kein Modell.
+00:00:34.620 --> 00:00:39.119
+Wir starten nebenan, in den
+Dokumenten — einen Tab weiter.
 
 10
-00:00:41.165 --> 00:00:46.681
-Sie bleiben in deinem Arbeitsbereich, und
-beim Antworten holt sich der Agent genau
+00:00:39.119 --> 00:00:43.696
+Drei Dateien liegen schon
+hier: die Markenrichtlinien 2026,
 
 11
-00:00:46.681 --> 00:00:49.910
-die Passagen, die er
-braucht — mit Quelle daran.
+00:00:43.696 --> 00:00:47.419
+ein Support-Bericht,
+eine Onboarding-Checkliste.
 
 12
-00:00:49.910 --> 00:00:54.080
-Genau deshalb konntest du in
-Episode zwei jede Aussage prüfen.
+00:00:47.419 --> 00:00:51.065
+Und sieh dir die
+Tab-Leiste oben an: Dokumente,
 
 13
-00:00:55.280 --> 00:00:58.612
-Für Fakten, die in keinem Dokument stehen,
+00:00:51.065 --> 00:00:57.115
+Wissenseinträge, Websites, Produkte —
+diese Leiste ist unser ganzes Gebiet für
 
 14
-00:00:58.612 --> 00:01:02.896
-gibt es Wissenseinträge —
-kurze, gepflegte Wahrheiten.
+00:00:57.115 --> 00:00:57.815
+heute.
 
 15
-00:01:02.896 --> 00:01:07.814
-Wir legen jetzt einen an: den
-Rückgabe-Pilot für Jahrestarife.
+00:00:57.815 --> 00:01:02.700
+Alles, woraus ein Agent
+antwortet, liegt hinter einem dieser Tabs.
 
 16
-00:01:07.814 --> 00:01:14.240
-Thema, Inhalt, speichern … und schon
-gehört er zu dem, was jeder Agent hier weiß.
+00:01:06.700 --> 00:01:12.540
+Jetzt legen wir einen eigenen Fakt an —
+wir wechseln zurück zu den Wissenseinträgen.
 
 17
-00:01:15.440 --> 00:01:17.980
-Manches Wissen ist gar keine Prosa.
+00:01:12.540 --> 00:01:17.198
+Sagen wir, das Team hat gerade ein
+neues Rückgabefenster pilotiert:
 
 18
-00:01:17.980 --> 00:01:23.277
-Produkte, Kunden, Lieferanten —
-typisierte Datensätze mit echten Feldern.
+00:01:17.198 --> 00:01:19.284
+sechzig Tage für Jahrestarife.
 
 19
-00:01:23.277 --> 00:01:28.865
-Ein Agent liest den Preis aus der
-Zeile, statt ihn aus einem Absatz zu raten.
+00:01:19.284 --> 00:01:21.648
+Das steht noch in keinem Dokument.
 
 20
-00:01:28.865 --> 00:01:31.840
-Dokumente für Text, Datensätze für Werte.
+00:01:21.648 --> 00:01:27.349
+Für einen Satz Wahrheit ist ein Eintrag
+die richtige Form — ein Dokument würde ihn
 
 21
-00:01:33.040 --> 00:01:36.594
-Öffentliche Websites
-kommen über den Crawler dazu.
+00:01:27.349 --> 00:01:31.660
+begraben, und Datensätze sind
+für typisierte Werte wie Preise.
 
 22
-00:01:36.594 --> 00:01:42.280
-Gib ihm eine Domain und einen Rhythmus,
-und er hält den Index im Takt der Seite.
+00:01:33.660 --> 00:01:35.781
+Also: Eintrag hinzufügen.
 
 23
-00:01:42.280 --> 00:01:46.829
-Eine ehrliche Grenze: Er sieht,
-was ein anonymer Besucher sieht.
+00:01:35.781 --> 00:01:38.920
+Zuerst das Thema: der Rückgabe-Pilot.
 
 24
-00:01:46.829 --> 00:01:51.520
-Was hinter einem Login liegt,
-gehört stattdessen in die Dokumente.
+00:01:38.920 --> 00:01:45.028
+Dann der Inhalt — ein klarer Satz,
+der für sich allein verständlich ist.
 
 25
-00:01:52.720 --> 00:01:56.677
-Und wer was sieht, ist eine
-Entscheidung, kein Zufall.
+00:01:45.028 --> 00:01:46.385
+Und … speichern.
 
 26
-00:01:56.677 --> 00:02:00.121
-Der Wissensbereich eines
-Agenten benennt genau,
+00:01:46.385 --> 00:01:48.421
+Da ist er, in der Liste.
 
 27
-00:02:00.121 --> 00:02:03.859
-was er lesen darf —
-Team-Dokumente bleiben im Team,
+00:01:48.421 --> 00:01:53.936
+Kein Deployment, kein Training:
+Die Indexierung läuft von selbst,
 
 28
-00:02:03.859 --> 00:02:08.989
-Arbeitsbereich-Dokumente dienen
-allen, Uploads bleiben bei ihrem Chat.
+00:01:53.936 --> 00:01:57.500
+und am Ende stellen wir sie auf die Probe.
 
 29
-00:02:08.989 --> 00:02:13.680
-Gib jedem Agenten die kleinste
-Bibliothek, die den Job erledigt.
+00:02:01.700 --> 00:02:06.293
+Zurück zu den Dokumenten — und
+diesmal achte auf die Abzeichen.
 
 30
-00:02:14.880 --> 00:02:19.048
-Eine Gewohnheit hält das
-alles vertrauenswürdig: pflegen.
+00:02:06.293 --> 00:02:10.230
+Indexiert heißt: Text
+extrahiert, in Passagen zerlegt,
 
 31
-00:02:19.048 --> 00:02:25.044
-Das Modell glaubt, was du ihm gibst —
-eine veraltete Preisliste oder ein doppelter
+00:02:10.230 --> 00:02:12.563
+jede Passage auffindbar gemacht.
 
 32
-00:02:25.044 --> 00:02:28.700
-Entwurf wird zur
-selbstbewussten falschen Antwort.
+00:02:12.563 --> 00:02:14.240
+Trainiert wurde nichts.
 
 33
-00:02:28.700 --> 00:02:33.819
-Behandle die Bibliothek wie ein
-Wiki, aus dem die ganze Firma zitiert.
+00:02:14.240 --> 00:02:19.781
+Deine Dateien ändern kein Modell und
+verlassen den Arbeitsbereich nie — beim
 
 34
-00:02:33.819 --> 00:02:36.160
-Denn genau das ist sie ab jetzt.
+00:02:19.781 --> 00:02:23.645
+Antworten holt sich der
+Assistent genau die Passagen,
 
 35
-00:02:37.360 --> 00:02:38.124
-Die Probe.
+00:02:23.645 --> 00:02:26.051
+die er braucht, mit Quelle daran.
 
 36
-00:02:38.124 --> 00:02:44.462
-Wir fragen nach dem Rückgabe-Pilot von
-vorhin … und da ist er — beantwortet aus dem
+00:02:26.051 --> 00:02:30.500
+Daraus kamen die Zitate, die du
+in Episode zwei geprüft hast.
 
 37
-00:02:44.462 --> 00:02:46.295
-Eintrag, Quelle benannt.
+00:02:33.500 --> 00:02:35.837
+Einen Tab weiter: Produkte.
 
 38
-00:02:46.295 --> 00:02:49.120
-Wissen rein, verankerte Antwort raus.
+00:02:35.837 --> 00:02:42.676
+Dokumente tragen Prosa; Datensätze
+tragen Werte — ein Agent liest den Preis aus
 
 39
-00:02:53.360 --> 00:02:57.347
-Das ist die
-Bibliothek: Dokumente indexiert,
+00:02:42.676 --> 00:02:46.831
+einem Feld, statt ihn
+aus einem Absatz zu raten.
 
 40
-00:02:57.347 --> 00:03:02.331
-Fakten als Einträge
-festgehalten, Datensätze typisiert,
+00:02:46.831 --> 00:02:49.341
+Schlagen wir einen echt nach.
 
 41
-00:03:02.331 --> 00:03:06.680
-Websites gecrawlt — und
-der Zugriff entscheidet,
+00:02:49.341 --> 00:02:56.440
+Wir tippen „Workshop" in die Suche … die
+Tabelle schrumpft auf eine Zeile … und da
 
 42
-00:03:06.680 --> 00:03:07.949
-wer was liest.
+00:02:56.440 --> 00:02:58.258
+steht der Preis: 950.
 
 43
-00:03:07.949 --> 00:03:11.120
-Nächste Episode: dein erster Agent.
+00:02:58.258 --> 00:03:03.020
+Genau diese Zeile liest auch
+ein Agent für ein Angebot.
 
 44
-00:03:12.320 --> 00:03:17.471
-Der Wissens-Bereich der Dokumentation
-vertieft jede Form, die du hier gesehen hast.
+00:03:07.020 --> 00:03:08.755
+Nächster Tab: Websites.
 
 45
-00:03:17.471 --> 00:03:18.960
+00:03:08.755 --> 00:03:14.941
+Auch öffentliche Seiten können ins Wissen
+einfließen — gehen wir den Dialog durch,
+
+46
+00:03:14.941 --> 00:03:16.299
+ohne zu speichern.
+
+47
+00:03:16.299 --> 00:03:20.826
+Website hinzufügen … eine
+Domain … und hier die Einstellung,
+
+48
+00:03:20.826 --> 00:03:23.089
+die zählt: das Scan-Intervall.
+
+49
+00:03:23.089 --> 00:03:28.974
+In diesem Rhythmus liest der Crawler
+die Seite neu — stündlich am schnellsten,
+
+50
+00:03:28.974 --> 00:03:31.464
+alle dreißig Tage am langsamsten.
+
+51
+00:03:31.464 --> 00:03:34.934
+Er sieht nur, was ein
+anonymer Besucher sieht;
+
+52
+00:03:34.934 --> 00:03:39.008
+was hinter einem Login
+liegt, gehört in die Dokumente.
+
+53
+00:03:39.008 --> 00:03:42.780
+Wir fügen die Seite nicht
+wirklich hinzu — Escape.
+
+54
+00:03:46.780 --> 00:03:50.870
+Eine Frage noch vor der
+Probe: Wer darf das alles lesen?
+
+55
+00:03:50.870 --> 00:03:56.566
+Zurück in den Dokumenten öffnen wir das
+Zeilenmenü der Markenrichtlinien … und
+
+56
+00:03:56.566 --> 00:03:58.100
+wählen Team zuweisen.
+
+57
+00:03:58.100 --> 00:04:04.088
+Im Moment ist die Datei organisationsweit
+— die Agenten jedes Mitglieds dürfen sie
+
+58
+00:04:04.088 --> 00:04:04.788
+nutzen.
+
+59
+00:04:04.788 --> 00:04:08.951
+Wähl stattdessen ein Team,
+und sie bleibt in diesem Team.
+
+60
+00:04:08.951 --> 00:04:12.895
+Wir lassen die Richtlinien
+für alle offen — Abbrechen.
+
+61
+00:04:12.895 --> 00:04:17.423
+Ein Hinweis noch:
+Wissenseinträge haben diesen Schalter nicht;
+
+62
+00:04:17.423 --> 00:04:20.300
+sie gelten immer im ganzen Arbeitsbereich.
+
+63
+00:04:24.300 --> 00:04:29.190
+Weiter in den Chat, zum
+Fehler, der dir wirklich begegnet:
+
+64
+00:04:29.190 --> 00:04:32.310
+kein fehlender Fakt — ein veralteter.
+
+65
+00:04:32.310 --> 00:04:35.936
+Letztes Jahr war
+unsere Akzentfarbe Türkis;
+
+66
+00:04:35.936 --> 00:04:39.646
+die Richtlinien 2026
+haben sie ausgemustert.
+
+67
+00:04:39.646 --> 00:04:41.585
+Weiß der Assistent das?
+
+68
+00:04:41.585 --> 00:04:47.740
+Wir fragen, genau wie es ein Kollege
+täte … und schauen, was zurückkommt.
+
+69
+00:04:50.900 --> 00:04:57.173
+Lies mit: Das Türkis ist ausgemustert, die
+Primärfarbe ist Tiefblau — und die Quelle
+
+70
+00:04:57.173 --> 00:05:00.235
+steht dabei, die Markenrichtlinien-Datei.
+
+71
+00:05:00.235 --> 00:05:05.313
+Der Assistent hat das erkannt,
+weil jemand diese Datei aktuell hält.
+
+72
+00:05:05.313 --> 00:05:08.674
+Läge die alte Palette
+noch in den Dokumenten,
+
+73
+00:05:08.674 --> 00:05:13.752
+bekämst du die gegenteilige
+Antwort — genauso überzeugt vorgetragen.
+
+74
+00:05:13.752 --> 00:05:17.635
+Wenn sich Fakten ändern,
+gilt also: alte Datei raus,
+
+75
+00:05:17.635 --> 00:05:20.100
+eine aktuelle Wahrheit pro Thema.
+
+76
+00:05:22.900 --> 00:05:25.583
+Und jetzt das Versprechen vom Anfang.
+
+77
+00:05:25.583 --> 00:05:31.601
+Wir öffnen einen frischen Chat … und
+fragen nach dem Rückgabefenster — dem Fakt von
+
+78
+00:05:31.601 --> 00:05:32.834
+vor vier Minuten.
+
+79
+00:05:32.834 --> 00:05:36.820
+Kein Agent wurde
+konfiguriert, nichts wurde ausgerollt.
+
+80
+00:05:47.900 --> 00:05:54.909
+Sechzig Tage für Jahrestarife, dreißig
+für Monatstarife — und sieh auf die Quelle:
+
+81
+00:05:54.909 --> 00:05:58.927
+der Rückgabe-Pilot,
+genau der Eintrag von eben.
+
+82
+00:05:58.927 --> 00:06:01.748
+Fakt rein, zitierte Antwort raus.
+
+83
+00:06:01.748 --> 00:06:06.620
+Und jeder Chat im Team
+bekommt ab jetzt dieselbe Antwort.
+
+84
+00:06:09.420 --> 00:06:10.811
+Das war die Episode.
+
+85
+00:06:10.811 --> 00:06:14.635
+Du hast einen Fakt angelegt
+und zitiert zurückbekommen,
+
+86
+00:06:14.635 --> 00:06:19.641
+gelesen, was Indexiert bedeutet,
+einen Preis aus einem Datensatz geholt,
+
+87
+00:06:19.641 --> 00:06:24.230
+das Scan-Intervall des Crawlers
+gesehen und den Schalter geöffnet,
+
+88
+00:06:24.230 --> 00:06:26.942
+der ein Dokument auf ein Team begrenzt.
+
+89
+00:06:26.942 --> 00:06:31.740
+Der Wissens-Bereich der Doku
+vertieft jeden Tab, den du gesehen hast.
+
+90
+00:06:33.740 --> 00:06:40.467
+Nächstes Mal: Agenten — du baust
+deinen eigenen, mit Anweisungen und allem.
+
+91
+00:06:40.467 --> 00:06:42.620
 Bis zur vierten Episode.
 

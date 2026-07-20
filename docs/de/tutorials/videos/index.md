@@ -23,7 +23,7 @@ Eine echte Arbeitssitzung: dieselbe Frage ohne und mit Verankerung, ein Quellen-
 
 <Card title="Episode 3 — Wissen" icon="play" href="/de/tutorials/videos/knowledge">
 
-Die Bibliothek hinter verankerten Antworten: Indexieren ohne Training, ein Eintrag live angelegt und Minuten später zitiert, typisierte Datensätze, der Crawler und Zugriff nach dem Minimalprinzip. Gut drei Minuten.
+Arbeit in der Bibliothek: einen Eintrag anlegen und zitiert zurückhören, verstehen, was „Indexiert" bedeutet, einen Datensatz nachschlagen, die Crawler-Grenze lesen — und die Falle veralteten Wissens live erleben. Knapp sieben Minuten.
 
 </Card>
 

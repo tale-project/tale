@@ -23,7 +23,7 @@ Une vraie session de travail : la même question sans puis avec ancrage, un cont
 
 <Card title="Épisode 3 — Connaissances" icon="play" href="/fr/tutorials/videos/knowledge">
 
-La bibliothèque derrière les réponses ancrées : indexer sans entraîner, une entrée ajoutée en direct et citée quelques minutes plus tard, des fiches typées, le crawler et des périmètres au plus juste. Trois minutes.
+Travailler dans la bibliothèque : créer une entrée et l'entendre citée, comprendre « Indexé », consulter une fiche, lire la limite du crawler — et croiser le piège du savoir périmé en direct. Presque six minutes.
 
 </Card>
 

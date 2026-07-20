@@ -1,27 +1,28 @@
 ---
 title: Épisode 3 — Connaissances
-description: La bibliothèque derrière chaque réponse ancrée — documents et indexation, entrées entretenues, fiches typées, le crawler de sites web et les périmètres qui décident qui lit quoi.
+description: Déposer un fait et le retrouver cité — une entrée créée à l'écran, le badge « Indexé » expliqué, une fiche consultée, la limite du crawler lue, et le piège du savoir périmé montré en direct.
 ---
 
-Les réponses ancrées de l'épisode 2 venaient toutes d'un seul endroit. Cet épisode l'ouvre : ce que le badge « Indexé » veut vraiment dire (et pourquoi indexer n'est pas entraîner), une entrée de connaissances ajoutée à l'écran puis citée par un agent deux minutes plus tard, des fiches typées à côté des documents en prose, la limite honnête du crawler, et les périmètres qui font de la visibilité une décision plutôt qu'un accident.
+Les réponses ancrées de l'épisode 2 venaient toutes d'un seul endroit — dans cet épisode, tu y travailles. Tu ajoutes un vrai fait comme entrée de connaissances, tu apprends ce que « Indexé » veut vraiment dire (et pourquoi indexer n'est pas entraîner), tu consultes un prix dans une fiche typée, tu lis l'intervalle de scan du crawler, tu ouvres le réglage qui limite un document à une équipe — puis tu rencontres l'échec que tu croiseras vraiment : pas un fait manquant, un fait périmé. À la fin, un chat tout neuf cite l'entrée que tu as créée quelques minutes plus tôt.
 
-<Video src="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4" poster="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.webp" captions="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (2:45, sous-titres disponibles)">
+<Video src="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4" poster="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.webp" captions="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (5:42, sous-titres disponibles)">
 
 </Video>
 
 ## Ce que montre l'épisode
 
-| À    | Scène                                                                              |
-| ---- | ---------------------------------------------------------------------------------- |
-| 0:12 | Les documents et l'indexation — ce que veut dire le badge « Indexé »               |
-| 0:27 | Indexer n'est pas entraîner : récupération à la réponse, source jointe             |
-| 0:45 | Une entrée de connaissances ajoutée en direct — sujet, contenu, enregistrer        |
-| 1:03 | Les fiches typées : des produits aux vrais champs, des valeurs, pas des devinettes |
-| 1:17 | Le crawler : un domaine, un rythme, la limite du visiteur anonyme                  |
-| 1:31 | Les périmètres : la plus petite bibliothèque qui fait le travail                   |
-| 1:49 | L'habitude d'entretenir — le modèle croit ce que tu lui donnes                     |
-| 2:07 | La preuve : l'entrée toute fraîche répond, nommée comme source                     |
+| À    | Scène                                                                       |
+| ---- | --------------------------------------------------------------------------- |
+| 0:27 | La carte : documents, entrées, sites web, produits — une rangée d'onglets   |
+| 0:52 | Entrée, document ou fiche — choisir la bonne forme                          |
+| 1:16 | Une entrée de connaissances créée en direct : sujet, contenu, enregistrer   |
+| 1:42 | Ce que veut dire « Indexé » — récupération à la réponse, pas d'entraînement |
+| 2:09 | Une vraie consultation dans une fiche typée                                 |
+| 2:34 | Le crawler : un domaine, un intervalle de scan, une limite honnête          |
+| 3:06 | Qui lit quoi : un document assigné à une équipe                             |
+| 3:37 | Le piège du savoir périmé, posé en direct                                   |
+| 4:30 | La preuve : un chat neuf cite l'entrée que tu viens de créer                |
 
 ## Pour continuer
 
-L'[aperçu des connaissances](/fr/platform/knowledge/overview) cartographie toute la bibliothèque ; [les documents](/fr/platform/knowledge/documents) couvrent l'indexation, [les entrées de connaissances](/fr/platform/knowledge/knowledge-entries) les faits entretenus, [les données structurées](/fr/platform/knowledge/structured-data) les fiches typées, et [l'exploration](/fr/platform/knowledge/crawling) les sites web. Pour les périmètres, lis [les connaissances d'agent](/fr/platform/agents/knowledge).
+[L'aperçu des connaissances](/fr/platform/knowledge/overview) cartographie toute la bibliothèque ; [les documents](/fr/platform/knowledge/documents) couvrent l'indexation, [les entrées de connaissances](/fr/platform/knowledge/knowledge-entries) les faits entretenus, [les données structurées](/fr/platform/knowledge/structured-data) les fiches typées et [le crawling](/fr/platform/knowledge/crawling) les sites web. Pour les périmètres, lis [les connaissances des agents](/fr/platform/agents/knowledge).

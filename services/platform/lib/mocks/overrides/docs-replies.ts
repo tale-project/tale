@@ -279,6 +279,33 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
     reply:
       'Pour les forfaits annuels, la fenêtre de retour est de **60 jours**, effective en août — un pilote jusqu’au T4. Les forfaits mensuels gardent les 30 jours habituels. Source : l’entrée **Pilote politique de retour** dans les connaissances de ton espace de travail.',
   },
+  // ——— Video pipeline: Episode 3 stale-knowledge pitfall (one per locale) ———
+  // The take asks about last year's retired teal accent; the reply answers
+  // from the seeded brand-guidelines document and names it as the ONE bold
+  // source (the scene hovers the reply's first <strong>). Prompts live in
+  // tests/docs-videos/episodes/ep3-knowledge/episode.ts (PITFALL_PROMPT)
+  // and MUST contain these match clauses verbatim.
+  {
+    match: 'teal accent from last year',
+    reasoning:
+      'Checking the workspace knowledge for the current palette. The 2026 brand guidelines cover the teal accent directly.',
+    reply:
+      'No — the teal accent is retired. The 2026 guidelines keep one primary, deep blue #1B3A6B, and the palette section retires the 2025 accent teal outright. New material ships without it. Source: **2026-brand-guidelines.txt** in your workspace documents.',
+  },
+  {
+    match: 'akzent-türkis vom letzten jahr',
+    reasoning:
+      'Abgleich mit der aktuellen Palette im Wissensbestand. Die Markenrichtlinien 2026 behandeln das Akzent-Türkis direkt.',
+    reply:
+      'Nein — das Akzent-Türkis ist ausgemustert. Die Richtlinien 2026 führen eine Primärfarbe, Tiefblau #1B3A6B, und der Farbabschnitt erklärt das Türkis von 2025 für Geschichte. Neues Material kommt ohne es aus. Quelle: **markenrichtlinien-2026.txt** in deinen Dokumenten.',
+  },
+  {
+    match: 'turquoise d’accent de l’année dernière',
+    reasoning:
+      'Vérification de la palette en vigueur dans les connaissances de l’espace de travail. La charte graphique 2026 traite directement du turquoise d’accent.',
+    reply:
+      'Non — le turquoise d’accent est retiré. La charte 2026 garde une seule primaire, le bleu profond #1B3A6B, et la section couleurs retire le turquoise de 2025. Tout nouveau support s’en passe. Source : **charte-graphique-2026.txt** dans tes documents.',
+  },
   // ——— Video pipeline: Episode 5 approval card (one entry per locale) ———
   // The gated outbound reply: reasoning streams, then a `request_human_input`
   // tool call pauses the turn as a REAL pending approval card carrying the
@@ -346,6 +373,35 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
     match: 'demande une copie de facture',
     reply:
       'Reste bref et chaleureux : confirme la facture concernée, joins la copie depuis Facturation → Factures, et termine en proposant ton aide. Si c’est en réalité un litige de facturation, stop — il part chez un humain, c’est dans mon mandat.',
+  },
+  // ——— Video pipeline: Episode 4 boundary test (one entry per locale) ———
+  // The second turn of the test thread: a real billing DISPUTE (invoice
+  // 4817 is the distinctive match clause). The decline visibly obeys the
+  // hand-off clause typed on camera ("hand any billing dispute to a human")
+  // and keeps the mandate's own rules: friendly, concrete, under six
+  // sentences. Prompts live in `tests/docs-videos/episodes/ep4-agent/
+  // episode.ts` (BOUNDARY_PROMPT) and MUST contain these match clauses
+  // verbatim — non-hero prompts are NOT gate-checked by `--stage check`.
+  {
+    match: 'invoice 4817',
+    reasoning:
+      'The customer disputes the invoice and refuses to pay — a billing dispute. The typed instructions hand billing disputes to a human: declining the draft and pointing to the hand-off.',
+    reply:
+      'This one I have to hand over. A disputed invoice is a billing dispute, and my instructions are clear: billing disputes go to a human, not to me. Pass the thread and invoice 4817 to your billing lead — I’ll stay out of the wording. Once the dispute is settled, I’m glad to help draft the follow-up.',
+  },
+  {
+    match: 'rechnung 4817',
+    reasoning:
+      'Der Kunde bestreitet die Rechnung und verweigert die Zahlung — ein Rechnungsstreit. Die Anweisungen übergeben Rechnungsstreitigkeiten an einen Menschen: Der Entwurf wird abgelehnt und der Vorgang weitergereicht.',
+    reply:
+      'Das gebe ich ab. Eine bestrittene Rechnung ist ein Rechnungsstreit, und meine Anweisungen sind eindeutig: Der geht an einen Menschen, nicht an mich. Gib den Verlauf samt Rechnung 4817 an die Abrechnung weiter — beim Wortlaut halte ich mich raus. Sobald der Streit geklärt ist, helfe ich gern wieder beim Formulieren.',
+  },
+  {
+    match: 'facture 4817',
+    reasoning:
+      'Le client conteste la facture et refuse de payer — un litige de facturation. Les instructions confient les litiges de facturation à un humain : le brouillon est refusé, le fil passe à la facturation.',
+    reply:
+      'Celle-ci, je la transmets. Une facture contestée, c’est un litige de facturation, et mes instructions sont nettes : un litige de facturation part chez un humain, pas chez moi. Passe le fil et la facture 4817 au responsable facturation — je ne touche pas à la formulation. Une fois le litige réglé, je reprends volontiers la rédaction.',
   },
   // ——— Video pipeline: Episode 2 canvas scene (one entry per locale) ———
   // The on-camera prompt asks for a shareable one-pager; the scripted
@@ -1028,6 +1084,27 @@ const DOCS_TRIAGE_SCORES: readonly DocsTriageScore[] = [
       confidence: 0.84,
       reason:
         'La check-list est dans la base du projet ; l’assistant peut préparer la validation.',
+    },
+  },
+  // Deliberately BELOW the auto-assign bar (same contract as the EN
+  // 'sign off the launch checklist' entry): the run COMPLETES via the
+  // suggestion branch, leaving the comment Episode 6's pitfall beat reads.
+  {
+    task: 'go-live-freigabe erteilen',
+    score: {
+      slug: 'assistant',
+      confidence: 0.55,
+      reason:
+        'Der Assistent kann die Nachweise zusammenstellen; die Freigabe selbst liegt beim Release-Verantwortlichen.',
+    },
+  },
+  {
+    task: 'donner le feu vert à la mise en ligne',
+    score: {
+      slug: 'assistant',
+      confidence: 0.55,
+      reason:
+        'L’assistant peut rassembler les preuves, mais le feu vert revient au responsable du lancement.',
     },
   },
   {

@@ -23,7 +23,7 @@ A real working session: the same question ungrounded and grounded, a source chec
 
 <Card title="Episode 3 — Knowledge" icon="play" href="/tutorials/videos/knowledge">
 
-The library behind grounded answers: indexing without training, an entry added live and cited minutes later, typed records, the crawler, and least-privilege scopes. Three minutes.
+Work inside the library: create an entry and hear it cited back, learn what Indexed means, look up a record, read the crawler's boundary — and meet the stale-knowledge trap live. Six minutes.
 
 </Card>
 
