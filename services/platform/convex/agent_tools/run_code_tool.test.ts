@@ -326,6 +326,46 @@ describe('formatRunCodeResultMessage', () => {
     expect(msg).toContain('````\na\n```\nb\n````');
   });
 
+  it('surfaces staging skips so the model knows what scripts cannot read', () => {
+    const msg = formatRunCodeResultMessage({
+      ...baseRun,
+      stdoutPreview: 'ran fine\n',
+      stagingSkipped: [
+        {
+          path: '/user/uploads/big.bin',
+          reason:
+            '30.0 MB org-bucket file exceeds the 1.0 MB inline staging cap',
+        },
+      ],
+    });
+    expect(msg).toContain('NOT staged into the sandbox');
+    expect(msg).toContain('/user/uploads/big.bin');
+    expect(msg).toContain('inline staging cap');
+  });
+
+  it('surfaces harvest skips on success AND failure', () => {
+    const ok = formatRunCodeResultMessage({
+      ...baseRun,
+      stdoutPreview: 'wrote it\n',
+      harvestSkipped: [
+        {
+          path: '/user/output/huge.zip',
+          reason: '25.0 MB exceeds the 20.0 MB per-file harvest cap',
+        },
+      ],
+    });
+    expect(ok).toContain('Output files NOT harvested');
+    expect(ok).toContain('/user/output/huge.zip');
+
+    const failed = formatRunCodeResultMessage({
+      ...baseRun,
+      status: 'failed',
+      exitCode: 1,
+      harvestSkipped: [{ path: '/user/output/huge.zip', reason: 'x' }],
+    });
+    expect(failed).toContain('Output files NOT harvested');
+  });
+
   it('reports an install-only success without the harvest lecture', () => {
     const msg = formatRunCodeResultMessage(
       { ...baseRun, stdoutPreview: 'Successfully installed pandas-2.2.1\n' },

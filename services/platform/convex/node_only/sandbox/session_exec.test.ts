@@ -1,27 +1,51 @@
 // Inline-snippet staging contract (pure functions), the executeCodeInSession
-// arg mutex, and runStepsInSession's install semantics — pip/npm exit codes
+// arg mutex, runStepsInSession's install semantics — pip/npm exit codes
 // must fail the run (INSTALL_FAILED) and installs get their own floored
-// budget. The session wire is mocked at the session_client boundary, the same
-// seam the crawler render tests use.
+// budget — plus the workspace staging plan's lane routing and the harvest's
+// per-file skip semantics. The session wire is mocked at the session_client
+// boundary, the same seam the crawler render tests use.
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { ActionCtx } from '../../_generated/server';
 
 const drainSessionExecResilient = vi.fn();
+const sessionListFiles = vi.fn();
+const sessionReadFile = vi.fn();
 
 vi.mock('./helpers/session_client', () => ({
   drainSessionExecResilient: (...args: unknown[]) =>
     drainSessionExecResilient(...args),
   sessionDeleteFiles: vi.fn(),
-  sessionListFiles: vi.fn().mockResolvedValue([]),
-  sessionReadFile: vi.fn(),
+  sessionListFiles: (...args: unknown[]) => sessionListFiles(...args),
+  sessionReadFile: (...args: unknown[]) => sessionReadFile(...args),
   sessionStageFiles: vi.fn(),
+}));
+
+const readBlobBytes = vi.fn();
+const putBlob = vi.fn();
+const deleteBlob = vi.fn();
+
+vi.mock('../../lib/storage/blob_access', () => ({
+  readBlobBytes: (...args: unknown[]) => readBlobBytes(...args),
+  putBlob: (...args: unknown[]) => putBlob(...args),
+  deleteBlob: (...args: unknown[]) => deleteBlob(...args),
+}));
+
+const orgSlugFromIdOrNull = vi.fn();
+
+vi.mock('../../lib/helpers/org_slug', () => ({
+  orgSlugFromIdOrNull: (...args: unknown[]) => orgSlugFromIdOrNull(...args),
 }));
 
 import {
   execInputsError,
   inlineStagePath,
+  planWorkspaceStaging,
+  runAndHarvestInSession,
   runStepsInSession,
   stagePathOf,
+  type WorkspaceStageRow,
 } from './session_exec';
 
 describe('inlineStagePath', () => {
@@ -241,5 +265,272 @@ describe('runStepsInSession — install semantics', () => {
       packagesByLang: { python: ['pandas'] },
     });
     expect(run.stdout).toBe('report written\n');
+  });
+});
+
+const HMAC_ENV = 'WEBDAV_APP_PASSWORD_HMAC_KEY';
+const ORG = 'org-1';
+
+function stageRow(over: Partial<WorkspaceStageRow>): WorkspaceStageRow {
+  return {
+    organizationId: ORG,
+    path: '/user/uploads/a.txt',
+    storageId: 'kg-convex-id',
+    size: 5,
+    source: 'user_upload',
+    ...over,
+  };
+}
+
+function stagingCtx(getUrl: (id: string) => Promise<string | null>) {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `storage.getUrl` is exercised by the plan
+  return { storage: { getUrl } } as unknown as ActionCtx;
+}
+
+describe('planWorkspaceStaging — lane routing', () => {
+  beforeEach(() => {
+    readBlobBytes.mockReset();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('stages a _storage blob by its alias-rewritten capability URL', async () => {
+    const ctx = stagingCtx(async () => 'http://127.0.0.1:3210/api/storage/u1');
+    const plan = await planWorkspaceStaging(ctx, [stageRow({})], {
+      organizationId: ORG,
+      includeRunOutputs: true,
+      stageOrgSlug: 'acme',
+    });
+    expect(plan.toStage).toEqual([
+      { path: 'uploads/a.txt', url: 'http://convex:3210/api/storage/u1' },
+    ]);
+    expect(plan.stagingSkipped).toEqual([]);
+  });
+
+  it('reports a purged _storage blob instead of dropping it silently', async () => {
+    const ctx = stagingCtx(async () => null);
+    const plan = await planWorkspaceStaging(ctx, [stageRow({})], {
+      organizationId: ORG,
+      includeRunOutputs: true,
+      stageOrgSlug: 'acme',
+    });
+    expect(plan.toStage).toEqual([]);
+    expect(plan.stagingSkipped).toEqual([
+      { path: '/user/uploads/a.txt', reason: 'stored bytes are missing' },
+    ]);
+  });
+
+  it('stages an org-bucket blob via the token-gated stream route', async () => {
+    vi.stubEnv(HMAC_ENV, 'ab'.repeat(32));
+    const ctx = stagingCtx(async () => {
+      throw new Error('getUrl must not be called for an s3 ref');
+    });
+    const plan = await planWorkspaceStaging(
+      ctx,
+      [
+        stageRow({
+          path: '/user/uploads/big.bin',
+          storageId: 's3:acme/big-object',
+          size: 30 * 1024 * 1024,
+        }),
+      ],
+      { organizationId: ORG, includeRunOutputs: true, stageOrgSlug: 'acme' },
+    );
+    expect(plan.stagingSkipped).toEqual([]);
+    expect(plan.toStage).toHaveLength(1);
+    expect(plan.toStage[0].path).toBe('uploads/big.bin');
+    expect(plan.toStage[0].url).toMatch(
+      /^http:\/\/convex:3211\/api\/sandbox-blob\?token=/,
+    );
+  });
+
+  it('falls back to bounded inline base64 when no stage-token key exists', async () => {
+    vi.stubEnv(HMAC_ENV, '');
+    readBlobBytes.mockResolvedValue(new TextEncoder().encode('hello'));
+    const ctx = stagingCtx(async () => null);
+    const plan = await planWorkspaceStaging(
+      ctx,
+      [
+        stageRow({
+          path: '/user/uploads/small.bin',
+          storageId: 's3:acme/small-object',
+          size: 5,
+        }),
+        stageRow({
+          path: '/user/uploads/big.bin',
+          storageId: 's3:acme/big-object',
+          size: 2 * 1024 * 1024,
+        }),
+      ],
+      { organizationId: ORG, includeRunOutputs: true, stageOrgSlug: 'acme' },
+    );
+    expect(plan.toStage).toEqual([
+      {
+        path: 'uploads/small.bin',
+        contentBase64: Buffer.from('hello').toString('base64'),
+      },
+    ]);
+    expect(plan.stagingSkipped).toHaveLength(1);
+    expect(plan.stagingSkipped[0].path).toBe('/user/uploads/big.bin');
+    expect(plan.stagingSkipped[0].reason).toContain('inline staging cap');
+  });
+
+  it('reports unresolvable orgs and failed bucket reads as skips', async () => {
+    vi.stubEnv(HMAC_ENV, '');
+    readBlobBytes.mockRejectedValue(new Error('bucket down'));
+    const ctx = stagingCtx(async () => null);
+    const noSlug = await planWorkspaceStaging(
+      ctx,
+      [stageRow({ storageId: 's3:acme/x', size: 5 })],
+      { organizationId: ORG, includeRunOutputs: true, stageOrgSlug: null },
+    );
+    expect(noSlug.stagingSkipped[0].reason).toContain('unresolvable');
+    const readFail = await planWorkspaceStaging(
+      ctx,
+      [stageRow({ storageId: 's3:acme/x', size: 5 })],
+      { organizationId: ORG, includeRunOutputs: true, stageOrgSlug: 'acme' },
+    );
+    expect(readFail.stagingSkipped[0].reason).toContain(
+      'reading the org-bucket bytes failed',
+    );
+  });
+
+  it('filters cross-org rows and warm-session run_outputs entirely', async () => {
+    const ctx = stagingCtx(async () => 'http://127.0.0.1:3210/api/storage/u1');
+    const plan = await planWorkspaceStaging(
+      ctx,
+      [
+        stageRow({ organizationId: 'someone-else' }),
+        stageRow({ path: '/user/output/old.txt', source: 'run_output' }),
+        stageRow({ path: '/user/code/gen.py', source: 'agent_write' }),
+      ],
+      { organizationId: ORG, includeRunOutputs: false, stageOrgSlug: 'acme' },
+    );
+    expect(plan.toStage.map((f) => f.path)).toEqual(['code/gen.py']);
+    expect(plan.stagingSkipped).toEqual([]);
+  });
+});
+
+function harvestCtx(over: {
+  runQuery?: ReturnType<typeof vi.fn>;
+  runMutation?: ReturnType<typeof vi.fn>;
+  store?: ReturnType<typeof vi.fn>;
+  storageDelete?: ReturnType<typeof vi.fn>;
+}) {
+  const ctx = {
+    runQuery: over.runQuery ?? vi.fn().mockResolvedValue(null),
+    runMutation:
+      over.runMutation ??
+      vi.fn().mockResolvedValue({ id: 'row', replaced: false }),
+    storage: {
+      store: over.store ?? vi.fn().mockResolvedValue('kg-stored'),
+      delete: over.storageDelete ?? vi.fn(),
+    },
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- harvest touches only these ctx members
+  return ctx as unknown as ActionCtx;
+}
+
+function outputEntry(name: string, size = 5) {
+  return { name, type: 'file' as const, size, mtimeMs: 0 };
+}
+
+function textBytes(s: string): { bytes: ArrayBuffer; contentType: string } {
+  const encoded = new TextEncoder().encode(s);
+  const buf = new ArrayBuffer(encoded.byteLength);
+  new Uint8Array(buf).set(encoded);
+  return { bytes: buf, contentType: 'text/plain' };
+}
+
+describe('runAndHarvestInSession — per-file harvest skips', () => {
+  beforeEach(() => {
+    drainSessionExecResilient.mockReset();
+    drainSessionExecResilient.mockResolvedValue(execResult());
+    sessionListFiles.mockReset();
+    sessionReadFile.mockReset();
+    orgSlugFromIdOrNull.mockReset();
+    orgSlugFromIdOrNull.mockResolvedValue(null);
+  });
+
+  const runArgs = {
+    organizationId: ORG,
+    workspaceThreadId: 'thread-1',
+    sessionId: 'sid',
+    stepPaths: ['/user/code/a.py'],
+  };
+
+  it('skips an over-cap output without reading it and keeps the run green', async () => {
+    sessionListFiles.mockResolvedValue([
+      outputEntry('big.bin', 25 * 1024 * 1024),
+      outputEntry('ok.txt'),
+    ]);
+    sessionReadFile.mockResolvedValue(textBytes('hello'));
+    const ctx = harvestCtx({});
+    const run = await runAndHarvestInSession(ctx, runArgs);
+    expect(run.status).toBe('completed');
+    expect(run.files.map((f) => f.path)).toEqual(['/user/output/ok.txt']);
+    expect(run.harvestSkipped).toHaveLength(1);
+    expect(run.harvestSkipped?.[0].path).toBe('/user/output/big.bin');
+    expect(run.harvestSkipped?.[0].reason).toContain('20.0 MB');
+    // The oversize file was never pulled across the wire.
+    expect(sessionReadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns a workspace-quota rejection into a skip + blob reap, not a run failure', async () => {
+    sessionListFiles.mockResolvedValue([
+      outputEntry('a.txt'),
+      outputEntry('b.txt'),
+    ]);
+    sessionReadFile
+      .mockResolvedValueOnce(textBytes('content-a'))
+      .mockResolvedValueOnce(textBytes('content-b'));
+    const store = vi
+      .fn()
+      .mockResolvedValueOnce('kg-a')
+      .mockResolvedValueOnce('kg-b');
+    const runMutation = vi.fn(
+      async (_ref: unknown, mutArgs: Record<string, unknown>) => {
+        if (mutArgs.path === '/user/output/a.txt') {
+          throw new Error('Workspace would exceed the byte cap.');
+        }
+        return { id: 'row', replaced: false };
+      },
+    );
+    const storageDelete = vi.fn();
+    const ctx = harvestCtx({ store, runMutation, storageDelete });
+    const run = await runAndHarvestInSession(ctx, runArgs);
+    expect(run.status).toBe('completed');
+    expect(run.files.map((f) => f.path)).toEqual(['/user/output/b.txt']);
+    expect(run.harvestSkipped).toHaveLength(1);
+    expect(run.harvestSkipped?.[0].path).toBe('/user/output/a.txt');
+    expect(run.harvestSkipped?.[0].reason).toContain(
+      'not saved to the workspace',
+    );
+    // The orphaned copy of a.txt was reaped; b.txt's blob stayed.
+    expect(storageDelete).toHaveBeenCalledWith('kg-a');
+    expect(storageDelete).not.toHaveBeenCalledWith('kg-b');
+  });
+
+  it('reports files beyond the per-run cap and unreadable files', async () => {
+    const many = Array.from({ length: 18 }, (_, i) => outputEntry(`f${i}.txt`));
+    sessionListFiles.mockResolvedValue(many);
+    sessionReadFile.mockImplementation(async (_sid: string, path: string) =>
+      path === '/user/output/f3.txt' ? null : textBytes('x'),
+    );
+    const ctx = harvestCtx({});
+    const run = await runAndHarvestInSession(ctx, runArgs);
+    expect(run.status).toBe('completed');
+    // The 16-slot cap counts HARVESTED files: f3's read failure frees a slot,
+    // so 16 of the remaining 17 land and the last (f17) reports the cap.
+    expect(run.files).toHaveLength(16);
+    expect(run.harvestSkipped).toHaveLength(2);
+    expect(
+      run.harvestSkipped?.find((s) => s.path === '/user/output/f3.txt')?.reason,
+    ).toContain('read from sandbox failed');
+    expect(
+      run.harvestSkipped?.find((s) => s.path === '/user/output/f17.txt')
+        ?.reason,
+    ).toContain('per-run harvest cap');
   });
 });

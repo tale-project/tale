@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  THREAD_FILE_MAX_BYTES,
+  THREAD_WORKSPACE_MAX_BYTES,
+} from '../thread_files/schema';
+
 vi.mock('../_generated/server', () => ({
   internalAction: ({ handler }: { handler: Function }) => handler,
 }));
@@ -187,16 +192,22 @@ describe('snapshotThreadFiles', () => {
     expect(upserts).toHaveLength(100);
   });
 
-  it('skips files that would exceed the 100 MB workspace byte cap', async () => {
-    const big = 60 * 1024 * 1024; // 60 MB each → second one overflows 100 MB
+  it('skips files that would exceed the workspace byte cap', async () => {
+    // Enough max-size files to overflow the byte budget by exactly one —
+    // derived from the constants so a cap raise can't silently retarget this
+    // at the file-count branch instead.
+    const fits = Math.floor(THREAD_WORKSPACE_MAX_BYTES / THREAD_FILE_MAX_BYTES);
     const { ctx } = makeCtx({
-      sourceFiles: [
-        fileRow({ path: 'big1', storageId: 's1', size: big }),
-        fileRow({ path: 'big2', storageId: 's2', size: big }),
-      ],
+      sourceFiles: Array.from({ length: fits + 1 }, (_, i) =>
+        fileRow({
+          path: `big${i}`,
+          storageId: `s${i}`,
+          size: THREAD_FILE_MAX_BYTES,
+        }),
+      ),
     });
     const out = await run(ctx, baseArgs);
-    expect(out.copied).toBe(1);
+    expect(out.copied).toBe(fits);
     expect(out.skipped).toBe(1);
   });
 

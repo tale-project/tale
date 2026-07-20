@@ -238,6 +238,8 @@ export function formatRunCodeResultMessage(
     stderrPreview: string;
     durationMs: number;
     files: Array<{ path: string }>;
+    stagingSkipped?: Array<{ path: string; reason: string }>;
+    harvestSkipped?: Array<{ path: string; reason: string }>;
   },
   opts?: { installOnly?: boolean; packageCount?: number },
 ): string {
@@ -271,6 +273,22 @@ export function formatRunCodeResultMessage(
   if (!success && stderr.length > 0) {
     const fence = fenceFor(stderr);
     blocks.push(`stderr:\n${fence}\n${stderr}\n${fence}`);
+  }
+  // Ground truth about files the run could NOT see or return — without this
+  // the model reads an empty dir or a missing deliverable as its own bug.
+  if (run.stagingSkipped !== undefined && run.stagingSkipped.length > 0) {
+    blocks.push(
+      `⚠ NOT staged into the sandbox (scripts cannot read these):\n${run.stagingSkipped
+        .map((s) => `- ${s.path} — ${s.reason}`)
+        .join('\n')}`,
+    );
+  }
+  if (run.harvestSkipped !== undefined && run.harvestSkipped.length > 0) {
+    blocks.push(
+      `⚠ Output files NOT harvested back into the workspace:\n${run.harvestSkipped
+        .map((s) => `- ${s.path} — ${s.reason}`)
+        .join('\n')}`,
+    );
   }
   // Backstop for language mismatches the pre-flight heuristic let through:
   // bash choking on Python source has this one unmistakable signature.
@@ -485,6 +503,8 @@ Results embed terminal output (stdout capped 4 KB; stderr on failure) and a \`sa
           size: number;
           contentType: string;
         }>;
+        stagingSkipped?: Array<{ path: string; reason: string }>;
+        harvestSkipped?: Array<{ path: string; reason: string }>;
         executionId: string;
       };
 
@@ -550,6 +570,12 @@ Results embed terminal output (stdout capped 4 KB; stderr on failure) and a \`sa
         runStderrPreview: run.stderrPreview,
         durationMs: run.durationMs,
         files: run.files,
+        ...(run.stagingSkipped !== undefined && {
+          stagingSkipped: run.stagingSkipped,
+        }),
+        ...(run.harvestSkipped !== undefined && {
+          harvestSkipped: run.harvestSkipped,
+        }),
         sandboxState,
         message: messageWithState,
       };

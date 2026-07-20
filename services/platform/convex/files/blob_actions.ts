@@ -139,7 +139,7 @@ export const presignBlobGet = internalAction({
  * V8 workflow engine) use to write org-owned blobs: they cannot import the
  * `'use node'` seam themselves, so they hop through this action. Bounded by
  * Convex's function-argument ceiling — callers own keeping their payloads
- * small (thread files are ≤ 10 MB by THREAD_FILE_MAX_BYTES). Falls back to
+ * small (the lane V8 file tools emit ≤ 10 MB per write). Falls back to
  * Convex `_storage` when the org is unresolvable (never fails a write over
  * blob routing).
  */

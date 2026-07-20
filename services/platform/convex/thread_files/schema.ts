@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { DOCUMENT_MAX_FILE_SIZE } from '../../lib/shared/file-types';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 
 /**
@@ -78,6 +79,13 @@ export const threadFilesTable = defineTable({
  * client validation lives in the tool description so the LLM can self-correct
  * before the round-trip.
  */
-export const THREAD_FILE_MAX_BYTES = 10 * 1024 * 1024; // 10 MB per file
+/**
+ * Per-file cap ≡ the chat/document upload cap: anything a user can upload can
+ * be filed into the workspace and staged into the sandbox (the container-side
+ * URL-fetch cap is sized to match — `FETCH_MAX_BYTES` in the runnerd daemon).
+ * Do not diverge the two: a workspace cap below the upload cap silently
+ * withholds legitimately uploaded files from `run_code` (the 30MB-log bug).
+ */
+export const THREAD_FILE_MAX_BYTES = DOCUMENT_MAX_FILE_SIZE; // 100 MB per file
 export const THREAD_WORKSPACE_MAX_FILES = 100;
-export const THREAD_WORKSPACE_MAX_BYTES = 100 * 1024 * 1024; // 100 MB total
+export const THREAD_WORKSPACE_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB total

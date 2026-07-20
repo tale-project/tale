@@ -501,6 +501,7 @@ import type * as file_metadata_transcription_request from "../file_metadata/tran
 import type * as files_blob_actions from "../files/blob_actions.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
+import type * as files_sandbox_blob_http from "../files/sandbox_blob_http.js";
 import type * as folders_access from "../folders/access.js";
 import type * as folders_cleanup_empty_ancestors from "../folders/cleanup_empty_ancestors.js";
 import type * as folders_find_folder_by_path from "../folders/find_folder_by_path.js";
@@ -932,6 +933,7 @@ import type * as lib_storage_blob_delete from "../lib/storage/blob_delete.js";
 import type * as lib_storage_blob_read_any from "../lib/storage/blob_read_any.js";
 import type * as lib_storage_blob_ref from "../lib/storage/blob_ref.js";
 import type * as lib_storage_object_store from "../lib/storage/object_store.js";
+import type * as lib_storage_sandbox_stage_token from "../lib/storage/sandbox_stage_token.js";
 import type * as lib_strip_nulls from "../lib/strip_nulls.js";
 import type * as lib_summarization_auto_summarize from "../lib/summarization/auto_summarize.js";
 import type * as lib_summarization_index from "../lib/summarization/index.js";
@@ -1107,6 +1109,7 @@ import type * as node_only_sandbox_api_error_detection from "../node_only/sandbo
 import type * as node_only_sandbox_bound_org_skills from "../node_only/sandbox/bound_org_skills.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
+import type * as node_only_sandbox_helpers_stage_url from "../node_only/sandbox/helpers/stage_url.js";
 import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
@@ -2292,6 +2295,7 @@ declare const fullApi: ApiFromModules<{
   "files/blob_actions": typeof files_blob_actions;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
+  "files/sandbox_blob_http": typeof files_sandbox_blob_http;
   "folders/access": typeof folders_access;
   "folders/cleanup_empty_ancestors": typeof folders_cleanup_empty_ancestors;
   "folders/find_folder_by_path": typeof folders_find_folder_by_path;
@@ -2723,6 +2727,7 @@ declare const fullApi: ApiFromModules<{
   "lib/storage/blob_read_any": typeof lib_storage_blob_read_any;
   "lib/storage/blob_ref": typeof lib_storage_blob_ref;
   "lib/storage/object_store": typeof lib_storage_object_store;
+  "lib/storage/sandbox_stage_token": typeof lib_storage_sandbox_stage_token;
   "lib/strip_nulls": typeof lib_strip_nulls;
   "lib/summarization/auto_summarize": typeof lib_summarization_auto_summarize;
   "lib/summarization/index": typeof lib_summarization_index;
@@ -2898,6 +2903,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/bound_org_skills": typeof node_only_sandbox_bound_org_skills;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
+  "node_only/sandbox/helpers/stage_url": typeof node_only_sandbox_helpers_stage_url;
   "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;
