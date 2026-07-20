@@ -599,6 +599,7 @@ function CollectionBody({
           }
         : {})}
       emptyState={{
+        icon: ListChecks,
         title: emptyState?.titleKey ?? t('binding.empty'),
         description: emptyState?.descriptionKey,
       }}

@@ -44,7 +44,7 @@ export function MetricsLayout({
 }: MetricsLayoutProps) {
   return (
     <Stack gap={6} className={className}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="flex shrink-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-1">
           <Tag className="text-foreground text-base font-semibold">{title}</Tag>
           {description ? <Text variant="caption">{description}</Text> : null}

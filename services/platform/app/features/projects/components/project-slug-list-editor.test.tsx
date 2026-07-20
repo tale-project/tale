@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@/tests/utils/render';
 
 import {
+  ProjectSlugListAdd,
   ProjectSlugListEditor,
   type SlugOption,
 } from './project-slug-list-editor';
@@ -20,15 +21,14 @@ const OPTIONS: SlugOption[] = [
   },
 ];
 
-describe('ProjectSlugListEditor', () => {
-  it('keeps the ghost add button as the popover trigger when open', async () => {
+describe('ProjectSlugListAdd', () => {
+  it('keeps the add button as the popover trigger when open', async () => {
     const { user } = render(
-      <ProjectSlugListEditor
+      <ProjectSlugListAdd
         value={[]}
         onChange={vi.fn()}
         options={OPTIONS}
         addLabel="Add agent"
-        mode="recommended"
       />,
     );
 
@@ -48,12 +48,11 @@ describe('ProjectSlugListEditor', () => {
   it('appends the selected slug and closes the picker', async () => {
     const onChange = vi.fn();
     const { user } = render(
-      <ProjectSlugListEditor
+      <ProjectSlugListAdd
         value={[]}
         onChange={onChange}
         options={OPTIONS}
         addLabel="Add agent"
-        mode="recommended"
       />,
     );
 
@@ -67,17 +66,45 @@ describe('ProjectSlugListEditor', () => {
 
   it('hides the add control when every option is already selected', () => {
     render(
-      <ProjectSlugListEditor
+      <ProjectSlugListAdd
         value={['assistant', 'coder']}
         onChange={vi.fn()}
         options={OPTIONS}
         addLabel="Add agent"
-        mode="recommended"
       />,
     );
 
     expect(
       screen.queryByRole('button', { name: 'Add agent' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectSlugListEditor', () => {
+  it('renders ordered rows for the current value', () => {
+    render(
+      <ProjectSlugListEditor
+        value={['coder', 'assistant']}
+        onChange={vi.fn()}
+        options={OPTIONS}
+        mode="recommended"
+      />,
+    );
+
+    expect(screen.getByText('Coder')).toBeInTheDocument();
+    expect(screen.getByText('Assistant')).toBeInTheDocument();
+  });
+
+  it('shows the lockout banner when restricted and empty', () => {
+    render(
+      <ProjectSlugListEditor
+        value={[]}
+        onChange={vi.fn()}
+        options={OPTIONS}
+        mode="restricted"
+      />,
+    );
+
+    expect(screen.getByText(/lockout|empty|restricted/i)).toBeInTheDocument();
   });
 });

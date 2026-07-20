@@ -1860,11 +1860,9 @@
     },
     "unsavedChanges": {
       "title": "Modifications non enregistrées",
-      "descriptionTwoButton": "Tu as des modifications non enregistrées. Quitter maintenant les fera disparaître.",
-      "descriptionThreeButton": "Tu as des modifications non enregistrées. Enregistre-les avant de partir, ou abandonne-les.",
-      "stay": "Rester",
-      "discardAndLeave": "Abandonner & Quitter",
-      "saveAndLeave": "Enregistrer & Quitter"
+      "description": "Tu as des modifications non enregistrées. Quitter maintenant les fera disparaître.",
+      "stay": "Continuer à modifier",
+      "discardAndLeave": "Abandonner & Quitter"
     },
     "editor": {
       "fixHighlightedFields": "Corrige les champs surlignés et réessaie.",
@@ -5573,7 +5571,7 @@
         "title": "Modifications non enregistrées",
         "description": "Tu as des modifications non enregistrées. Es-tu sûr de vouloir quitter ? Tes modifications seront perdues.",
         "leave": "Quitter",
-        "stay": "Rester"
+        "stay": "Continuer à modifier"
       },
       "navigation": {
         "general": "Général",
@@ -8112,7 +8110,7 @@
       "agentsHeading": "Agents",
       "modelsHeading": "Modèles",
       "integrationsHeading": "Intégrations",
-      "sectionDescription": "Choisis quels agents et modèles apparaissent dans ce projet. La liste ci-dessous fixe l'ordre que les membres voient ; le mode plus bas choisit si le reste reste accessible ou non.",
+      "sectionDescription": "Choisis quels agents et modèles les membres peuvent utiliser dans ce projet.",
       "modeRecommended": "Recommandés",
       "modeRecommendedDescription": "Épingle les éléments ci-dessous en haut. Les autres restent disponibles.",
       "modeRestricted": "Restreints",

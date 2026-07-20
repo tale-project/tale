@@ -35,6 +35,7 @@ import {
   type ProjectModeRadioValue,
 } from './project-mode-radio';
 import {
+  ProjectSlugListAdd,
   ProjectSlugListEditor,
   type SlugOption,
 } from './project-slug-list-editor';
@@ -254,6 +255,15 @@ export function ProjectAgentsTab({
       <StickySectionHeader
         title={t('agents.agentsHeading')}
         description={t('agents.sectionDescription')}
+        action={
+          <ProjectSlugListAdd
+            value={config.agentList}
+            onChange={(next) => editor.updateConfig({ agentList: next })}
+            options={agentOptions}
+            addLabel={t('agents.addAgent')}
+            disabled={fieldsDisabled}
+          />
+        }
       />
 
       <FormSection>
@@ -269,7 +279,6 @@ export function ProjectAgentsTab({
           value={config.agentList}
           onChange={(next) => editor.updateConfig({ agentList: next })}
           options={agentOptions}
-          addLabel={t('agents.addAgent')}
           mode={config.agentMode}
           disabled={fieldsDisabled}
         />
@@ -279,6 +288,15 @@ export function ProjectAgentsTab({
         title={t('agents.modelsHeading')}
         gap={6}
         className="mt-8 border-t pt-8"
+        action={
+          <ProjectSlugListAdd
+            value={config.modelList}
+            onChange={(next) => editor.updateConfig({ modelList: next })}
+            options={modelOptions}
+            addLabel={t('agents.addModel')}
+            disabled={fieldsDisabled}
+          />
+        }
       >
         <FormSection>
           <ProjectModeRadio
@@ -293,7 +311,6 @@ export function ProjectAgentsTab({
             value={config.modelList}
             onChange={(next) => editor.updateConfig({ modelList: next })}
             options={modelOptions}
-            addLabel={t('agents.addModel')}
             mode={config.modelMode}
             disabled={fieldsDisabled}
           />

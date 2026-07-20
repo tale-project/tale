@@ -687,11 +687,8 @@ export function ProjectFilesTab({
       <StickySectionHeader
         title={t('files.title')}
         description={t('files.emptyDescription')}
-      />
-
-      <FormSection>
-        {canEdit ? (
-          <HStack gap={2} align="center" justify="end">
+        action={
+          canEdit ? (
             <Button
               variant="secondary"
               size="sm"
@@ -701,9 +698,11 @@ export function ProjectFilesTab({
               <FolderPlus className="size-4" aria-hidden="true" />
               {tDocuments('folder.newFolder')}
             </Button>
-          </HStack>
-        ) : null}
+          ) : undefined
+        }
+      />
 
+      <FormSection>
         {!isEmpty ? (
           <ul
             ref={treeRef}

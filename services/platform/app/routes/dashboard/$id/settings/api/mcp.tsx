@@ -33,11 +33,15 @@ function ApiMcpPage() {
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page; the former
   // header action moves into the section header.
+  // `fitToContainer` + section `flex-1` so EmptyState (flex-1 +
+  // justify-center) sits in the middle of the pane below the section
+  // header — same height chain as Integrations.
   return (
-    <SettingsPage>
+    <SettingsPage fitToContainer>
       <SettingsSection
         title={tNav('mcp')}
         description={tMcp('description')}
+        className="min-h-0 flex-1"
         action={
           <Button onClick={() => setAddDialogOpen(true)}>
             <Plus className="mr-2 size-4" />

@@ -196,12 +196,9 @@ export function useJsonConfigEditor<T>({
     return schema.safeParse(config).success;
   }, [schema, config]);
 
-  // Register with the page-level DirtyBlockerProvider, including the save
-  // path so the navigation dialog can offer "Save & Leave" (#2572). A valid
-  // draft registers `save`; an invalid one registers none — that save could
-  // only fail — and the dialog degrades to Stay/Discard, same as
-  // `useFormEditor`.
-  useRegisterDirtySource(isDirty, isValid ? { save: doSave } : undefined);
+  // Register with the page-level DirtyBlockerProvider so navigation away
+  // prompts before discarding unsaved edits.
+  useRegisterDirtySource(isDirty);
 
   return {
     config,

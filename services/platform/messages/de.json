@@ -1860,11 +1860,9 @@
     },
     "unsavedChanges": {
       "title": "Ungespeicherte Änderungen",
-      "descriptionTwoButton": "Du hast ungespeicherte Änderungen. Wenn du jetzt gehst, gehen sie verloren.",
-      "descriptionThreeButton": "Du hast ungespeicherte Änderungen. Speichere sie, bevor du gehst, oder verwirf sie.",
-      "stay": "Bleiben",
-      "discardAndLeave": "Verwerfen & Gehen",
-      "saveAndLeave": "Speichern & Gehen"
+      "description": "Du hast ungespeicherte Änderungen. Wenn du jetzt gehst, gehen sie verloren.",
+      "stay": "Weiter bearbeiten",
+      "discardAndLeave": "Verwerfen & Gehen"
     },
     "editor": {
       "fixHighlightedFields": "Bitte korrigiere die hervorgehobenen Felder und versuche es erneut.",
@@ -5573,7 +5571,7 @@
         "title": "Ungespeicherte Änderungen",
         "description": "Du hast ungespeicherte Änderungen. Möchtest du wirklich die Seite verlassen? Deine Änderungen gehen verloren.",
         "leave": "Verlassen",
-        "stay": "Bleiben"
+        "stay": "Weiter bearbeiten"
       },
       "navigation": {
         "general": "Allgemein",
@@ -8112,7 +8110,7 @@
       "agentsHeading": "Agenten",
       "modelsHeading": "Modelle",
       "integrationsHeading": "Integrationen",
-      "sectionDescription": "Lege fest, welche Agenten und Modelle in diesem Projekt auftauchen. Die Liste unten bestimmt die Reihenfolge, die Mitglieder sehen; der Modus darunter entscheidet, ob der Rest verfügbar bleibt oder nicht.",
+      "sectionDescription": "Lege fest, welche Agenten und Modelle Mitglieder in diesem Projekt nutzen können.",
       "modeRecommended": "Empfohlen",
       "modeRecommendedDescription": "Pinne die Einträge unten oben an. Der Rest bleibt verfügbar.",
       "modeRestricted": "Eingeschränkt",

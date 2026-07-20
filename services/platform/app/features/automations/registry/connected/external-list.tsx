@@ -32,7 +32,7 @@
 import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Text } from '@tale/ui/text';
-import { CircleDot } from 'lucide-react';
+import { CircleDot, Inbox } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -245,7 +245,7 @@ export function ExternalList({
             data={visibleRows}
             getRowId={getRowId}
             isLoading={searching}
-            emptyState={{ title: t('binding.empty') }}
+            emptyState={{ icon: Inbox, title: t('binding.empty') }}
             {...(paginated && {
               infiniteScroll: {
                 hasMore: hasNextPage,

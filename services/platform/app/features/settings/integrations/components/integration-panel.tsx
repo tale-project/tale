@@ -111,9 +111,10 @@ export function IntegrationPanel({
 
   const isDetailsMode = manage.isActive ?? false;
 
-  const panelTitle = isDetailsMode
-    ? t('integrations.panel.integrationDetails')
-    : t('integrations.panel.addIntegration');
+  // Sheet title is the integration's identity (same name as the catalog card),
+  // not the generic mode label — "Add integration" / "Integration details"
+  // don't answer "which one am I connecting?" when the panel opens.
+  const panelTitle = integration.title;
 
   return (
     <Sheet

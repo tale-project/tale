@@ -16,6 +16,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
  * `useWorkflowEditorView` persists the choice in a cookie shared across every
  * workflow, layered under an optional `?view=` URL override.
  */
+import { Workflow } from 'lucide-react';
 import { Fragment, lazy, useCallback, useMemo, type ReactNode } from 'react';
 
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
@@ -268,6 +269,7 @@ export function AutomationWorkflowEditorTab({
   if (!config) {
     return (
       <EmptyState
+        icon={Workflow}
         title={t('editor.notFoundTitle')}
         description={t('editor.notFoundDescription')}
       />

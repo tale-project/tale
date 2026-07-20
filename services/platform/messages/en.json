@@ -1860,11 +1860,9 @@
     },
     "unsavedChanges": {
       "title": "Unsaved changes",
-      "descriptionTwoButton": "You have unsaved changes. Leaving now will discard them.",
-      "descriptionThreeButton": "You have unsaved changes. Save them before leaving, or discard and leave.",
-      "stay": "Stay",
-      "discardAndLeave": "Discard & Leave",
-      "saveAndLeave": "Save & Leave"
+      "description": "You have unsaved changes. Leaving now will discard them.",
+      "stay": "Keep editing",
+      "discardAndLeave": "Discard & Leave"
     },
     "editor": {
       "fixHighlightedFields": "Fix the highlighted fields and try again.",
@@ -5399,7 +5397,7 @@
       "agentsHeading": "Agents",
       "modelsHeading": "Models",
       "integrationsHeading": "Integrations",
-      "sectionDescription": "Curate which agents and models appear in this project. The list below is the order members see them; the mode below picks whether the rest stay available or not.",
+      "sectionDescription": "Choose which agents and models members can use in this project.",
       "modeRecommended": "Recommended",
       "modeRecommendedDescription": "Pin the items below to the top. Others remain available.",
       "modeRestricted": "Restricted",
@@ -5864,7 +5862,7 @@
         "title": "Unsaved changes",
         "description": "You have unsaved changes. Are you sure you want to leave? Your changes will be lost.",
         "leave": "Leave",
-        "stay": "Stay"
+        "stay": "Keep editing"
       },
       "navigation": {
         "general": "General",

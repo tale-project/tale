@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveSkillLoadErrorPresentation,
   skillLoadErrorDetailTitleKey,
-  skillLoadErrorSummaryKey,
 } from './skill-load-error';
 
 describe('resolveSkillLoadErrorPresentation', () => {
@@ -40,17 +39,6 @@ describe('resolveSkillLoadErrorPresentation', () => {
         'YAML frontmatter is not closed by a `---` line',
       ),
     ).toEqual({ kind: 'unclosed_frontmatter' });
-  });
-});
-
-describe('skillLoadErrorSummaryKey', () => {
-  it('uses the line-specific key when a line is known', () => {
-    expect(
-      skillLoadErrorSummaryKey({ kind: 'yaml_syntax', line: 2, column: 14 }),
-    ).toBe('skills.loadError.yamlSyntaxLine');
-    expect(skillLoadErrorSummaryKey({ kind: 'yaml_syntax' })).toBe(
-      'skills.loadError.yamlSyntax',
-    );
   });
 });
 

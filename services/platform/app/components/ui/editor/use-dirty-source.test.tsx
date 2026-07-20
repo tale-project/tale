@@ -65,48 +65,22 @@ describe('useRegisterDirtySource', () => {
     expect(register).not.toHaveBeenLastCalledWith(id, { dirty: false });
   });
 
-  it('registers scopePath and a save wrapper that reaches the latest closure', async () => {
+  it('registers scopePath when provided', () => {
     const register = vi.fn();
     const registry = { register, unregister: vi.fn() };
-    const firstSave = vi.fn().mockResolvedValue(undefined);
-    const secondSave = vi.fn().mockResolvedValue(undefined);
 
-    const { rerender } = render(
+    render(
       <Harness
         registry={registry}
         dirty
-        options={{ scopePath: '/dashboard/org/agents/a', save: firstSave }}
+        options={{ scopePath: '/dashboard/org/agents/a' }}
       />,
     );
-    const [id, entry] = register.mock.calls.at(-1) ?? [];
-    expect(entry).toMatchObject({
+    const [, entry] = register.mock.calls.at(-1) ?? [];
+    expect(entry).toEqual({
       dirty: true,
       scopePath: '/dashboard/org/agents/a',
     });
-    expect(typeof entry.save).toBe('function');
-
-    // A re-render swapping only the save callback must not re-register, yet
-    // the ALREADY-registered wrapper must call the NEW closure — the provider
-    // invokes it at dialog-click time, potentially renders later.
-    rerender(
-      <Harness
-        registry={registry}
-        dirty
-        options={{ scopePath: '/dashboard/org/agents/a', save: secondSave }}
-      />,
-    );
-    await entry.save();
-    expect(firstSave).not.toHaveBeenCalled();
-    expect(secondSave).toHaveBeenCalledTimes(1);
-    expect(register.mock.calls.at(-1)?.[0]).toBe(id);
-  });
-
-  it('registers no save when the caller omits one (invalid draft)', () => {
-    const register = vi.fn();
-    const registry = { register, unregister: vi.fn() };
-    render(<Harness registry={registry} dirty options={{ scopePath: '/x' }} />);
-    const [, entry] = register.mock.calls.at(-1) ?? [];
-    expect(entry.save).toBeUndefined();
   });
 
   it('no-ops without a provider (does not throw)', () => {

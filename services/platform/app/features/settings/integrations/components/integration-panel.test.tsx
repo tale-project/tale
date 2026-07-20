@@ -137,6 +137,21 @@ describe('IntegrationPanel — disconnect loading state', () => {
     vi.mocked(useIntegrationManage).mockImplementation(useManageMock as never);
   });
 
+  it('titles the sheet with the integration name, not a generic mode label', () => {
+    vi.mocked(useIntegrationManage).mockImplementation(
+      () =>
+        ({
+          ...baseManage,
+          isActive: false,
+        }) as never,
+    );
+    renderPanel();
+    // Connect flow used to say "Add integration" — that hid which product
+    // you were connecting after opening from a named catalog card.
+    expect(screen.getByText('Shopify')).toBeInTheDocument();
+    expect(screen.queryByText('Add integration')).not.toBeInTheDocument();
+  });
+
   it('shows the dialog loading state and keeps it open until the disconnect resolves', async () => {
     renderPanel();
 

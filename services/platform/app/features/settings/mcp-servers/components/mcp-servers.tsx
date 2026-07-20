@@ -120,7 +120,10 @@ export function McpServers({
     : null;
 
   return (
-    <Stack gap={0} className="pb-8">
+    // Fill the settings pane so EmptyState (flex-1 + justify-center) sits in
+    // the middle of the area below the section header — same fix as
+    // Integrations / Automations.
+    <Stack gap={0} className="min-h-0 flex-1 pb-8">
       {serverList.length > 0 ? (
         <Grid cols={1} md={2} lg={3}>
           {serverList.map((server) => (
@@ -138,6 +141,7 @@ export function McpServers({
           icon={Server}
           title={t('emptyTitle')}
           description={t('emptyDescription')}
+          className="min-h-0"
         />
       )}
 
