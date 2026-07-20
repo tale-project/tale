@@ -62,6 +62,21 @@ describe('VideoLinkChip', () => {
       await checkAccessibility(container);
     });
 
+    it('passes axe audit in failed state with technical details', async () => {
+      const { container } = render(
+        <VideoLinkChip
+          job={makeJob({
+            displayStatus: 'failed',
+            errorReasonCode: 'transient',
+            errorMessage: 'ERROR: something went wrong upstream',
+          })}
+          onCancel={vi.fn()}
+          onRetry={vi.fn()}
+        />,
+      );
+      await checkAccessibility(container);
+    });
+
     it('passes axe audit in retrying state with attempt token', async () => {
       const { container } = render(
         <VideoLinkChip
@@ -126,6 +141,41 @@ describe('VideoLinkChip', () => {
       );
       const buttons = getAllByRole('button');
       expect(buttons.length).toBe(1);
+    });
+
+    it('reveals the sanitized failure detail behind a disclosure when present', () => {
+      const { container } = render(
+        <VideoLinkChip
+          job={makeJob({
+            displayStatus: 'failed',
+            errorReasonCode: 'transient',
+            errorMessage:
+              'ERROR: [youtube] h7LDFVd8DSk: The uploader has not made this video available in your country',
+          })}
+          onCancel={vi.fn()}
+          onRetry={vi.fn()}
+        />,
+      );
+      const details = container.querySelector('details');
+      expect(details).not.toBeNull();
+      expect(details?.querySelector('summary')).not.toBeNull();
+      expect(details?.textContent).toContain(
+        'The uploader has not made this video available in your country',
+      );
+    });
+
+    it('renders no disclosure when the failed job has no errorMessage', () => {
+      const { container } = render(
+        <VideoLinkChip
+          job={makeJob({
+            displayStatus: 'failed',
+            errorReasonCode: 'transient',
+          })}
+          onCancel={vi.fn()}
+          onRetry={vi.fn()}
+        />,
+      );
+      expect(container.querySelector('details')).toBeNull();
     });
 
     it('sets aria-busy=true while processing and false on terminal states', () => {

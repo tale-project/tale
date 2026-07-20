@@ -544,8 +544,11 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
     return 'memberOnly';
   }
   if (
-    s.includes('not available in your country') ||
-    s.includes('not available in your region') ||
+    // Matched loosely ("available in your …", not "not available in your …")
+    // because yt-dlp phrasings vary: e.g. "The uploader has not made this
+    // video available in your country" separates "not" from "available".
+    s.includes('available in your country') ||
+    s.includes('available in your region') ||
     s.includes('geo')
   ) {
     return 'geoblocked';

@@ -1,5 +1,6 @@
 'use client';
 
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Stack } from '@tale/ui/layout';
 import { AlertCircle, Loader2, RotateCcw, X } from 'lucide-react';
 
@@ -173,6 +174,18 @@ export function VideoLinkChip({
           )}
           <span className="truncate">{statusText}</span>
         </span>
+        {/* Verbatim failure detail — safe to show: scrubbed server-side by
+            sanitizeStderr and capped at 500 chars before it reaches the row. */}
+        {isFailed && job.errorMessage && (
+          <CollapsibleDetails
+            variant="compact"
+            summary={tChat('errorDetailsSummary')}
+          >
+            <p className="text-muted-foreground mt-1 font-mono text-xs break-all whitespace-pre-wrap opacity-70">
+              {job.errorMessage}
+            </p>
+          </CollapsibleDetails>
+        )}
       </Stack>
       {isFailed && (
         <button
