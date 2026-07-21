@@ -6515,8 +6515,6 @@
         "newCodeLines": "{count} lines of code"
       },
       "panel": {
-        "addIntegration": "Add integration",
-        "integrationDetails": "Integration details",
         "connectName": "Connect {name}",
         "disconnectConfirmTitle": "Disconnect integration",
         "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",

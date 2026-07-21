@@ -6224,8 +6224,6 @@
         "newCodeLines": "{count} Codezeilen"
       },
       "panel": {
-        "addIntegration": "Integration hinzufügen",
-        "integrationDetails": "Integrationsdetails",
         "connectName": "{name} verbinden",
         "disconnectConfirmTitle": "Integration trennen",
         "disconnectConfirmDescription": "Möchtest du diese Integration wirklich trennen? Du kannst sie später erneut verbinden.",
