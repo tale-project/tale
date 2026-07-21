@@ -17,8 +17,12 @@
  *        - returns `{ ok: false, status: 'needs_confirm', slug }` when a private
  *          automation of that slug already exists and `force !== true`, OR
  *        - stages the bundle to `<automationDir>.staging-<uuid>/`, swaps it into place,
- *          and returns `{ ok: true, slug }`.
- *   4. Server deletes the staged blob + intent and releases the per-slug lock.
+ *          and returns `{ ok: true, slug, install }`.
+ *   4. When the slug is currently INSTALLED, the server re-runs the shared
+ *      install pipeline (see {@link resyncInstalledAutomation}) so the new
+ *      bundle takes effect without a manual Reinstall; `install` reports what
+ *      happened (`'none' | 'resynced' | 'resync_failed'`).
+ *   5. Server deletes the staged blob + intent and releases the per-slug lock.
  *
  * Server-side validation is authoritative; the client parse is UX only.
  */
@@ -51,6 +55,7 @@ import {
   resolveAutomationManifestPath,
   resolveAutomationsDir,
 } from './file_utils';
+import { ensureOrgResources, prepareInstallAs } from './install_actions';
 import { automationExistsInBuiltinCatalog } from './install_fs';
 
 /**
@@ -80,6 +85,53 @@ async function cleanupUploadResources(
     });
 }
 
+/**
+ * Post-swap resync: when the uploaded slug is INSTALLED, re-run the shared
+ * install pipeline (`prepareInstallAs` + `ensureOrgResources`) so the replaced
+ * bundle takes effect without a manual Reinstall — fan-out skills/integrations
+ * re-copy into the org domain dirs, schedules and event triggers re-reconcile,
+ * and the manifest agents re-register. The upload's Replace confirmation
+ * stands in for the reinstall override review (the operator just approved
+ * overwriting this automation's contents), so this runs the same ungated core
+ * the trusted server callers (`installAutomationInternal`, builtin-sync) use.
+ * A resync failure never fails the upload — the swap already landed; it is
+ * reported as `'resync_failed'` so the UI can point the operator at manual
+ * Reinstall. Returns `'none'` when the slug has no install record or the
+ * record is mid-uninstall (`uninstalling` teardown lock).
+ */
+async function resyncInstalledAutomation(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    orgSlug: string;
+    installedBy: string;
+    slug: string;
+  },
+): Promise<'none' | 'resynced' | 'resync_failed'> {
+  try {
+    const record: { uninstalling?: boolean } | null = await ctx.runQuery(
+      internal.automations.install_mutations.getAutomationInstallationInternal,
+      { organizationId: args.organizationId, automationSlug: args.slug },
+    );
+    if (!record || record.uninstalling === true) return 'none';
+    const install = await prepareInstallAs(
+      args.orgSlug,
+      args.slug,
+      args.installedBy,
+    );
+    await ensureOrgResources(ctx, args.organizationId, args.slug, install);
+    return 'resynced';
+  } catch (err) {
+    // Also covers a failed install-record lookup: the swap has landed either
+    // way, so surface "check the install" rather than failing the upload.
+    console.error(
+      `[uploadAutomationBundle] resync of installed automation "${args.slug}" after replace failed — reinstall it from the automation page:`,
+      err,
+    );
+    return 'resync_failed';
+  }
+}
+
 export const uploadAutomationBundle = action({
   args: {
     organizationId: v.string(),
@@ -90,6 +142,12 @@ export const uploadAutomationBundle = action({
     v.object({
       ok: v.literal(true),
       slug: v.string(),
+      /** Whether an existing INSTALL of this slug was refreshed post-swap. */
+      install: v.union(
+        v.literal('none'),
+        v.literal('resynced'),
+        v.literal('resync_failed'),
+      ),
     }),
     v.object({
       ok: v.literal(false),
@@ -192,6 +250,7 @@ export const uploadAutomationBundle = action({
     const replacingDir = `${automationDir}.replacing-${randomUUID().slice(0, 8)}`;
     await mkdir(automationsRoot, { recursive: true });
 
+    let install: 'none' | 'resynced' | 'resync_failed' = 'none';
     try {
       for (const file of parsed.files) {
         const dest = path.join(stagingDir, file.relPath);
@@ -228,6 +287,17 @@ export const uploadAutomationBundle = action({
           },
         );
       }
+
+      // The new bundle is in place; refresh a live install so the operator
+      // never has to click Reinstall after a replace. Runs while the per-slug
+      // upload slot is still held, so a racing re-upload cannot swap the files
+      // mid-resync. Never throws — a failure is reported via `install`.
+      install = await resyncInstalledAutomation(ctx, {
+        organizationId: args.organizationId,
+        orgSlug: auth.orgSlug,
+        installedBy: auth.email ? auth.email : auth.userId,
+        slug: parsed.slug,
+      });
     } catch (err) {
       await rm(stagingDir, { recursive: true, force: true }).catch(
         (cleanupErr) => {
@@ -260,7 +330,7 @@ export const uploadAutomationBundle = action({
         });
     }
 
-    return { ok: true as const, slug: parsed.slug };
+    return { ok: true as const, slug: parsed.slug, install };
   },
 });
 
