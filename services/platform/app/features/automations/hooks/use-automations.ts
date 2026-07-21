@@ -132,6 +132,9 @@ export function useAutomations(organizationId: string): {
     ['automations', 'list', organizationId],
     api.automations.file_actions.listAutomations,
     { organizationId },
+    // Hosts that resolve their org from a not-yet-loaded record (e.g. the
+    // task modal before the task query lands) pass '' — skip, don't 403.
+    { enabled: organizationId !== '' },
   );
   return {
     automations: (q.data as AutomationSummary[] | undefined) ?? [],

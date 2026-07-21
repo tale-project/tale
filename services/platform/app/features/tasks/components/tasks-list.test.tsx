@@ -7,6 +7,9 @@ import { TasksList } from './tasks-list';
 
 type TaskRow = Doc<'tasks'>;
 
+vi.mock('../hooks/use-task-status-choreography', () => ({
+  useTaskStatusChoreography: () => async () => 'move' as const,
+}));
 vi.mock('../hooks/mutations', () => ({
   useMoveTask: () => ({ mutate: vi.fn(), isPending: false }),
   useAssignTask: () => ({ mutate: vi.fn(), isPending: false }),

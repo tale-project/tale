@@ -7441,7 +7441,8 @@
       "started": "Exécution démarrée.",
       "alreadyRunning": "Une exécution est déjà en cours.",
       "notStarted": "L'exécution n'a pas pu démarrer.",
-      "cancelled": "Exécution annulée."
+      "cancelled": "Exécution annulée.",
+      "missingInput": "Ajoute d'abord les fichiers d'entrée — le dossier est encore vide."
     },
     "detail": {
       "overview": "Aperçu",

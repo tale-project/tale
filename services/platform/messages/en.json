@@ -7732,7 +7732,8 @@
       "started": "Run started.",
       "alreadyRunning": "A run is already in progress.",
       "notStarted": "The run could not start.",
-      "cancelled": "Run cancelled."
+      "cancelled": "Run cancelled.",
+      "missingInput": "Add the input files first — the folder is still empty."
     },
     "detail": {
       "overview": "Overview",

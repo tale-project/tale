@@ -43,6 +43,7 @@ import {
 } from '../hooks/mutations';
 import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import { useTaskStatusChoreography } from '../hooks/use-task-status-choreography';
 import { useTaskSubjectTemplates } from '../hooks/use-task-subject-contract';
 import {
   type TaskActorType,
@@ -66,7 +67,6 @@ import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskOutcomeSection } from './task-outcome';
 import { TaskReviewCard } from './task-review-card';
-import { TaskRunActions } from './task-run-actions';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskSubjectFiles } from './task-subject-files';
@@ -597,6 +597,7 @@ function EditTaskBody({
 
   const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
+  const choreograph = useTaskStatusChoreography(task?.organizationId ?? '');
   const assignTask = useAssignTask();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
@@ -722,7 +723,6 @@ function EditTaskBody({
               projectId={task.projectId}
             />
             <TaskReviewCard taskId={task._id} />
-            <TaskRunActions organizationId={task.organizationId} task={task} />
             <section className="flex flex-col gap-1.5">
               <Text as="h3" variant="label">
                 {t('fields.description')}
@@ -889,8 +889,19 @@ function EditTaskBody({
                 disabled={!canMutate}
                 align="end"
                 onChange={(status) =>
-                  void updateStatus
-                    .mutateAsync({ taskId: task._id, status })
+                  // An automation-owned task interprets the status verb through
+                  // its workflow (In progress = start the run, leaving it =
+                  // cancel); a plain task writes the status directly.
+                  void choreograph(task, status)
+                    .then((outcome) => {
+                      if (outcome === 'move') {
+                        return updateStatus.mutateAsync({
+                          taskId: task._id,
+                          status,
+                        });
+                      }
+                      return undefined;
+                    })
                     .catch(onMutationError)
                 }
               />

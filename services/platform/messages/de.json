@@ -7441,7 +7441,8 @@
       "started": "Lauf gestartet.",
       "alreadyRunning": "Es läuft bereits ein Lauf.",
       "notStarted": "Der Lauf konnte nicht starten.",
-      "cancelled": "Lauf abgebrochen."
+      "cancelled": "Lauf abgebrochen.",
+      "missingInput": "Lege zuerst die Eingabedateien ab — der Ordner ist noch leer."
     },
     "detail": {
       "overview": "Übersicht",
