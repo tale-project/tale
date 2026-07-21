@@ -727,8 +727,11 @@ export function AutomationsGrid({
     );
   }
 
+  // `grow`, not `flex-1`: content-sized when the grid overflows (so the
+  // page stack's bottom padding stays in the scrolled flow) while still
+  // filling the pane so the no-results empty state below centers.
   return (
-    <Stack gap={4} className="min-h-0 flex-1">
+    <Stack gap={4} className="grow">
       <CatalogToolbar
         search={{
           value: searchQuery,

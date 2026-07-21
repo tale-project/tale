@@ -50,8 +50,13 @@ function AutomationsIndexPage() {
     onSynced: () => invalidateAutomations(organizationId),
   });
 
+  // `grow` (basis auto), NOT `flex-1` (basis 0): the page scrolls in
+  // PageLayout, and a basis-0 box is capped at pane height, clipping the
+  // p-4 bottom padding at the scroll boundary once the catalog overflows
+  // (see the same note in settings-page.tsx). `grow` still fills the pane
+  // when content is short, so the empty state stays centered (#2704).
   return (
-    <Stack gap={6} className="min-h-0 flex-1 p-4">
+    <Stack gap={6} className="grow p-4">
       <AutomationsGrid
         organizationId={organizationId}
         tab={tab ?? DEFAULT_AUTOMATIONS_TAB}
