@@ -83,6 +83,13 @@ export interface AutomationSummary {
   members?: string[];
   /** role token -> composite agent slug (the manifest's cast). */
   roles?: Record<string, string>;
+  /**
+   * Subject contracts from the manifest (`subjects`) — how tasks this
+   * automation OWNS are operated from generic surfaces. Carried raw; consumers
+   * parse `subjects.task` through `taskSubjectContractSchema` (tolerant:
+   * an invalid contract reads as none).
+   */
+  subjects?: { task?: unknown };
   workflows: string[];
   agents: string[];
   /**

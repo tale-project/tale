@@ -339,6 +339,11 @@ export const agentUpsertTaskByExternalRef = internalMutation({
      *  (`createdByType:'app'`, `createdBy:<automationSlug>`) — the ownership signal the
      *  generic task loops arbitrate on. */
     runWorkflowSlug: v.optional(v.string()),
+    /** App ownership WITHOUT the run-on-create coupling: attribute the task to
+     *  this automation (`createdByType:'app'`) even when no workflow starts at
+     *  creation — the desks' "create now, Start after the files arrive" shape.
+     *  Wins over the `runWorkflowSlug` derivation when both are present. */
+    automationSlug: v.optional(v.string()),
     /** Dedup scope for the external natural key (see the doc comment):
      *  `'project'` keys on the project (one task per issue per project);
      *  `'org'` (default) keys on the org (one task per issue per org). */
@@ -491,13 +496,15 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     // attribute it to the app (createdByType:'app', createdBy:<automationSlug>) so the
     // generic task loops defer to the app's own workflow. Otherwise it's an
     // agent-authored task as before.
-    const ownerAutomation = args.runWorkflowSlug
-      ? await automationOwnerOfWorkflowSlug(
-          ctx,
-          args.organizationId,
-          args.runWorkflowSlug,
-        )
-      : null;
+    const ownerAutomation =
+      args.automationSlug ??
+      (args.runWorkflowSlug
+        ? await automationOwnerOfWorkflowSlug(
+            ctx,
+            args.organizationId,
+            args.runWorkflowSlug,
+          )
+        : null);
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId,

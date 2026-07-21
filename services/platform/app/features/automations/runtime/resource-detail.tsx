@@ -209,6 +209,7 @@ function TaskCommentsSection({ taskId }: { taskId: string }) {
       canComment={canComment}
       currentUserId={me?.userId}
       isAdmin={me?.isAdmin}
+      order="desc"
       composerHint={runActive ? t('detail.commentsDuringRun') : undefined}
     />
   );

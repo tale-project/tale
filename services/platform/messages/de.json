@@ -7429,11 +7429,26 @@
       "restoreSuccess": "Aufgabe wiederhergestellt",
       "restoreError": "Aufgabe konnte nicht wiederhergestellt werden"
     },
+    "create": {
+      "type": "Typ",
+      "blank": "Leere Aufgabe",
+      "name": "Name",
+      "invalidName": "Dieser Name entspricht nicht dem erwarteten Format.",
+      "templateCreated": "Angelegt — lege die Eingabedateien auf der neuen Aufgabe ab und drücke dann Start.",
+      "templateExists": "Gibt es schon — die Aufgabe ist bereits auf dem Board."
+    },
+    "run": {
+      "started": "Lauf gestartet.",
+      "alreadyRunning": "Es läuft bereits ein Lauf.",
+      "notStarted": "Der Lauf konnte nicht starten.",
+      "cancelled": "Lauf abgebrochen."
+    },
     "detail": {
       "overview": "Übersicht",
       "comments": "Kommentare",
       "noComments": "Noch keine Kommentare.",
       "activity": "Aktivität",
+      "outcome": "Ergebnis",
       "subtasks": "Teilaufgaben",
       "addSubtask": "Teilaufgabe hinzufügen…",
       "addDescription": "Beschreibung hinzufügen…",

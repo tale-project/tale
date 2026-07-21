@@ -26,7 +26,9 @@ import { parseDocumentArtifact } from '../lib/document-artifact';
 import { asRecord, pickString } from '../lib/output-helpers';
 import type { OperatorProjection, StepProjection } from '../types';
 
-function outcomeSteps(projection: OperatorProjection): StepProjection[] {
+/** Steps annotated `ui.params.surface: "outcome"` — the shared outcome
+ *  contract every host (desk card, task modal section) gates on. */
+export function outcomeSteps(projection: OperatorProjection): StepProjection[] {
   return projection.steps.filter(
     (s) => resolveSurface(s.params?.surface) === 'outcome',
   );
@@ -75,6 +77,14 @@ function slotShouldPulse(step: StepProjection, runInFlight: boolean): boolean {
   return runInFlight || ACTIVE_PENDING_STATES.has(step.partState);
 }
 
+/** True while any outcome slot is still pending — lets a host show its
+ *  "Not ready yet." hint without re-walking the rows. */
+export function outcomeHasPendingSlot(projection: OperatorProjection): boolean {
+  const runInFlight =
+    projection.status === 'running' || projection.status === 'pending';
+  return outcomeSteps(projection).some((s) => isPendingSlot(s, runInFlight));
+}
+
 type PreviewTarget = {
   documentId?: string;
   fileId?: string;
@@ -121,7 +131,14 @@ function entriesForReadyStep(step: StepProjection): {
 const openClassName =
   'text-primary focus-visible:ring-primary rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none';
 
-export function OutcomeStrip({
+/**
+ * Chrome-free outcome rows plus the shared preview dialog: ready artifacts
+ * (document → preview dialog, plain file → link, text → markdown), failed
+ * steps, and pending slots. Null when the pack annotates no outcome steps,
+ * so a host gates its own chrome on the same contract. Hosts: the desk's
+ * OutcomeStrip card, the task modal's Outcome section.
+ */
+export function OutcomeRows({
   projection,
 }: {
   projection: OperatorProjection;
@@ -129,7 +146,6 @@ export function OutcomeStrip({
   const { t } = useT('operator');
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const steps = outcomeSteps(projection);
-  // No pack annotation → omit entirely (not an empty card).
   if (steps.length === 0) return null;
 
   const runInFlight =
@@ -222,6 +238,50 @@ export function OutcomeStrip({
     !hasReadyOrError && !hasPendingSlot && rows.length === 0;
 
   return (
+    <>
+      {showSettledEmpty && (
+        <Text variant="muted">
+          {t('outcome.empty', {
+            defaultValue:
+              'No results yet — they will appear here once a run produces them.',
+          })}
+        </Text>
+      )}
+
+      {rows.length > 0 && (
+        <ul
+          className="flex flex-col gap-2"
+          role={hasPendingSlot ? 'status' : undefined}
+        >
+          {rows}
+        </ul>
+      )}
+
+      <DocumentPreviewDialog
+        open={preview !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreview(null);
+        }}
+        documentId={preview?.documentId}
+        fileId={preview?.fileId}
+        fileName={preview?.fileName}
+      />
+    </>
+  );
+}
+
+export function OutcomeStrip({
+  projection,
+}: {
+  projection: OperatorProjection;
+}) {
+  const { t } = useT('operator');
+  const steps = outcomeSteps(projection);
+  // No pack annotation → omit entirely (not an empty card).
+  if (steps.length === 0) return null;
+  const hasPendingSlot = outcomeHasPendingSlot(projection);
+
+  return (
     // Same chrome as automation BlockFrame / Input — always expanded, never
     // nested under a "Workflow run" disclosure.
     <Card asChild padding="none" shadow="sm">
@@ -248,34 +308,8 @@ export function OutcomeStrip({
           )}
         </Row>
         <VStack gap={3} className="px-5 pb-5">
-          {showSettledEmpty && (
-            <Text variant="muted">
-              {t('outcome.empty', {
-                defaultValue:
-                  'No results yet — they will appear here once a run produces them.',
-              })}
-            </Text>
-          )}
-
-          {rows.length > 0 && (
-            <ul
-              className="flex flex-col gap-2"
-              role={hasPendingSlot ? 'status' : undefined}
-            >
-              {rows}
-            </ul>
-          )}
+          <OutcomeRows projection={projection} />
         </VStack>
-
-        <DocumentPreviewDialog
-          open={preview !== null}
-          onOpenChange={(open) => {
-            if (!open) setPreview(null);
-          }}
-          documentId={preview?.documentId}
-          fileId={preview?.fileId}
-          fileName={preview?.fileName}
-        />
       </section>
     </Card>
   );

@@ -75,3 +75,10 @@ export function useAutomationRuntime(): AutomationRuntime {
   }
   return value;
 }
+
+/** Null outside a provider — for components that also mount on generic
+ *  surfaces (e.g. `FolderUploadCard` inside the task modal) and take their
+ *  ids as props there. */
+export function useAutomationRuntimeOptional(): AutomationRuntime | null {
+  return useContext(AutomationRuntimeContext);
+}

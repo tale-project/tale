@@ -7720,11 +7720,26 @@
       "restoreSuccess": "Task restored",
       "restoreError": "Couldn't restore task"
     },
+    "create": {
+      "type": "Type",
+      "blank": "Blank task",
+      "name": "Name",
+      "invalidName": "This name doesn't match the required format.",
+      "templateCreated": "Created — drop the input files on the new task, then press Start.",
+      "templateExists": "Already exists — its task is on the board."
+    },
+    "run": {
+      "started": "Run started.",
+      "alreadyRunning": "A run is already in progress.",
+      "notStarted": "The run could not start.",
+      "cancelled": "Run cancelled."
+    },
     "detail": {
       "overview": "Overview",
       "comments": "Comments",
       "noComments": "No comments yet.",
       "activity": "Activity",
+      "outcome": "Outcome",
       "subtasks": "Subtasks",
       "addSubtask": "Add a subtask…",
       "addDescription": "Add a description…",

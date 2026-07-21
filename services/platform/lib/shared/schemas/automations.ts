@@ -67,6 +67,69 @@ export type AutomationManifestI18n = z.infer<
   typeof automationManifestI18nSchema
 >;
 
+/** Localizable strings of the create-flow's single input field (the
+ *  subject's natural key, e.g. the quarter folder name). Mirrors the view
+ *  form-field grammar so packs can carry the same copy on both surfaces. */
+const taskSubjectFieldTextSchema = z.object({
+  label: z.string().optional(),
+  placeholder: z.string().optional(),
+  help: z.string().optional(),
+});
+
+/**
+ * The automation's TASK-SURFACE contract — one declaration every task surface
+ * consumes: the desk view, the generic task modal (actions row, folder input
+ * card, template create), and agent dispatch. A task is bound to its owning
+ * automation via `createdByType: 'app'` + `createdBy: <automation slug>`
+ * (write-once at creation); tasks born before ownership stamping resolve via
+ * the `externalSystem` namespace instead.
+ */
+export const taskSubjectContractSchema = z.object({
+  /** Workflow the task-surface Start / Request-changes actions run
+   *  (`startTaskWorkflow`; the slug is also the automation slug). */
+  workflow: z.string().min(1),
+  /** Dedup namespace stamped on owned tasks (`tasks.externalSystem`) — also
+   *  the ownership fallback for tasks created before slug stamping. */
+  externalSystem: z.string().min(1).optional(),
+  /** What the task's external binding IS. `folder`: `externalId` holds a
+   *  project root folder id — the task modal swaps its Attachments zone for
+   *  the folder's upload card so input lands where the run reads it. */
+  input: z
+    .object({
+      kind: z.literal('folder'),
+      /** Anchored regex the folder name must match at template-create time
+       *  (e.g. "^\\d{4}Q[1-4]$" for VAT quarters). */
+      naming: z.string().optional(),
+      /** Sibling setup folder resolved into `externalUrl` on create (the
+       *  desks' binding convention; create fails closed when missing). */
+      setupFolderName: z.string().optional(),
+    })
+    .optional(),
+  /** Board-side template creation ("New quarter" from the task board). */
+  create: z
+    .object({
+      enabled: z.boolean(),
+      /** Title derived from the input value; `{name}` is the only token. */
+      titleTemplate: z.string().optional(),
+      /** Literal description for the created task (same copy the desk uses). */
+      description: z.string().optional(),
+      field: taskSubjectFieldTextSchema
+        .extend({
+          i18n: z.record(z.string(), taskSubjectFieldTextSchema).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  /** Start gating over the task facts (`when_predicate` grammar; variables:
+   *  `status`, `hasFiles`). Absent ⇒ Start hidden. */
+  start: z.object({ when: z.string().optional() }).optional(),
+  /** Review affordances: `requestChanges` shows the desk's comment-then-rerun
+   *  action at `in_review` (same `startTaskWorkflow` path as Start). */
+  review: z.object({ requestChanges: z.boolean().optional() }).optional(),
+});
+
+export type TaskSubjectContract = z.infer<typeof taskSubjectContractSchema>;
+
 export const automationManifestSchema = z
   .object({
     /** Friendly display name shown in Automations (the slug is the dir name). */
@@ -129,6 +192,16 @@ export const automationManifestSchema = z
      * Agent refs inside it (`<slug>/<agent>`) are unaffected.
      */
     workflow: workflowJsonSchema.optional(),
+    /**
+     * Subject contracts — how entities this automation OWNS are operated from
+     * generic surfaces. `task`: the task-surface contract (see
+     * {@link taskSubjectContractSchema}) consumed by the task modal's actions
+     * row / folder input card / template create and by agent dispatch, so the
+     * desk view stops being the only place the flow can complete.
+     */
+    subjects: z
+      .object({ task: taskSubjectContractSchema.optional() })
+      .optional(),
     /** Agent slugs this automation composes (referenced, they live in agents/). */
     agents: z.array(z.string()).optional(),
     /**

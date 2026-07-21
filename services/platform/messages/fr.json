@@ -7429,11 +7429,26 @@
       "restoreSuccess": "Tâche restaurée",
       "restoreError": "Impossible de restaurer la tâche"
     },
+    "create": {
+      "type": "Type",
+      "blank": "Tâche vierge",
+      "name": "Nom",
+      "invalidName": "Ce nom ne correspond pas au format attendu.",
+      "templateCreated": "Créé — dépose les fichiers d'entrée sur la nouvelle tâche, puis appuie sur Démarrer.",
+      "templateExists": "Existe déjà — sa tâche est déjà sur le tableau."
+    },
+    "run": {
+      "started": "Exécution démarrée.",
+      "alreadyRunning": "Une exécution est déjà en cours.",
+      "notStarted": "L'exécution n'a pas pu démarrer.",
+      "cancelled": "Exécution annulée."
+    },
     "detail": {
       "overview": "Aperçu",
       "comments": "Commentaires",
       "noComments": "Aucun commentaire pour le moment.",
       "activity": "Activité",
+      "outcome": "Résultat",
       "subtasks": "Sous-tâches",
       "addSubtask": "Ajouter une sous-tâche…",
       "addDescription": "Ajouter une description…",

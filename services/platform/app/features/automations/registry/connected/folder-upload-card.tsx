@@ -26,21 +26,35 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRuntime } from '../../runtime/automation-runtime';
+import { useAutomationRuntimeOptional } from '../../runtime/automation-runtime';
 
 const MAX_LISTED = 8;
 
 export function FolderUploadCard({
   folderId,
   orphaned = false,
+  organizationId: organizationIdProp,
+  projectId: projectIdProp,
 }: {
   folderId: string;
   /** The bound folder was deleted — show a recover/remove notice instead of
    *  the upload zone (uploading to a dead folder can only fail). */
   orphaned?: boolean;
+  /** Outside an automation runtime (the task modal's folder-input surface)
+   *  the host passes both ids explicitly; inside a runtime they come from
+   *  context as before. */
+  organizationId?: string;
+  projectId?: string;
 }) {
   const { t } = useT('automations');
-  const { organizationId, projectId } = useAutomationRuntime();
+  const runtime = useAutomationRuntimeOptional();
+  const organizationId = organizationIdProp ?? runtime?.organizationId;
+  const projectId = projectIdProp ?? runtime?.projectId;
+  if (!organizationId) {
+    throw new Error(
+      'FolderUploadCard needs an organizationId (prop or AutomationRuntimeProvider)',
+    );
+  }
   const inputRef = useRef<HTMLInputElement | null>(null);
   // null = follow the data (open while empty); a manual toggle pins it.
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);

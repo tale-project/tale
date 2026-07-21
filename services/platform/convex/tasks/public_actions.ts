@@ -107,6 +107,10 @@ export const createTaskFromExternalIssue = action({
     labels: v.optional(v.array(v.string())),
     /** App workflow slug to run on the newly created task (app-scoped). */
     runWorkflowSlug: v.optional(v.string()),
+    /** Attribute the task to this automation (`createdByType:'app'`) without
+     *  starting anything — template creation from the task board / desk
+     *  "New quarter", where the run comes later via Start. */
+    automationSlug: v.optional(v.string()),
   },
   returns: v.object({
     taskId: v.string(),
@@ -229,6 +233,7 @@ export const createTaskFromExternalIssue = action({
         // Attributes the task to the owning app (createdByType:'app') so generic
         // task automation defers to the app's workflow — see the upsert mutation.
         runWorkflowSlug: args.runWorkflowSlug,
+        automationSlug: args.automationSlug,
         // An explicit project (a project-scoped app) dedups per project so two
         // projects each get their own task; the org-wide fallback dedups per org.
         dedupeScope: args.projectId ? 'project' : 'org',

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
@@ -16,14 +17,17 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useAutomationDisplay } from '@/app/features/automations/hooks/use-automation-text';
 import {
   type FileAttachment,
   useConvexFileUpload,
 } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useProject } from '@/app/features/projects/hooks/queries';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
@@ -39,6 +43,7 @@ import {
 } from '../hooks/mutations';
 import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import { useTaskSubjectTemplates } from '../hooks/use-task-subject-contract';
 import {
   type TaskActorType,
   type TaskPriority,
@@ -59,10 +64,25 @@ import { TaskAttachments } from './task-attachments';
 import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
+import { TaskOutcomeSection } from './task-outcome';
 import { TaskReviewCard } from './task-review-card';
+import { TaskRunActions } from './task-run-actions';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
+import { TaskSubjectFiles } from './task-subject-files';
 import { TaskTimeline } from './task-timeline';
+
+/** Anchored test against a contract-declared pattern. The pattern is
+ *  operator-authored org config — a malformed one must not crash the dialog,
+ *  so construction failures read as "matches" (server re-validates anyway). */
+function safeMatches(pattern: string, value: string): boolean {
+  try {
+    return new RegExp(pattern).test(value);
+  } catch (error) {
+    console.warn('[tasks] invalid subject naming pattern', pattern, error);
+    return true;
+  }
+}
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
  *  strict `attachments` validator. Always an array (an empty array sent to
@@ -258,7 +278,80 @@ function CreateTaskBody({
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
+  // Template creation — the `subjects.task.create` contracts of installed
+  // automations (e.g. the VAT desk's "new quarter"). Selecting one swaps the
+  // free-form fields for the contract's single input; the server call is the
+  // SAME upsert seam the desk's own create button uses, so a board-created
+  // and a desk-created quarter converge on one task (never a zombie copy).
+  const templates = useTaskSubjectTemplates(organizationId);
+  const automationDisplay = useAutomationDisplay();
+  const { locale } = useLocale();
+  const [templateSlug, setTemplateSlug] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const createFromTemplate = useConvexAction(
+    api.tasks.public_actions.createTaskFromExternalIssue,
+  );
+  const activeTemplate =
+    templates.find((entry) => entry.automationSlug === templateSlug) ?? null;
+  const templateField = activeTemplate?.contract.create?.field;
+  const templateFieldText = {
+    ...templateField,
+    ...templateField?.i18n?.[locale],
+  };
+  const templateNaming = activeTemplate?.contract.input?.naming;
+  const templateNameOk =
+    templateNaming === undefined ||
+    templateName.trim() === '' ||
+    safeMatches(templateNaming, templateName.trim());
+
+  const submitTemplate = async (entry: NonNullable<typeof activeTemplate>) => {
+    const name = templateName.trim();
+    if (!name || !templateNameOk || submitting) return;
+    setSubmitting(true);
+    try {
+      const { contract } = entry;
+      const result = await createFromTemplate.mutateAsync({
+        organizationId,
+        projectId,
+        externalSystem: contract.externalSystem ?? entry.automationSlug,
+        ensureFolder: {
+          name,
+          setupFolderName: contract.input?.setupFolderName,
+        },
+        title: (contract.create?.titleTemplate ?? '{name}').replace(
+          '{name}',
+          name,
+        ),
+        description: contract.create?.description,
+        automationSlug: entry.automationSlug,
+      });
+      toast({
+        title: result.created
+          ? t('create.templateCreated')
+          : t('create.templateExists'),
+        variant: result.created ? 'success' : undefined,
+      });
+      onClose();
+    } catch (error) {
+      console.error('Create task from template error:', error);
+      const message =
+        error instanceof ConvexError && typeof error.data?.message === 'string'
+          ? error.data.message
+          : undefined;
+      toast({
+        title: tCommon('errors.generic'),
+        description: message,
+        variant: 'destructive',
+      });
+      setSubmitting(false);
+    }
+  };
+
   const submit = async () => {
+    if (activeTemplate) {
+      await submitTemplate(activeTemplate);
+      return;
+    }
     const trimmed = title.trim();
     if (!trimmed || submitting) return;
     setSubmitting(true);
@@ -296,94 +389,164 @@ function CreateTaskBody({
       }
       main={
         <>
-          <Input
-            id="task-title"
-            label={t('fields.title')}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={submitting}
-            autoFocus
-            required
-            // Hard-cap at the server limit (validateTitle rejects > TASK_TITLE_MAX)
-            // so an over-long title can't reach the mutation and strand the dialog
-            // behind a generic error toast.
-            maxLength={TASK_TITLE_MAX}
-            onKeyDown={(e) => {
-              // Cmd/Ctrl+Enter submits from the title (fast path).
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault();
-                void submit();
-              }
-            }}
-          />
-          <MentionTextarea
-            id="task-description"
-            organizationId={organizationId}
-            projectId={projectId}
-            label={t('fields.description')}
-            rows={8}
-            value={description}
-            onValueChange={setDescription}
-            disabled={submitting}
-            placement="below"
-          />
-          <MentionTriggerChips
-            organizationId={organizationId}
-            target={{ projectId }}
-            draft={description}
-          />
-          <TaskAttachments
-            attachments={attachments}
-            uploadingFiles={uploadingFiles}
-            canEdit
-            disabled={submitting}
-            organizationId={organizationId}
-            onUpload={(files) => void uploadFiles(files)}
-            onRemove={removeAttachment}
-          />
+          {templates.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <Text as="span" variant="label">
+                {t('create.type')}
+              </Text>
+              <Row gap={2} className="flex-wrap">
+                <Button
+                  size="sm"
+                  variant={templateSlug === null ? 'primary' : 'secondary'}
+                  aria-pressed={templateSlug === null}
+                  disabled={submitting}
+                  onClick={() => setTemplateSlug(null)}
+                >
+                  {t('create.blank')}
+                </Button>
+                {templates.map((entry) => (
+                  <Button
+                    key={entry.automationSlug}
+                    size="sm"
+                    variant={
+                      templateSlug === entry.automationSlug
+                        ? 'primary'
+                        : 'secondary'
+                    }
+                    aria-pressed={templateSlug === entry.automationSlug}
+                    disabled={submitting}
+                    onClick={() => setTemplateSlug(entry.automationSlug)}
+                  >
+                    {automationDisplay(entry).name}
+                  </Button>
+                ))}
+              </Row>
+            </div>
+          )}
+          {activeTemplate ? (
+            <>
+              <Input
+                id="task-template-name"
+                label={templateFieldText.label ?? t('create.name')}
+                placeholder={templateFieldText.placeholder}
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                disabled={submitting}
+                autoFocus
+                required
+                aria-describedby="task-template-help"
+                aria-invalid={!templateNameOk}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    void submit();
+                  }
+                }}
+              />
+              <Text as="p" id="task-template-help" variant="caption">
+                {!templateNameOk
+                  ? t('create.invalidName')
+                  : (templateFieldText.help ?? '')}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Input
+                id="task-title"
+                label={t('fields.title')}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={submitting}
+                autoFocus
+                required
+                // Hard-cap at the server limit (validateTitle rejects > TASK_TITLE_MAX)
+                // so an over-long title can't reach the mutation and strand the dialog
+                // behind a generic error toast.
+                maxLength={TASK_TITLE_MAX}
+                onKeyDown={(e) => {
+                  // Cmd/Ctrl+Enter submits from the title (fast path).
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    void submit();
+                  }
+                }}
+              />
+              <MentionTextarea
+                id="task-description"
+                organizationId={organizationId}
+                projectId={projectId}
+                label={t('fields.description')}
+                rows={8}
+                value={description}
+                onValueChange={setDescription}
+                disabled={submitting}
+                placement="below"
+              />
+              <MentionTriggerChips
+                organizationId={organizationId}
+                target={{ projectId }}
+                draft={description}
+              />
+              <TaskAttachments
+                attachments={attachments}
+                uploadingFiles={uploadingFiles}
+                canEdit
+                disabled={submitting}
+                organizationId={organizationId}
+                onUpload={(files) => void uploadFiles(files)}
+                onRemove={removeAttachment}
+              />
+            </>
+          )}
         </>
       }
       panel={
-        <>
-          <PropertyField label={t('fields.status')}>
-            <StatusPicker status={status} onChange={setStatus} align="end" />
-          </PropertyField>
-          <PropertyField label={t('fields.priority')}>
-            <PriorityPicker
-              priority={priority}
-              onChange={setPriority}
-              align="end"
-            />
-          </PropertyField>
-          <PropertyField label={t('fields.assignee')}>
-            <AssigneePicker
-              organizationId={organizationId}
-              projectId={projectId}
-              assigneeType={assignee?.type}
-              assigneeId={assignee?.id}
-              taskTitle={title}
-              taskDescription={description}
-              taskLabels={labels}
-              align="end"
-              onAssign={(type, id) => setAssignee({ type, id })}
-              onUnassign={() => setAssignee(null)}
-            />
-          </PropertyField>
-          <PropertyField label={t('dueDate.label')}>
-            <DatePicker
-              value={dueDate}
-              onChange={(ms) => setDueDate(ms ?? undefined)}
-            />
-          </PropertyField>
-          <PanelDivider />
-          <PropertyField label={t('fields.labels')} stacked>
-            <LabelEditor
-              labels={labels}
-              onChange={setLabels}
-              projectId={projectId}
-            />
-          </PropertyField>
-        </>
+        activeTemplate ? (
+          // The contract fixes the created task's shape (status, ownership,
+          // title) — the free-form pickers would be dead controls here.
+          <></>
+        ) : (
+          <>
+            <PropertyField label={t('fields.status')}>
+              <StatusPicker status={status} onChange={setStatus} align="end" />
+            </PropertyField>
+            <PropertyField label={t('fields.priority')}>
+              <PriorityPicker
+                priority={priority}
+                onChange={setPriority}
+                align="end"
+              />
+            </PropertyField>
+            <PropertyField label={t('fields.assignee')}>
+              <AssigneePicker
+                organizationId={organizationId}
+                projectId={projectId}
+                assigneeType={assignee?.type}
+                assigneeId={assignee?.id}
+                taskTitle={title}
+                taskDescription={description}
+                taskLabels={labels}
+                align="end"
+                onAssign={(type, id) => setAssignee({ type, id })}
+                onUnassign={() => setAssignee(null)}
+              />
+            </PropertyField>
+            <PropertyField label={t('dueDate.label')}>
+              <DatePicker
+                value={dueDate}
+                onChange={(ms) => setDueDate(ms ?? undefined)}
+              />
+            </PropertyField>
+            <PanelDivider />
+            <PropertyField label={t('fields.labels')} stacked>
+              <LabelEditor
+                labels={labels}
+                onChange={setLabels}
+                projectId={projectId}
+              />
+            </PropertyField>
+          </>
+        )
       }
       footer={
         <Row gap={2} justify="end">
@@ -392,7 +555,12 @@ function CreateTaskBody({
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={submitting || title.trim().length === 0}
+            disabled={
+              submitting ||
+              (activeTemplate
+                ? templateName.trim().length === 0 || !templateNameOk
+                : title.trim().length === 0)
+            }
           >
             {t('actions.create')}
           </Button>
@@ -554,6 +722,7 @@ function EditTaskBody({
               projectId={task.projectId}
             />
             <TaskReviewCard taskId={task._id} />
+            <TaskRunActions organizationId={task.organizationId} task={task} />
             <section className="flex flex-col gap-1.5">
               <Text as="h3" variant="label">
                 {t('fields.description')}
@@ -588,11 +757,12 @@ function EditTaskBody({
               )}
             </section>
 
-            <TaskAttachments
+            <TaskSubjectFiles
+              organizationId={task.organizationId}
+              task={task}
               attachments={task.attachments ?? []}
               uploadingFiles={uploadingFiles}
               canEdit={canMutate}
-              organizationId={task.organizationId}
               onUpload={onUploadAttachments}
               onRemove={onRemoveAttachment}
             />
@@ -689,6 +859,11 @@ function EditTaskBody({
               )}
             </Stack>
 
+            <TaskOutcomeSection
+              organizationId={task.organizationId}
+              taskId={task._id}
+            />
+
             <TaskComments
               taskId={task._id}
               organizationId={task.organizationId}
@@ -696,6 +871,7 @@ function EditTaskBody({
               canComment={canComment}
               currentUserId={me?.userId}
               isAdmin={me?.isAdmin}
+              order="desc"
             />
 
             <TaskTimeline

@@ -325,6 +325,7 @@ describe('ResourceDetail — task subject composition', () => {
 
     expect(taskCommentsCalls[0]).toMatchObject({
       composerHint: 'automations.detail.commentsDuringRun',
+      order: 'desc',
     });
   });
 

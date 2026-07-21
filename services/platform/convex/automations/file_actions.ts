@@ -166,6 +166,11 @@ function buildCatalogEntry(
     // Catalog chips (literal display strings, e.g. "GitHub") — rendered on
     // the hub card and the automation details header, before install.
     ...(manifest.labels !== undefined && { labels: manifest.labels }),
+    // Subject contracts (task surface): consumed by the generic task modal
+    // (actions row, folder input card, template create) — see
+    // `taskSubjectContractSchema`. Bundles never declare them.
+    ...(!manifestDeclaresBundle(manifest) &&
+      manifest.subjects !== undefined && { subjects: manifest.subjects }),
   };
 
   // A BUNDLE installs its members through one aggregated wizard and does

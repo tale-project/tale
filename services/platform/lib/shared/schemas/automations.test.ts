@@ -30,6 +30,61 @@ describe('automationManifestSchema — scope', () => {
   });
 });
 
+describe('automationManifestSchema — subjects.task contract', () => {
+  const CONTRACT = {
+    workflow: 'vat-return-desk',
+    externalSystem: 'vatplus',
+    input: {
+      kind: 'folder',
+      naming: '^\\d{4}Q[1-4]$',
+      setupFolderName: 'Setup',
+    },
+    create: {
+      enabled: true,
+      titleTemplate: 'VAT return — {name}',
+      field: {
+        label: 'Quarter folder name',
+        i18n: { de: { label: 'Name des Quartalsordners' } },
+      },
+    },
+    start: { when: 'hasFiles && status == todo' },
+    review: { requestChanges: true },
+  };
+
+  it('parses the full task contract', () => {
+    const m = automationManifestSchema.parse({
+      name: 'Desk',
+      subjects: { task: CONTRACT },
+    });
+    expect(m.subjects?.task?.workflow).toBe('vat-return-desk');
+    expect(m.subjects?.task?.input?.kind).toBe('folder');
+    expect(m.subjects?.task?.create?.enabled).toBe(true);
+  });
+
+  it('accepts a manifest with no subjects (back-compat)', () => {
+    const m = automationManifestSchema.parse({ name: 'Desk' });
+    expect(m.subjects).toBeUndefined();
+  });
+
+  it('rejects a contract without a workflow', () => {
+    expect(() =>
+      automationManifestSchema.parse({
+        name: 'Desk',
+        subjects: { task: { externalSystem: 'vatplus' } },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects a non-folder input kind', () => {
+    expect(() =>
+      automationManifestSchema.parse({
+        name: 'Desk',
+        subjects: { task: { workflow: 'w', input: { kind: 'url' } } },
+      }),
+    ).toThrow();
+  });
+});
+
 describe('automationManifestSchema — labels', () => {
   it('parses catalog labels and keeps them optional', () => {
     const m = automationManifestSchema.parse({

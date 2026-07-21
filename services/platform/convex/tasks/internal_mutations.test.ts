@@ -183,6 +183,48 @@ describe('agentUpsertTaskByExternalRef — dedup scope', () => {
   });
 });
 
+describe('agentUpsertTaskByExternalRef — app ownership without run-on-create', () => {
+  it("explicit automationSlug stamps the task app-owned (createdByType:'app')", async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const res = await t.mutation(
+      internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+      {
+        organizationId: ORG,
+        actorId: 'user_1',
+        projectId: projectA,
+        externalSystem: 'vatplus',
+        externalId: 'folder_2026Q3',
+        title: 'VAT return — 2026Q3',
+        externalState: 'open',
+        dedupeScope: 'project',
+        automationSlug: 'vat-return-desk',
+      },
+    );
+
+    expect(res.created).toBe(true);
+    const task = await t.run(async (ctx) =>
+      ctx.db.get(res.taskId as Id<'tasks'>),
+    );
+    expect(task?.createdByType).toBe('app');
+    expect(task?.createdBy).toBe('vat-return-desk');
+  });
+
+  it('without automationSlug the create stays agent-attributed as before', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const res = await upsert(t, projectA, 'owner/repo#500', 'project');
+
+    const task = await t.run(async (ctx) =>
+      ctx.db.get(res.taskId as Id<'tasks'>),
+    );
+    expect(task?.createdByType).toBe('agent');
+    expect(task?.createdBy).toBe('user_1');
+  });
+});
+
 describe('agentUpsertTaskByExternalRef — createIfMissing (update-only reconcile)', () => {
   it('no-ops when the issue has no task on the board (and needs no projectId)', async () => {
     const t = convexTest(schema, modules);
