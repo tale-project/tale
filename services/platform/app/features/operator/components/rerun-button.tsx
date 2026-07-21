@@ -52,7 +52,11 @@ export function RerunButton({
   };
 
   return (
-    <Button variant="secondary" disabled={isPending} onClick={() => void run()}>
+    <Button
+      variant="secondary"
+      isLoading={isPending}
+      onClick={() => void run()}
+    >
       {t('rerun.button')}
     </Button>
   );

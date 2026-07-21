@@ -268,7 +268,7 @@ function DispatchBoundButton({
       <Button
         size={size}
         variant={action.variant ?? 'secondary'}
-        disabled={isPending}
+        isLoading={isPending}
         onClick={() => {
           if (action.confirm) {
             setConfirmOpen(true);
