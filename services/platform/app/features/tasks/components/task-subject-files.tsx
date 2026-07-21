@@ -65,6 +65,7 @@ export function TaskSubjectFiles({
         folderId={folderId}
         organizationId={organizationId}
         projectId={task.projectId}
+        showFolderName
       />
       {attachments.length > 0 && (
         <TaskAttachments

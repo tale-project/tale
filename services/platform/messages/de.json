@@ -990,6 +990,7 @@
       "showLess": "Weniger anzeigen",
       "drop": "Dateien hierher ziehen, oder",
       "deleteFile": "{name} löschen",
+      "openFolder": "Ordner in Wissen öffnen",
       "folderDeleted": "Der Ordner dieses Quartals wurde gelöscht. Legen Sie ihn in Wissen neu an oder entfernen Sie diese Abrechnung."
     }
   },
@@ -7437,12 +7438,18 @@
       "templateCreated": "Angelegt — lege die Eingabedateien auf der neuen Aufgabe ab und drücke dann Start.",
       "templateExists": "Gibt es schon — die Aufgabe ist bereits auf dem Board."
     },
+    "automation": {
+      "hint": "Wird von {name} betrieben — nach In Arbeit verschieben startet die Automatisierung."
+    },
     "run": {
       "started": "Lauf gestartet.",
       "alreadyRunning": "Es läuft bereits ein Lauf.",
       "notStarted": "Der Lauf konnte nicht starten.",
       "cancelled": "Lauf abgebrochen.",
-      "missingInput": "Lege zuerst die Eingabedateien ab — der Ordner ist noch leer."
+      "missingInput": "Lege zuerst die Eingabedateien ab — der Ordner ist noch leer.",
+      "hintStart": "Startet den Lauf von {name}.",
+      "hintRequestChanges": "Rechnet mit dem Kommentar-Feedback neu.",
+      "hintCancel": "Bricht zuerst den laufenden Lauf ab."
     },
     "detail": {
       "overview": "Übersicht",

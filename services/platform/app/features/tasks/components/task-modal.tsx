@@ -24,6 +24,7 @@ import {
 } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
@@ -32,6 +33,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
+import { isActiveExecutionStatus } from '@/lib/shared/platform/run_capacity';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
@@ -43,8 +45,14 @@ import {
 } from '../hooks/mutations';
 import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
-import { useTaskStatusChoreography } from '../hooks/use-task-status-choreography';
-import { useTaskSubjectTemplates } from '../hooks/use-task-subject-contract';
+import {
+  plannedTransitionKind,
+  useTaskStatusChoreography,
+} from '../hooks/use-task-status-choreography';
+import {
+  useTaskSubjectContract,
+  useTaskSubjectTemplates,
+} from '../hooks/use-task-subject-contract';
 import {
   type TaskActorType,
   type TaskPriority,
@@ -62,6 +70,7 @@ import { StatusPicker } from './status-picker';
 import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
+import { TaskAutomationBadge } from './task-automation-badge';
 import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
@@ -598,6 +607,40 @@ function EditTaskBody({
   const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
   const choreograph = useTaskStatusChoreography(task?.organizationId ?? '');
+  // Pre-flight hints for the status picker: what a status verb will DO on an
+  // automation-owned task (start / rerun with feedback / cancel), from the
+  // same matrix that executes it — the hint can never drift from behavior.
+  const subjectContract = useTaskSubjectContract(
+    task?.organizationId ?? '',
+    task,
+  );
+  const automationDisplay = useAutomationDisplay();
+  const { data: latestRun } = useConvexQuery(
+    api.workflow_executions.queries.getLatestExecutionForSubject,
+    task && subjectContract
+      ? {
+          organizationId: task.organizationId,
+          subjectType: 'task',
+          subjectId: task._id,
+        }
+      : 'skip',
+  );
+  const statusOptionDescription = (option: TaskStatus): string | undefined => {
+    if (!task || !subjectContract) return undefined;
+    const runActive =
+      latestRun != null && isActiveExecutionStatus(latestRun.status);
+    const kind = plannedTransitionKind(
+      subjectContract.contract,
+      task.status,
+      option,
+      runActive,
+    );
+    if (kind === null) return undefined;
+    const name = automationDisplay(subjectContract).name;
+    if (kind === 'start') return t('run.hintStart', { name });
+    if (kind === 'request_changes') return t('run.hintRequestChanges');
+    return t('run.hintCancel');
+  };
   const assignTask = useAssignTask();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
@@ -684,15 +727,26 @@ function EditTaskBody({
       <ModalLayout
         header={
           <Stack gap={2}>
-            {identifier && (
-              <Text
-                as="span"
-                variant="muted"
-                className="font-mono text-xs tracking-wide"
-              >
-                {identifier}
-              </Text>
-            )}
+            {/* Breadcrumb row: identifier left, the owning automation's badge
+                right — the visible "this task is operated" signal. */}
+            <Row gap={2} align="center" justify="between">
+              {identifier ? (
+                <Text
+                  as="span"
+                  variant="muted"
+                  className="font-mono text-xs tracking-wide"
+                >
+                  {identifier}
+                </Text>
+              ) : (
+                <span aria-hidden="true" />
+              )}
+              <TaskAutomationBadge
+                organizationId={task.organizationId}
+                task={task}
+                showName
+              />
+            </Row>
             {isArchived && <TaskArchivedBadge />}
             <ResponsiveDialogTitle className="sr-only">
               {task.title}
@@ -888,6 +942,7 @@ function EditTaskBody({
                 status={task.status}
                 disabled={!canMutate}
                 align="end"
+                optionDescription={statusOptionDescription}
                 onChange={(status) =>
                   // An automation-owned task interprets the status verb through
                   // its workflow (In progress = start the run, leaving it =

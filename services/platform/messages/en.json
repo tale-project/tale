@@ -990,6 +990,7 @@
       "showLess": "Show less",
       "drop": "Drop files here, or",
       "deleteFile": "Delete {name}",
+      "openFolder": "Open folder in Knowledge",
       "folderDeleted": "This quarter’s folder was deleted. Recreate it in Knowledge, or remove this return."
     }
   },
@@ -7728,12 +7729,18 @@
       "templateCreated": "Created — drop the input files on the new task, then press Start.",
       "templateExists": "Already exists — its task is on the board."
     },
+    "automation": {
+      "hint": "Operated by {name} — moving it to In progress runs the automation."
+    },
     "run": {
       "started": "Run started.",
       "alreadyRunning": "A run is already in progress.",
       "notStarted": "The run could not start.",
       "cancelled": "Run cancelled.",
-      "missingInput": "Add the input files first — the folder is still empty."
+      "missingInput": "Add the input files first — the folder is still empty.",
+      "hintStart": "Starts the {name} run.",
+      "hintRequestChanges": "Reruns with the comment feedback.",
+      "hintCancel": "Cancels the active run first."
     },
     "detail": {
       "overview": "Overview",

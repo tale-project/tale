@@ -15,6 +15,7 @@ import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
+import { TaskAutomationBadge } from './task-automation-badge';
 import { useTaskBoardContext } from './task-board-context';
 import {
   AgentWorkingIndicator,
@@ -162,6 +163,10 @@ export function TaskCard({
               </Tooltip>
             )}
             <BlockedIndicator blocked={blocked} />
+            <TaskAutomationBadge
+              organizationId={task.organizationId}
+              task={task}
+            />
             <AgentWorkingIndicator working={isAgentWorking(task._id)} />
             <NeedsReviewIndicator needsReview={needsReview(task._id)} />
             <DueDateIndicator dueDate={task.dueDate} status={task.status} />

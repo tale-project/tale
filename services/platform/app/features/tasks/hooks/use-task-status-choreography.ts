@@ -87,6 +87,32 @@ export function decideTaskStatusTransition(args: {
   return { kind: 'move' };
 }
 
+/**
+ * The INTENT a status option would carry, for pre-flight hints in the status
+ * picker — derived from the SAME matrix that executes the transition (with
+ * `hasFiles` assumed present: the hint names the intent; the gate itself
+ * still blocks at action time). `null` = a plain move, no hint.
+ */
+export function plannedTransitionKind(
+  contract: TaskSubjectContract,
+  from: string,
+  to: string,
+  runActive: boolean,
+): 'start' | 'request_changes' | 'cancel' | null {
+  const plan = decideTaskStatusTransition({
+    contract,
+    from,
+    to,
+    runActive,
+    hasFiles: true,
+  });
+  return plan.kind === 'start' ||
+    plan.kind === 'request_changes' ||
+    plan.kind === 'cancel'
+    ? plan.kind
+    : null;
+}
+
 export type TaskTransitionOutcome = 'handled' | 'blocked' | 'move';
 
 /**

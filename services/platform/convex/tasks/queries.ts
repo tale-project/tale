@@ -775,13 +775,40 @@ export const getTaskOpsIndicators = query({
     );
 
     const runningTaskIds: Id<'tasks'>[] = [];
+    const seenRunning = new Set<Id<'tasks'>>();
     for await (const run of ctx.db
       .query('taskAgentRuns')
       .withIndex('by_project_status', (q) =>
         q.eq('projectId', args.projectId).eq('status', 'running'),
       )) {
-      runningTaskIds.push(run.taskId);
+      if (!seenRunning.has(run.taskId)) {
+        runningTaskIds.push(run.taskId);
+        seenRunning.add(run.taskId);
+      }
       if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+    }
+    // Subject-linked workflow runs (a desk's choreographed executions) pulse
+    // the SAME working indicator — a status-driven start must read as work in
+    // flight on the board, not only inside the modal. Active executions are
+    // capacity-bounded, so the org-wide active scan stays tiny.
+    for (const status of ['running', 'pending'] as const) {
+      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+      for await (const exec of ctx.db
+        .query('wfExecutions')
+        .withIndex('by_org_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+        if (exec.subjectType !== 'task' || exec.subjectId === undefined) {
+          continue;
+        }
+        const taskId = ctx.db.normalizeId('tasks', exec.subjectId);
+        if (!taskId || seenRunning.has(taskId)) continue;
+        const task = await ctx.db.get(taskId);
+        if (task?.projectId !== args.projectId) continue;
+        runningTaskIds.push(taskId);
+        seenRunning.add(taskId);
+      }
     }
 
     // Pending reviews are rare org-wide, so the org-level pending scan

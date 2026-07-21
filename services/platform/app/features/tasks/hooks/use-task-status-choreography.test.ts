@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { TaskSubjectContract } from '@/lib/shared/schemas/automations';
 
-import { decideTaskStatusTransition } from './use-task-status-choreography';
+import {
+  decideTaskStatusTransition,
+  plannedTransitionKind,
+} from './use-task-status-choreography';
 
 const CONTRACT: TaskSubjectContract = {
   workflow: 'vat-return-desk',
@@ -107,5 +110,31 @@ describe('decideTaskStatusTransition', () => {
         hasFiles: true,
       }),
     ).toEqual({ kind: 'move' });
+  });
+});
+
+describe('plannedTransitionKind (status-picker pre-flight hints)', () => {
+  it('names the intent from the SAME matrix that executes it', () => {
+    expect(plannedTransitionKind(CONTRACT, 'todo', 'in_progress', false)).toBe(
+      'start',
+    );
+    expect(
+      plannedTransitionKind(CONTRACT, 'in_review', 'in_progress', false),
+    ).toBe('request_changes');
+    expect(plannedTransitionKind(CONTRACT, 'in_progress', 'todo', true)).toBe(
+      'cancel',
+    );
+  });
+
+  it('plain moves carry no hint', () => {
+    expect(
+      plannedTransitionKind(CONTRACT, 'backlog', 'todo', false),
+    ).toBeNull();
+    expect(
+      plannedTransitionKind(CONTRACT, 'done', 'in_progress', false),
+    ).toBeNull();
+    expect(
+      plannedTransitionKind(CONTRACT, 'in_progress', 'todo', false),
+    ).toBeNull();
   });
 });

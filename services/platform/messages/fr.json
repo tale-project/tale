@@ -990,6 +990,7 @@
       "showLess": "Afficher moins",
       "drop": "Déposez les fichiers ici, ou",
       "deleteFile": "Supprimer {name}",
+      "openFolder": "Ouvrir le dossier dans Connaissances",
       "folderDeleted": "Le dossier de ce trimestre a été supprimé. Recréez-le dans Connaissances ou supprimez ce décompte."
     }
   },
@@ -7437,12 +7438,18 @@
       "templateCreated": "Créé — dépose les fichiers d'entrée sur la nouvelle tâche, puis appuie sur Démarrer.",
       "templateExists": "Existe déjà — sa tâche est déjà sur le tableau."
     },
+    "automation": {
+      "hint": "Géré par {name} — passer à En cours lance l'automatisation."
+    },
     "run": {
       "started": "Exécution démarrée.",
       "alreadyRunning": "Une exécution est déjà en cours.",
       "notStarted": "L'exécution n'a pas pu démarrer.",
       "cancelled": "Exécution annulée.",
-      "missingInput": "Ajoute d'abord les fichiers d'entrée — le dossier est encore vide."
+      "missingInput": "Ajoute d'abord les fichiers d'entrée — le dossier est encore vide.",
+      "hintStart": "Démarre l'exécution de {name}.",
+      "hintRequestChanges": "Recalcule avec le feedback des commentaires.",
+      "hintCancel": "Annule d'abord l'exécution en cours."
     },
     "detail": {
       "overview": "Aperçu",

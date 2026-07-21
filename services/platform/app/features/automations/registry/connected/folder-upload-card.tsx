@@ -13,6 +13,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Row, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
+import { Link } from '@tanstack/react-router';
 import { ChevronRightIcon, FolderInput, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -22,6 +23,8 @@ import {
   useDocumentUpload,
 } from '@/app/features/documents/hooks/mutations';
 import { useProjectDocuments } from '@/app/features/projects/hooks/queries';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -35,6 +38,7 @@ export function FolderUploadCard({
   orphaned = false,
   organizationId: organizationIdProp,
   projectId: projectIdProp,
+  showFolderName = false,
 }: {
   folderId: string;
   /** The bound folder was deleted — show a recover/remove notice instead of
@@ -45,6 +49,10 @@ export function FolderUploadCard({
    *  context as before. */
   organizationId?: string;
   projectId?: string;
+  /** Anchor the card to its folder: name in the title plus an "open in
+   *  Knowledge" link. For hosts without ambient folder context (the task
+   *  modal); a desk row IS its folder, so it stays off there. */
+  showFolderName?: boolean;
 }) {
   const { t } = useT('automations');
   const runtime = useAutomationRuntimeOptional();
@@ -55,6 +63,17 @@ export function FolderUploadCard({
       'FolderUploadCard needs an organizationId (prop or AutomationRuntimeProvider)',
     );
   }
+
+  // The folder anchor (title suffix + Knowledge link) — only fetched when the
+  // host asked for it; a desk row already IS its folder.
+  const folder = useConvexQuery(
+    api.folders.queries.getFolder,
+    showFolderName
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the bound external ref is a folders id by the input contract
+        { folderId: folderId as Id<'folders'>, organizationId }
+      : 'skip',
+  );
+  const folderName = showFolderName ? folder.data?.name : undefined;
   const inputRef = useRef<HTMLInputElement | null>(null);
   // null = follow the data (open while empty); a manual toggle pins it.
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
@@ -164,8 +183,10 @@ export function FolderUploadCard({
             >
               <FolderInput className="size-4" aria-hidden />
             </Row>
-            <Text as="span" className="font-semibold">
-              {t('input.title')} {loaded ? `(${count})` : ''}
+            <Text as="span" className="min-w-0 truncate font-semibold">
+              {t('input.title')}
+              {folderName ? ` — ${folderName}` : ''}{' '}
+              {loaded ? `(${count})` : ''}
             </Text>
             <ChevronRightIcon
               className={`text-muted-foreground ml-auto size-4 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
@@ -282,6 +303,17 @@ export function FolderUploadCard({
                   {t('input.upload')}
                 </Button>
               </div>
+              {showFolderName && folder.data && projectId !== undefined && (
+                <Link
+                  to="/dashboard/$id/projects/$projectId/files"
+                  params={{ id: organizationId, projectId }}
+                  search={{ folderId }}
+                  className="text-muted-foreground hover:text-foreground focus-visible:ring-primary inline-flex items-center gap-1.5 self-start rounded-sm text-sm underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <FolderInput className="size-4 shrink-0" aria-hidden />
+                  {t('input.openFolder')}
+                </Link>
+              )}
             </VStack>
           )}
         </section>

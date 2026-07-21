@@ -7,6 +7,9 @@ import { KanbanBoard } from './kanban-board';
 
 type TaskRow = Doc<'tasks'>;
 
+vi.mock('../hooks/use-task-subject-contract', () => ({
+  useTaskSubjectContract: () => null,
+}));
 vi.mock('../hooks/use-task-status-choreography', () => ({
   useTaskStatusChoreography: () => async () => 'move' as const,
 }));
