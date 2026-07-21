@@ -905,6 +905,8 @@
       "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu.",
       "awaitingInput": "Deine Eingabe nötig",
       "awaitingInputHint": "Angehalten — der Desk hat dir eine Frage gestellt. Klappe die Zeile auf, antworte und dann „Senden & fortfahren“.",
+      "starting": "Startet …",
+      "startingHint": "Der Lauf wurde gestartet und legt gleich los.",
       "input": {
         "heading": "Wir brauchen deine Eingabe, um fortzufahren",
         "placeholder": "Gib deine Antwort ein …",

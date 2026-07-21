@@ -20,8 +20,10 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
+// Mutable so a test can flip the dispatch into its in-flight state.
+let boundActionPending = false;
 vi.mock('../../hooks/use-bound-action', () => ({
-  useBoundAction: () => ({ dispatch: vi.fn(), isPending: false }),
+  useBoundAction: () => ({ dispatch: vi.fn(), isPending: boundActionPending }),
 }));
 
 vi.mock('../../runtime/action-effects', () => ({
@@ -94,5 +96,29 @@ describe('action label i18n (pack `i18n.<locale>` overrides)', () => {
     expect(
       screen.getByRole('button', { name: 'Open Knowledge' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('in-flight feedback', () => {
+  it('shows a busy spinner (not just a dim button) while dispatch is pending', () => {
+    // A slow server otherwise leaves "Start" looking inert after the click.
+    boundActionPending = true;
+    try {
+      render(
+        <BoundButton
+          action={{
+            label: 'Start',
+            path: 'tasks/public_actions:startTaskWorkflow',
+            mode: 'action',
+          }}
+          item={{ _id: 't1' }}
+        />,
+      );
+      const button = screen.getByRole('button', { name: 'Start' });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('aria-busy', 'true');
+    } finally {
+      boundActionPending = false;
+    }
   });
 });
