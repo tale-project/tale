@@ -51,6 +51,18 @@ describe('ChartCard', () => {
       expect(screen.queryByText('chart body')).not.toBeInTheDocument();
     });
 
+    it('renders no heading-less empty state when neither title is given', () => {
+      render(
+        <ChartCard isEmpty>
+          <div>chart body</div>
+        </ChartCard>,
+      );
+      // No empty heading available → the body stays blank; an empty state
+      // never ships without its announcing heading.
+      expect(screen.queryAllByRole('heading')).toHaveLength(0);
+      expect(screen.queryByText('chart body')).not.toBeInTheDocument();
+    });
+
     it('renders an info tooltip trigger when given a tooltip', () => {
       render(
         <ChartCard title="Trend" tooltip="What this shows">
