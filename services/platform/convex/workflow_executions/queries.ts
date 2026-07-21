@@ -1,7 +1,10 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
-import { deriveRunIndicator } from '../../lib/shared/platform/run_capacity';
+import {
+  deriveRunIndicator,
+  isActiveExecutionStatus,
+} from '../../lib/shared/platform/run_capacity';
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { queryWithRLS } from '../lib/rls';
 import { TERMINAL_STATUSES } from '../tasks/helpers';
@@ -104,12 +107,13 @@ export const getLatestExecutionForSubject = queryWithRLS({
 
 /**
  * The ambient run indicator for a subject's row, derived from the subject's
- * latest run (see `deriveRunIndicator`): `state` is `'parked' | 'failed' | null`
- * and, when failed, `failedExecutionId` carries that run's id so the row can
- * offer a one-click re-run (`rerunExecution`). A tiny value (not the full run
- * summary) so a list can show a per-row chip + retry without subscribing each
- * visible row to the heavy execution summary: Convex pushes an update only when
- * the indicator flips, not on every ~4s poll of a running execution.
+ * latest run (see `deriveRunIndicator`): `state` is
+ * `'parked' | 'failed' | 'awaiting_input' | 'starting' | null` and, when
+ * failed, `failedExecutionId` carries that run's id so the row can offer a
+ * one-click re-run (`rerunExecution`). A tiny value (not the full run summary)
+ * so a list can show a per-row chip + retry without subscribing each visible
+ * row to the heavy execution summary: Convex pushes an update only when the
+ * indicator flips, not on every ~4s poll of a running execution.
  *
  * A RESOLVED subject returns `null`: a task already done/cancelled keeps showing
  * its real terminal status, never a stale "Failed" chip or a Re-run offer for a
@@ -126,6 +130,7 @@ export const getSubjectRunIndicator = queryWithRLS({
       v.literal('parked'),
       v.literal('failed'),
       v.literal('awaiting_input'),
+      v.literal('starting'),
       v.null(),
     ),
     failedExecutionId: v.union(v.id('wfExecutions'), v.null()),
@@ -136,15 +141,15 @@ export const getSubjectRunIndicator = queryWithRLS({
     // overriding it with a "Failed" chip (or offering a Re-run) for an old run.
     // RLS wraps the wfExecutions query below; `ctx.db.get` bypasses it, so match
     // the org explicitly.
+    let taskStatus: string | undefined;
     if (args.subjectType === 'task') {
       const taskId = ctx.db.normalizeId('tasks', args.subjectId);
       const task = taskId ? await ctx.db.get(taskId) : null;
-      if (
-        task &&
-        task.organizationId === args.organizationId &&
-        TERMINAL_STATUSES.has(task.status)
-      ) {
-        return { state: null, failedExecutionId: null };
+      if (task && task.organizationId === args.organizationId) {
+        if (TERMINAL_STATUSES.has(task.status)) {
+          return { state: null, failedExecutionId: null };
+        }
+        taskStatus = task.status;
       }
     }
     const row = await ctx.db
@@ -157,7 +162,7 @@ export const getSubjectRunIndicator = queryWithRLS({
       )
       .order('desc')
       .first();
-    let state: 'parked' | 'failed' | 'awaiting_input' | null =
+    let state: 'parked' | 'failed' | 'awaiting_input' | 'starting' | null =
       deriveRunIndicator(row);
     // A run that ended by asking the operator for a decision leaves a pending
     // human-input / review approval keyed to that execution — surface it as
@@ -179,6 +184,21 @@ export const getSubjectRunIndicator = queryWithRLS({
       ) {
         state = 'awaiting_input';
       }
+    }
+    // A run is active but the task's own status doesn't show it yet — the
+    // window between the desk's Start and the workflow's ack step flipping the
+    // task to in_progress (engine pickup can take seconds). Surface it as
+    // "starting" so the row visibly reacts to Start instead of sitting on a
+    // stale Backlog badge. Task-only: only a task's own status can prove the
+    // run state would otherwise be invisible.
+    if (
+      state === null &&
+      row &&
+      isActiveExecutionStatus(row.status) &&
+      taskStatus !== undefined &&
+      taskStatus !== 'in_progress'
+    ) {
+      state = 'starting';
     }
     return {
       state,

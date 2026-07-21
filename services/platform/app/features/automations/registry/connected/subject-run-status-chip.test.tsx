@@ -7,7 +7,10 @@ import { SubjectRunStatusChip } from './subject-run-status-chip';
 
 // Drive the indicator query by hand; echo i18n keys so assertions read clearly.
 let indicator:
-  | { state: 'parked' | 'failed' | null; failedExecutionId: string | null }
+  | {
+      state: 'parked' | 'failed' | 'starting' | null;
+      failedExecutionId: string | null;
+    }
   | undefined;
 vi.mock('@/app/hooks/use-convex-query', () => ({
   useConvexQuery: () => ({ data: indicator }),
@@ -45,6 +48,13 @@ describe('SubjectRunStatusChip', () => {
     indicator = { state: 'parked', failedExecutionId: null };
     renderChip();
     expect(screen.getByText('runs.queuedForCapacity')).toBeInTheDocument();
+    expect(screen.queryByText('in_progress')).not.toBeInTheDocument();
+  });
+
+  it('swaps in the "Starting…" badge while a fresh run is picking up', () => {
+    indicator = { state: 'starting', failedExecutionId: null };
+    renderChip();
+    expect(screen.getByText('runs.starting')).toBeInTheDocument();
     expect(screen.queryByText('in_progress')).not.toBeInTheDocument();
   });
 

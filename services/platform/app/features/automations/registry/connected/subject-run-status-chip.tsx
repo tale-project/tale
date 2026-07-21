@@ -8,7 +8,11 @@
  *     capacity" (the run view's queued step badge);
  *   - ended in failure → destructive "Failed" (the run view's errored step
  *     badge) — so a crashed automation reads as "Failed" instead of a
- *     misleading, frozen "in_progress".
+ *     misleading, frozen "in_progress";
+ *   - parked awaiting an operator's answer → blue "Needs your input";
+ *   - kicked off but not yet reflected in the task's own status (the window
+ *     between Start and the workflow's ack step) → blue "Starting…" — so
+ *     pressing Start visibly reacts instead of sitting on a stale "Backlog".
  * The subject's own lifecycle/kanban status is never changed — only the display
  * swaps, so a parked or failed row reads as one coherent state instead of a
  * contradictory pair. Owns the status cell via Collection's `rowAccessory`,
@@ -64,6 +68,13 @@ export function SubjectRunStatusChip({
     return (
       <Badge variant="blue" dot title={t('runs.awaitingInputHint')}>
         {t('runs.awaitingInput')}
+      </Badge>
+    );
+  }
+  if (data?.state === 'starting') {
+    return (
+      <Badge variant="blue" dot title={t('runs.startingHint')}>
+        {t('runs.starting')}
       </Badge>
     );
   }

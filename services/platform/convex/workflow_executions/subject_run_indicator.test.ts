@@ -111,6 +111,29 @@ async function seedFailedRun(
   );
 }
 
+/** A just-kicked-off run: active (`pending`), not parked on capacity. */
+async function seedPendingRun(
+  t: T,
+  taskId: Id<'tasks'>,
+  opts?: { awaitingCapacityStepSlug?: string },
+): Promise<Id<'wfExecutions'>> {
+  return await t.run((ctx) =>
+    ctx.db.insert('wfExecutions', {
+      organizationId: ORG,
+      wfDefinitionId: 'issue-desk/desk-process',
+      status: 'pending',
+      currentStepSlug: '',
+      startedAt: 0,
+      updatedAt: 0,
+      subjectType: 'task',
+      subjectId: taskId,
+      ...(opts?.awaitingCapacityStepSlug !== undefined && {
+        awaitingCapacityStepSlug: opts.awaitingCapacityStepSlug,
+      }),
+    }),
+  );
+}
+
 describe('getSubjectRunIndicator terminal-subject suppression', () => {
   it('surfaces Failed (+ the run id) for a NON-terminal task whose latest run failed', async () => {
     const t = newT();
@@ -128,6 +151,64 @@ describe('getSubjectRunIndicator terminal-subject suppression', () => {
       });
 
     expect(res).toEqual({ state: 'failed', failedExecutionId: execId });
+  });
+
+  it('surfaces Starting for an active run whose task status has not flipped yet', async () => {
+    // The window between the desk's Start and the workflow's ack step: the run
+    // exists (pending) but the task still reads backlog — the row must react.
+    const t = newT();
+    await seedMember(t);
+    const project = await seedProject(t);
+    const taskId = await seedTask(t, project, 'o/r#3', 'open');
+    await seedPendingRun(t, taskId);
+
+    const res = await t
+      .withIdentity(IDENTITY)
+      .query(api.workflow_executions.queries.getSubjectRunIndicator, {
+        organizationId: ORG,
+        subjectType: 'task',
+        subjectId: taskId,
+      });
+
+    expect(res).toEqual({ state: 'starting', failedExecutionId: null });
+  });
+
+  it('suppresses Starting once the task itself reads in_progress', async () => {
+    const t = newT();
+    await seedMember(t);
+    const project = await seedProject(t);
+    const taskId = await seedTask(t, project, 'o/r#4', 'open');
+    await seedPendingRun(t, taskId);
+    await t.run((ctx) => ctx.db.patch(taskId, { status: 'in_progress' }));
+
+    const res = await t
+      .withIdentity(IDENTITY)
+      .query(api.workflow_executions.queries.getSubjectRunIndicator, {
+        organizationId: ORG,
+        subjectType: 'task',
+        subjectId: taskId,
+      });
+
+    // The task's own badge already shows the activity — nothing to surface.
+    expect(res).toEqual({ state: null, failedExecutionId: null });
+  });
+
+  it('keeps parked-on-capacity ahead of Starting for an active queued run', async () => {
+    const t = newT();
+    await seedMember(t);
+    const project = await seedProject(t);
+    const taskId = await seedTask(t, project, 'o/r#5', 'open');
+    await seedPendingRun(t, taskId, { awaitingCapacityStepSlug: 'run' });
+
+    const res = await t
+      .withIdentity(IDENTITY)
+      .query(api.workflow_executions.queries.getSubjectRunIndicator, {
+        organizationId: ORG,
+        subjectType: 'task',
+        subjectId: taskId,
+      });
+
+    expect(res).toEqual({ state: 'parked', failedExecutionId: null });
   });
 
   it('suppresses the failed-run indicator once the task is done', async () => {

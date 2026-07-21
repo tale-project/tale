@@ -8,7 +8,7 @@ import { SubjectAwaitingInputActions } from './subject-awaiting-input-actions';
 // Drive the indicator query by hand.
 let indicator:
   | {
-      state: 'parked' | 'failed' | 'awaiting_input' | null;
+      state: 'parked' | 'failed' | 'awaiting_input' | 'starting' | null;
       failedExecutionId: string | null;
     }
   | undefined;
@@ -37,6 +37,14 @@ describe('SubjectAwaitingInputActions', () => {
     // A "Start" here would re-run WITHOUT the awaited answer; the row itself
     // expands (chevron / row click) to the question and the answer panel.
     indicator = { state: 'awaiting_input', failedExecutionId: null };
+    const { container } = renderGate();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('suppresses the cluster while the run is starting', () => {
+    // The run was just kicked off but the task status hasn't flipped yet —
+    // re-offering Start would only bounce off the duplicate-run guard.
+    indicator = { state: 'starting', failedExecutionId: null };
     const { container } = renderGate();
     expect(container).toBeEmptyDOMElement();
   });

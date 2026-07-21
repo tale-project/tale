@@ -905,6 +905,8 @@
       "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it.",
       "awaitingInput": "Needs your input",
       "awaitingInputHint": "Parked — the desk asked you a question. Expand the row, answer, then Submit & continue.",
+      "starting": "Starting…",
+      "startingHint": "The run was kicked off and picks up in a moment.",
       "input": {
         "heading": "We need your input to continue",
         "placeholder": "Type your answer…",
