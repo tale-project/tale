@@ -29,6 +29,11 @@ interface ChartCardProps {
   loading?: boolean;
   /** When true (and not loading), show the empty state instead of children. */
   isEmpty?: boolean;
+  /**
+   * Heading for the empty state; falls back to `title`. A card that can go
+   * empty should pass one of the two — with neither, the empty body renders
+   * blank (an empty state may not ship a heading-less announcement).
+   */
   emptyTitle?: string;
   emptyDescription?: string;
   emptyIcon?: ComponentType<{ className?: string }>;
@@ -64,6 +69,10 @@ export function ChartCard({
   className,
 }: ChartCardProps) {
   const showHeader = Boolean(title || tooltip || toolbar);
+  // The empty state's heading is required (it announces the state), so a card
+  // with neither an in-card title nor an emptyTitle renders an empty body —
+  // a card that can go empty should pass `emptyTitle` (see the props docs).
+  const emptyHeading = emptyTitle ?? title;
 
   return (
     <div
@@ -107,11 +116,13 @@ export function ChartCard({
             aria-busy
           />
         ) : isEmpty ? (
-          <EmptyState
-            icon={emptyIcon}
-            title={emptyTitle ?? title}
-            description={emptyDescription}
-          />
+          emptyHeading === undefined ? null : (
+            <EmptyState
+              icon={emptyIcon}
+              title={emptyHeading}
+              description={emptyDescription}
+            />
+          )
         ) : (
           children
         )}

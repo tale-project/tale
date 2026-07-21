@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   importFiles as importFilesImpl,
   type ImportItem,
@@ -22,6 +22,13 @@ import {
   sharePointDriveValidator,
 } from './validators';
 import { withMicrosoftToken } from './with_microsoft_token';
+
+/**
+ * The org-wide sync engine (a hidden builtin automation). Installed on first
+ * sync-import, never preinstalled — `importFiles` below is the single opt-in
+ * point.
+ */
+const ONEDRIVE_SYNC_AUTOMATION_SLUG = 'onedrive/sync-files';
 
 export const listFiles = action({
   args: {
@@ -59,6 +66,10 @@ export const importFiles = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
+    // Membership gate on the caller-supplied org — the import writes
+    // documents (and, below, installs the sync engine) into that org.
+    await requireOrgMembershipById(ctx, args.organizationId);
+
     const tokenResult = await withMicrosoftToken(ctx);
     if (!tokenResult.success) {
       return {
@@ -73,18 +84,23 @@ export const importFiles = action({
     }
 
     if (args.importType === 'sync') {
-      // Ongoing sync is driven by the `onedrive/sync-files` autoInstall
-      // automation, provisioned at org-create / deploy / catalog resync. A
-      // sync import is the moment the engine must exist, so re-run the
-      // idempotent default-automation provisioner as a belt-and-braces for
-      // orgs whose provisioning sweep has not landed yet (a completed or
-      // org-uninstalled provision is a no-op — the org's choice wins).
-      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+      // Ongoing sync is driven by the hidden `onedrive/sync-files` engine
+      // automation, which is NOT preinstalled — a member setting up a sync
+      // import is the moment the org opts in, so install it here through the
+      // one shared pipeline. Idempotent: `ensureOrgResources` upserts the
+      // install row and `reconcileAutomationSchedules` collapses the schedule
+      // set to exactly one row per declared trigger, so a repeat import (or a
+      // concurrent one) never duplicates the cron. A new sync import also
+      // deliberately reinstalls after an org-level uninstall — creating a
+      // sync IS the org asking for the engine back.
       await ctx.scheduler.runAfter(
         0,
-        internal.automations.provision_defaults
-          .syncDefaultAutomationInstallations,
-        { organizationId: args.organizationId, orgSlug },
+        internal.automations.install_actions.installAutomationInternal,
+        {
+          organizationId: args.organizationId,
+          automationSlug: ONEDRIVE_SYNC_AUTOMATION_SLUG,
+          installedBy: tokenResult.userId,
+        },
       );
     }
 
