@@ -130,6 +130,7 @@ import {
   type TokenSelection,
   TokenSourceError,
 } from './token_pool_select';
+import { buildWorkflowSessionTokenScope } from './workflow_session_scope';
 import { stageWorkflowSkills, workspaceIsTaleRepo } from './workflow_skills';
 
 // Mirrors run_external_agent: the gateway + integration-dispatch base URLs the
@@ -1725,6 +1726,11 @@ export const runSandboxAgent = internalAction({
             sessionId,
           });
           gatewayToken = vk.key;
+          // Grant plumbing mirrors a chat turn (run_external_agent): the FULL
+          // integrationBindings feed the dispatch bridge and toolNames feed
+          // /api/tools/execute. `brokerGrants` (∩ BROKERABLE_GRANTS) governs
+          // only the env credential injection above — reusing it here once
+          // silently disabled every non-github integration in workflow runs.
           await ctx.runMutation(
             internal.sandbox.session_mutations.insertSessionToken,
             {
@@ -1732,12 +1738,14 @@ export const runSandboxAgent = internalAction({
               sessionId,
               tokenHash: hashVirtualKey(vk.key),
               llmGatewayKeyId: vk.keyId,
-              scope: {
+              scope: buildWorkflowSessionTokenScope({
                 agentKind,
                 allowedModels,
-                integrationGrants: brokerGrants,
+                integrationBindings,
+                toolNames: agentConfig.convexToolNames,
+                agentSlug: args.agentSlug,
                 budgetCents: args.budget.maxCents,
-              },
+              }),
               expiresAt: hardDeadlineMs,
             },
           );

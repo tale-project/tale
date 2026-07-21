@@ -72,12 +72,18 @@ export function AutomationUploadDialog({
     [onOpenChange, state],
   );
 
-  // Run the upload (presign → POST → record intent → action). Returns true when
-  // the bundle landed, false when the server needs explicit replace confirm.
+  // Run the upload (presign → POST → record intent → action). Returns the
+  // landed outcome (including whether a live install was auto-resynced), or
+  // `landed: false` when the server needs explicit replace confirm.
   const runUpload = useCallback(
-    async (force: boolean): Promise<boolean> => {
+    async (
+      force: boolean,
+    ): Promise<
+      | { landed: false }
+      | { landed: true; install: 'none' | 'resynced' | 'resync_failed' }
+    > => {
       const bundle = state.parsedBundle;
-      if (!bundle) return false;
+      if (!bundle) return { landed: false };
 
       const controller = new AbortController();
       abortRef.current?.abort();
@@ -110,9 +116,9 @@ export function AutomationUploadDialog({
 
       if (!result.ok) {
         if (isMountedRef.current) setConfirmReplaceSlug(result.slug);
-        return false;
+        return { landed: false };
       }
-      return true;
+      return { landed: true, install: result.install };
     },
     [
       state.parsedBundle,
@@ -128,10 +134,14 @@ export function AutomationUploadDialog({
       if (!state.parsedBundle || state.isSubmitting) return;
       state.setIsSubmitting(true);
       try {
-        const landed = await runUpload(force);
+        const result = await runUpload(force);
         if (force && isMountedRef.current) setConfirmReplaceSlug(null);
-        if (landed) {
+        if (result.landed) {
           const slug = state.parsedBundle.slug;
+          // The description follows the server's install outcome: a live
+          // install was refreshed in the same call ('resynced'), the refresh
+          // failed and the operator must Reinstall by hand ('resync_failed'),
+          // or the slug isn't installed and the old install hint applies.
           toast({
             title: force
               ? t('upload.replaceSuccess', {
@@ -140,11 +150,22 @@ export function AutomationUploadDialog({
               : t('upload.uploadSuccess', {
                   defaultValue: 'Automation uploaded',
                 }),
-            description: t('upload.installHint', {
-              defaultValue:
-                'Install it from the Automations list when you’re ready.',
-            }),
-            variant: 'success',
+            description:
+              result.install === 'resynced'
+                ? t('upload.replaceResyncedHint', {
+                    defaultValue:
+                      'The installed automation was updated — new runs use the new version.',
+                  })
+                : result.install === 'resync_failed'
+                  ? t('upload.replaceResyncFailedHint', {
+                      defaultValue:
+                        'The files were replaced, but refreshing the installed automation failed. Open the automation and choose Reinstall.',
+                    })
+                  : t('upload.installHint', {
+                      defaultValue:
+                        'Install it from the Automations list when you’re ready.',
+                    }),
+            variant: result.install === 'resync_failed' ? 'default' : 'success',
           });
           handleOpenChange(false);
           onUploaded?.(slug);
@@ -235,7 +256,7 @@ export function AutomationUploadDialog({
         })}
         description={t('upload.replaceDescription', {
           defaultValue:
-            'A private automation named "{slug}" already exists. Uploading will overwrite its current contents.',
+            'A private automation named "{slug}" already exists. Uploading will overwrite its current contents — if it is installed, the new version is applied right away.',
           slug: confirmReplaceSlug ?? '',
         })}
         confirmText={t('upload.replaceConfirm', { defaultValue: 'Replace' })}

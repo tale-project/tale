@@ -1129,6 +1129,7 @@ import type * as node_only_sandbox_thread_session from "../node_only/sandbox/thr
 import type * as node_only_sandbox_token_pool_select from "../node_only/sandbox/token_pool_select.js";
 import type * as node_only_sandbox_token_source_pool from "../node_only/sandbox/token_source_pool.js";
 import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
+import type * as node_only_sandbox_workflow_session_scope from "../node_only/sandbox/workflow_session_scope.js";
 import type * as node_only_sandbox_workflow_skills from "../node_only/sandbox/workflow_skills.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sandbox_workspace_tool_context from "../node_only/sandbox/workspace_tool_context.js";
@@ -2923,6 +2924,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/token_pool_select": typeof node_only_sandbox_token_pool_select;
   "node_only/sandbox/token_source_pool": typeof node_only_sandbox_token_source_pool;
   "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
+  "node_only/sandbox/workflow_session_scope": typeof node_only_sandbox_workflow_session_scope;
   "node_only/sandbox/workflow_skills": typeof node_only_sandbox_workflow_skills;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sandbox/workspace_tool_context": typeof node_only_sandbox_workspace_tool_context;
