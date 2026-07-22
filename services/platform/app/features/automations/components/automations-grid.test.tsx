@@ -520,6 +520,8 @@ describe('AutomationsGrid tabs + badges', () => {
       screen.getByRole('button', { name: 'Browse all automations' }),
     );
     expect(navigateMock).toHaveBeenCalledWith({
+      to: '/dashboard/$id/automations',
+      params: { id: 'org_1' },
       search: expect.any(Function),
     });
     const searchFn = navigateMock.mock.calls[0][0].search as (prev: {
