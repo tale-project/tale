@@ -264,6 +264,20 @@ describe('security headers', () => {
       "connect-src 'self' https://acc.r2.cloudflarestorage.com",
     );
   });
+
+  test('content-hashed assets bypass the CSP/nonce middleware', async () => {
+    const app = createApp(baseEnv);
+    // A content-hashed asset path skips secureHeaders (no per-request CSP +
+    // crypto nonce), so its response carries no CSP — while a normal path still
+    // does (control). Independent of whether the file exists on disk.
+    const asset = await app.fetch(
+      new Request('http://localhost/assets/vendor-katex-DUoGyCxW.js'),
+    );
+    expect(asset.headers.get('content-security-policy')).toBeNull();
+
+    const normal = await app.fetch(new Request('http://localhost/api/health'));
+    expect(normal.headers.get('content-security-policy')).not.toBeNull();
+  });
 });
 
 describe('POST /canvas-preview', () => {

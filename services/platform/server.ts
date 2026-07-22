@@ -669,6 +669,12 @@ export function createApp(
     if (c.req.path === '/canvas-preview') return next();
     if (c.req.path.startsWith('/dav/') || c.req.path === '/dav')
       return secureForDav(c, next);
+    // Content-hashed JS/CSS chunks are static and never use the nonce'd CSP, so
+    // skip the per-request CSP + crypto-nonce build for them — a cold load's
+    // ~150-asset burst would otherwise pay it on the single event loop. The
+    // static file handler re-adds the one header that matters for a script
+    // response, `X-Content-Type-Options: nosniff`.
+    if (IMMUTABLE_ASSET.test(c.req.path)) return next();
     return currentSecure()(c, next);
   });
 
@@ -913,10 +919,16 @@ export function createApp(
       if (filePath.startsWith(distDir)) {
         const file = Bun.file(filePath);
         if (await file.exists()) {
-          // Bun infers Content-Type from the file extension; we only add the
-          // caching directive (immutable for content-hashed chunks).
+          // Bun infers Content-Type from the file extension; we add the caching
+          // directive plus `nosniff`. Content-hashed assets skip the security-
+          // headers middleware above, so we re-assert the one header that
+          // matters for a script/style byte stream here (harmless duplicate for
+          // the other static files, which also get it from that middleware).
           return new Response(file, {
-            headers: { 'Cache-Control': cacheControlForStaticPath(pathname) },
+            headers: {
+              'Cache-Control': cacheControlForStaticPath(pathname),
+              'X-Content-Type-Options': 'nosniff',
+            },
           });
         }
       }
