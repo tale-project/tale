@@ -163,6 +163,18 @@ export async function transformConversation(
       timestamp,
       isCustomer: m.direction === 'inbound',
       status: m.deliveryState || 'sent',
+      // Undo-window countdown source: only meaningful while still queued —
+      // once the send fires the stamp is history, not a schedule.
+      scheduledSendAt:
+        m.deliveryState === 'queued' &&
+        typeof m.metadata?.scheduledSendAt === 'number'
+          ? m.metadata.scheduledSendAt
+          : undefined,
+      // Failure reason written by the send action on error.
+      errorMessage:
+        m.deliveryState === 'failed' && typeof m.metadata?.error === 'string'
+          ? m.metadata.error
+          : undefined,
       attachment,
       attachments,
     };

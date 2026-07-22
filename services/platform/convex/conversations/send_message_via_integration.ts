@@ -9,6 +9,14 @@ import { validateConversationAttachmentCaps } from './attachments';
 import { buildThreadingHeaders } from './build_threading_headers';
 import { inboundRecipientAddress } from './reply_from';
 
+/**
+ * Undo window: the outbound send action is scheduled this far in the future so
+ * the sender can cancel it (`undoSendMessage`) — the email-provider "Undo
+ * send" experience. Applies to every path that funnels through
+ * `sendMessageViaIntegration` (reply, compose, bulk reply).
+ */
+export const UNDO_SEND_DELAY_MS = 10_000;
+
 export interface SendMessageViaIntegrationArgs {
   conversationId: Id<'conversations'>;
   organizationId: string;
@@ -21,6 +29,12 @@ export interface SendMessageViaIntegrationArgs {
   text?: string;
   inReplyTo?: string;
   references?: Array<string>;
+  /**
+   * The composer's markdown state at send time. Stored in message metadata
+   * (never part of the outbound email) so an undo can hand the draft back to
+   * the composer exactly as the user wrote it.
+   */
+  sourceMarkdown?: string;
   attachments?: Array<{
     storageId: Id<'_storage'>;
     fileName: string;
@@ -108,6 +122,13 @@ export async function sendMessageViaIntegration(
     to: args.to,
     subject: args.subject,
     integrationName: args.integrationName,
+    // Stamped so the client can count down the undo window; the send action
+    // fires at this time.
+    scheduledSendAt: now + UNDO_SEND_DELAY_MS,
+    // How the action interprets the body — retrySendMessage rebuilds the
+    // action args from this row, so record which mode the send used.
+    sendContentType: args.html ? 'HTML' : 'Text',
+    ...(args.sourceMarkdown && { sourceMarkdown: args.sourceMarkdown }),
     ...(args.cc && { cc: args.cc }),
     ...(inReplyTo && { inReplyTo }),
     ...(references && { references }),
@@ -138,8 +159,10 @@ export async function sendMessageViaIntegration(
     conversation.metadata as Record<string, unknown> | undefined,
   );
 
-  await ctx.scheduler.runAfter(
-    0,
+  // Delayed by the undo window; `undoSendMessage` cancels this scheduled job
+  // (via the `scheduledSendId` stamped below) and deletes the message row.
+  const scheduledSendId = await ctx.scheduler.runAfter(
+    UNDO_SEND_DELAY_MS,
     internal.conversations.internal_actions.sendMessageViaIntegrationAction,
     {
       messageId,
@@ -156,6 +179,13 @@ export async function sendMessageViaIntegration(
       ...(args.attachments?.length ? { attachments: args.attachments } : {}),
     },
   );
+
+  await ctx.db.patch(messageId, {
+    metadata: {
+      ...messageMetadata,
+      scheduledSendId: String(scheduledSendId),
+    },
+  });
 
   const existingMetadata = conversation.metadata ?? {};
   await ctx.db.patch(args.conversationId, {

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Image } from '@/app/components/ui/data-display/image';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import {
   formatFileSize,
   middleEllipsis,
@@ -21,6 +22,12 @@ type Attachment = NonNullable<MessageType['attachments']>[number];
 
 interface MessageProps {
   message: MessageType;
+  /** Cancel a queued outbound send inside its undo window. */
+  onUndoSend?: (messageId: string) => void;
+  /** Re-attempt delivery of a failed outbound send. */
+  onRetrySend?: (messageId: string) => void;
+  /** Remove a failed outbound message that never delivered. */
+  onDiscard?: (messageId: string) => void;
   onDownloadAttachments?: (messageId: string) => void;
 }
 
@@ -29,10 +36,48 @@ function getDeliveryIcon(status: string) {
     case 'queued':
       return <Clock className="size-3" />;
     case 'failed':
-      return <AlertCircle className="size-3" />;
+      // Destructive so a failure never reads like a mere pending clock; the
+      // "Not delivered" row below carries the reason and the retry.
+      return <AlertCircle className="text-destructive size-3" />;
     default:
       return null;
   }
+}
+
+/** Whole seconds until `scheduledSendAt`, or null once passed (or absent). */
+function undoSecondsRemaining(scheduledSendAt?: number): number | null {
+  if (scheduledSendAt === undefined) return null;
+  const ms = scheduledSendAt - Date.now();
+  return ms > 0 ? Math.ceil(ms / 1000) : null;
+}
+
+/**
+ * Live countdown for the undo-send window. Ticks while `scheduledSendAt` is in
+ * the future and settles at null when the window closes — the row itself flips
+ * to `sent` reactively via the Convex subscription, no polling here.
+ */
+function useUndoCountdown(scheduledSendAt?: number): number | null {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(() =>
+    undoSecondsRemaining(scheduledSendAt),
+  );
+
+  useEffect(() => {
+    setSecondsLeft(undoSecondsRemaining(scheduledSendAt));
+    const windowOpen =
+      scheduledSendAt !== undefined && scheduledSendAt > Date.now();
+    const interval = windowOpen
+      ? setInterval(() => {
+          const remaining = undoSecondsRemaining(scheduledSendAt);
+          setSecondsLeft(remaining);
+          if (remaining === null) clearInterval(interval);
+        }, 250)
+      : undefined;
+    return () => {
+      if (interval !== undefined) clearInterval(interval);
+    };
+  }, [scheduledSendAt]);
+
+  return secondsLeft;
 }
 
 function getFileIcon(contentType: string, filename: string) {
@@ -136,9 +181,23 @@ function AttachmentCard({
   );
 }
 
-export function Message({ message, onDownloadAttachments }: MessageProps) {
+export function Message({
+  message,
+  onUndoSend,
+  onRetrySend,
+  onDiscard,
+  onDownloadAttachments,
+}: MessageProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('conversations');
+
+  const isOutbound = !message.isCustomer;
+  const isFailed = isOutbound && message.status === 'failed';
+  const undoSecondsLeft = useUndoCountdown(
+    isOutbound && message.status === 'queued'
+      ? message.scheduledSendAt
+      : undefined,
+  );
   const [downloadingMessageId, setDownloadingMessageId] = useState<
     string | null
   >(null);
@@ -321,16 +380,80 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
               'flex items-center gap-1.5 justify-end text-nowrap',
               message.isCustomer
                 ? 'text-left'
-                : 'text-muted-foreground/70 text-right mb-4',
+                : cn(
+                    'text-muted-foreground/70 text-right',
+                    !isFailed && 'mb-4',
+                  ),
             )}
           >
-            {formatDate(message.timestamp, 'time')}
-            {!message.isCustomer && message.status && (
-              <span className="inline-flex items-center">
-                {getDeliveryIcon(message.status)}
-              </span>
+            {undoSecondsLeft !== null ? (
+              <>
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="size-3" aria-hidden="true" />
+                  {t('message.sendingIn', { seconds: undoSecondsLeft })}
+                </span>
+                {onUndoSend && (
+                  <button
+                    type="button"
+                    onClick={() => onUndoSend(message.id)}
+                    className="text-foreground cursor-pointer font-medium underline underline-offset-2"
+                  >
+                    {t('message.undoSend')}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                {formatDate(message.timestamp, 'time')}
+                {isOutbound && message.status && (
+                  <span className="inline-flex items-center">
+                    {getDeliveryIcon(message.status)}
+                  </span>
+                )}
+              </>
             )}
           </Text>
+          {isFailed && (
+            <Text
+              as="div"
+              variant="caption"
+              className="text-destructive mb-4 flex items-center justify-end gap-1.5 text-right"
+              role="status"
+            >
+              {/* Glance: short label only. Provider errors can be long (stack /
+                  timeouts with IPs) — keep the detail on hover via Tooltip. */}
+              {message.errorMessage ? (
+                <Tooltip
+                  content={message.errorMessage}
+                  contentClassName="max-w-xs whitespace-normal break-words"
+                >
+                  <span className="cursor-default underline decoration-dotted underline-offset-2">
+                    {t('message.notDelivered')}
+                  </span>
+                </Tooltip>
+              ) : (
+                <span>{t('message.notDelivered')}</span>
+              )}
+              {onRetrySend && (
+                <button
+                  type="button"
+                  onClick={() => onRetrySend(message.id)}
+                  className="shrink-0 cursor-pointer font-medium underline underline-offset-2"
+                >
+                  {t('message.retrySend')}
+                </button>
+              )}
+              {onDiscard && (
+                <button
+                  type="button"
+                  onClick={() => onDiscard(message.id)}
+                  className="shrink-0 cursor-pointer font-medium underline underline-offset-2"
+                >
+                  {t('message.discard')}
+                </button>
+              )}
+            </Text>
+          )}
         </div>
       </div>
     </Stack>

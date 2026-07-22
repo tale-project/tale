@@ -72,3 +72,15 @@ export function useDeleteConversation() {
 export function useDownloadAttachments() {
   return useConvexMutation(api.conversations.mutations.downloadAttachments);
 }
+
+export function useUndoSendMessage() {
+  return useConvexMutation(api.conversations.mutations.undoSendMessage);
+}
+
+export function useRetrySendMessage() {
+  return useConvexMutation(api.conversations.mutations.retrySendMessage);
+}
+
+export function useDiscardOutboundMessage() {
+  return useConvexMutation(api.conversations.mutations.discardOutboundMessage);
+}

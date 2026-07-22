@@ -59,6 +59,11 @@ export const messageValidator = v.object({
   timestamp: v.string(),
   isCustomer: v.boolean(),
   status: messageStatusValidator,
+  // Epoch ms the delayed send action fires (queued outbound only) — drives
+  // the composer's "Sending in Ns · Undo" countdown.
+  scheduledSendAt: v.optional(v.number()),
+  // Delivery failure reason (failed outbound only), e.g. an SMTP error.
+  errorMessage: v.optional(v.string()),
   attachment: v.optional(attachmentValidator),
   attachments: v.optional(v.array(emailAttachmentMetaValidator)),
 });

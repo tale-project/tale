@@ -2272,7 +2272,10 @@
       "deleting": "Suppression...",
       "deleteSuccess": "Conversation supprimée avec succès.",
       "deleteFailed": "Échec de la suppression de la conversation.",
-      "showEarlierMessages": "Afficher {count} {count, plural, one {message} other {messages}} précédent(s)"
+      "showEarlierMessages": "Afficher {count} {count, plural, one {message} other {messages}} précédent(s)",
+      "undoSendFailed": "Impossible d'annuler l'envoi — le message est peut-être déjà parti.",
+      "retrySendFailed": "Impossible de relancer l'envoi.",
+      "discardMessageFailed": "Impossible de supprimer le message."
     },
     "list": {
       "empty": "Aucune conversation dans cet onglet"
@@ -2305,6 +2308,13 @@
     },
     "history": {
       "loadingMore": "Recherche d'autres conversations…"
+    },
+    "message": {
+      "sendingIn": "Envoi dans {seconds}s",
+      "undoSend": "Annuler",
+      "notDelivered": "Non remis",
+      "retrySend": "Réessayer",
+      "discard": "Supprimer"
     }
   },
   "contacts": {

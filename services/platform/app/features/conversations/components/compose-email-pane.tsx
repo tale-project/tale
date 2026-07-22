@@ -273,7 +273,11 @@ export function ComposeEmailPane({
     );
   };
 
-  const handleSend = async (message: string, attachments?: AttachedFile[]) => {
+  const handleSend = async (
+    message: string,
+    attachments?: AttachedFile[],
+    sourceMarkdown?: string,
+  ) => {
     if (!contactId || !integrationName || !subject.trim()) return;
 
     let uploaded: UploadedAttachment[] | undefined;
@@ -294,6 +298,7 @@ export function ComposeEmailPane({
         integrationName,
         subject: subject.trim(),
         content: message,
+        ...(sourceMarkdown ? { sourceMarkdown } : {}),
         ...(assigneeUserId ? { assigneeUserId } : {}),
         ...(dynamicSender && effectiveSender ? { from: effectiveSender } : {}),
         ...(uploaded?.length ? { attachments: uploaded } : {}),
