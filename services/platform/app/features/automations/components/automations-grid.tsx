@@ -12,6 +12,7 @@
  * split comes from the route's `?tab=`, driven by the page header's shared
  * `TabNavigation` (`AutomationsNavigation`) — not a toolbar pill strip. */
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
@@ -334,6 +335,7 @@ function InstalledBundleMenu({
           count: memberCount,
         })}
         preview={{ primary: display.name }}
+        warningTitle={t('install.uninstallWarningTitle')}
         warning={t('install.uninstallWarning')}
         deleteText={t('install.uninstallBundle')}
         isDeleting={busy}
@@ -713,6 +715,24 @@ export function AutomationsGrid({
     );
   }
 
+  // Installed is empty until something is wired — send people to the catalog
+  // instead of leaving a dead-end message under the tab (same as Integrations'
+  // Connected empty → Browse all).
+  const browseAllAction =
+    tab === 'installed' ? (
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() =>
+          void navigate({
+            search: (prev) => ({ ...prev, tab: 'all' }),
+          })
+        }
+      >
+        {t('empty.browseAll')}
+      </Button>
+    ) : undefined;
+
   if (!hasAutomations) {
     // EmptyState already uses flex-1 + justify-center; the page stack must
     // fill the pane (see automations/index) so the copy sits in the middle
@@ -723,6 +743,7 @@ export function AutomationsGrid({
         title={t('empty.title')}
         description={t('empty.description')}
         className="min-h-0"
+        action={browseAllAction}
       />
     );
   }
@@ -749,13 +770,12 @@ export function AutomationsGrid({
             className="min-h-0"
           />
         ) : (
-          // The Installed tab with nothing installed yet — the All tab sits
-          // right above, so the empty state needs no extra CTA.
           <EmptyState
             icon={LayoutGrid}
             title={t('empty.title')}
             description={t('empty.description')}
             className="min-h-0"
+            action={browseAllAction}
           />
         )
       ) : hasFolders ? (

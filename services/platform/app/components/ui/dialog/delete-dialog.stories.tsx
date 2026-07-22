@@ -127,7 +127,8 @@ export const WithWarning: Story = {
           preview={{
             primary: 'Marketing campaign Q1',
           }}
-          warning="All tasks, files, and comments associated with this project will also be permanently deleted."
+          warningTitle="What this removes"
+          warning="All tasks, files, and comments associated with this project. Connected integrations stay."
           onDelete={() => {
             alert('Project deleted!');
             setOpen(false);
@@ -139,7 +140,8 @@ export const WithWarning: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Warning message for additional context about consequences.',
+        story:
+          'Warning Alert with icon, short title, and body (canonical composition).',
       },
     },
   },

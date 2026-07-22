@@ -103,7 +103,7 @@
     "apiKeys": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
     "automations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf Automatisierungen zuzugreifen.",
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
-    "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten.",
+    "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten. Bitte einen Admin, wenn du einen Agent für den Chat brauchst.",
     "skills": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Skills zu verwalten.",
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
@@ -657,7 +657,8 @@
     },
     "empty": {
       "title": "Noch keine Automatisierungen",
-      "description": "Installierte Automatisierungen erscheinen hier."
+      "description": "Installierte Automatisierungen erscheinen hier.",
+      "browseAll": "Alle Automatisierungen durchsuchen"
     },
     "notFound": {
       "title": "Automatisierung nicht gefunden",
@@ -725,7 +726,8 @@
       "reinstallFailed": "Automatisierung konnte nicht neu installiert werden",
       "uninstallTitle": "Automatisierung deinstallieren",
       "uninstallDescription": "Dadurch werden die Automatisierung und alles, was sie installiert hat, aus deiner Organisation entfernt.",
-      "uninstallWarning": "Ihre Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets werden gelöscht. Verbundene Integrationen bleiben erhalten.",
+      "uninstallWarningTitle": "Was entfernt wird",
+      "uninstallWarning": "Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets. Verbundene Integrationen bleiben.",
       "uninstalled": "Automatisierung deinstalliert",
       "uninstallFailed": "Automatisierung konnte nicht deinstalliert werden",
       "removeFromProject": "Aus Projekt entfernen",
@@ -1060,8 +1062,7 @@
     "archived": {
       "title": "Archiviert"
     },
-    "welcomeEmpty": "Wie kann ich dir helfen?",
-    "welcomeSuffix": "hier, woran arbeiten wir?",
+    "welcomeEmpty": "Woran arbeiten wir?",
     "toast": {
       "sendFailed": "Nachricht konnte nicht gesendet werden",
       "arenaRequiresAgent": "Der Arena-Modus benötigt einen bestimmten Agenten — wähle einen statt „Automatisch“, um Modelle zu vergleichen.",
@@ -1285,11 +1286,12 @@
     "retryGeneration": "Erneut versuchen",
     "openProviderSettings": "Anbietereinstellungen öffnen",
     "askAdminProviderKey": "Bitte einen Admin, in Einstellungen → KI-Anbieter einen API-Schlüssel hinzuzufügen.",
+    "askAdminInstallAgent": "Bitte einen Admin, einen Agent zu installieren, damit du chatten kannst.",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
     "editMessage": "Nachricht bearbeiten",
     "editSend": "Senden",
-    "noAgentsAvailable": "Keine Agents verfügbar. Bitte veröffentliche zuerst einen Agent.",
+    "noAgentsAvailable": "Noch keine Agents verfügbar.",
     "pendingApprovalDisabled": "Beantworte die ausstehende Anfrage oben, um fortzufahren",
     "archivedDisabled": "Dieser Chat ist archiviert. Stelle ihn wieder her, um die Unterhaltung fortzusetzen.",
     "archivedBanner": "Diese Unterhaltung wurde archiviert",
@@ -2495,7 +2497,7 @@
     "searchFilesAndFolders": "Dateien und Ordner suchen",
     "emptyState": {
       "title": "Noch keine Dokumente",
-      "description": "Lade Dokumente hoch, um deinen KI-Assistenten zu trainieren"
+      "description": "Lade Dokumente hoch, damit Agents sie im Chat nutzen können."
     },
     "actions": {
       "deleteSyncFolder": "Synchronisierungsordner löschen",
@@ -2681,7 +2683,9 @@
     "rag": {
       "status": {
         "queued": "In Warteschlange",
+        "queuedHint": "Wartet darauf, im Chat durchsuchbar zu werden.",
         "indexing": "Wird indexiert",
+        "indexingHint": "Macht dieses Dokument im Chat durchsuchbar…",
         "indexed": "Indexiert",
         "failed": "Fehlgeschlagen",
         "unsupported": "Nicht unterstützt",
@@ -2843,15 +2847,15 @@
     },
     "products": {
       "title": "Noch keine Produkte",
-      "description": "Importiere deine Produkte, damit deine KI den Kontext versteht"
+      "description": "Füge Produkte hinzu, damit Agents mit deinem Katalog antworten können."
     },
     "websites": {
       "title": "Noch keine Websites",
-      "description": "Füge Websites hinzu, um deine KI zu verbessern"
+      "description": "Füge Websites hinzu, die Agents in Antworten zitieren können."
     },
     "knowledgeEntries": {
       "title": "Noch keine Wissenseinträge",
-      "description": "Speichere Fakten aus dem Chat oder füge Einträge hinzu, um deine KI zu verbessern"
+      "description": "Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können."
     },
     "agents": {
       "title": "Noch keine Agents",
@@ -6123,7 +6127,8 @@
       },
       "empty": {
         "connectedTitle": "Keine verbundenen Integrationen",
-        "connectedDescription": "Verbundene Integrationen werden hier angezeigt."
+        "connectedDescription": "Verbundene Integrationen werden hier angezeigt.",
+        "browseAll": "Alle Integrationen durchsuchen"
       },
       "toast": {
         "disconnected": "Getrennt",
@@ -6236,6 +6241,8 @@
       },
       "panel": {
         "connectName": "{name} verbinden",
+        "saveCredentialsThenConnect": "Speichere oben die Zugangsdaten, dann verbinde.",
+        "enterCredentialsToConnect": "Gib Zugangsdaten ein, um zu verbinden.",
         "disconnectConfirmTitle": "Integration trennen",
         "disconnectConfirmDescription": "Möchtest du diese Integration wirklich trennen? Du kannst sie später erneut verbinden.",
         "deleteConfirmTitle": "Integration löschen",
@@ -8074,7 +8081,9 @@
       "emptyTitle": "Noch keine Dateien",
       "emptyDescription": "Lade Referenzmaterial hoch, damit jeder Chat in diesem Projekt darauf zugreifen kann.",
       "ragStatusQueued": "In Warteschlange",
+      "ragStatusQueuedHint": "Wartet darauf, im Chat durchsuchbar zu werden.",
       "ragStatusRunning": "Wird indexiert…",
+      "ragStatusRunningHint": "Macht diese Datei im Chat durchsuchbar…",
       "ragStatusCompleted": "Indexiert",
       "ragStatusFailed": "Fehlgeschlagen",
       "detachAction": "Aus Projekt entfernen",

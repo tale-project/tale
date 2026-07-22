@@ -264,9 +264,17 @@ export function RagStatusBadge({
     );
   }
 
-  // Pending, queued, running statuses
+  // Pending, queued, running statuses — short label + plain-language tip so
+  // Queued / Indexing aren't opaque RAG jargon on first sight.
+  const pendingHint =
+    effectiveStatus === 'queued'
+      ? t('rag.status.queuedHint')
+      : effectiveStatus === 'running'
+        ? t('rag.status.indexingHint')
+        : undefined;
+
   return (
-    <Badge variant={config.variant} dot>
+    <Badge variant={config.variant} dot title={pendingHint}>
       {getStatusLabel(effectiveStatus)}
     </Badge>
   );

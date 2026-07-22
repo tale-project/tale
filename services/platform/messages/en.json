@@ -103,7 +103,7 @@
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
     "automations": "You need Admin or Developer permissions to access automations.",
     "organization": "You need Admin permissions to access organization settings.",
-    "agents": "You need Admin or Developer permissions to manage agents.",
+    "agents": "You need Admin or Developer permissions to manage agents. Ask an admin if you need an agent installed for chat.",
     "skills": "You need Admin or Developer permissions to manage skills.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
@@ -657,7 +657,8 @@
     },
     "empty": {
       "title": "No automations yet",
-      "description": "Installed automations appear here."
+      "description": "Installed automations appear here.",
+      "browseAll": "Browse all automations"
     },
     "notFound": {
       "title": "Automation not found",
@@ -725,7 +726,8 @@
       "reinstallFailed": "Couldn't reinstall the automation",
       "uninstallTitle": "Uninstall automation",
       "uninstallDescription": "This removes the automation and everything it installed from your organization.",
-      "uninstallWarning": "Its agents, workflows, pages, and their environment variables and secrets are deleted. Connected integrations stay.",
+      "uninstallWarningTitle": "What this removes",
+      "uninstallWarning": "Agents, workflows, pages, and their environment variables and secrets. Connected integrations stay.",
       "uninstalled": "Automation uninstalled",
       "uninstallFailed": "Couldn't uninstall the automation",
       "removeFromProject": "Remove from project",
@@ -1060,8 +1062,7 @@
     "archived": {
       "title": "Archived"
     },
-    "welcomeEmpty": "How can I assist you?",
-    "welcomeSuffix": "here, what are we working on?",
+    "welcomeEmpty": "What are we working on?",
     "toast": {
       "sendFailed": "Failed to send message",
       "arenaRequiresAgent": "Arena mode needs a specific agent — pick one instead of Auto to compare models.",
@@ -1285,11 +1286,12 @@
     "retryGeneration": "Try again",
     "openProviderSettings": "Open provider settings",
     "askAdminProviderKey": "Ask an admin to add an API key in Settings → AI providers.",
+    "askAdminInstallAgent": "Ask an admin to install an agent so you can start chatting.",
     "showMore": "Show more",
     "showLess": "Show less",
     "editMessage": "Edit message",
     "editSend": "Send",
-    "noAgentsAvailable": "No agents available. Please publish an agent first.",
+    "noAgentsAvailable": "No agents available yet.",
     "pendingApprovalDisabled": "Respond to the pending request above to continue",
     "archivedDisabled": "This chat is archived. Unarchive it to continue the conversation.",
     "archivedBanner": "This conversation was archived",
@@ -2495,7 +2497,7 @@
     "searchFilesAndFolders": "Search files and folders",
     "emptyState": {
       "title": "No documents yet",
-      "description": "Upload documents to train your AI assistant"
+      "description": "Upload documents so agents can use them in chat."
     },
     "actions": {
       "deleteSyncFolder": "Delete sync folder",
@@ -2681,7 +2683,9 @@
     "rag": {
       "status": {
         "queued": "Queued",
+        "queuedHint": "Waiting to become searchable in chat.",
         "indexing": "Indexing",
+        "indexingHint": "Making this document searchable in chat…",
         "indexed": "Indexed",
         "failed": "Failed",
         "unsupported": "Not supported",
@@ -2843,15 +2847,15 @@
     },
     "products": {
       "title": "No products yet",
-      "description": "Import your products to help your AI understand context"
+      "description": "Add products so agents can answer with your catalog."
     },
     "websites": {
       "title": "No websites yet",
-      "description": "Add websites to make your AI smarter"
+      "description": "Add websites agents can cite in answers."
     },
     "knowledgeEntries": {
       "title": "No knowledge entries yet",
-      "description": "Save facts from chat or add entries to make your AI smarter"
+      "description": "Save facts from chat or add entries agents can reuse."
     },
     "agents": {
       "title": "No agents yet",
@@ -5363,7 +5367,9 @@
       "emptyTitle": "No files yet",
       "emptyDescription": "Upload reference material to make it available to every chat in this project.",
       "ragStatusQueued": "Queued",
+      "ragStatusQueuedHint": "Waiting to become searchable in chat.",
       "ragStatusRunning": "Indexing…",
+      "ragStatusRunningHint": "Making this file searchable in chat…",
       "ragStatusCompleted": "Indexed",
       "ragStatusFailed": "Failed",
       "detachAction": "Remove from project",
@@ -6417,7 +6423,8 @@
       },
       "empty": {
         "connectedTitle": "No connected integrations",
-        "connectedDescription": "Integrations you connect will appear here."
+        "connectedDescription": "Integrations you connect will appear here.",
+        "browseAll": "Browse all integrations"
       },
       "toast": {
         "disconnected": "Disconnected",
@@ -6530,6 +6537,8 @@
       },
       "panel": {
         "connectName": "Connect {name}",
+        "saveCredentialsThenConnect": "Save credentials above, then connect.",
+        "enterCredentialsToConnect": "Enter credentials to connect.",
         "disconnectConfirmTitle": "Disconnect integration",
         "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
         "deleteConfirmTitle": "Delete integration",

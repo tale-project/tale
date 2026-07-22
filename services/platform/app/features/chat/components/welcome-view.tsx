@@ -45,13 +45,12 @@ export function WelcomeView({
       <Stack gap={6} className="mx-auto w-full max-w-(--chat-max-width)">
         <Heading level={1} weight="semibold" className="text-[1.75rem]">
           <SkeletonBox>
-            {hasStarters ? (
-              <>
-                {agentName && <em>{agentName}</em>} {t('welcomeSuffix')}
-              </>
-            ) : isLoading ? (
+            {isLoading ? (
               <span className="inline-block h-9 w-80" />
             ) : (
+              // Same invite whether starters are present or not — no
+              // "{Agent} here…" self-intro; role flavor lives in the starters
+              // and the agent picker.
               t('welcomeEmpty')
             )}
           </SkeletonBox>

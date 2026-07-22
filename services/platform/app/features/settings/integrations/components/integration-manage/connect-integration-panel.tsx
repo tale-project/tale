@@ -80,6 +80,14 @@ export function ConnectIntegrationPanel({
   const connectDisabled =
     manage.busy || (isOAuthAuthorize ? false : !manage.hasChanges);
   const isBusy = manage.isTesting || manage.isSavingOAuth2;
+  // Connect looks broken when it's off for credentials — say why (Save first
+  // for OAuth client fields; enter a key for API-key auth).
+  const connectDisabledReason =
+    !manage.busy && connectDisabled
+      ? manage.selectedAuthMethod === 'oauth2' && manage.hasOAuth2Config
+        ? t('integrations.panel.saveCredentialsThenConnect')
+        : t('integrations.panel.enterCredentialsToConnect')
+      : undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,7 +96,11 @@ export function ConnectIntegrationPanel({
         manage={manage}
       />
       <HStack justify="end" align="center">
-        <Button onClick={onConnectClick} disabled={connectDisabled}>
+        <Button
+          onClick={onConnectClick}
+          disabled={connectDisabled}
+          disabledReason={connectDisabledReason}
+        >
           {isBusy ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />

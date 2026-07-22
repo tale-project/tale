@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -161,12 +162,23 @@ export function Integrations({
       );
     }
     if (tab === 'connected') {
+      // Connected is empty until something is wired — send people to the
+      // catalog instead of leaving a dead-end message under the tab.
       return (
         <EmptyState
           icon={Unplug}
           title={t('integrations.empty.connectedTitle')}
           description={t('integrations.empty.connectedDescription')}
           className="min-h-0"
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onTabChange('all')}
+            >
+              {t('integrations.empty.browseAll')}
+            </Button>
+          }
         />
       );
     }
