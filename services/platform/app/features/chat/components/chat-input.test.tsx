@@ -257,7 +257,7 @@ describe('ChatInput @-mention picker', () => {
     // The action rows are options in the same keyboard navigation.
     await user.keyboard('{ArrowDown}{Enter}');
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/settings/people',
+      to: '/dashboard/$id/settings/organization',
       params: { id: 'org-1' },
     });
     // Activating an action never inserts or sends anything.
@@ -445,6 +445,59 @@ describe('ChatInput disabled composer (missing API key)', () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'Open provider settings' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('ChatInput disabled composer (no agents)', () => {
+  function renderDisabledForNoAgents() {
+    return render(
+      <ChatInput
+        organizationId="org-1"
+        value=""
+        onChange={vi.fn()}
+        onSendMessage={vi.fn()}
+        attachments={[]}
+        uploadingFiles={[]}
+        uploadFiles={vi.fn()}
+        removeAttachment={vi.fn()}
+        clearAttachments={vi.fn(() => [])}
+        variant="assistant"
+        disabled
+        disabledReason="no-agents"
+      />,
+    );
+  }
+
+  it('shows honest copy without telling anyone to "publish" an agent', () => {
+    mockCan.mockReturnValue(true);
+    renderDisabledForNoAgents();
+
+    expect(screen.getByText('No agents available yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/publish/i)).not.toBeInTheDocument();
+  });
+
+  it('shows Browse automations for an admin who can install agents', () => {
+    mockCan.mockReturnValue(true);
+    renderDisabledForNoAgents();
+
+    expect(
+      screen.getByRole('link', { name: 'Browse automations' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ask an admin/i)).not.toBeInTheDocument();
+  });
+
+  it('shows an ask-admin hint instead of a link for a member', () => {
+    mockCan.mockReturnValue(false);
+    renderDisabledForNoAgents();
+
+    expect(
+      screen.getByText(
+        'Ask an admin to install an agent so you can start chatting.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Browse automations' }),
     ).not.toBeInTheDocument();
   });
 });

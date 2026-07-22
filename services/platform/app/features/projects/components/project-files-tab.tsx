@@ -506,6 +506,11 @@ export function ProjectFilesTab({
     if (status === 'failed') return t('files.ragStatusFailed');
     return '';
   };
+  const statusHint = (status: string | null) => {
+    if (status === 'queued') return t('files.ragStatusQueuedHint');
+    if (status === 'running') return t('files.ragStatusRunningHint');
+    return undefined;
+  };
 
   const renderFileRow = (doc: ProjectDocumentRow, depth: number) => {
     const isRetrying = retryingIds.has(String(doc._id));
@@ -535,7 +540,12 @@ export function ProjectFilesTab({
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
-                <Text as="span" variant="caption" className="shrink-0">
+                <Text
+                  as="span"
+                  variant="caption"
+                  className="shrink-0"
+                  title={statusHint(doc.ragStatus)}
+                >
                   {statusLabel(doc.ragStatus)}
                 </Text>
               </TreeRowButton>
@@ -551,7 +561,12 @@ export function ProjectFilesTab({
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
-                <Text as="span" variant="caption" className="shrink-0">
+                <Text
+                  as="span"
+                  variant="caption"
+                  className="shrink-0"
+                  title={statusHint(doc.ragStatus)}
+                >
                   {statusLabel(doc.ragStatus)}
                 </Text>
               </div>

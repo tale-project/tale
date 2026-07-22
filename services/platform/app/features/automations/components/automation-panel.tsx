@@ -216,6 +216,7 @@ export function AutomationPanel({
             count: (automation.members ?? []).length,
           })}
           preview={{ primary: display.name }}
+          warningTitle={t('install.uninstallWarningTitle')}
           warning={t('install.uninstallWarning')}
           deleteText={t('install.uninstallBundle')}
           isDeleting={uninstallPending}

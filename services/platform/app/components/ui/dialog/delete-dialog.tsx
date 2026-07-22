@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Stack } from '@tale/ui/layout';
+import { AlertTriangle } from 'lucide-react';
 import * as React from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -23,7 +24,9 @@ export interface DeleteDialogProps {
     primary: string;
     secondary?: string;
   };
-  /** Warning message to display in an amber warning box */
+  /** Short title for the warning Alert (canonical: icon + title + description) */
+  warningTitle?: string;
+  /** Warning body shown in a warning Alert */
   warning?: string;
   /** Optional additional content for complex cases */
   children?: React.ReactNode;
@@ -53,6 +56,7 @@ export function DeleteDialog({
   title,
   description,
   preview,
+  warningTitle,
   warning,
   children,
   cancelText,
@@ -90,7 +94,14 @@ export function DeleteDialog({
               secondary={preview.secondary}
             />
           )}
-          {warning && <Alert variant="warning">{warning}</Alert>}
+          {warning && (
+            <Alert
+              variant="warning"
+              icon={AlertTriangle}
+              title={warningTitle}
+              description={warning}
+            />
+          )}
           {children}
         </Stack>
       )}

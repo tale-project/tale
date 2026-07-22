@@ -79,6 +79,13 @@ describe('RagStatusBadge', () => {
       await checkAccessibility(container);
     });
 
+    it('exposes a plain-language tip on queued status', () => {
+      render(<RagStatusBadge status="queued" documentId="doc-1" />);
+      expect(
+        screen.getByTitle('documents.rag.status.queuedHint'),
+      ).toBeInTheDocument();
+    });
+
     it('passes axe audit with not_indexed status', async () => {
       const { container } = render(
         <RagStatusBadge status="not_indexed" documentId="doc-1" />,

@@ -1,7 +1,7 @@
-import { describe, it, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { DeleteDialog } from './delete-dialog';
 
@@ -41,11 +41,39 @@ describe('DeleteDialog', () => {
           onOpenChange={vi.fn()}
           title="Delete Resource"
           description="This will permanently delete the resource."
+          warningTitle="Associated data is deleted"
           warning="All associated data will be lost."
           onDelete={vi.fn()}
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  describe('warning', () => {
+    it('renders the warning as an Alert with icon, title, and description', () => {
+      render(
+        <DeleteDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          title="Delete Resource"
+          description="This will permanently delete the resource."
+          warningTitle="Associated data is deleted"
+          warning="All associated data will be lost."
+          onDelete={vi.fn()}
+        />,
+      );
+
+      const alert = screen.getByRole('alert');
+      expect(alert).toHaveTextContent('Associated data is deleted');
+      expect(alert).toHaveTextContent('All associated data will be lost.');
+      expect(alert.querySelector('svg')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 5,
+          name: 'Associated data is deleted',
+        }),
+      ).toBeInTheDocument();
     });
   });
 });
