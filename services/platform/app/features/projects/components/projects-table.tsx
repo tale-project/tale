@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
@@ -231,6 +232,16 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
           icon: Folder,
           title: t('list.emptyTitle'),
           description: t('list.emptyDescription'),
+          action: (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+            >
+              {t('list.emptyCta')}
+            </Button>
+          ),
         }}
         footer={
           <BulkDeleteBar

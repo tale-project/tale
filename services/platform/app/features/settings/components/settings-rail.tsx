@@ -94,6 +94,15 @@ export function SettingsRail({
         path: 'organization',
         can: ['read', 'orgSettings'],
       },
+      // Day-1 recovery after skip-provider: AI providers first among the
+      // remaining org settings so "Settings → AI providers" is easy to find.
+      {
+        kind: 'leaf',
+        labelKey: 'providers',
+        path: 'providers',
+        matchMode: 'startsWith',
+        can: ['read', 'developerSettings'],
+      },
       {
         kind: 'leaf',
         labelKey: 'teams',
@@ -105,13 +114,6 @@ export function SettingsRail({
         kind: 'leaf',
         labelKey: 'skills',
         path: 'skills',
-        matchMode: 'startsWith',
-        can: ['read', 'developerSettings'],
-      },
-      {
-        kind: 'leaf',
-        labelKey: 'providers',
-        path: 'providers',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
       },

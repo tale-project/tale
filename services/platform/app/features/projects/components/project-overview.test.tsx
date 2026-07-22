@@ -120,6 +120,19 @@ describe('ProjectOverview', () => {
       expect(
         screen.queryByText('No chats yet. Start one to see it here.'),
       ).not.toBeInTheDocument();
+      expect(screen.queryByText('Get started')).not.toBeInTheDocument();
+    });
+
+    it('shows Get started when the project has no files and no chats', () => {
+      statsFixture = { fileCount: 0, threadCount: 0, truncated: false };
+      threadsFixture = [];
+
+      renderOverview();
+
+      expect(screen.getByText('Get started')).toBeInTheDocument();
+      expect(screen.getByText('Add files')).toBeInTheDocument();
+      expect(screen.getByText('Write instructions')).toBeInTheDocument();
+      expect(screen.getByText('Invite team')).toBeInTheDocument();
     });
   });
 });

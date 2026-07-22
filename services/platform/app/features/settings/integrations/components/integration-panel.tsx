@@ -279,6 +279,20 @@ export function IntegrationPanel({
                   ? false
                   : !manage.hasChanges)
               }
+              disabledReason={
+                !manage.busy &&
+                !(
+                  manage.selectedAuthMethod === 'oauth2' &&
+                  manage.hasOAuth2Config &&
+                  manage.hasOAuth2Credentials
+                ) &&
+                !manage.hasChanges
+                  ? manage.selectedAuthMethod === 'oauth2' &&
+                    manage.hasOAuth2Config
+                    ? t('integrations.panel.saveCredentialsThenConnect')
+                    : t('integrations.panel.enterCredentialsToConnect')
+                  : undefined
+              }
             >
               {manage.isTesting || manage.isSavingOAuth2 ? (
                 <>

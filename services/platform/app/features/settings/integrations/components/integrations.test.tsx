@@ -126,6 +126,25 @@ describe('Integrations', () => {
     ).toBeInTheDocument();
   });
 
+  it('offers a CTA to browse all integrations from the connected empty state', async () => {
+    const user = userEvent.setup();
+    const onTabChange = vi.fn();
+    render(
+      <Integrations
+        {...defaultProps}
+        tab="connected"
+        onTabChange={onTabChange}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'integrations.empty.browseAll',
+      }),
+    );
+    expect(onTabChange).toHaveBeenCalledWith('all');
+  });
+
   it('shows empty search state when search has no results', async () => {
     const user = userEvent.setup();
     const integrations = [makeIntegration({ slug: 'github', title: 'GitHub' })];

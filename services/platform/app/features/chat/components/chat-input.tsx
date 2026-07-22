@@ -79,6 +79,7 @@ import {
 } from './mention-popover';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
+import { NoAgentsErrorAction } from './no-agents-action';
 import { ProviderKeyErrorAction } from './provider-settings-action';
 import { QuotedReferenceChip } from './quoted-reference-chip';
 import { SandboxChip } from './sandbox-chip';
@@ -557,7 +558,7 @@ export function ChatInput({
                     label: tComposer('mention.actionInviteTeammates'),
                     run: () =>
                       void navigate({
-                        to: '/dashboard/$id/settings/people',
+                        to: '/dashboard/$id/settings/organization',
                         params: { id: organizationId },
                       }),
                   },
@@ -1393,15 +1394,20 @@ export function ChatInput({
                           ? (disabledMessage ?? '')
                           : tChat('noAgentsAvailable')}
                 </Text>
-                {/* Missing API key is a setup blocker with an actionable fix
-                    (unlike no-agents/pending-approval/archived, which are
-                    purely informational here) — the reason text alone would
-                    otherwise strand the user with no next step. Re-enable
-                    pointer events for just this affordance so admins can
-                    click through to Settings → AI providers (#2576). */}
+                {/* Setup blockers with an actionable fix (unlike
+                    pending-approval/archived, which are purely informational
+                    here) — the reason text alone would otherwise strand the
+                    user with no next step. Re-enable pointer events for just
+                    this affordance: missing key → Settings → AI providers
+                    (#2576); no agents → Automations / ask an admin. */}
                 {disabledReason === 'no-api-key' && (
                   <div className="pointer-events-auto">
                     <ProviderKeyErrorAction organizationId={organizationId} />
+                  </div>
+                )}
+                {disabledReason === 'no-agents' && (
+                  <div className="pointer-events-auto">
+                    <NoAgentsErrorAction organizationId={organizationId} />
                   </div>
                 )}
               </div>

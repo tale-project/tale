@@ -103,7 +103,7 @@
     "apiKeys": "Tu dois disposer des permissions Admin ou Développeur pour gérer les clés API.",
     "automations": "Tu dois disposer des permissions Admin ou Développeur pour accéder aux automatisations.",
     "organization": "Tu dois disposer des permissions Admin pour accéder aux paramètres de l'organisation.",
-    "agents": "Tu dois disposer des permissions Admin ou Développeur pour gérer les agents.",
+    "agents": "Tu dois disposer des permissions Admin ou Développeur pour gérer les agents. Demande à un administrateur si tu as besoin d’un agent pour le chat.",
     "skills": "Tu dois disposer des permissions Admin ou Développeur pour gérer les skills.",
     "branding": "Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.",
     "knowledge": "Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.",
@@ -657,7 +657,8 @@
     },
     "empty": {
       "title": "Aucune automatisation",
-      "description": "Les automatisations installées apparaissent ici."
+      "description": "Les automatisations installées apparaissent ici.",
+      "browseAll": "Parcourir toutes les automatisations"
     },
     "notFound": {
       "title": "Automatisation introuvable",
@@ -725,7 +726,8 @@
       "reinstallFailed": "Impossible de réinstaller l'automatisation",
       "uninstallTitle": "Désinstaller l'automatisation",
       "uninstallDescription": "Cette action supprime l'automatisation et tout ce qu'elle a installé de votre organisation.",
-      "uninstallWarning": "Ses agents, workflows, pages ainsi que leurs variables d'environnement et secrets sont supprimés. Les intégrations connectées sont conservées.",
+      "uninstallWarningTitle": "Ce que ça supprime",
+      "uninstallWarning": "Agents, workflows, pages, ainsi que leurs variables d'environnement et secrets. Les intégrations connectées sont conservées.",
       "uninstalled": "Automatisation désinstallée",
       "uninstallFailed": "Impossible de désinstaller l'automatisation",
       "removeFromProject": "Retirer du projet",
@@ -1060,8 +1062,7 @@
     "archived": {
       "title": "Archivés"
     },
-    "welcomeEmpty": "Comment puis-je t'aider ?",
-    "welcomeSuffix": "ici, sur quoi travaillons-nous ?",
+    "welcomeEmpty": "Sur quoi travaillons-nous ?",
     "toast": {
       "sendFailed": "Échec de l'envoi du message",
       "arenaRequiresAgent": "Le mode Arène nécessite un agent précis — choisis-en un au lieu d’Auto pour comparer les modèles.",
@@ -1285,11 +1286,12 @@
     "retryGeneration": "Réessayer",
     "openProviderSettings": "Ouvrir les paramètres du fournisseur",
     "askAdminProviderKey": "Demande à un administrateur d’ajouter une clé API dans Paramètres → Fournisseurs d’IA.",
+    "askAdminInstallAgent": "Demande à un administrateur d’installer un agent pour que tu puisses discuter.",
     "showMore": "Voir plus",
     "showLess": "Voir moins",
     "editMessage": "Modifier le message",
     "editSend": "Envoyer",
-    "noAgentsAvailable": "Aucun agent disponible. Publie d'abord un agent.",
+    "noAgentsAvailable": "Aucun agent disponible pour l’instant.",
     "pendingApprovalDisabled": "Réponds à la demande en attente ci-dessus pour continuer",
     "archivedDisabled": "Ce chat est archivé. Désarchive-le pour poursuivre la conversation.",
     "archivedBanner": "Cette conversation a été archivée",
@@ -2505,7 +2507,7 @@
     "searchFilesAndFolders": "Rechercher des fichiers et dossiers",
     "emptyState": {
       "title": "Aucun document pour l'instant",
-      "description": "Téléverse des documents pour entraîner ton assistant IA"
+      "description": "Téléverse des documents pour que les agents puissent les utiliser dans le chat."
     },
     "actions": {
       "deleteSyncFolder": "Supprimer le dossier synchronisé",
@@ -2691,7 +2693,9 @@
     "rag": {
       "status": {
         "queued": "En file d'attente",
+        "queuedHint": "En attente pour devenir consultable dans le chat.",
         "indexing": "Indexation",
+        "indexingHint": "Rend ce document consultable dans le chat…",
         "indexed": "Indexé",
         "failed": "Échoué",
         "unsupported": "Non pris en charge",
@@ -2853,15 +2857,15 @@
     },
     "products": {
       "title": "Aucun produit pour l'instant",
-      "description": "Importe tes produits pour aider ton IA à comprendre le contexte"
+      "description": "Ajoute des produits pour que les agents répondent avec ton catalogue."
     },
     "websites": {
       "title": "Aucun site web pour l'instant",
-      "description": "Ajoute des sites web pour rendre ton IA plus performante"
+      "description": "Ajoute des sites web que les agents peuvent citer dans leurs réponses."
     },
     "knowledgeEntries": {
       "title": "Aucune entrée de connaissances pour l'instant",
-      "description": "Enregistre des faits depuis le chat ou ajoute des entrées pour rendre ton IA plus performante"
+      "description": "Enregistre des faits depuis le chat ou ajoute des entrées que les agents peuvent réutiliser."
     },
     "agents": {
       "title": "Aucun agent pour l'instant",
@@ -6133,7 +6137,8 @@
       },
       "empty": {
         "connectedTitle": "Aucune intégration connectée",
-        "connectedDescription": "Les intégrations que tu connectes apparaîtront ici."
+        "connectedDescription": "Les intégrations que tu connectes apparaîtront ici.",
+        "browseAll": "Parcourir toutes les intégrations"
       },
       "toast": {
         "disconnected": "Déconnectée",
@@ -6246,6 +6251,8 @@
       },
       "panel": {
         "connectName": "Connecter {name}",
+        "saveCredentialsThenConnect": "Enregistre les identifiants ci-dessus, puis connecte.",
+        "enterCredentialsToConnect": "Saisis des identifiants pour connecter.",
         "disconnectConfirmTitle": "Déconnecter l'intégration",
         "disconnectConfirmDescription": "Es-tu sûr de vouloir déconnecter cette intégration ? Tu pourras la reconnecter ultérieurement.",
         "deleteConfirmTitle": "Supprimer l'intégration",
@@ -8084,7 +8091,9 @@
       "emptyTitle": "Aucun fichier pour l'instant",
       "emptyDescription": "Téléverse du matériel de référence pour le rendre accessible à chaque chat de ce projet.",
       "ragStatusQueued": "En file d'attente",
+      "ragStatusQueuedHint": "En attente pour devenir consultable dans le chat.",
       "ragStatusRunning": "Indexation…",
+      "ragStatusRunningHint": "Rend ce fichier consultable dans le chat…",
       "ragStatusCompleted": "Indexé",
       "ragStatusFailed": "Échec",
       "detachAction": "Retirer du projet",

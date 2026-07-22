@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event';
 import { cloneElement, type ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -499,7 +500,8 @@ describe('AutomationsGrid tabs + badges', () => {
     expect(screen.getAllByText('Installed')).toHaveLength(1);
   });
 
-  it('shows the catalog empty copy on an Installed tab with nothing installed', () => {
+  it('shows the catalog empty copy on an Installed tab with nothing installed', async () => {
+    const user = userEvent.setup();
     useAutomationsMock.mockReturnValue({
       automations: [],
       isLoading: false,
@@ -514,6 +516,16 @@ describe('AutomationsGrid tabs + badges', () => {
     render(<AutomationsGrid organizationId="org_1" />);
 
     expect(screen.getByText('No automations yet')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Browse all automations' }),
+    );
+    expect(navigateMock).toHaveBeenCalledWith({
+      search: expect.any(Function),
+    });
+    const searchFn = navigateMock.mock.calls[0][0].search as (prev: {
+      tab?: string;
+    }) => { tab?: string };
+    expect(searchFn({ tab: 'installed' })).toEqual({ tab: 'all' });
   });
 
   it('groups the All tab into folder sections, ungrouped last as General', async () => {

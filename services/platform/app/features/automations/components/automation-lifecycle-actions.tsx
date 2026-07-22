@@ -326,6 +326,7 @@ export function AutomationLifecycleActions({
             count: (bundle.members ?? []).length,
           })}
           preview={{ primary: bundle.name }}
+          warningTitle={t('install.uninstallWarningTitle')}
           warning={t('install.uninstallWarning')}
           deleteText={t('install.uninstallBundle')}
           isDeleting={busy}
@@ -347,6 +348,7 @@ export function AutomationLifecycleActions({
         title={t('install.uninstallTitle')}
         description={t('install.uninstallDescription')}
         preview={{ primary: automationName }}
+        warningTitle={t('install.uninstallWarningTitle')}
         warning={t('install.uninstallWarning')}
         deleteText={t('install.uninstall')}
         isDeleting={busy}
