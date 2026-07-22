@@ -70,12 +70,25 @@ describe('SettingsMobileBackButton', () => {
     });
   });
 
-  it('returns to the personal overview from a personal sub-page', async () => {
+  it('returns to the workspace overview from a personal sub-page (not the you-only list)', async () => {
+    // Account/Preferences are reachable from the main `/settings` list, which
+    // shows the `you` group. Backing to `/settings/personal` stranded the user
+    // on a narrower list they never opened (and which has no back button).
     mockPathname = `/dashboard/${ORG}/settings/account`;
     const { user } = render(<SettingsMobileBackButton organizationId={ORG} />);
     await user.click(screen.getByRole('button', { name: BACK_LABEL }));
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/settings/personal',
+      to: '/dashboard/$id/settings',
+      params: { id: ORG },
+    });
+  });
+
+  it('returns to the workspace overview from the Preferences (personalization) sub-page', async () => {
+    mockPathname = `/dashboard/${ORG}/settings/personalization`;
+    const { user } = render(<SettingsMobileBackButton organizationId={ORG} />);
+    await user.click(screen.getByRole('button', { name: BACK_LABEL }));
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/settings',
       params: { id: ORG },
     });
   });

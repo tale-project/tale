@@ -1,6 +1,9 @@
 import { Heading } from '@tale/ui/heading';
-import type { ReactNode } from 'react';
+import { IconButton } from '@tale/ui/icon-button';
+import { ChevronLeft } from 'lucide-react';
+import { isValidElement, type ReactNode } from 'react';
 
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -22,10 +25,13 @@ export interface HeaderBreadcrumbCrumb {
 /**
  * The page-chrome breadcrumb every detail page renders inside
  * `AdaptiveHeaderRoot`: a semantic `nav > ol` trail whose LEAF is the page's
- * single `h1` (`aria-current="page"`). Ancestors hide below `md` (the mobile
- * header shows only the leaf) and every gap is the same `gap-2`, so the trail
- * reads identically on agents, automations, workflows, and projects. The
- * separator trails each ancestor `li`, so the leaf needs none of its own.
+ * single `h1` (`aria-current="page"`). The full ancestor trail shows from `md`
+ * up; below `md` it collapses to a single icon-only back button to the
+ * IMMEDIATE parent so a detail page always has a way back on a phone — the
+ * full trail is too wide there, and the parent's label eats scarce header
+ * width. Every gap is the same `gap-2`, so the trail reads identically on
+ * agents, automations, workflows, and projects. The separator trails each
+ * ancestor `li`, so the leaf needs none of its own.
  */
 export function HeaderBreadcrumbs({
   ariaLabel,
@@ -40,11 +46,30 @@ export function HeaderBreadcrumbs({
   leaf: ReactNode;
   className?: string;
 }) {
+  const { t } = useT('common');
+  // Below `md` the full trail is hidden (too wide for a phone header), so a
+  // detail page would otherwise have NO way back. Collapse to an icon-only
+  // back button to the immediate parent (the last ancestor): `IconButton
+  // asChild` re-uses that crumb's own `Link` — swapping its label for a back
+  // chevron — so the destination and the router stay the caller's, and the
+  // control is a compact icon rather than a width-hungry label. The desktop
+  // trail below renders the same ancestor node; one copy is `display:none`
+  // per breakpoint, so exactly one parent link stays in the a11y tree.
+  const parentContent = crumbs.at(-1)?.content;
   return (
     <nav
       aria-label={ariaLabel}
-      className={cn('flex min-w-0 items-center', className)}
+      className={cn('flex min-w-0 items-center gap-1', className)}
     >
+      {isValidElement(parentContent) && (
+        <IconButton
+          asChild
+          slotChild={parentContent}
+          icon={ChevronLeft}
+          aria-label={t('aria.back')}
+          className="shrink-0 md:hidden"
+        />
+      )}
       <ol className="flex min-w-0 items-center gap-2 text-base font-semibold">
         {crumbs.map((crumb) => (
           <li
