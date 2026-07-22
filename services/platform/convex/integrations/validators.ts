@@ -74,6 +74,64 @@ export const smtpAuthEncryptedValidator = v.object({
   passwordEncrypted: v.string(),
 });
 
+/** Per-account inbound routing target (mirrors the governance rule shape). */
+const imapSmtpAccountRoutingValidator = v.object({
+  teamId: v.optional(v.string()),
+  userId: v.optional(v.string()),
+});
+
+/**
+ * One real mailbox account under an imap_smtp integration. An integration may
+ * hold several accounts; each has its own IMAP login, its own SMTP/relay target
+ * (the mailbox's own SMTP, any relay, or a self-hosted submission host — the
+ * design is provider-agnostic), its own From address, and its own routing.
+ * Plaintext form (input to `saveCredentials`); the passwords are encrypted at
+ * rest in {@link imapSmtpAccountEncryptedValidator}.
+ */
+export const imapSmtpAccountValidator = v.object({
+  /** Stable id tying descriptor ↔ stored credentials ↔ conversation.accountId. */
+  id: v.string(),
+  /** Label shown in the inbox filter, compose picker and thread header. */
+  displayName: v.optional(v.string()),
+  /** The exact From / reply-from address for this account. */
+  fromAddress: v.string(),
+  imapHost: v.string(),
+  imapPort: v.number(),
+  imapSecure: v.boolean(),
+  smtpHost: v.string(),
+  smtpPort: v.number(),
+  smtpSecure: v.boolean(),
+  /** Sent-folder name to append copies to (discovered when omitted). */
+  sentMailbox: v.optional(v.string()),
+  saveSentToImap: v.optional(v.boolean()),
+  /** The notifications/compose default account (at most one per integration). */
+  isDefault: v.optional(v.boolean()),
+  routing: v.optional(imapSmtpAccountRoutingValidator),
+  /** IMAP (receiving) login. */
+  imapAuth: basicAuthValidator,
+  /** SMTP (sending) login when it differs from imapAuth; absent ⇒ reuse it. */
+  smtpAuth: v.optional(smtpAuthValidator),
+});
+
+/** Stored (encrypted-at-rest) form of {@link imapSmtpAccountValidator}. */
+export const imapSmtpAccountEncryptedValidator = v.object({
+  id: v.string(),
+  displayName: v.optional(v.string()),
+  fromAddress: v.string(),
+  imapHost: v.string(),
+  imapPort: v.number(),
+  imapSecure: v.boolean(),
+  smtpHost: v.string(),
+  smtpPort: v.number(),
+  smtpSecure: v.boolean(),
+  sentMailbox: v.optional(v.string()),
+  saveSentToImap: v.optional(v.boolean()),
+  isDefault: v.optional(v.boolean()),
+  routing: v.optional(imapSmtpAccountRoutingValidator),
+  imapAuth: basicAuthEncryptedValidator,
+  smtpAuth: v.optional(smtpAuthEncryptedValidator),
+});
+
 export const oauth2AuthValidator = v.object({
   accessToken: v.string(),
   refreshToken: v.optional(v.string()),

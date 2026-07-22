@@ -15,6 +15,8 @@ import type {
   connectionConfigValidator,
   connectorConfigValidator,
   connectorOperationValidator,
+  imapSmtpAccountEncryptedValidator,
+  imapSmtpAccountValidator,
   integrationTypeValidator,
   oauth2AuthEncryptedValidator,
   oauth2AuthValidator,
@@ -44,6 +46,10 @@ export type BasicAuth = Infer<typeof basicAuthValidator>;
 export type BasicAuthEncrypted = Infer<typeof basicAuthEncryptedValidator>;
 export type SmtpAuth = Infer<typeof smtpAuthValidator>;
 export type SmtpAuthEncrypted = Infer<typeof smtpAuthEncryptedValidator>;
+export type ImapSmtpAccount = Infer<typeof imapSmtpAccountValidator>;
+export type ImapSmtpAccountEncrypted = Infer<
+  typeof imapSmtpAccountEncryptedValidator
+>;
 export type OAuth2Auth = Infer<typeof oauth2AuthValidator>;
 export type OAuth2AuthEncrypted = Infer<typeof oauth2AuthEncryptedValidator>;
 

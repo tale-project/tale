@@ -37,6 +37,25 @@ export interface LoadedIntegration {
   // Optional SMTP-only credential (imap_smtp): used for sending when it differs
   // from the IMAP login. Falls back to basicAuth when absent.
   smtpAuth?: { username: string; passwordEncrypted: string };
+  // Multiple real mailbox accounts (imap_smtp). Absent ⇒ legacy single mailbox
+  // via basicAuth/smtpAuth/connectionConfig above.
+  imapSmtpAccounts?: Array<{
+    id: string;
+    displayName?: string;
+    fromAddress: string;
+    imapHost: string;
+    imapPort: number;
+    imapSecure: boolean;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    sentMailbox?: string;
+    saveSentToImap?: boolean;
+    isDefault?: boolean;
+    routing?: { teamId?: string; userId?: string };
+    imapAuth: { username: string; passwordEncrypted: string };
+    smtpAuth?: { username: string; passwordEncrypted: string };
+  }>;
   oauth2Auth?: {
     accessTokenEncrypted: string;
     refreshTokenEncrypted?: string;
@@ -271,6 +290,7 @@ export const loadIntegration = internalAction({
       apiKeyAuth: credentials.apiKeyAuth,
       basicAuth: credentials.basicAuth,
       smtpAuth: credentials.smtpAuth,
+      imapSmtpAccounts: credentials.imapSmtpAccounts,
       oauth2Auth: credentials.oauth2Auth,
       oauth2Config,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() in schema

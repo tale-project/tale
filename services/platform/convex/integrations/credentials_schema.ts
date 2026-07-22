@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
+import { imapSmtpAccountEncryptedValidator } from './validators';
 
 /**
  * Slim credentials table for installed integrations.
@@ -60,6 +61,12 @@ export const integrationCredentialsTable = defineTable({
       passwordEncrypted: v.string(),
     }),
   ),
+  // Multiple real mailbox accounts for imap_smtp integrations — each with its
+  // own IMAP login, SMTP/relay target, From address and routing. Optional: when
+  // absent the integration behaves as a single mailbox via the legacy
+  // basicAuth/smtpAuth/connectionConfig fields above. Adding an optional field
+  // is data-safe growth (snapshot regen, no data migration).
+  imapSmtpAccounts: v.optional(v.array(imapSmtpAccountEncryptedValidator)),
   oauth2Auth: v.optional(
     v.object({
       accessTokenEncrypted: v.string(),
