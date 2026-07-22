@@ -5584,6 +5584,9 @@
       "agentNotFound": "Agent nicht gefunden oder Du hast keinen Zugriff.",
       "agentSaved": "Agent gespeichert",
       "agentSaveFailed": "Agent konnte nicht gespeichert werden",
+      "switcher": {
+        "ariaLabel": "Agent wechseln, aktuell: {name}"
+      },
       "validation": {
         "displayNameRequired": "Gib einen Anzeigenamen ein.",
         "systemInstructionsRequired": "Gib Systemanweisungen ein.",
@@ -5611,6 +5614,7 @@
       },
       "history": {
         "empty": "Keine Verlaufseinträge",
+        "menuLabel": "Versionsverlauf",
         "diffTitle": "Änderungen vergleichen",
         "diffDescription": "Unterschiede prüfen, bevor der Snapshot vom {date} wiederhergestellt wird",
         "noDifferences": "Keine Unterschiede gefunden",

@@ -5584,6 +5584,9 @@
       "agentNotFound": "Agent introuvable ou tu n'as pas accès.",
       "agentSaved": "Agent enregistré",
       "agentSaveFailed": "Échec de l'enregistrement de l'agent",
+      "switcher": {
+        "ariaLabel": "Changer d'agent, actuel : {name}"
+      },
       "validation": {
         "displayNameRequired": "Saisis un nom d'affichage.",
         "systemInstructionsRequired": "Saisis des instructions système.",
@@ -5611,6 +5614,7 @@
       },
       "history": {
         "empty": "Aucune entrée d'historique",
+        "menuLabel": "Historique des versions",
         "diffTitle": "Comparer les modifications",
         "diffDescription": "Examine les différences avant de restaurer l'instantané du {date}",
         "noDifferences": "Aucune différence trouvée",

@@ -95,6 +95,15 @@ vi.mock('@/app/features/agents/components/agent-navigation', () => ({
   AgentNavigation: () => null,
 }));
 
+// The breadcrumb leaf switcher pulls in the router (`useNavigate`) and locale
+// context; this test only covers the trail typography, so stub it to the plain
+// display name — its own behaviour is covered in agent-breadcrumb-switcher.test.
+vi.mock('@/app/features/agents/components/agent-breadcrumb-switcher', () => ({
+  AgentBreadcrumbSwitcher: ({ displayName }: { displayName: string }) => (
+    <>{displayName}</>
+  ),
+}));
+
 import { AdaptiveHeaderProvider } from '@/app/components/layout/adaptive-header';
 
 import { Route } from './$agentId';
