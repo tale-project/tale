@@ -63,7 +63,7 @@ export function WorkflowAIChatPanel({
       aria-label={t('sidePanel.aiAssistant')}
       style={{ '--panel-width': `${width}px` }}
       className={cn(
-        'bg-background border-border flex min-h-0 w-(--panel-width) flex-col overflow-hidden border-l shadow-lg max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-full max-md:shadow-none',
+        'bg-background border-border flex min-h-0 w-(--panel-width) flex-col overflow-hidden md:border-l shadow-lg max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-full max-md:shadow-none',
         overlay
           ? 'absolute top-0 right-0 bottom-0 z-20'
           : 'relative flex-[0_0_auto] shadow-none',
