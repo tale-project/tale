@@ -19,10 +19,15 @@ interface SettingsMobileBackButtonProps {
  *
  * Navigation is hierarchy-based, never history-based: it always returns to the
  * canonical parent overview regardless of how the user arrived (deep link, tab
- * switch, in-page navigation). Personal sub-pages (`account`, `personalization`)
- * return to the personal overview; everything else returns to the workspace
- * overview. Rendered as a child of the settings `AdaptiveHeaderRoot` so it slots
- * into the mobile top bar; `md:hidden` keeps it off the desktop header strip.
+ * switch, in-page navigation). Every sub-page returns to the workspace overview
+ * (`/settings`) — the one overview that lists ALL sections, including the
+ * personal `you` group (account, preferences, …). It used to send personal
+ * sub-pages to `/settings/personal` instead, but that page shows ONLY the
+ * `you` group and has no back button of its own, so tapping Account from the
+ * main Settings list and pressing back stranded the user on a narrower list
+ * they never navigated to. Rendered as a child of the settings
+ * `AdaptiveHeaderRoot` so it slots into the mobile top bar; `md:hidden` keeps
+ * it off the desktop header strip.
  */
 export function SettingsMobileBackButton({
   organizationId,
@@ -46,18 +51,12 @@ export function SettingsMobileBackButton({
   // The overview routes themselves are top-level on mobile — no back button.
   const isOverview = tail === '' || tail === 'personal';
 
-  const firstSegment = tail ? tail.split('/')[0] : '';
-  const isPersonalSubPage =
-    firstSegment === 'account' || firstSegment === 'personalization';
-
   const handleBack = useCallback(() => {
     void navigate({
-      to: isPersonalSubPage
-        ? '/dashboard/$id/settings/personal'
-        : '/dashboard/$id/settings',
+      to: '/dashboard/$id/settings',
       params: { id: organizationId },
     });
-  }, [navigate, organizationId, isPersonalSubPage]);
+  }, [navigate, organizationId]);
 
   if (tail === null || isOverview) return null;
 

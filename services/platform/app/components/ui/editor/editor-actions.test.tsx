@@ -39,12 +39,14 @@ beforeEach(() => {
 });
 
 describe('EditorActions — mobile touch targets (#1980)', () => {
-  it('grows the Save and Discard buttons to 44px on mobile', () => {
+  it('extends the Save and Discard hit areas to 44px on mobile without growing the visual box', () => {
     render(<EditorActions controller={makeController()} />);
     for (const name of ['actions.discard', 'actions.save']) {
       expect(screen.getByRole('button', { name })).toHaveClass(
-        'max-sm:min-h-11',
-        'max-sm:min-w-11',
+        'relative',
+        'max-sm:after:absolute',
+        'max-sm:after:-inset-1.5',
+        "max-sm:after:content-['']",
       );
     }
   });
