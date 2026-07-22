@@ -991,6 +991,9 @@
       "drop": "Drop files here, or",
       "deleteFile": "Delete {name}",
       "folderDeleted": "This quarter’s folder was deleted. Recreate it in Knowledge, or remove this return."
+    },
+    "switcher": {
+      "ariaLabel": "Switch automation, current: {name}"
     }
   },
   "changelog": {
@@ -5559,6 +5562,9 @@
       "emptyDescription": "Install a project automation from the Automations hub, then add this project.",
       "emptyCta": "Browse Automations",
       "statusBroken": "Needs repair"
+    },
+    "switcher": {
+      "ariaLabel": "Switch project, current: {name}"
     }
   },
   "pwa": {
