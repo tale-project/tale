@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
 import {
   authorizeScreencast,
+  cacheControlForStaticPath,
   createApp,
   SCREENCAST_ROUTE_RE,
   shouldDeliverSseEvent,
@@ -21,6 +22,37 @@ const baseEnv = {
   TALE_VERSION: undefined,
   CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: [] as readonly string[],
 };
+
+describe('cacheControlForStaticPath', () => {
+  const IMMUTABLE = 'public, max-age=31536000, immutable';
+  const REVALIDATE = 'no-cache';
+
+  test.each([
+    // Content-hashed bundler output under /assets/ — a filename never maps to
+    // different bytes, so it is safe to cache forever.
+    ['/assets/vendor-katex-DUoGyCxW.js', IMMUTABLE],
+    ['/assets/index-D6U9bzSy.css', IMMUTABLE],
+    ['/assets/vendor-radix-C-BNZUpZ.js', IMMUTABLE], // hash contains '-'
+    ['/assets/vendor-katex-_Zecxha_.css', IMMUTABLE], // hash contains '_'
+    ['/assets/vendor-katex-DUoGyCxW.js.map', IMMUTABLE], // sourcemap
+  ])('caches %s immutably', (pathname, expected) => {
+    expect(cacheControlForStaticPath(pathname)).toBe(expected);
+  });
+
+  test.each([
+    // Stable-named files that can change across deploys must revalidate.
+    ['/index.html', REVALIDATE],
+    ['/sw.js', REVALIDATE],
+    ['/manifest.webmanifest', REVALIDATE],
+    ['/favicon.ico', REVALIDATE],
+    ['/assets/pwa-192x192.png', REVALIDATE], // un-hashed public image in assets/
+    ['/assets/logo-white.svg', REVALIDATE],
+    ['/assets/apple-touch-icon-180x180.png', REVALIDATE], // digits, not a hash
+    ['/canvas-libs/d3/7.8.5/d3.min.js', REVALIDATE], // version-pinned, outside assets/
+  ])('revalidates %s', (pathname, expected) => {
+    expect(cacheControlForStaticPath(pathname)).toBe(expected);
+  });
+});
 
 describe('security headers', () => {
   test('every standard header is present on /api/health', async () => {
