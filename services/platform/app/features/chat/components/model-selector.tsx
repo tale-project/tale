@@ -43,6 +43,7 @@ import {
   resolveModelLocale,
   resolveProviderLocale,
 } from '@/lib/shared/utils/resolve-provider-locale';
+import { cn } from '@/lib/utils/cn';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
@@ -62,6 +63,9 @@ interface ModelSelectorProps {
    *  model list and overrides must follow the thread's agent — not the global
    *  per-user picker state another thread may have changed. */
   threadId?: string;
+  /** Render the trigger full-width with its chevron right-aligned — used in the
+   *  mobile combined assistant+model panel, where each row fills the panel. */
+  fullWidth?: boolean;
 }
 
 function getModelShortName(modelId: string): string {
@@ -73,6 +77,7 @@ export const ModelSelector = memo(function ModelSelector({
   organizationId,
   projectId,
   threadId,
+  fullWidth = false,
 }: ModelSelectorProps) {
   const { t } = useT('chat');
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
@@ -453,19 +458,22 @@ export const ModelSelector = memo(function ModelSelector({
     return (
       <Button
         type="button"
-        className="gap-1.5"
+        className={cn('gap-1.5', fullWidth && 'w-full')}
         size="sm"
         variant="ghost"
         aria-label={t('modelSelector.label')}
         disabled
       >
-        <Cpu className="size-3.5" aria-hidden="true" />
+        <Cpu className="size-3.5 shrink-0" aria-hidden="true" />
         <Skeletonize loading label={t('modelSelector.label')}>
           <SkeletonBox>
-            <span>{t('modelSelector.auto')}</span>
+            <span className="truncate">{t('modelSelector.auto')}</span>
           </SkeletonBox>
         </Skeletonize>
-        <ChevronDown className="size-3" aria-hidden="true" />
+        <ChevronDown
+          className={cn('size-3 shrink-0', fullWidth && 'ml-auto')}
+          aria-hidden="true"
+        />
       </Button>
     );
   }
@@ -500,7 +508,7 @@ export const ModelSelector = memo(function ModelSelector({
           side="top"
           sideOffset={8}
           contentClassName="w-[22rem]"
-          tooltip={t('modelSelector.label')}
+          tooltip={fullWidth ? undefined : t('modelSelector.label')}
           tooltipSide="top"
           searchPlaceholder={t('modelSelector.searchPlaceholder')}
           emptyText={t('modelSelector.noResults')}
@@ -715,7 +723,7 @@ export const ModelSelector = memo(function ModelSelector({
       side="top"
       sideOffset={8}
       contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
-      tooltip={t('modelSelector.label')}
+      tooltip={fullWidth ? undefined : t('modelSelector.label')}
       tooltipSide="top"
       searchPlaceholder={t('modelSelector.searchPlaceholder')}
       emptyText={t('modelSelector.noResults')}
@@ -737,14 +745,17 @@ export const ModelSelector = memo(function ModelSelector({
       trigger={
         <Button
           type="button"
-          className="gap-1.5"
+          className={cn('gap-1.5', fullWidth && 'w-full')}
           variant="ghost"
           size="sm"
           aria-label={t('modelSelector.label')}
         >
-          <Cpu className="size-3.5" aria-hidden="true" />
-          <span>{currentLabel}</span>
-          <ChevronDown className="size-3" aria-hidden="true" />
+          <Cpu className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{currentLabel}</span>
+          <ChevronDown
+            className={cn('size-3 shrink-0', fullWidth && 'ml-auto')}
+            aria-hidden="true"
+          />
         </Button>
       }
     />
