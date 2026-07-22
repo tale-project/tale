@@ -319,7 +319,9 @@ function PromptLibraryDialogContent({
         onOpenChange={onOpenChange}
         title={t('library.title')}
         description={t('library.description')}
-        className="w-[95vw] max-w-[680px]"
+        // Width is desktop-only: unprefixed w/max-w override the shared Dialog
+        // mobile bottom-sheet (`w-full max-w-full`) and leave side gaps.
+        className="md:w-[95vw] md:max-w-[680px]"
       >
         <Stack>
           <Tabs
