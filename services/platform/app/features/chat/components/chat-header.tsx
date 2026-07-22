@@ -1,18 +1,17 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { Row } from '@tale/ui/layout';
 import {
   MessagesSquare,
-  Download,
   Ellipsis,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
   Share,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { useSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
@@ -20,6 +19,9 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useChatLayout } from '../context/chat-layout-context';
+import { useThreadHeaderMeta } from '../hooks/queries';
+import { useChatContextMenu } from '../hooks/use-chat-context-menu';
+import { useChatPanel } from './chat-panel/chat-panel-context';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
 
@@ -34,6 +36,10 @@ interface ChatHeaderProps {
  * and the per-thread actions (Share + overflow) join it while a thread is
  * open. The mobile bar keeps its hamburger + search buttons, wired to the
  * shared sidebar state (drawer + palette).
+ *
+ * The overflow "…" is the same menu the sidebar chat rows carry (built by
+ * {@link useChatContextMenu}) — View files · Move to project · Pin · Archive ·
+ * Export · Delete — so header and sidebar never drift apart.
  */
 export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const { isMobileSheetOpen, setMobileSheetOpen, setSearchOpen } = useSidebar();
@@ -43,21 +49,31 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
 
   const { t: tChat } = useT('chat');
 
-  // The per-thread voice toggle moved to the composer (next to dictation),
-  // so the header dropdown now only carries the export action.
-  const headerMenuItems = useMemo<DropdownMenuGroup[]>(
-    () => [
-      [
-        {
-          type: 'item' as const,
-          label: tChat('export.button'),
-          icon: Download,
-          onClick: () => setIsExportDialogOpen(true),
-        },
-      ],
-    ],
-    [tChat],
-  );
+  const { openPane, visiblePanes } = useChatPanel();
+  const meta = useThreadHeaderMeta(threadId, organizationId);
+  // The canvas pane registers a descriptor only when the thread has files
+  // (branch-aware, including live writes), so this is exactly when
+  // `openPane('canvas')` will stick — gate "View files" on it.
+  const canvasHasFiles = visiblePanes.some((pane) => pane.id === 'canvas');
+
+  const {
+    items: menuItems,
+    dialogs: menuDialogs,
+    onMenuOpenChange,
+  } = useChatContextMenu({
+    chat: { id: threadId ?? '', title: meta?.title ?? '' },
+    organizationId,
+    placement: 'header',
+    currentChatId: threadId,
+    isPinned: meta?.pinnedAt != null,
+    isArchived: meta?.status === 'archived',
+    projectId: meta?.projectId ?? undefined,
+    viewFiles: {
+      visible: canvasHasFiles,
+      onSelect: () => openPane('canvas'),
+    },
+    onExport: () => setIsExportDialogOpen(true),
+  });
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 
@@ -115,7 +131,8 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
                     <Ellipsis className={baseIconClasses} />
                   </Button>
                 }
-                items={headerMenuItems}
+                items={menuItems}
+                onOpenChange={onMenuOpenChange}
                 align="end"
               />
             </>
@@ -169,7 +186,8 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
                     <Ellipsis className={baseIconClasses} />
                   </Button>
                 }
-                items={headerMenuItems}
+                items={menuItems}
+                onOpenChange={onMenuOpenChange}
                 align="end"
               />
             </>
@@ -179,6 +197,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
 
       {threadId && (
         <>
+          {menuDialogs}
           <ExportChatDialog
             open={isExportDialogOpen}
             onOpenChange={setIsExportDialogOpen}

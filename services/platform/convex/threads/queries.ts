@@ -21,6 +21,7 @@ import {
   isHiddenFromChatHistory,
   listThreads as listThreadsHelper,
 } from './list_threads';
+import { threadStatusValidator } from './validators';
 
 export const listThreads = query({
   args: {
@@ -281,6 +282,43 @@ export const getThreadProject = query({
     );
     if (!metadata) return null;
     return { projectId: metadata.projectId ?? null };
+  },
+});
+
+/**
+ * Lightweight per-thread metadata for the chat header's overflow menu: the
+ * title (delete-confirmation copy), pin state, current project, and lifecycle
+ * status (so the menu shows Archive vs Unarchive). Deliberately separate from
+ * the hot `getThreadMeta` so adding menu fields doesn't ripple its many
+ * readers. Behind a single `canAccessThread` check; null when inaccessible.
+ */
+export const getThreadHeaderMeta = query({
+  args: { threadId: v.string(), organizationId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      title: v.union(v.string(), v.null()),
+      pinnedAt: v.union(v.number(), v.null()),
+      projectId: v.union(v.id('projects'), v.null()),
+      status: threadStatusValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
+    if (!metadata) return null;
+    return {
+      title: metadata.title ?? null,
+      pinnedAt: metadata.pinnedAt ?? null,
+      projectId: metadata.projectId ?? null,
+      status: metadata.status,
+    };
   },
 });
 

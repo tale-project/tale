@@ -1805,7 +1805,8 @@
     },
     "assistantModelSelector": {
       "label": "Assistant et modèle"
-    }
+    },
+    "viewFiles": "Afficher les fichiers du chat"
   },
   "common": {
     "optional": "facultatif",
