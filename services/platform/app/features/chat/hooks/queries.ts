@@ -402,6 +402,21 @@ export function useThreadSandboxState(threadId: string | null | undefined) {
   };
 }
 
+/**
+ * Lightweight thread metadata for the chat header's overflow menu (title, pin
+ * state, current project, lifecycle status). Kept off the hot `getThreadMeta`.
+ */
+export function useThreadHeaderMeta(
+  threadId: string | null | undefined,
+  organizationId: string,
+) {
+  const { data } = useConvexQuery(
+    api.threads.queries.getThreadHeaderMeta,
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
+  );
+  return data ?? null;
+}
+
 export function useActiveApprovals(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.approvals.queries.listActiveApprovalsByOrganization,

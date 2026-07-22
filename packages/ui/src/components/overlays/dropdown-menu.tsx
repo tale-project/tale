@@ -271,8 +271,20 @@ function renderItem(item: DropdownMenuItem, key: number) {
             item.destructive && 'text-destructive focus:text-destructive',
             item.className,
           )}
-          onClick={item.onClick}
-          onSelect={item.keepOpen ? (e) => e.preventDefault() : undefined}
+          // `keepOpen` items swap the panel's contents in place, so run the
+          // handler on `onSelect` — which fires for BOTH pointer and keyboard
+          // activation — and preventDefault to keep the menu open. Routing
+          // through `onClick` (pointer-only) would make the item unreachable by
+          // keyboard; wiring both would double-fire on click.
+          onClick={item.keepOpen ? undefined : item.onClick}
+          onSelect={
+            item.keepOpen
+              ? (e) => {
+                  e.preventDefault();
+                  item.onClick?.();
+                }
+              : undefined
+          }
           disabled={item.disabled}
         >
           {Icon && <Icon />}
