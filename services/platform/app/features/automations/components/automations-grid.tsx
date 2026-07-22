@@ -725,6 +725,8 @@ export function AutomationsGrid({
         variant="secondary"
         onClick={() =>
           void navigate({
+            to: '/dashboard/$id/automations',
+            params: { id: organizationId },
             search: (prev) => ({ ...prev, tab: 'all' }),
           })
         }
