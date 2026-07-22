@@ -208,7 +208,7 @@
     "convex-test": "0.0.47",
     "postcss-load-config": "6.0.1",
     "seedrandom": "3.0.5",
-    "sharp": "0.33.5",
+    "sharp": "0.35.0",
     "tree-kill": "1.2.2",
     "vitest-axe": "1.0.0-pre.5"
   },
