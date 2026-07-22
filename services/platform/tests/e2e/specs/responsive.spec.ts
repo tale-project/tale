@@ -13,11 +13,12 @@ import { t } from '../helpers/i18n';
  *
  * The app's responsive split is the Tailwind `md` breakpoint (768px): desktop
  * chrome is `hidden md:flex` (side rail, settings desktop Save slot); mobile
- * chrome is `md:hidden` (the in-flow `BottomTabBar`, the settings mobile Save
- * bar). There is NO hamburger drawer — primary nav is the bottom tab bar, and a
- * trailing "More" tab opens a bottom `Sheet` (Radix dialog named "More") with
- * the overflow destinations. The settings test makes a throwaway dirty edit to
- * reveal the mobile Save bar, then reloads to discard it (nothing persists).
+ * chrome is `md:hidden` (the in-flow `BottomTabBar`, the content-width floating
+ * Save dock above it). There is NO hamburger drawer — primary nav is the bottom
+ * tab bar, and a trailing "More" tab opens a bottom `Sheet` (Radix dialog named
+ * "More") with the overflow destinations. The settings test makes a throwaway
+ * dirty edit to reveal the floating Save, then reloads to discard it (nothing
+ * persists).
  */
 
 // Phone viewport — OVERRIDES the project's Desktop Chrome viewport for this file
@@ -25,10 +26,8 @@ import { t } from '../helpers/i18n';
 test.use({ viewport: { width: 390, height: 844 } });
 
 /**
- * The settings Save cluster renders TWICE (mobile bar `md:hidden`, desktop slot
- * `hidden md:flex`), both mounting only once an editor is dirty. At `< md` the
- * only one that can be visible is the mobile bar, so the visible-filtered Save
- * button is unambiguously the mobile variant.
+ * Settings mounts Save once via `useIsMobile`: the floating dock on `< md`, the
+ * header slot on `md+`. At phone width the visible Save is the floating dock.
  */
 function visibleSaveButton(page: Page) {
   return page
@@ -80,7 +79,7 @@ test.describe('responsive / mobile layout', () => {
     await expect(moreSheet).toBeHidden({ timeout: TIMEOUT.VISIBLE });
   });
 
-  test('settings: the mobile Save bar is the visible Save cluster', async ({
+  test('settings: the floating Save dock is the visible Save cluster', async ({
     page,
     org,
   }) => {
@@ -105,23 +104,19 @@ test.describe('responsive / mobile layout', () => {
     await expect(nameField).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     await expect(nameField).toBeEnabled();
 
-    // The Save cluster is always mounted (`EditorActions` renders whenever an
-    // editor is registered); it's just *disabled* until the editor is dirty. At
-    // `< md` only the mobile bar is in the a11y tree — the desktop cluster is
-    // `hidden md:flex` (display:none, excluded) — so exactly one Save button
-    // exists, and while clean it's the visible-but-disabled mobile variant.
+    // Save mounts once (`useIsMobile` gates floating vs header). While clean
+    // it's the visible-but-disabled floating dock above the bottom tab bar.
     const save = visibleSaveButton(page);
     await expect(save).toHaveCount(1, { timeout: TIMEOUT.VISIBLE });
     await expect(save).toBeVisible();
     await expect(save).toBeDisabled();
 
-    // A throwaway dirty edit enables the mobile Save. NOTHING is saved.
+    // A throwaway dirty edit enables the floating Save. NOTHING is saved.
     const originalName = await nameField.inputValue();
     await nameField.fill(`${originalName} (responsive-probe)`);
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
 
-    // Still exactly one Save button at `< md` (desktop cluster stays
-    // display:none, so it never enters the accessibility tree).
+    // Still exactly one Save button at `< md` (header slot is unmounted).
     await expect(
       page.getByRole('button', { name: t('common.actions.save'), exact: true }),
     ).toHaveCount(1);

@@ -1,4 +1,4 @@
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -31,5 +31,16 @@ describe('PageLayout', () => {
       );
       await checkAccessibility(container);
     });
+  });
+
+  it('does not apply floating-actions pad on the layout shell', () => {
+    const { container } = render(
+      <PageLayout>
+        <p>Page content</p>
+      </PageLayout>,
+    );
+    expect(container.firstElementChild?.className ?? '').not.toContain(
+      '--mobile-floating-actions-pad',
+    );
   });
 });
