@@ -35,6 +35,7 @@ describe('cacheControlForStaticPath', () => {
     ['/assets/vendor-radix-C-BNZUpZ.js', IMMUTABLE], // hash contains '-'
     ['/assets/vendor-katex-_Zecxha_.css', IMMUTABLE], // hash contains '_'
     ['/assets/vendor-katex-DUoGyCxW.js.map', IMMUTABLE], // sourcemap
+    ['/assets/queries-LIOgKzLg2.js', IMMUTABLE], // 9-char hash (Rollup collision-extended)
   ])('caches %s immutably', (pathname, expected) => {
     expect(cacheControlForStaticPath(pathname)).toBe(expected);
   });

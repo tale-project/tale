@@ -292,7 +292,7 @@ const moduleDir = dirname(fileURLToPath(import.meta.url));
 const distDir = join(moduleDir, 'dist');
 const distSeoDir = join(moduleDir, 'dist-seo');
 
-// Content-hashed bundler output — `assets/<name>-<8-char hash>.js|css` (+ its
+// Content-hashed bundler output — `assets/<name>-<hash>.js|css` (+ its
 // `.map`) — is content-addressed: a given filename never maps to different
 // bytes across builds (Vite's default hashing; the deploy publishes a fresh
 // tree and never reuses a name), so it is safe to cache forever as immutable.
@@ -301,10 +301,13 @@ const distSeoDir = join(moduleDir, 'dist-seo');
 // un-hashed `public/assets/*` images, and version-pinned `/canvas-libs/*` — so
 // those must revalidate. Scoping to `/assets/` + the `.js|.css` extension keeps
 // the un-hashed images (svg/png) and `/canvas-libs/*` out of the immutable
-// bucket; the hash pattern is belt-and-suspenders. Fail-safe: an unmatched
+// bucket; the hash pattern is belt-and-suspenders. `{8,}` (not `{8}`) because
+// Rollup extends a hash past its usual 8 chars to break collisions between
+// same-named chunks (e.g. several `queries-*.js`). Fail-safe: an unmatched
 // hashed file merely loses the optimization (revalidates), never serves stale
-// bytes — so a future Vite hash-length change degrades gracefully.
-const IMMUTABLE_ASSET = /^\/assets\/.+-[A-Za-z0-9_-]{8}\.(?:js|css)(?:\.map)?$/;
+// bytes.
+const IMMUTABLE_ASSET =
+  /^\/assets\/.+-[A-Za-z0-9_-]{8,}\.(?:js|css)(?:\.map)?$/;
 export function cacheControlForStaticPath(pathname: string): string {
   return IMMUTABLE_ASSET.test(pathname)
     ? 'public, max-age=31536000, immutable'
