@@ -164,7 +164,7 @@ describe('ConversationHeader', () => {
     expect(screen.getByText('Project proposal feedback')).toBeInTheDocument();
   });
 
-  it('falls back to email when contact name is missing', () => {
+  it('falls back to email when contact name is missing without duplicating it on the meta line', () => {
     render(
       <ConversationHeader
         conversation={makeConversation({
@@ -181,23 +181,28 @@ describe('ConversationHeader', () => {
       />,
     );
 
-    const nameElements = screen.getAllByText('sarah@company.com');
-    expect(nameElements.length).toBeGreaterThanOrEqual(1);
+    // Primary shows the email; the meta line must not repeat it (that doubled
+    // the string on phone widths and forced the timestamp to wrap mid-phrase).
+    expect(screen.getAllByText('sarah@company.com')).toHaveLength(1);
+    expect(screen.getByText('2 min ago')).toHaveClass('whitespace-nowrap');
   });
 
-  it('renders back button on mobile when onBack is provided', () => {
+  it('keeps the contact email on the meta line for desktop widths only', () => {
     render(
       <ConversationHeader
         conversation={makeConversation()}
         organizationId="org-1"
-        onBack={vi.fn()}
       />,
     );
 
-    expect(screen.getByLabelText('Back')).toBeInTheDocument();
+    expect(screen.getByText('Sarah Johnson')).toBeInTheDocument();
+    const email = screen.getByText('sarah@company.com');
+    expect(email).toBeInTheDocument();
+    // Mobile hides the sender email (contact info already has it); md+ keeps it.
+    expect(email).toHaveClass('hidden', 'md:inline');
   });
 
-  it('does not render back button when onBack is not provided', () => {
+  it('does not render a back control (back lives in the page header)', () => {
     render(
       <ConversationHeader
         conversation={makeConversation()}
