@@ -5,15 +5,15 @@ description: How the agents picker works in Chat — which agents appear, what "
 
 Picking an agent in Chat is the difference between asking a generic Assistant and asking something the org has shaped for a domain. The agents picker is the most-used control in the chat; the rules behind which agent appears, when an agent persists, and what happens when you switch mid-chat are the subject of this page.
 
-<Frame caption="The agent picker open over the chat — Auto, the installed agents, and the Catalog shortcut.">
+<Frame caption="The agent picker open over the chat — Auto, the installed agents, and the Browse agents shortcut.">
 
-![The agent picker open above the chat input, showing a search field, an Auto entry, the selected Assistant, an Automation Assistant entry, and a Browse automations button.](/images/platform/chat-agent-picker.webp)
+![The agent picker open above the chat input, showing a search field, an Auto entry, the selected Assistant, an Automation Assistant entry, and a Browse agents button.](/images/platform/chat-agent-picker.webp)
 
 </Frame>
 
 ## The agents picker
 
-Click the agent chip on the chat (its accessible name is **Select agent**) and the picker opens with **Search agents** at the top. The list shows **Auto** — Tale routes each message to the best-fitting agent — followed by every agent you have access to that is marked **Visible in chat**; coding agents get their own **Coding agents** section when any are visible. Agents without that toggle exist in the org but never surface here, which keeps the list short. **Browse automations** at the bottom leads to the [Automations catalog](/platform/automations/catalog) — new agents arrive as part of an automation you install.
+Click the agent chip on the chat (its accessible name is **Select agent**) and the picker opens with **Search agents** at the top. The list shows **Auto** — Tale routes each message to the best-fitting agent — followed by every agent you have access to that is marked **Visible in chat**; coding agents get their own **Coding agents** section when any are visible. Agents without that toggle exist in the org but never surface here, which keeps the list short. **Browse agents** at the bottom leads to the [agents list](/platform/agents/create) — create, upload, or manage agents there.
 
 ## "Visible in chat"
 

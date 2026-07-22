@@ -477,12 +477,12 @@ describe('ChatInput disabled composer (no agents)', () => {
     expect(screen.queryByText(/publish/i)).not.toBeInTheDocument();
   });
 
-  it('shows Browse automations for an admin who can install agents', () => {
+  it('shows Browse agents for an admin who can install agents', () => {
     mockCan.mockReturnValue(true);
     renderDisabledForNoAgents();
 
     expect(
-      screen.getByRole('link', { name: 'Browse automations' }),
+      screen.getByRole('link', { name: 'Browse agents' }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/ask an admin/i)).not.toBeInTheDocument();
   });
@@ -497,7 +497,7 @@ describe('ChatInput disabled composer (no agents)', () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Browse automations' }),
+      screen.queryByRole('link', { name: 'Browse agents' }),
     ).not.toBeInTheDocument();
   });
 });

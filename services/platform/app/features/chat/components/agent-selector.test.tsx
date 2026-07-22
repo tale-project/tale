@@ -19,7 +19,7 @@ vi.mock('@/lib/i18n/client', () => ({
         'agentSelector.auto': 'Auto',
         'agentSelector.autoDescription':
           'Auto picks the best agent per message.',
-        'agentSelector.browseAutomations': 'Browse automations',
+        'agentSelector.browseAgents': 'Browse agents',
         'agentSelector.sectionAgents': 'Agents',
         'agentSelector.sectionCodingAgents': 'Coding agents',
         'agentSelector.sectionImageAgents': 'Image agents',
@@ -240,13 +240,13 @@ describe('AgentSelector', () => {
     expect(trigger).toHaveClass('sm:min-w-32');
   });
 
-  it('shows the "Browse automations" button when user has write permission', async () => {
+  it('shows the "Browse agents" button when user has write permission', async () => {
     const { user } = render(<AgentSelector organizationId="org-1" />);
 
     const trigger = screen.getByLabelText('Select agent');
     await user.click(trigger);
 
-    expect(screen.getByText('Browse automations')).toBeInTheDocument();
+    expect(screen.getByText('Browse agents')).toBeInTheDocument();
   });
 
   it('groups platform and coding agents under section headers', async () => {
@@ -273,7 +273,7 @@ describe('AgentSelector', () => {
     expect(screen.getByText('Software Developer')).toBeInTheDocument();
   });
 
-  it('hides the "Browse automations" button when user lacks write permission', async () => {
+  it('hides the "Browse agents" button when user lacks write permission', async () => {
     mockCanWrite = false;
 
     const { user } = render(<AgentSelector organizationId="org-1" />);
@@ -281,7 +281,7 @@ describe('AgentSelector', () => {
     const trigger = screen.getByLabelText('Select agent');
     await user.click(trigger);
 
-    expect(screen.queryByText('Browse automations')).not.toBeInTheDocument();
+    expect(screen.queryByText('Browse agents')).not.toBeInTheDocument();
   });
 
   it('shows a "view agent details" link on each agent row (not Auto) for managers', async () => {
@@ -327,17 +327,17 @@ describe('AgentSelector', () => {
     expect(mockSetSelectedAgent).not.toHaveBeenCalled();
   });
 
-  it('navigates to the automations catalog when "Browse automations" is clicked', async () => {
+  it('navigates to the agents roster when "Browse agents" is clicked', async () => {
     const { user } = render(<AgentSelector organizationId="org-1" />);
 
     const trigger = screen.getByLabelText('Select agent');
     await user.click(trigger);
 
-    const addButton = screen.getByText('Browse automations');
+    const addButton = screen.getByText('Browse agents');
     await user.click(addButton);
 
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/automations',
+      to: '/dashboard/$id/agents',
       params: { id: 'org-1' },
     });
   });
