@@ -2,7 +2,7 @@
 
 import { IconButton } from '@tale/ui/icon-button';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { ChevronLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -12,7 +12,7 @@ interface SettingsMobileBackButtonProps {
 }
 
 /**
- * Mobile-only back chevron for settings *sub-pages*. On mobile the settings rail
+ * Mobile-only back arrow for settings *sub-pages*. On mobile the settings rail
  * is hidden and the dedicated overview routes (`/settings`, `/settings/personal`)
  * drive navigation, so a sub-page (e.g. `/settings/branding`) needs an explicit
  * way back to its overview list.
@@ -27,7 +27,8 @@ interface SettingsMobileBackButtonProps {
  * main Settings list and pressing back stranded the user on a narrower list
  * they never navigated to. Rendered as a child of the settings
  * `AdaptiveHeaderRoot` so it slots into the mobile top bar; `md:hidden` keeps
- * it off the desktop header strip.
+ * it off the desktop header strip. Uses the dense `sm` icon square so the
+ * glyph sits with the title rather than a padded toolbar button.
  */
 export function SettingsMobileBackButton({
   organizationId,
@@ -62,10 +63,12 @@ export function SettingsMobileBackButton({
 
   return (
     <IconButton
-      icon={ChevronLeft}
+      icon={ArrowLeft}
+      iconSize={5}
+      size="sm"
       aria-label={t('aria.back')}
       onClick={handleBack}
-      className="md:hidden"
+      className="-ml-1.5 md:hidden"
     />
   );
 }

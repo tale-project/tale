@@ -1,6 +1,6 @@
 import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
-import { ChevronLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { isValidElement, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -51,7 +51,7 @@ export function HeaderBreadcrumbs({
   // detail page would otherwise have NO way back. Collapse to an icon-only
   // back button to the immediate parent (the last ancestor): `IconButton
   // asChild` re-uses that crumb's own `Link` — swapping its label for a back
-  // chevron — so the destination and the router stay the caller's, and the
+  // arrow — so the destination and the router stay the caller's, and the
   // control is a compact icon rather than a width-hungry label. The desktop
   // trail below renders the same ancestor node; one copy is `display:none`
   // per breakpoint, so exactly one parent link stays in the a11y tree.
@@ -65,9 +65,11 @@ export function HeaderBreadcrumbs({
         <IconButton
           asChild
           slotChild={parentContent}
-          icon={ChevronLeft}
+          icon={ArrowLeft}
+          iconSize={5}
+          size="sm"
           aria-label={t('aria.back')}
-          className="shrink-0 md:hidden"
+          className="-ml-1.5 shrink-0 md:hidden"
         />
       )}
       <ol className="flex min-w-0 items-center gap-2 text-base font-semibold">
