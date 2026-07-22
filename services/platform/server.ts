@@ -291,6 +291,25 @@ const port = process.env.PORT || 3000;
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const distDir = join(moduleDir, 'dist');
 const distSeoDir = join(moduleDir, 'dist-seo');
+
+// Content-hashed bundler output — `assets/<name>-<8-char hash>.js|css` (+ its
+// `.map`) — is content-addressed: a given filename never maps to different
+// bytes across builds (Vite's default hashing; the deploy publishes a fresh
+// tree and never reuses a name), so it is safe to cache forever as immutable.
+// Everything else served from `dist/` has a stable name that CAN change across
+// deploys — `index.html`, `sw.js`, `manifest.webmanifest`, favicons, the
+// un-hashed `public/assets/*` images, and version-pinned `/canvas-libs/*` — so
+// those must revalidate. Scoping to `/assets/` + the `.js|.css` extension keeps
+// the un-hashed images (svg/png) and `/canvas-libs/*` out of the immutable
+// bucket; the hash pattern is belt-and-suspenders. Fail-safe: an unmatched
+// hashed file merely loses the optimization (revalidates), never serves stale
+// bytes — so a future Vite hash-length change degrades gracefully.
+const IMMUTABLE_ASSET = /^\/assets\/.+-[A-Za-z0-9_-]{8}\.(?:js|css)(?:\.map)?$/;
+export function cacheControlForStaticPath(pathname: string): string {
+  return IMMUTABLE_ASSET.test(pathname)
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache';
+}
 // Branding is per-org: images live at
 // `${TALE_CONFIG_DIR}/<orgSlug>/branding/images/<filename>`. The org slug is a
 // path segment in the request (`/branding/images/:orgSlug/:filename`) and is
@@ -894,7 +913,11 @@ export function createApp(
       if (filePath.startsWith(distDir)) {
         const file = Bun.file(filePath);
         if (await file.exists()) {
-          return new Response(file);
+          // Bun infers Content-Type from the file extension; we only add the
+          // caching directive (immutable for content-hashed chunks).
+          return new Response(file, {
+            headers: { 'Cache-Control': cacheControlForStaticPath(pathname) },
+          });
         }
       }
     }
@@ -964,9 +987,12 @@ export function createApp(
     return new Response(html, {
       headers: {
         'Content-Type': 'text/html',
-        // In dev, never let the browser reuse a cached shell — a live-reload
-        // must fetch the freshly-published index.html (new chunk hashes).
-        ...(DEV_HOT_RELOAD ? { 'Cache-Control': 'no-store' } : {}),
+        // Never cache the SPA shell without revalidation: it embeds the
+        // content-hashed chunk filenames, which change on every deploy, so a
+        // heuristically-cached shell would reference deleted chunks. In dev a
+        // live-reload must fetch the freshly-published index.html, and
+        // `no-store` additionally blocks any reuse of a stale shell.
+        'Cache-Control': DEV_HOT_RELOAD ? 'no-store' : 'no-cache',
       },
     });
   });
