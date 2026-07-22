@@ -211,6 +211,7 @@
         "@measured/puck": "^0.20.2",
         "@microlink/react-json-view": "1.31.18",
         "@milkdown/crepe": "7.20.0",
+        "@milkdown/kit": "7.20.0",
         "@milkdown/react": "7.20.0",
         "@modelcontextprotocol/sdk": "1.29.0",
         "@noble/curves": "1.9.7",

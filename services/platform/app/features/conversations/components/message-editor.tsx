@@ -1,6 +1,7 @@
 'use client';
 
 import { Crepe } from '@milkdown/crepe';
+import { getHTML } from '@milkdown/kit/utils';
 import {
   Milkdown,
   MilkdownProvider,
@@ -9,11 +10,8 @@ import {
 } from '@milkdown/react';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import DOMPurify from 'dompurify';
 import { LoaderIcon } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import ReactMarkdown from 'react-markdown';
 
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
@@ -28,31 +26,13 @@ import { useImproveMessage } from '../hooks/actions';
 import { EditorActionBar } from './message-editor/editor-action-bar';
 import { FileAttachmentsList } from './message-editor/file-attachments-list';
 import { ImproveMode } from './message-editor/improve-mode';
+import { toOutboundHtml } from './message-editor/outbound-html';
 import {
   type AttachedFile,
   type MessageEditorProps,
   messageDraftKeys,
 } from './message-editor/types';
 import { MessageImprovementDialog } from './message-improvement-dialog';
-
-function markdownToHtml(md: string): string {
-  const src = md.trim();
-  if (!src) return '';
-  const raw = renderToStaticMarkup(
-    <ReactMarkdown
-      components={{
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            {children}
-          </a>
-        ),
-      }}
-    >
-      {src}
-    </ReactMarkdown>,
-  );
-  return DOMPurify.sanitize(raw);
-}
 
 interface MilkdownEditorInnerProps extends MessageEditorProps {
   onMessageSent?: () => void;
@@ -221,13 +201,24 @@ function MilkdownEditorInner({
   }, []);
 
   const handleSendMessage = useCallback(async () => {
-    const markdown = message || '';
-    const html = markdownToHtml(markdown);
+    // Serialize the live editor document through its own schema (getHTML) so
+    // the sent HTML is exactly what the editor displayed. Re-rendering the
+    // markdown state through a second renderer disagreed with the editor —
+    // e.g. Milkdown serializes empty paragraphs as raw `<br />` markdown,
+    // which shipped as literal "<br />" text. The markdown state still gates
+    // emptiness: an empty document serializes to `<p></p>`, which would
+    // otherwise read as a non-empty body.
+    const hasBody = message.trim().length > 0;
+    const editorHtml =
+      hasBody && crepeRef.current
+        ? crepeRef.current.editor.action(getHTML())
+        : '';
+    const html = editorHtml ? toOutboundHtml(editorHtml) : '';
 
     if ((html.trim() || attachedFiles.length > 0) && onSave) {
       startSendingTransition(async () => {
         try {
-          await onSave(html, attachedFiles);
+          await onSave(html, attachedFiles, hasBody ? message : undefined);
 
           setAttachedFiles([]);
           setIsImproveMode(false);

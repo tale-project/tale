@@ -27,11 +27,14 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
   useDeleteConversation,
+  useDiscardOutboundMessage,
   useDownloadAttachments,
   useGenerateUploadUrl,
   useMarkAsRead,
   useReopenConversation,
+  useRetrySendMessage,
   useSendMessageViaIntegration,
+  useUndoSendMessage,
 } from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
 import { ConversationHeader } from './conversation-header';
@@ -137,6 +140,15 @@ export function ConversationPanel({
     useReopenConversation();
   const { mutate: deleteConversation, isPending: isDeleting } =
     useDeleteConversation();
+  const { mutate: undoSendMessage } = useUndoSendMessage();
+  const { mutate: retrySendMessage } = useRetrySendMessage();
+  const { mutate: discardOutboundMessage } = useDiscardOutboundMessage();
+
+  // Draft handed back by an undo-send: seeds the composer's pendingMessage so
+  // the message the user just cancelled reappears exactly as they wrote it.
+  const [restoredDraft, setRestoredDraft] = useState<
+    { id: string; content: string } | undefined
+  >(undefined);
 
   const { formatDate } = useFormatDate();
 
@@ -198,10 +210,16 @@ export function ConversationPanel({
   const handleSaveMessage = async (
     message: string,
     attachments?: AttachedFile[],
+    sourceMarkdown?: string,
   ) => {
     if (!conversation) {
       return;
     }
+
+    // A previous undo's draft has served its purpose the moment a new send
+    // goes out — dropping it keeps the editor's re-seed effect from restoring
+    // stale content after this send clears the composer.
+    setRestoredDraft(undefined);
 
     let uploadedAttachments:
       | Array<{
@@ -286,10 +304,61 @@ export function ConversationPanel({
       subject: replySubject,
       html: message,
       text: message.replace(/<[^>]*>/g, ''),
+      ...(sourceMarkdown ? { sourceMarkdown } : {}),
       ...(uploadedAttachments?.length
         ? { attachments: uploadedAttachments }
         : {}),
     });
+  };
+
+  const handleUndoSend = (messageId: string) => {
+    undoSendMessage(
+      { messageId: toId<'conversationMessages'>(messageId) },
+      {
+        onSuccess: ({ sourceMarkdown }) => {
+          if (sourceMarkdown) {
+            setRestoredDraft({ id: messageId, content: sourceMarkdown });
+          }
+        },
+        onError: (error) => {
+          console.error('Failed to undo send:', error);
+          toast({
+            title: tConversations('panel.undoSendFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
+  const handleRetrySend = (messageId: string) => {
+    retrySendMessage(
+      { messageId: toId<'conversationMessages'>(messageId) },
+      {
+        onError: (error) => {
+          console.error('Failed to retry send:', error);
+          toast({
+            title: tConversations('panel.retrySendFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
+  const handleDiscardOutbound = (messageId: string) => {
+    discardOutboundMessage(
+      { messageId: toId<'conversationMessages'>(messageId) },
+      {
+        onError: (error) => {
+          console.error('Failed to discard message:', error);
+          toast({
+            title: tConversations('panel.discardMessageFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   // No selection (and not force-loading) → real empty state, never masked.
@@ -529,6 +598,9 @@ export function ConversationPanel({
                           <Message
                             key={message.id}
                             message={message}
+                            onUndoSend={handleUndoSend}
+                            onRetrySend={handleRetrySend}
+                            onDiscard={handleDiscardOutbound}
                             onDownloadAttachments={(messageId) => {
                               downloadAttachments(
                                 {
@@ -604,7 +676,7 @@ export function ConversationPanel({
                   onConversationResolved={() => {
                     onSelectedConversationChange(null);
                   }}
-                  pendingMessage={pendingMessage}
+                  pendingMessage={restoredDraft ?? pendingMessage}
                   hasMessageHistory={displayMessages.length > 0}
                   organizationId={conversation.organizationId}
                 />

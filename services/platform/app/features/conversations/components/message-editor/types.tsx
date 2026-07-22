@@ -14,6 +14,12 @@ export interface MessageEditorProps {
   onSave?: (
     message: string,
     attachments?: AttachedFile[],
+    /**
+     * The editor's markdown state at send time. Callers pass it to the send
+     * mutation, which stores it in message metadata so an undo-send can hand
+     * the draft back — it is never part of the outbound email.
+     */
+    sourceMarkdown?: string,
   ) => void | Promise<void>;
   messageId?: string;
   businessId?: string;

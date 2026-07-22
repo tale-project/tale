@@ -10,13 +10,26 @@ import { render, screen } from '@/tests/utils/render';
 let renderCount = 0;
 let capturedOnSend: (() => void) | null = null;
 
+// The HTML the mocked editor "displays" — the send path must deliver exactly
+// this document (serialized via the editor's own getHTML action), not a
+// re-render of the markdown state.
+const MOCK_EDITOR_HTML =
+  '<p>hello</p><p></p><p><a href="https://example.com">link</a></p>';
+
 vi.mock('@milkdown/crepe', () => {
   class MockCrepe {
     static Feature = { Placeholder: 'placeholder' };
     on() {}
+    get editor() {
+      return { action: () => MOCK_EDITOR_HTML };
+    }
   }
   return { Crepe: MockCrepe };
 });
+
+vi.mock('@milkdown/kit/utils', () => ({
+  getHTML: () => () => '',
+}));
 
 vi.mock('@milkdown/react', () => ({
   MilkdownProvider: ({ children }: { children: React.ReactNode }) => {
@@ -28,20 +41,16 @@ vi.mock('@milkdown/react', () => ({
     );
   },
   Milkdown: () => <div data-testid="milkdown-editor" />,
-  useEditor: vi.fn(),
+  // Run the factory so the component's crepeRef is populated, mirroring the
+  // real hook's behaviour enough for the send path to reach the editor.
+  useEditor: (factory: (root: HTMLElement) => unknown) => {
+    factory(document.createElement('div'));
+  },
   useInstance: () => [false],
 }));
 
 vi.mock('dompurify', () => ({
   default: { sanitize: (html: string) => html },
-}));
-
-vi.mock('react-dom/server', () => ({
-  renderToStaticMarkup: () => '<p>content</p>',
-}));
-
-vi.mock('react-markdown', () => ({
-  default: ({ children }: { children: string }) => <>{children}</>,
 }));
 
 vi.mock('@/app/hooks/use-convex-auth', () => ({
@@ -129,6 +138,26 @@ describe('MessageEditor', () => {
 
     expect(onSave).toHaveBeenCalled();
     expect(renderCount).toBeGreaterThan(initialCount);
+  });
+
+  it('sends the editor-serialized document, with anchors decorated', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
+
+    await act(async () => {
+      capturedOnSend?.();
+    });
+
+    // The sent HTML is the editor's own document — empty paragraphs stay
+    // real elements (never literal "<br />" text) and links gain the
+    // outbound target/rel policy. The third argument is the markdown draft
+    // at send time, threaded through for undo-send draft restore.
+    expect(onSave).toHaveBeenCalledWith(
+      '<p>hello</p><p></p><p><a href="https://example.com" target="_blank" rel="noopener noreferrer">link</a></p>',
+      [],
+      'some content',
+    );
   });
 
   it('clears localStorage after successful send', async () => {

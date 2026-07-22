@@ -49,6 +49,8 @@ export interface ComposeEmailConversationArgs {
   integrationName: string;
   subject: string;
   content: string;
+  /** Composer markdown at send time — stored for undo-send draft restore. */
+  sourceMarkdown?: string;
   /**
    * Sender address for the thread (dynamic-sender / imap_smtp only). Any address
    * on the integration's verified domain; the send action's `resolveReplyFrom`
@@ -138,6 +140,7 @@ export async function composeEmailConversation(
       subject,
       html,
       text,
+      ...(args.sourceMarkdown ? { sourceMarkdown: args.sourceMarkdown } : {}),
       ...(args.attachments?.length ? { attachments: args.attachments } : {}),
     }),
   };

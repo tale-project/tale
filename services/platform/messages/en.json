@@ -2281,7 +2281,10 @@
       "deleting": "Deleting...",
       "deleteSuccess": "Conversation deleted successfully.",
       "deleteFailed": "Failed to delete conversation.",
-      "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}"
+      "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}",
+      "undoSendFailed": "Couldn't undo the send — the message may already be on its way.",
+      "retrySendFailed": "Couldn't retry the send.",
+      "discardMessageFailed": "Couldn't delete the message."
     },
     "list": {
       "empty": "No conversations in this tab"
@@ -2314,6 +2317,13 @@
     },
     "history": {
       "loadingMore": "Searching more conversations…"
+    },
+    "message": {
+      "sendingIn": "Sending in {seconds}s",
+      "undoSend": "Undo",
+      "notDelivered": "Not delivered",
+      "retrySend": "Retry",
+      "discard": "Delete"
     }
   },
   "contacts": {

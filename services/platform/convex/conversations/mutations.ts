@@ -8,11 +8,14 @@ import { buildAuditContext } from '../lib/helpers/build_audit_context';
 import { mutationWithRLS } from '../lib/rls';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { composeEmailConversation as composeEmailConversationHelper } from './compose_email_conversation';
+import { discardOutboundMessage as discardOutboundMessageHelper } from './discard_outbound_message';
 import * as ConversationsHelpers from './helpers';
 import {
   bulkReplyToConversations as bulkReplyToConversationsHelper,
   replyToConversation as replyToConversationHelper,
 } from './reply_to_conversation';
+import { retrySendMessage as retrySendMessageHelper } from './retry_send_message';
+import { undoSendMessage as undoSendMessageHelper } from './undo_send_message';
 import {
   bulkOperationResultValidator,
   conversationStatusValidator,
@@ -66,6 +69,9 @@ export const sendMessageViaIntegration = mutationWithRLS({
     text: v.optional(v.string()),
     inReplyTo: v.optional(v.string()),
     references: v.optional(v.array(v.string())),
+    // Composer draft (markdown) at send time — stored in message metadata for
+    // undo-send draft restore, never part of the outbound email.
+    sourceMarkdown: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -88,6 +94,7 @@ export const replyToConversation = mutationWithRLS({
     conversationId: v.id('conversations'),
     organizationId: v.string(),
     content: v.string(),
+    sourceMarkdown: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -112,6 +119,7 @@ export const composeEmailConversation = mutationWithRLS({
     integrationName: v.string(),
     subject: v.string(),
     content: v.string(),
+    sourceMarkdown: v.optional(v.string()),
     from: v.optional(v.string()),
     // Chosen assignee (Better Auth userId). Defaults to the creator; only an
     // admin may set a different member — a non-admin pick is clamped to self.
@@ -514,6 +522,54 @@ export const downloadAttachments = mutationWithRLS({
       },
     );
 
+    return null;
+  },
+});
+
+/**
+ * Cancel an outbound send while it's still inside its undo window (queued,
+ * delivery scheduled but not fired). Deletes the message and returns the
+ * composer's markdown so the client can restore the draft.
+ */
+export const undoSendMessage = mutationWithRLS({
+  args: {
+    messageId: v.id('conversationMessages'),
+  },
+  returns: v.object({
+    sourceMarkdown: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    return await undoSendMessageHelper(ctx, args);
+  },
+});
+
+/**
+ * Re-attempt delivery of a failed outbound message. Rebuilds the send from
+ * the stored row and schedules it immediately (no undo window on a retry).
+ */
+export const retrySendMessage = mutationWithRLS({
+  args: {
+    messageId: v.id('conversationMessages'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await retrySendMessageHelper(ctx, args);
+    return null;
+  },
+});
+
+/**
+ * Remove a failed outbound message from the thread. The email never delivered,
+ * so deleting the row discards it without a composer restore (use Undo for
+ * still-queued sends that should come back as a draft).
+ */
+export const discardOutboundMessage = mutationWithRLS({
+  args: {
+    messageId: v.id('conversationMessages'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await discardOutboundMessageHelper(ctx, args);
     return null;
   },
 });

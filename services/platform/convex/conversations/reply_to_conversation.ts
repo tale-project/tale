@@ -34,6 +34,8 @@ export interface ReplyToConversationArgs {
   conversationId: Id<'conversations'>;
   organizationId: string;
   content: string;
+  /** Composer markdown at send time — stored for undo-send draft restore. */
+  sourceMarkdown?: string;
   attachments?: Array<{
     storageId: Id<'_storage'>;
     fileName: string;
@@ -106,6 +108,7 @@ export async function replyToConversation(
     subject,
     html,
     text,
+    ...(args.sourceMarkdown ? { sourceMarkdown: args.sourceMarkdown } : {}),
     ...(args.attachments?.length ? { attachments: args.attachments } : {}),
   });
 }

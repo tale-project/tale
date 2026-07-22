@@ -2281,7 +2281,10 @@
       "deleting": "Lösche...",
       "deleteSuccess": "Konversation gelöscht.",
       "deleteFailed": "Konversation konnte nicht gelöscht werden.",
-      "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten}} anzeigen"
+      "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten}} anzeigen",
+      "undoSendFailed": "Das Senden lässt sich nicht mehr abbrechen — die Nachricht ist vermutlich schon unterwegs.",
+      "retrySendFailed": "Das erneute Senden konnte nicht gestartet werden.",
+      "discardMessageFailed": "Die Nachricht konnte nicht gelöscht werden."
     },
     "list": {
       "empty": "Keine Konversationen in diesem Tab"
@@ -2314,6 +2317,13 @@
     },
     "history": {
       "loadingMore": "Weitere Konversationen werden durchsucht…"
+    },
+    "message": {
+      "sendingIn": "Sendet in {seconds}s",
+      "undoSend": "Rückgängig",
+      "notDelivered": "Nicht zugestellt",
+      "retrySend": "Erneut senden",
+      "discard": "Löschen"
     }
   },
   "contacts": {
