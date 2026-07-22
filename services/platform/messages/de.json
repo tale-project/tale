@@ -1802,6 +1802,9 @@
       "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf das Projekt dieser Konversation.",
       "PROJECT_NOT_FOUND": "Das Projekt dieser Konversation existiert nicht mehr.",
       "PROJECT_ORG_MISMATCH": "Das Projekt dieser Konversation gehört zu einer anderen Organisation."
+    },
+    "assistantModelSelector": {
+      "label": "Assistent und Modell"
     }
   },
   "common": {

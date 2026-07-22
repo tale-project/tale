@@ -17,6 +17,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
+import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { BlobRef } from '@/convex/lib/storage/blob_ref';
@@ -47,6 +48,7 @@ import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
+import { AssistantModelSelector } from './assistant-model-selector';
 import { AttachmentTray } from './chat-input/attachment-tray';
 import { toBcp47 } from './chat-input/locale-defaults';
 import {
@@ -325,6 +327,9 @@ export function ChatInput({
   const { i18n } = useTranslation();
   const arenaContext = useArenaModeOptional();
   const isArenaMode = arenaContext?.isArenaMode ?? false;
+  // Collapse the agent + model pickers into one control only on the cramped
+  // mobile row; desktop keeps the two separate pickers unchanged.
+  const isComposerMobile = useIsMobile();
 
   const speechLang = toBcp47(i18n.language) ?? 'en-US';
   const policyLimits = useUploadPolicy(organizationId);
@@ -1433,16 +1438,29 @@ export function ChatInput({
                   <ArenaModelSelector organizationId={organizationId} />
                 ) : (
                   <HStack gap={2} align="center">
-                    <AgentSelector
-                      organizationId={organizationId}
-                      projectId={projectId}
-                      threadId={threadId}
-                    />
-                    <ModelSelector
-                      organizationId={organizationId}
-                      projectId={projectId}
-                      threadId={threadId}
-                    />
+                    {/* Desktop is unchanged — two separate pickers, which work
+                        well with the room. Only the cramped mobile row collapses
+                        them into one combined control. */}
+                    {isComposerMobile ? (
+                      <AssistantModelSelector
+                        organizationId={organizationId}
+                        projectId={projectId}
+                        threadId={threadId}
+                      />
+                    ) : (
+                      <>
+                        <AgentSelector
+                          organizationId={organizationId}
+                          projectId={projectId}
+                          threadId={threadId}
+                        />
+                        <ModelSelector
+                          organizationId={organizationId}
+                          projectId={projectId}
+                          threadId={threadId}
+                        />
+                      </>
+                    )}
                     <ExternalAgentModeToggle
                       threadId={threadId}
                       organizationId={organizationId}
