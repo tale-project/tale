@@ -45,6 +45,8 @@ function ProjectAutomationRunDetail() {
     >
       <AutomationDetailShell
         organizationId={organizationId}
+        automationSlug={automationSlug}
+        projectId={projectId}
         displayName={automationSlug}
       >
         <ContentArea>

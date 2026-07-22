@@ -991,6 +991,9 @@
       "drop": "Déposez les fichiers ici, ou",
       "deleteFile": "Supprimer {name}",
       "folderDeleted": "Le dossier de ce trimestre a été supprimé. Recréez-le dans Connaissances ou supprimez ce décompte."
+    },
+    "switcher": {
+      "ariaLabel": "Changer d'automatisation, actuelle : {name}"
     }
   },
   "changelog": {
@@ -8270,6 +8273,9 @@
       "emptyDescription": "Installe une automatisation projet depuis le hub Automatisations, puis ajoute ce projet.",
       "emptyCta": "Parcourir les automatisations",
       "statusBroken": "À réparer"
+    },
+    "switcher": {
+      "ariaLabel": "Changer de projet, actuel : {name}"
     }
   },
   "webdav": {

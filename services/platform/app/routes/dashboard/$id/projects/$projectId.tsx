@@ -27,6 +27,7 @@ import {
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
 import { useProjectViewTabs } from '@/app/features/automations/hooks/use-project-view-tabs';
+import { ProjectBreadcrumbSwitcher } from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
@@ -221,7 +222,11 @@ function ProjectDetailLayout() {
                     className="contents"
                   >
                     {project ? (
-                      project.name
+                      <ProjectBreadcrumbSwitcher
+                        organizationId={organizationId}
+                        projectId={asProjectId(projectId)}
+                        projectName={project.name}
+                      />
                     ) : (
                       <SkeletonBox>
                         <span className="inline-block h-4 w-32 align-middle" />

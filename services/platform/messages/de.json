@@ -991,6 +991,9 @@
       "drop": "Dateien hierher ziehen, oder",
       "deleteFile": "{name} löschen",
       "folderDeleted": "Der Ordner dieses Quartals wurde gelöscht. Legen Sie ihn in Wissen neu an oder entfernen Sie diese Abrechnung."
+    },
+    "switcher": {
+      "ariaLabel": "Automatisierung wechseln, aktuell: {name}"
     }
   },
   "changelog": {
@@ -8270,6 +8273,9 @@
       "emptyDescription": "Installiere eine Projekt-Automatisierung im Automatisierungen-Hub und füge dieses Projekt hinzu.",
       "emptyCta": "Automatisierungen öffnen",
       "statusBroken": "Reparatur nötig"
+    },
+    "switcher": {
+      "ariaLabel": "Projekt wechseln, aktuell: {name}"
     }
   },
   "webdav": {

@@ -28,8 +28,12 @@ import {
 } from '@/app/components/ui/navigation/tab-navigation';
 import { useT } from '@/lib/i18n/client';
 
+import { AutomationBreadcrumbSwitcher } from './automation-breadcrumb-switcher';
+
 export function AutomationDetailShell({
   organizationId,
+  automationSlug,
+  projectId,
   displayName,
   isLoading = false,
   tabs,
@@ -37,6 +41,10 @@ export function AutomationDetailShell({
   children,
 }: {
   organizationId: string;
+  /** Current automation slug — enables the sibling switcher on the leaf. */
+  automationSlug?: string;
+  /** When set, the switcher keeps navigation on the project-scoped route. */
+  projectId?: string;
   /** Localized automation name for the breadcrumb leaf; absent while loading. */
   displayName?: string;
   isLoading?: boolean;
@@ -82,7 +90,16 @@ export function AutomationDetailShell({
                   label={t('title')}
                   className="contents"
                 >
-                  {displayName ?? (
+                  {displayName && automationSlug ? (
+                    <AutomationBreadcrumbSwitcher
+                      organizationId={organizationId}
+                      automationSlug={automationSlug}
+                      displayName={displayName}
+                      projectId={projectId}
+                    />
+                  ) : displayName ? (
+                    displayName
+                  ) : (
                     <SkeletonBox>
                       <span className="inline-block h-4 w-32 align-middle" />
                     </SkeletonBox>
