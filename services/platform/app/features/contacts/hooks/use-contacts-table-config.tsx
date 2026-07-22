@@ -82,8 +82,14 @@ export const useContactsTableConfig = createTableConfigHook<'contacts'>(
         accessorKey: 'name',
         header: sortableHeader<Contact>(tTables('headers.name'), sortLabels),
         size: 200,
+        // `block truncate`: a long value (contacts frequently carry an email as
+        // their name) is an unbreakable token that, as a bare inline span in a
+        // `table-fixed` cell, overflows the column and bleeds over the next one.
+        // `truncate` only clips once the span is block-level with the cell's
+        // width — matches every sibling entity table. Full value is on the row's
+        // detail dialog.
         cell: ({ row }) => (
-          <Text as="span" variant="label">
+          <Text as="span" variant="label" truncate className="block">
             {row.original.name || ''}
           </Text>
         ),
@@ -93,7 +99,7 @@ export const useContactsTableConfig = createTableConfigHook<'contacts'>(
         header: sortableHeader<Contact>(tTables('headers.email'), sortLabels),
         size: 240,
         cell: ({ row }) => (
-          <Text as="span" variant="body">
+          <Text as="span" variant="body" truncate className="block">
             {row.original.email || tTables('cells.noEmail')}
           </Text>
         ),
@@ -105,7 +111,7 @@ export const useContactsTableConfig = createTableConfigHook<'contacts'>(
         size: 160,
         enableSorting: false,
         cell: ({ row }) => (
-          <Text as="span" variant="body">
+          <Text as="span" variant="body" truncate className="block">
             {row.original.phone || ''}
           </Text>
         ),

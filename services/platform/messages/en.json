@@ -991,6 +991,9 @@
       "drop": "Drop files here, or",
       "deleteFile": "Delete {name}",
       "folderDeleted": "This quarter’s folder was deleted. Recreate it in Knowledge, or remove this return."
+    },
+    "switcher": {
+      "ariaLabel": "Switch automation, current: {name}"
     }
   },
   "changelog": {
@@ -1799,7 +1802,11 @@
       "PROJECT_FORBIDDEN": "You don't have access to this conversation's project.",
       "PROJECT_NOT_FOUND": "This conversation's project no longer exists.",
       "PROJECT_ORG_MISMATCH": "This conversation's project belongs to a different organization."
-    }
+    },
+    "assistantModelSelector": {
+      "label": "Assistant and model"
+    },
+    "viewFiles": "View files in chat"
   },
   "common": {
     "optional": "optional",
@@ -5569,6 +5576,9 @@
       "emptyDescription": "Install a project automation from the Automations hub, then add this project.",
       "emptyCta": "Browse Automations",
       "statusBroken": "Needs repair"
+    },
+    "switcher": {
+      "ariaLabel": "Switch project, current: {name}"
     }
   },
   "pwa": {

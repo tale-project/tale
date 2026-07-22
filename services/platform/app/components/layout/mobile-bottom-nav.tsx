@@ -7,10 +7,10 @@ import {
   BrainIcon,
   Folder,
   Inbox,
-  LayoutGrid,
   MessageCircle,
   MoreHorizontal,
   Settings as SettingsIcon,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -136,7 +136,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
       {
         key: 'automations',
         label: tNav('automations'),
-        icon: LayoutGrid,
+        icon: Workflow,
         to: `/dashboard/${organizationId}/automations`,
         activePrefix: `/dashboard/${organizationId}/automations`,
       },
@@ -199,7 +199,8 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         side="bottom"
         title={tNav('more')}
         description={tNav('aria.primaryNavigation')}
-        className="h-auto! max-h-[60vh] rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+        hideClose
+        className="h-auto! max-h-[60vh] rounded-t-2xl p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]"
       >
         <ul role="list" className="flex flex-col gap-1">
           {overflow.map((item) => {

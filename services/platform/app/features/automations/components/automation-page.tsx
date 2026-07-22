@@ -657,6 +657,8 @@ function InstalledAutomationBody({
         <ActiveEditorProvider>
           <AutomationDetailShell
             organizationId={organizationId}
+            automationSlug={automationSlug}
+            projectId={projectId}
             displayName={display.name}
             tabs={navItems}
             tabsChildren={
@@ -1032,6 +1034,8 @@ export function AutomationPage({
     return (
       <AutomationDetailShell
         organizationId={organizationId}
+        automationSlug={automationSlug}
+        projectId={projectId}
         displayName={automationSlug}
       >
         <ContentArea>
@@ -1053,6 +1057,8 @@ export function AutomationPage({
   const shell = (children: React.ReactNode) => (
     <AutomationDetailShell
       organizationId={organizationId}
+      automationSlug={automationSlug}
+      projectId={projectId}
       displayName={displayName}
     >
       <ContentArea gap={6}>{children}</ContentArea>

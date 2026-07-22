@@ -991,6 +991,9 @@
       "drop": "Dateien hierher ziehen, oder",
       "deleteFile": "{name} löschen",
       "folderDeleted": "Der Ordner dieses Quartals wurde gelöscht. Legen Sie ihn in Wissen neu an oder entfernen Sie diese Abrechnung."
+    },
+    "switcher": {
+      "ariaLabel": "Automatisierung wechseln, aktuell: {name}"
     }
   },
   "changelog": {
@@ -1799,7 +1802,11 @@
       "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf das Projekt dieser Konversation.",
       "PROJECT_NOT_FOUND": "Das Projekt dieser Konversation existiert nicht mehr.",
       "PROJECT_ORG_MISMATCH": "Das Projekt dieser Konversation gehört zu einer anderen Organisation."
-    }
+    },
+    "assistantModelSelector": {
+      "label": "Assistent und Modell"
+    },
+    "viewFiles": "Dateien im Chat anzeigen"
   },
   "common": {
     "optional": "optional",
@@ -8280,6 +8287,9 @@
       "emptyDescription": "Installiere eine Projekt-Automatisierung im Automatisierungen-Hub und füge dieses Projekt hinzu.",
       "emptyCta": "Automatisierungen öffnen",
       "statusBroken": "Reparatur nötig"
+    },
+    "switcher": {
+      "ariaLabel": "Projekt wechseln, aktuell: {name}"
     }
   },
   "webdav": {

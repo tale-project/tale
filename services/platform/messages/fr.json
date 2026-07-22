@@ -991,6 +991,9 @@
       "drop": "Déposez les fichiers ici, ou",
       "deleteFile": "Supprimer {name}",
       "folderDeleted": "Le dossier de ce trimestre a été supprimé. Recréez-le dans Connaissances ou supprimez ce décompte."
+    },
+    "switcher": {
+      "ariaLabel": "Changer d'automatisation, actuelle : {name}"
     }
   },
   "changelog": {
@@ -1799,7 +1802,11 @@
       "PROJECT_FORBIDDEN": "Tu n'as pas accès au projet de cette conversation.",
       "PROJECT_NOT_FOUND": "Le projet de cette conversation n'existe plus.",
       "PROJECT_ORG_MISMATCH": "Le projet de cette conversation appartient à une autre organisation."
-    }
+    },
+    "assistantModelSelector": {
+      "label": "Assistant et modèle"
+    },
+    "viewFiles": "Afficher les fichiers du chat"
   },
   "common": {
     "optional": "facultatif",
@@ -8280,6 +8287,9 @@
       "emptyDescription": "Installe une automatisation projet depuis le hub Automatisations, puis ajoute ce projet.",
       "emptyCta": "Parcourir les automatisations",
       "statusBroken": "À réparer"
+    },
+    "switcher": {
+      "ariaLabel": "Changer de projet, actuel : {name}"
     }
   },
   "webdav": {

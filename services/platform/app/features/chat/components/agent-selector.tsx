@@ -27,6 +27,7 @@ import {
   AUTO_AGENT_SLUG,
   DEFAULT_CHAT_AGENT_SLUG,
 } from '@/lib/shared/constants/agents';
+import { cn } from '@/lib/utils/cn';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents, type ChatAgent } from '../hooks/queries';
@@ -46,12 +47,16 @@ interface AgentSelectorProps {
    *  their agent (sandbox session, --resume transcript), so the selector
    *  locks on them instead of offering a switch. */
   threadId?: string;
+  /** Render the trigger full-width with its chevron right-aligned — used in the
+   *  mobile combined assistant+model panel, where each row fills the panel. */
+  fullWidth?: boolean;
 }
 
 export const AgentSelector = memo(function AgentSelector({
   organizationId,
   projectId,
   threadId,
+  fullWidth = false,
 }: AgentSelectorProps) {
   const { t } = useT('chat');
   const { t: tComposer } = useT('composer');
@@ -238,7 +243,10 @@ export const AgentSelector = memo(function AgentSelector({
       <Tooltip content={t('agentSelector.lockedExternal')} side="top">
         <Button
           type="button"
-          className="cursor-not-allowed gap-1.5 sm:min-w-32"
+          className={cn(
+            'cursor-not-allowed gap-1.5',
+            fullWidth ? 'w-full' : 'sm:min-w-32',
+          )}
           variant="ghost"
           size="sm"
           aria-disabled="true"
@@ -246,9 +254,15 @@ export const AgentSelector = memo(function AgentSelector({
             agent: lockedAgent.displayName,
           })}
         >
-          <Bot className="size-3.5" aria-hidden="true" />
-          <span>{lockedAgent.displayName}</span>
-          <Box className="text-muted-foreground size-3" aria-hidden="true" />
+          <Bot className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{lockedAgent.displayName}</span>
+          <Box
+            className={cn(
+              'text-muted-foreground size-3',
+              fullWidth && 'ml-auto',
+            )}
+            aria-hidden="true"
+          />
         </Button>
       </Tooltip>
     );
@@ -265,7 +279,9 @@ export const AgentSelector = memo(function AgentSelector({
       side="top"
       sideOffset={8}
       contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
-      tooltip={t('agentSelector.label')}
+      // No hover tooltip in the mobile combined panel (touch has no hover, and
+      // the panel already frames it).
+      tooltip={fullWidth ? undefined : t('agentSelector.label')}
       tooltipSide="top"
       searchPlaceholder={t('agentSelector.searchPlaceholder')}
       emptyText={t('agentSelector.noResults')}
@@ -280,26 +296,32 @@ export const AgentSelector = memo(function AgentSelector({
         // send/mic cluster.
         <Button
           type="button"
-          className="gap-1.5 sm:min-w-32"
+          className={cn('gap-1.5', fullWidth ? 'w-full' : 'sm:min-w-32')}
           variant="ghost"
           size="sm"
           aria-label={t('agentSelector.label')}
           disabled={isAgentLoading}
         >
-          <Bot className="size-3.5" aria-hidden="true" />
+          <Bot className="size-3.5 shrink-0" aria-hidden="true" />
           <Skeletonize
             loading={isAgentLoading}
             label={t('agentSelector.label')}
           >
             <SkeletonBox>
               <span
-                className={hasNoAgents ? 'text-muted-foreground' : undefined}
+                className={cn(
+                  'truncate',
+                  hasNoAgents && 'text-muted-foreground',
+                )}
               >
                 {currentLabel}
               </span>
             </SkeletonBox>
           </Skeletonize>
-          <ChevronDown className="size-3" aria-hidden="true" />
+          <ChevronDown
+            className={cn('size-3 shrink-0', fullWidth && 'ml-auto')}
+            aria-hidden="true"
+          />
         </Button>
       }
       footer={
