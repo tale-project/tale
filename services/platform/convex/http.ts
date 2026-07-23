@@ -7,6 +7,10 @@ import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
 import { automationWebhookHandler } from './automations/triggers';
 import {
+  mcpHandler,
+  mcpMethodNotAllowed,
+} from './automations_builder/mcp_http';
+import {
   listContacts,
   createContact,
   getContact,
@@ -681,6 +685,20 @@ http.route({
   pathPrefix: '/api/automations/webhook/',
   method: 'POST',
   handler: automationWebhookHandler,
+});
+
+// The platform MCP endpoint: the engine's 12-method dispatch as MCP tools
+// over streamable HTTP (JSON responses). Org API-key authed like every
+// /api/v1 surface. See automations_builder/mcp_http.ts.
+http.route({
+  path: '/api/v1/mcp',
+  method: 'POST',
+  handler: mcpHandler,
+});
+http.route({
+  path: '/api/v1/mcp',
+  method: 'GET',
+  handler: mcpMethodNotAllowed,
 });
 
 // The in-sandbox capability bridge replaces the old
