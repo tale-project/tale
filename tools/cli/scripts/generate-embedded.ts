@@ -13,10 +13,15 @@ import { dirname, join, relative, resolve } from 'node:path';
 const CLI_ROOT = resolve(dirname(Bun.main), '..');
 const REPO_ROOT = resolve(CLI_ROOT, '../..');
 
+// The third entry sources the generic per-org seed catalog. It moved from the
+// retired repo-root `builtin-configs/` to `configs/platform/custom/`, but the
+// embedded PREFIX stays `builtin-configs` — the CLI's `fetch-reference` and
+// `update` actions key their reference tree (`.tale/reference/builtin-configs/`)
+// on that label, and the catalog's `<domain>/...` shape is unchanged.
 const REFERENCE_DIRS: [string, string][] = [
   ['services/platform/convex', 'convex'],
   ['services/platform/lib', 'lib'],
-  ['builtin-configs', 'builtin-configs'],
+  ['configs/platform/custom', 'builtin-configs'],
 ];
 
 const SKIP_DIRS = new Set(['.history', '_generated', 'node_modules', '.turbo']);
