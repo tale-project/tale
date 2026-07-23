@@ -59,6 +59,7 @@
     "gen:service": "bun run gen service",
     "gen:tool": "bun run gen tool",
     "gen:skill": "bun run gen skill",
+    "skills:sync": "rm -rf .claude/skills && cp -R .agents/skills .claude/skills",
     "gen:migration": "bun run gen migration",
     "gen:episode": "bun run gen video-episode",
     "generate:icons": "bun scripts/generate-integration-icons.ts",
