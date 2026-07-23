@@ -90,9 +90,9 @@ function ProjectDetailLayout() {
   const { project, isLoading } = useProject(asProjectId(projectId));
 
   // Bound automations used to contribute one first-class tab per bundled view
-  // (the operator surfaces, e.g. a VAT desk). The automations backend is
-  // offline while it is rebuilt, so there are no view tabs to derive until it
-  // returns; the collaboration and management tabs are unaffected.
+  // (the operator surfaces, e.g. a VAT desk). The new engine has no views
+  // subsystem yet — when one lands (#2709) its tabs derive here; until then
+  // the list is deliberately empty and the views route is retired.
   const viewTabs = EMPTY_VIEW_TABS;
 
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of

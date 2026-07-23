@@ -16,10 +16,16 @@ import { listNodeTypesRef } from './backend';
  * shipped connector files), so it goes through `useActionQuery`.
  */
 
-/** The organization's automations: latest version, and which one is live. */
-export function useAutomations(organizationId: string) {
+/** The org page's automations — or one project's when `projectId` is given.
+ * The two surfaces never bleed: project-owned automations are absent from
+ * the org listing and vice versa. */
+export function useAutomations(
+  organizationId: string,
+  projectId?: Id<'projects'>,
+) {
   return useConvexQuery(api.automations.queries.listAutomations, {
     organizationId,
+    ...(projectId !== undefined && { projectId }),
   });
 }
 
@@ -45,16 +51,19 @@ export function useAutomationVersions(organizationId: string, name: string) {
 }
 
 /** Recent runs, newest first — of one automation, or of the whole
- * organization when `name` is omitted. */
+ * organization when `name` is omitted; `projectId` narrows to one project's
+ * run log. */
 export function useAutomationRuns(
   organizationId: string,
   name?: string,
   limit?: number,
+  projectId?: Id<'projects'>,
 ) {
   return useConvexQuery(api.automations.queries.listRuns, {
     organizationId,
     ...(name !== undefined && { name }),
     ...(limit !== undefined && { limit }),
+    ...(projectId !== undefined && { projectId }),
   });
 }
 

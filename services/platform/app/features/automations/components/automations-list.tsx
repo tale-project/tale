@@ -10,6 +10,7 @@ import { Link } from '@tanstack/react-router';
 import { CheckCircle2, CircleDashed, Workflow } from 'lucide-react';
 import { useId } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomations } from '../hooks/queries';
@@ -42,12 +43,15 @@ function ListLoading() {
  */
 export function AutomationsList({
   organizationId,
+  projectId,
 }: {
   organizationId: string;
+  /** Render one project's automations (links stay inside the project shell). */
+  projectId?: Id<'projects'>;
 }) {
   const { t } = useT('automations');
   const headingId = useId();
-  const automationsQuery = useAutomations(organizationId);
+  const automationsQuery = useAutomations(organizationId, projectId);
 
   const automations = [...(automationsQuery.data ?? [])].sort((a, b) =>
     a.name.localeCompare(b.name),
@@ -95,14 +99,26 @@ export function AutomationsList({
                 'deployedVersion' in automation
                   ? automation.deployedVersion
                   : undefined;
+              const linkTarget = projectId
+                ? {
+                    to: '/dashboard/$id/projects/$projectId/automations/$automationSlug' as const,
+                    params: {
+                      id: organizationId,
+                      projectId,
+                      automationSlug: automationSlugToParam(automation.name),
+                    },
+                  }
+                : {
+                    to: '/dashboard/$id/automations/$automationSlug' as const,
+                    params: {
+                      id: organizationId,
+                      automationSlug: automationSlugToParam(automation.name),
+                    },
+                  };
               return (
                 <li key={automation.name}>
                   <Link
-                    to="/dashboard/$id/automations/$automationSlug"
-                    params={{
-                      id: organizationId,
-                      automationSlug: automationSlugToParam(automation.name),
-                    }}
+                    {...linkTarget}
                     className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring flex flex-wrap items-center gap-3 rounded-md border p-3 focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">

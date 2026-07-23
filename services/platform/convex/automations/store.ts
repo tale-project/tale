@@ -30,7 +30,7 @@ import type { DispatchStore, TriggerSpec } from '../../lib/engine/api/dispatch';
 import type { StoreAdapter } from '../../lib/engine/core/slots';
 import type { RunResult, Workflow } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server';
 
 /** Who a write is attributed to — a user id, or a system marker for a write
@@ -40,6 +40,13 @@ export type Actor = string;
 export interface AutomationStoreScope {
   organizationId: string;
   actor: Actor;
+  /**
+   * Owning project for a NEW automation this store creates. Ownership is a
+   * property of the name: the first version pins it, later saves keep it,
+   * and a save that names a DIFFERENT project than the existing rows refuses
+   * rather than silently moving the automation between surfaces.
+   */
+  projectId?: Id<'projects'>;
 }
 
 /** Extra facts a save carries that the engine's `DispatchStore.save` signature
@@ -171,11 +178,28 @@ export async function triggerRow(
 export async function listAutomationsFor(
   ctx: QueryCtx,
   organizationId: string,
+  /**
+   * Surface filter: an id lists ONE project's automations, `null` lists the
+   * org page's (project-less only), and `undefined` — the engine's view —
+   * lists everything, so subworkflow resolution and the chat capability
+   * registry see project automations too.
+   */
+  projectId?: Id<'projects'> | null,
 ): Promise<Array<{ name: string; latest: number }>> {
-  const rows = await ctx.db
-    .query('workflows')
-    .withIndex('by_org', (q) => q.eq('organizationId', organizationId))
-    .collect();
+  const rows =
+    projectId === undefined
+      ? await ctx.db
+          .query('workflows')
+          .withIndex('by_org', (q) => q.eq('organizationId', organizationId))
+          .collect()
+      : await ctx.db
+          .query('workflows')
+          .withIndex('by_org_project', (q) =>
+            q
+              .eq('organizationId', organizationId)
+              .eq('projectId', projectId ?? undefined),
+          )
+          .collect();
   const latest = new Map<string, number>();
   for (const row of rows) {
     latest.set(row.name, Math.max(latest.get(row.name) ?? 0, row.version));
@@ -238,10 +262,24 @@ export function automationStore(
       const name = assertAutomationName(workflow.name ?? '');
       const rows = await versionsOf(ctx, organizationId, name);
       const version = (rows.at(-1)?.version ?? 0) + 1;
+      // Ownership is pinned by the first version: later saves inherit it,
+      // and a caller naming a DIFFERENT project refuses — an automation
+      // never silently moves between the org page and a project tab.
+      const owner = rows.length > 0 ? rows[0].projectId : scope.projectId;
+      if (
+        rows.length > 0 &&
+        scope.projectId !== undefined &&
+        scope.projectId !== owner
+      ) {
+        throw new Error(
+          `"${name}" belongs to a different surface — it cannot be saved into another project`,
+        );
+      }
       await ctx.db.insert('workflows', {
         organizationId,
         name,
         version,
+        ...(owner !== undefined && { projectId: owner }),
         document: workflow,
         ...(message !== undefined && message !== '' && { message }),
         ...(options?.testsPassed !== undefined && {
@@ -338,10 +376,16 @@ export function automationStore(
      */
     async recordRun(name, version, result, mode) {
       const now = Date.now();
+      // Denormalize the owning project from the version row so a project's
+      // run log never joins over names.
+      const versioned = await versionRow(ctx, organizationId, name, version);
       await ctx.db.insert('workflowRuns', {
         organizationId,
         name,
         version,
+        ...(versioned?.projectId !== undefined && {
+          projectId: versioned.projectId,
+        }),
         status: result.status === 'success' ? 'success' : 'failed',
         mode,
         startedBy: actor,

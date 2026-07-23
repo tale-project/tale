@@ -11,6 +11,7 @@ import { Link } from '@tanstack/react-router';
 import { CheckCircle2, Play, SearchX, Save } from 'lucide-react';
 import { useCallback, useId, useMemo, useState } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
 import type { NodeDef, Workflow } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -96,9 +97,13 @@ function patchNode(
 export function AutomationDetail({
   organizationId,
   automationSlug,
+  projectId,
 }: {
   organizationId: string;
   automationSlug: string;
+  /** Render inside a project shell: run links stay on the project routes and
+   * a first save pins the automation to the project. */
+  projectId?: Id<'projects'>;
 }) {
   const { t } = useT('automations');
   const inspectorId = useId();
@@ -255,17 +260,32 @@ export function AutomationDetail({
           >
             {showLastRun ? t('detail.hideLastRun') : t('detail.showLastRun')}
           </Button>
-          <Link
-            to="/dashboard/$id/automations/$automationSlug/runs/$executionId"
-            params={{
-              id: organizationId,
-              automationSlug: automationSlugToParam(automationSlug),
-              executionId: lastRun.id,
-            }}
-            className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
-          >
-            {t('detail.openLastRun')}
-          </Link>
+          {projectId ? (
+            <Link
+              to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId"
+              params={{
+                id: organizationId,
+                projectId,
+                automationSlug: automationSlugToParam(automationSlug),
+                executionId: lastRun.id,
+              }}
+              className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {t('detail.openLastRun')}
+            </Link>
+          ) : (
+            <Link
+              to="/dashboard/$id/automations/$automationSlug/runs/$executionId"
+              params={{
+                id: organizationId,
+                automationSlug: automationSlugToParam(automationSlug),
+                executionId: lastRun.id,
+              }}
+              className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {t('detail.openLastRun')}
+            </Link>
+          )}
         </div>
       )}
 
@@ -326,6 +346,9 @@ export function AutomationDetail({
                 organizationId,
                 workflow,
                 ...(saveMessage !== '' && { message: saveMessage }),
+                // Pins a NEW automation to this project; an existing one
+                // keeps its owner (the store refuses a mismatch).
+                ...(projectId !== undefined && { projectId }),
               },
               {
                 onSuccess: () => {
@@ -360,6 +383,7 @@ export function AutomationDetail({
           organizationId={organizationId}
           automationSlug={automationSlug}
           runs={runs}
+          {...(projectId !== undefined && { projectId })}
         />
       </div>
     </div>

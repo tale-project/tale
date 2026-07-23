@@ -27,6 +27,13 @@ export const workflowsTable = defineTable({
   name: v.string(),
   /** 1-based, contiguous per (organization, name). */
   version: v.number(),
+  /**
+   * Owning project, when the automation lives in a project's Automations tab
+   * rather than the org page. Ownership is a property of the NAME: every
+   * version of one automation carries the same value (the store enforces it),
+   * and the org listing shows only project-less rows.
+   */
+  projectId: v.optional(v.id('projects')),
   /** The v1 workflow document as authored. */
   document: v.any(),
   /** Author-supplied note for the version list. */
@@ -39,7 +46,8 @@ export const workflowsTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_org_name', ['organizationId', 'name'])
-  .index('by_org_name_version', ['organizationId', 'name', 'version']);
+  .index('by_org_name_version', ['organizationId', 'name', 'version'])
+  .index('by_org_project', ['organizationId', 'projectId']);
 
 /**
  * The one live-eligible version per automation. Separate from `workflows` so
@@ -113,6 +121,9 @@ export const workflowRunsTable = defineTable({
   organizationId: v.string(),
   name: v.string(),
   version: v.number(),
+  /** Denormalized from the workflow version's owner, so a project's run log
+   * is one index read — never a join over names. */
+  projectId: v.optional(v.id('projects')),
   status: v.union(
     v.literal('queued'),
     v.literal('running'),
@@ -138,4 +149,5 @@ export const workflowRunsTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_org_name', ['organizationId', 'name'])
+  .index('by_org_project', ['organizationId', 'projectId'])
   .index('by_status', ['status']);

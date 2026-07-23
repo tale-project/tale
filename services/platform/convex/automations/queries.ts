@@ -19,6 +19,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { internalQuery, query } from '../_generated/server';
@@ -35,6 +36,10 @@ import {
 /** Cap on a listing page — a run log grows without bound. */
 const DEFAULT_RUN_LIMIT = 50;
 const MAX_RUN_LIMIT = 200;
+
+/** Cap on the metrics scan — beyond it the figures report `capped: true`. */
+const METRICS_MAX_SCAN = 5000;
+const METRICS_TOP_N = 10;
 
 async function requireMember(
   ctx: QueryCtx,
@@ -124,7 +129,12 @@ function toTriggerView(row: Doc<'workflowTriggers'>) {
 
 /** The organization's automations: latest version, and which one is live. */
 export const listAutomations = query({
-  args: { organizationId: v.string() },
+  args: {
+    organizationId: v.string(),
+    /** A project's Automations tab; absent = the org page (project-less
+     * automations only — project-owned ones live on their tab). */
+    projectId: v.optional(v.id('projects')),
+  },
   returns: v.array(
     v.object({
       name: v.string(),
@@ -134,7 +144,11 @@ export const listAutomations = query({
   ),
   handler: async (ctx, args) => {
     await requireMember(ctx, args.organizationId);
-    const automations = await listAutomationsFor(ctx, args.organizationId);
+    const automations = await listAutomationsFor(
+      ctx,
+      args.organizationId,
+      args.projectId ?? null,
+    );
     const deployments = await ctx.db
       .query('workflowDeployments')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
@@ -211,6 +225,10 @@ export const listRuns = query({
     organizationId: v.string(),
     name: v.optional(v.string()),
     limit: v.optional(v.number()),
+    /** A project's run log; absent = no project filter. With `name` set the
+     * name path is used (a name is unique per org, so it already implies the
+     * owner) and the filter only guards a mismatched deep link. */
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.array(runSummaryValidator),
   handler: async (ctx, args) => {
@@ -220,22 +238,35 @@ export const listRuns = query({
       MAX_RUN_LIMIT,
     );
     const name = args.name;
-    const rows =
-      name === undefined
-        ? await ctx.db
-            .query('workflowRuns')
-            .withIndex('by_org', (q) =>
-              q.eq('organizationId', args.organizationId),
-            )
-            .order('desc')
-            .take(limit)
-        : await ctx.db
-            .query('workflowRuns')
-            .withIndex('by_org_name', (q) =>
-              q.eq('organizationId', args.organizationId).eq('name', name),
-            )
-            .order('desc')
-            .take(limit);
+    let rows;
+    if (name !== undefined) {
+      rows = await ctx.db
+        .query('workflowRuns')
+        .withIndex('by_org_name', (q) =>
+          q.eq('organizationId', args.organizationId).eq('name', name),
+        )
+        .order('desc')
+        .take(limit);
+      if (args.projectId !== undefined) {
+        rows = rows.filter((row) => row.projectId === args.projectId);
+      }
+    } else if (args.projectId !== undefined) {
+      rows = await ctx.db
+        .query('workflowRuns')
+        .withIndex('by_org_project', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('projectId', args.projectId),
+        )
+        .order('desc')
+        .take(limit);
+    } else {
+      rows = await ctx.db
+        .query('workflowRuns')
+        .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
+        .order('desc')
+        .take(limit);
+    }
     return rows.map(toRunSummary);
   },
 });
@@ -303,6 +334,281 @@ export const listTriggers = query({
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .collect();
     return rows.sort((a, b) => a.name.localeCompare(b.name)).map(toTriggerView);
+  },
+});
+
+const orgAutomationMetricsValidator = v.object({
+  summary: v.object({
+    total: v.number(),
+    success: v.number(),
+    failed: v.number(),
+    running: v.number(),
+    waiting: v.number(),
+    queued: v.number(),
+    cancelled: v.number(),
+    successRate: v.number(),
+    avgDurationSeconds: v.number(),
+    lastRun: v.union(v.number(), v.null()),
+    capped: v.boolean(),
+  }),
+  /** Prior equal-length window totals — drives the summary-card deltas. */
+  previousSummary: v.object({
+    total: v.number(),
+    success: v.number(),
+    failed: v.number(),
+    successRate: v.number(),
+    avgDurationSeconds: v.number(),
+  }),
+  series: v.array(
+    v.object({
+      dateKey: v.string(),
+      success: v.number(),
+      failed: v.number(),
+      running: v.number(),
+    }),
+  ),
+  topAutomations: v.array(
+    v.object({
+      name: v.string(),
+      total: v.number(),
+      success: v.number(),
+      failed: v.number(),
+      successRate: v.number(),
+      avgDurationSeconds: v.number(),
+      lastRun: v.union(v.number(), v.null()),
+    }),
+  ),
+});
+
+interface AutomationMetricsBucket {
+  name: string;
+  total: number;
+  success: number;
+  failed: number;
+  cancelled: number;
+  durationSumMs: number;
+  durationCount: number;
+  lastRun: number;
+}
+
+/** Success over TERMINAL runs (success + failed + cancelled), in percent —
+ * a window full of still-running runs reads as "no rate yet" (0), not as a
+ * false failure rate. */
+function successRatePct(
+  success: number,
+  failed: number,
+  cancelled: number,
+): number {
+  const terminal = success + failed + cancelled;
+  return terminal > 0 ? (success / terminal) * 100 : 0;
+}
+
+/**
+ * Org-wide run KPIs for the automation metrics page: window summary,
+ * prior-window totals for deltas, a per-day series, and the top automations by
+ * run count. One bounded newest-first walk over `workflowRuns` serves all four.
+ */
+export const getOrgAutomationMetrics = query({
+  args: {
+    organizationId: v.string(),
+    periodDays: v.union(v.literal(7), v.literal(30), v.literal(90)),
+    /** Which runs to count — defaults to `live` so mock runs never skew KPIs. */
+    mode: v.optional(v.union(v.literal('live'), v.literal('mock'))),
+  },
+  returns: orgAutomationMetricsValidator,
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.organizationId);
+
+    const mode = args.mode ?? 'live';
+    const now = Date.now();
+    const windowStart = now - args.periodDays * DAY_MS;
+    // Immediately-preceding equal-length window, for period-over-period deltas.
+    const prevWindowStart = now - args.periodDays * 2 * DAY_MS;
+
+    let total = 0;
+    let success = 0;
+    let failed = 0;
+    let running = 0;
+    let waiting = 0;
+    let queued = 0;
+    let cancelled = 0;
+    let durationSumMs = 0;
+    let durationCount = 0;
+    let lastRun: number | null = null;
+
+    // Prior-window accumulators (totals only — no series/buckets needed).
+    let prevTotal = 0;
+    let prevSuccess = 0;
+    let prevFailed = 0;
+    let prevCancelled = 0;
+    let prevDurationSumMs = 0;
+    let prevDurationCount = 0;
+
+    const seriesMap = new Map(
+      dailyKeys(args.periodDays, now).map((dateKey) => [
+        dateKey,
+        { dateKey, success: 0, failed: 0, running: 0 },
+      ]),
+    );
+
+    const buckets = new Map<string, AutomationMetricsBucket>();
+
+    let scanned = 0;
+    let capped = false;
+    for await (const run of ctx.db
+      .query('workflowRuns')
+      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
+      .order('desc')) {
+      // The `by_org` index is walked newest-first and `startedAt` is set to
+      // `Date.now()` at insert, so it decreases monotonically along this walk.
+      // Once we reach a row older than the prior comparison window, every
+      // remaining row is also out of scope, so we can stop. This bounds the
+      // scan to in-window + prior-window rows and keeps `capped` meaning only
+      // "in-scope data was truncated" rather than firing on out-of-window
+      // historical volume.
+      if (run.startedAt < prevWindowStart) break;
+      scanned++;
+      if (scanned > METRICS_MAX_SCAN) {
+        capped = true;
+        break;
+      }
+      if (run.mode !== mode) continue;
+
+      // Duration only exists for settled runs — a run still in flight has no
+      // `finishedAt` and must not drag the average toward zero.
+      const durationMs =
+        run.finishedAt !== undefined ? run.finishedAt - run.startedAt : null;
+
+      if (run.startedAt < windowStart) {
+        // Prior window — accumulate totals only.
+        prevTotal++;
+        if (run.status === 'success') prevSuccess++;
+        else if (run.status === 'failed') prevFailed++;
+        else if (run.status === 'cancelled') prevCancelled++;
+        if (
+          durationMs !== null &&
+          (run.status === 'success' ||
+            run.status === 'failed' ||
+            run.status === 'cancelled')
+        ) {
+          prevDurationSumMs += durationMs;
+          prevDurationCount++;
+        }
+        continue;
+      }
+
+      total++;
+      if (lastRun === null || run.startedAt > lastRun) {
+        lastRun = run.startedAt;
+      }
+
+      const seriesPoint = seriesMap.get(utcDateKey(run.startedAt));
+
+      let bucket = buckets.get(run.name);
+      if (!bucket) {
+        bucket = {
+          name: run.name,
+          total: 0,
+          success: 0,
+          failed: 0,
+          cancelled: 0,
+          durationSumMs: 0,
+          durationCount: 0,
+          lastRun: 0,
+        };
+        buckets.set(run.name, bucket);
+      }
+      bucket.total++;
+      if (run.startedAt > bucket.lastRun) {
+        bucket.lastRun = run.startedAt;
+      }
+
+      switch (run.status) {
+        case 'success':
+          success++;
+          bucket.success++;
+          if (seriesPoint) seriesPoint.success++;
+          break;
+        case 'failed':
+          failed++;
+          bucket.failed++;
+          if (seriesPoint) seriesPoint.failed++;
+          break;
+        case 'cancelled':
+          cancelled++;
+          bucket.cancelled++;
+          break;
+        case 'running':
+          running++;
+          if (seriesPoint) seriesPoint.running++;
+          break;
+        case 'waiting':
+          waiting++;
+          break;
+        case 'queued':
+          queued++;
+          break;
+      }
+
+      if (
+        durationMs !== null &&
+        (run.status === 'success' ||
+          run.status === 'failed' ||
+          run.status === 'cancelled')
+      ) {
+        durationSumMs += durationMs;
+        durationCount++;
+        bucket.durationSumMs += durationMs;
+        bucket.durationCount++;
+      }
+    }
+
+    const topAutomations = [...buckets.values()]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, METRICS_TOP_N)
+      .map((b) => ({
+        name: b.name,
+        total: b.total,
+        success: b.success,
+        failed: b.failed,
+        successRate: successRatePct(b.success, b.failed, b.cancelled),
+        avgDurationSeconds:
+          b.durationCount > 0
+            ? Math.round(b.durationSumMs / b.durationCount / 1000)
+            : 0,
+        lastRun: b.lastRun || null,
+      }));
+
+    return {
+      summary: {
+        total,
+        success,
+        failed,
+        running,
+        waiting,
+        queued,
+        cancelled,
+        successRate: successRatePct(success, failed, cancelled),
+        avgDurationSeconds:
+          durationCount > 0
+            ? Math.round(durationSumMs / durationCount / 1000)
+            : 0,
+        lastRun,
+        capped,
+      },
+      previousSummary: {
+        total: prevTotal,
+        success: prevSuccess,
+        failed: prevFailed,
+        successRate: successRatePct(prevSuccess, prevFailed, prevCancelled),
+        avgDurationSeconds:
+          prevDurationCount > 0
+            ? Math.round(prevDurationSumMs / prevDurationCount / 1000)
+            : 0,
+      },
+      series: [...seriesMap.values()],
+      topAutomations,
+    };
   },
 });
 

@@ -83,6 +83,9 @@ export const saveWorkflow = mutation({
     workflow: v.any(),
     message: v.optional(v.string()),
     testsPassed: v.optional(v.boolean()),
+    /** Owning project for a NEW automation; an existing name keeps its
+     * owner and refuses a mismatch (see the store's save). */
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
@@ -90,6 +93,7 @@ export const saveWorkflow = mutation({
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: auth.userId,
+      ...(args.projectId !== undefined && { projectId: args.projectId }),
     });
     try {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine owns the document grammar; the store only records it
@@ -302,6 +306,9 @@ export async function beginRun(
     organizationId: args.organizationId,
     name: args.name,
     version,
+    // Denormalized from the version row's owner: the run belongs to whatever
+    // surface the automation lives on, regardless of who started it.
+    ...(row.projectId !== undefined && { projectId: row.projectId }),
     status: 'queued',
     mode: args.mode,
     startedBy: args.startedBy,

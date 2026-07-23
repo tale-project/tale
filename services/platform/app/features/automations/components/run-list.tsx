@@ -37,10 +37,13 @@ export function RunList({
   organizationId,
   automationSlug,
   runs,
+  projectId,
 }: {
   organizationId: string;
   automationSlug: string;
   runs: readonly AutomationRunSummary[];
+  /** Keep run links inside the project shell. */
+  projectId?: Id<'projects'>;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -60,12 +63,24 @@ export function RunList({
           {runs.map((run) => (
             <li key={run.id}>
               <Link
-                to="/dashboard/$id/automations/$automationSlug/runs/$executionId"
-                params={{
-                  id: organizationId,
-                  automationSlug: automationSlugToParam(automationSlug),
-                  executionId: run.id,
-                }}
+                {...(projectId
+                  ? {
+                      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId' as const,
+                      params: {
+                        id: organizationId,
+                        projectId,
+                        automationSlug: automationSlugToParam(automationSlug),
+                        executionId: run.id,
+                      },
+                    }
+                  : {
+                      to: '/dashboard/$id/automations/$automationSlug/runs/$executionId' as const,
+                      params: {
+                        id: organizationId,
+                        automationSlug: automationSlugToParam(automationSlug),
+                        executionId: run.id,
+                      },
+                    })}
                 className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring flex flex-wrap items-center gap-2 rounded-md border p-3 focus-visible:ring-2 focus-visible:outline-none"
               >
                 <RunBadge status={readRunStatus(run.status)} />
