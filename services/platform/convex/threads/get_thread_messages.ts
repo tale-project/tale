@@ -30,6 +30,14 @@ export interface ThreadMessage {
   order: number;
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * Author identity as saved with the message: a Better Auth userId for a
+   * human, an agent slug for an agent reply, `'system'` for system notices.
+   * Role-independent on purpose — a discussion's opening post is stored
+   * `role:'assistant'` yet human-authored. Absent on rows saved without
+   * authorship (e.g. plain chat turns).
+   */
+  userId?: string;
 }
 
 export async function getThreadMessages(
@@ -64,6 +72,13 @@ export async function getThreadMessages(
   // oxlint-disable-next-line unicorn/no-array-reverse -- runtime lacks toReversed; the spread already copies
   const uiMessages = toUIMessages([...allMessages].reverse());
 
+  // Author identity lives on the raw MessageDoc; `toUIMessages` drops it, so
+  // join it back by id (a UI message's id is its primary MessageDoc's _id —
+  // the same join `taskDiscussionMessageMeta` relies on).
+  const authorById = new Map(
+    allMessages.map((doc) => [doc._id, doc.userId] as const),
+  );
+
   // Transform to our expected format
   // UIMessage has: key, text, _creationTime, role, parts, etc.
   const messages = uiMessages
@@ -77,6 +92,7 @@ export async function getThreadMessages(
       order: msg.order,
       role: msg.role,
       content: msg.text,
+      userId: authorById.get(msg.id),
     }));
 
   return { messages };

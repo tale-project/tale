@@ -23,3 +23,15 @@ export function useDiscussion(organizationId: string, threadId: string | null) {
     { enabled: !!organizationId && !!threadId },
   );
 }
+
+/** A discussion's transcript, oldest first (reactive — replies stream in). */
+export function useDiscussionMessages(
+  organizationId: string,
+  threadId: string | null,
+) {
+  return useConvexQuery(
+    api.discussions.queries.listDiscussionMessages,
+    { organizationId, threadId: threadId ?? '' },
+    { enabled: !!organizationId && !!threadId },
+  );
+}

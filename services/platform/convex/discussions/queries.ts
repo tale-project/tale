@@ -6,13 +6,13 @@ import { query } from '../_generated/server';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { getThreadMessages } from '../threads/get_thread_messages';
 
 /**
- * Read side of Discussions. The message transcript itself is fetched through
- * the existing `threads.getThreadMessagesStreaming` (the same streaming reader
- * chat uses) keyed by the discussion's threadId — `can_access_thread` now
- * grants project members access, so no discussion-specific transcript reader is
- * needed.
+ * Read side of Discussions. Summaries come from `threadMetadata`; the
+ * transcript comes from `listDiscussionMessages`, which reads the agent
+ * message-store by the discussion's threadId — `can_access_thread` grants
+ * project members access, so both sides share one auth gate.
  */
 
 const discussionSummaryValidator = v.object({
@@ -83,6 +83,60 @@ export const listProjectDiscussions = query({
       return discussionActivityAt(b) - discussionActivityAt(a);
     });
     return rows;
+  },
+});
+
+/**
+ * The most recent messages a single transcript read returns. Discussions are
+ * human-paced (task comments share the same 500 cap) — a thread long enough to
+ * hit this keeps its newest tail, which is where the conversation lives.
+ */
+const DISCUSSION_MESSAGES_CAP = 500;
+
+const discussionMessageValidator = v.object({
+  /** Agent message-store id — an opaque string, not a Convex document id. */
+  messageId: v.string(),
+  /** Message role as stored. Alignment must key off `authorId`, not this —
+   *  the opening post is stored `role:'assistant'` yet human-authored. */
+  role: v.union(v.literal('user'), v.literal('assistant')),
+  /** Better Auth userId, agent slug, or `'system'`; absent on legacy rows. */
+  authorId: v.optional(v.string()),
+  body: v.string(),
+  createdAt: v.number(),
+});
+
+export type DiscussionMessage = typeof discussionMessageValidator.type;
+
+/**
+ * A discussion's transcript, oldest first (project member access via
+ * canAccessThread). Returns [] rather than throwing for missing access so the
+ * view degrades like the other discussion reads.
+ */
+export const listDiscussionMessages = query({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.array(discussionMessageValidator),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+    const meta = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
+    if (!meta) return [];
+
+    const { messages } = await getThreadMessages(ctx, args.threadId);
+    return messages.slice(-DISCUSSION_MESSAGES_CAP).map((msg) => {
+      const row: DiscussionMessage = {
+        messageId: msg._id,
+        role: msg.role,
+        body: msg.content,
+        createdAt: msg._creationTime,
+      };
+      if (msg.userId !== undefined) row.authorId = msg.userId;
+      return row;
+    });
   },
 });
 
