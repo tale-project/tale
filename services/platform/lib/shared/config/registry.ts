@@ -175,14 +175,17 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   // at the two places that consume them: staging a sandbox workspace and
   // answering the skill tools during a turn. Sharing lives in the file itself
   // — `visibility: private | org` with an `owner` — so there is nothing to
-  // mirror into a table and no cross-org surface to scope. Not
-  // catalog-scaffolded: the directory appears when an org authors or imports
-  // its first skill. The org-facing editing surface is a V8 action delegating
-  // to the same node layer (`convex/skills/`).
+  // mirror into a table and no cross-org surface to scope. Catalog-scaffolded
+  // (`bundle`: a whole `<slug>/` directory tree per skill) so a fresh org ships
+  // with the builtin skills under `configs/platform/custom/skills/` — e.g. the
+  // baked `visual-aspect-analyzer`. An org still authors or imports its own
+  // skills alongside them. The org-facing editing surface is a V8 action
+  // delegating to the same node layer (`convex/skills/`).
   {
     name: 'skills',
     readContext: 'node-direct',
     dataModel: 'config',
+    scaffoldKind: 'bundle',
   },
   // Agents — one `<org>/agents/<slug>.yml` per agent. An agent is a persona:
   // a name, instructions, what it may reach for, and who may use it. It says

@@ -407,7 +407,10 @@ export async function seedDomain(
     return { domain: domain.name, ok: true };
   }
 
-  if (domain.scaffoldKind !== 'flat') {
+  // `flat` copies files only (governance, agents — one file per item); `bundle`
+  // copies each item's whole `<slug>/` subtree (skills — a SKILL.md plus
+  // assets). `tree` is not seedable yet.
+  if (domain.scaffoldKind !== 'flat' && domain.scaffoldKind !== 'bundle') {
     throw new Error(
       `domain kind '${domain.scaffoldKind}' is not seedable until the ` +
         'config-system rewrite lands — upgrade through a pre-rewrite release first',
@@ -468,7 +471,12 @@ export async function seedDomain(
     // policy file we don't ship). Dir-level `.history`/secrets survive
     // (copyTree skips them at the source side, and per-file write doesn't
     // touch siblings).
-    await copyTree(sourceDir, targetDir, /* allowSubdirs */ false, domain);
+    await copyTree(
+      sourceDir,
+      targetDir,
+      /* allowSubdirs */ domain.scaffoldKind === 'bundle',
+      domain,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
