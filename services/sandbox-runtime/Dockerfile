@@ -224,29 +224,6 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
     && chmod 1777 /opt/ms-playwright \
     && rm /tmp/install-playwright-browsers.sh
 
-# --- visual-aspect-analyzer builtin skill -----------------------------------
-# Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
-# tool) into the image so the thin pointer SKILL.md staged per turn (see convex
-# node_only/sandbox/integration_skills.ts) runs it with zero setup. Copied
-# straight from its builtin-configs/skills/ source workspace — the dockerignore
-# keeps node_modules out (deps install fresh below); guides, src, and tests all
-# ship, so `bun run e2e` works in the sandbox.
-#
-# It does NOT install a second Playwright/Chromium: only its own pngjs runtime
-# dep is installed (--production skips the dev-only playwright/happy-dom/tsc),
-# and `playwright` + `playwright-core` are symlinked to the copies the MCP
-# already installed above (@playwright/mcp bundles full playwright 1.61.x — the
-# version the skill targets). require.resolve locates them so the link survives
-# npm hoisting, and reusing that install means the skill reuses the MCP's
-# already-downloaded Chromium revision (no second ~150 MB browser).
-COPY builtin-configs/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
-RUN cd /opt/agents/skills/visual-aspect-analyzer \
-    && bun install --production \
-    && MCP=/opt/agents/lib/node_modules/@playwright/mcp \
-    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright/package.json',{paths:['$MCP']}))")" node_modules/playwright \
-    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright-core/package.json',{paths:['$MCP']}))")" node_modules/playwright-core \
-    && node -e "const fs=require('fs'); const p=require('/opt/agents/skills/visual-aspect-analyzer/node_modules/playwright'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)"
-
 # OpenCode standalone binary (pinned). dpkg arch → release asset arch.
 RUN set -eux; \
     case "${TARGETARCH:-amd64}" in \
