@@ -4,7 +4,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { METHODS } from '@/lib/engine';
+import { METHODS } from '@/lib/engine/api/dispatch';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 import { seo } from '@/lib/utils/seo';

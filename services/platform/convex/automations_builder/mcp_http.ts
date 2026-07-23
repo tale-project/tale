@@ -15,7 +15,7 @@
  * no body as the streamable-HTTP transport specifies.
  */
 
-import { METHODS } from '../../lib/engine';
+import { METHODS } from '../../lib/engine/api/dispatch';
 import { internal } from '../_generated/api';
 import { jsonError, withRestAuth } from '../lib/rest/helpers';
 
