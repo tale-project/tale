@@ -1,12 +1,18 @@
 'use client';
 
-import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { useListAgents } from '@/app/features/agents/hooks/queries';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
+import {
+  useAgentInstallations,
+  useListAgents,
+} from '@/app/features/agents/hooks/queries';
 import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
@@ -16,9 +22,9 @@ import { agentSwitchPathname } from '../lib/agent-switch-path';
 
 /**
  * Breadcrumb leaf for an agent detail page: the current display name opens a
- * dropdown of sibling agents so the operator can jump between them without
- * returning to the Agents list. Portable editor tabs (instructions, tools, …)
- * stay put.
+ * searchable switcher of sibling agents so the operator can jump between them
+ * without returning to the Agents list. Portable editor tabs (instructions,
+ * tools, …) stay put.
  */
 export function AgentBreadcrumbSwitcher({
   organizationId,
@@ -34,56 +40,60 @@ export function AgentBreadcrumbSwitcher({
   const navigate = useNavigate();
   const location = useLocation();
   const { agents: rawAgents } = useListAgents(organizationId);
+  const installs = useAgentInstallations(organizationId);
 
-  const siblings = useMemo(() => {
-    const rows = [];
+  const options = useMemo<SearchableSelectOption[]>(() => {
+    // Offer only INSTALLED + enabled agents as switch targets — the same gate
+    // the Agents list applies (see `agents-table.tsx`). The on-disk catalog
+    // `useListAgents` returns also carries un-installed and retired agents,
+    // which must not appear here.
+    const enabledSlugs = new Set<string>();
+    const states = installs.data as
+      | ReadonlyArray<{ agentSlug: string; enabled: boolean }>
+      | undefined;
+    for (const s of states ?? []) {
+      if (s.enabled) enabledSlugs.add(s.agentSlug);
+    }
+
+    const rows: SearchableSelectOption[] = [];
     for (const raw of rawAgents ?? []) {
       const agent = toConfigurableAgent(raw);
       if (!agent) continue;
+      // `agent.name` is the slug; install state keys on `agentSlug`.
+      if (!enabledSlugs.has(agent.name)) continue;
       rows.push({
-        name: agent.name,
+        value: agent.name,
         label: resolveAgentLocale(agent, locale).displayName || agent.name,
       });
     }
     return rows.sort((a, b) => a.label.localeCompare(b.label, locale));
-  }, [rawAgents, locale]);
+  }, [rawAgents, installs.data, locale]);
 
-  const items = useMemo<DropdownMenuGroup[]>(
-    () => [
-      siblings.map((sibling) => ({
-        type: 'item' as const,
-        label: sibling.label,
-        selected: sibling.name === agentId,
-        onClick: () => {
-          if (sibling.name === agentId) return;
-          const to = agentSwitchPathname(
-            location.pathname,
-            organizationId,
-            agentId,
-            sibling.name,
-          );
-          void navigate({ to, search: location.search });
-        },
-      })),
-    ],
-    [
-      siblings,
-      agentId,
-      organizationId,
-      navigate,
-      location.pathname,
-      location.search,
-    ],
-  );
-
-  if (siblings.length === 0) {
+  if (options.length === 0) {
     return <>{displayName}</>;
   }
 
   return (
-    <DropdownMenu
+    <SearchableSelect
+      variant="switcher"
       align="start"
-      items={items}
+      contentClassName="min-w-64"
+      value={agentId}
+      options={options}
+      title={t('agents.switcher.title')}
+      searchPlaceholder={t('agents.switcher.searchPlaceholder')}
+      emptyText={t('agents.switcher.empty')}
+      aria-label={t('agents.switcher.ariaLabel', { name: displayName })}
+      onValueChange={(nextId) => {
+        if (nextId === agentId) return;
+        const to = agentSwitchPathname(
+          location.pathname,
+          organizationId,
+          agentId,
+          nextId,
+        );
+        void navigate({ to, search: location.search });
+      }}
       trigger={
         <button
           type="button"

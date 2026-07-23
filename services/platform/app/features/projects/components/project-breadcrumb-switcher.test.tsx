@@ -60,11 +60,9 @@ describe('ProjectBreadcrumbSwitcher', () => {
     );
 
     expect(
-      screen.getByRole('menuitem', { name: 'Getting started' }),
+      screen.getByRole('option', { name: 'Getting started' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: 'Acme AG' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Acme AG' })).toBeInTheDocument();
   });
 
   it('navigates to the selected project while keeping the current sub-page', async () => {
@@ -81,7 +79,7 @@ describe('ProjectBreadcrumbSwitcher', () => {
         name: /switch project, current: getting started/i,
       }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Acme AG' }));
+    await user.click(screen.getByRole('option', { name: 'Acme AG' }));
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: '/dashboard/org-1/projects/proj-acme/files',
@@ -103,7 +101,7 @@ describe('ProjectBreadcrumbSwitcher', () => {
         name: /switch project, current: getting started/i,
       }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Getting started' }));
+    await user.click(screen.getByRole('option', { name: 'Getting started' }));
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });

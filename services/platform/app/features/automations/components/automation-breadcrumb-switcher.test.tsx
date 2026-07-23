@@ -122,16 +122,16 @@ describe('AutomationBreadcrumbSwitcher', () => {
     );
 
     expect(
-      screen.getByRole('menuitem', { name: 'VAT return desk' }),
+      screen.getByRole('option', { name: 'VAT return desk' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('menuitem', { name: 'Gmail sync' }),
+      screen.getByRole('option', { name: 'Gmail sync' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('menuitem', { name: 'Not installed yet' }),
+      screen.queryByRole('option', { name: 'Not installed yet' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('menuitem', { name: 'Email inbox' }),
+      screen.queryByRole('option', { name: 'Email inbox' }),
     ).not.toBeInTheDocument();
   });
 
@@ -149,7 +149,7 @@ describe('AutomationBreadcrumbSwitcher', () => {
         name: /switch automation, current: vat return desk/i,
       }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Gmail sync' }));
+    await user.click(screen.getByRole('option', { name: 'Gmail sync' }));
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: '/dashboard/org-1/automations/gmail__sync-emails',
@@ -172,7 +172,7 @@ describe('AutomationBreadcrumbSwitcher', () => {
         name: /switch automation, current: vat return desk/i,
       }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Inbox only' }));
+    await user.click(screen.getByRole('option', { name: 'Inbox only' }));
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: '/dashboard/org-1/automations/inbox-only',
@@ -195,7 +195,7 @@ describe('AutomationBreadcrumbSwitcher', () => {
         name: /switch automation, current: vat return desk/i,
       }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Gmail sync' }));
+    await user.click(screen.getByRole('option', { name: 'Gmail sync' }));
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: '/dashboard/org-1/projects/proj-1/automations/gmail__sync-emails',
@@ -217,7 +217,7 @@ describe('AutomationBreadcrumbSwitcher', () => {
         name: /switch automation, current: vat return desk/i,
       }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'VAT return desk' }));
+    await user.click(screen.getByRole('option', { name: 'VAT return desk' }));
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });

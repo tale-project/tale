@@ -1,11 +1,14 @@
 'use client';
 
-import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import { useMemo } from 'react';
 
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { resolveAutomationLocale } from '@/lib/shared/utils/resolve-automation-locale';
@@ -20,10 +23,10 @@ import {
 
 /**
  * Breadcrumb leaf for an automation detail page: the current name opens a
- * dropdown of INSTALLED sibling automations (same membership as the hub's
- * Installed tab — install row present, no bundles). Portable `?tab=` values
- * (Configuration, Integrations, shared workflow tabs when both sides have
- * them) are kept; a tab the target does not expose is dropped so the page
+ * searchable switcher of INSTALLED sibling automations (same membership as the
+ * hub's Installed tab — install row present, no bundles). Portable `?tab=`
+ * values (Configuration, Integrations, shared workflow tabs when both sides
+ * have them) are kept; a tab the target does not expose is dropped so the page
  * lands on its own default instead of a missing Editor/Triggers surface.
  */
 export function AutomationBreadcrumbSwitcher({
@@ -64,47 +67,51 @@ export function AutomationBreadcrumbSwitcher({
     [automations, installBySlug, locale],
   );
 
-  const items = useMemo<DropdownMenuGroup[]>(
-    () => [
+  const options = useMemo<SearchableSelectOption[]>(
+    () =>
       siblings.map((sibling) => ({
-        type: 'item' as const,
+        value: sibling.slug,
         label: sibling.name,
-        selected: sibling.slug === automationSlug,
-        onClick: () => {
-          if (sibling.slug === automationSlug) return;
-          const next = automationSwitchLocation({
-            organizationId,
-            toSlug: sibling.slug,
-            projectId,
-            search: location.search as Record<string, unknown>,
-            targetTabValues: automationInstalledTabValues(
-              sibling.automation,
-              isDeveloper,
-            ),
-          });
-          void navigate({ to: next.pathname, search: next.search });
-        },
       })),
-    ],
-    [
-      siblings,
-      automationSlug,
-      organizationId,
-      projectId,
-      navigate,
-      location.search,
-      isDeveloper,
-    ],
+    [siblings],
   );
 
-  if (siblings.length === 0) {
+  const siblingBySlug = useMemo(
+    () => new Map(siblings.map((sibling) => [sibling.slug, sibling])),
+    [siblings],
+  );
+
+  if (options.length === 0) {
     return <>{displayName}</>;
   }
 
   return (
-    <DropdownMenu
+    <SearchableSelect
+      variant="switcher"
       align="start"
-      items={items}
+      contentClassName="min-w-64"
+      value={automationSlug}
+      options={options}
+      title={t('switcher.title')}
+      searchPlaceholder={t('switcher.searchPlaceholder')}
+      emptyText={t('switcher.empty')}
+      aria-label={t('switcher.ariaLabel', { name: displayName })}
+      onValueChange={(nextSlug) => {
+        if (nextSlug === automationSlug) return;
+        const sibling = siblingBySlug.get(nextSlug);
+        if (!sibling) return;
+        const next = automationSwitchLocation({
+          organizationId,
+          toSlug: sibling.slug,
+          projectId,
+          search: location.search as Record<string, unknown>,
+          targetTabValues: automationInstalledTabValues(
+            sibling.automation,
+            isDeveloper,
+          ),
+        });
+        void navigate({ to: next.pathname, search: next.search });
+      }}
       trigger={
         <button
           type="button"
