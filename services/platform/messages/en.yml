@@ -102,6 +102,41 @@ accessDenied:
   dataResidency: You need Admin permissions to access data residency settings.
   providers: You need Admin or Developer permissions to manage AI providers.
 analytics:
+  automations:
+    title: Automation Metrics
+    description: Usage and performance KPIs across your automations.
+    cappedNotice: Showing the most recent 5,000 runs in this window. Older
+      runs in this period are not included in these totals.
+    cards:
+      totalRuns: Total runs
+      successRate: Success rate
+      avgDuration: Avg duration
+      failedRuns: Failed runs
+    chart:
+      trendTitle: Runs over time
+      trendTooltip: Number of automation runs over the selected time period
+      statusTitle: Status breakdown
+      statusTooltip: Distribution of automation run outcomes
+      totalLabel: Total runs
+      noData: No data
+      noDataDescription: Run an automation to see its outcomes here.
+      success: Succeeded
+      failed: Failed
+      running: Running
+      waiting: Waiting
+      queued: Queued
+      cancelled: Cancelled
+    table:
+      title: Top automations
+      automation: Automation
+      runs: Runs
+      successRate: Success rate
+      avgDuration: Avg duration
+      failed: Failed
+      lastRun: Last run
+    empty:
+      title: No automation runs
+      description: No automations have run in the selected period.
   usage:
     title: Usage Metrics
     description: Token consumption, requests, and active users over time.
@@ -278,10 +313,38 @@ analytics:
         attribution: Attribution
     sentimentTrend: Sentiment over time
   chatHealth:
+    chart:
+      trendTitle: Turns over time
+      trendTooltip: Assistant turns per day, split by outcome
+      ok: Successful
+      errors: Errors
+      blocked: Blocked
+      noData: No data
+      noDataDescription: Chat with an assistant to see turns here.
+    breakdown:
+      title: Breakdown
+    guardrails:
+      title: Guardrails
+      byKind: By kind
+      byFilter: By filter
+      eventsTooltip: '{count} events'
+      chart:
+        title: Guardrail events over time
+        tooltip: Detections, blocks, and filter errors per day
+        detected: Detected
+        blocked: Blocked
+        errors: Errors
+        noData: No guardrail events
+        noDataDescription: Detections from flag / mask / block modes will
+          appear here once chat traffic starts flowing.
     title: Chat health
-    description: Error rate, response latency, and routing across your
-      organization's assistant replies.
+    description: Error rate, blocked turns, and guardrail activity across
+      your organization's assistant replies.
     cards:
+      blockedRate: Blocked rate
+      blockedRateDetail: '{blocked} of {total} turns'
+      guardrailEvents: Guardrail events
+      guardrailEventsDetail: '{blocked} blocked'
       errorRate: Error rate
       errorRateDetail: '{errors} of {total} turns'
       responseP95: Response time p95
@@ -1299,8 +1362,11 @@ chat:
     cannotShareBranch: Branch chats can't be shared.
     cannotShareArchived: Archived chats can't be shared.
     notShareable: This chat can't be shared.
+    unshare: Stop sharing
+    unshared: Sharing stopped
     unshareFailed: Failed to stop sharing
     sharedChat: Shared chat
+    byline: Shared by {name} on {date}
     forkChat: Fork this chat
     forkSuccess: Chat forked successfully
     forkFailed: Failed to fork chat
@@ -1807,12 +1873,6 @@ common:
     resetView: Reset view
     aiEditor: AI editor
   moreTabs: More
-  rebuildGate:
-    title: This area is being rebuilt
-    description:
-      The platform's AI backend is being rewritten from the ground up.
-      {feature} is offline until its rebuilt version ships — everything else
-      keeps working.
 composer:
   openMenu: Open chat menu
   addFiles: Add photos & files
@@ -4418,11 +4478,6 @@ metadata:
   apiKeys:
     title: API keys
     description: Create and manage API keys for integrations.
-  runtimes:
-    title: Runtimes
-    description:
-      Run task work on your own machines with the coding-agent CLIs you
-      already use (Claude Code, Codex, Cursor).
   dataResidency:
     title: Data residency
     description: Where your data is stored and processed.
@@ -4490,7 +4545,6 @@ navigation:
   aria:
     primaryNavigation: Primary navigation
   dataResidency: Data residency
-  runtimes: Runtimes
   sandboxes: Sandboxes
   enterpriseSso: Enterprise SSO
   sidebar:
@@ -5410,6 +5464,22 @@ settings:
       description:
         Where this organization's data lives, and the deployment-level stores
         behind it.
+  mcpEndpoint:
+    description:
+      Point any MCP client at this deployment to author, test, and run
+      automations — the same tools the in-platform builder uses.
+    copyEndpoint: Copy MCP endpoint URL
+    authHelp:
+      'Authenticate with an organization API key as a bearer token: create
+      and manage keys under'
+    authLink: REST API keys.
+    toolsTitle: Tools
+    toolsHelp: Served straight from the engine's method table — get_docs and
+      get_catalog are the in-band reference for the workflow grammar and
+      this deployment's node types.
+    exampleTitle: Try it
+    exampleHelp: Lists the tools with your API key in place.
+    copyExample: Copy example request
   account:
     profile:
       title: Profile
@@ -5586,6 +5656,50 @@ settings:
     historyLoadFailed: Failed to load history
     historyRestored: Agent restored from history
     historyRestoreFailed: Failed to restore from history
+    listFailed: Couldn't load the agent roster. Reload to retry.
+    loadError: Failed to read an agent file
+    catalogFailed: Couldn't load the capability catalog. Reload to retry.
+    readOnly: You can read this agent but not change it — its owner (or an org
+      admin, for org agents) manages it.
+    openAgent: Open agent {name}
+    noResults:
+      title: No matching agents
+      description: No agents match your search. Try a different term.
+    visibility:
+      label: Visibility
+      org: Organization
+      orgHelp: Every member can pick it in chat.
+      private: Private
+      privateHelp: Only you can see it and chat with it.
+    knowledgeScope:
+      label: Knowledge access
+      description: Which of the organization's indexed knowledge this agent's retrieval may read.
+      none: None
+      noneHelp: The agent never reads the knowledge base.
+      documents: Documents
+      documentsHelp: Only the indexed document corpus.
+      web: Web
+      webHelp: Only the indexed website corpus.
+      all: All
+      allHelp: Documents and websites.
+    allowlist:
+      toolsLabel: Tool access
+      toolsAll: All tools
+      toolsAllHelp: Everything the organization offers its members — new capabilities apply automatically.
+      toolsNone: No tools
+      toolsNoneHelp: The agent can call nothing.
+      toolsSelected: Selected tools
+      toolsSelectedHelp: Only the checked capabilities; new ones stay off until checked.
+      skillsLabel: Skill access
+      skillsAll: All skills
+      skillsAllHelp: Every skill the chatting member can see.
+      skillsNone: No skills
+      skillsNoneHelp: The agent loads no skills.
+      skillsSelected: Selected skills
+      skillsSelectedHelp: Only the checked skills, up to {max}.
+      unknownKept: Kept from the file (not in today's catalog) — unchecking removes it.
+      emptyCatalog: Nothing to select yet — deploy an automation to give agents their first callable capability.
+      noSkillsInOrg: No skills exist in this organization yet.
     unsavedChanges:
       title: Unsaved changes
       description:
@@ -5595,6 +5709,7 @@ settings:
       stay: Keep editing
     navigation:
       general: General
+      instructions: Instructions
       instructionsModel: Instructions & models
       tools: Tools
       skills: Skills
@@ -5718,6 +5833,9 @@ settings:
       displayName: Display name
       displayNameTooltip: The friendly name people see in chat. Change it anytime.
       displayNamePlaceholder: My Agent
+      labels: Labels
+      labelsPlaceholder: support, billing
+      labelsHelp: Comma-separated, up to 8 — for browsing the roster, not for the model.
       displayNameDuplicateWarning:
         Another agent already uses this display name. The
         slug stays unique, but the duplicate name can be ambiguous in chat and
@@ -6124,6 +6242,9 @@ settings:
       nameHelp: Unique id — lowercase letters, numbers, and single hyphens. This
         becomes the skill’s slug.
       namePatternError: Use lowercase letters, numbers, and single hyphens (e.g. my-skill).
+      descriptionLabel: Description
+      descriptionPlaceholder: When should an agent reach for this skill?
+      descriptionHelp: You can refine it later in the editor.
       submit: Create
       creating: Creating...
       created: Skill created
@@ -6138,9 +6259,27 @@ settings:
     noResults:
       title: No matching skills
       description: No skills match your search. Try a different term.
+    listFailed: Couldn't load the skill library. Reload to retry.
+    openSkill: Open skill {slug}
+    readOnly: You can read this skill but not change it — its owner (or an org
+      admin, for org skills) manages it.
+    visibility:
+      label: Visibility
+      org: Organization
+      orgHelp: Every member can read it; agents can load it for anyone.
+      private: Private
+      privateHelp: Only you can see it and only your chats can load it.
     editor:
       saveSuccess: Skill saved
       saveFailed: Failed to save skill
+      descriptionHelp:
+        One or two sentences on what the skill covers — this is what tells
+        the model when to read it.
+      labels: Labels
+      labelsPlaceholder: research, pdf, finance
+      labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
+      bodyHelp: Markdown the model reads when it loads the skill — playbooks,
+        conventions, reference material. Never executed.
     export:
       failed: Failed to export skill
   integrations:
@@ -7941,6 +8080,7 @@ discussions:
     placeholder: Reply… use @ to mention a teammate or agent
     lockedPlaceholder: This discussion is locked
     hint: '@mention an agent to ask it to respond.'
+    send: Reply
     failed: Could not post your reply
   create:
     title: New discussion
@@ -8017,45 +8157,6 @@ agentCatalog:
     description: The catalog has no agents to install right now.
   installedByIntegration: Installed by {integration}
   requiresIntegration: Requires {integration}
-runtimes:
-  description: Run task work on your own machines with the coding-agent CLIs you
-    already use (Claude Code, Codex, Cursor).
-  install:
-    title: Connect a daemon
-    cliHint: "First, install the Tale CLI if you haven't already:"
-    description:
-      'Install once per machine: setup asks for this workspace URL, an
-      API key, and the git workspace agents may work in. Then bind an agent to a
-      runtime in its config — its board tasks will run on your machine and
-      report back for review.'
-    privacy: Local workspace paths never leave your machine — only the workspace
-      keys you choose are advertised here. full_auto permission requires opting
-      in on both the server and the daemon.
-    createKey: Create API key
-    generate: Generate key & copy command
-    generateHint:
-      Mints a fresh API key and copies a ready-to-run setup command with
-      this workspace's URL and the key already filled in.
-    generated: Setup command generated
-    generateError: Couldn't generate a key. Try again.
-    copied: Setup command copied to clipboard
-    commandLabel: Run this on the daemon machine
-    copyCommand: Copy setup command
-    keyCaveat:
-      This command carries a new API key, shown only once. Anyone who has
-      it can act as this daemon — keep it secret, and revoke it under Settings →
-      API → REST if it leaks.
-    keyName: Daemon setup
-  list:
-    title: Connected daemons
-    empty: No daemons connected yet
-    emptyHint: Run tale daemon setup on the machine that should execute task work.
-    lastSeen: last seen {age}
-    workspaces: 'Workspaces: {keys}'
-  status:
-    active: Active
-    degraded: Degraded
-    offline: Offline
 sandboxes:
   title: Sandboxes
   description:

@@ -121,7 +121,7 @@ A run that needs an approval does not fail and does not restart. It pauses in `w
 | A recurring question in chat, with no external system involved     |            | ✓     |               |
 | One agent reply per incoming POST                                  |            |       | ✓             |
 
-Check the catalog before building — the automation you need may already ship. An [agent webhook](/platform/agents/webhook-triggers) is the one seam outside this model; reach for it when a single agent reply per payload is the whole job.
+Check the catalog before building — the automation you need may already ship. A [webhook trigger](/platform/automations/triggers) is the inbound seam; reach for it when an external payload should start a run.
 
 ## Putting the model to work
 

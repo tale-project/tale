@@ -115,6 +115,41 @@ accessDenied:
     Du benötigst Admin- oder Entwickler-Berechtigungen, um KI-Anbieter zu
     verwalten.
 analytics:
+  automations:
+    title: Automatisierungs-Metriken
+    description: Nutzung und Leistung deiner Automatisierungen im Zeitverlauf.
+    cappedNotice: Zeigt die letzten 5.000 Läufe in diesem Zeitraum. Ältere Läufe
+      fließen nicht in diese Zahlen ein.
+    cards:
+      totalRuns: Läufe gesamt
+      successRate: Erfolgsquote
+      avgDuration: Ø Dauer
+      failedRuns: Fehlgeschlagene Läufe
+    chart:
+      trendTitle: Läufe im Zeitverlauf
+      trendTooltip: Anzahl der Läufe im gewählten Zeitraum
+      statusTitle: Status-Verteilung
+      statusTooltip: Verteilung der Lauf-Ergebnisse
+      totalLabel: Läufe gesamt
+      noData: Keine Daten
+      noDataDescription: Starte eine Automatisierung, um hier Ergebnisse zu sehen.
+      success: Erfolgreich
+      failed: Fehlgeschlagen
+      running: Läuft
+      waiting: Wartet
+      queued: In der Warteschlange
+      cancelled: Abgebrochen
+    table:
+      title: Top-Automatisierungen
+      automation: Automatisierung
+      runs: Läufe
+      successRate: Erfolgsquote
+      avgDuration: Ø Dauer
+      failed: Fehlgeschlagen
+      lastRun: Letzter Lauf
+    empty:
+      title: Keine Läufe
+      description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
   usage:
     title: Nutzungs-Metriken
     description: Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.
@@ -294,10 +329,39 @@ analytics:
         attribution: Zuordnung
     sentimentTrend: Stimmung im Zeitverlauf
   chatHealth:
+    chart:
+      trendTitle: Antworten im Zeitverlauf
+      trendTooltip: Assistenten-Antworten pro Tag, nach Ergebnis
+      ok: Erfolgreich
+      errors: Fehler
+      blocked: Blockiert
+      noData: Keine Daten
+      noDataDescription: Chatte mit einem Assistenten, um hier Antworten zu sehen.
+    breakdown:
+      title: Aufschlüsselung
+    guardrails:
+      title: Guardrails
+      byKind: Nach Art
+      byFilter: Nach Filter
+      eventsTooltip: '{count} Ereignisse'
+      chart:
+        title: Guardrail-Ereignisse im Zeitverlauf
+        tooltip: Erkennungen, Blockierungen und Filterfehler pro Tag
+        detected: Erkannt
+        blocked: Blockiert
+        errors: Fehler
+        noData: Keine Guardrail-Ereignisse
+        noDataDescription:
+          Erkennungen aus den Modi Markieren / Maskieren / Blockieren
+          erscheinen hier, sobald Chat-Verkehr fließt.
     title: Chat-Zustand
-    description: Fehlerrate, Antwortlatenz und Routing über die
-      Assistenten-Antworten deiner Organisation.
+    description: Fehlerrate, blockierte Antworten und Guardrail-Aktivität über
+      die Assistenten-Antworten deiner Organisation.
     cards:
+      blockedRate: Blockierquote
+      blockedRateDetail: '{blocked} von {total} Antworten'
+      guardrailEvents: Guardrail-Ereignisse
+      guardrailEventsDetail: '{blocked} blockiert'
       errorRate: Fehlerrate
       errorRateDetail: '{errors} von {total} Antworten'
       responseP95: Antwortzeit p95
@@ -1338,8 +1402,11 @@ chat:
     cannotShareBranch: Branch-Chats lassen sich nicht teilen.
     cannotShareArchived: Archivierte Chats lassen sich nicht teilen.
     notShareable: Dieser Chat lässt sich nicht teilen.
+    unshare: Teilen beenden
+    unshared: Teilen beendet
     unshareFailed: Teilen konnte nicht beendet werden
     sharedChat: Geteilter Chat
+    byline: Geteilt von {name} am {date}
     forkChat: Diesen Chat forken
     forkSuccess: Chat geforkt
     forkFailed: Chat konnte nicht geforkt werden
@@ -1893,12 +1960,6 @@ common:
     resetView: Ansicht zurücksetzen
     aiEditor: KI-Editor
   moreTabs: Mehr
-  rebuildGate:
-    title: Dieser Bereich wird neu aufgebaut
-    description:
-      Das KI-Backend der Plattform wird von Grund auf neu geschrieben.
-      {feature} ist offline, bis die neue Version verfügbar ist — alles andere
-      funktioniert weiter.
 composer:
   openMenu: Chat-Menü öffnen
   addFiles: Fotos & Dateien hinzufügen
@@ -4608,11 +4669,6 @@ metadata:
   apiKeys:
     title: API-Schlüssel
     description: API-Schlüssel für Integrationen erstellen und verwalten.
-  runtimes:
-    title: Runtimes
-    description:
-      Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den
-      Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, Cursor).
   dataResidency:
     title: Datenresidenz
     description: Wo deine Daten gespeichert und verarbeitet werden.
@@ -4682,7 +4738,6 @@ navigation:
   aria:
     primaryNavigation: Hauptnavigation
   dataResidency: Datenresidenz
-  runtimes: Runtimes
   sandboxes: Sandboxes
   enterpriseSso: Enterprise-SSO
   sidebar:
@@ -5317,6 +5372,23 @@ settings:
     dataResidency:
       description: Wo die Daten dieser Organisation liegen und welche
         Deployment-Speicher dahinterstehen.
+  mcpEndpoint:
+    description:
+      Verbinde einen MCP-Client mit diesem Deployment, um Automatisierungen
+      zu erstellen, zu testen und auszuführen — mit denselben Tools wie der
+      eingebaute Builder.
+    copyEndpoint: MCP-Endpunkt-URL kopieren
+    authHelp: 'Authentifiziere dich mit einem API-Schlüssel der Organisation als
+      Bearer-Token: Schlüssel erstellst und verwaltest du unter'
+    authLink: REST-API-Schlüssel.
+    toolsTitle: Tools
+    toolsHelp:
+      Direkt aus der Methodentabelle der Engine — get_docs und get_catalog
+      sind die Referenz für die Workflow-Grammatik und die Node-Typen dieses
+      Deployments.
+    exampleTitle: Ausprobieren
+    exampleHelp: Listet die Tools — setze deinen API-Schlüssel ein.
+    copyExample: Beispiel-Anfrage kopieren
   account:
     profile:
       title: Profil
@@ -5496,6 +5568,50 @@ settings:
     historyLoadFailed: Verlauf konnte nicht geladen werden
     historyRestored: Agent aus Verlauf wiederhergestellt
     historyRestoreFailed: Wiederherstellung aus Verlauf fehlgeschlagen
+    listFailed: Die Agentenliste konnte nicht geladen werden. Lade neu und versuche es erneut.
+    loadError: Eine Agent-Datei konnte nicht gelesen werden
+    catalogFailed: Der Capability-Katalog konnte nicht geladen werden. Lade neu und versuche es erneut.
+    openAgent: Agent {name} öffnen
+    readOnly: Du kannst diesen Agenten lesen, aber nicht ändern — sein Inhaber
+      (oder ein Org-Admin bei Org-Agenten) verwaltet ihn.
+    noResults:
+      title: Keine passenden Agenten
+      description: Kein Agent passt zu deiner Suche. Versuche einen anderen Begriff.
+    visibility:
+      label: Sichtbarkeit
+      org: Organisation
+      orgHelp: Jedes Mitglied kann ihn im Chat auswählen.
+      private: Privat
+      privateHelp: Nur du siehst ihn und chattest mit ihm.
+    knowledgeScope:
+      label: Wissenszugriff
+      description: Welches indexierte Wissen der Organisation die Suche dieses Agenten lesen darf.
+      none: Keins
+      noneHelp: Der Agent liest die Wissensdatenbank nie.
+      documents: Dokumente
+      documentsHelp: Nur das indexierte Dokumenten-Korpus.
+      web: Web
+      webHelp: Nur das indexierte Website-Korpus.
+      all: Alles
+      allHelp: Dokumente und Websites.
+    allowlist:
+      toolsLabel: Tool-Zugriff
+      toolsAll: Alle Tools
+      toolsAllHelp: Alles, was die Organisation ihren Mitgliedern anbietet — neue Capabilities gelten automatisch.
+      toolsNone: Keine Tools
+      toolsNoneHelp: Der Agent kann nichts aufrufen.
+      toolsSelected: Ausgewählte Tools
+      toolsSelectedHelp: Nur die angehakten Capabilities; neue bleiben aus, bis du sie anhakst.
+      skillsLabel: Skill-Zugriff
+      skillsAll: Alle Skills
+      skillsAllHelp: Jeder Skill, den das chattende Mitglied sehen kann.
+      skillsNone: Keine Skills
+      skillsNoneHelp: Der Agent lädt keine Skills.
+      skillsSelected: Ausgewählte Skills
+      skillsSelectedHelp: Nur die angehakten Skills, bis zu {max}.
+      unknownKept: Aus der Datei übernommen (heute nicht im Katalog) — abhaken entfernt ihn.
+      emptyCatalog: Noch nichts auszuwählen — deploye eine Automatisierung, damit Agenten ihre erste aufrufbare Capability bekommen.
+      noSkillsInOrg: In dieser Organisation gibt es noch keine Skills.
     unsavedChanges:
       title: Ungespeicherte Änderungen
       description:
@@ -5505,6 +5621,7 @@ settings:
       stay: Weiter bearbeiten
     navigation:
       general: Allgemein
+      instructions: Anweisungen
       instructionsModel: Anweisungen & Modelle
       tools: Tools
       skills: Skills
@@ -5630,6 +5747,9 @@ settings:
       displayName: Anzeigename
       displayNameTooltip: Der freundliche Name, den andere im Chat sehen. Jederzeit änderbar.
       displayNamePlaceholder: Mein Agent
+      labels: Labels
+      labelsPlaceholder: support, abrechnung
+      labelsHelp: Kommagetrennt, bis zu 8 — zum Stöbern in der Liste, nicht für das Modell.
       displayNameDuplicateWarning:
         Ein anderer Agent verwendet diesen Anzeigenamen
         bereits. Der Slug bleibt eindeutig, aber der doppelte Name kann im Chat
@@ -6063,6 +6183,9 @@ settings:
       namePatternError:
         Nutze Kleinbuchstaben, Zahlen und einzelne Bindestriche (z. B.
         mein-skill).
+      descriptionLabel: Beschreibung
+      descriptionPlaceholder: Wann sollte ein Agent zu diesem Skill greifen?
+      descriptionHelp: Du kannst sie später im Editor verfeinern.
       submit: Erstellen
       creating: Erstelle...
       created: Skill erstellt
@@ -6079,9 +6202,28 @@ settings:
     noResults:
       title: Keine passenden Skills
       description: Keine Skills passen zu deiner Suche. Versuch einen anderen Begriff.
+    listFailed: Die Skill-Bibliothek konnte nicht geladen werden. Lade neu und versuche es erneut.
+    openSkill: Skill {slug} öffnen
+    readOnly: Du kannst diesen Skill lesen, aber nicht ändern — sein Inhaber
+      (oder ein Org-Admin bei Org-Skills) verwaltet ihn.
+    visibility:
+      label: Sichtbarkeit
+      org: Organisation
+      orgHelp: Jedes Mitglied kann ihn lesen; Agenten laden ihn für alle.
+      private: Privat
+      privateHelp: Nur du siehst ihn, und nur deine Chats laden ihn.
     editor:
       saveSuccess: Skill gespeichert
       saveFailed: Skill konnte nicht gespeichert werden
+      descriptionHelp:
+        Ein bis zwei Sätze dazu, was der Skill abdeckt — daran erkennt das
+        Modell, wann es ihn lesen sollte.
+      labels: Labels
+      labelsPlaceholder: recherche, pdf, finanzen
+      labelsHelp: Kommagetrennt, bis zu 8 — zum Stöbern, nicht für das Modell.
+      bodyHelp:
+        Markdown, das das Modell liest, wenn es den Skill lädt — Playbooks,
+        Konventionen, Referenzmaterial. Wird nie ausgeführt.
     export:
       failed: Skill konnte nicht exportiert werden
   integrations:
@@ -8277,6 +8419,7 @@ discussions:
     placeholder: Antworten… mit @ ein Teammitglied oder einen Agenten erwähnen
     lockedPlaceholder: Diese Diskussion ist gesperrt
     hint: Erwähne einen Agenten mit @, damit er antwortet.
+    send: Antworten
     failed: Antwort konnte nicht gesendet werden
   create:
     title: Neue Diskussion
@@ -8354,46 +8497,6 @@ agentCatalog:
     description: Der Katalog enthält derzeit keine Agenten zur Installation.
   installedByIntegration: Installiert durch {integration}
   requiresIntegration: Erfordert {integration}
-runtimes:
-  description: Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den
-    Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, Cursor).
-  install:
-    title: Daemon verbinden
-    cliHint: 'Installiere zuerst die Tale-CLI, falls noch nicht geschehen:'
-    description: 'Einmal pro Maschine installieren: setup fragt nach dieser
-      Workspace-URL, einem API-Schlüssel und dem Git-Workspace, in dem Agenten
-      arbeiten dürfen. Binde dann einen Agenten in seiner Konfiguration an eine
-      Runtime — seine Board-Aufgaben laufen auf deiner Maschine und melden sich
-      zum Review zurück.'
-    privacy:
-      Lokale Workspace-Pfade verlassen deine Maschine nie — nur die von dir
-      gewählten Workspace-Schlüssel werden hier angezeigt. Die
-      full_auto-Berechtigung erfordert Opt-in auf Server UND Daemon.
-    createKey: API-Schlüssel erstellen
-    generate: Schlüssel erzeugen & Befehl kopieren
-    generateHint: Erzeugt einen neuen API-Schlüssel und kopiert einen fertigen
-      Setup-Befehl, in dem die URL dieses Workspaces und der Schlüssel bereits
-      eingetragen sind.
-    generated: Setup-Befehl erzeugt
-    generateError: Schlüssel konnte nicht erzeugt werden. Versuche es erneut.
-    copied: Setup-Befehl in die Zwischenablage kopiert
-    commandLabel: Auf der Daemon-Maschine ausführen
-    copyCommand: Setup-Befehl kopieren
-    keyCaveat: Dieser Befehl enthält einen neuen API-Schlüssel, der nur einmal
-      angezeigt wird. Wer ihn hat, kann als dieser Daemon agieren — halte ihn
-      geheim und widerrufe ihn unter Einstellungen → API → REST, falls er nach
-      außen gelangt.
-    keyName: Daemon-Setup
-  list:
-    title: Verbundene Daemons
-    empty: Noch keine Daemons verbunden
-    emptyHint: Führe tale daemon setup auf der Maschine aus, die Aufgaben ausführen soll.
-    lastSeen: zuletzt gesehen {age}
-    workspaces: 'Workspaces: {keys}'
-  status:
-    active: Aktiv
-    degraded: Beeinträchtigt
-    offline: Offline
 sandboxes:
   title: Sandboxes
   description: Always-on Remote-Agent-Sandboxes für Ihre Organisation. Jedes

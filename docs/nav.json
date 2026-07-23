@@ -80,8 +80,7 @@
             {
               "label": "releaseNotes",
               "pages": ["self-hosted/operate/release-notes/format"]
-            },
-            "self-hosted/operate/tale-daemon"
+            }
           ]
         },
         "self-hosted/contributing-docker"
@@ -145,11 +144,9 @@
             "platform/agents/skills",
             "platform/agents/knowledge",
             "platform/agents/delegation",
-            "platform/agents/webhook-triggers",
             "platform/agents/versions",
             "platform/agents/image-generation",
-            "platform/agents/external-agent",
-            "platform/agents/categories"
+            "platform/agents/external-agent"
           ]
         },
         {

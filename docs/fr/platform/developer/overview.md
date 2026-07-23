@@ -29,12 +29,6 @@ Enregistrer un processus externe protocole MCP et choisir quels de ses tools les
 
 </Card>
 
-<Card title="Déclencheurs webhook d’agent" icon="webhook" href="/fr/platform/agents/webhook-triggers">
-
-Déclencher un agent spécifique depuis un système externe sur un POST entrant.
-
-</Card>
-
 <Card title="Tools d’agent" icon="wrench" href="/fr/platform/agents/tools">
 
 Étendre le toolbelt d’un agent avec un tool personnalisé que les agents de l’org peuvent appeler.
@@ -45,4 +39,4 @@ Déclencher un agent spécifique depuis un système externe sur un POST entrant.
 
 ## Où cela s’inscrit
 
-Développeur est le pont entre Tale et le reste de la base de code que l’org fait tourner. La première lecture naturelle dépend de ce que tu viens câbler — pour sortant (quelque chose dans Tale appelle dehors) [Tools d’agent](/fr/platform/agents/tools) et [Serveurs MCP](/fr/platform/integrations/mcp-servers) ; pour entrant (quelque chose dehors appelle dans Tale) [Clés API](/fr/platform/admin/api-keys) et [Déclencheurs webhook d’agent](/fr/platform/agents/webhook-triggers).
+Développeur est le pont entre Tale et le reste de la base de code que l’org fait tourner. La première lecture naturelle dépend de ce que tu viens câbler — pour sortant (quelque chose dans Tale appelle dehors) [Tools d’agent](/fr/platform/agents/tools) et [Serveurs MCP](/fr/platform/integrations/mcp-servers) ; pour entrant (quelque chose dehors appelle dans Tale) [Clés API](/fr/platform/admin/api-keys).

@@ -121,7 +121,7 @@ Ein Lauf, der eine Freigabe braucht, schlägt nicht fehl und startet nicht neu. 
 | Einer wiederkehrenden Frage im Chat, ohne externes System                          |                 | ✓     |               |
 | Einer Agent-Antwort pro eingehendem POST                                           |                 |       | ✓             |
 
-Prüf den Katalog, bevor du baust — die Automatisierung, die du brauchst, wird vielleicht schon mitgeliefert. Ein [Agent-Webhook](/de/platform/agents/webhook-triggers) ist die eine Naht außerhalb dieses Modells; greif dazu, wenn eine einzelne Agent-Antwort pro Payload die ganze Aufgabe ist.
+Prüf den Katalog, bevor du baust — die Automatisierung, die du brauchst, wird vielleicht schon mitgeliefert. Ein [Webhook-Trigger](/de/platform/automations/triggers) ist die eingehende Naht; greif dazu, wenn eine externe Payload einen Lauf starten soll.
 
 ## Das Modell in die Praxis bringen
 

@@ -121,7 +121,7 @@ Une exécution qui a besoin d’une validation ne tombe pas en échec et ne repa
 | Une question qui revient dans le chat, sans système externe en jeu          |                | ✓     |                 |
 | Une réponse d’agent par POST entrant                                        |                |       | ✓               |
 
-Vérifie le catalogue avant de construire — l’automatisation dont tu as besoin est peut-être déjà livrée. Un [webhook d’agent](/fr/platform/agents/webhook-triggers) est la seule couture hors de ce modèle ; recours-y quand une seule réponse d’agent par charge utile suffit au travail.
+Vérifie le catalogue avant de construire — l’automatisation dont tu as besoin est peut-être déjà livrée. Un [déclencheur webhook](/fr/platform/automations/triggers) est la couture entrante ; recours-y quand une charge utile externe doit lancer une exécution.
 
 ## Mettre le modèle en pratique
 

@@ -117,6 +117,41 @@ accessDenied:
     Tu dois disposer des permissions Admin ou Développeur pour gérer les
     fournisseurs IA.
 analytics:
+  automations:
+    title: Métriques des automatisations
+    description: Utilisation et performance de tes automatisations au fil du temps.
+    cappedNotice: Affiche les 5 000 dernières exécutions de la période. Les plus
+      anciennes ne comptent pas dans ces totaux.
+    cards:
+      totalRuns: Exécutions
+      successRate: Taux de réussite
+      avgDuration: Durée moyenne
+      failedRuns: Exécutions échouées
+    chart:
+      trendTitle: Exécutions au fil du temps
+      trendTooltip: Nombre d'exécutions sur la période choisie
+      statusTitle: Répartition des statuts
+      statusTooltip: Répartition des résultats d'exécution
+      totalLabel: Exécutions
+      noData: Aucune donnée
+      noDataDescription: Lance une automatisation pour voir ses résultats ici.
+      success: Réussies
+      failed: Échouées
+      running: En cours
+      waiting: En attente
+      queued: En file
+      cancelled: Annulées
+    table:
+      title: Automatisations les plus actives
+      automation: Automatisation
+      runs: Exécutions
+      successRate: Taux de réussite
+      avgDuration: Durée moyenne
+      failed: Échecs
+      lastRun: Dernière exécution
+    empty:
+      title: Aucune exécution
+      description: Aucune automatisation n'a tourné sur la période choisie.
   usage:
     title: Métriques d'utilisation
     description: Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.
@@ -297,11 +332,39 @@ analytics:
         attribution: Attribution
     sentimentTrend: Sentiment au fil du temps
   chatHealth:
+    chart:
+      trendTitle: Réponses au fil du temps
+      trendTooltip: Réponses de l'assistant par jour, par résultat
+      ok: Réussies
+      errors: Erreurs
+      blocked: Bloquées
+      noData: Aucune donnée
+      noDataDescription: Discute avec un assistant pour voir ses réponses ici.
+    breakdown:
+      title: Répartition
+    guardrails:
+      title: Garde-fous
+      byKind: Par type
+      byFilter: Par filtre
+      eventsTooltip: '{count} événements'
+      chart:
+        title: Événements guardrails au fil du temps
+        tooltip: Détections, blocages et erreurs de filtre par jour
+        detected: Détectés
+        blocked: Bloqués
+        errors: Erreurs
+        noData: Aucun événement guardrails
+        noDataDescription:
+          Les détections des modes signaler / masquer / bloquer apparaissent
+          ici dès que le chat tourne.
     title: Santé de l'assistant
-    description:
-      Taux d'erreur, latence de réponse et routage sur les réponses de
-      l'assistant de ton organisation.
+    description: Taux d'erreur, réponses bloquées et activité des garde-fous
+      sur les réponses d'assistant de ton organisation.
     cards:
+      blockedRate: Taux de blocage
+      blockedRateDetail: '{blocked} sur {total} réponses'
+      guardrailEvents: Événements guardrails
+      guardrailEventsDetail: '{blocked} bloquées'
       errorRate: Taux d'erreur
       errorRateDetail: '{errors} sur {total} réponses'
       responseP95: Temps de réponse p95
@@ -1352,8 +1415,11 @@ chat:
     cannotShareBranch: Les chats de branche ne peuvent pas être partagés.
     cannotShareArchived: Les chats archivés ne peuvent pas être partagés.
     notShareable: Ce chat ne peut pas être partagé.
+    unshare: Arrêter le partage
+    unshared: Partage arrêté
     unshareFailed: Échec de l'arrêt du partage
     sharedChat: Chat partagé
+    byline: Partagé par {name} le {date}
     forkChat: Dupliquer ce chat
     forkSuccess: Chat dupliqué avec succès
     forkFailed: Échec de la duplication du chat
@@ -1905,11 +1971,6 @@ common:
     resetView: Réinitialiser la vue
     aiEditor: Éditeur IA
   moreTabs: Plus
-  rebuildGate:
-    title: Cette section est en cours de reconstruction
-    description: Le backend IA de la plateforme est réécrit de fond en comble.
-      {feature} est hors ligne jusqu'à la sortie de sa nouvelle version — tout
-      le reste continue de fonctionner.
 composer:
   openMenu: Ouvrir le menu du chat
   addFiles: Ajouter photos et fichiers
@@ -4665,11 +4726,6 @@ metadata:
   apiKeys:
     title: Clés API
     description: Crée et gère les clés API pour les intégrations.
-  runtimes:
-    title: Runtimes
-    description:
-      Exécute le travail des tâches sur tes propres machines, avec les
-      CLI d'agents de code que tu utilises déjà (Claude Code, Codex, Cursor).
   dataResidency:
     title: Résidence des données
     description: Où tes données sont stockées et traitées.
@@ -4738,7 +4794,6 @@ navigation:
   aria:
     primaryNavigation: Navigation principale
   dataResidency: Résidence des données
-  runtimes: Runtimes
   sandboxes: Sandboxes
   enterpriseSso: SSO d'entreprise
   sidebar:
@@ -5384,6 +5439,24 @@ settings:
       description:
         Où vivent les données de cette organisation, et les stockages de
         déploiement qui les sous-tendent.
+  mcpEndpoint:
+    description:
+      Branche n'importe quel client MCP sur ce déploiement pour créer,
+      tester et exécuter des automatisations — avec les mêmes outils que le
+      builder intégré.
+    copyEndpoint: Copier l'URL de l'endpoint MCP
+    authHelp:
+      "Authentifie-toi avec une clé API de l'organisation en jeton Bearer :
+      tu crées et gères les clés sous"
+    authLink: Clés API REST.
+    toolsTitle: Outils
+    toolsHelp:
+      Servis directement depuis la table de méthodes du moteur — get_docs et
+      get_catalog documentent la grammaire des workflows et les types de
+      nœuds de ce déploiement.
+    exampleTitle: Essaie
+    exampleHelp: Liste les outils — remplace par ta clé API.
+    copyExample: Copier la requête d'exemple
   account:
     profile:
       title: Profil
@@ -5562,6 +5635,51 @@ settings:
     historyLoadFailed: Échec du chargement de l'historique
     historyRestored: Agent restauré depuis l'historique
     historyRestoreFailed: Échec de la restauration depuis l'historique
+    listFailed: Impossible de charger la liste des agents. Recharge et réessaie.
+    loadError: Un fichier d'agent n'a pas pu être lu
+    catalogFailed: Impossible de charger le catalogue de capacités. Recharge et réessaie.
+    openAgent: Ouvrir l'agent {name}
+    readOnly:
+      Tu peux lire cet agent mais pas le modifier — son propriétaire (ou un
+      admin de l'organisation pour les agents partagés) le gère.
+    noResults:
+      title: Aucun agent correspondant
+      description: Aucun agent ne correspond à ta recherche. Essaie un autre terme.
+    visibility:
+      label: Visibilité
+      org: Organisation
+      orgHelp: Chaque membre peut le choisir dans le chat.
+      private: Privé
+      privateHelp: Toi seul le vois et discutes avec lui.
+    knowledgeScope:
+      label: Accès aux connaissances
+      description: Les connaissances indexées de l'organisation que la recherche de cet agent peut lire.
+      none: Aucune
+      noneHelp: L'agent ne lit jamais la Base de connaissances.
+      documents: Documents
+      documentsHelp: Seulement le corpus de documents indexés.
+      web: Web
+      webHelp: Seulement le corpus de sites web indexés.
+      all: Tout
+      allHelp: Documents et sites web.
+    allowlist:
+      toolsLabel: Accès aux outils
+      toolsAll: Tous les outils
+      toolsAllHelp: Tout ce que l'organisation offre à ses membres — les nouvelles capacités s'appliquent automatiquement.
+      toolsNone: Aucun outil
+      toolsNoneHelp: L'agent ne peut rien appeler.
+      toolsSelected: Outils sélectionnés
+      toolsSelectedHelp: Seulement les capacités cochées ; les nouvelles restent désactivées tant que tu ne les coches pas.
+      skillsLabel: Accès aux skills
+      skillsAll: Tous les skills
+      skillsAllHelp: Chaque skill visible par le membre qui discute.
+      skillsNone: Aucun skill
+      skillsNoneHelp: L'agent ne charge aucun skill.
+      skillsSelected: Skills sélectionnés
+      skillsSelectedHelp: Seulement les skills cochés, jusqu'à {max}.
+      unknownKept: Conservé depuis le fichier (absent du catalogue du jour) — décocher le retire.
+      emptyCatalog: Rien à sélectionner pour l'instant — déploie une automatisation pour donner aux agents leur première capacité appelable.
+      noSkillsInOrg: Aucun skill n'existe encore dans cette organisation.
     unsavedChanges:
       title: Modifications non enregistrées
       description:
@@ -5571,6 +5689,7 @@ settings:
       stay: Continuer à modifier
     navigation:
       general: Général
+      instructions: Instructions
       instructionsModel: Instructions et modèles
       tools: Outils
       skills: Skills
@@ -5707,6 +5826,9 @@ settings:
       displayNameTooltip: Le nom convivial que les autres voient dans le chat.
         Modifiable à tout moment.
       displayNamePlaceholder: Mon Agent
+      labels: Libellés
+      labelsPlaceholder: support, facturation
+      labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir la liste, pas pour le modèle.
       displayNameDuplicateWarning:
         Un autre agent utilise déjà ce nom affiché. Le slug
         reste unique, mais le nom en double peut prêter à confusion dans le chat
@@ -6149,6 +6271,9 @@ settings:
       namePatternError:
         Utilise des lettres minuscules, des chiffres et des tirets
         simples (ex. mon-skill).
+      descriptionLabel: Description
+      descriptionPlaceholder: Quand un agent devrait-il utiliser ce skill ?
+      descriptionHelp: Tu pourras l'affiner ensuite dans l'éditeur.
       submit: Créer
       creating: Création...
       created: Skill créé
@@ -6163,9 +6288,29 @@ settings:
     noResults:
       title: Aucun skill correspondant
       description: Aucun skill ne correspond à ta recherche. Essaie un autre terme.
+    listFailed: Impossible de charger la bibliothèque de skills. Recharge et réessaie.
+    openSkill: Ouvrir le skill {slug}
+    readOnly:
+      Tu peux lire ce skill mais pas le modifier — son propriétaire (ou un
+      admin de l'organisation pour les skills partagés) le gère.
+    visibility:
+      label: Visibilité
+      org: Organisation
+      orgHelp: Chaque membre peut le lire ; les agents peuvent le charger pour tout le monde.
+      private: Privé
+      privateHelp: Toi seul le vois, et seuls tes chats le chargent.
     editor:
       saveSuccess: Skill enregistré
       saveFailed: Échec de l'enregistrement du skill
+      descriptionHelp:
+        Une ou deux phrases sur ce que couvre le skill — c'est ce qui indique
+        au modèle quand le lire.
+      labels: Libellés
+      labelsPlaceholder: recherche, pdf, finance
+      labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
+      bodyHelp:
+        Le markdown que le modèle lit quand il charge le skill — playbooks,
+        conventions, référence. Jamais exécuté.
     export:
       failed: Échec de l'export du skill
   integrations:
@@ -8386,6 +8531,7 @@ discussions:
     placeholder: Répondre… utilise @ pour mentionner un coéquipier ou un agent
     lockedPlaceholder: Cette discussion est verrouillée
     hint: '@mentionne un agent pour lui demander de répondre.'
+    send: Répondre
     failed: Impossible de publier ta réponse
   create:
     title: Nouvelle discussion
@@ -8464,44 +8610,6 @@ agentCatalog:
     description: Le catalogue ne propose aucun agent à installer pour le moment.
   installedByIntegration: Installé par {integration}
   requiresIntegration: Nécessite {integration}
-runtimes:
-  description: Exécutez le travail des tâches sur vos propres machines, avec les
-    CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, Cursor).
-  install:
-    title: Connecter un daemon
-    cliHint: "Installez d'abord la CLI Tale si ce n'est pas déjà fait :"
-    description: "À installer une fois par machine : setup demande l'URL de cet
-      espace, une clé API et l'espace de travail git où les agents peuvent
-      travailler. Liez ensuite un agent à une runtime dans sa configuration —
-      ses tâches s'exécuteront sur votre machine et reviendront pour revue."
-    privacy:
-      Les chemins locaux ne quittent jamais votre machine — seules les clés
-      d'espace de travail que vous choisissez sont annoncées ici. La permission
-      full_auto exige un opt-in côté serveur ET côté daemon.
-    createKey: Créer une clé API
-    generate: Générer une clé et copier la commande
-    generateHint:
-      Génère une nouvelle clé API et copie une commande de setup prête à
-      l'emploi, avec l'URL de cet espace et la clé déjà renseignées.
-    generated: Commande de setup générée
-    generateError: Impossible de générer une clé. Réessayez.
-    copied: Commande de setup copiée dans le presse-papiers
-    commandLabel: À exécuter sur la machine du daemon
-    copyCommand: Copier la commande de setup
-    keyCaveat: Cette commande contient une nouvelle clé API, affichée une seule
-      fois. Quiconque la détient peut agir en tant que ce daemon — gardez-la
-      secrète et révoquez-la dans Paramètres → API → REST en cas de fuite.
-    keyName: Daemon
-  list:
-    title: Daemons connectés
-    empty: Aucun daemon connecté pour le moment
-    emptyHint: Lancez tale daemon setup sur la machine qui doit exécuter le travail.
-    lastSeen: vu pour la dernière fois {age}
-    workspaces: 'Espaces de travail : {keys}'
-  status:
-    active: Actif
-    degraded: Dégradé
-    offline: Hors ligne
 sandboxes:
   title: Sandboxes
   description:
