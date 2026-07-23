@@ -144,3 +144,33 @@ export const deleteAgent = action({
     });
   },
 });
+
+/** The agent's superseded versions, newest first (empty for a non-viewer). */
+export const listAgentHistory = action({
+  args: { organizationId: v.string(), slug: v.string() },
+  returns: v.array(v.object({ entry: v.string(), savedAt: v.number() })),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<Array<{ entry: string; savedAt: number }>> => {
+    const caller = await resolveAgentCaller(ctx, args.organizationId);
+    return ctx.runAction(internal.agents.file_actions.listHistory, {
+      ...caller,
+      slug: args.slug,
+    });
+  },
+});
+
+/** Restore one history snapshot as the current version (additive). */
+export const restoreAgentFromHistory = action({
+  args: { organizationId: v.string(), slug: v.string(), entry: v.string() },
+  returns: agentDocumentValidator,
+  handler: async (ctx, args): Promise<AgentDocumentView> => {
+    const caller = await resolveAgentCaller(ctx, args.organizationId);
+    return ctx.runAction(internal.agents.file_actions.restoreFromHistory, {
+      ...caller,
+      slug: args.slug,
+      entry: args.entry,
+    });
+  },
+});

@@ -18,12 +18,25 @@ describe('agentSwitchPathname', () => {
     ).toBe(`/dashboard/${org}/agents/${to}/instructions`);
     expect(
       agentSwitchPathname(
+        `/dashboard/${org}/agents/${from}/knowledge`,
+        org,
+        from,
+        to,
+      ),
+    ).toBe(`/dashboard/${org}/agents/${to}/knowledge`);
+  });
+
+  it('resets a retired editor tab (webhook/env/starters) to the overview', () => {
+    // These tabs left with the slim agent model — a stale link lands on the
+    // agent, not a 404.
+    expect(
+      agentSwitchPathname(
         `/dashboard/${org}/agents/${from}/conversation-starters`,
         org,
         from,
         to,
       ),
-    ).toBe(`/dashboard/${org}/agents/${to}/conversation-starters`);
+    ).toBe(`/dashboard/${org}/agents/${to}`);
   });
 
   it('resets unknown nested paths to the agent overview', () => {

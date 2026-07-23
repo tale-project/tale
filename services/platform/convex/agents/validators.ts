@@ -116,9 +116,13 @@ export const agentEditArgs = {
   visibility: v.optional(agentVisibilityValidator),
   icon: v.optional(v.string()),
   labels: v.optional(v.array(v.string())),
-  /** Absent leaves the allowlist as it is; an empty array narrows to nothing. */
-  tools: v.optional(v.array(v.string())),
-  skills: v.optional(v.array(v.string())),
+  /**
+   * Absent leaves the allowlist as it is; an empty array narrows to nothing;
+   * `null` REMOVES the narrowing (back to "everything the org offers") —
+   * without it a widening would be inexpressible, since absent means keep.
+   */
+  tools: v.optional(v.union(v.array(v.string()), v.null())),
+  skills: v.optional(v.union(v.array(v.string()), v.null())),
   knowledge: v.optional(agentKnowledgeScopeValidator),
 };
 

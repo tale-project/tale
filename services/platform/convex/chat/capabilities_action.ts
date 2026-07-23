@@ -268,6 +268,44 @@ export async function buildChatCapabilitySurface(
 }
 
 /**
+ * The org's capability catalog, exactly as the turn pipeline registers it —
+ * the ids an agent's `tools` allowlist narrows. A catalog UI (the agent
+ * editor's Tools tab) lists THIS rather than a hand-written copy, so the
+ * choices on screen are precisely what a turn can reach; new capability
+ * kinds appear here the moment their registration lands, with no UI change.
+ */
+export const listCapabilities = action({
+  args: { organizationId: v.string() },
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      kind: v.string(),
+      name: v.string(),
+      description: v.string(),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{ id: string; kind: string; name: string; description: string }>
+  > => {
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const registry = new CapabilityRegistry(args.organizationId);
+    await registerAutomations(ctx, registry, {
+      organizationId: args.organizationId,
+      userId: auth.userId,
+    });
+    return registry.list().map((capability) => ({
+      id: capability.id,
+      kind: capability.kind,
+      name: capability.name,
+      description: capability.description,
+    }));
+  },
+});
+
+/**
  * The one entry point the JSON-RPC and MCP faces call. Authenticates the
  * caller, builds the surface for their organization, and dispatches the
  * method. The return type is annotated explicitly: a capability result is

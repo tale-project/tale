@@ -1,7 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { RebuildGate } from '@/app/components/layout/rebuild-gate';
+import { AgentGeneralTab } from '@/app/features/agents/components/agent-general-tab';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/agents/$agentId/')({
-  component: () => <RebuildGate feature="Agents" />,
+  head: () => ({
+    meta: seo('agentSettings'),
+  }),
+  component: AgentGeneralPage,
 });
+
+function AgentGeneralPage() {
+  const { id: organizationId, agentId: slug } = Route.useParams();
+  return <AgentGeneralTab organizationId={organizationId} slug={slug} />;
+}

@@ -27,7 +27,14 @@ import type {
   FunctionReference,
   FunctionReturnType,
 } from 'convex/server';
-import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { api } from '@/convex/_generated/api';
 
@@ -163,15 +170,53 @@ export function useComposerModels(_organizationId: string): ChatQuery<{
 }
 
 /**
- * The slim agents the agent picker lists. Agent configurations are file-backed
- * and served by the agents domain; until that listing is bound through this
- * seam, the picker reports `unavailable` rather than showing agents that
- * cannot be selected.
+ * The slim agents the agent picker lists. Agent configurations are FILES, so
+ * this read is an ACTION (no reactive watch); it loads once per org and again
+ * per mount, which is the freshness a picker needs. Failures degrade to
+ * `unavailable` — the picker says "not connected" rather than showing agents
+ * that cannot be selected. Roster edits reflect on the next chat mount.
  */
 export function useChatAgents(
-  _organizationId: string,
+  organizationId: string,
 ): ChatQuery<readonly ChatAgentOption[]> {
-  return UNAVAILABLE;
+  const convex = useConvex();
+  const [state, setState] = useState<ChatQuery<readonly ChatAgentOption[]>>({
+    status: 'loading',
+  });
+
+  useEffect(() => {
+    if (!convex || !organizationId) return () => {};
+    let cancelled = false;
+    setState({ status: 'loading' });
+    convex.action(api.agents.actions.listAgents, { organizationId }).then(
+      (listing) => {
+        if (cancelled) return;
+        setState({
+          status: 'ready',
+          data: listing.agents.map((agent) => ({
+            slug: agent.slug,
+            label: agent.displayName,
+            ...(agent.description !== undefined
+              ? { description: agent.description }
+              : {}),
+          })),
+        });
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        // Pre-auth or backend failure: report honestly; the picker renders
+        // its unavailable state instead of an empty roster.
+        console.warn('[chat] could not list agents for the picker', error);
+        setState(UNAVAILABLE);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [convex, organizationId]);
+
+  if (!convex) return UNAVAILABLE;
+  return state;
 }
 
 /**

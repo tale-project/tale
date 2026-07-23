@@ -1,7 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
 
-import { RebuildGate } from '@/app/components/layout/rebuild-gate';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/agents')({
-  component: () => <RebuildGate feature="Agents" />,
+  head: () => ({
+    meta: seo('agents'),
+  }),
+  component: Outlet,
 });

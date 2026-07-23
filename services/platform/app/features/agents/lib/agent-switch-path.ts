@@ -10,9 +10,6 @@ const PORTABLE_AGENT_SEGMENTS = new Set([
   'tools',
   'skills',
   'knowledge',
-  'conversation-starters',
-  'webhook',
-  'environment',
 ]);
 
 /**

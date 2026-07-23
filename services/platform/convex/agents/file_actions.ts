@@ -38,10 +38,13 @@ import {
 import { internalAction } from '../_generated/server';
 import {
   createOrgAgentReader,
+  listAgentHistoryEntries,
+  readAgentHistoryText,
   relativeAgentPath,
   removeAgentFile,
   resolveAgentFilePath,
   writeAgentFileText,
+  type AgentHistoryEntry,
 } from './file_utils';
 import {
   agentDocumentValidator,
@@ -230,8 +233,16 @@ export const saveAgent = internalAction({
       icon: args.icon ?? existing?.definition.icon,
       labels: args.labels ?? existing?.definition.labels,
       instructions: args.instructions ?? existing?.definition.instructions,
-      tools: args.tools ?? existing?.definition.tools,
-      skills: args.skills ?? existing?.definition.skills,
+      // `null` clears a narrowing (list absent again = "not narrowed");
+      // absent keeps whatever the file says.
+      tools:
+        args.tools === null
+          ? undefined
+          : (args.tools ?? existing?.definition.tools),
+      skills:
+        args.skills === null
+          ? undefined
+          : (args.skills ?? existing?.definition.skills),
       knowledge: args.knowledge ?? existing?.definition.knowledge ?? 'all',
     };
 
@@ -260,6 +271,92 @@ export const saveAgent = internalAction({
         slug: args.slug,
         path: relativeAgentPath(args.slug),
         definition: verified,
+      },
+      viewer,
+    );
+  },
+});
+
+/**
+ * The superseded versions of one agent, newest first. Every save leaves the
+ * previous file in the trail, so this is the whole restore surface. Visible
+ * to whoever may view the agent; restoring is an edit and gated as one.
+ */
+export const listHistory = internalAction({
+  args: { orgSlug: v.string(), slug: v.string(), ...agentViewerArgs },
+  returns: v.array(v.object({ entry: v.string(), savedAt: v.number() })),
+  handler: async (_ctx, args): Promise<AgentHistoryEntry[]> => {
+    assertValidSlug(args.slug);
+    const viewer = viewerFrom(args);
+    const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
+    if (existing === null || !canViewAgent(existing.definition, viewer)) {
+      return [];
+    }
+    return listAgentHistoryEntries(args.orgSlug, args.slug);
+  },
+});
+
+/**
+ * Restore one history snapshot as the agent's current version. Additive on
+ * purpose: the write snapshots the superseded current file into the trail
+ * first, so a restore never destroys the state it replaced. The snapshot is
+ * re-parsed before it lands — a trail entry the readers would reject (an
+ * older shape, a hand-edited file) refuses with the parse detail instead of
+ * bricking the agent.
+ */
+export const restoreFromHistory = internalAction({
+  args: {
+    orgSlug: v.string(),
+    slug: v.string(),
+    entry: v.string(),
+    ...agentViewerArgs,
+  },
+  returns: agentDocumentValidator,
+  handler: async (_ctx, args): Promise<AgentDocumentView> => {
+    assertValidSlug(args.slug);
+    const viewer = viewerFrom(args);
+    const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
+    if (existing === null || !canEditAgent(existing.definition, viewer)) {
+      throw new ConvexError({
+        code: 'AGENT_FORBIDDEN',
+        message: `You cannot restore the agent "${args.slug}".`,
+      });
+    }
+
+    const content = await readAgentHistoryText(
+      args.orgSlug,
+      args.slug,
+      args.entry,
+    );
+    if (content === null) {
+      throw new ConvexError({
+        code: 'AGENT_HISTORY_ENTRY_NOT_FOUND',
+        message: `History entry "${args.entry}" no longer exists for "${args.slug}".`,
+      });
+    }
+
+    let restored: AgentDefinition;
+    try {
+      restored = parseAgentYaml(
+        content,
+        resolveAgentFilePath(args.orgSlug, args.slug),
+      );
+    } catch (err) {
+      if (err instanceof AgentParseError) {
+        throw new ConvexError({
+          code: 'INVALID_AGENT',
+          message: `The snapshot could not be restored: ${err.detail}`,
+        });
+      }
+      throw err;
+    }
+
+    await writeAgentFileText(args.orgSlug, args.slug, content);
+    return toDocument(
+      {
+        slug: args.slug,
+        path: relativeAgentPath(args.slug),
+        definition: restored,
       },
       viewer,
     );
