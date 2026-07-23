@@ -1,46 +1,58 @@
 ---
 title: Skills d’agent
-description: Un skill est un bundle réutilisable — un SKILL.md plus des scripts et références optionnels — que les agents lisent à l’exécution. Cette page couvre quand y recourir plutôt qu’allonger les instructions.
+description: Lier un skill de la bibliothèque de l’organisation à un agent — la liste du tab Skills, son plafond, et le chemin d’un bundle jusqu’à une session sandbox.
 ---
 
-Un skill est l’unité vers laquelle Tale se tourne quand le même motif apparaît sur plusieurs agents. C’est un bundle réutilisable — un `SKILL.md` avec des instructions, plus des scripts, références et assets optionnels — qui vit dans la bibliothèque de skills de l’organisation et que les agents lisent à l’exécution. Lie le même skill à trois agents et tu maintiens le comportement à un seul endroit.
+Un agent n’atteint un skill que si tu le lui lies. La [bibliothèque de skills](/fr/platform/workspace/skills) de l’organisation contient les bundles, et le tab **Skills** d’un agent est la liste qui dit lesquels cette persona a le droit de déplier. Lie un même bundle à trois agents et le comportement reste dans un seul fichier, entretenu une seule fois.
 
-Cette page te donne le modèle mental pour savoir quand un skill est le bon geste et quand des instructions inline le sont. Lis-la avant de téléverser ton premier skill ; reviens-y quand les instructions d’un agent s’allongent et que tu te demandes s’il faut les scinder.
+Cette page est le versant agent des skills : ce qu’une liaison décide, où se situe le plafond, et ce qui change quand le tour s’exécute dans une sandbox. L’écriture et le partage des bundles eux-mêmes se passent dans la bibliothèque.
 
-## Ce qu’un skill embarque
+## Ce qu’une liaison décide
 
-Un skill se téléverse comme un zip avec `SKILL.md` à la racine. Le frontmatter du fichier porte les métadonnées — description, licence, versions Python ou Node recommandées — et le corps porte les instructions. Les assets du bundle vivent sous `scripts/`, `references/` ou `assets/` : du code que l’agent peut exécuter quand il travaille dans une sandbox, et du matériel de référence qu’il lit à la demande.
+Un skill lié est proposé à l’agent par sa description. Quand le modèle juge cette description pertinente pour ce que tu as demandé, il déplie le bundle : il lit le corps de la `SKILL.md`, puis ouvre les fichiers du bundle là où le corps y renvoie. Rien n’est exécuté et rien n’est collé d’avance, si bien qu’un skill ne coûte du contexte que sur les tours où l’agent va réellement le chercher.
 
-Un skill fait d’instructions pures est la bonne forme quand le comportement est une voix ou une contrainte — « cite toujours la source par numéro de section », « refuse les questions hors de ce produit ». Un skill avec scripts est la bonne forme quand le comportement est un calcul, une transformation ou une tâche en plusieurs étapes que le modèle devrait sinon improviser en tokens.
+Un bundle dont le frontmatter porte `disable-model-invocation: true` se comporte autrement. Il reste lié et lisible, mais le modèle ne doit pas aller le chercher spontanément : il attend un tour où quelqu’un le nomme.
 
 ## Lier un skill à un agent
 
-Un skill devient visible pour un agent en le liant sur l’onglet **Skills** de l’agent — **Skills liés** liste la bibliothèque de l’organisation avec une case par skill. Un agent peut lier au plus dix skills, et un agent sans aucun lien n’en voit aucun : il n’y a pas de repli implicite vers une visibilité à l’échelle de l’organisation. L’agent lit un skill lié à l’exécution — la description lui dit quand le skill s’applique, et il tire alors le corps et les fichiers du bundle.
+Ouvre l’agent, passe sur **Skills** et choisis dans la bibliothèque de l’organisation. Un compteur à côté de la liste montre ce que tu as consommé du plafond : un agent peut lier **dix skills au maximum**. Ce dix est délibéré — une liste de liaisons, c’est une autorisation stricte que quelqu’un tient à la main, et au-delà d’une poignée plus personne ne la tient.
 
-Le lien est par agent : deux agents peuvent lier le même skill, et délier est symétrique — la requête suivante tourne sans lui.
+Traite cette liste comme une autorisation, pas comme une suggestion. Un agent dont la liste est vide ne déplie aucun skill ; il n’existe aucun repli silencieux vers tout ce que l’organisation partage. La liaison se fait par agent et fonctionne dans les deux sens : deux agents peuvent lier le même bundle, et une déliaison prend effet dès la requête suivante.
 
-## Gérer la bibliothèque
+<Note>
 
-Gérer les skills demande les permissions Admin ou Développeur. La bibliothèque vit dans les réglages Skills de l’organisation, où chaque skill montre son aperçu, le corps de ses instructions, l’arborescence de son bundle et une piste d’audit **Modifications récentes**. **Téléverser un skill** ajoute un nouveau bundle, **Remplacer le bundle** écrase l’existant en place, et **Dupliquer** le clone sous un nouveau slug.
+Ce que tu peux choisir se décide dans la bibliothèque et non ici : un skill `org` est proposé à toute l’organisation, un skill `private` seulement là où travaille son propriétaire. Le partage passe par le champ `visibility`, sur la page [bibliothèque de skills](/fr/platform/workspace/skills).
+
+</Note>
+
+## Quand le bundle change en dessous
+
+Une liaison nomme un slug, jamais un instantané. Remplace un bundle dans la bibliothèque et tout agent qui le lie en lit la nouvelle version dès sa requête suivante — aucune version à figer, aucune liaison à refaire. C’est précisément ce qui rend un skill digne d’être extrait : une modification atteint tous les agents qui le portent.
 
 <Warning>
 
-Il n’y a pas d’épinglage de version : remplacer un bundle change ce que chaque agent lié lit dès la requête suivante, et supprimer un skill retire le bundle du disque — tout agent encore lié perd l’accès.
+Supprimer un skill retire le bundle du disque, et chaque agent lié y perd l’accès sans aucun repli. Pour changer ce qu’il dit, remplace plutôt le bundle ; ne supprime qu’après avoir vérifié quels agents le nomment encore.
 
 </Warning>
 
-## Quand y recourir
+## Les skills dans une session sandbox
 
-| Utilise … quand                                                      | Skill | Instructions inline |
-| -------------------------------------------------------------------- | ----- | ------------------- |
-| Le motif se répète sur plusieurs agents                              | ✓     |                     |
-| Le comportement passe par des scripts que le modèle imiterait sinon  | ✓     |                     |
-| Le comportement est la voix d’un seul agent                          |       | ✓                   |
-| Tu veux que l’organisation gouverne le comportement en un seul geste | ✓     |                     |
-| Les instructions de l’agent tiennent encore sur un écran             |       | ✓                   |
+Quand un tour s’exécute dans une sandbox, les bundles liés n’arrivent pas par un appel d’outil. Ils sont déposés dans la session sous forme de fichiers, dans la disposition que l’environnement d’exécution sait déjà parcourir : l’agent de code les trouve comme il trouverait un skill sur n’importe quelle machine.
 
-Les instructions inline sont la bonne forme pour un agent. Les skills sont la bonne forme quand le même comportement revient dans deux ou trois agents et que le coût de garder leurs instructions inline synchronisées commence à peser.
+Une règle tranche les collisions : le dépôt gagne. Si le dépôt cloné livre un skill sous le même slug qu’un bundle que Tale déposerait, Tale retient sa copie et la version du dépôt reste en place. Un dépôt peut donc toujours écraser ce que la plateforme apprendrait sinon à l’agent, et la session ne contient jamais deux bundles réclamant le même nom. La comparaison est exacte : un slug qui diffère d’un seul caractère est un autre skill, et les deux sont déposés.
 
-## Construis-en un
+## Skill ou instructions
 
-Les skills sont le niveau d’abstraction au-dessus des quatre boutons — ils te laissent livrer un comportement une fois et laisser chaque agent qui en a besoin le récupérer en le liant. La marche suivante naturelle est [Construire un outil personnalisé](/fr/tutorials/developer/build-a-custom-tool) — elle va d’une page blanche à un skill avec scripts lié à un agent.
+| Choisis … quand                                                 | Skill | Instructions d’agent |
+| --------------------------------------------------------------- | ----- | -------------------- |
+| Le motif revient chez plusieurs agents                          | ✓     |                      |
+| Le comportement s’accompagne de fichiers de référence           | ✓     |                      |
+| Il s’agit de la voix de cet agent-là                            |       | ✓                    |
+| Une seule modification doit atteindre tous ceux qui l’utilisent | ✓     |                      |
+| Les instructions de l’agent tiennent encore sur un écran        |       | ✓                    |
+
+Les instructions sont la bonne forme pour le caractère propre d’un agent. Un skill devient la bonne forme dès que le même comportement apparaît chez un deuxième puis un troisième agent et que garder leurs instructions au même niveau commence à coûter.
+
+## Où cela se place
+
+La liaison est la moitié étroite des skills : la bibliothèque décide de ce qui existe et de qui peut le voir, le tab **Skills** décide quelle persona a le droit de déplier quoi. Garde les listes courtes, préfère remplacer un bundle plutôt que le cloner, et laisse un dépôt écraser ce que la plateforme dépose quand un agent y travaille. L’autre moitié — écrire une `SKILL.md`, téléverser un zip, partager un bundle avec l’organisation — c’est la [bibliothèque de skills](/fr/platform/workspace/skills).

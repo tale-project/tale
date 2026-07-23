@@ -59,7 +59,7 @@ Die Rollen-Matrix (wer was darf) steht in [Mitglieder und Rollen](/de/platform/a
 
 <Step title="Verbinde einen Modellanbieter">
 
-Öffne **Einstellungen > KI-Anbieter** und klicke auf **Anbieter hinzufügen**. Wähl den Anbieter, für den du Zugangsdaten hast, und füg den API-Schlüssel ein. Speichere. Tale validiert den Schlüssel im Hintergrund; eine Bestätigung auf der Anbieterzeile heißt, dass er funktioniert. Schlägt die Validierung fehl, zeigt die Zeile den Fehler wörtlich — die häufigste Ursache ist Whitespace um den Schlüssel.
+Öffne **Einstellungen > KI-Anbieter**, such den Connector, für den du einen Schlüssel hast, und klicke auf **Zugangsdaten hinzufügen**. Gib den Zugangsdaten einen Namen, an dem später erkennbar ist, welcher Schlüssel dahintersteckt, wähl als Authentifizierungsmethode **API-Schlüssel** und füg den Schlüssel ein. Er wird verschlüsselt gespeichert und ist als erster Eintrag automatisch der Standard des Connectors; ein zweiter Eintrag am selben Connector ist erlaubt, und du entscheidest, welcher der Standard ist. Wird ein Schlüssel abgelehnt, liegt es meistens an Whitespace darum herum.
 
 <Frame caption="Der verbundene Anbieter — von hier kann jeder Agent antworten.">
 

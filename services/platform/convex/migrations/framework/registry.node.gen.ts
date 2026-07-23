@@ -29,6 +29,11 @@ import { migration as n0_3_4_33 } from '../versions/v0_3_4/33_workflows_become_a
 import { migration as n0_3_4_34 } from '../versions/v0_3_4/34_retire_github_pack_agents/migration';
 import { migration as n0_3_4_35 } from '../versions/v0_3_4/35_remove_standalone_workflow_files/migration';
 import { migration as n0_3_4_41 } from '../versions/v0_3_4/41_create_pack_automation_installs/migration';
+import { migration as n0_4_0_01 } from '../versions/v0_4_0/01_governance_config_json_to_yaml/migration';
+import { migration as n0_4_0_02 } from '../versions/v0_4_0/02_provider_credentials_from_files/migration';
+import { migration as n0_4_0_23 } from '../versions/v0_4_0/23_integration_credentials_rekey/migration';
+import { migration as n0_4_0_30 } from '../versions/v0_4_0/30_prompts_to_skill_files/migration';
+import { migration as n0_4_0_35 } from '../versions/v0_4_0/35_agents_json_to_slim_yaml/migration';
 
 /** Runnable `node` migrations, keyed by meta.id. */
 export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
@@ -49,4 +54,9 @@ export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
   "0.3.4/34_retire_github_pack_agents": composeNode(requireMeta("0.3.4/34_retire_github_pack_agents"), n0_3_4_34),
   "0.3.4/35_remove_standalone_workflow_files": composeNode(requireMeta("0.3.4/35_remove_standalone_workflow_files"), n0_3_4_35),
   "0.3.4/41_create_pack_automation_installs": composeNode(requireMeta("0.3.4/41_create_pack_automation_installs"), n0_3_4_41),
+  "0.4.0/01_governance_config_json_to_yaml": composeNode(requireMeta("0.4.0/01_governance_config_json_to_yaml"), n0_4_0_01),
+  "0.4.0/02_provider_credentials_from_files": composeNode(requireMeta("0.4.0/02_provider_credentials_from_files"), n0_4_0_02),
+  "0.4.0/23_integration_credentials_rekey": composeNode(requireMeta("0.4.0/23_integration_credentials_rekey"), n0_4_0_23),
+  "0.4.0/30_prompts_to_skill_files": composeNode(requireMeta("0.4.0/30_prompts_to_skill_files"), n0_4_0_30),
+  "0.4.0/35_agents_json_to_slim_yaml": composeNode(requireMeta("0.4.0/35_agents_json_to_slim_yaml"), n0_4_0_35),
 };

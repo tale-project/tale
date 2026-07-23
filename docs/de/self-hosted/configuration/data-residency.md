@@ -9,13 +9,13 @@ Diese Seite behandelt, was sich verlagern lässt, die eine Voraussetzung, die zu
 
 ## Bearbeitung aktivieren
 
-Die Seite ansehen darf jeder Owner oder Admin einer Organisation, aber **bearbeiten** — einen Datenspeicher umlenken, Secrets speichern, einen Verbindungstest laufen lassen oder einen Neustart auslösen — darf nur eine benannte Allowlist von Operatoren. Trage deren Anmelde-E-Mails (kommagetrennt) in `.env` ein und starte neu:
+**Einstellungen > Datenresidenz** ist eine einzige Seite mit zwei Arten von Abschnitten: den deployment-weiten Speichern, die sich alle Organisationen teilen, und den Speichern, die eine einzelne Organisation selbst mitbringt. Jeder Abschnitt erscheint lesend oder bearbeitbar, je nachdem, was die lesende Person ändern darf, und die Seite benennt den Zustand. Ansehen darf jeder Owner oder Admin einer Organisation; die **deployment-weiten Speicher bearbeiten** — einen Datenspeicher umlenken, Secrets speichern, einen Verbindungstest laufen lassen oder einen Neustart auslösen — darf nur eine benannte Allowlist von Operatoren. Trage deren Anmelde-E-Mails (kommagetrennt) in `.env` ein und starte neu:
 
 ```bash
 TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-Ist die Allowlist leer oder nicht gesetzt, zeigt **Einstellungen > Datenresidenz** Administratoren die aktuelle Konfiguration weiterhin an, aber nur lesend — Speichern, Testen und Anwenden & neu starten verweigern für alle den Dienst. Nur ein angemeldeter Admin, dessen E-Mail auf der Liste steht, bekommt eine bearbeitbare Seite; die Seite nennt dir, welche E-Mail einzutragen ist. Die Entrypoints lesen die Konfigurationsdatei unabhängig von der Allowlist, also kann ein Operator, der die Datei lieber direkt auf der Platte bearbeitet, das tun, ohne UI-Bearbeiter zu benennen.
+Ist die Allowlist leer oder nicht gesetzt, zeigen die Deployment-Abschnitte Administratoren die aktuelle Konfiguration weiterhin an, aber nur lesend — Speichern, Testen und Anwenden & neu starten verweigern für alle den Dienst. Nur ein angemeldeter Admin, dessen E-Mail auf der Liste steht, bekommt diese Abschnitte bearbeitbar; die Seite nennt dir, welche E-Mail einzutragen ist. Die Entrypoints lesen die Konfigurationsdatei unabhängig von der Allowlist, also kann ein Operator, der die Datei lieber direkt auf der Platte bearbeitet, das tun, ohne UI-Bearbeiter zu benennen.
 
 ## Was du verlagern kannst
 
@@ -46,7 +46,7 @@ Dieselbe ParadeDB-Voraussetzung gilt. Die Org prüft ihre Kandidaten-Datenbank m
 
 Dieser Weg fällt sicher zurück. Eine Organisation ohne `connection.json` nutzt weiter den Deployment-Default `knowledge-db` genau wie zuvor, das Feature ändert also nichts für Orgs, die sich nicht dafür entscheiden. Zwei Organisationen, die auf dieselbe Datenbank zeigen, teilen sich einen Verbindungs-Pool, und — anders als die deployment-weiten Speicher — braucht eine Änderung pro Org keinen Container-Neustart: die nächste Anfrage dieser Org wird auf ihre eigene Datenbank geleitet.
 
-Ein Inhaber oder Admin der Organisation kann diese Verbindung auch über die UI verwalten: **Einstellungen > Datenresidenz der Organisation** liest und schreibt genau diese Dateien, mit demselben Verbindungstest vor dem Umschalten. Die JSON-Dateien auf der Platte bleiben die Quelle der Wahrheit — ein Operator, der sie lieber von Hand bearbeitet, braucht keinen UI-Schritt.
+Ein Inhaber oder Admin der Organisation kann diese Verbindung auch über die UI verwalten: die Organisations-Abschnitte von **Einstellungen > Datenresidenz** lesen und schreiben genau diese Dateien, mit demselben Verbindungstest vor dem Umschalten. Diese Abschnitte bleiben für Inhaber und Admins der Organisation bearbeitbar, ob die Operator-Allowlist sie nennt oder nicht — die Dateien dahinter gehören der Organisation, nicht dem Deployment. Die JSON-Dateien auf der Platte bleiben die Quelle der Wahrheit — ein Operator, der sie lieber von Hand bearbeitet, braucht keinen UI-Schritt.
 
 ## Objektspeicher pro Organisation
 
@@ -59,7 +59,7 @@ Die Verbindung liegt neben der Wissens-Verbindung im Konfigurationsverzeichnis d
 
 Anders als der deployment-weite S3-Schalter oben ist dieser Weg **nicht** nur für Neuinstallationen: Sobald die Konfiguration existiert, landen neue Uploads im Bucket der Org, während zuvor gespeicherte Dateien lesbar bleiben, wo sie sind — gemischte Referenzen werden unterstützt, du kannst also jederzeit umschalten. Früher gespeicherte Dateien bleiben im Convex-Speicher, bis du sie mit dem Blob-Backfill unten verlagerst. Entfernst du die Konfiguration, landen neue Uploads wieder im Deployment-Default; bereits in den Bucket geschriebene Dateien bleiben dort, Tale kann sie aber erst wieder lesen, wenn die Verbindung erneut eingerichtet ist. Ein Neustart ist in keine Richtung nötig.
 
-Org-Admins verwalten auch diese Verbindung unter **Einstellungen > Datenresidenz der Organisation**; der dortige Verbindungstest führt einen echten Hochladen-Lesen-Löschen-Durchlauf gegen den Bucket aus, bevor du dich festlegst. Wie bei der Wissens-Verbindung bleiben die JSON-Dateien die Quelle der Wahrheit.
+Org-Admins verwalten auch diese Verbindung in denselben Organisations-Abschnitten von **Einstellungen > Datenresidenz**; der dortige Verbindungstest führt einen echten Hochladen-Lesen-Löschen-Durchlauf gegen den Bucket aus, bevor du dich festlegst. Wie bei der Wissens-Verbindung bleiben die JSON-Dateien die Quelle der Wahrheit.
 
 > **Erlaube den Origin der App in der CORS-Policy des Buckets.** Uploads und Downloads laufen über vorsignierte URLs direkt zwischen Browser und Bucket, der Bucket muss Cross-Origin-Anfragen von der URL deines Deployments also akzeptieren — erlaube diesen Origin mit den Methoden `GET`, `PUT` und `HEAD` sowie allen Request-Headern (Cloudflare R2: **Settings > CORS Policy** des Buckets; AWS S3 und MinIO: die CORS-Konfiguration des Buckets). Der Verbindungstest in der App läuft auf dem Server, nicht im Browser — eine fehlende CORS-Policy zeigt sich deshalb erst später, als fehlgeschlagener Upload.
 

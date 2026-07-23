@@ -15,9 +15,9 @@ import {
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { looksLikeCodeTask } from '@/lib/shared/agents/display-category';
 
 import { useAssignableActors } from '../hooks/use-actor-directory';
+import { looksLikeCodeTask } from '../lib/agent-display';
 import type { TaskActorType } from '../lib/display';
 import { AssigneeAvatar } from './assignee-avatar';
 

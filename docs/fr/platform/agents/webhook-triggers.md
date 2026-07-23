@@ -5,7 +5,7 @@ description: L’onglet Webhooks de l’agent — des URL uniques que des systè
 
 L’onglet **Webhooks** d’un agent crée des URL uniques que des systèmes externes peuvent appeler en POST pour chatter avec l’agent — rien de l’interface n’est impliqué. Va vers lui quand quelque chose hors de Tale a besoin que l’agent réponde : un bot Slack, un gestionnaire de formulaire, un job planifié.
 
-Cette page couvre la seule surface webhook par agent. Pour les déclencheurs entrants qui lancent un workflow plutôt qu’un agent, voir [Workflows → déclencheurs](/fr/platform/automations/triggers) ; pour la surface développeur complète, voir [Développer → référence API](/fr/develop/api-reference).
+Cette page couvre la seule surface webhook par agent. Pour les déclencheurs entrants qui lancent une automatisation plutôt qu’un agent, voir [Automatisations → déclencheurs](/fr/platform/automations/triggers) ; pour la surface développeur complète, voir [Développer → référence API](/fr/develop/api-reference).
 
 <Frame caption="L’onglet Webhooks — un webhook en service avec son interrupteur Actif et l’heure du dernier déclenchement.">
 
@@ -37,7 +37,7 @@ L’action **Exemples d'utilisation** de chaque ligne ouvre des exemples prêts 
 
 ## Le point de terminaison compatible OpenAI
 
-Ajouter `/chat/completions` à l’URL du webhook expose un point de terminaison ChatCompletion à la OpenAI, pour que les clients OpenAI du commerce puissent pointer sur un agent : utilise l’URL du webhook comme URL de base, n’importe quelle valeur non vide comme clé API, et un identifiant de modèle de la liste de l’agent (les valeurs inconnues retombent sur le modèle par défaut). Les téléversements de fichiers ne sont pris en charge que sur l’URL de base du webhook, pas sur ce sous-chemin.
+Ajouter `/chat/completions` à l’URL du webhook expose un point de terminaison ChatCompletion à la OpenAI, pour que les clients OpenAI du commerce puissent pointer sur un agent : utilise l’URL du webhook comme URL de base, n’importe quelle valeur non vide comme clé API, et comme identifiant de modèle l’un de ceux que l’organisation propose. L’agent n’épingle aucun modèle propre : c’est donc dans ce champ que l’appelant fait le choix que ferait sinon le composer. Les téléversements de fichiers ne sont pris en charge que sur l’URL de base du webhook, pas sur ce sous-chemin.
 
 ## Gérer et révoquer
 

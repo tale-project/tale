@@ -38,15 +38,15 @@ Les plafonds à l’échelle de l’organisation (simultanéité des exécutions
 
 ## Choisir le bon assigné
 
-Toutes les tâches ne sont pas faites pour un agent de code. La règle simple :
+Toutes les tâches ne sont pas faites pour un agent sandbox. La règle simple :
 
-| Forme de la tâche                                                                          | Assigner                                                                                                                                                                                                                                                               |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Recherche, rédaction, synthèses, livrables personnels                                      | Une **personne** — désactive le tri des tâches non assignées sur les projets personnels pour que les agents ne s’en emparent pas tout seuls                                                                                                                            |
-| Automatisation générale avec les outils plateforme (commentaires, workflows, intégrations) | Un **Agent** (boucle d’outils plateforme)                                                                                                                                                                                                                              |
-| Travail de dépôt — bugs, fonctionnalités, refactorisations, PRs                            | Un **agent de code** avec le bon dispatch : tale-daemon (`runtime`) pour un espace de travail git, sandbox durable quand c’est configuré — ou accepte qu’un agent de code sandbox-seulement passe par la boucle plateforme sur le tableau tant que ces champs manquent |
+| Forme de la tâche                                                                          | Assigner                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recherche, rédaction, synthèses, livrables personnels                                      | Une **personne** — désactive le tri des tâches non assignées sur les projets personnels pour que les agents ne s’en emparent pas tout seuls                                                                                                                    |
+| Automatisation générale avec les outils plateforme (commentaires, workflows, intégrations) | Un **Agent** (boucle d’outils plateforme)                                                                                                                                                                                                                      |
+| Travail de dépôt — bugs, fonctionnalités, refactorisations, PRs                            | Un **agent sandbox** avec le bon dispatch : tale-daemon (`runtime`) pour un espace de travail git, sandbox durable quand c’est configuré — ou accepte qu’un agent sandbox-seulement passe par la boucle plateforme sur le tableau tant que ces champs manquent |
 
-Le sélecteur d’assigné groupe les **Agents** et les **Agents de code** séparément et affiche un indice de dispatch d’une ligne pour chaque agent de code. Les agents d’image n’apparaissent pas dans la liste des assignés de tâches.
+Le sélecteur d’assigné groupe les **Agents** et les **Agents sandbox** séparément et affiche un indice de dispatch d’une ligne pour chaque agent sandbox.
 
 ## L’arrêt d’urgence
 

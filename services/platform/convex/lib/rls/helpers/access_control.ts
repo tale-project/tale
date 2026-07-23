@@ -20,7 +20,6 @@ type PlatformTable =
   | 'wfExecutions'
   | 'approvals'
   | 'websites'
-  | 'workflowProcessingRecords'
   | 'promptTemplates'
   | 'promptCategories'
   | 'auditLogs'
@@ -72,7 +71,6 @@ const platformPermissions: Record<
     conversationMessages: ALL,
     wfDefinitions: ALL,
     wfExecutions: ALL,
-    workflowProcessingRecords: ALL,
     approvals: ALL,
     websites: ALL,
     promptTemplates: ALL,
@@ -103,7 +101,6 @@ const platformPermissions: Record<
     conversationMessages: ALL,
     wfDefinitions: ALL,
     wfExecutions: ALL,
-    workflowProcessingRecords: ALL,
     approvals: ALL,
     websites: ALL,
     promptTemplates: ALL,
@@ -132,7 +129,6 @@ const platformPermissions: Record<
     conversationMessages: ALL,
     wfDefinitions: READ_ONLY,
     wfExecutions: READ_ONLY,
-    workflowProcessingRecords: READ_ONLY,
     approvals: ALL,
     websites: ALL,
     promptTemplates: ALL,
@@ -161,7 +157,6 @@ const platformPermissions: Record<
     conversationMessages: READ_ONLY,
     wfDefinitions: READ_ONLY,
     wfExecutions: READ_ONLY,
-    workflowProcessingRecords: READ_ONLY,
     approvals: READ_ONLY,
     websites: READ_ONLY,
     promptTemplates: ALL,
@@ -194,7 +189,6 @@ const platformPermissions: Record<
     conversationMessages: NONE,
     wfDefinitions: NONE,
     wfExecutions: NONE,
-    workflowProcessingRecords: NONE,
     approvals: NONE,
     websites: NONE,
     promptTemplates: NONE,

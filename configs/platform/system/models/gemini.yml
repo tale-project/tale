@@ -1,0 +1,30 @@
+# Static model catalog for the gemini connector — the Gemini flagship and its
+# fast workhorse, in the vendor's own model ids (the connector rides Google's
+# OpenAI-compatibility endpoint, which takes the same ids). Pricing is cents
+# per million tokens.
+- id: gemini-3.1-pro-preview
+  provider: gemini
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 1200
+- id: gemini-3-flash-preview
+  provider: gemini
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 50
+    outputCentsPerMillion: 300

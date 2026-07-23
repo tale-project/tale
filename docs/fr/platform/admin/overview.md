@@ -25,7 +25,7 @@ Les six rôles et la matrice au niveau ressource qui dit qui peut lire, écrire,
 
 <Card title="Équipes" icon="users-round" href="/fr/platform/admin/teams">
 
-Regroupe les membres en équipes qui partagent agents, prompts et intégrations.
+Regroupe les membres en équipes qui partagent agents, skills et intégrations.
 
 </Card>
 
@@ -37,19 +37,13 @@ Chaque agent de l’organisation, et là où un Administrateur intervient quand 
 
 <Card title="Fournisseurs IA" icon="cpu" href="/fr/platform/admin/providers">
 
-Connecte les fournisseurs compatibles OpenAI derrière chaque réponse et choisis quels modèles l’organisation peut utiliser.
-
-</Card>
-
-<Card title="Sources de jetons" icon="key-round" href="/fr/platform/admin/token-sources">
-
-Des identifiants partagés dont les agents et les outils se servent sans que chaque membre détienne le secret.
+Enregistre les identifiants derrière chaque réponse et choisis quels modèles l’organisation peut appeler.
 
 </Card>
 
 <Card title="Intégrations" icon="plug" href="/fr/platform/admin/integrations">
 
-Installe et fais tourner les identifiants derrière Slack, Gmail, Outlook, Google Drive, GitHub, Shopify et plus.
+Enregistre et remplace les identifiants derrière Slack, Gmail, Outlook, Google Drive, GitHub, Shopify et plus.
 
 </Card>
 
@@ -93,4 +87,4 @@ Journaux d’audit, politiques et limites, garde-fous, analyses, rétention et l
 
 ## Où cela s’inscrit
 
-Admin est la surface que suppose chaque autre onglet. Chat résout un modèle via les fournisseurs configurés ici ; les agents appellent des outils via les intégrations configurées ici ; la bibliothèque de prompts et l’inbox respectent les frontières d’équipe configurées ici. La lecture naturelle en premier est [Membres et rôles](/fr/platform/admin/members-and-roles) — chaque autre page Admin renvoie aux noms de rôles qu’elle définit.
+Admin est la surface que suppose chaque autre onglet. Chat résout un modèle via les fournisseurs configurés ici ; les agents appellent des outils via les intégrations configurées ici ; la bibliothèque de skills et l’inbox respectent les frontières d’équipe configurées ici. La lecture naturelle en premier est [Membres et rôles](/fr/platform/admin/members-and-roles) — chaque autre page Admin renvoie aux noms de rôles qu’elle définit.

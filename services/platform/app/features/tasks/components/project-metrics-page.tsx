@@ -157,7 +157,7 @@ export function ProjectMetricsPage({
   const { formatCostCents } = useFormatNumber();
 
   const { data, isLoading } = useConvexQuery(
-    api.task_metrics.queries.getProjectTaskMetrics,
+    api.legacy.task_metrics_queries.getProjectTaskMetrics,
     { projectId, days: periodDays },
   );
   // The query returns v.any(); the shape is owned by getProjectTaskMetrics.

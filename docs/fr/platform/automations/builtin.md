@@ -13,7 +13,7 @@ Tale livre des automatisations prêtes à l’emploi : trois à but unique qui 
 
 ## Synchroniser les e-mails Gmail, Outlook et IMAP
 
-**Synchroniser les e-mails Gmail**, **Synchroniser les e-mails Outlook** et **Synchroniser les e-mails via SMTP/IMAP** sont la même automatisation répétée trois fois, une par type de boîte aux lettres : chacune requiert exactement l’intégration que son nom indique, chacune installe la même vue intégrée **Boîte de réception**, indépendante du canal, et chacune embarque le workflow de synchronisation qui rapatrie la boîte aux lettres dans les conversations selon une planification (toutes les six heures d’origine — resserrable sur l’onglet **Déclencheurs** de l’automatisation). Une organisation qui reçoit du courrier sur plus d’un type de boîte aux lettres en installe plusieurs ; chaque Boîte de réception ne montre que le trafic de sa propre boîte aux lettres.
+**Synchroniser les e-mails Gmail**, **Synchroniser les e-mails Outlook** et **Synchroniser les e-mails via SMTP/IMAP** sont la même automatisation répétée trois fois, une par type de boîte aux lettres : chacune requiert exactement l’intégration que son nom indique, chacune installe la même vue intégrée **Boîte de réception**, indépendante du canal, et chacune embarque le workflow de synchronisation qui rapatrie la boîte aux lettres dans les conversations selon une planification, toutes les six heures d’origine — change le [déclencheur de planification](/fr/platform/automations/triggers) pour rapatrier plus souvent. Une organisation qui reçoit du courrier sur plus d’un type de boîte aux lettres en installe plusieurs ; chaque Boîte de réception ne montre que le trafic de sa propre boîte aux lettres.
 
 | Automatisation                         | Requiert  | Boîte aux lettres                 |
 | -------------------------------------- | --------- | --------------------------------- |
@@ -39,7 +39,7 @@ Un humain reste dans la boucle à deux moments : démarrer une tâche proposée
 
 ## Modèles de synchronisation et d’entretien
 
-Huit automatisations de plus attendent dans le catalogue pour le moment où tu en as besoin. Chacune est un workflow unique : installe-la, pointe-la vers tes données — les modèles de synchronisation demandent leur source via la planification qu’ils créent — puis ajuste-la librement sur l’onglet **Éditeur** de l’automatisation.
+Huit automatisations de plus attendent dans le catalogue pour le moment où tu en as besoin. Chacune est un workflow unique : installe-la, pointe-la vers tes données — les modèles de synchronisation demandent leur source via la planification qu’ils créent — puis ajuste-la librement sur la page de l’automatisation, où une modification devient une nouvelle version que tu mets en service quand tu es prêt.
 
 | Automatisation                             | Requiert     | Ce qu’elle fait                                                                                    |
 | ------------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------- |
@@ -54,7 +54,7 @@ Huit automatisations de plus attendent dans le catalogue pour le moment où tu e
 
 ## Les packs préinstallés
 
-La mécanique qui fait tourner les tableaux de chaque organisation est elle aussi faite d’automatisations — installées automatiquement à la création, cachées du catalogue, mais visibles sur l’onglet **Installées** comme tout le reste. Le **pack tâches** lance un agent assigné dès qu’une tâche lui arrive, trie le travail non assigné, réagit aux @-mentions, fait passer le travail terminé par la relecture, balaie les exécutions bloquées, fait respecter les SLA et garde en mouvement tâches dépendantes, sous-tâches et archives ; son voisin répond aux mentions en discussion. Chacune est une automatisation normale — ouvre-la pour lire son workflow sur l’onglet **Éditeur**, l’observer sous **Exécutions** ou couper un déclencheur sous **Déclencheurs** ; une désinstallation tient, et rien ne la réinstalle dans ton dos. Une automatisation cachée de plus les rejoint à la demande : celle qui garde les fichiers OneDrive synchronisés s’installe d’elle-même à la première [importation synchronisée](/fr/platform/knowledge/documents) — et configurer une nouvelle synchronisation la ramène après une désinstallation.
+La mécanique qui fait tourner les tableaux de chaque organisation est elle aussi faite d’automatisations — installées automatiquement à la création, cachées du catalogue, mais visibles sur l’onglet **Installées** comme tout le reste. Le **pack tâches** lance un agent assigné dès qu’une tâche lui arrive, trie le travail non assigné, réagit aux @-mentions, fait passer le travail terminé par la relecture, balaie les exécutions bloquées, fait respecter les SLA et garde en mouvement tâches dépendantes, sous-tâches et archives ; ses voisins répondent aux mentions en discussion et gardent les fichiers OneDrive synchronisés. Chacune est une automatisation normale — ouvre-la pour lire son document sur le canvas, suivre ce qu’elle a fait dans sa [liste des exécutions](/fr/platform/automations/execution-logs), ou couper un [déclencheur](/fr/platform/automations/triggers) pour qu’elle cesse de se lancer ; une désinstallation tient, et rien ne la réinstalle dans ton dos.
 
 ## Où cela s’inscrit
 

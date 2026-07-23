@@ -6,19 +6,19 @@ import { jsonRecordValidator } from '../validators/json';
 /**
  * Derived read-through cache of file-based config for `v8-sync` domains.
  *
- * **Not authoritative.** The source of truth is the per-org JSON files under
- * `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`. V8 queries / mutations / better-auth
- * hooks cannot read the filesystem, so they read this generic mirror instead. It
- * is rebuilt from the files by `lib/config_cache/actions.ts` on every write and
- * on scaffold/reseed (plus a periodic reconcile), and can be re-derived at any
- * time by re-reading the files.
+ * **Not authoritative.** The source of truth is the per-org config files
+ * under `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`. V8 queries / mutations /
+ * better-auth hooks cannot read the filesystem, so they read this generic
+ * mirror instead. It is rebuilt from the files by
+ * `lib/config_cache/actions.ts` on every write and on scaffold/reseed (plus
+ * a periodic reconcile), and can be re-derived at any time.
  *
  * Domain-agnostic by design:
- *  - `domain` identifies the config domain (`'governance'`, …),
+ *  - `domain` names the config domain (`'governance'`, `'sso'`, …),
  *  - `key` the item within it (a governance `policyType`, …),
- *  - `config` holds the EFFECTIVE, schema-normalized config (defaults applied),
- *  - `effectiveAt` is a generic enforcement anchor (e.g. the password-rotation
- *    grace anchor) preserved across re-syncs.
+ *  - `config` holds the EFFECTIVE, schema-normalized config,
+ *  - `effectiveAt` is a generic enforcement anchor (e.g. the
+ *    password-rotation grace anchor) preserved across re-syncs.
  */
 export const configCacheTable = defineTable({
   organizationId: v.string(),
@@ -32,7 +32,6 @@ export const configCacheTable = defineTable({
 })
   .index('by_org_domain', ['organizationId', 'domain'])
   .index('by_org_domain_key', ['organizationId', 'domain', 'key'])
-  // Cross-org range over a single (domain, key) — lets "every org's value of X"
-  // readers (retention_policy / session_idle enforcement) range instead of
-  // full-scanning the whole cache.
+  // Cross-org range over one (domain, key) — lets "every org's value of X"
+  // readers (retention / session-idle enforcement) range instead of scanning.
   .index('by_domain_key', ['domain', 'key']);

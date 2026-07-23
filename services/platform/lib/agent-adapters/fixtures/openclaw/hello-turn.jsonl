@@ -1,4 +1,0 @@
-{"type": "run_start", "session_id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301", "model": "tale/openrouter/anthropic/claude-sonnet-4.6", "schema_version": 1, "ts": "2026-07-07T00:00:00.000000Z"}
-{"type": "assistant_message", "text": "Hello from the mock model! Nothing else to do.", "schema_version": 1, "ts": "2026-07-07T00:00:00.000000Z"}
-{"type": "usage", "input": 128, "output": 12, "model": "openrouter/anthropic/claude-sonnet-4.6", "schema_version": 1, "ts": "2026-07-07T00:00:00.000000Z"}
-{"type": "run_end", "status": "ok", "session_id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301", "final_text": "Hello from the mock model! Nothing else to do.", "duration_ms": 1295, "schema_version": 1, "ts": "2026-07-07T00:00:00.000000Z"}

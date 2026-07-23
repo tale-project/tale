@@ -1,83 +1,64 @@
 ---
-title: External agents
-description: Built-in coding agents (Claude Code, Cursor, OpenCode, Hermes Agent, Gemini CLI, Codex, Pi, OpenClaw) that run inside an isolated sandbox; you chat with them directly as they edit files, run commands, and continue the work across turns.
+title: Sandbox agents
+description: Turns that run a model inside a coding-agent harness in an isolated sandbox — which harnesses ship, where the credential comes from, and what the box can reach.
 ---
 
-Tale ships built-in **external agents** — **Claude Code**, **Cursor**, **OpenCode**, **Hermes Agent**, **Gemini CLI**, **Codex**, **Pi**, and **OpenClaw** — whose whole turn runs inside an isolated sandbox. Instead of the normal chat loop, your message is handed to that coding agent, which lives in a fresh container, edits files, runs commands, and reports back. You talk to it directly in the chat, and it keeps the same working directory and conversation across turns, so a follow-up like "now add a test for that" continues where it left off.
+A sandbox agent is a turn that runs your chosen model inside a coding-agent harness instead of the ordinary chat loop. The harness is a command-line agent living in an isolated container: it plans, writes files, runs commands, installs packages, and reports back, and you talk to it in the chat while it works. The composer's model picker lists these under **Sandbox agents**, beside the plain **Models** group.
 
-It is the same idea as running such a tool on a remote machine, except the machine is a managed sandbox the workspace controls. This page covers how to use it, what the sandbox can and cannot reach, and how it is billed.
+This page covers what a sandbox turn is, which harnesses ship with Tale, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers).
 
-## Talking to a coding agent
+## What a sandbox turn is
 
-Pick **Claude Code**, **Cursor**, **OpenCode**, **Hermes Agent**, **Gemini CLI**, **Codex**, **Pi**, or **OpenClaw** in the chat picker and describe a task in plain language — "write a small Python CLI and test it", "clone this repo and fix the bug in issue #42". The agent works inside its sandbox: it plans, writes files, runs shell commands, and installs packages as needed, then replies with what it did. While it works you see a thinking indicator; the reply lands when the turn finishes.
+Pick a sandbox agent in the composer and describe a task in plain language — "write a small Python CLI and test it", "clone this repository and fix the bug in issue 42". Your message goes to the harness rather than to the model directly. The harness drives the model in a loop inside the container, deciding for itself when to read a file, run a command, or try again, and the reply lands when its turn finishes.
 
-You do not have to wait for a turn to finish. The chat stays open while the agent works: anything you send waits in a **Queued messages** tray above the chat and is handed to the running agent at its next opportunity. **Claude Code** picks those up mid-turn, at the agent's next tool boundary, so a correction like "use pnpm, not npm" lands while the work is still going. **Cursor**, **OpenCode**, **Codex**, **Pi**, **OpenClaw**, and other one-shot runtimes drain the queue at turn boundaries instead. The message enters the thread itself only when the agent picks it up, in the exact spot where it took effect; until then you can remove it (the × on its row). Pressing **Stop** ends the current turn; messages still waiting are sent automatically a few seconds later as the next turn, with the agent's context intact.
+Two things follow from that. The work is real rather than described: files exist, commands actually ran, and their output is what the model reasoned over. And the shape of the turn belongs to the harness, not to Tale — a harness with a plan mode ends its turn with a proposal you can review, and one built for single shots simply runs to completion.
 
-Each chat thread is backed by one persistent sandbox session. Follow-up messages reuse the same session and the same files, and the agent resumes its earlier reasoning rather than starting cold. Because the session belongs to the thread, the thread also keeps its agent: the chat picker pins to it, and switching agents elsewhere never re-routes this thread — start a new chat to use a different one. Deleting or archiving the thread tears the sandbox down and frees its resources.
+## The harnesses that ship
+
+Nine harnesses ship with the platform. They differ in how they take a prompt, whether they can be steered mid-turn, and whether they can reach MCP servers.
+
+| Harness     | Credentials it accepts | Worth knowing                                                                                                  |
+| ----------- | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Claude Code | Managed or your own    | The most capable: steerable mid-turn, and a plan mode that ends in a reviewable proposal. Reaches MCP servers. |
+| Codex       | Managed or your own    | One-shot turns. Reaches MCP servers.                                                                           |
+| Cursor      | Your own only          | One-shot turns. Its CLI cannot route through the platform gateway, so a managed credential is refused.         |
+| Gemini CLI  | Managed or your own    | One-shot turns. Reaches MCP servers.                                                                           |
+| Hermes      | Managed or your own    | One-shot turns, with no MCP channel.                                                                           |
+| OpenClaw    | Managed or your own    | One-shot turns. Reaches MCP servers.                                                                           |
+| OpenCode    | Managed only           | One-shot turns. Reaches MCP servers. Runs through the gateway, so your own key is refused.                     |
+| Pi          | Managed or your own    | One-shot turns, with no MCP channel.                                                                           |
+| Qwen Code   | Managed or your own    | One-shot turns. Reaches MCP servers.                                                                           |
+
+Steering is what the difference buys you in practice. With Claude Code, a correction you send while the turn is running reaches the agent at its next tool boundary — "use pnpm, not npm" lands while the work is still going. Every other harness picks a queued message up at the turn boundary instead.
+
+## Where the credential comes from
+
+The credential is the organization's, not the agent's. An agent holds no keys of its own, and there is no per-agent credential tab; what a turn authenticates with follows from the provider credential behind the model you picked, configured under [Providers](/platform/admin/providers). Which of two postures a turn runs in follows from the kind of credential that is.
+
+**A stored API key, or one read from a deployment environment variable**, stays with the platform. Tale mints a session-scoped gateway key for the turn, and the harness authenticates with that rather than with the real secret, so the container never holds a credential that outlives the session. This is the managed posture, and the only harness that refuses it is Cursor.
+
+**A vendor subscription** — a coding-plan key, a portal key, an OAuth blob, or a pool of rotating tokens fetched from a broker — works differently, because vendors sanction those credentials for their own agent tooling and nothing else. A subscription credential therefore forces the turn into a sandbox on one specific harness: asking for a plain chat turn is refused with a reason naming that harness, and asking for a different harness is refused too. The secret is injected into the session environment, which is bring-your-own posture, so the forced harness has to accept it — OpenCode, being gateway-only, refuses.
+
+<Note>
+
+A sandbox turn always names a concrete harness. Nothing guesses one for you: the only case where a harness arrives on its own is the subscription credential that carries its forced choice with it.
+
+</Note>
 
 ## What the sandbox can reach
 
-The sandbox starts from an empty working directory and is locked down by default. Files and folders you pin with `@` in your message ride along into the sandbox at `/user/uploads/`, so the agent can open the actual bytes rather than work from a retrieval snippet. Outbound network is denied except for a small allowlist (package registries and GitHub), so the agent can install dependencies and clone public repositories but cannot reach arbitrary hosts. By default the model is reached through the workspace's gateway, never a raw provider key — the sandbox only ever holds a short-lived, budget-scoped key for that turn. That default is the agent's _managed_ credential mode; the _bring-your-own_ alternative, covered below, deliberately puts your own provider key inside the box instead.
+The container starts from an empty working directory and is locked down by default. Files and folders you pin with `@` ride along into the session under `/user/uploads/`, so the agent opens the real bytes rather than a retrieval snippet, and what it writes under `/user/output/` comes back into the chat as a file. Outbound network is denied apart from a narrow allowlist — package registries and GitHub — so the agent can install what it needs and clone a public repository without being able to reach arbitrary hosts.
 
-Beyond that lockdown, the agent can reach any integration your org has connected — search the web through Tavily, call an API, query a database — as long as that integration is bound to the agent. You bind them the same way as for any other agent: open the agent's **Tools** tab and pick them under **Bound integrations**. The credential never enters the sandbox; when the agent calls an integration, the request is brokered back to Tale, which runs the call with the stored credential and hands back only the result, so a compromised container cannot read your keys. A write operation does not run silently — it surfaces as an approval card in the chat and proceeds once you approve it.
+Connected integrations reach the agent through a broker rather than through the box. When the agent calls one, the request goes back to Tale, which runs it with the stored credential and hands back only the result, so a compromised container cannot read your keys. A write surfaces as an approval card in the chat and proceeds once you approve it. GitHub is the deliberate exception: `git` and the `gh` CLI need a token locally, so a session gets a scoped one, revoked when the session ends.
 
-The workspace's own data rides the same brokered path. On that same **Tools** tab you can also grant **platform tools** — knowledge search, browsing and reading documents, and saving files to the documents hub — and the agent calls them from inside the sandbox as it works. Each call executes on the platform under the agent's own knowledge scope and hands back only the result, so the sandbox never holds a platform credential either, and saving to the hub surfaces the same approval card as any other write. Tools you leave unbound cannot be called, and a bring-your-own agent, which runs without a session key, has no tool bridge at all.
+Skills bound to the agent are staged into the session as files rather than fetched through a tool, and a skill the checked-out repository ships wins over the copy Tale would stage — [Agent skills](/platform/agents/skills) covers that precedence rule. Your own [environment variables and secrets](/platform/member/environment) are set in the container too, which is how a personal token or endpoint reaches the work without anyone else's session seeing it.
 
-GitHub is the exception that also places a token inside the sandbox, because `git` and the `gh` CLI need it locally: connect GitHub under [Integrations](/platform/integrations/overview) and bind it to the agent, and the session receives a scoped token so the agent can clone, push, and open pull requests on your behalf. Every credential — the in-sandbox GitHub token and the brokered ones alike — is scoped to the session, audited on each call, and revoked when the session ends.
+## Cost and metering
 
-## Managed and bring-your-own credentials
+A sandbox turn can be long and call the model many times, so it costs more than a single chat reply. Managed turns run through the gateway, which is what makes them meterable: they land in [Usage analytics](/platform/admin/governance/usage-analytics) alongside every other turn, and the organization's [Policies and limits](/platform/admin/governance/policies-and-limits) cap what they may spend.
 
-How the agent reaches its model is a per-agent choice, set on the agent's **Instructions** tab under **Credentials**. Three credential backends exist; the UI labels them from the agent's runtime.
-
-**Gateway-managed (Claude Code, OpenCode, Hermes Agent, Gemini CLI, Codex, Pi, and OpenClaw, managed)** is the default for those runtimes. The platform mints a short-lived virtual key for the turn, routes the agent through its gateway, enforces the agent's allowed models from the **Providers** catalogue, meters usage, and applies the org's spend caps. The sandbox never holds a real provider key. Hermes and Codex managed runs use an OpenAI-compatible gateway route (`OPENAI_BASE_URL` + session virtual key inside the sandbox; Codex speaks the OpenAI Responses API to it); Gemini CLI managed runs use the gateway's Google GenAI-compatible route (`GOOGLE_GEMINI_BASE_URL` + the session virtual key as `GEMINI_API_KEY`); Pi managed runs use the OpenAI-compatible route too, wired as a per-turn Pi provider config that references the session virtual key from the environment (the config file never contains the key); OpenClaw managed runs use the gateway's OpenAI-compatible route through a generated per-turn provider config.
-
-**Env-managed (Cursor, managed)** applies to runtimes that authenticate with an API key you store on the agent, not through the gateway. Open the agent's **Environment** page and set `CURSOR_API_KEY` (or the key the runtime declares). The model is a **runtime id** you type on the Instructions **Models** list — `composer-2.5`, for example — not a catalogue entry. These turns are **not** metered into Usage analytics; billing lives on your Cursor account.
-
-**Bring your own (BYO)** takes the platform out of the request path for supported runtimes (Claude Code, Cursor, Gemini CLI, Codex, Pi, and OpenClaw today). No virtual key is minted; the agent authenticates with credentials you store under [Environment variables & secrets](/platform/member/environment) and reaches the provider directly. The model becomes a raw runtime id you type verbatim rather than a catalogue entry. Because the gateway is bypassed, the org's model allowlist, spend caps, and usage metering do not apply to BYO turns — billing and limits move to your own provider account. Switching an agent from managed to BYO clears its saved platform models when they were catalogue references; you re-enter raw ids.
-
-**OpenCode is managed-only** — its runtime config points at the platform gateway and authenticates with the session virtual key, so BYO is not available for OpenCode agents. Configure models from the **Providers** catalogue the same way as gateway-managed Claude Code.
-
-That is also a shift in the trust boundary. In gateway-managed mode the sandbox holds only a budget-scoped gateway key; in env-managed or BYO mode your real credential is injected into the sandbox environment — the same posture as the in-sandbox GitHub token — so any code the agent runs in the box can read it. That is by design: it is your box and your credential. Configuring an agent is already a privileged action, so the per-agent toggle is the only control; there is no separate org-level switch.
-
-## Engines and models
-
-**Claude Code**, **Cursor**, **OpenCode**, **Hermes Agent**, **Gemini CLI**, **Codex**, **Pi**, and **OpenClaw** are separate entries in the chat picker (or agents you configure with `agentKind` set accordingly).
-
-For **gateway-managed Claude Code, OpenCode, Hermes Agent, Gemini CLI, Codex, Pi, or OpenClaw**, the model comes from the agent's supported-models list in the **Providers** catalogue — pick it in the model selector. The shipped Claude Code and OpenCode defaults include Claude Fable 5, and Fable capacity is rationed: a request its safety classifiers flag, an overloaded model, or exhausted Fable usage does not fail the turn — the session falls back automatically to the catalogue entry's fallback model, Claude Opus 4.8 (Claude Code only; OpenCode uses the gateway model id you select). Hermes Agent, Pi, and OpenClaw ship with Claude Sonnet 4.6 and Claude Opus 4.8, Gemini CLI ships with Gemini 3 Pro and Gemini 3 Flash, and Codex ships with GPT-5.5 and GPT-5.5 Pro; all of them run the whole turn on the model you picked — they have no automatic fallback. One OpenClaw caveat: its runtime reports headlessly at the end of the turn, so the chat shows the final reply and usage rather than a live tool-by-tool timeline.
-
-For **env-managed Cursor** (and BYO on any runtime), the Instructions **Models** editor accepts **runtime ids** from your account — run `agent models` inside a sandbox session to see what your subscription exposes. Leave the list empty to let the runtime pick its default (Auto). The chat model picker shows a read-only indicator — the configured id's short name, or **Default model** when the list is empty — rather than the catalogue dropdown.
-
-A **BYO Hermes Agent** uses credentials you store under [Environment variables & secrets](/platform/member/environment) — commonly `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` depending on your provider. Set the model to a Hermes/OpenRouter-style id (for example `openrouter:anthropic/claude-sonnet-4.6`).
-
-A **BYO Gemini CLI** agent uses your own Google credentials from [Environment variables & secrets](/platform/member/environment) — `GEMINI_API_KEY` for the Gemini API, or `GOOGLE_API_KEY` with `GOOGLE_GENAI_USE_VERTEXAI=true` for Vertex AI. Type raw Google model ids (for example `gemini-3.1-pro-preview`); the shipped catalogue-shaped defaults are translated to their Google-native ids at runtime.
-
-A **BYO Pi** agent uses credentials you store under [Environment variables & secrets](/platform/member/environment) — commonly `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY` depending on your provider. Set the model to an id from Pi's own catalogue (run `pi --list-models` in a sandbox session) — for example `anthropic/claude-sonnet-4.6` with an OpenRouter key; the shipped catalogue-shaped defaults are translated to those OpenRouter-style ids at runtime. Pi has no built-in web tools, so outside facts come through the integrations it is bound to or whatever `curl` can reach on the sandbox allowlist.
-
-A **BYO OpenClaw** agent uses credentials you store under [Environment variables & secrets](/platform/member/environment) — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY` depending on your provider. Set the model to an OpenClaw `provider/model` ref (for example `anthropic/claude-sonnet-4-6`), or leave it empty for the runtime default.
-
-A **BYO Codex** agent uses the `OPENAI_API_KEY` you store under [Environment variables & secrets](/platform/member/environment) and talks to OpenAI's own API. Shipped catalogue references translate to the entry's `nativeModelId` (`gpt-5.5`, say); ids you type yourself pass through unchanged.
-
-A **BYO Claude Code** agent types raw Anthropic ids — `claude-opus-4-20250514`, say — in priority order. Shipped pack agents that still carry catalogue-shaped refs are translated at runtime via each catalogue entry's `nativeModelId`; ids you typed yourself pass through unchanged.
-
-## Cost and budget
-
-External-agent turns can be long and call the model many times, so they cost more than a single chat reply. Each managed turn runs against a per-turn budget, and the org's [Policies and limits](/platform/admin/governance/policies-and-limits) cap spend per user, per team, or per agent. Usage is metered into [Usage analytics](/platform/admin/governance/usage-analytics) alongside every other agent, attributed to the external agent so you can see what these runs cost.
-
-This accounting is a property of the **gateway-managed** path, so it covers Claude Code, OpenCode, Hermes Agent, Gemini CLI, Codex, Pi, and OpenClaw managed turns. Env-managed and bring-your-own agents run on credentials outside the gateway: their turns are not metered into Usage analytics and the org's spend caps do not apply, and the cost and any rate limits live with your provider account instead.
-
-## Coding agents on the task board
-
-In settings, **Coding agent** is the product label for agents whose chat runs in a sandbox CLI (Claude Code or Cursor), or whose task dispatch is configured in JSON with a **`runtime`** (tale-daemon on your machine) or **`preferDurableStepForTasks`** (durable sandbox step). That label does not by itself change how board tasks run — dispatch follows those JSON fields, not the chat sandbox.
-
-When you assign a coding agent to a board task, what happens depends on its configuration:
-
-- **Agent** (platform tool loop, no sandbox CLI, no task runtime) — uses platform tools and posts results as task comments.
-- **Coding agent + `runtime`** — tasks run on your machine (tale-daemon) in a git workspace.
-- **Coding agent + `preferDurableStepForTasks`** — tasks run in a sandbox container; the result is a summary file.
-- **Coding agent, sandbox only** (external-agent chat, no runtime or durable flag) — chat runs in a sandbox; **board tasks use the platform loop** unless you bind a daemon or enable durable tasks in the agent JSON.
-
-The assignee picker surfaces these hints when you pick an agent. For research, writing, or personal deliverables, assign a person or a platform **Agent** rather than a coding agent tuned for repository work.
+Turns on a subscription credential bypass the gateway by design, since the secret goes into the container and the vendor's own tooling talks to the vendor directly. Those turns are not metered and the organization's spend caps do not reach them — the accounting lives with whoever owns the subscription.
 
 ## Where this fits
 
-An external agent turns a chat thread into a live session with a coding tool in a sandbox — you drive it in plain language, it works in an isolated workspace, and the session persists for follow-ups until you close the thread. Credentials are the axis that decides how much of that runs under the org's control: a managed agent stays on the platform gateway under the org's caps and metering, while a bring-your-own agent runs on the keys you keep under [Environment variables & secrets](/platform/member/environment) and answers to your own provider account. The drift candidates here are the agent and model names; pair this page with the running [Providers](/platform/admin/providers) list rather than memorising specific model strings, and with [Integrations](/platform/integrations/overview) for the connected integrations the agent can reach — from GitHub for a real pull-request workflow to a search or data integration that pulls outside facts into the work. To run Claude Code or Codex on hardware you control instead of the managed sandbox — for board tasks rather than chat — see [tale-daemon](/self-hosted/operate/tale-daemon).
+A sandbox agent turns a chat into a live session with a coding tool in an isolated container: you drive it in plain language, it works on real files, and the harness decides the rhythm of the turn. The axis that decides how much of it stays under the organization's control is the credential — a stored key keeps the turn on the gateway, under the caps and in the metering, while a vendor subscription pushes it into the box and onto that vendor's own account. Pair this page with [Providers](/platform/admin/providers) for the credential side and [Integrations](/platform/integrations/overview) for what the agent can reach once it is running.

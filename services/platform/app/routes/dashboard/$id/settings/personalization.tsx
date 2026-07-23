@@ -1,34 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { PersonalizationSettings } from '@/app/features/settings/personalization/components/personalization-settings';
-import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
-import { seo } from '@/lib/utils/seo';
+import { PreferencesSettings } from '@/app/features/settings/personalization/components/preferences-settings';
 
 export const Route = createFileRoute('/dashboard/$id/settings/personalization')(
   {
-    head: () => ({
-      meta: seo('personalization'),
-    }),
-    // Warm the two bounded reads that decide which sections render, so warm
-    // navigations skip the skeleton and the gated sections don't pop in.
-    // Best-effort — the component's own loading still renders correctly.
-    loader: ({ context, params }) => {
-      void ensureConvexQuery(
-        context,
-        api.user_preferences.queries.getMyPreferences,
-        { organizationId: params.id },
-      ).catch(console.warn);
-      void ensureConvexQuery(
-        context,
-        api.personalization.queries.getOrgDefault,
-        { organizationId: params.id },
-      ).catch(console.warn);
-    },
-    component: PersonalizationPage,
+    component: PersonalizationRoute,
   },
 );
 
-function PersonalizationPage() {
-  return <PersonalizationSettings />;
+function PersonalizationRoute() {
+  const { id } = Route.useParams();
+  return <PreferencesSettings organizationId={id} />;
 }

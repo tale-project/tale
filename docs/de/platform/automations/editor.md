@@ -1,50 +1,99 @@
 ---
 title: Der Workflow-Editor
-description: Das Betriebshandbuch zum Editor-Tab einer Automatisierung — wo ihr Workflow lebt, wie du ihn startest, pausierst und deaktivierst, wie du editierst und wie die versionierte Historie funktioniert. Lies das, wenn du einen Workflow täglich betreibst, nicht wenn du das Modell lernst.
+description: Das Betriebshandbuch zur Seite einer Automatisierung — den Canvas lesen, eine Node bearbeiten, eine Version speichern, sie gegen Mocks laufen lassen, live schalten und zurückrollen.
 ---
 
-Diese Seite ist das Betriebshandbuch zum Workflow in einer Automatisierung — der Oberfläche hinter dem Tab **Editor**. Das mentale Modell — was eine Automatisierung bündelt und was eine Definition, ein Trigger und eine Ausführung sind — lebt auf [Automatisierungskonzepte](/de/platform/automations/concepts). Diese Seite ist die praktische Hälfte: wo der Workflow lebt, wie du ihn aus der UI startest, wie du ihn ohne Löschen pausierst, wie du editierst und wie die versionierte Historie funktioniert. Redakteure und Entwickler lesen das, wenn sie täglich mit einem Workflow arbeiten.
+Diese Seite ist die praktische Hälfte der Automatisierungen: was du klickst und in welcher Reihenfolge, um aus einer Idee die Version zu machen, die deine Trigger ausführen. Das Modell darunter — ein Dokument, unveränderliche Versionen, genau eine live, Trigger am Namen — steht in den [Automatisierungskonzepten](/de/platform/automations/concepts), und diese Seite setzt es voraus. Speichern, Testen und Live-Schalten sind hier drei getrennte Schritte, und genau diese Trennung erlaubt dir, eine laufende Automatisierung zu bearbeiten, ohne einen einzigen laufenden Job zu stören.
 
-## Wo Workflows leben
+## Wo eine Automatisierung lebt
 
-Workflows haben keinen eigenen Tab in der Seitenleiste. Ein Workflow gehört zu der Automatisierung, die er antreibt — öffne die Automatisierung, und ihr Tab **Editor** ist der Workflow; von dort aus verwaltest du alles Weitere. Ein direkter Link auf einen Workflow funktioniert weiter, wenn ihn jemand teilt; Lesezeichen und die Links auf Genehmigungs-Karten und Ausführungs-Ansichten landen auf dem Workflow selbst. Jede Oberfläche, die diese Seite behandelt (der Editor, der Ausführungen-Tab, die Versionshistorie), hängt an einem einzelnen Workflow, den du geöffnet hast.
+Öffne **Automatisierungen** in der Seitenleiste. Die Liste zeigt jede Automatisierung der Organisation mit der Anzahl ihrer Versionen und entweder der Version, die live ist, oder **Nicht live**, solange es keine gibt. Klick eine an, und du landest auf ihrer Seite.
 
-## Einen Workflow starten
+Diese Seite ist eine einzige durchgehende Fläche statt einer Reihe von Tabs. Oben stehen der Name der Automatisierung, die Version, die du ansiehst, die Live-Version und die Schaltfläche zum Starten. Darunter liegt der Canvas mit dem Node-Panel daneben, dann die Speicherleiste und ganz unten die Listen **Versionen** und **Läufe** nebeneinander.
 
-Drei Pfade feuern einen Workflow.
+## Den Canvas lesen
 
-Der Tab **Trigger** am Workflow hängt die Produktionspfade an: **Zeitpläne** feuern per Cron, **Webhooks** nehmen einen externen POST entgegen, und **Ereignisse** abonnieren interne Signale wie `task.created`. Die [Trigger-Referenz](/de/platform/automations/triggers) deckt jeden einzelnen in Tiefe ab.
+Der Canvas zeichnet die Version, die du gerade ansiehst. Jede Box ist eine Node, beschriftet mit ihrer id und ihrem Typ, und Boxen, die die Ausgabe einer anderen Node lesen, sagen das: Eine Zeile **Liest** nennt die Nodes, von denen sie abhängen. Die Pfeile dazwischen zeichnest du nicht selbst — ein Pfeil existiert, weil das Feld einer Node die Ausgabe einer anderen referenziert. Der Graph passt deshalb immer zum Dokument.
 
-**Workflow testen** in der Editor-Toolbar öffnet das Test-Panel und feuert einen einmaligen Lauf. Füge die Eingabe-JSON ein, die der Lauf erhalten soll, klick auf **Ausführen**, und der Lauf taucht im Ausführungen-Tab mit seiner ID auf. Greif zum Test-Panel, wenn du an einem Workflow iterierst und das volle Ausführungsjournal sehen willst, ohne erst einen Trigger zu verdrahten.
+Die Ablaufsteuerung erscheint als Badge an der Box, für die sie gilt, im selben Vokabular wie im Dokument: `wenn …`, `sonst zu …`, `für jedes …`, `wiederholen bis …` (mit dem Deckel, wo es einen gibt) und `bei Fehler weiterlaufen`. Nichts an der Form des Graphen versteckt sich in einem separaten Einstellungsdialog.
 
-Während der Lauf läuft, spiegelt die Canvas ihn live: Jeder Schritt trägt ein Status-Badge — ein Spinner während der Ausführung, ein Häkchen bei Erfolg, ein Warnsymbol bei Fehlern, ein Pause-Symbol beim Warten auf Eingabe — und ein Banner über der Canvas zeigt, welcher Lauf gerade angezeigt wird. Klick auf ein Badge, um Dauer, Fehler und eine Vorschau der Ausgabe des Schritts zu prüfen. Der angezeigte Lauf hängt am URL-Parameter `execution` und übersteht damit ein Neuladen; schließt du das Banner, verschwinden die Badges.
+Zwei Zustände lohnen sich zu kennen. Eine Version ohne Nodes sagt das und weist dich darauf hin, dem Dokument eine hinzuzufügen. Eine Version, deren Nodes im Kreis aufeinander verweisen, warnt dich, dass die gezeigte Reihenfolge die ist, in der sie im Dokument stehen, und nicht eine, die die Engine ausführen könnte — und bittet dich, eine der Referenzen zu entfernen, um den Kreis aufzubrechen.
 
-Das Test-Panel spiegelt denselben Feed als Schrittliste: Jeder ausgeführte Schritt erscheint mit seinem Live-Status, wiederholte oder geschleifte Schritte tragen einen Versuchszähler, und ein fehlgeschlagener Schritt zeigt seine Fehlermeldung direkt darunter — klick auf den Namen des Schritts, um direkt zu seinen Einstellungen zu springen. Schlägt ein Lauf fehl, bevor irgendein Schritt lief — nie gestartet, Zeitlimit überschritten oder abgebrochen —, nennt das Panel stattdessen diesen Grund. Testläufe validieren die Eingabe zudem serverseitig gegen das Schema des Start-Schritts: Ein fehlendes oder falsch typisiertes Feld wird mit einer feldgenauen Meldung abgewiesen, bevor der Lauf überhaupt entsteht.
+<Note>
 
-Der **Debuggen**-Button im selben Panel startet den Lauf im Schritt-für-Schritt-Modus. Die Engine hält vor jedem Schritt an: Der pausierte Schritt trägt ein Debug-Badge auf der Canvas, und das Panel zeigt, welcher Schritt als Nächstes dran ist, samt den Variablen des Laufs und der Ausgabe jedes abgeschlossenen Schritts — so prüfst du, was ein Schritt gleich erhält, bevor er läuft. **Schritt** führt den pausierten Schritt aus und hält vor dem nächsten wieder an, **Fortsetzen** lässt den Rest des Workflows ohne weitere Pausen durchlaufen, **Stoppen** bricht den Lauf ab. Debug-Läufe erscheinen im Ausführungen-Tab mit dem Badge _Pausiert (Debug)_, solange sie pausiert sind, und mit `debug` als Auslöser.
+Der Canvas dient zum Lesen und Auswählen. Du verbindest Nodes, indem du sie referenzierst, nicht indem du eine Linie zwischen zwei Boxen ziehst.
 
-Der **Probelauf**-Button im selben Panel simuliert einen Lauf ohne Seiteneffekte — der Workflow validiert gegen die Eingabe, läuft den Schritte-Graph ab und meldet Fehler und Warnungen, ohne irgendeinen Agent, eine API oder einen Mail-Server zu rufen. Greif zum Probelauf, wenn der Workflow noch nicht sicher genug ist, um ihn von Anfang bis Ende laufen zu lassen.
+</Note>
 
-## Pausieren und deaktivieren
+## Eine Node bearbeiten
 
-Einen Workflow pausieren, ohne ihn zu löschen, geht über die Trigger — jede Trigger-Zeile hat einen **Aktiv**-Schalter. Schalte jeden Trigger aus, hört der Workflow auf zu feuern; schalte sie wieder an, läuft er weiter. Der Workflow selbst bleibt bestehen und seine Historie bleibt intakt.
+Klick eine Box an, und das Node-Panel neben dem Canvas füllt sich mit den Feldern dieser Node. Welche Felder auftauchen, hängt vom Typ ab: **Code** bei einer `transform`, **Prompt**, **System-Prompt**, **Modell** und **Ausgabeschema** bei einer `llm`, **Workflow** bei einem `subworkflow` und **Eingabe** überall dort, wo es eine gibt.
 
-Einen Workflow löschen ist permanent. Tale fragt vor dem Löschen nach Bestätigung; die Ausführungen und die Versionshistorie gehen mit dem Workflow weg.
+**Eingabe** ist ein JSON-Objekt, und dort leben die Referenzen. Ein Text-Wert darf die Ausgabe einer anderen Node referenzieren, und genau diese Referenz zeichnet den Pfeil auf dem Canvas. Solange das JSON unvollständig ist, sagt dir das Panel, dass es noch nicht gültig ist, und lässt die Node unverändert — eine halb getippte Änderung lässt sich so nie versehentlich speichern.
 
-## Editieren
+Unter den typabhängigen Feldern sitzt die Gruppe **Ablaufsteuerung** mit **Wenn**, **Sonst zu**, **Für jedes** und **Wiederholen bis**. Es sind dieselben Felder, die die Badges auf dem Canvas spiegeln: Setzt du hier eines, ändert sich das Badge sofort.
 
-Öffne den Workflow, und der Editor zeigt den Schritte-Graph auf einer Canvas — das ist die Ansicht **Graph**, eine von zwei Arten, dieselbe Definition zu lesen. Wechsle zu **Spezifikation**, und derselbe Workflow liest sich als Beschreibung in normaler Sprache, die du direkt editieren kannst; das Generieren aus beiden Ansichten hält sie synchron, und ein Banner warnt, wenn sie auseinanderdriften. Klick auf einen Schritt im Graphen, um rechts das Panel **Schritt-Editor** zu öffnen; das Panel trägt Name, Typ und Konfiguration des Schritts sowie die Übergänge zu den nächsten Schritten bei Erfolg und Fehler. Die Canvas-Toolbar trägt die Zoom-Steuerung, **Workflow testen** und den Schalter **KI-Editor** — ein Chat, der den Workflow für dich editiert, derselbe [Automatisierungs-Assistent](/de/platform/automations/assistant), hier eingebettet. Schritte direkt auf der Canvas hinzuzufügen ist noch nicht verdrahtet; neue Schritte kommen aus dem KI-Editor oder aus der Spezifikation.
+## Speichern, starten, live schalten
 
-Das Banner **Dieser Workflow ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen.** über der Canvas meint genau das: Änderungen an einem getriggerten Workflow greifen beim nächsten Lauf. Schalte seine Trigger zuerst aus, wenn die Änderungen noch nicht fertig sind.
+Die drei Schritte sind bewusst getrennt. Geh sie beim ersten Mal der Reihe nach durch, dann fühlt sich die Trennung nicht mehr nach Mehrarbeit an.
 
-## Versionierung und Historie
+<Steps>
 
-Jedes Speichern schnappschotet eine neue Version des Workflows. **Verlauf** in der Navigation des Workflows listet die Versionen, neueste zuerst, jede mit Zeitstempel und dem Mitglied, das gespeichert hat. Öffnest du eine, zeigt **Änderungen vergleichen** einen Diff gegen die aktuelle Definition; klick auf **Wiederherstellen**, um auf diesen Schnappschuss zurückzurollen. Das Wiederherstellen legt eine neue Version oben auf den Verlauf — der zurückgerollte Zustand ist der neue aktuelle, und die Version, die du ersetzt hast, steht weiter in der Liste.
+<Step title="Eine Version speichern">
 
-Die Historie ist pro Workflow, nicht pro Schritt. Wiederherstellen rollt die ganze Definition; partielle Wiederherstellungen leben im Editor (kopier die Schritt-Konfig aus dem Diff und füg sie in die aktuelle Version ein).
+Änderungen zeigen den Hinweis **Nicht gespeicherte Änderungen**, bis du speicherst. Schreib eine **Notiz zur Version**, die sagt, was sich geändert hat — diese Notiz unterscheidet später als Einziges zwei Versionen in der Liste —, und klick dann **Version speichern**. Das Speichern hängt eine neue Version an und lässt jede frühere genau so, wie sie war. Hat sich nichts geändert, sagt dir die Schaltfläche das, statt eine identische Version anzulegen.
 
-Ein Neuinstallieren oder Aktualisieren der Automatisierung, zu der dieser Workflow gehört, rührt diese Schritte nie an — ein Workflow ist von diesem Überschreiben ausgenommen, genau damit deine Änderungen eine Katalog-Aktualisierung überstehen. Deinstallier die Automatisierung und installier sie erneut, um stattdessen ihren neuesten mitgelieferten Workflow zu übernehmen.
+</Step>
 
-## Wo das eingesetzt wird
+<Step title="Gegen Mocks laufen lassen">
 
-Diese Seite ist das Betriebshandbuch; [Automatisierungskonzepte](/de/platform/automations/concepts) ist das mentale Modell. Die natürlichen Nachbarn sind [Trigger](/de/platform/automations/triggers) (der Startschuss), [Ausführungsprotokolle](/de/platform/automations/execution-logs) (die Detailansicht pro Lauf) und [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) (die menschliche Schranke zwischen Schritten). Greif zu dieser Seite, wenn du mit einem bestehenden Workflow arbeitest; greif zu den Konzepten, wenn du deinen ersten baust.
+**Testlauf** startet einen Lauf im Testmodus: Konnektoren liefern ihre deterministischen Platzhalter, und nichts außerhalb der Plattform wird berührt. Du kannst ihn beliebig oft drücken, und genau deshalb ist er die Schleife, in der du arbeitest, solange eine Node noch Form annimmt.
+
+</Step>
+
+<Step title="Die gewünschte Version live schalten">
+
+Klick in der Liste **Versionen** bei der Version, die deine Trigger ausführen sollen, auf **Live schalten**. Die aktuelle trägt das Badge **Live**, und eine andere live zu schalten verschiebt dieses Badge, ohne den Inhalt irgendeiner Version anzufassen.
+
+</Step>
+
+</Steps>
+
+<Note>
+
+Die Schaltfläche auf dieser Seite startet immer einen Lauf gegen Mocks. Ein Lauf, der die Außenwelt erreichen darf, wird von einem Trigger oder programmatisch gestartet, und das ist eine Entwickler-Berechtigung.
+
+</Note>
+
+## Tests und das Tor zum Live-Schalten
+
+Tests sind Teil des Dokuments, kein eigenes Panel. Jeder trägt einen Namen, eine Eingabe und Erwartungen an die Ausgabe sowie an die Auswirkungen, die der Lauf erzeugen soll, und sie reisen mit der Version wie jedes andere Feld.
+
+```yaml
+tests:
+  - name: erinnert einen säumigen Zahler
+    input: { invoiceId: 'inv-1' }
+    expect:
+      effects:
+        - integration: email.send
+```
+
+Ob die Tests einer Version bestanden waren, wird beim Speichern festgehalten, und die Liste **Versionen** zeigt das Ergebnis als Badge **Tests bestanden** oder **Tests fehlgeschlagen**. Das Live-Schalten liest diesen Eintrag: Eine mit fehlgeschlagenen Tests gespeicherte Version wird abgewiesen, und die Liste sagt dir, dass sie nicht live geschaltet wurde, statt stillschweigend nichts zu tun. Behebe die Ursache und speichere eine neue Version — ein festgehaltenes Ergebnis ist eine Tatsache über diese Version und ändert sich nie.
+
+## Zurückrollen
+
+Zurückrollen heißt, eine ältere Version live zu schalten. Such die Version in der Liste, lies ihre Notiz, um sicherzugehen, dass es die richtige ist, und klick **Live schalten**. Das Badge wandert, die neueren Versionen bleiben unangetastet in der Liste, und kein Dokument wird umgeschrieben.
+
+Deshalb zählen Versionsnotizen mehr, als sie aussehen. Sechs Versionen später sagt dir die Notiz, welche der letzte gute Stand war — schreib sie also für die Person, die sie während einer Störung lesen wird.
+
+## Den letzten Lauf auf dem Canvas lesen
+
+Sobald eine Automatisierung gelaufen ist, legt **Letzten Lauf einblenden** diesen Lauf über den Canvas. Jede Box übernimmt den Status, den der Lauf ihr gegeben hat — sie ist **Gelaufen**, wurde **Übersprungen**, ist **Fehlgeschlagen**, wurde **Nie erreicht** oder ist **Noch nicht erreicht**, solange der Lauf weitergeht. Ein Fehler wird so als Stelle im Graphen sichtbar statt als Zeile in einem Log.
+
+Wähl bei eingeblendetem Lauf eine Node, und das Panel ergänzt einen Abschnitt **In diesem Lauf**: die **Aufgelöste Eingabe**, die die Node tatsächlich bekommen hat, nachdem jedes Template ausgewertet war, ihre **Ausgabe** und die Auswirkungen, die sie erzeugt hat, oder den Hinweis, dass sie außerhalb der Plattform nichts verändert hat. Die aufgelöste Eingabe beantwortet meist am schnellsten die Frage, warum eine Node getan hat, was sie getan hat — sie zeigt den Wert, den eine Referenz ergeben hat, nicht die Referenz, die du geschrieben hast.
+
+**Letzten Lauf öffnen** führt zur vollständigen Lauf-Seite, wo derselbe Canvas neben Eingabe, Ausgabe und der kompletten Liste der Auswirkungen steht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest diese Seite von Anfang bis Ende.
+
+## Wo das hingehört
+
+Die Schleife ist kurz, sobald die drei Schritte klar sind: eine Node bearbeiten, eine Version mit einer lesenswerten Notiz speichern, sie gegen Mocks laufen lassen, bis sie tut, was du meintest, und sie dann live schalten — und eine ältere live schalten, wenn du etwas rückgängig machen musst. [Automatisierungskonzepte](/de/platform/automations/concepts) ist das Modell, das diese Seite bedient; [Workflow-Trigger](/de/platform/automations/triggers) ist das, was die live geschaltete Version startet, sobald du zufrieden bist.

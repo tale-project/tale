@@ -3,15 +3,17 @@ title: Automation assistant
 description: The chat agent scoped to one automation — what it edits directly, what it drafts for you to apply, and how it finds existing automations before building a new one.
 ---
 
-The **Automation assistant** is the chat agent pinned to whichever automation you opened — click **Assistant** on an automation's page and it answers with that automation's agents, workflow, skills, integrations, and configuration already in context. Admins and Developers use it to understand an unfamiliar automation, extend one instead of duplicating it, or get help authoring the pieces the automation page doesn't edit directly. It's the same assistant agent [the workflow editor](/platform/automations/editor) embeds, so a conversation started from one surface reads familiar from the other.
+The **Automation assistant** is the chat agent scoped to one automation, answering with that automation's document, its agents, its skills and its integrations already in context. Admins and Developers use it to understand an automation they did not build, extend one instead of duplicating it, or get help authoring the pieces the automation's own page does not edit. Ask it what something does before you touch it by hand, because it reads the whole document at once rather than one node at a time.
 
 ## What it edits directly
 
-Workflows are the one piece the assistant has full tool access to: it reads the current definition, edits steps, saves a new version, and runs it, the same as if you'd clicked through the editor yourself. Agents are one step behind — it reads the roster and can install, enable, or disable one, but instructions, model, and the rest of an agent's configuration stay yours to edit in the agent editor; the assistant drafts the exact JSON and you paste it in.
+The automation's own document is the one piece the assistant has full tool access to: it reads the current version, edits nodes, validates the result, saves a new version, and runs it against mocks — the same acts you would perform by hand, in the same order. It works within the same rules you do, so a save appends a version rather than editing one, and the version that is live stays live until somebody deploys. Agents are one step behind: it reads the roster and can install, enable, or disable one, but instructions, model, and the rest of an agent's configuration stay yours to edit in the agent editor, with the assistant drafting the exact JSON for you to paste in.
 
 ## What it drafts instead
 
-Skills, integrations, builtin views, and automation configuration have no editing tool at all: the assistant writes the definition per the matching write-skill or write-integration authoring skill and tells you exactly where to apply it — Settings > Integrations for a credential, the automation's own page for a view or its configuration. Install and setup work the same way: it walks the readiness checklist — connect what's required, fill in configuration, enable the agents and workflow — rather than doing the connecting itself.
+Skills, integrations, and builtin views have no editing tool at all: the assistant writes the definition per the matching authoring skill and tells you exactly where to apply it — Settings > Integrations for a credential, the automation's own page for a view. Install and setup work the same way: it walks the readiness checklist, naming what still needs connecting and what still needs enabling, rather than doing the connecting itself.
+
+The same boundary applies to triggers. The assistant can tell you which schedule, webhook, event, or API-key trigger an automation carries and what each one would send into a run, and it can spell out the trigger you want — but the decision to expose an automation to the outside world stays a human one. [Workflow triggers](/platform/automations/triggers) covers what each kind does.
 
 ## Finding what already exists
 

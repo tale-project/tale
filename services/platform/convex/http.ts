@@ -3,27 +3,9 @@ import { httpRouter } from 'convex/server';
 import { getString, isRecord } from '../lib/utils/type-utils';
 import { components, internal } from './_generated/api';
 import { httpAction } from './_generated/server';
-import {
-  claimRun,
-  heartbeatRuntime,
-  registerRuntime,
-  runSubActions,
-} from './agent_runtimes/rest_api';
-import {
-  executeToolHandler,
-  toolStatusHandler,
-} from './agent_tools/dispatch_http';
-import {
-  listAgents as listAgentsRest,
-  getAgent,
-  patchAgent,
-} from './agents/rest_api';
-import {
-  agentWebhookHandler,
-  agentWebhookOptionsHandler,
-} from './agents/webhooks/http_actions';
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
+import { automationWebhookHandler } from './automations/triggers';
 import {
   listContacts,
   createContact,
@@ -50,13 +32,11 @@ import {
   samlAcsHandler,
 } from './enterprise_sso/http_handlers';
 import { sandboxBlobServeHandler } from './files/sandbox_blob_http';
-import { imageProxyHandler } from './images/http_actions';
 import {
-  executeIntegrationHandler,
-  integrationStatusHandler,
-} from './integrations/dispatch_http';
-import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
-import { slackEventsHandler } from './integrations/slack/http_actions';
+  integrationsOauth2CallbackHandler,
+  integrationsOauth2StartHandler,
+  integrationsSlackEventsHandler,
+} from './http_integrations/http_actions';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
@@ -65,15 +45,6 @@ import { restOptionsHandler } from './lib/rest/helpers';
 import { isS3Ref } from './lib/storage/blob_ref';
 import { toId } from './lib/type_cast_helpers';
 import { getClientIp, loadTrustedProxies } from './lib/utils/client_ip';
-import { sanitizeError } from './lib/utils/sanitize_secrets';
-import {
-  chatCompletionsHandler,
-  chatCompletionsOptionsHandler,
-  imagesGenerationsHandler,
-  imagesGenerationsOptionsHandler,
-  modelsListHandler,
-  modelsOptionsHandler,
-} from './openai_compat/http_actions';
 import {
   listProducts,
   createProduct,
@@ -91,18 +62,6 @@ import {
   scimUserResourceHandler,
   scimUsersHandler,
 } from './scim/http_actions';
-import {
-  streamChatHttp,
-  streamChatHttpOptions,
-} from './streaming/http_actions';
-import {
-  listThreads,
-  createThread,
-  getThread,
-  patchThread,
-  deleteThread,
-  threadPostActions,
-} from './threads/rest_api';
 import { trustedHeadersAuthHandler } from './trusted_headers_auth/http_handlers';
 import {
   listWebsites,
@@ -112,20 +71,6 @@ import {
   deleteWebsite,
   websitePostActions,
 } from './websites/rest_api';
-import {
-  getWorkflow,
-  postWorkflow,
-  patchWorkflow,
-  deleteWorkflow,
-} from './workflows/rest_api';
-import {
-  apiTriggerHandler,
-  apiTriggerOptionsHandler,
-} from './workflows/triggers/api_http';
-import {
-  webhookHandler,
-  webhookOptionsHandler,
-} from './workflows/triggers/http_actions';
 
 const http = httpRouter();
 
@@ -300,11 +245,8 @@ http.route({
   }),
 });
 
-http.route({
-  path: '/api/image-proxy',
-  method: 'GET',
-  handler: imageProxyHandler,
-});
+// /api/image-proxy re-registers with the chat rebuild
+// image-generation tool rebuild.
 
 // Sandbox staging lane for org-bucket blobs — HMAC-token-gated, streams the
 // bytes through so the SSRF-locked session container never sees a bucket
@@ -315,156 +257,11 @@ http.route({
   handler: sandboxBlobServeHandler,
 });
 
-/**
- * Authenticated TTS audio fetch. Replaces the bearer-replayable
- * `/storage?id=…` path that previously served voice audio: the chunk row
- * carries `organizationId` + `threadId`, so we can require the caller to
- * be a current member of the chunk's org before streaming the blob.
- *
- * Designed for the chained `<audio>` playback path. Identity is resolved
- * from the Better Auth session cookie via `auth.api.getSession()` rather
- * than `ctx.auth.getUserIdentity()` — native `<audio>` elements can't
- * attach an `Authorization: Bearer` header, but they do send same-origin
- * cookies, which is what the rest of the cookie-authenticated routes in
- * this file rely on. `Cache-Control: private, max-age=0, must-revalidate`
- * keeps short-lived bytes in the browser disk cache but forces a
- * revalidating round-trip on every replay so a removed member can't
- * keep playing audio they no longer have access to. `Vary: Cookie`
- * binds the cached bytes to the session so a third party intercepting
- * the URL can't replay it. `Accept-Ranges: none` suppresses iOS Safari
- * range probes on `<audio preload="auto">` that would otherwise
- * trigger audible restarts.
- */
-http.route({
-  path: '/api/tts-audio',
-  method: 'GET',
-  handler: httpAction(async (ctx, req) => {
-    const url = new URL(req.url);
-    const chunkId = url.searchParams.get('chunkId');
-    if (!chunkId) {
-      return new Response('Missing chunkId', { status: 400 });
-    }
-
-    // Mirror the `/storage` route: rate-limit BEFORE the session lookup
-    // so an unauthenticated attacker hammering this URL can't force a
-    // Better Auth DB session-query per request. The IP gate is the only
-    // protection against anonymous abuse; membership checks downstream
-    // catch authenticated abuse.
-    const trusted = await loadTrustedProxies(ctx);
-    const ip = getClientIp(req.headers, trusted);
-    try {
-      await checkIpRateLimit(ctx, 'security:tts-audio-fetch', ip);
-    } catch (error) {
-      if (error instanceof RateLimitExceededError) {
-        return new Response('Rate limit exceeded', {
-          status: 429,
-          headers: {
-            'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
-          },
-        });
-      }
-      throw error;
-    }
-
-    const auth = createAuth(ctx);
-    const session = await auth.api.getSession({ headers: req.headers });
-    if (!session?.user) {
-      // `no-store` + `Vary: Cookie` so a TLS-terminating proxy can't cache
-      // the 401 against the URL and starve a freshly-logged-in user. The
-      // `WWW-Authenticate: Cookie` is informational — cookie-auth clients
-      // ignore it, but it satisfies RFC 7235 hygiene.
-      return new Response('Unauthenticated', {
-        status: 401,
-        headers: {
-          'Cache-Control': 'no-store',
-          Vary: 'Cookie',
-          'WWW-Authenticate': 'Cookie',
-        },
-      });
-    }
-
-    const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
-      chunkId,
-      userId: session.user.id,
-      // Email fallback handles mid-migration users (account linking, JWT
-      // userId drift) so the audio route stays consistent with the
-      // sibling `getMessageChunks` subscription, which already does the
-      // same fallback via `getOrganizationMember`.
-      email: session.user.email,
-    });
-    if (!chunk) {
-      // Either the chunk doesn't exist or the caller isn't a member of
-      // the chunk's org. Conflate the two so probing reveals nothing.
-      return new Response('Not found', { status: 404 });
-    }
-
-    try {
-      // Resolve the bytes from whichever backend owns them. An `s3:`-backed
-      // chunk is read through the node lane and STREAMED through this
-      // response — deliberately NOT a 302 to a presigned URL: this route's
-      // security model is a per-request cookie-bound membership check, and a
-      // presigned URL would be bearer-replayable by anyone who intercepts it.
-      let body: Blob | ArrayBuffer;
-      let contentType: string;
-      let contentLength: number;
-      if (isS3Ref(chunk.storageId)) {
-        const bytes: ArrayBuffer | null = await ctx.runAction(
-          internal.files.blob_actions.readOrgBlob,
-          { organizationId: chunk.organizationId, ref: chunk.storageId },
-        );
-        if (!bytes) {
-          return new Response('Not found', { status: 404 });
-        }
-        body = bytes;
-        contentType = chunk.contentType;
-        contentLength = bytes.byteLength;
-      } else {
-        const blob = await ctx.storage.get(toId<'_storage'>(chunk.storageId));
-        if (!blob) {
-          return new Response('Not found', { status: 404 });
-        }
-        body = blob;
-        contentType = blob.type || 'application/octet-stream';
-        contentLength = blob.size;
-      }
-      const headers: Record<string, string> = {
-        'Content-Type': contentType,
-        'Content-Length': contentLength.toString(),
-        // `max-age=0, must-revalidate` (not `no-store`): keep the bytes
-        // in the browser's HTTP cache for in-tab replay efficiency, but
-        // force a conditional round-trip back to this route on every
-        // play so a member who's been removed loses access immediately
-        // instead of being able to replay cached audio for 10 minutes.
-        'Cache-Control': 'private, max-age=0, must-revalidate',
-        // Tell intermediaries not to cache the bytes against the URL
-        // alone; the URL is bound to the session cookie which they can't
-        // see.
-        Vary: 'Cookie',
-        // iOS Safari `<audio preload="auto">` probes ranges; without
-        // an explicit `Accept-Ranges: none` it may issue partial
-        // requests that get a full 200 back from byte 0, audibly
-        // restarting playback mid-chunk.
-        'Accept-Ranges': 'none',
-        // CORP defense-in-depth: blocks third-party pages from embedding
-        // this audio in their own `<audio>` element. The session cookie
-        // is SameSite=Lax, so a cross-site top-level audio fetch would
-        // otherwise send the cookie and play the victim's TTS audio
-        // (no byte exfil without CORS, but a privacy surprise).
-        'Cross-Origin-Resource-Policy': 'same-origin',
-      };
-      return new Response(body, { status: 200, headers });
-    } catch (error) {
-      // Sanitize before logging — `ctx.storage.get` failures can carry
-      // signed URLs / headers / IPs in their `.message` or `.stack`.
-      // Other TTS code paths route through `sanitizeError`; this one
-      // missed the pattern until round-2 #25.
-      console.error('[http /api/tts-audio] error', sanitizeError(error), {
-        chunkId,
-      });
-      return new Response('Internal server error', { status: 500 });
-    }
-  }),
-});
+// /api/tts-audio (cookie-authed, membership-gated audio
+// serve) re-registers with the chat rebuild TTS rebuild. Keep its security shape:
+// IP rate-limit BEFORE session lookup, org-membership check per request,
+// `private, max-age=0, must-revalidate` + `Vary: Cookie` + CORP same-origin,
+// stream-through (never a bearer-replayable presigned redirect).
 
 /**
  * Resolve which org slugs a session-authenticated user is allowed to see
@@ -853,61 +650,45 @@ http.route({
 
 authComponent.registerRoutes(http, createAuth);
 
-// Integration OAuth2 Callback
+// Integration connector routes. The OAuth2 pair is the consent flow that turns
+// a connector into a stored credential: `start` is session-authenticated and
+// mints a single-use, server-side state; `callback` consumes it and exchanges
+// the code server-to-server. The Slack endpoint is the shared inbound Request
+// URL — signature-verified over the raw body, then routed to exactly one
+// organization by `team_id`. See http_integrations/.
+http.route({
+  path: '/api/integrations/oauth2/start',
+  method: 'GET',
+  handler: integrationsOauth2StartHandler,
+});
 http.route({
   path: '/api/integrations/oauth2/callback',
   method: 'GET',
-  handler: integrationOAuth2CallbackHandler,
+  handler: integrationsOauth2CallbackHandler,
 });
-
-// Slack Events API — single Request URL for the shared Slack App. Verifies the
-// request signature, answers the URL-verification challenge, and routes events
-// to the installing org by team_id.
 http.route({
   path: '/api/integrations/slack/events',
   method: 'POST',
-  handler: slackEventsHandler,
+  handler: integrationsSlackEventsHandler,
 });
 
-// Agent integration dispatch — the in-sandbox MCP bridge calls these so the
-// agent can use the org's connected integrations (credentials stay
-// server-side). Auth: Authorization: Bearer <per-session VK> (dispatch_http.ts).
+// Automation webhook triggers. The token in the path IS the credential: it is
+// matched against the stored SHA-256 with a constant-time compare, and the
+// organization the run belongs to comes from the trigger row it resolves to —
+// never from the request. An unknown or disabled token is a plain 404. See
+// automations/triggers.ts.
 http.route({
-  path: '/api/integrations/execute',
+  pathPrefix: '/api/automations/webhook/',
   method: 'POST',
-  handler: executeIntegrationHandler,
-});
-http.route({
-  path: '/api/integrations/status',
-  method: 'POST',
-  handler: integrationStatusHandler,
+  handler: automationWebhookHandler,
 });
 
-// Workspace-tool dispatch — the same bridge calls these so an external agent
-// can use the platform tools its config grants (`toolNames`); execution and
-// grants stay server-side (agent_tools/dispatch_http.ts).
-http.route({
-  path: '/api/tools/execute',
-  method: 'POST',
-  handler: executeToolHandler,
-});
-http.route({
-  path: '/api/tools/status',
-  method: 'POST',
-  handler: toolStatusHandler,
-});
+// The in-sandbox capability bridge replaces the old
+// /api/integrations/{execute,status} + /api/tools/{execute,status} pairs with
+// the unified capability dispatch (search/invoke), still VK-bearer-authed.
 
-http.route({
-  path: '/api/chat-stream',
-  method: 'GET',
-  handler: streamChatHttp,
-});
-
-http.route({
-  path: '/api/chat-stream',
-  method: 'OPTIONS',
-  handler: streamChatHttpOptions,
-});
+// /api/chat-stream (GET+OPTIONS) re-registers with the chat
+// v2 streaming rebuild.
 
 // SSO Routes - Dynamic per-organization Microsoft Entra ID authentication
 http.route({
@@ -1014,81 +795,14 @@ http.route({
   handler: trustedHeadersAuthHandler,
 });
 
-// Agent Webhook Routes
-http.route({
-  pathPrefix: '/api/agents/wh/',
-  method: 'POST',
-  handler: agentWebhookHandler,
-});
+// Agent webhook routes (/api/agents/wh/*) re-register with
+// the chat rebuild agent-webhooks rebuild.
 
-http.route({
-  pathPrefix: '/api/agents/wh/',
-  method: 'OPTIONS',
-  handler: agentWebhookOptionsHandler,
-});
+// Workflow trigger routes (/api/workflows/wh/*,
+// /api/workflows/trigger) re-register with the rebuilt automation engine trigger surface.
 
-// Workflow Webhook Trigger Routes
-http.route({
-  pathPrefix: '/api/workflows/wh/',
-  method: 'POST',
-  handler: webhookHandler,
-});
-
-http.route({
-  pathPrefix: '/api/workflows/wh/',
-  method: 'OPTIONS',
-  handler: webhookOptionsHandler,
-});
-
-// Workflow API Trigger Route
-http.route({
-  path: '/api/workflows/trigger',
-  method: 'POST',
-  handler: apiTriggerHandler,
-});
-
-http.route({
-  path: '/api/workflows/trigger',
-  method: 'OPTIONS',
-  handler: apiTriggerOptionsHandler,
-});
-
-// OpenAI-Compatible API Routes
-http.route({
-  path: '/api/v1/chat/completions',
-  method: 'POST',
-  handler: chatCompletionsHandler,
-});
-
-http.route({
-  path: '/api/v1/chat/completions',
-  method: 'OPTIONS',
-  handler: chatCompletionsOptionsHandler,
-});
-
-http.route({
-  path: '/api/v1/images/generations',
-  method: 'POST',
-  handler: imagesGenerationsHandler,
-});
-
-http.route({
-  path: '/api/v1/images/generations',
-  method: 'OPTIONS',
-  handler: imagesGenerationsOptionsHandler,
-});
-
-http.route({
-  path: '/api/v1/models',
-  method: 'GET',
-  handler: modelsListHandler,
-});
-
-http.route({
-  path: '/api/v1/models',
-  method: 'OPTIONS',
-  handler: modelsOptionsHandler,
-});
+// The OpenAI-compatible inbound API (/api/v1/chat/completions,
+// /api/v1/images/generations, /api/v1/models) re-registers with the chat rebuild.
 
 // ---------------------------------------------------------------------------
 // REST API v1 Routes
@@ -1136,37 +850,9 @@ http.route({
   handler: restOptionsHandler,
 });
 
-// External agent runtimes (tale-daemon)
-http.route({
-  path: '/api/v1/runtimes/register',
-  method: 'POST',
-  handler: registerRuntime,
-});
-http.route({
-  path: '/api/v1/runtimes/heartbeat',
-  method: 'POST',
-  handler: heartbeatRuntime,
-});
-http.route({
-  pathPrefix: '/api/v1/runtimes/',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
-http.route({
-  path: '/api/v1/runs/claim',
-  method: 'POST',
-  handler: claimRun,
-});
-http.route({
-  pathPrefix: '/api/v1/runs/',
-  method: 'POST',
-  handler: runSubActions,
-});
-http.route({
-  pathPrefix: '/api/v1/runs/',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
+// External-runtime (tale-daemon) REST routes
+// (/api/v1/runtimes/*, /api/v1/runs/*) re-register with the chat rebuild
+// daemon-runs rebuild.
 
 // Websites
 http.route({ path: '/api/v1/websites', method: 'GET', handler: listWebsites });
@@ -1281,85 +967,9 @@ http.route({
   handler: restOptionsHandler,
 });
 
-// Threads
-http.route({ path: '/api/v1/threads', method: 'GET', handler: listThreads });
-http.route({ path: '/api/v1/threads', method: 'POST', handler: createThread });
-http.route({
-  path: '/api/v1/threads',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
-http.route({
-  pathPrefix: '/api/v1/threads/',
-  method: 'GET',
-  handler: getThread,
-});
-http.route({
-  pathPrefix: '/api/v1/threads/',
-  method: 'PATCH',
-  handler: patchThread,
-});
-http.route({
-  pathPrefix: '/api/v1/threads/',
-  method: 'DELETE',
-  handler: deleteThread,
-});
-http.route({
-  pathPrefix: '/api/v1/threads/',
-  method: 'POST',
-  handler: threadPostActions,
-});
-http.route({
-  pathPrefix: '/api/v1/threads/',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
+// Threads + agents REST v1 routes re-register with the chat rebuild.
 
-// Agents
-http.route({ path: '/api/v1/agents', method: 'GET', handler: listAgentsRest });
-http.route({
-  path: '/api/v1/agents',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
-http.route({ pathPrefix: '/api/v1/agents/', method: 'GET', handler: getAgent });
-http.route({
-  pathPrefix: '/api/v1/agents/',
-  method: 'PATCH',
-  handler: patchAgent,
-});
-http.route({
-  pathPrefix: '/api/v1/agents/',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
-
-// Workflows (triggers + executions)
-http.route({
-  pathPrefix: '/api/v1/workflows/',
-  method: 'GET',
-  handler: getWorkflow,
-});
-http.route({
-  pathPrefix: '/api/v1/workflows/',
-  method: 'POST',
-  handler: postWorkflow,
-});
-http.route({
-  pathPrefix: '/api/v1/workflows/',
-  method: 'PATCH',
-  handler: patchWorkflow,
-});
-http.route({
-  pathPrefix: '/api/v1/workflows/',
-  method: 'DELETE',
-  handler: deleteWorkflow,
-});
-http.route({
-  pathPrefix: '/api/v1/workflows/',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
+// Workflows REST v1 routes re-register with the rebuilt automation engine.
 
 // ---------------------------------------------------------------------------
 // API Gateway Routes - Handle /api/run/* paths with session cookie or API key authentication

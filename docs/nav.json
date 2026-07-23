@@ -120,7 +120,6 @@
             "platform/chat/voice-mode",
             "platform/chat/deep-research",
             "platform/chat/shared-threads",
-            "platform/chat/starters-and-prompts",
             "platform/chat/canvas-pane",
             "platform/chat/video-links"
           ]
@@ -145,7 +144,6 @@
             "platform/agents/tools",
             "platform/agents/skills",
             "platform/agents/knowledge",
-            "platform/agents/conversation-starters",
             "platform/agents/delegation",
             "platform/agents/webhook-triggers",
             "platform/agents/versions",
@@ -179,7 +177,7 @@
         },
         {
           "label": "workspace",
-          "pages": ["platform/workspace/prompt-library"]
+          "pages": ["platform/workspace/skills"]
         },
         {
           "label": "approvals",
@@ -204,7 +202,6 @@
             "platform/admin/teams",
             "platform/admin/agents",
             "platform/admin/providers",
-            "platform/admin/token-sources",
             "platform/admin/integrations",
             "platform/admin/enterprise-sso",
             "platform/admin/api-keys",

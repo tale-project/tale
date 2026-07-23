@@ -27,7 +27,7 @@ Une ressource sans cadre équipe reste visible pour quiconque dont le rôle l’
 
 ## Créer une équipe
 
-Ouvre **Paramètres > Équipes** et clique sur **Créer une équipe**. Donne à l’équipe un nom (`Support`, `Ventes`, `Opérations`) et une description optionnelle ; le nom apparaît partout où l’équipe surgit — pickers, badges, onglets de la bibliothèque de prompts, champ équipes-autorisées de l’intégration. Enregistrer crée une équipe vide que tu peux remplir de membres depuis la ligne de l’équipe.
+Ouvre **Paramètres > Équipes** et clique sur **Créer une équipe**. Donne à l’équipe un nom (`Support`, `Ventes`, `Opérations`) et une description optionnelle ; le nom apparaît partout où l’équipe surgit — pickers, badges, accès aux documents cadré par équipe et champ d’assignation d’un projet. Enregistrer crée une équipe vide que tu peux remplir de membres depuis la ligne de l’équipe.
 
 La ligne de l’équipe porte trois sous-vues : **Membres** (qui est dans l’équipe), **Ressources** (ce que l’équipe possède) et **Paramètres** (nom, description et cycle de vie de l’équipe). La vue Ressources est la façon la plus simple de voir jusqu’où une équipe peut atteindre ; elle sert aussi de surface d’audit quand quelqu’un demande pourquoi une équipe voit un agent particulier.
 
@@ -47,4 +47,4 @@ Clique la ligne de l’équipe, puis **Supprimer l'équipe**. La suppression est
 
 ## Où cela s’inscrit
 
-Les équipes sont la couche de cadrage juste sous les rôles — les rôles disent _quoi_, les équipes disent _où_. La lecture suivante naturelle dépend de la ressource que tu cadres : [Bibliothèque de prompts](/fr/platform/workspace/prompt-library) pour comment les prompts s’attachent aux équipes, [Intégrations (vue Admin)](/fr/platform/admin/integrations) pour le levier équipes-autorisées, et [Projets](/fr/platform/projects/overview) pour l’assignation projet-à-équipe.
+Les équipes sont la couche de cadrage juste sous les rôles — les rôles disent _quoi_, les équipes disent _où_. La lecture suivante naturelle dépend de la ressource que tu cadres : [Bibliothèque de skills](/fr/platform/workspace/skills) pour comment une instruction partagée atteint tout le monde, [Intégrations (vue Admin)](/fr/platform/admin/integrations) pour les identifiants qu’appellent les automatisations d’une équipe, et [Projets](/fr/platform/projects/overview) pour l’assignation projet-à-équipe.

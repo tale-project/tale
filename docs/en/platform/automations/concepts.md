@@ -1,63 +1,128 @@
 ---
 title: Automation concepts
-description: An automation is the installable bundle of integrations, agents, skills, a workflow, and builtin views — and the workflow inside it is how it runs. This page names the pieces, the runtime around them, and when to reach for an automation instead of a lone agent.
+description: The model behind every automation — one workflow document, a version history that never changes, a single deployed version, the triggers that start it, and the runs it records.
 ---
 
-An automation is the unit Tale reaches for when a job needs more than one moving part wired together — an integration credential, one or more agents, a workflow, sometimes a page of its own — and you want all of it installed and connected in one action instead of assembled by hand. Owners, Admins, and Developers install automations from the Automations catalog; once installed, Editors and Members use whatever it shipped — an Inbox tab, a Backlog entry, a chat agent — without needing to know what's underneath. This page names the pieces an automation bundles, the workflow that makes it run, and when an automation is the right unit instead of a single agent.
+An automation is one saved workflow document under a name, plus everything the platform keeps around it: the history of that document's versions, the single version that is live, the triggers allowed to start it, and the record of every run. Open **Automations** in the sidebar and each row is one of those names, with the version that is live beside it. Three ideas on this page decide how the rest of the surface behaves — versions never change, deploying is a separate act, and a trigger binds to the name rather than to a version — so read them before you build anything.
 
-Prefer to watch first? Episode 5 opens the triage automation end to end and decides a real approval card on camera — captions included.
+Prefer to watch first? Episode 5 opens the triage automation end to end and decides a real approval card on camera, captions included.
 
 <Video src="/videos/en/tutorials/ep5-automations/ep5-automations.en.mp4" poster="/videos/en/tutorials/ep5-automations/ep5-automations.en.webp" captions="/videos/en/tutorials/ep5-automations/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42)">
 
 </Video>
 
-## What an automation bundles
+## The workflow document
 
-An automation's manifest names up to five kinds of pieces, and most automations only use some of them.
+Everything an automation does is declared in one document. Its `name` is also its identity — lowercase slug segments, dash-separated, with `/` grouping related automations into folders, as in `billing/dunning-reminder`. Around the name sit a `description`, an `inputs` JSON Schema describing the runtime input, the `nodes` that do the work, an `output` that is the automation's return value, and the `tests` that decide whether a version may be deployed.
 
-**Integrations** are the credentials its steps and agents call — Gmail, GitHub, a SQL database. An automation never stores its own copy of a credential; it names which integration it requires, and the org connects that integration once, the same connection every other automation and agent shares.
+```yaml
+name: billing/dunning-reminder
+description: Remind a customer about an overdue invoice.
+inputs:
+  type: object
+  properties:
+    invoiceId: { type: string }
+  required: [invoiceId]
+nodes:
+  - id: invoice
+    type: transform
+    input:
+      id: '{{ input.invoiceId }}'
+    code: 'return { id: input.id, daysLate: 14 };'
+  - id: message
+    type: llm
+    model: openai/gpt-4o-mini
+    prompt: 'Write a polite reminder for invoice {{ nodes.invoice.output.id }}.'
+output:
+  text: '{{ nodes.message.output.text }}'
+tests:
+  - name: builds a reminder
+    input: { invoiceId: 'inv-1' }
+```
 
-**Agents** are the chat or task agents the automation installs — a triager, a PR reviewer, a summariser. Once installed they're ordinary agents: mentionable in chat, assignable on a project board, editable in the agent editor.
+Canvas positions ride along in a `ui` block the engine ignores, so dragging a box around never changes behaviour.
 
-**A workflow** is the automation's one bundled trigger-and-steps definition — the thing that actually runs on a schedule, a webhook, or a manual click. Not every automation ships one: the email automations covered on [Built-in automations](/platform/automations/builtin) have none, because reading and replying to mail is a page, not a scheduled run.
+### Edges are derived, not declared
 
-**Builtin views** are pages the automation registers into the platform's shared view registry, like Inbox — the platform renders the page itself; the automation only names which one and what it's scoped to.
+There is no edge list. One node reads another by referencing it — `{{ nodes.invoice.output.id }}` — and that reference _is_ the edge the canvas draws. Execution order is a topological sort over those derived edges, which is why deleting a reference also removes an arrow, and why two nodes that read each other are refused as a cycle.
 
-**Configuration** is not a separate settings file. An automation that needs an operator value reads it from an integration's credential or from a workflow trigger or node variable; the automation's Configuration tab is a read-only summary of the pieces above, not a place to add new settings.
+Templates use a single `{{ }}` JavaScript-expression grammar over `input`, `nodes.<id>.output`, and, inside an iterating node, `item` and `index`.
 
-## The workflow inside
+### Control flow rides on the node
 
-There is no standalone workflow surface in Tale — a workflow lives and runs inside its automation, and the automation's **Editor** tab is where you meet it. The definition is a graph of typed steps: **LLM** steps call an agent or model, **Action** steps do concrete work such as calling an integration or creating and updating tasks on the project board, **Condition** steps branch the graph on a yes or no, **Loop** steps repeat over a set, and **Sandbox** steps run code. Every save snapshots a version you can restore from **History**. [The workflow editor](/platform/automations/editor) is the operating manual for that surface.
+Branching and looping are fields on a node rather than separate step types, so the canvas shows them as badges on the box they affect.
 
-**Triggers** decide when the workflow runs. Three kinds attach on the **Triggers** tab: **Schedules** (cron), **Webhooks** (an external POST), and **Events** (something happens inside Tale, such as `task.created`) — and you can always fire a run by hand from the editor's **Test workflow** panel. The [triggers reference](/platform/automations/triggers) covers each.
+| Field                        | What it does                                                             |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `when`                       | Run the node only when the expression is truthy; dependents skip with it |
+| `elseOf`                     | Run exactly when the named node was skipped by its own `when`            |
+| `forEach`                    | Run once per item of a collection, with `item` and `index` in scope      |
+| `repeatUntil` / `maxRepeats` | Re-run until the expression is truthy, capped (default 5, maximum 20)    |
+| `onError`                    | `fail` halts the run; `continue` records the error and skips dependents  |
 
-**Executions** are the run history. Every run writes a record — status, timing, the input it received, and a per-step journal of what each step consumed and produced. The **Executions** tab is the audit trail and the debugging surface in one place; [Execution logs](/platform/automations/execution-logs) reads one end to end.
+### Node types
 
-## Where humans fit
+Three types are built in, and every integration action and platform native — knowledge search, document operations — joins the same table alongside them.
 
-Automations run without you, but they change and start only with you: the AI editor's proposed changes to a workflow land as approval cards before they apply, an agent that wants to run a workflow needs your approval first, and a run that needs an answer pauses as **Waiting for input**. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers all three. A loop that re-enters the same review gate — a task sent back for another pass — opens a fresh request each round rather than reusing the resolved card.
+**`transform`** runs pure JavaScript to reshape data. It has no network and no imports: the body reads the node's resolved `input` and must return a value.
 
-## Bundles and hidden automations
+**`llm`** calls a language model with a templated prompt. `model` is required and always explicit — the platform never picks one on your behalf. The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`.
 
-A bundle groups several automations that only make sense installed together. [Resolve GitHub issues](/platform/automations/builtin) installs four automations — a triager, a syncer, a PR creator, and a PR reviewer — through one aggregated wizard, bound to the project you choose. Most of a bundle's members are hidden: they never appear as their own card in the catalog, because installing one alone would be meaningless without its siblings. Hidden doesn't mean gone — the [Automation assistant](/platform/automations/assistant) can still find and explain them; only the catalog's grid hides them.
+**`subworkflow`** runs another saved automation as a single node, referenced as `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
 
-## Putting it together — two combinations
+### Structured and unstructured output
 
-**Sync Gmail emails** combines the smallest possible set: one integration (Gmail) and one builtin view (Inbox) — no agent, no workflow. Connect Gmail, and the Inbox tab is the whole automation.
+Every node type's output is one of two kinds, and this is the rule authors hit most. A **structured** output is a typed shape you may path into with `nodes.<id>.output.<field>`. An **unstructured** output is free text: only `nodes.<id>.output.text` exists, and only in string context. A tool that declares no output schema is unstructured by definition, and the one sanctioned bridge from text to structured data is an `llm` node with an `outputSchema`.
 
-**Resolve GitHub issues** combines nearly every piece at once: one integration (GitHub), two agents (a PR creator and a PR reviewer, each owned by one of its four hidden members), four workflows, and no builtin view — it works through the project's existing Board and Backlog instead of a page of its own. Installing the bundle wires all four in one aggregated wizard, bound to the project you pick.
+Validation refuses the mistake instead of letting it surface at run time, and every error carries a machine-readable code plus a hint naming what is actually available. Reading that hint is how you discover the shape you meant to reference.
 
-## When to reach for it
+## Versions never change
 
-| Use … when                                                             | Automation | Agent | Agent webhook |
-| ---------------------------------------------------------------------- | ---------- | ----- | ------------- |
-| You want a ready-integrated feature installed in one action            | ✓          |       |               |
-| The work has multiple steps, branches, schedules, or approvals between | ✓          |       |               |
-| The same question just recurs in chat, no external system involved     |            | ✓     |               |
-| One agent reply per incoming POST is enough                            |            |       | ✓             |
+Saving appends a new version; it never edits an existing one. Versions are numbered from 1 and stay contiguous per automation, and each carries the message its author wrote about what changed. Version 3 of an automation is therefore the same document forever.
 
-Check the catalog before building anything — the automation you need may already ship. When nothing shipped fits, you still build an automation: describe the workflow to the [AI editor](/platform/automations/editor) or upload a package, rather than assembling loose pieces. An [agent webhook](/platform/agents/webhook-triggers) is the one seam outside this model — reach for it when a single agent reply per incoming payload is all the job needs.
+Two things follow. Editing an automation cannot disturb what is already running, because the running version is a different row. And a run that failed last month can be read against the exact document that produced it, because that document still exists untouched.
 
-## Build one
+## Deploying is a separate act
 
-An automation is the whole bundle a real feature needs — the integration it calls, the agents that do the work, the workflow that runs it, the view it renders — wired together and installed in one action, with the workflow's runtime (triggers, executions, approvals) living on the automation's own tabs. The natural next read is [Browse and install](/platform/automations/catalog) — it walks the catalog, the side panel, and the install wizard end to end; [The workflow editor](/platform/automations/editor) picks up from there for the surface where the automation's engine gets built and tuned.
+One version per automation is the deployed one, and that is the version triggers run. Promoting a version, or rolling back to an earlier one, is a single act that overwrites no history — the version list stays exactly as it was and only the pointer moves. An automation may also have no deployment at all and live purely as drafts.
+
+A version becomes deployable only once its own tests pass. Tests are stored with the document: each has a name, an input, and expectations about the output and about the effects the run should produce. Whether a version's tests passed is recorded when it is saved, so promoting reads that recorded fact instead of re-running the suite.
+
+<Note>
+
+An automation with no deployed version cannot be started at all — not by a trigger, not by hand. Save a version, then deploy it.
+
+</Note>
+
+## What starts a run
+
+A trigger says what is allowed to start an automation, and there are exactly four kinds: a **schedule** (a cron expression read in a named IANA timezone), a **webhook** (an inbound URL guarded by a token), an **event** (a platform event name), and an **api-key** call (an explicit programmatic request).
+
+A trigger binds to the automation's **name**, never to a version. Deploying a new version therefore never invalidates a webhook URL an external system depends on, and never drops a schedule someone is relying on. Each trigger can be switched off and back on without being lost, and each records when the scheduler last acted on it. [Workflow triggers](/platform/automations/triggers) covers what each kind carries into the run.
+
+## What a run records
+
+A run is a durable object, not a log line. It holds its status — `queued`, `running`, `waiting`, `success`, `failed`, or `cancelled` — its mode, what started it, the input it received, the output it produced, and a **checkpoint for every completed node**.
+
+Those checkpoints are the point. A live run steps node by node, and when it reaches the platform's action time window it hands itself back and resumes from the last completed node instead of repeating side effects already performed. A run also keeps the engine's full trace and the ordered list of effects it produced, which is what lets the canvas replay it and what keeps every outside change auditable afterwards.
+
+Runs come in two modes. **Mock** never touches the outside world and is the fast feedback loop while you author. **Live** may, which is why starting one is a developer-level action. [Execution logs](/platform/automations/execution-logs) reads a run end to end.
+
+## Where a human decides
+
+A run that needs an approval does not fail and does not restart. It pauses in `waiting`, and when the approval is answered it re-enters at the node it stopped on, carrying the answer forward. A run waiting on human input behaves the same way. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers the gates and what each decision leaves behind.
+
+## Choosing the right unit
+
+| Reach for …                                                        | Automation | Agent | Agent webhook |
+| ------------------------------------------------------------------ | ---------- | ----- | ------------- |
+| Work with several steps, branches, schedules, or approvals between | ✓          |       |               |
+| Something that must run on a clock or answer a webhook             | ✓          |       |               |
+| A recurring question in chat, with no external system involved     |            | ✓     |               |
+| One agent reply per incoming POST                                  |            |       | ✓             |
+
+Check the catalog before building — the automation you need may already ship. An [agent webhook](/platform/agents/webhook-triggers) is the one seam outside this model; reach for it when a single agent reply per payload is the whole job.
+
+## Putting the model to work
+
+An automation is one document, kept as an unbroken chain of versions, with exactly one of them deployed and a set of triggers bound to its name rather than to any version — which is what makes editing safe, rollback cheap, and a failed run reproducible. [The workflow editor](/platform/automations/editor) is the hands-on manual for saving, testing, deploying, and rolling back; [Browse and install automations](/platform/automations/catalog) is the route to the ones that already ship.

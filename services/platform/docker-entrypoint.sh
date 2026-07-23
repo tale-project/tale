@@ -475,11 +475,11 @@ deploy_convex_functions() {
       log_ok "Convex data migrations complete"
     fi
 
-    # Validate the deployed built-in config catalog against its Zod schemas.
-    # Non-fatal like provisioning/migrations above: a broken catalog is a
-    # build-time regression `configs:validate` + CI should already have
-    # caught before this image shipped — this is the last-mile safety net for
-    # a mismatched image or a hand-edited builtin catalog volume.
+    # Validate the deployed built-in config catalog (the configs/ YAML seed
+    # tree) against its Zod schemas. Non-fatal like provisioning/migrations
+    # above: a broken catalog is a build-time regression CI should already
+    # have caught before this image shipped — this is the last-mile safety
+    # net for a mismatched image or a hand-edited builtin catalog volume.
     log_info "Validating builtin config catalog..."
     local validate_catalog_exit=0
     timeout 120 bunx convex run lib/config_store/validate_builtin_catalog:validateBuiltinCatalog \

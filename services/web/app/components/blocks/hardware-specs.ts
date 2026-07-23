@@ -6,7 +6,7 @@ import type { TFunction } from 'i18next';
 // Edit a node below; multi-node specs, pricing, and progress-bar metrics all
 // recompute from `NODES × MULTI_NODE_COMPOSITION`. The snake_case IDs
 // (`ddr5_ecc`, `apple_silicon`, `m2_nvme`, …) map to display labels in
-// `messages/global.json` under `specs.types.*` — keep the two in sync.
+// `messages/global.yml` under `specs.types.*` — keep the two in sync.
 // =============================================================================
 
 type TierKey = 'quality' | 'hybrid' | 'speed';

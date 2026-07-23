@@ -6,11 +6,15 @@ import { createContext, useContext } from 'react';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-type AccountBootstrap = FunctionReturnType<
-  typeof api.bootstrap.queries.getAccountBootstrap
+// These used to derive from the single `getAccountBootstrap` batch query,
+// which was retired with the rest of the bootstrap module; the two underlying
+// per-concern queries remain and now define the shapes directly.
+export type TwoFactorStatus = FunctionReturnType<
+  typeof api.two_factor.queries.getStatus
 >;
-export type TwoFactorStatus = AccountBootstrap['twoFactor'];
-export type PasswordExpiryStatus = AccountBootstrap['passwordExpiry'];
+export type PasswordExpiryStatus = FunctionReturnType<
+  typeof api.users.queries.getPasswordExpiryStatus
+>;
 
 export interface AccountBootstrapContextValue {
   /** `undefined` until the bootstrap query resolves (treated as "hold"). */

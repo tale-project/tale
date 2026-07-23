@@ -1,0 +1,116 @@
+# Inbox triage, Outlook variant.
+#
+# This document is one of three provider variants of the same automation
+# (gmail / outlook / imap-smtp). They are deliberately the SAME document with
+# the connector substituted: only the node types and the fetch node's query
+# dialect differ, and a test in lib/automations/packs.test.ts fails if they
+# drift apart in any other way. Change one, change all three.
+version: 1
+name: outlook-triage-inbox
+description: Read the newest Outlook messages and turn them into one triage digest.
+inputs:
+  type: object
+  properties:
+    limit:
+      type: number
+      description: How many of the newest messages to read in one pass (25 when unset).
+  additionalProperties: false
+nodes:
+  # Each provider is asked for its newest inbox messages in its own dialect.
+  - id: fetch
+    type: outlook.list_messages
+    input:
+      top: '{{ input.limit ?? 25 }}'
+      orderby: receivedDateTime desc
+
+  # One shape for every provider, so everything downstream is provider-neutral.
+  - id: inbox
+    type: transform
+    input:
+      messages: '{{ nodes.fetch.output.messages }}'
+      limit: '{{ input.limit ?? 25 }}'
+    code: |
+      const asText = (value) => (typeof value === 'string' ? value : '');
+      const senderOf = (from) => {
+        if (typeof from === 'string') return from;
+        const one = Array.isArray(from) ? from[0] : from;
+        if (!one || typeof one !== 'object') return '';
+        const address = one.emailAddress ?? one;
+        return asText(address.address ?? address.name);
+      };
+      const receivedAtOf = (message) => {
+        if (typeof message.receivedDateTime === 'string') return message.receivedDateTime;
+        if (typeof message.date === 'string') return message.date;
+        if (typeof message.sentAt === 'number') return new Date(message.sentAt).toISOString();
+        return '';
+      };
+      const messages = (Array.isArray(input.messages) ? input.messages : [])
+        .slice(0, input.limit)
+        .map((message) => ({
+          id: asText(message.id ?? message.uid ?? message.messageId),
+          subject: asText(message.subject),
+          from: senderOf(message.from),
+          receivedAt: receivedAtOf(message),
+          preview: asText(message.bodyPreview ?? message.snippet ?? message.text),
+        }));
+      return { count: messages.length, messages };
+
+  # Skipped when nothing came in, so an empty pass costs no model call.
+  - id: triage
+    type: llm
+    when: '{{ nodes.inbox.output.count > 0 }}'
+    model: anthropic/claude-haiku-4-5
+    system: >-
+      You triage a shared mailbox for a small team. Judge only from what you are
+      given, never invent senders or content, and keep the digest to what a
+      person needs to decide what to open first.
+    prompt: |
+      Here are the newest messages, oldest field values included as they arrived:
+
+      {{ nodes.inbox.output.messages }}
+
+      Write one short digest of what came in, and list the id of every message
+      that plainly needs a reply today.
+    outputSchema:
+      type: object
+      properties:
+        summary:
+          type: string
+          description: Two or three sentences describing what came in.
+        needsReply:
+          type: array
+          items:
+            type: string
+          description: Ids of the messages that need a reply today.
+      required:
+        - summary
+        - needsReply
+output:
+  read: '{{ nodes.inbox.output.count }}'
+  messages: '{{ nodes.inbox.output.messages }}'
+  triage: '{{ nodes.triage.output }}'
+tests:
+  - name: the newest message is normalized and triaged
+    input:
+      limit: 1
+    expect:
+      output:
+        read: 1
+        messages:
+          - id: msg-1
+            subject: Quarterly report
+            from: ada@example.com
+            receivedAt: '2025-01-15T09:00:00Z'
+            preview: The quarterly report is ready.
+        triage:
+          summary: mock
+          needsReply:
+            - mock
+  - name: a pass that reads nothing skips the model
+    input:
+      limit: 0
+    expect:
+      output:
+        read: 0
+        messages: []
+        triage: null

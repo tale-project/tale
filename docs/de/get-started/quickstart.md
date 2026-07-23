@@ -51,23 +51,17 @@ Cloud-Instanzen werden für dich aufgesetzt: Füll das [Demo-Formular](https://t
 
 <Step title="Öffne einen neuen Chat">
 
-Klicke in der Sidebar auf **Neuer Chat**. Der Chat am unteren Bildschirmrand ist der Ort, an dem alles beginnt: links die Agent-Auswahl, daneben die Modell-Auswahl und rechts das Nachrichtenfeld mit dem Senden-Knopf. Wartet der Chat mit vorausgewähltem **Assistent** und **Auto**, bist du bereit zu senden.
-
-<Frame caption="Der Chat — oben das Nachrichtenfeld, darunter die Agent- und die Modell-Auswahl und der Senden-Knopf.">
-
-![Der leere Chat, dessen Platzhalter zu einer Frage nach Kontakten, Produkten oder Dokumenten einlädt, über einer Werkzeugleiste mit den Knöpfen für Anhang und Prompt-Bibliothek, der Agent- und der Modell-Auswahl sowie den Knöpfen für Stummschaltung, Mikrofon und Senden.](/images/platform/chat-composer.webp)
-
-</Frame>
+Klicke in der Sidebar auf **Neuer Chat**. Der Chat am unteren Bildschirmrand ist der Ort, an dem alles beginnt: links die Agent-Auswahl, daneben die Modell-Auswahl und rechts das Nachrichtenfeld mit dem Senden-Knopf. Wartet der Chat mit vorausgewähltem **Assistent** und einem bereits gewählten Modell, bist du bereit zu senden.
 
 </Step>
 
 <Step title="Stell eine echte Frage">
 
-Lass den Agent auf **Assistent** und das Modell auf **Auto** — Tale ermittelt zum Zeitpunkt der Anfrage das beste verfügbare Modell. Tippe eine Frage und sende sie. Die Antwort streamt Token für Token herein; wenn der Agent vor dem Antworten nachdenkt, erscheint über der Antwort eine aufklappbare Denk-Zeile.
+Lass den Agent auf **Assistent** und wähl in der Modell-Auswahl irgendein Chat-Modell — jede Antwort kommt von genau dem Modell, das du benannt hast, hinter den Kulissen wird nichts für dich entschieden. Tippe eine Frage und sende sie. Die Antwort streamt Token für Token herein; wenn der Agent vor dem Antworten nachdenkt, erscheint über der Antwort eine aufklappbare Denk-Zeile.
 
 <Check>
 
-Eine gestreamte Antwort, die deine Frage beantwortet, heißt: Die ganze Kette funktioniert — Anbieter, Modell-Routing und Agent. Du hast einen funktionierenden Arbeitsbereich.
+Eine gestreamte Antwort, die deine Frage beantwortet, heißt: Die ganze Kette funktioniert — Anbieter-Zugangsdaten, Modell und Agent. Du hast einen funktionierenden Arbeitsbereich.
 
 </Check>
 

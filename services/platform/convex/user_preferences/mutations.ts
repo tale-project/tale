@@ -1,14 +1,33 @@
 import { ConvexError, v } from 'convex/values';
 
 import { mutation, type MutationCtx } from '../_generated/server';
-import { estimateTokens } from '../lib/context_management/estimate_tokens';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
-import {
-  CUSTOM_INSTRUCTIONS_ILLEGAL_RE,
-  CUSTOM_INSTRUCTIONS_MAX_CHARS,
-  CUSTOM_INSTRUCTIONS_MAX_TOKENS,
-} from '../user_memories/constants';
+
+// `lib/context_management/estimate_tokens.ts` and
+// `user_memories/constants.ts` moved with the chat/agent-memory domain.
+// Single caller (this file), so inlined rather than re-created as modules.
+
+/**
+ * Local re-approximation of `estimateTokens`'s plain-Latin path
+ * (from the retired `lib/context_management/estimate_tokens.ts`),
+ * without the CJK refinement (the full impl weighs CJK vs Latin runs
+ * differently). This is a soft length guard on a
+ * settings field, not a chat-context token budget, so a flat
+ * `ceil(chars / 4)` estimate is an equivalent-enough simplification.
+ */
+function estimateTokens(text: string): number {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+// Copied from the retired `user_memories/constants.ts`.
+// Same as ILLEGAL_CONTENT_RE but allows LF (0x0a). For multi-line fields like
+// customInstructions; callers must normalize CRLF / lone CR → LF before
+// testing (lone CR is still rejected by the \x00-\x09 / \x0b-\x1f range).
+const CUSTOM_INSTRUCTIONS_ILLEGAL_RE = /[<>`\x00-\x09\x0b-\x1f\x7f]/;
+const CUSTOM_INSTRUCTIONS_MAX_CHARS = 4000;
+const CUSTOM_INSTRUCTIONS_MAX_TOKENS = 800;
 
 export const upsertMyPreferences = mutation({
   args: {

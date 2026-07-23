@@ -47,7 +47,10 @@ export class SafeFetchError extends Error {
 }
 
 export interface SafeFetchOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'HEAD';
+  /** The verb is forwarded to `fetch` unchanged; PATCH is here because
+   * integration connector bodies issue partial updates (GitHub issue edits,
+   * for one) through this same audited client. */
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
   headers?: Record<string, string>;
   body?: string | FormData;
   timeoutMs?: number;

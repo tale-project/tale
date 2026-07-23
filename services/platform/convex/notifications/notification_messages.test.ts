@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import deMessages from '../../messages/de.json';
-import enMessages from '../../messages/en.json';
-import frMessages from '../../messages/fr.json';
+import deMessages from '../../messages/de.yml';
+import enMessages from '../../messages/en.yml';
+import frMessages from '../../messages/fr.yml';
 import {
   ACTIONABLE_INBOX_KEYS,
   escapeSlackText,

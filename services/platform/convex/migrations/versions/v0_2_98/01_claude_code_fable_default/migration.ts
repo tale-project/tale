@@ -22,19 +22,19 @@
  * needed.
  */
 
-import type { ModelDefinition } from '../../../../../lib/shared/schemas/providers';
 import { structuralEqual } from '../../../../../lib/utils/structural-equal';
 import {
   parseAgentJson,
   resolveAgentFilePathFromRelative,
   serializeAgentJson,
   walkAgentRelativePaths,
-} from '../../../../agents/file_utils';
+} from '../../../../legacy/frozen/agents_file_utils';
 import {
   parseProviderJson,
   resolveProviderFilePath,
   serializeProviderJson,
-} from '../../../../providers/file_utils';
+} from '../../../../legacy/frozen/providers_file_utils';
+import type { ModelDefinition } from '../../../../legacy/frozen/schemas_providers';
 import {
   type BoundNodeHelpers,
   defineNodeMigration,

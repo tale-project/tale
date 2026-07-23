@@ -1,0 +1,263 @@
+# Integration connector — Microsoft Teams through the Microsoft Graph v1.0 API.
+# An OAuth2 credential from the Microsoft identity platform authorizes every
+# action; the platform injects it as the Authorization header, so the live bodies
+# below carry only Graph's functional headers. Reads return the collection under
+# a named key plus Graph's `@odata.nextLink` for paging; writes return the
+# identifiers a caller routes on. Every mock is deterministic — same input, same
+# output, no IO.
+name: teams
+displayName: Microsoft Teams
+description: Send messages and manage channels in Microsoft Teams.
+tags:
+  - Messaging
+allowedHosts:
+  - graph.microsoft.com
+auth:
+  - method: oauth2
+    authorizeUrl: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+    tokenUrl: https://login.microsoftonline.com/common/oauth2/v2.0/token
+    scopes:
+      - Team.ReadBasic.All
+      - Channel.ReadBasic.All
+      - ChannelMessage.Read.All
+      - ChannelMessage.Send
+      - TeamMember.Read.All
+      - Chat.Read
+      - Chat.ReadWrite
+actions:
+  - name: list_teams
+    description: List the teams the authenticated user has joined.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ teams: Array<{ id: string, displayName: string, description: string }>, nextLink: string | null }'
+    mock: |
+      return { teams: [{ id: '19:team-demo@thread.tacv2', displayName: 'Demo Team', description: 'A mock team.' }], nextLink: null };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get('https://graph.microsoft.com/v1.0/me/joinedTeams', { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Teams list_teams failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        const j = r.json();
+        return { teams: j.value || [], nextLink: j['@odata.nextLink'] || null };
+    exampleInput: {}
+  - name: get_team
+    description: Get a single team by ID.
+    effects: read
+    input:
+      type: object
+      required: [teamId]
+      properties:
+        teamId:
+          type: string
+          description: 'Team ID.'
+    output: '{ team: { id: string, displayName: string, description: string, visibility: string } }'
+    mock: |
+      return { team: { id: input.teamId, displayName: 'Demo Team', description: 'A mock team.', visibility: 'private' } };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Teams get_team failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        return { team: r.json() };
+    exampleInput: { teamId: '19:team-demo@thread.tacv2' }
+  - name: list_channels
+    description: List all channels in a team.
+    effects: read
+    input:
+      type: object
+      required: [teamId]
+      properties:
+        teamId:
+          type: string
+          description: 'Team ID.'
+    output: '{ channels: Array<{ id: string, displayName: string, description: string, membershipType: string }>, nextLink: string | null }'
+    mock: |
+      return { channels: [{ id: '19:channel-general@thread.tacv2', displayName: 'General', description: 'A mock channel.', membershipType: 'standard' }], nextLink: null };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Teams list_channels failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        const j = r.json();
+        return { channels: j.value || [], nextLink: j['@odata.nextLink'] || null };
+    exampleInput: { teamId: '19:team-demo@thread.tacv2' }
+  - name: get_channel
+    description: Get a single channel by ID.
+    effects: read
+    input:
+      type: object
+      required: [teamId, channelId]
+      properties:
+        teamId:
+          type: string
+          description: 'Team ID.'
+        channelId:
+          type: string
+          description: 'Channel ID.'
+    output: '{ channel: { id: string, displayName: string, description: string, membershipType: string } }'
+    mock: |
+      return { channel: { id: input.channelId, displayName: 'General', description: 'A mock channel.', membershipType: 'standard' } };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels/${encodeURIComponent(input.channelId)}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Teams get_channel failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        return { channel: r.json() };
+    exampleInput:
+      {
+        teamId: '19:team-demo@thread.tacv2',
+        channelId: '19:channel-general@thread.tacv2',
+      }
+  - name: list_messages
+    description: Fetch messages from a channel.
+    effects: read
+    input:
+      type: object
+      required: [teamId, channelId]
+      properties:
+        teamId:
+          type: string
+          description: 'Team ID.'
+        channelId:
+          type: string
+          description: 'Channel ID.'
+        top:
+          type: number
+          description: 'Number of messages to return (max 50, default 20).'
+    output: '{ messages: Array<{ id: string, body: { content: string, contentType: string }, from: { user: { id: string, displayName: string } }, createdDateTime: string }>, nextLink: string | null }'
+    mock: |
+      return {
+        messages: [{ id: '1700000000001', body: { content: 'Hello from the mock channel.', contentType: 'text' }, from: { user: { id: 'user-demo', displayName: 'Demo User' } }, createdDateTime: '2024-01-01T00:00:00.000Z' }],
+        nextLink: null,
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const top = Math.min(Number(input.top) || 20, 50);
+        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels/${encodeURIComponent(input.channelId)}/messages?$top=${top}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Teams list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        const j = r.json();
+        return { messages: j.value || [], nextLink: j['@odata.nextLink'] || null };
+    exampleInput:
+      {
+        teamId: '19:team-demo@thread.tacv2',
+        channelId: '19:channel-general@thread.tacv2',
+        top: 20,
+      }
+  - name: send_message
+    description: Send a message to a channel.
+    effects: write
+    input:
+      type: object
+      required: [teamId, channelId, content]
+      properties:
+        teamId:
+          type: string
+          description: 'Team ID.'
+        channelId:
+          type: string
+          description: 'Channel ID.'
+        content:
+          type: string
+          description: 'Message content.'
+        contentType:
+          type: string
+          description: 'Content type: text or html (default text).'
+    output: '{ id: string, webUrl: string }'
+    mock: |
+      return { id: `170000000${String(input.content.length).padStart(4, '0')}`, webUrl: `https://teams.microsoft.com/l/message/${input.channelId}/mock` };
+    backend:
+      kind: yaml-js
+      live: |
+        const payload = { body: { content: input.content, contentType: input.contentType || 'text' } };
+        const r = await ctx.http.post(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels/${encodeURIComponent(input.channelId)}/messages`, { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.status || r.status >= 400) throw new Error(`Teams send_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the ChannelMessage.Send scope' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        const j = r.json();
+        return { id: j.id, webUrl: j.webUrl };
+    exampleInput:
+      {
+        teamId: '19:team-demo@thread.tacv2',
+        channelId: '19:channel-general@thread.tacv2',
+        content: 'Deploy finished.',
+      }
+  - name: list_members
+    description: List the members of a team.
+    effects: read
+    input:
+      type: object
+      required: [teamId]
+      properties:
+        teamId:
+          type: string
+          description: 'Team ID.'
+        top:
+          type: number
+          description: 'Number of members to return (default 100).'
+        skip:
+          type: number
+          description: 'Number of members to skip, for pagination.'
+    output: '{ members: Array<{ id: string, displayName: string, email: string, roles: string[] }>, nextLink: string | null }'
+    mock: |
+      return { members: [{ id: 'member-demo', displayName: 'Demo User', email: 'demo.user@example.com', roles: ['owner'] }], nextLink: null };
+    backend:
+      kind: yaml-js
+      live: |
+        const q = ['$top=' + (Number(input.top) || 100)];
+        if (input.skip != null) q.push('$skip=' + encodeURIComponent(String(input.skip)));
+        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/members?${q.join('&')}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Teams list_members failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        const j = r.json();
+        return { members: j.value || [], nextLink: j['@odata.nextLink'] || null };
+    exampleInput: { teamId: '19:team-demo@thread.tacv2', top: 100 }
+  - name: list_chats
+    description: List the chats the authenticated user is part of.
+    effects: read
+    input:
+      type: object
+      properties:
+        top:
+          type: number
+          description: 'Number of chats to return (max 50, default 20).'
+    output: '{ chats: Array<{ id: string, topic: string, chatType: string }>, nextLink: string | null }'
+    mock: |
+      return { chats: [{ id: '19:chat-demo@thread.v2', topic: 'Demo chat', chatType: 'group' }], nextLink: null };
+    backend:
+      kind: yaml-js
+      live: |
+        const top = Math.min(Number(input.top) || 20, 50);
+        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/chats?$top=${top}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Teams list_chats failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the Chat.Read scope' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        const j = r.json();
+        return { chats: j.value || [], nextLink: j['@odata.nextLink'] || null };
+    exampleInput: { top: 20 }
+  - name: send_chat_message
+    description: Send a message to a chat.
+    effects: write
+    input:
+      type: object
+      required: [chatId, content]
+      properties:
+        chatId:
+          type: string
+          description: 'Chat ID.'
+        content:
+          type: string
+          description: 'Message content.'
+        contentType:
+          type: string
+          description: 'Content type: text or html (default text).'
+    output: '{ id: string, chatId: string }'
+    mock: |
+      return { id: `170000000${String(input.content.length).padStart(4, '0')}`, chatId: input.chatId };
+    backend:
+      kind: yaml-js
+      live: |
+        const payload = { body: { content: input.content, contentType: input.contentType || 'text' } };
+        const r = await ctx.http.post(`https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(input.chatId)}/messages`, { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.status || r.status >= 400) throw new Error(`Teams send_chat_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the Chat.ReadWrite scope' : r.status === 404 ? 'chat not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        const j = r.json();
+        return { id: j.id, chatId: j.chatId || input.chatId };
+    exampleInput:
+      { chatId: '19:chat-demo@thread.v2', content: 'Standup in 5 minutes.' }

@@ -13,7 +13,7 @@ Tale liefert Automatisierungen von Haus aus mit: drei, die ein Postfach in einen
 
 ## Gmail, Outlook und E-Mail über IMAP synchronisieren
 
-**Gmail-E-Mails synchronisieren**, **Outlook-E-Mails synchronisieren** und **E-Mails über SMTP/IMAP synchronisieren** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Integration, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt (ab Werk alle sechs Stunden — auf dem Tab **Auslöser** der Automatisierung enger stellbar). Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
+**Gmail-E-Mails synchronisieren**, **Outlook-E-Mails synchronisieren** und **E-Mails über SMTP/IMAP synchronisieren** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Integration, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt, ab Werk alle sechs Stunden — ändere den [Zeitplan-Trigger](/de/platform/automations/triggers), wenn du öfter abholen willst. Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
 
 | Automatisierung                        | Braucht   | Postfach                                  |
 | -------------------------------------- | --------- | ----------------------------------------- |
@@ -47,7 +47,7 @@ An zwei Stellen bleibt ein Mensch in der Schleife: beim Starten einer vorgeschla
 
 ## Sync- und Pflege-Vorlagen
 
-Acht weitere Automatisierungen liegen im Katalog für den Moment, in dem du sie brauchst. Jede ist ein einzelner Workflow: installieren, auf die eigenen Daten richten — die Sync-Vorlagen fragen ihre Quelle über den Zeitplan ab, den sie anlegen — und danach jederzeit auf dem Tab **Editor** der Automatisierung anpassbar.
+Acht weitere Automatisierungen liegen im Katalog für den Moment, in dem du sie brauchst. Jede ist ein einzelner Workflow: installieren, auf die eigenen Daten richten — die Sync-Vorlagen fragen ihre Quelle über den Zeitplan ab, den sie anlegen — und danach jederzeit auf der eigenen Seite der Automatisierung anpassbar, wo eine Änderung zu einer neuen Version wird, die du live schaltest, wenn du bereit bist.
 
 | Automatisierung                                        | Braucht      | Was sie tut                                                                                          |
 | ------------------------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------- |
@@ -62,7 +62,7 @@ Acht weitere Automatisierungen liegen im Katalog für den Moment, in dem du sie 
 
 ## Die vorinstallierten Pakete
 
-Auch die Mechanik, die die Boards jeder Organisation antreibt, ist als Automatisierungen gebaut — bei der Erstellung automatisch installiert, im Katalog versteckt, auf dem Tab **Installiert** aber sichtbar wie alles andere. Das **Aufgaben-Paket** startet einen zugewiesenen Agenten, sobald eine Aufgabe bei ihm landet, sichtet unzugewiesene Arbeit, reagiert auf @-Erwähnungen, schickt erledigte Arbeit durch die Prüfung, räumt hängende Läufe auf, setzt SLAs durch und hält abhängige Aufgaben, Unteraufgaben und Archive in Bewegung; sein Nachbar beantwortet Diskussions-Erwähnungen. Jedes ist eine normale Automatisierung — öffne eine, um ihren Workflow auf dem Tab **Editor** zu lesen, unter **Ausführungen** zuzusehen oder unter **Auslöser** einen Auslöser abzuschalten; eine Deinstallation bleibt bestehen und wird nie hinter deinem Rücken rückgängig gemacht. Eine weitere versteckte Automatisierung stößt bei Bedarf dazu: Der OneDrive-Sync installiert sich beim ersten [Synchronisierungsimport](/de/platform/knowledge/documents) von selbst — und ein neu eingerichteter Sync holt ihn nach einer Deinstallation zurück.
+Auch die Mechanik, die die Boards jeder Organisation antreibt, ist als Automatisierungen gebaut — bei der Erstellung automatisch installiert, im Katalog versteckt, auf dem Tab **Installiert** aber sichtbar wie alles andere. Das **Aufgaben-Paket** startet einen zugewiesenen Agenten, sobald eine Aufgabe bei ihm landet, sichtet unzugewiesene Arbeit, reagiert auf @-Erwähnungen, schickt erledigte Arbeit durch die Prüfung, räumt hängende Läufe auf, setzt SLAs durch und hält abhängige Aufgaben, Unteraufgaben und Archive in Bewegung; seine Geschwister beantworten Diskussions-Erwähnungen und halten OneDrive-Dateien synchron. Jedes ist eine normale Automatisierung — öffne eine, um ihr Dokument auf dem Canvas zu lesen, in ihrer [Liste der Läufe](/de/platform/automations/execution-logs) zu verfolgen, was sie getan hat, oder einen [Trigger](/de/platform/automations/triggers) abzuschalten, damit sie nicht mehr feuert; eine Deinstallation bleibt bestehen und wird nie hinter deinem Rücken rückgängig gemacht.
 
 ## Wo das hineinpasst
 

@@ -1,8 +1,8 @@
 import type { PackageMessages } from './init-service';
-import deMessages from './messages/de.json';
-import enMessages from './messages/en.json';
-import frMessages from './messages/fr.json';
-import globalMessages from './messages/global.json';
+import deMessages from './messages/de.yml';
+import enMessages from './messages/en.yml';
+import frMessages from './messages/fr.yml';
+import globalMessages from './messages/global.yml';
 
 /**
  * Shared translation bundles owned by `@tale/i18n` — keys consumed by

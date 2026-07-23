@@ -1,4 +1,5 @@
 {{#if storybook}}import path from 'node:path';
+import { yamlImports } from '@tale/ui/vite/yaml';
 import { fileURLToPath } from 'node:url';
 
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
@@ -9,7 +10,7 @@ import { defineConfig } from 'vitest/config';
 {{#if storybook}}const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 {{/if}}export default defineConfig({
-  plugins: [viteReact()],
+  plugins: [viteReact(), yamlImports()],
   test: {
 {{#if storybook}}    projects: [
       {

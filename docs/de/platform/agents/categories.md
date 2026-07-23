@@ -3,37 +3,31 @@ title: Agenten-Ordner
 description: Wie Agenten gruppiert werden — Ordner aus der Id des Agents, wie mit einer Automatisierung installierte Agenten sich einsortieren und wo die Berechtigungsgrenze wirklich liegt.
 ---
 
-Agenten sind nach Ordnern gruppiert, und ein Ordner entsteht aus der Id des Agents: ein Agent mit der Id `github/review-pull-requests/pr-reviewer` liegt überall dort, wo Agenten gelistet werden, in einem `github/review-pull-requests`-Ordner. Ordner sind ein organisatorisches Sortierwerkzeug, keine Berechtigungsgrenze — wer einen Agent nutzen darf, regelt der Abschnitt **Zugriff** auf seiner Seite **Allgemein**, unabhängig davon, wo er einsortiert ist.
+Agenten werden in Ordnern gruppiert, und ein Ordner ergibt sich aus der Id des Agenten: Ein Agent mit der Id `github/review-pull-requests/pr-reviewer` liegt überall dort, wo Agenten aufgelistet werden, im Ordner `github/review-pull-requests`. Ordner sortieren eine lange Liste; eine Berechtigungsgrenze ziehen sie nicht. Wer an einen Agenten herankommt, entscheidet seine **Sichtbarkeit** auf dem Tab **Allgemein**, und daran ändert der Ablageort nichts.
 
-<Frame caption="Die Agentenliste mit ausgeklapptem chat-Ordner — der Ordner ist das Präfix des Slugs, die Zeilen sind seine Agenten.">
+## Einen Agenten in einen Ordner einsortieren
 
-![Die Agentenliste mit den Agenten des chat-Ordners — Assistant und Automation Assistant —, jeweils mit Typ-Badge, Standardmodell und Tool-Anzahl.](/images/platform/agents-list-expanded.webp)
+Ordner-Ids kommen von der Plattform, nicht aus dem Anlege-Dialog. Das Feld **Name** dort nimmt eine flache Id entgegen — Kleinbuchstaben, Ziffern, Binde- und Unterstriche, kein `/` —, ein selbst angelegter Agent landet also unsortiert auf oberster Ebene. Das Ordner-Präfix (`chat/`, `github/review-pull-requests/`) ist Agenten vorbehalten, die die Plattform mitbringt oder installiert: Mitgelieferte kommen vorsortiert an, und eine installierte [Automatisierung](/de/platform/automations/concepts) legt ihre Agenten in den Ordner, den deren Id nennt. Eine Id lässt sich später nicht ändern, der Ordner steht also mit dem Anlegen fest. Der Anzeigename ist davon unabhängig — benenne den Agenten um, so oft du willst, ohne ihn zu verschieben.
 
-</Frame>
+In der Liste **Agenten** erscheinen Ordner als eingeklappte Zeilen mit einer Anzahl. Klick eine an, um sie aufzuklappen; die Brotkrumen zeigen, wo du gerade bist. Die mitgelieferten Agenten kommen vorsortiert, die allgemeinen Assistenten unter `chat`.
 
-## Einen Agent in einen Ordner legen
+## Agenten, die mit einer Automatisierung kommen
 
-Ids mit Ordner kommen von der Plattform, nicht aus dem Erstell-Dialog. Das Feld **Name** im Dialog nimmt eine flache Id — Kleinbuchstaben, Ziffern, Bindestriche und Unterstriche, kein `/` —, sodass ein dort erstellter Agent unabgelegt auf der obersten Ebene landet. Das Ordner-Präfix (`chat/`, `github/review-pull-requests/`) ist Agenten vorbehalten, die die Plattform mitliefert oder installiert: Builtins kommen vorab einsortiert an, und die Installation einer [Automatisierung](/de/platform/automations/concepts) legt ihre Agenten in den Ordner, den ihre Id benennt. Eine Id kann sich später nicht ändern, der Ordner steht also mit dem Erstellen fest. Der Anzeigename ist unabhängig; benenn den Agent frei um, ohne ihn zu verschieben.
-
-In der **Agenten**-Liste erscheinen Ordner als eingeklappte Zeilen mit Agentenzahl — klicke einen an, um ihn auszuklappen, und die Breadcrumb-Leiste zeigt, wo du bist. Die eingebauten Agenten kommen voreinsortiert an: die allgemeinen Assistenten unter `chat`; mit einer Automation installierte Agenten liegen im Ordner ihrer Automation.
-
-## Agenten, die mit einer Automatisierung ankommen
-
-Die Installation einer [Automatisierung](/de/platform/automations/concepts) sortiert ihre Agenten ein wie alle anderen — der PR Creator und der PR Reviewer aus dem Bundle „GitHub-Issues lösen“ landen in derselben Liste, in dem Ordner, den ihre Id benennt. Einen eigenen Agenten-Store zum Stöbern gibt es nicht: Aus dem [Katalog der Automatisierungen](/de/platform/automations/catalog) kommen gebündelte Agenten, und in der Liste wohnen sie danach.
+Eine installierte [Automatisierung](/de/platform/automations/concepts) legt ihre Agenten ab wie alle anderen — PR Creator und PR Reviewer aus dem Bundle „GitHub-Issues lösen" landen in derselben Liste, im Ordner, den ihre Id nennt. Einen getrennten Agenten-Store zum Stöbern gibt es nicht: Aus dem [Automatisierungs-Katalog](/de/platform/automations/catalog) kommen gebündelte Agenten, und in der Liste wohnen sie danach.
 
 <Note>
 
-Die Agentenauswahl im Chat gruppiert nicht nach Ordnern — sie ist eine durchsuchbare Liste mit **Auto** obenauf, die jeden Agent zeigt, der aktiviert und im Chat sichtbar ist; Coding-Agenten stehen in einem eigenen Abschnitt **Coding-Agenten**.
+Der Composer gruppiert nicht nach Ordnern. Seine Auswahl ist eine durchsuchbare Liste mit zwei Abschnitten — **Models** für einen gewöhnlichen Zug und **Sandbox agents** für einen, der in einem Coding-Agent-Harness läuft — und nichts wird an deiner Stelle gewählt.
 
 </Note>
 
-## Wann du danach greifst
+## Wann du dazu greifst
 
-| Nutze Ordner, wenn…                            | Nutze Team-Zugriff, wenn…                            |
-| ---------------------------------------------- | ---------------------------------------------------- |
-| Die Agentenliste lang wird und Ordnung braucht | Ein Agent nur für ein Team nutzbar sein darf         |
-| Abteilungen je einen Satz Agenten besitzen     | Du eine Berechtigungsgrenze ziehst, kein Verzeichnis |
+| Nimm Ordner, wenn …                            | Nimm die Sichtbarkeit, wenn …                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| Die Agentenliste lang wird und Ordnung braucht | Ein Agent nur für die Person erreichbar bleiben soll, die ihn baut |
+| Abteilungen jeweils eigene Agenten besitzen    | Du eine Berechtigungsgrenze ziehst und kein Verzeichnis            |
 
 ## Wo das hingehört
 
-Ordner sind die leichteste verfügbare Gruppierung für Agenten — sie sortieren die Liste und den Katalog, mehr nicht. Größere Trennungen liegen woanders: [Projekt-Agenten](/de/platform/projects/project-agents) begrenzen einen Agent auf ein Projekt, und [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) regeln, was ein Agent ausgeben oder tun darf.
+Ordner sind die leichteste Gruppierung, die es für Agenten gibt — sie sortieren Liste und Katalog, und mehr tun sie nicht. Größere Trennungen liegen anderswo: [Projekt-Agenten](/de/platform/projects/project-agents) binden einen Agenten an ein Projekt, und [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) regeln, was ein Agent ausgeben oder tun darf.

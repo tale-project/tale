@@ -216,7 +216,7 @@ describe('loadConfig — shared build cache', () => {
   });
 });
 
-describe('loadConfig — deployment.json sandboxRuntime', () => {
+describe('loadConfig — deployment config sandboxRuntime', () => {
   test('overrides the SANDBOX_RUNTIME env', () => {
     process.env.SANDBOX_RUNTIME = 'runc';
     writeDeployment({
@@ -245,9 +245,18 @@ describe('loadConfig — deployment.json sandboxRuntime', () => {
     expect(cfg.dockerInContainer).toBe(true);
   });
 
-  test('malformed deployment.json fails closed', () => {
+  test('malformed deployment config fails closed', () => {
     writeFileSync(join(cfgDir, 'deployment.json'), '{ not json');
-    expect(() => loadConfig()).toThrow(/not valid JSON/);
+    expect(() => loadConfig()).toThrow(/not valid YAML\/JSON/);
+  });
+
+  test('deployment.yml is the current form and wins over the retired json', () => {
+    writeFileSync(
+      join(cfgDir, 'deployment.yml'),
+      'version: 1\nsandboxRuntime:\n  tier: sysbox\n',
+    );
+    writeDeployment({ version: 1, sandboxRuntime: { tier: 'kata' } });
+    expect(loadConfig().runtimeTier).toBe('sysbox');
   });
 });
 

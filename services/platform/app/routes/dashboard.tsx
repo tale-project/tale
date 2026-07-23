@@ -35,14 +35,17 @@ export const Route = createFileRoute('/dashboard')({
     return { user: session.data.user };
   },
   loader: ({ context }) => {
-    // Warm the 2FA / password-expiry gate during the navigation phase so its
-    // query overlaps the websocket auth handshake instead of running only after
-    // the provider mounts. Without this the 2FA overlay holds content for one
-    // extra round-trip past auth; with it the overlay lifts as soon as auth
-    // completes (the provider reads the warm cache). Fire-and-forget so a slow
-    // gate can't stall the transition.
+    // Warm the 2FA / password-expiry gate during the navigation phase so the
+    // queries overlap the websocket auth handshake instead of running only
+    // after the provider mounts. Without this the 2FA overlay holds content
+    // for one extra round-trip past auth; with it the overlay lifts as soon as
+    // auth completes (the provider reads the warm cache). Fire-and-forget so a
+    // slow gate can't stall the transition.
     void context.queryClient.prefetchQuery(
-      convexQuery(api.bootstrap.queries.getAccountBootstrap, {}),
+      convexQuery(api.two_factor.queries.getStatus, {}),
+    );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.users.queries.getPasswordExpiryStatus, {}),
     );
   },
   component: DashboardRedirect,
@@ -169,9 +172,9 @@ function DashboardRedirect() {
     return <DashboardShellFrame />;
   }
 
-  // Authenticated: mount the single account-bootstrap query for the whole
-  // dashboard subtree (2FA + password-expiry in one round-trip) and let the
-  // 2FA gate read it.
+  // Authenticated: mount the shared account-bootstrap queries (2FA +
+  // password-expiry) for the whole dashboard subtree and let the 2FA gate
+  // read them.
   return (
     <AccountBootstrapProvider>
       <DashboardTwoFactorGate />
@@ -184,7 +187,7 @@ function DashboardRedirect() {
  *
  * Renders the dashboard content immediately so its Convex subscriptions start
  * in parallel with the 2FA check (no longer serialized behind it), but covers
- * it with an opaque, non-interactive shell overlay until `getAccountBootstrap`
+ * it with an opaque, non-interactive shell overlay until the 2FA status query
  * confirms the user is not `blocked`. A `blocked` user is routed to
  * `/2fa-enroll` (client-side navigation, so nested editors' `beforeunload`
  * handlers don't fire a "leave site?" dialog); the overlay stays up until the

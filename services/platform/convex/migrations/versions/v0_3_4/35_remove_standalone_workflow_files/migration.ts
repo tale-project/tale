@@ -15,7 +15,7 @@
 
 // LEGACY-CHAIN import: the resolver survives solely for pre-cutover
 // migrations addressing org trees mid-upgrade (see config_store/resolvers.ts).
-import { resolveWorkflowsDir } from '../../../../workflows/file_utils';
+import { resolveWorkflowsDir } from '../../../../legacy/frozen/workflows_file_utils';
 import { defineNodeMigration } from '../../../framework/define';
 
 export const migration = defineNodeMigration({

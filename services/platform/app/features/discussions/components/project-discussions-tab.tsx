@@ -13,7 +13,6 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { ChatLayoutProvider } from '../../chat/context/chat-layout-context';
 import { useProjectDiscussions } from '../hooks/queries';
 import {
   discussionCategoryLabel,
@@ -47,91 +46,83 @@ export function ProjectDiscussionsTab({
 
   const rows = discussions ?? [];
 
-  // ChatInput (reused in the thread view + create dialog) reads ChatLayout
-  // context, so the whole tab is wrapped once — mirrors how the workflow
-  // assistant reuses the composer (see the workflow editor panel).
+  // The chat-layout context wrapper is gone with the chat composer these
+  // views used to embed; the thread view now gates its transcript while the
+  // chat backend is rebuilt.
   if (selectedThreadId) {
     return (
-      <ChatLayoutProvider organizationId={organizationId}>
-        <DiscussionThreadView
-          organizationId={organizationId}
-          projectId={projectId}
-          threadId={selectedThreadId}
-          onBack={() => setSelectedThreadId(null)}
-        />
-      </ChatLayoutProvider>
+      <DiscussionThreadView
+        organizationId={organizationId}
+        projectId={projectId}
+        threadId={selectedThreadId}
+        onBack={() => setSelectedThreadId(null)}
+      />
     );
   }
 
   return (
-    <ChatLayoutProvider organizationId={organizationId}>
-      <ContentArea variant="narrow" gap={6}>
-        <StickySectionHeader
-          title={t('title')}
-          description={t('subtitle')}
-          action={
-            <Button onClick={() => setCreateOpen(true)}>{t('new')}</Button>
-          }
-        />
+    <ContentArea variant="narrow" gap={6}>
+      <StickySectionHeader
+        title={t('title')}
+        description={t('subtitle')}
+        action={<Button onClick={() => setCreateOpen(true)}>{t('new')}</Button>}
+      />
 
-        {isPending ? (
-          <Skeletonize loading>
-            <div className="divide-y rounded-lg border">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="px-4 py-3">
-                  <SkeletonText lines={1} />
-                </div>
-              ))}
-            </div>
-          </Skeletonize>
-        ) : rows.length === 0 ? (
-          <EmptyPlaceholder icon={MessagesSquare}>
-            {t('empty')}
-          </EmptyPlaceholder>
-        ) : (
+      {isPending ? (
+        <Skeletonize loading>
           <div className="divide-y rounded-lg border">
-            {rows.map((d) => {
-              const status = toDiscussionStatus(d.discussionStatus);
-              const category = d.discussionCategory;
-              return (
-                <button
-                  key={d.threadId}
-                  type="button"
-                  onClick={() => setSelectedThreadId(d.threadId)}
-                  className="hover:bg-muted/50 flex w-full items-center gap-3 px-4 py-3 text-left"
-                >
-                  <MessagesSquare
-                    className="text-muted-foreground size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {d.title ?? d.threadId}
-                  </span>
-                  {category ? (
-                    <Badge variant="outline">
-                      {discussionCategoryLabel(category, t)}
-                    </Badge>
-                  ) : null}
-                  <Badge variant={DISCUSSION_STATUS_BADGE[status]}>
-                    {t(`status.${status}`)}
-                  </Badge>
-                </button>
-              );
-            })}
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="px-4 py-3">
+                <SkeletonText lines={1} />
+              </div>
+            ))}
           </div>
-        )}
+        </Skeletonize>
+      ) : rows.length === 0 ? (
+        <EmptyPlaceholder icon={MessagesSquare}>{t('empty')}</EmptyPlaceholder>
+      ) : (
+        <div className="divide-y rounded-lg border">
+          {rows.map((d) => {
+            const status = toDiscussionStatus(d.discussionStatus);
+            const category = d.discussionCategory;
+            return (
+              <button
+                key={d.threadId}
+                type="button"
+                onClick={() => setSelectedThreadId(d.threadId)}
+                className="hover:bg-muted/50 flex w-full items-center gap-3 px-4 py-3 text-left"
+              >
+                <MessagesSquare
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {d.title ?? d.threadId}
+                </span>
+                {category ? (
+                  <Badge variant="outline">
+                    {discussionCategoryLabel(category, t)}
+                  </Badge>
+                ) : null}
+                <Badge variant={DISCUSSION_STATUS_BADGE[status]}>
+                  {t(`status.${status}`)}
+                </Badge>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-        <DiscussionCreateDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          organizationId={organizationId}
-          projectId={projectId}
-          onCreated={(threadId) => {
-            setCreateOpen(false);
-            setSelectedThreadId(threadId);
-          }}
-        />
-      </ContentArea>
-    </ChatLayoutProvider>
+      <DiscussionCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        organizationId={organizationId}
+        projectId={projectId}
+        onCreated={(threadId) => {
+          setCreateOpen(false);
+          setSelectedThreadId(threadId);
+        }}
+      />
+    </ContentArea>
   );
 }

@@ -477,7 +477,13 @@ describe('runAndHarvestInSession — per-file harvest skips', () => {
     expect(sessionReadFile).toHaveBeenCalledTimes(1);
   });
 
-  it('turns a workspace-quota rejection into a skip + blob reap, not a run failure', async () => {
+  it('turns a store rejection into a skip, not a run failure', async () => {
+    // The post-copy failure point this case originally exercised (the
+    // thread-file mirror write) is skipped while the chat backend is
+    // rebuilt, so the catch's orphan-reap branch is dormant — the only
+    // rejection left happens IN the store itself, before any blob lands.
+    // The contract that matters survives: one file's failure records a
+    // skip and never fails the run or the sibling file.
     sessionListFiles.mockResolvedValue([
       outputEntry('a.txt'),
       outputEntry('b.txt'),
@@ -487,18 +493,10 @@ describe('runAndHarvestInSession — per-file harvest skips', () => {
       .mockResolvedValueOnce(textBytes('content-b'));
     const store = vi
       .fn()
-      .mockResolvedValueOnce('kg-a')
+      .mockRejectedValueOnce(new Error('Workspace would exceed the byte cap.'))
       .mockResolvedValueOnce('kg-b');
-    const runMutation = vi.fn(
-      async (_ref: unknown, mutArgs: Record<string, unknown>) => {
-        if (mutArgs.path === '/user/output/a.txt') {
-          throw new Error('Workspace would exceed the byte cap.');
-        }
-        return { id: 'row', replaced: false };
-      },
-    );
     const storageDelete = vi.fn();
-    const ctx = harvestCtx({ store, runMutation, storageDelete });
+    const ctx = harvestCtx({ store, storageDelete });
     const run = await runAndHarvestInSession(ctx, runArgs);
     expect(run.status).toBe('completed');
     expect(run.files.map((f) => f.path)).toEqual(['/user/output/b.txt']);
@@ -507,9 +505,9 @@ describe('runAndHarvestInSession — per-file harvest skips', () => {
     expect(run.harvestSkipped?.[0].reason).toContain(
       'not saved to the workspace',
     );
-    // The orphaned copy of a.txt was reaped; b.txt's blob stayed.
-    expect(storageDelete).toHaveBeenCalledWith('kg-a');
-    expect(storageDelete).not.toHaveBeenCalledWith('kg-b');
+    // Nothing to reap: the rejected store never produced a blob, and b.txt's
+    // blob stays.
+    expect(storageDelete).not.toHaveBeenCalled();
   });
 
   it('reports files beyond the per-run cap and unreadable files', async () => {

@@ -18,7 +18,7 @@ import {
   resolveAgentsDir,
   serializeAgentJson,
   walkAgentRelativePaths,
-} from '../../../../agents/file_utils';
+} from '../../../../legacy/frozen/agents_file_utils';
 import { defineNodeMigration } from '../../../framework/define';
 
 export const migration = defineNodeMigration({

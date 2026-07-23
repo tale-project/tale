@@ -32,13 +32,12 @@ Verify the signature before trusting the body: HMAC-SHA256 over the raw body usi
 When your system needs to fire a Tale workflow, POST to the webhook URL Tale mints when you add a webhook trigger to the workflow:
 
 ```bash
-curl -sS https://your-host.example.com/api/workflows/wh/<token> \
-  -H "Idempotency-Key: order-12345" \
+curl -sS https://your-host.example.com/api/automations/webhook/<token> \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-The token in the URL path is the credential — no Authorization header is needed, so treat the whole URL as a secret and delete the webhook to revoke it. The body becomes the input of the workflow's first step. A fresh accept returns `{ "status": "accepted", "workflowSlug": "..." }`; a replay with the same `Idempotency-Key` returns the earlier run's `executionId` instead of starting a new one.
+The token in the URL path is the credential — no Authorization header is needed, so treat the whole URL as a secret and delete the trigger to revoke it. The body becomes the run's input; a body that is not JSON is handed through as text rather than refused, and anything over 256 KB is rejected with **413**. An accepted call returns **202** with `{ "runId": "..." }`. An unknown, disabled, or mistyped token is a plain **404** — the response never distinguishes the cases, so a guesser learns nothing. An automation with no deployed version answers **409** with `{ "error": "automation has no deployed version" }`: deploy a version whose tests pass and the same call runs.
 
 ## Signing and verifying
 
@@ -60,7 +59,7 @@ def verify(body: bytes, signature: str, secret: str) -> bool:
 
 ## Idempotency
 
-Inbound: pass `Idempotency-Key` on every trigger call. Tale stores the key against the resulting execution for 24 hours; a retry with the same key returns the same execution ID without re-firing the workflow.
+Inbound: the trigger endpoint does not de-duplicate for you, so a retried POST starts a second run. What makes a retry safe is the run itself — a live run checkpoints every completed node, so a run that resumes never repeats the side effects it already produced. Where a duplicate run would still be wrong, carry your own de-duplication key in the payload and branch on it in the workflow's first node.
 
 Outbound: every delivery carries a unique `X-Tale-Delivery` UUID. Use it to de-duplicate on your side — Tale retries on non-2xx responses, and the same delivery UUID will appear on every retry until the receiver acknowledges.
 

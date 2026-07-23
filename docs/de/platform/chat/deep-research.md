@@ -19,13 +19,7 @@ Für schmale Faktenfragen („was ist die Hauptstadt des Senegal") ist ein gewö
 
 ## Tiefenrecherche öffnen
 
-Öffne das Plus-Menü des Chats — Modi wohnen unter der Überschrift **Modi**, und **Deep research** erscheint dort, sobald der Rechercheur-Agent verfügbar ist. Wähl den Eintrag, und der Chat wechselt in den Rechercheur-Agent. Tipp die Frage und sende. Die Antwortansicht wechselt vom üblichen Streaming-Text zu einer **Recherche-Plan**-Karte mit drei bis sieben To-do-Einträgen, die der Agent als Unterfragen gewählt hat.
-
-<Frame caption="Modi wohnen im Plus-Menü des Chats; Einträge erscheinen, sobald ihre Voraussetzungen erfüllt sind.">
-
-![Das geöffnete Plus-Menü des Chats zeigt den Eintrag Fotos & Dateien hinzufügen und einen Modi-Abschnitt mit dem Arena-Modus.](/images/platform/chat-composer-menu.webp)
-
-</Frame>
+Öffne das Plus-Menü der Eingabezeile — Modi wohnen unter der Überschrift **Modi**, und **Deep research** erscheint dort, sobald der Rechercheur-Agent verfügbar ist. Wähl den Eintrag, und der Chat wechselt in den Rechercheur-Agent. Tipp die Frage und sende. Die Antwortansicht wechselt vom üblichen Streaming-Text zu einer **Recherche-Plan**-Karte mit drei bis sieben To-do-Einträgen, die der Agent als Unterfragen gewählt hat.
 
 Der Modus ist verfügbar, sobald ein Redakteur oder höher die **Tavily**-Integration unter [Einstellungen > Integrationen](/de/platform/integrations/overview) verbunden hat; ohne Tavily nennt der Menüeintrag die fehlende Integration, und ein Klick darauf öffnet die Integrationseinstellungen.
 

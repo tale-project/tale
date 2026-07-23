@@ -26,6 +26,7 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { emitEvent } from '../events/emit';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
   checkUserRateLimit,
@@ -33,7 +34,6 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { emitEvent } from '../workflows/triggers/emit_event';
 import {
   ADMIN_ROLES,
   checkProjectAccess,

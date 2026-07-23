@@ -1,0 +1,14 @@
+# Built-in PII pattern. `impl: native` — each enabled locale dataset
+# declares zero or more national-ID specs (regex source, checksum name,
+# replacement token); the pii plugin (lib/pii/patterns/national-ids/)
+# emits one pattern per spec and wires the named checksum to its
+# implementation. Adding an ID form is a locale-dataset edit unless it needs
+# a new checksum algorithm.
+name: nationalId
+description: >-
+  National identity numbers (German Personalausweis and Steuer-ID, French
+  NIR, Italian Codice Fiscale, Brazilian CPF, Swiss AHV, …) — one pattern
+  per locale spec, each gated by its checksum so SKUs and order numbers that
+  merely look like IDs are rejected.
+replacement: '[NATIONAL_ID]'
+impl: native

@@ -26,10 +26,6 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
-import {
-  inferContentType,
-  inferStepLanguage,
-} from '../../agent_tools/files/_shared';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import {
@@ -49,6 +45,98 @@ import {
 
 const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 16;
 const OUTPUT_DIR = '/user/output';
+
+// `inferContentType`/`inferStepLanguage` lived in
+// `convex/agent_tools/files/_shared.ts`, moved wholesale with the tool-
+// calling/subagent plane. Copied verbatim (single caller — this file) rather
+// than re-created as a module; both are pure, no AI dependency (extension →
+// MIME / runtime dispatch tables), so this run_code execution path (which has
+// no AI dependency of its own either) keeps working unchanged.
+
+/**
+ * MIME inference from path extension. Falls back to `application/octet-stream`
+ * for unknown extensions.
+ */
+function inferContentType(path: string): string {
+  const lower = path.toLowerCase();
+  const dot = lower.lastIndexOf('.');
+  if (dot === -1) return 'application/octet-stream';
+  const ext = lower.slice(dot + 1);
+  switch (ext) {
+    case 'html':
+    case 'htm':
+      return 'text/html; charset=utf-8';
+    case 'svg':
+      return 'image/svg+xml';
+    case 'md':
+    case 'markdown':
+    case 'mmd':
+    case 'mermaid':
+      return 'text/markdown; charset=utf-8';
+    case 'json':
+      return 'application/json; charset=utf-8';
+    case 'yaml':
+    case 'yml':
+      return 'application/yaml; charset=utf-8';
+    case 'toml':
+      return 'application/toml; charset=utf-8';
+    case 'py':
+    case 'pyi':
+    case 'pyw':
+    case 'js':
+    case 'cjs':
+    case 'mjs':
+    case 'ts':
+    case 'tsx':
+    case 'jsx':
+    case 'sh':
+    case 'bash':
+    case 'zsh':
+    case 'css':
+    case 'txt':
+    case 'log':
+      return 'text/plain; charset=utf-8';
+    case 'png':
+      return 'image/png';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    case 'avif':
+      return 'image/avif';
+    case 'pdf':
+      return 'application/pdf';
+    case 'csv':
+      return 'text/csv; charset=utf-8';
+    case 'pptx':
+      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    case 'xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'docx':
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'zip':
+      return 'application/zip';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+/**
+ * Per-file runtime dispatcher. Maps a path's extension to the sandbox
+ * runtime that should execute it. Returns `null` for any extension the
+ * sandbox doesn't host an interpreter for.
+ */
+function inferStepLanguage(path: string): 'python' | 'node' | 'bash' | null {
+  const match = path.toLowerCase().match(/\.([a-z0-9]+)$/);
+  const ext = match ? match[1] : undefined;
+  if (ext === 'py') return 'python';
+  if (ext === 'js' || ext === 'cjs' || ext === 'mjs') return 'node';
+  if (ext === 'sh') return 'bash';
+  return null;
+}
 
 /** Read-back ceiling per harvested output file — mirror of the runnerd
  * daemon's FILE_READ_MAX_BYTES (services/sandbox-runtime/daemon/src/main.ts);
@@ -457,11 +545,10 @@ export async function runAndHarvestInSession(
     }
     const buf = Buffer.from(read.bytes);
     const sha256 = createHash('sha256').update(buf).digest('hex');
-    const existing = await ctx.runQuery(
-      internal.thread_files.internal_queries.getThreadFileByPath,
-      { threadId: workspaceThreadId, path: absPath },
-    );
-    if (existing !== null && existing.sha256 === sha256) continue; // unchanged
+    // The unchanged-file dedup consulted the thread-file index, which is
+    // offline while the chat backend is rebuilt — every harvested file is
+    // stored fresh. Costs duplicate blobs on re-runs, never correctness;
+    // the retention sweep reclaims unclaimed outputs.
     // The spawner serves the generic octet-stream — fall back to the
     // extension-derived type (sessionReadFile's documented contract). The
     // Blob MUST carry a non-empty type: the self-hosted backend rejects a
@@ -487,18 +574,11 @@ export async function runAndHarvestInSession(
           new Blob([harvestBytes as BlobPart], { type: contentType }),
         );
       }
-      await ctx.runMutation(
-        internal.thread_files.internal_mutations.upsertThreadFile,
-        {
-          organizationId,
-          threadId: workspaceThreadId,
-          path: absPath,
-          storageId,
-          size: buf.byteLength,
-          contentType,
-          sha256,
-          source: 'run_output' as const,
-        },
+      // The thread-file mirror row is chat-thread bookkeeping; its module
+      // is offline while the chat backend is rebuilt. The blob above and the
+      // fileMetadata row below still land, so run outputs stay retrievable.
+      console.debug(
+        `[session_exec] thread-file mirror skipped for ${absPath} (thread ${workspaceThreadId}, sha ${sha256.slice(0, 8)}) — chat backend offline`,
       );
     } catch (err) {
       // Quota/validation rejection after the blob copy — reap the orphan
@@ -664,10 +744,10 @@ export const executeCodeInSession = internalAction({
     // (scripts/uploads) — prior `run_output` files persist in the workspace.
     // Lane routing (storage-backend split, inline fallback, skip surfacing)
     // lives in `planWorkspaceStaging` above.
-    const rows = await ctx.runQuery(
-      internal.thread_files.internal_queries.listThreadFiles,
-      { threadId: args.threadId },
-    );
+    // Thread-file staging reads the chat backend's file index, which is
+    // offline while it is rebuilt — a fresh session simply starts with an
+    // empty staged workspace.
+    const rows: unknown[] = [];
     const stageOrgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
     const { toStage, stagingSkipped } = await planWorkspaceStaging(
       ctx,

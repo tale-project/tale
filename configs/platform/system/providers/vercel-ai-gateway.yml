@@ -1,0 +1,12 @@
+# AI provider connector — Vercel AI Gateway, an OpenAI-compatible
+# multi-vendor gateway. The model catalog is fetched from its /models listing
+# endpoint and normalized at fetch time.
+name: vercel-ai-gateway
+displayName: Vercel AI Gateway
+apiFormat: openai
+baseUrl: https://ai-gateway.vercel.sh/v1
+catalog:
+  source: models-endpoint
+auth:
+  - method: api-key
+  - method: env

@@ -13,7 +13,7 @@
 
 import path from 'node:path';
 
-import { resolveAgentsDir } from '../../../../agents/file_utils';
+import { resolveAgentsDir } from '../../../../legacy/frozen/agents_file_utils';
 import { defineNodeMigration } from '../../../framework/define';
 
 export const migration = defineNodeMigration({

@@ -11,8 +11,8 @@ import { nextConversationLastMessageAt } from '../../lib/shared/conversations/me
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import { emitEvent } from '../events/emit';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
-import { emitEvent } from '../workflows/triggers/emit_event';
 import { applyAddressRouting } from './address_routing';
 import { createConversation } from './create_conversation';
 import type { CreateConversationArgs } from './types';

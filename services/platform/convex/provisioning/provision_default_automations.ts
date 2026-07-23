@@ -21,7 +21,7 @@ import { v } from 'convex/values';
 
 import { isValidOrgSlug } from '../../lib/shared/constants/org-slug';
 import { getString, isRecord } from '../../lib/utils/type-utils';
-import { components, internal } from '../_generated/api';
+import { components } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 
 export const provisionDefaultAutomations = internalAction({
@@ -38,16 +38,15 @@ export const provisionDefaultAutomations = internalAction({
     ctx,
     args,
   ): Promise<{ provisioned: number; skipped: number; failed: number }> => {
-    const result = await ctx.runAction(
-      internal.automations.provision_defaults
-        .syncDefaultAutomationInstallations,
-      { organizationId: args.organizationId, orgSlug: args.orgSlug },
+    // Default-automation installs return with the
+    // the rebuilt automation engine provisioner. Deploy-time provisioning must stay
+    // callable and idempotent, so this reports a clean no-op.
+    void ctx;
+    console.log(
+      '[AutomationProvision] skipped — automation backend rewrite in progress',
+      { organizationId: args.organizationId },
     );
-    console.log('[AutomationProvision] migration run', {
-      organizationId: args.organizationId,
-      ...result,
-    });
-    return result;
+    return { provisioned: 0, skipped: 0, failed: 0 };
   },
 });
 
@@ -105,16 +104,15 @@ export const provisionDefaultAutomationsAllOrgs = internalAction({
         isRecord(res) && typeof res.isDone === 'boolean' ? res.isDone : true;
     }
 
-    let provisioned = 0;
+    const provisioned = 0;
     let failedOrgs = 0;
     for (const org of orgs.sort((a, b) => a.slug.localeCompare(b.slug))) {
       try {
-        const result = await ctx.runAction(
-          internal.automations.provision_defaults
-            .syncDefaultAutomationInstallations,
-          { organizationId: org.id, orgSlug: org.slug },
-        );
-        provisioned += result.provisioned;
+        // Per-org default-automation install returns with
+        // the rebuilt automation engine; the fleet sweep stays callable as a no-op meanwhile.
+        console.log('[AutomationProvision] skipped (rewrite in progress)', {
+          orgSlug: org.slug,
+        });
       } catch (error) {
         // One broken org must not block the fleet; the next deploy retries.
         failedOrgs += 1;

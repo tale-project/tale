@@ -27,14 +27,14 @@
  * restores the pre-migration `automations/` tree from the fs snapshot.
  */
 
-import { getConfigDomain } from '../../../../../lib/shared/config/registry';
+import { resolveAutomationManifestPath } from '../../../../legacy/frozen/automations_file_utils';
+import { resolveAutomationsDir } from '../../../../legacy/frozen/automations_file_utils';
+import { getConfigDomain } from '../../../../legacy/frozen/config_domains';
 import {
   isValidAutomationSlug,
   MAX_AUTOMATION_SLUG_DEPTH,
-} from '../../../../../lib/shared/schemas/automations';
-import { workflowJsonSchema } from '../../../../../lib/shared/schemas/workflows';
-import { resolveAutomationManifestPath } from '../../../../automations/file_utils';
-import { resolveAutomationsDir } from '../../../../automations/file_utils';
+} from '../../../../legacy/frozen/schemas_automations';
+import { workflowJsonSchema } from '../../../../legacy/frozen/schemas_workflows';
 import { listCatalogArea } from '../../../../lib/config_store/catalog';
 import { seedDomain } from '../../../../organizations/scaffold';
 import { defineNodeMigration } from '../../../framework/define';

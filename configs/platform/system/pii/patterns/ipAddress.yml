@@ -1,0 +1,14 @@
+# Built-in PII pattern. `impl: native` — the wide-net regex below is the
+# data knob; range/compression checks run through a validator in the pii
+# plugin (lib/pii/patterns/ip-address.ts). Private/reserved ranges are
+# intentionally masked too: internal topology is PII.
+name: ipAddress
+description: >-
+  IPv4 dotted-quad and IPv6 (including compressed and IPv4-mapped forms,
+  with optional %zone identifiers) addresses, post-validated so version
+  numbers and other dotted digit runs do not match.
+replacement: '[IP_ADDRESS]'
+impl: native
+regex:
+  source: '\b(?:\d{1,3}\.){3}\d{1,3}\b|(?:[0-9a-fA-F]{0,4}:){2,7}(?:(?:\d{1,3}\.){3}\d{1,3}|[0-9a-fA-F]{1,4})(?:%[A-Za-z0-9_.~-]{1,32})?'
+  flags: g

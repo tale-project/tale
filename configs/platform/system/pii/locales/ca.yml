@@ -1,0 +1,88 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: ca
+name: Catalan
+scripts:
+  - latn
+countries:
+  - ES
+  - AD
+phoneContextKeywords:
+  - telèfon
+  - mòbil
+  - número
+  - tel.
+  - tel
+cvcContextKeywords:
+  - codi de seguretat
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - standard
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: \d{5}
+  requireUppercase: true
+  streetKeywordsStandard:
+    - Carrer
+    - C/
+    - Avinguda
+    - Av.
+    - Plaça
+    - Pl.
+    - Passeig
+    - Pg.
+    - Ronda
+    - Camí
+  poBoxKeywords:
+    - Apartat de correus
+    - Apt.
+  floorKeywords:
+    - pis
+    - planta
+    - escala
+  countryNames:
+    - Catalunya
+    - Andorra
+    - Spain
+    - España
+    - ES
+    - AD
+  countryPostcodePrefixes: []
+nationalIds: []
+dateOfBirth:
+  monthsLong:
+    - gener
+    - febrer
+    - març
+    - abril
+    - maig
+    - juny
+    - juliol
+    - agost
+    - setembre
+    - octubre
+    - novembre
+    - desembre
+  monthsShort:
+    - gen.
+    - febr.
+    - març
+    - abr.
+    - maig
+    - juny
+    - jul.
+    - ag.
+    - set.
+    - oct.
+    - nov.
+    - des.
+  contextKeywords:
+    - nascut el
+    - nascuda el
+    - data de naixement
+    - naixement

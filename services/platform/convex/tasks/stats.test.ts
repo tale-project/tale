@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { api } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
+import { utcDayKey } from '../legacy/task_metrics_queries';
 import schema from '../schema';
-import { utcDayKey } from '../task_metrics/rollup_math';
 import { TASK_BOARD_CAP } from './queries';
 
 /**

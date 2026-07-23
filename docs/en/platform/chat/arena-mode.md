@@ -19,13 +19,13 @@ Open the chat's plus menu and pick **Arena Mode** — the chat sprouts two model
 
 <Note>
 
-Arena needs a specific agent — pick one instead of **Auto** in the agent picker before enabling it.
+Both columns run the same agent — pick the agent you care about before you enable Arena, because the comparison is only meaningful when the instructions, tools, and knowledge on each side are identical.
 
 </Note>
 
 ## Picking the contenders
 
-The two pickers are independent — any chat-tagged model the agent's policy allows is fair game on each side. Picking the same model on both sides is allowed (useful for testing temperature differences if the agent exposes that), but most comparisons span vendors or sizes. The agent's instructions, knowledge, and tools apply to both columns; only the underlying model differs.
+The two pickers are independent — any model the agent's policy allows is fair game on each side. Picking the same model on both sides is allowed (useful for testing temperature differences if the agent exposes that), but most comparisons span vendors or sizes. The agent's instructions, knowledge, and tools apply to both columns; only the underlying model differs.
 
 ## Casting a verdict
 
@@ -33,16 +33,16 @@ The verdict is single-click. **A is better** and **B is better** are self-explan
 
 ## Where verdicts surface
 
-Verdicts roll up into [Feedback analytics](/platform/admin/governance/feedback-analytics) under **Arena verdicts**, alongside a **Top Model Matchups** table that ranks pairings by win rate. The data is org-scoped, not per-user, so a small team's verdicts can outweigh a large team's defaults when an admin uses the table to set the org's default model.
+Verdicts roll up into [Feedback analytics](/platform/admin/governance/feedback-analytics) under **Arena verdicts**, alongside a **Top Model Matchups** table that ranks pairings by win rate. The data is org-scoped rather than per-user, so a handful of deliberate verdicts can outweigh a much larger pile of habit when someone reads the table to decide which model the team should reach for.
 
 ## When to reach for it
 
-| Use … when                                                       | Arena Mode | Regular model picker |
-| ---------------------------------------------------------------- | ---------- | -------------------- |
-| You are deciding which model to default to                       | ✓          |                      |
-| You suspect a model regression after an upgrade                  | ✓          |                      |
-| You already know which model you want; you just want a reply now |            | ✓                    |
-| The query is short and ordinary                                  |            | ✓                    |
+| Use … when                                                 | Arena Mode | Regular model picker |
+| ---------------------------------------------------------- | ---------- | -------------------- |
+| You are deciding which model to default to                 | ✓          |                      |
+| You suspect a model regression after an upgrade            | ✓          |                      |
+| You already know which model you want and need a reply now |            | ✓                    |
+| The query is short and ordinary                            |            | ✓                    |
 
 ## Where this fits
 

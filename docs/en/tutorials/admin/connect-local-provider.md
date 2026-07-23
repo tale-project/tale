@@ -1,59 +1,71 @@
 ---
 title: Connect a local LLM provider
-description: Wire a local Ollama, LM Studio, or vLLM server into a self-hosted Tale instance, allowlist its models, and verify that agents reach it without leaving the host network.
+description: Declare a local Ollama, LM Studio, or vLLM server as a custom provider connector on a self-hosted Tale instance, store its credential, and verify that a chat reaches it without leaving your network.
 ---
 
-A local provider is the path to running models inside your own perimeter — no outbound API calls, no per-token bill, no third-party transcript. This walk takes a self-hosted Tale instance from "I have an Ollama, LM Studio, or vLLM endpoint" to "an agent in the org calls a local model and the reply streams back." The walk is for an Admin on a self-hosted install; Cloud orgs do not reach onto your network and skip this page.
+A local provider is the path to running models inside your own perimeter — no outbound API calls, no per-token bill, no third-party transcript. This walk takes a self-hosted Tale instance from "I have an Ollama, LM Studio, or vLLM endpoint" to "a chat in the org calls a local model and the reply streams back." The walk is for an Admin on a self-hosted install; Cloud orgs do not reach onto your network and skip this page.
 
-You need the Admin role in Tale, a local inference server reachable from the `tale-platform` container, and a model already pulled or loaded on that server. The underlying provider mechanic is documented in [Providers](/self-hosted/configuration/providers); this page walks the UI path and verifies the result end to end.
+You need the Admin role in Tale, a local inference server reachable from the `tale-platform` container over TLS, and a model already pulled or loaded on that server. The connector format and the credential model are documented in [Providers](/self-hosted/configuration/providers); this page walks one end-to-end path and verifies the result.
 
 ## Before you begin
 
-Confirm four things. Your role is Admin or Owner — the **Providers** panel is hidden below that. Your local inference server is running and answers `GET /v1/models` (or the Ollama equivalent `GET /api/tags`) from inside the Tale Docker network. At least one model is loaded — Ollama users have run `ollama pull llama3.1:8b` or similar, LM Studio users have a model loaded in the server tab, vLLM users have started the server with `--model` pointed at a checkpoint. And the network path from `tale-platform` to the inference host is open on the inference port (typically `11434` for Ollama, `1234` for LM Studio, `8000` for vLLM).
+Confirm four things. Your role is Admin or Owner — **Settings > AI providers** is hidden below that. Your local inference server answers `GET /v1/models` (or the Ollama equivalent `GET /api/tags`) from inside the Tale Docker network. At least one model is loaded — Ollama users have run `ollama pull llama3.1:8b` or similar, LM Studio users have a model loaded in the server tab, vLLM users have started the server with `--model` pointed at a checkpoint. And the server is reachable over `https://`: a connector's base URL must be an HTTPS URL, so terminate TLS in front of the inference server — a reverse proxy with an internal certificate is the usual answer — rather than exposing it in the clear.
 
 ## Step 1 — Make the inference server reachable from Tale
 
-The first move is confirming that `tale-platform` can reach the inference server by hostname. Without that, every model call surfaces a connection error and the picker shows the provider as **error**.
+The first move is confirming that `tale-platform` can reach the inference server by hostname over TLS. Without that, every model call surfaces a connection error and no model is callable.
 
-When the inference server runs on the same Docker host, the reachable hostname depends on where the server itself runs. An Ollama container in the same compose network is `http://ollama:11434`. An LM Studio or vLLM server running on the host (outside compose) is `http://host.docker.internal:1234` on macOS and Windows, or the host's bridge IP on Linux. Run a one-shot curl from the `tale-platform` container to verify before opening the UI:
+When the inference server runs behind a proxy in the same Docker network, the reachable hostname is that proxy's service name. Run a one-shot curl from the `tale-platform` container to verify before you write any configuration:
 
 ```bash
-docker compose exec platform curl -sf http://ollama:11434/api/tags
+docker compose exec platform curl -sf https://ollama.internal/api/tags
 ```
 
-A JSON list of pulled models is the success signal. A connection-refused error means the hostname is wrong or the inference server is not listening on the interface the container can reach.
+A JSON list of pulled models is the success signal. A connection error means the hostname is wrong, the certificate is not trusted, or the inference server is not listening on the interface the container can reach.
 
-## Step 2 — Register the provider in Tale
+## Step 2 — Declare the connector
 
-A reachable server does nothing until Tale knows the URL and the protocol shape it speaks. The provider entry tells Tale where to send requests and which OpenAI-compatible dialect to use.
+Shipped connectors cover the public vendors; a machine on your own network is an org-defined connector — one YAML file in the organisation's config tree. The file tells Tale where to send requests, which wire dialect the endpoint speaks, and where its model list comes from.
 
-Open **Settings > Providers** and click **Add provider**. Pick the provider type that matches your server: **Ollama** for an Ollama server, or **OpenAI-compatible** for LM Studio and vLLM (both expose the OpenAI `/v1` shape). Fill the **Base URL** with the value you verified in Step 1; leave the API key field empty for Ollama, set it to any string for LM Studio (the server ignores it), set it to your configured token for vLLM if you started the server with `--api-key`.
+Write `$TALE_CONFIG_DIR/<orgSlug>/providers/local-ollama.yml`. The `name` must match the filename stem, and it must not collide with a shipped connector's name:
 
-Click **Save**. Tale immediately calls the provider's model-list endpoint; the row turns green and the model picker fills with whatever the server reported.
+```yaml
+name: local-ollama
+displayName: Local Ollama
+apiFormat: openai
+baseUrl: https://ollama.internal/v1
+catalog:
+  source: models-endpoint
+auth:
+  - method: api-key
+  - method: env
+```
 
-## Step 3 — Allowlist the models you want callable
+`apiFormat: openai` is right for Ollama, LM Studio, and vLLM — all three expose the OpenAI Chat Completions shape. `catalog.source: models-endpoint` tells Tale to list models from `GET {baseUrl}/models` instead of shipping a static list, which is what you want when the loaded models change. A file that fails to validate is skipped and the reason is logged, so read the platform log if the connector does not appear.
 
-A registered provider with no allowlisted models is invisible to every agent. The allowlist is the contract between the org and the provider — picking the model is the gate.
+## Step 3 — Store the credential
 
-In the provider row, expand the model picker. Each model from the upstream list shows a checkbox plus the tag Tale inferred (`chat`, `embedding`, `vision`). Tick the models you want agents to call; a chat-tagged model is what an agent binds to by default. Click **Save allowlist**.
+A connector on its own calls nothing. What authorises a request is a credential stored against that connector, and a connector holds as many as you need.
 
-If you want the local model to be the org-wide default for new chats, scroll to the top of the provider list and pick it under **Default model**. Existing agents keep their previous binding; new ones land on the local model on the next request.
+Open **Settings > AI providers**. The new connector sits beside the shipped ones; click **Add credential** on it. Pick **API key** and paste whatever token your server expects — LM Studio ignores the value, vLLM wants the token you passed to `--api-key`. Name the credential for the machine it reaches (`GPU box, rack 2`), and leave the **Model allowlist** empty to expose everything the server lists, or pick the subset the org may call. The first credential on a connector becomes its default.
 
-## Step 4 — Verify with an agent chat
+Prefer the key to live on the deployment instead? Pick **Environment variable** and name a deployment variable under the reserved `TALE_PROVIDER_KEY_` prefix. The secret then never enters Tale's own store, and your operations team owns rotation.
 
-The proof the wiring works is one chat reply streaming from the local server. Without this step you do not know whether the model picker just _looks_ right.
+## Step 4 — Verify with a chat
 
-Open or create an agent, set its model to one of the local models you allowlisted, and start a chat with a short prompt (`Reply with the single word "ready"`). The reply streams in tokens within a few seconds; the chat's tool-call card shows the model name and the provider you registered.
+The proof the wiring works is one chat reply streaming from the local server. Without this step you only know the configuration parses.
+
+Open a new chat, open the model picker, and pick one of the local models by name — a model is always chosen explicitly, so there is no routing layer to rule out. Send a short prompt (`Reply with the single word "ready"`). The reply streams in within a few seconds.
 
 Tail the inference server log on the host while you send the prompt — Ollama logs the request line, LM Studio prints a request summary, vLLM prints the generation latency. Seeing the request hit the local server is the verification that traffic is staying inside your network, not bouncing through an external API.
 
 ## Troubleshooting
 
-- **Symptom:** provider row shows **error** with `connection refused`. **Cause:** the base URL is unreachable from the `tale-platform` container. **Fix:** repeat the `docker compose exec platform curl` from Step 1; adjust the hostname (often `host.docker.internal` on macOS/Windows, the bridge IP on Linux).
-- **Symptom:** the model picker is empty after **Save**. **Cause:** the inference server is reachable but has no models loaded. **Fix:** run `ollama pull <model>` or load a model in LM Studio / vLLM, then click **Refresh models** on the provider row.
-- **Symptom:** the chat reply is one error toast (`model not found`). **Cause:** the model name the agent is bound to does not match the upstream id. **Fix:** open the agent's model dropdown and re-pick from the live list — Ollama tags like `:latest` matter to the upstream and must match exactly.
-- **Symptom:** saving the provider is rejected because the base URL points at `localhost`, `127.0.0.1`, or a private IP. **Cause:** Tale blocks private and loopback provider hosts by default as an SSRF safeguard. **Fix:** use the in-network hostname instead (`http://ollama:11434`, `http://host.docker.internal:1234`); if you must point at a private or loopback address, set `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` on the platform service.
+- **Symptom:** the connector never appears under **Settings > AI providers**. **Cause:** the YAML failed to validate, or its `name` does not match the filename stem. **Fix:** read the platform log — a rejected connector is logged with the file and the reason — and correct the file.
+- **Symptom:** the connector appears but its model list is empty. **Cause:** the inference server is reachable but has no models loaded, or its `/models` endpoint answered an error. **Fix:** load a model, then click **Refresh catalogs** on the providers page. Catalogs update only when you refresh them.
+- **Symptom:** the file is rejected because the base URL is not HTTPS, or points at `localhost`, `127.0.0.1`, or a private IP. **Cause:** connector base URLs are HTTPS-only, and the host policy blocks loopback and private addresses. **Fix:** put a TLS-terminating reverse proxy in front of the inference server and use its in-network hostname.
+- **Symptom:** the chat reply is an error naming the model. **Cause:** the model id does not match the upstream one. **Fix:** re-pick from the model picker — Ollama tags like `:latest` matter to the upstream and must match exactly.
 
 ## Where this fits
 
-A local provider is the seam between Tale and your own GPUs — same allowlist mechanics as a cloud provider, but no traffic leaves the host. The natural next reads are [Providers](/self-hosted/configuration/providers) for the file-form equivalent of what you just did in the UI, and [Hardening](/self-hosted/operate/security/hardening) for the egress-allowlist guarantees that keep an agent from accidentally falling back to a cloud model when the local one is unreachable.
+A local provider is the seam between Tale and your own GPUs — the same connector-and-credential shape as a public vendor, but no traffic leaves your network. The natural next reads are [Providers](/self-hosted/configuration/providers) for the connector format in full and the environment-variable credential path, and [Hardening](/self-hosted/operate/security/hardening) for the egress guarantees that keep an agent from reaching a cloud model you did not intend.

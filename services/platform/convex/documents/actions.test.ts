@@ -73,6 +73,17 @@ const DOCUMENT = {
   mimeType: 'application/x-unknown',
 };
 
+/** `retryRagIndexing`'s only result now — the retry dispatch it used to
+ * trigger is offline while the platform AI backend is rewritten (see
+ * convex/documents/actions.ts), so every guard that still lets an auth'd,
+ * member caller reach the end of the handler lands here regardless of the
+ * document's RAG status. */
+const OFFLINE_RESULT = {
+  success: false,
+  error:
+    'RAG re-indexing is offline while the platform AI backend is rewritten.',
+};
+
 function createCtx(opts: {
   document?: unknown;
   isMember?: boolean;
@@ -117,52 +128,45 @@ function createCtx(opts: {
   return { ctx, runMutationCalls, scheduledCalls };
 }
 
-describe('retryRagIndexing terminal-status guard (#2598 sibling)', () => {
+describe('retryRagIndexing terminal-status guard (#2598 sibling — now offline)', () => {
   beforeEach(() => {
     ragExecuteMock.mockReset();
   });
 
-  it("refuses to retry a document whose ragStatus is the terminal 'unsupported'", async () => {
+  it("returns the offline no-op for a document whose ragStatus is the terminal 'unsupported' — the guard it used to trip is gone with the dispatch", async () => {
     const { ctx, runMutationCalls, scheduledCalls } = createCtx({
       ragStatus: 'unsupported',
     });
 
     const result = await handler(ctx, { documentId: 'doc_1' });
 
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/no text extractor/i);
+    expect(result).toEqual(OFFLINE_RESULT);
     // Never re-queued, never bounced through 'failed', never re-uploaded.
     expect(ragExecuteMock).not.toHaveBeenCalled();
     expect(runMutationCalls).toHaveLength(0);
     expect(scheduledCalls).toHaveLength(0);
   });
 
-  it('retries normally when the status is a non-terminal one (e.g. failed)', async () => {
-    ragExecuteMock.mockResolvedValueOnce({ success: true });
+  it('returns the offline no-op regardless of a non-terminal status (e.g. failed) — retry no longer dispatches', async () => {
     const { ctx, runMutationCalls, scheduledCalls } = createCtx({
       ragStatus: 'failed',
     });
 
     const result = await handler(ctx, { documentId: 'doc_1' });
 
-    expect(result.success).toBe(true);
-    expect(ragExecuteMock).toHaveBeenCalledTimes(1);
-    expect(runMutationCalls).toContainEqual(
-      expect.objectContaining({ ref: 'updateFileRagStatus' }),
-    );
-    expect(scheduledCalls).toContainEqual(
-      expect.objectContaining({ ref: 'pollFileRagStatus' }),
-    );
+    expect(result).toEqual(OFFLINE_RESULT);
+    expect(ragExecuteMock).not.toHaveBeenCalled();
+    expect(runMutationCalls).toHaveLength(0);
+    expect(scheduledCalls).toHaveLength(0);
   });
 
-  it('retries normally when there is no fileMetadata row at all', async () => {
-    ragExecuteMock.mockResolvedValueOnce({ success: true });
+  it('returns the offline no-op when there is no fileMetadata row at all', async () => {
     const { ctx } = createCtx({});
 
     const result = await handler(ctx, { documentId: 'doc_1' });
 
-    expect(result.success).toBe(true);
-    expect(ragExecuteMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(OFFLINE_RESULT);
+    expect(ragExecuteMock).not.toHaveBeenCalled();
   });
 });
 
@@ -172,7 +176,7 @@ describe('retryRagIndexing in-flight + rate-limit guards', () => {
     mockCheckUserRateLimit.mockReset();
   });
 
-  it('refuses to re-index a file whose indexing is actively running', async () => {
+  it('returns the offline no-op for a file whose indexing was actively running — the in-flight guard it used to trip is gone with the dispatch', async () => {
     const { ctx, runMutationCalls } = createCtx({
       ragStatus: 'running',
       ragQueuedAt: Date.now(), // fresh → job still alive
@@ -180,15 +184,13 @@ describe('retryRagIndexing in-flight + rate-limit guards', () => {
 
     const result = await handler(ctx, { documentId: 'doc_1' });
 
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/already in progress/i);
-    // No second indexing job fired; status untouched.
+    expect(result).toEqual(OFFLINE_RESULT);
+    // No indexing job fired; status untouched.
     expect(ragExecuteMock).not.toHaveBeenCalled();
     expect(runMutationCalls).toHaveLength(0);
   });
 
-  it('allows retry once the in-flight job is older than the watchdog window', async () => {
-    ragExecuteMock.mockResolvedValueOnce({ success: true });
+  it('returns the offline no-op once the in-flight job is older than the watchdog window too', async () => {
     const { ctx } = createCtx({
       ragStatus: 'running',
       ragQueuedAt: Date.now() - 40 * 60 * 1000, // stale → prior job is dead
@@ -196,8 +198,8 @@ describe('retryRagIndexing in-flight + rate-limit guards', () => {
 
     const result = await handler(ctx, { documentId: 'doc_1' });
 
-    expect(result.success).toBe(true);
-    expect(ragExecuteMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(OFFLINE_RESULT);
+    expect(ragExecuteMock).not.toHaveBeenCalled();
   });
 
   it('returns the rate-limit message without indexing when throttled', async () => {

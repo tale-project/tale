@@ -1,0 +1,147 @@
+# Sandbox harness — OpenClaw, driven through the tale-openclaw-run wrapper
+# (prompt + config as one JSON payload on stdin, staged to disk before the
+# CLI starts). OpenClaw's own model refs use the vendor-prefixed grammar the
+# catalog also speaks, so bring-your-own refs resolve in the catalog dialect.
+#
+# The wrapper stages the config (OPENCLAW_CONFIG_PATH), the prompt
+# (--message-file) and the instructions (workspace AGENTS.md — OpenClaw
+# appends workspace bootstrap files to its system prompt every turn WITHOUT
+# replacing its core prompt; the wrapper backs up any pre-existing AGENTS.md
+# and restores it after). The resume handle is passed as OpenClaw's
+# --session-id explicit-session selector (key agent:main:explicit:<id>,
+# persisted in the state-dir session store). The pinned CLI has no per-run
+# tool-iteration cap (its `runRetries` config bounds retry loops, not
+# turns); the runaway backstop is the platform runner.
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/openclaw.json pin the built
+# execs against the pinned CLI version below.
+slug: openclaw
+displayName: OpenClaw
+credentialPolicy:
+  managed: true
+  byo: true
+credentialEnvKeys:
+  - ANTHROPIC_API_KEY
+  - ANTHROPIC_OAUTH_TOKEN
+  - OPENAI_API_KEY
+  - OPENROUTER_API_KEY
+  - GEMINI_API_KEY
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: catalog
+promptTransport: stdin-ndjson
+capabilities:
+  planMode: false
+  steering: false
+  mcp: true
+parser: openclaw-jsonl
+exec:
+  bin: tale-openclaw-run
+  argv:
+    - args: ['--workdir', '${workdir}']
+    - resume: { flag: '--resume' }
+  stdin:
+    mode: json-envelope
+    envelope:
+      - prompt: {}
+      - doc:
+          key: config
+          fragments:
+            # The agent workspace doubles as the exec/file-tool default cwd.
+            # The wrapper stages the per-exec instructions as AGENTS.md at
+            # this root; skipBootstrap stops the CLI from seeding its own
+            # bootstrap files (or git-init) into the shared Tale workspace.
+            - set:
+                agents:
+                  defaults:
+                    workspace: '${workdir}'
+                    skipBootstrap: true
+            # Managed: the gateway model id behind the generated `tale`
+            # provider (OpenClaw refs split provider/model at the FIRST
+            # slash, so slashed gateway ids survive as the model id). byo:
+            # the caller-resolved catalog id / raw ref, passed through.
+            - when: [managed, model]
+              set:
+                agents:
+                  defaults:
+                    model:
+                      primary: 'tale/${model}'
+            - when: [byo, model]
+              set:
+                agents:
+                  defaults:
+                    model:
+                      primary: '${model}'
+            # `coding` profile: files/runtime/web/memory/session tools only
+            # — no `message` (channel delivery), no `gateway` (self-admin),
+            # and no interactive-question tool exists in this runtime.
+            - set:
+                tools:
+                  profile: coding
+            # Deny the NATIVE web tools on managed runs: all are ungoverned
+            # (no audit / untrusted-source wrapping / metering) — web access
+            # routes through the capability bridge instead. byo opts out of
+            # platform governance, so it runs native.
+            - when: [managed]
+              set:
+                tools:
+                  deny: [web_search, web_fetch, x_search]
+            # MANAGED: OpenAI-compatible route on the platform gateway. The
+            # apiKey rides `${TALE_GATEWAY_TOKEN}` — OpenClaw's SecretInput
+            # env template — so the staged config file never contains the
+            # key itself.
+            - when: [managed]
+              set:
+                models:
+                  providers:
+                    tale:
+                      baseUrl: '${gateway.baseUrl}/openai/v1'
+                      apiKey: '${TALE_GATEWAY_TOKEN}'
+                      api: openai-completions
+                      models: []
+            # Generic OpenAI-compat metering through the gateway; thinking
+            # controls are provider-specific and not exposed here. Zero cost
+            # rows: the gateway meters authoritatively; a client-side
+            # estimate would only fabricate numbers.
+            - when: [managed, model]
+              set:
+                models:
+                  providers:
+                    tale:
+                      models:
+                        - id: '${model}'
+                          name: Tale gateway model
+                          reasoning: false
+                          input: [text, image]
+                          cost:
+                            input: 0
+                            output: 0
+                            cacheRead: 0
+                            cacheWrite: 0
+                          contextWindow: 200000
+                          maxTokens: 32000
+            # MCP servers via the config `mcp.servers` map (stdio:
+            # command/args/env; the embedded agent loop attaches them via
+            # its MCP runtime). OpenClaw's MCP stdio child env is NOT
+            # env-template-resolved, so the wrapper substitutes
+            # `${TALE_GATEWAY_TOKEN}` from its own environ when staging the
+            # config (mcp env values only) — the payload that crosses the
+            # exec API still carries the placeholder, not the key.
+            - mcpServers:
+                path: mcp.servers
+                serverShape: command-args
+                bridgeEnvField: env
+                bridgeEnv:
+                  TALE_INTEGRATIONS_URL: '${bridgeUrl}'
+                  TALE_INTEGRATIONS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+      - instructions: { key: system_prompt }
+  env:
+    # Session-relative OpenClaw state dir under HOME (/user/.runtime/home).
+    # The session store (per-thread resume) and managed skills live here, on
+    # the /user volume, so they survive container stops like every other
+    # runtime profile dir.
+    base:
+      OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    managed:
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+pinnedVersion: 2026.6.11

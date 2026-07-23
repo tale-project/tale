@@ -119,13 +119,6 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
-        labelKey: 'tokenSources',
-        path: 'token-sources',
-        matchMode: 'startsWith',
-        can: ['read', 'developerSettings'],
-      },
-      {
-        kind: 'leaf',
         labelKey: 'integrations',
         path: 'integrations',
         matchMode: 'startsWith',
@@ -173,7 +166,7 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
-        labelKey: 'orgDataResidency',
+        labelKey: 'dataResidency',
         path: 'data-residency',
         can: ['read', 'orgSettings'],
       },
@@ -189,13 +182,6 @@ export function SettingsRail({
           slug: item.slug,
           label: tNav(item.labelKey),
         })),
-      },
-      {
-        kind: 'leaf',
-        labelKey: 'dataResidency',
-        path: 'deployment',
-        matchMode: 'startsWith',
-        can: ['read', 'orgSettings'],
       },
     ];
 

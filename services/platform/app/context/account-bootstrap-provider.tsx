@@ -13,11 +13,15 @@ import { api } from '@/convex/_generated/api';
 
 /**
  * Provides the org-independent dashboard gate results (2FA status +
- * password-expiry status) from a single `getAccountBootstrap` round-trip.
+ * password-expiry status). The single `getAccountBootstrap` batch query these
+ * came from was retired with the AI-backend bootstrap module, so the provider
+ * now runs the two underlying per-concern queries directly — same shared
+ * subscription for the whole subtree, one query per concern instead of one
+ * total.
  *
  * Mounted once on the `/dashboard` layout so every authenticated child reads
- * one query instead of each firing its own. The query is gated on
- * `useConvexAuth().isAuthenticated` so it only runs once the WebSocket is
+ * these queries instead of each firing its own. Both are gated on
+ * `useConvexAuth().isAuthenticated` so they only run once the WebSocket is
  * authenticated.
  *
  * Lives in its own file (component-only export) so it is a clean Fast Refresh
@@ -30,24 +34,29 @@ export function AccountBootstrapProvider({
   children: ReactNode;
 }) {
   const { isAuthenticated } = useConvexAuth();
-  const { data } = useConvexQuery(
-    api.bootstrap.queries.getAccountBootstrap,
+  const { data: twoFactor } = useConvexQuery(
+    api.two_factor.queries.getStatus,
+    {},
+    { enabled: isAuthenticated },
+  );
+  const { data: passwordExpiry } = useConvexQuery(
+    api.users.queries.getPasswordExpiryStatus,
     {},
     { enabled: isAuthenticated },
   );
 
   useEffect(() => {
-    if (data) markColdLoad('account-bootstrap');
-  }, [data]);
+    if (twoFactor) markColdLoad('account-bootstrap');
+  }, [twoFactor]);
 
   // Stable identity: a fresh object each render would re-fire every consumer's
   // effects (and can thrash a Convex/react-query subscription).
   const value = useMemo<AccountBootstrapContextValue>(
     () => ({
-      twoFactor: data?.twoFactor,
-      passwordExpiry: data?.passwordExpiry,
+      twoFactor,
+      passwordExpiry,
     }),
-    [data?.twoFactor, data?.passwordExpiry],
+    [twoFactor, passwordExpiry],
   );
 
   return (

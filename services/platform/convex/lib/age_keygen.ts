@@ -1,10 +1,12 @@
 'use node';
 
 /**
- * Age public key derivation from a secret key.
+ * Derive an age recipient (public key) from an age secret key.
  *
- * Used by saveProviderSecret to pass the --age flag to sops -e,
- * eliminating the need for .sops.yaml files.
+ * `saveProviderSecret`-style flows only ever hold the secret key (from
+ * `SOPS_AGE_KEY` / `SOPS_AGE_KEY_FILE`); deriving the recipient locally
+ * means `sops -e --age <recipient>` can be invoked without maintaining a
+ * `.sops.yaml` file alongside it.
  */
 
 import { readFileSync } from 'node:fs';
@@ -16,17 +18,14 @@ const SECRET_HRP = 'age-secret-key-';
 const PUBLIC_HRP = 'age';
 
 /**
- * Derive the age public key from an existing secret key string.
- *
- * @param secretKey - The "AGE-SECRET-KEY-1..." string
- * @returns The corresponding "age1..." public key
+ * Derive the "age1…" public recipient for an "AGE-SECRET-KEY-1…" secret key.
  */
 export function deriveAgePublicKey(secretKey: string): string {
   const lowercase = secretKey.toLowerCase();
   if (!lowercase.includes('1')) {
     throw new Error('Invalid age secret key: missing bech32 separator');
   }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The includes('1') guard above proves the bech32 separator exists
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the includes('1') check above guarantees the bech32 separator is present
   const decoded = bech32.decode(lowercase as `${string}1${string}`, false);
   if (decoded.prefix !== SECRET_HRP) {
     throw new Error(`Invalid age secret key prefix: "${decoded.prefix}"`);
@@ -37,20 +36,19 @@ export function deriveAgePublicKey(secretKey: string): string {
 }
 
 /**
- * Resolve all age secret keys configured in env, in source order. Reads
- * `SOPS_AGE_KEY` (single inline key) first; if absent, parses every
- * non-comment `AGE-SECRET-KEY-1...` line in the file at `SOPS_AGE_KEY_FILE`.
- * Returns `[]` when nothing is configured — callers decide whether that
- * means plaintext mode or an error.
+ * Read every age secret key configured in the environment, in source order.
  *
- * Multiple keys in `SOPS_AGE_KEY_FILE` are supported and returned in file
- * order. `resolveAgeRecipients()` then derives one public recipient per key
- * and `saveProviderSecret` encrypts to all of them, so new ciphertext is
- * decryptable by any key in the file. This is the rotation primitive — see
- * the JSDoc on `resolveAgeRecipients` for the operator-facing flow.
+ * `SOPS_AGE_KEY` (a single inline key) takes precedence; otherwise every
+ * non-comment `AGE-SECRET-KEY-1…` line in the file at `SOPS_AGE_KEY_FILE`
+ * is returned (one key per line, `#` comments allowed — the same
+ * convention the `age` CLI uses for its key files). Returns `[]` when
+ * neither is configured; callers decide whether that means plaintext mode
+ * or a hard error.
  *
- * The file format matches the `age` CLI convention: one key per line, `#`
- * comments allowed.
+ * Supporting multiple keys in `SOPS_AGE_KEY_FILE` is what makes key
+ * rotation possible: `resolveAgeRecipients` derives one recipient per key
+ * below, and encryption addresses all of them, so any key still in the
+ * file can decrypt newly written ciphertext.
  */
 export function resolveAgeSecretKeys(): string[] {
   const inline = process.env.SOPS_AGE_KEY?.trim();
@@ -63,8 +61,13 @@ export function resolveAgeSecretKeys(): string[] {
   try {
     contents = readFileSync(keyFile, 'utf-8');
   } catch (err) {
-    throw new Error(
-      `Failed to read SOPS_AGE_KEY_FILE=${keyFile}: ${err instanceof Error ? err.message : String(err)}`,
+    // Object.assign bolts `cause` onto the Error: convex/tsconfig.json's
+    // "lib" predates the ES2022 two-argument Error constructor overload,
+    // even though the runtime itself supports it.
+    throw Object.assign(
+      new Error(
+        `Failed to read SOPS_AGE_KEY_FILE=${keyFile}: ${err instanceof Error ? err.message : String(err)}`,
+      ),
       { cause: err },
     );
   }
@@ -79,22 +82,23 @@ export function resolveAgeSecretKeys(): string[] {
 }
 
 /**
- * Derive one age public recipient per secret key configured in env. Returns
- * recipients in source order. `[]` when nothing is configured.
+ * Derive one age recipient per secret key configured in the environment
+ * (source order; `[]` when nothing is configured).
  *
- * Encrypt-to-all rotation flow:
- *   1. Append a new key to `SOPS_AGE_KEY_FILE`.
- *   2. Re-save each provider secret via Settings → AI providers. Each save
- *      now produces ciphertext readable by both old AND new keys.
- *   3. Once every provider has been re-saved, remove the old key from the
- *      file. New saves only encrypt to the new recipient; existing files
- *      continue to decrypt because sops walks all keys in the file.
+ * Rotation flow for an operator:
+ *   1. Append the new secret key to `SOPS_AGE_KEY_FILE`.
+ *   2. Re-save each provider secret from Settings → AI providers — every
+ *      save now encrypts to both the old and the new recipient.
+ *   3. Once everything has been re-saved, delete the old key from the
+ *      file. From then on, new saves only target the new recipient;
+ *      previously-migrated files keep decrypting because sops still
+ *      tries every key in the file.
  *
- * Caveat: rotation is operator-driven and incremental. Adding a key but
- * skipping step 2 leaves existing ciphertexts bound to the OLD recipient
- * only — they'll keep decrypting fine (old key is still there), but a future
- * "remove old key" step will lock you out of those files. The UI's "save"
- * action is the rotation trigger.
+ * If step 2 is skipped after adding a key, existing ciphertext stays
+ * bound to the OLD recipient only — it keeps decrypting fine while that
+ * key remains in the file, but removing it later would lock that
+ * ciphertext out. Saving from the UI is what actually re-encrypts a file
+ * to the current recipient set.
  */
 export function resolveAgeRecipients(): string[] {
   return resolveAgeSecretKeys().map(deriveAgePublicKey);

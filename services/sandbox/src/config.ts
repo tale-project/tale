@@ -3,6 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 
+import { parse as parseYaml } from 'yaml';
+
 import {
   dindDefaultEnabled,
   dindExperimental,
@@ -28,11 +30,13 @@ function boolEnvOpt(name: string): boolean | undefined {
 /**
  * The `sandboxRuntime` section of the deployment config, if present. The
  * spawner mounts the shared platform-config dir read-only (see compose.yml);
- * deployment.json is the operator's higher-level source of truth and OVERRIDES
+ * the deployment config is the operator's higher-level source of truth and OVERRIDES
  * the SANDBOX_RUNTIME / SANDBOX_DOCKER_IN_CONTAINER env when it sets them.
- * Absent file ⇒ env defaults (the common case). Present-but-unparseable ⇒ fail
- * closed (matches the rag/convex boot convention), since silently ignoring a
- * config the operator wrote reads as a misconfiguration.
+ * Reads `deployment.yml` (the current form) with the retired
+ * `deployment.json` as a fallback until the platform's next save converts
+ * it. Absent files ⇒ env defaults (the common case). Present-but-unparseable
+ * ⇒ fail closed (matches the rag/convex boot convention), since silently
+ * ignoring a config the operator wrote reads as a misconfiguration.
  */
 function deploymentSandboxRuntime(): {
   tier?: string;
@@ -41,22 +45,28 @@ function deploymentSandboxRuntime(): {
 } {
   const dir =
     process.env.TALE_PLATFORM_SHARED_CONFIG_DIR ?? '/app/platform-config';
-  const path = `${dir}/deployment.json`;
-  let raw: string;
-  try {
-    raw = readFileSync(path, 'utf8');
-  } catch (err) {
-    // ENOENT (no deployment config) is the common case → fall back to env.
-    if (
-      err !== null &&
-      typeof err === 'object' &&
-      'code' in err &&
-      err.code === 'ENOENT'
-    ) {
-      return {};
+  const candidates = [`${dir}/deployment.yml`, `${dir}/deployment.json`];
+  let raw: string | undefined;
+  let path = candidates[0];
+  for (const candidate of candidates) {
+    try {
+      raw = readFileSync(candidate, 'utf8');
+      path = candidate;
+      break;
+    } catch (err) {
+      // ENOENT (no deployment config in this form) → try the next form.
+      if (
+        err !== null &&
+        typeof err === 'object' &&
+        'code' in err &&
+        err.code === 'ENOENT'
+      ) {
+        continue;
+      }
+      throw new Error(`could not read ${candidate}`, { cause: err });
     }
-    throw new Error(`could not read ${path}`, { cause: err });
   }
+  if (raw === undefined) return {};
   let json: {
     sandboxRuntime?: {
       tier?: unknown;
@@ -65,11 +75,13 @@ function deploymentSandboxRuntime(): {
     };
   };
   try {
-    json = JSON.parse(raw);
+    // YAML is a superset of JSON, so one parser covers both era forms.
+    json = parseYaml(raw);
   } catch (err) {
-    throw new Error(`${path} is present but not valid JSON (fail-closed)`, {
-      cause: err,
-    });
+    throw new Error(
+      `${path} is present but not valid YAML/JSON (fail-closed)`,
+      { cause: err },
+    );
   }
   const sr = json.sandboxRuntime;
   if (!sr || typeof sr !== 'object') return {};

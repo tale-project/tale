@@ -1,0 +1,17 @@
+# Built-in PII pattern. `impl: native` — the numeric-date regex below is the
+# data knob; year/day plausibility validators plus the locale-composed
+# textual-date regexes (month names, CJK year/month/day markers from the
+# locale datasets) live in the pii plugin
+# (lib/pii/patterns/date-of-birth.ts).
+name: dateOfBirth
+description: >-
+  Dates of birth — numeric forms (12.03.1980, 1980-03-12) detected
+  locale-independently by the regex below, textual forms ("born on March 28,
+  1998", "geboren am 12. März 1980", "1998年9月28日生") composed from each
+  enabled locale's date-of-birth vocabulary. A year-plausibility gate
+  (1900..current+1) rejects phone numbers and random digit runs.
+replacement: '[DATE_OF_BIRTH]'
+impl: native
+regex:
+  source: '(?<!\w)(?:\d{1,2}[./—–-]\d{1,2}[./—–-]\d{2,4}|\d{4}[./—–-]\d{1,2}[./—–-]\d{1,2})(?=[T\s,;.)\]]|$|[^\w])'
+  flags: g

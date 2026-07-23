@@ -32,13 +32,12 @@ Verifiziere die Signatur, bevor du dem Body vertraust: HMAC-SHA256 über den roh
 Wenn dein System einen Tale-Workflow feuern muss, poste an die Webhook-URL, die Tale erzeugt, sobald du dem Workflow einen Webhook-Trigger hinzufügst:
 
 ```bash
-curl -sS https://your-host.example.com/api/workflows/wh/<token> \
-  -H "Idempotency-Key: order-12345" \
+curl -sS https://your-host.example.com/api/automations/webhook/<token> \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-Das Token im URL-Pfad ist der Berechtigungsnachweis — ein Authorization-Header ist nicht nötig; behandle also die ganze URL als Secret und lösch den Webhook, um sie zu widerrufen. Der Body wird die Eingabe des ersten Workflow-Schritts. Ein frisches Annehmen gibt `{ "status": "accepted", "workflowSlug": "..." }` zurück; ein Replay mit demselben `Idempotency-Key` gibt statt eines neuen Laufs die `executionId` des früheren zurück.
+Das Token im URL-Pfad ist der Berechtigungsnachweis — ein Authorization-Header ist nicht nötig; behandle also die ganze URL als Secret und lösch den Trigger, um sie zu widerrufen. Der Body wird die Eingabe des Laufs; ein Body, der kein JSON ist, wird als Text durchgereicht statt abgelehnt, und alles über 256 KB quittiert **413**. Ein angenommener Aufruf gibt **202** mit `{ "runId": "..." }` zurück. Ein unbekanntes, deaktiviertes oder vertipptes Token ist ein schlichtes **404** — die Antwort unterscheidet die Fälle nie, wer rät, lernt also nichts. Eine Automatisierung ohne deployte Version antwortet **409** mit `{ "error": "automation has no deployed version" }`: Deploy eine Version, deren Tests grün sind, und derselbe Aufruf läuft.
 
 ## Signieren und verifizieren
 
@@ -60,7 +59,7 @@ def verify(body: bytes, signature: str, secret: str) -> bool:
 
 ## Idempotenz
 
-Eingehend: gib `Idempotency-Key` bei jedem Trigger-Aufruf mit. Tale speichert den Key gegen die resultierende Ausführung für 24 Stunden; ein Retry mit demselben Key gibt dieselbe Execution-ID zurück, ohne den Workflow erneut zu feuern.
+Eingehend: der Trigger-Endpunkt dedupliziert nicht für dich, ein wiederholter POST startet also einen zweiten Lauf. Sicher macht einen Retry der Lauf selbst — ein Live-Lauf setzt nach jedem abgeschlossenen Knoten einen Checkpoint, ein wiederaufgenommener Lauf wiederholt seine bereits erzeugten Seiteneffekte also nie. Wo ein doppelter Lauf trotzdem falsch wäre, führ deinen eigenen Dedup-Schlüssel im Payload mit und verzweig im ersten Knoten des Workflows darauf.
 
 Ausgehend: jede Auslieferung trägt eine eindeutige `X-Tale-Delivery`-UUID. Nutz sie zum Dedupen auf deiner Seite — Tale wiederholt bei Nicht-2xx-Antworten, und dieselbe Delivery-UUID erscheint bei jedem Retry, bis der Empfänger bestätigt.
 

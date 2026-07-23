@@ -1,0 +1,127 @@
+# Reviews every open pull request and leaves its findings as a review comment.
+# It never approves and never merges: the verdict is written into the comment
+# and a human still decides, which is what keeps a scheduled reviewer safe.
+version: 1
+name: github-review-pull-requests
+description: Read every open pull request's diff, review it, and leave the findings as a comment for a human to act on.
+inputs:
+  type: object
+  properties:
+    owner:
+      type: string
+      description: Repository owner — the user or organization login.
+    repo:
+      type: string
+      description: Repository name.
+    limit:
+      type: number
+      description: How many open pull requests to review in one pass (10 when unset).
+  required:
+    - owner
+    - repo
+  additionalProperties: false
+nodes:
+  - id: pulls
+    type: github.list_pull_requests
+    input:
+      owner: '{{ input.owner }}'
+      repo: '{{ input.repo }}'
+      state: open
+      per_page: '{{ input.limit ?? 10 }}'
+
+  - id: open_pulls
+    type: transform
+    input:
+      pulls: '{{ nodes.pulls.output.pull_requests }}'
+      limit: '{{ input.limit ?? 10 }}'
+    code: |
+      const asText = (value) => (typeof value === 'string' ? value : '');
+      const pulls = (Array.isArray(input.pulls) ? input.pulls : [])
+        .slice(0, input.limit)
+        .map((pull) => ({
+          number: typeof pull.number === 'number' ? pull.number : 0,
+          title: asText(pull.title),
+          url: asText(pull.html_url),
+        }));
+      return { count: pulls.length, pulls };
+
+  - id: diff
+    type: github.get_pull_request_diff
+    forEach: '{{ nodes.open_pulls.output.pulls }}'
+    input:
+      owner: '{{ input.owner }}'
+      repo: '{{ input.repo }}'
+      pull_number: '{{ item.number }}'
+
+  - id: review
+    type: llm
+    forEach: '{{ nodes.open_pulls.output.pulls }}'
+    model: anthropic/claude-haiku-4-5
+    system: >-
+      You review pull requests for a small team. Judge only the diff you are
+      shown. Name concrete problems with the file and the reason; when the
+      change looks sound, say so in one line. Never speculate about code you
+      cannot see.
+    prompt: |
+      Pull request #{{ item.number }} — {{ item.title }}
+
+      Diff:
+      {{ nodes.diff.output[index].diff }}
+    outputSchema:
+      type: object
+      properties:
+        verdict:
+          type: string
+          enum:
+            - approve
+            - changes
+          description: approve when the diff looks ready, changes when it does not.
+        summary:
+          type: string
+          description: The review itself, in Markdown, addressed to the author.
+      required:
+        - verdict
+        - summary
+
+  # COMMENT, never APPROVE: an automated review informs the human review, it
+  # does not stand in for it.
+  - id: post
+    type: github.create_pull_request_review
+    forEach: '{{ nodes.open_pulls.output.pulls }}'
+    input:
+      owner: '{{ input.owner }}'
+      repo: '{{ input.repo }}'
+      pull_number: '{{ item.number }}'
+      event: COMMENT
+      body: '**{{ nodes.review.output[index].verdict }}** — {{ nodes.review.output[index].summary }}'
+output:
+  reviewed: '{{ nodes.open_pulls.output.count }}'
+  reviews: '{{ nodes.review.output }}'
+tests:
+  - name: an open pull request is reviewed and commented on
+    input:
+      owner: tale
+      repo: tale
+    expect:
+      output:
+        reviewed: 1
+        reviews:
+          - verdict: approve
+            summary: mock
+      effects:
+        - integration: github.create_pull_request_review
+          input:
+            owner: tale
+            repo: tale
+            pull_number: 1
+            event: COMMENT
+            body: '**approve** — mock'
+  - name: no open pull requests means no review and no comment
+    input:
+      owner: tale
+      repo: tale
+      limit: 0
+    expect:
+      output:
+        reviewed: 0
+        reviews: []

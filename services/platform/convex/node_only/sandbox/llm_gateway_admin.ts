@@ -1,40 +1,46 @@
 'use node';
 
-// LLM gateway governance-API client. The platform is the source of truth for
-// providers + models; the gateway is a derived cache. This module:
-//   - provisions/reconciles the org's providers + upstream keys into the gateway,
-//   - mints a session-scoped virtual key (budget + model allowlist) at session
-//     create, returning the plaintext `sk-bf-*` (injected into the sandbox)
-//     plus the key id (stored, with the key's sha256, in sandboxSessionTokens),
+// Sandbox LLM-gateway management client. The platform is the source of truth
+// for provider credentials + model catalogs; the gateway (pinned
+// maximhq/bifrost, management API verified against v1.5.13) is a derived
+// cache. This module:
+//   - provisions/reconciles an org's providers + upstream keys into the
+//     gateway,
+//   - mints a session-scoped virtual key (budget + model allowlist) at
+//     session create, returning the plaintext `sk-bf-*` (injected into the
+//     sandbox, never persisted) plus the key id,
 //   - revokes the key at session destroy,
-//   - pulls per-key usage for the watchdog → usageLedger sync.
+//   - reads per-key spend for the usage ledger.
 //
-// Raw provider API keys + the management token are Tier-0 secrets — they live
+// Raw provider API keys + the admin password are Tier-0 secrets — they live
 // only here (Convex) and in the gateway, never in the sandbox.
 //
-// NOTE: endpoint paths + field names are verified against the pinned
-// maximhq/bifrost:v1.5.13 (spike 2026-06-13; see
-// reference-bifrost-provider-api-v1513). Key shape vs the old v1.4.8:
+// v1.5.13 wire facts this module encodes (each verified against the pinned
+// gateway; do not "simplify" them away without re-verifying):
 //   - upstream KEYS are a provider SUB-RESOURCE (`/api/providers/:p/keys`,
 //     CRUD), NOT embedded in the provider PUT (a keys[] there is ignored).
 //     Per-org keys coexist under one shared provider record.
-//   - VK create takes `name` + `provider_configs[]` where each config has
-//     `keys: [<key id>]` + `allow_all_keys` (binds the VK to specific upstream
-//     keys) + `allowed_models` (deny-by-default ENFORCED on inference, incl.
-//     the /anthropic route; an EMPTY list denies all) + `budget` (singular;
-//     reset_duration must parse — 'never' is rejected). Response wraps the key
-//     as `{ virtual_key: { id, value } }`.
+//   - VK create takes `provider_configs[]` where each config carries
+//     `key_ids: [<id>]` (the WRITE field — sending `keys:[id]` is silently
+//     ignored, leaving an empty binding that denies everything) +
+//     `allow_all_keys:false` (binds the VK to THIS org's upstream key only)
+//     + `allowed_models` (deny-by-default, enforced on inference incl. the
+//     /anthropic route; an EMPTY list denies all) + `budget` (singular;
+//     `reset_duration` must parse — 'never' is rejected). The response wraps
+//     the key as `{ virtual_key: { id, value } }`.
+//   - `base_provider_type` / the presence of `custom_provider_config` are
+//     immutable per record; changing them requires delete + recreate.
 
 import { createHash } from 'node:crypto';
 
+import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
-import { providerAttributionHeaders } from '../../providers/provider_attribution';
 
 /**
  * Read a `SANDBOX_LLM_GATEWAY_*` env var, falling back to the pre-rename
- * `LLM_GATEWAY_*` name. The fallback is a one-release transition shim so an
- * operator's existing `.env` (still carrying the old names) keeps working until
- * `tale upgrade` rewrites them; drop the old-name read once that window closes.
+ * `LLM_GATEWAY_*` name — `.env.example` documents that operators' old names
+ * are still read, so an existing deployment keeps working until `tale
+ * upgrade` rewrites its env file.
  */
 function gatewayEnv(suffix: string): string | undefined {
   return (
@@ -61,16 +67,16 @@ function adminPassword(): string {
 
 /** Total per-request timeout pushed to every provider's `network_config`. */
 const REQUEST_TIMEOUT_SECONDS = 600;
-/** Per-stream IDLE timeout (gateway `stream_idle_timeout_in_seconds`): how long
- * the gateway waits for ANY byte from the upstream mid-stream before it aborts with
- * `ErrStreamIdleTimeout` ("stream idle timeout: no data received within
- * configured window"). The gateway defaults this to 60s. That 60s is fine for a
- * native Anthropic upstream (it pings every ~15-30s), but a CUSTOM
- * OpenAI-compatible upstream (e.g. an Anthropic↔OpenAI translation gateway) sends
- * NO keepalive during a long prefill or a silent reasoning gap — so a large-context
- * turn trips the 60s idle window and the agent's stream dies mid-run with no retry
- * (Claude Code does not auto-retry a mid-stream failure). Default it to the full
- * request budget so a silent gap is bounded only by the total timeout, never a
+
+/** Per-stream IDLE timeout (gateway `stream_idle_timeout_in_seconds`): how
+ * long the gateway waits for ANY byte from the upstream mid-stream before
+ * aborting with `ErrStreamIdleTimeout`. The gateway defaults this to 60s,
+ * which is fine for a native Anthropic upstream (it pings every ~15-30s) —
+ * but a CUSTOM OpenAI-compatible upstream sends NO keepalive during a long
+ * prefill or a silent reasoning gap, so a large-context turn trips the 60s
+ * window and the agent's stream dies mid-run with no retry (coding CLIs do
+ * not auto-retry a mid-stream failure). Default it to the full request
+ * budget so a silent gap is bounded only by the total timeout, never a
  * premature idle abort. Operator-tunable. */
 const STREAM_IDLE_TIMEOUT_SECONDS = Number(
   gatewayEnv('STREAM_IDLE_TIMEOUT_SECONDS') ?? String(REQUEST_TIMEOUT_SECONDS),
@@ -80,11 +86,10 @@ function managementHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
   };
-  // The gateway (maximhq/bifrost v1.4.8) APIMiddleware authenticates /api/*
-  // with HTTP Basic (admin_username/admin_password) — NOT a bearer token (the
-  // old management-token env was never read by the gateway). Send Basic when a
+  // The gateway authenticates /api/* with HTTP Basic
+  // (admin_username/admin_password), not a bearer token. Send Basic when a
   // password is configured; harmless before auth_config is enabled, required
-  // after. Omit entirely in dev (no password → management plane open).
+  // after. Omitted entirely in dev (no password → management plane open).
   const pw = adminPassword();
   if (pw) {
     const basic = Buffer.from(`${adminUsername()}:${pw}`).toString('base64');
@@ -93,262 +98,15 @@ function managementHeaders(): Record<string, string> {
   return headers;
 }
 
-/**
- * Tale model refs are colon-qualified (`openrouter:anthropic/claude-sonnet-4.6`,
- * optionally with a quantization qualifier like `@fp8`) but the gateway routes on
- * the first slash (`provider/model`) and rejects the colon form as an invalid
- * model ID (verified against v1.4.8). Upstreams don't understand the Tale
- * quantization qualifier either (the in-platform chat path strips it before
- * calling the provider), so drop it here too. Translate at this boundary
- * only — everything platform-side keeps the Tale ref.
- */
-export function toGatewayModelRef(taleModelRef: string): string {
-  return taleModelRef.replace(':', '/').replace(/@[^@/]+$/, '');
-}
-
-/** Whether the gateway has a built-in provider implementation for this name (and so
- * owns its wire format + rejects custom_provider_config). Exported so the
- * gateway loader can group standard providers (one native record per slug) vs
- * custom ones (per-model upstreams). */
-export function isStandardGatewayProvider(name: string): boolean {
-  return LLM_GATEWAY_STANDARD_PROVIDERS.has(name);
-}
-
-/** Gateway provider name for a CUSTOM model's per-model upstream. The model's
- * effective (baseUrl, apiFormat, key) lives on its own provider record so that
- * model-level overrides actually route (the gateway holds one base_url +
- * base_provider_type per record). Sanitize `/` out of the NAME segment —
- * the gateway routes on the FIRST `/`, so the provider-name part must contain none;
- * the model id keeps its own form (matched against the key catalog after the
- * prefix is stripped). */
-function customGatewayProviderName(slug: string, modelId: string): string {
-  return `${slug}__${modelId}`.replace(/\//g, '_');
-}
-
-export interface GatewayRouting {
-  /** Gateway provider name the request routes to. */
-  gatewayProvider: string;
-  /** Full gateway model ref (`<gatewayProvider>/<modelId>`) for ANTHROPIC_MODEL
-   * + the VK allowed_models. */
-  gatewayModel: string;
-}
-
-/**
- * Map a Tale (providerSlug, modelId) onto gateway routing. Standard slug → the
- * native provider record (`<slug>/<modelId>`); custom slug → the model's own
- * per-model upstream (`<slug>__<modelId>/<modelId>`). Single source of truth
- * shared by the adapter (ANTHROPIC_MODEL), the mint (VK provider binding), and
- * the gateway loader (record names) so they can never drift.
- */
-export function resolveGatewayRouting(
-  providerSlug: string,
-  modelId: string,
-): GatewayRouting {
-  if (isStandardGatewayProvider(providerSlug)) {
-    return {
-      gatewayProvider: providerSlug,
-      gatewayModel: `${providerSlug}/${modelId}`,
-    };
-  }
-  const name = customGatewayProviderName(providerSlug, modelId);
-  return { gatewayProvider: name, gatewayModel: `${name}/${modelId}` };
-}
-
-/** Resolve routing from a full Tale model ref (`provider:model[@quant]`). */
-export function resolveGatewayRoutingFromRef(
-  taleModelRef: string,
-): GatewayRouting {
-  const gatewayRef = toGatewayModelRef(taleModelRef);
-  const slash = gatewayRef.indexOf('/');
-  const slug = slash === -1 ? gatewayRef : gatewayRef.slice(0, slash);
-  const modelId = slash === -1 ? gatewayRef : gatewayRef.slice(slash + 1);
-  return resolveGatewayRouting(slug, modelId);
-}
-
-export interface MintVirtualKeyArgs {
-  /** Hard spend cap; the gateway rejects inference once exhausted. */
-  budgetCents: number;
-  /** Models the key may call (org allowlist). */
-  allowedModels: string[];
-  /** Metadata anchored to the key for usage attribution + lookup. */
-  organizationId: string;
-  sessionId: string;
-}
-
-export interface MintedVirtualKey {
-  /** Plaintext `sk-bf-*` — injected into the sandbox, never persisted. */
-  key: string;
-  /** Stable id for revoke + usage queries. */
-  keyId: string;
-}
-
-/** POST /api/governance/virtual-keys — mint a session-scoped key.
- *
- * v1.5.13 enforces both axes (verified by spike, see
- * reference-bifrost-provider-api-v1513):
- *   - `provider_configs[].keys: [<this org's key id>]` + `allow_all_keys:false`
- *     binds the VK to THIS org's upstream key only — a request can never be
- *     served by another org's key under the same provider (cross-org
- *     isolation; v1.4.8 had no such binding and routed to whatever global key
- *     occupied the provider slot).
- *   - `allowed_models` is deny-by-default enforced on the inference path
- *     (incl. the /anthropic route the adapter uses) — a request for a model
- *     outside the list is rejected 403 model_blocked, not forwarded upstream.
- *     An EMPTY list denies everything, so we fail closed (throw) rather than
- *     mint a deny-all key if no model resolves.
- */
-export async function mintVirtualKey(
-  args: MintVirtualKeyArgs,
-): Promise<MintedVirtualKey> {
-  // Group allowed models by the GATEWAY provider they route to (per-model for
-  // custom providers; the slug for standard). Allow both the bare model id and
-  // the full gateway ref so the allowlist matches however the resolver
-  // normalizes the request model. resolveGatewayRouting is the same mapping the
-  // adapter + gateway loader use, so the VK binds the exact record that serves.
-  const byProvider = new Map<string, string[]>();
-  for (const taleRef of args.allowedModels) {
-    const { gatewayProvider, gatewayModel } =
-      resolveGatewayRoutingFromRef(taleRef);
-    const slash = gatewayModel.indexOf('/');
-    const bare = slash === -1 ? gatewayModel : gatewayModel.slice(slash + 1);
-    const models = byProvider.get(gatewayProvider) ?? [];
-    models.push(bare, gatewayModel);
-    byProvider.set(gatewayProvider, models);
-  }
-  if (byProvider.size === 0) {
-    // Empty allowed_models = deny-all in v1.5.13; never mint such a key.
-    throw new Error('mintVirtualKey: no allowed models resolved');
-  }
-  // Bind each provider config to THIS org's key id (resolved by stable name).
-  // The key must already exist (provisionProviders ran at session create);
-  // fail closed if not — an unbound/over-permissive key is the bug we're
-  // closing, so a missing key must surface, not silently widen access.
-  const providerConfigs: Array<{
-    provider: string;
-    key_ids: string[];
-    allow_all_keys: boolean;
-    allowed_models: string[];
-  }> = [];
-  for (const [provider, allowedModels] of byProvider) {
-    const keyId = await resolveOrgProviderKeyId(provider, args.organizationId);
-    if (!keyId) {
-      throw new Error(
-        `mintVirtualKey: no gateway key for provider '${provider}' / org '${args.organizationId}' (provisioning did not run or failed)`,
-      );
-    }
-    // v1.5.13: the WRITE field is `key_ids` (read back as `keys:[{...}]`).
-    // Sending `keys:[id]` is silently ignored → an empty binding which, with
-    // allow_all_keys:false, denies ALL keys (verified against v1.5.13).
-    providerConfigs.push({
-      provider,
-      key_ids: [keyId],
-      allow_all_keys: false,
-      allowed_models: allowedModels,
-    });
-  }
-  const body = {
-    // team_id/customer_id are mutually-exclusive FK references in the gateway;
-    // we anchor attribution in the (required) name instead. The gateway has no
-    // native TTL; the session watchdog revokes on expiry.
-    name: `tale-${args.organizationId}-${args.sessionId}-${Date.now().toString(36)}`,
-    provider_configs: providerConfigs,
-    budget: {
-      max_limit: args.budgetCents / 100, // governance API is dollars
-      // Smallest accepted horizon ('never' is rejected); the key is revoked
-      // at turn end, long before any reset matters.
-      reset_duration: '1M',
-    },
-    is_active: true,
-  };
-  const res = await fetch(`${llmGatewayUrl()}/api/governance/virtual-keys`, {
-    method: 'POST',
-    headers: managementHeaders(),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    throw new Error(`llm-gateway mint key failed (${res.status})`);
-  }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as {
-    virtual_key?: { id?: string; value?: string };
-  };
-  const key = parsed.virtual_key?.value;
-  const keyId = parsed.virtual_key?.id;
-  if (!key || !keyId) {
-    throw new Error('llm-gateway mint key returned no key/id');
-  }
-  return { key, keyId };
-}
-
-/** DELETE /api/governance/virtual-keys/:id — instant revoke (session destroy /
- * watchdog). Best-effort: a 404 means it's already gone. */
-export async function revokeVirtualKey(keyId: string): Promise<void> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
-    {
-      method: 'DELETE',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`llm-gateway revoke key failed (${res.status})`);
-  }
-}
-
-/**
- * Cumulative spend on a virtual key, in cents, from `GET /api/governance/
- * virtual-keys/:id` → `budget.current_usage` (dollars). v1.4.8 has NO
- * `/usage` endpoint (it 404s) and the budget figure is the only authoritative
- * spend signal — it's also the only usage source that works through the
- * openrouter→deepseek path, where Claude Code's own stream reports 0 tokens.
- * Returns null on error (caller degrades to whatever the agent stream gave).
- */
-export async function getVirtualKeySpendCents(
-  keyId: string,
-): Promise<number | null> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
-    {
-      method: 'GET',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
-  if (!res.ok) {
-    // Degrade to the agent-stream spend, but make the gateway failure visible —
-    // a down gateway is otherwise indistinguishable from "key not found" and
-    // would silently stamp costEstimateCents:0. keyId is an id, not a secret.
-    console.warn(
-      `[llm-gateway] spend read failed (${res.status}) for key ${keyId}; degrading to agent-stream spend`,
-    );
-    return null;
-  }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as {
-    virtual_key?: { budget?: { current_usage?: number } };
-    budget?: { current_usage?: number };
-  };
-  const dollars =
-    parsed.virtual_key?.budget?.current_usage ??
-    parsed.budget?.current_usage ??
-    null;
-  // Fractional cents — the usageLedger costEstimate is a float (sub-cent turns
-  // are real with cheap models), so don't round away the precision.
-  return dollars === null ? null : dollars * 100;
-}
-
-/** Provider names the gateway handles with a built-in implementation (its own base
- * URL + request shaping). Mirrors the gateway's `StandardProviders`
- * (maximhq/bifrost core/schemas/bifrost.go @ core/v1.5.13). This is NOT a Tale
- * allowlist of "permitted" providers — users may add ANY provider (the chat path
- * treats every provider as OpenAI-compatible against its own base URL). It is the
- * set the gateway RESERVES: it rejects `custom_provider_config` on these names with
- * a 400 ("cannot be created on standard providers"), and overriding their
- * `network_config.base_url` breaks the built-in URL construction. So a standard
- * provider keeps native dispatch; every OTHER provider is provisioned as a
- * custom OpenAI-compatible upstream (see ensureProviderConfig). */
+/** Provider names the gateway serves with a BUILT-IN implementation (its own
+ * base URL + request shaping). Mirrors the gateway's `StandardProviders`
+ * (maximhq/bifrost core/schemas/bifrost.go @ core/v1.5.13). This is NOT an
+ * allowlist of permitted providers — any connector can be provisioned; it is
+ * the set the gateway RESERVES: it rejects `custom_provider_config` on these
+ * names (400) and overriding their `network_config.base_url` breaks the
+ * built-in URL construction. A standard provider keeps native dispatch;
+ * every other connector is provisioned as a custom OpenAI-compatible (or
+ * Anthropic-format) upstream. */
 const LLM_GATEWAY_STANDARD_PROVIDERS = new Set([
   'openai',
   'azure',
@@ -375,97 +133,300 @@ const LLM_GATEWAY_STANDARD_PROVIDERS = new Set([
   'fireworks',
 ]);
 
+/** Whether the gateway has a built-in implementation for this provider name
+ * (and so owns its wire format + rejects custom_provider_config). */
+export function isStandardGatewayProvider(name: string): boolean {
+  return LLM_GATEWAY_STANDARD_PROVIDERS.has(name);
+}
+
+/** Gateway provider name for a CUSTOM connector's per-model upstream. The
+ * model's effective (baseUrl, apiFormat, key) lives on its own provider
+ * record so model-level routing actually works — one gateway record holds
+ * exactly one base_url + base_provider_type. `/` is sanitized out of the
+ * NAME segment because the gateway routes on the FIRST `/`; the model id
+ * keeps its own form (matched against the key catalog after the prefix is
+ * stripped). */
+function customGatewayProviderName(slug: string, modelId: string): string {
+  return `${slug}__${modelId}`.replace(/\//g, '_');
+}
+
+export interface GatewayRouting {
+  /** Gateway provider (record) name the request routes to. */
+  gatewayProvider: string;
+  /** Full gateway model ref (`<gatewayProvider>/<modelId>`) for the harness
+   * model env + the VK allowed_models. */
+  gatewayModel: string;
+}
+
+/**
+ * Map a (connector, catalog model id) pair onto gateway routing. A standard
+ * connector name routes to the shared native provider record
+ * (`<name>/<modelId>`); any other connector routes to the model's own
+ * per-model upstream record (`<name>__<modelId>/<modelId>`). Single source
+ * of truth shared by the harness glue (model env), the mint (VK binding),
+ * and the provisioner (record names) so they can never drift.
+ */
+export function resolveGatewayRouting(
+  providerSlug: string,
+  modelId: string,
+): GatewayRouting {
+  if (isStandardGatewayProvider(providerSlug)) {
+    return {
+      gatewayProvider: providerSlug,
+      gatewayModel: `${providerSlug}/${modelId}`,
+    };
+  }
+  const name = customGatewayProviderName(providerSlug, modelId);
+  return { gatewayProvider: name, gatewayModel: `${name}/${modelId}` };
+}
+
+/** One model the virtual key may call: the connector it belongs to plus its
+ * catalog id in that connector's own dialect. */
+export interface AllowedModelRef {
+  providerSlug: string;
+  modelId: string;
+}
+
+export interface MintVirtualKeyArgs {
+  /** Hard spend cap; the gateway rejects inference once exhausted. */
+  budgetCents: number;
+  /** Models the key may call (already filtered by org availability). */
+  allowedModels: AllowedModelRef[];
+  /** Attribution anchored in the key name for usage lookup + debugging. */
+  organizationId: string;
+  sessionId: string;
+}
+
+export interface MintedVirtualKey {
+  /** Plaintext `sk-bf-*` — injected into the sandbox, never persisted. */
+  key: string;
+  /** Stable id for revoke + spend queries. */
+  keyId: string;
+}
+
+/** POST /api/governance/virtual-keys — mint a session-scoped key.
+ *
+ * The gateway enforces both axes on the inference path:
+ *   - `key_ids: [<this org's key id>]` + `allow_all_keys:false` binds the VK
+ *     to THIS org's upstream key only — a request can never be served by
+ *     another org's key under the same shared provider record (cross-org
+ *     isolation).
+ *   - `allowed_models` is deny-by-default (an EMPTY list denies all), so an
+ *     empty resolution fails closed here — throw, never mint a deny-all key.
+ */
+export async function mintVirtualKey(
+  args: MintVirtualKeyArgs,
+): Promise<MintedVirtualKey> {
+  // Group the allowed models by the GATEWAY provider record they route to
+  // (the shared record for standard connectors; per-model records for custom
+  // ones). Allow both the bare model id and the full gateway ref so the
+  // allowlist matches however the requesting client spells the model.
+  const byProvider = new Map<string, string[]>();
+  for (const ref of args.allowedModels) {
+    const { gatewayProvider, gatewayModel } = resolveGatewayRouting(
+      ref.providerSlug,
+      ref.modelId,
+    );
+    const models = byProvider.get(gatewayProvider) ?? [];
+    models.push(ref.modelId, gatewayModel);
+    byProvider.set(gatewayProvider, models);
+  }
+  if (byProvider.size === 0) {
+    throw new Error('mintVirtualKey: no allowed models resolved');
+  }
+  // Bind each provider config to THIS org's key id (resolved by stable
+  // name). The key must already exist (provisionProviders ran at session
+  // create); fail closed if not — an unbound or over-permissive key is
+  // exactly the hole this binding closes, so a missing key must surface, not
+  // silently widen access.
+  const providerConfigs: Array<{
+    provider: string;
+    key_ids: string[];
+    allow_all_keys: boolean;
+    allowed_models: string[];
+  }> = [];
+  for (const [provider, allowedModels] of byProvider) {
+    const keyId = await resolveOrgProviderKeyId(provider, args.organizationId);
+    if (!keyId) {
+      throw new Error(
+        `mintVirtualKey: no gateway key for provider '${provider}' / org '${args.organizationId}' (provisioning did not run or failed)`,
+      );
+    }
+    providerConfigs.push({
+      provider,
+      key_ids: [keyId],
+      allow_all_keys: false,
+      allowed_models: allowedModels,
+    });
+  }
+  const body = {
+    // team_id/customer_id are mutually-exclusive FK references in the
+    // gateway; attribution is anchored in the (required) name instead. The
+    // gateway has no native TTL; session teardown revokes the key.
+    name: `tale-${args.organizationId}-${args.sessionId}-${Date.now().toString(36)}`,
+    provider_configs: providerConfigs,
+    budget: {
+      max_limit: args.budgetCents / 100, // the governance API takes dollars
+      // Smallest accepted horizon ('never' is rejected); the key is revoked
+      // at session end, long before any reset matters.
+      reset_duration: '1M',
+    },
+    is_active: true,
+  };
+  const res = await fetch(`${llmGatewayUrl()}/api/governance/virtual-keys`, {
+    method: 'POST',
+    headers: managementHeaders(),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    throw new Error(`llm-gateway mint key failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as {
+    virtual_key?: { id?: string; value?: string };
+  };
+  const key = parsed.virtual_key?.value;
+  const keyId = parsed.virtual_key?.id;
+  if (!key || !keyId) {
+    throw new Error('llm-gateway mint key returned no key/id');
+  }
+  return { key, keyId };
+}
+
+/** DELETE /api/governance/virtual-keys/:id — instant revoke (session destroy
+ * / teardown). A 404 means it is already gone. */
+export async function revokeVirtualKey(keyId: string): Promise<void> {
+  const res = await fetch(
+    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
+    {
+      method: 'DELETE',
+      headers: managementHeaders(),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`llm-gateway revoke key failed (${res.status})`);
+  }
+}
+
+/**
+ * Cumulative spend on a virtual key, in (fractional) cents, from
+ * `GET /api/governance/virtual-keys/:id` → `budget.current_usage` (dollars).
+ * The budget figure is the gateway's only authoritative spend signal — and
+ * the only usage source that works where a harness's own stream reports 0
+ * tokens. Returns null on error; the caller degrades to whatever the agent
+ * stream reported.
+ */
+export async function getVirtualKeySpendCents(
+  keyId: string,
+): Promise<number | null> {
+  const res = await fetch(
+    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
+    {
+      method: 'GET',
+      headers: managementHeaders(),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!res.ok) {
+    // Degrade to the agent-stream spend, but make the gateway failure
+    // visible — a down gateway is otherwise indistinguishable from "key not
+    // found" and would silently stamp a zero cost. keyId is an id, not a
+    // secret.
+    console.warn(
+      `[llm-gateway] spend read failed (${res.status}) for key ${keyId}; degrading to agent-stream spend`,
+    );
+    return null;
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as {
+    virtual_key?: { budget?: { current_usage?: number } };
+    budget?: { current_usage?: number };
+  };
+  const dollars =
+    parsed.virtual_key?.budget?.current_usage ??
+    parsed.budget?.current_usage ??
+    null;
+  // Sub-cent spends are real with cheap models — keep the precision.
+  return dollars === null ? null : dollars * 100;
+}
+
 export interface ProviderProvision {
-  /** Gateway provider name. A standard gateway name (see
-   * LLM_GATEWAY_STANDARD_PROVIDERS) uses native dispatch; any other name is
-   * provisioned as a custom upstream (see resolveGatewayRouting / per-model
-   * naming) and so requires a `baseUrl`. */
+  /** Gateway provider name. A standard gateway name uses native dispatch;
+   * any other name is provisioned as a custom upstream and requires a
+   * `baseUrl`. */
   name: string;
   baseUrl?: string;
-  /** Wire format for a CUSTOM upstream → gateway `base_provider_type`. Absent ⇒
-   * 'openai'. Ignored for standard providers (the gateway owns their format). */
+  /** Wire format for a CUSTOM upstream → gateway `base_provider_type`.
+   * Absent ⇒ 'openai'. Ignored for standard providers (the gateway owns
+   * their format). */
   apiFormat?: 'openai' | 'anthropic';
   apiKey: string;
-  /** Tale model refs the key may serve; translated to the gateway spelling. */
+  /** Catalog model ids (the connector's own dialect) this key may serve. */
   models: string[];
 }
 
 /**
- * Drift signal for the provision reconcile: the fingerprint this process last
- * pushed per provider name. `GET /api/providers` redacts key values, so the
- * platform can only compare against its own pushes. Module-scoped — lives for
- * the lifetime of the Convex action runtime (per Node process; one process per
- * host in self-hosted Convex), same pattern as `secretWriteLocks` in
- * providers/file_actions.ts. An empty memo (fresh process) makes the next
- * provision rewrite each provider once, which is also what picks up
- * `TALE_PROVIDER_KEY_*` env rotations (env changes only land via a restart).
+ * Drift signal for the provision reconcile: the fingerprint this process
+ * last pushed per (org, provider). `GET /api/providers` redacts key values,
+ * so the platform can only compare against its own pushes. Module-scoped —
+ * lives for the Node action runtime's lifetime; an empty memo (fresh
+ * process) makes the next provision rewrite each provider once, which is
+ * also what picks up env-var key rotations (env changes only land via a
+ * restart).
  */
 const pushedProviderFingerprints = new Map<string, string>();
 
 function providerFingerprint(p: ProviderProvision): string {
-  // baseUrl IS included: for a custom (non-standard) provider it is pushed to
-  // the gateway as network_config.base_url, so a base-URL-only change must bust
-  // the memo and re-provision. Inert for standard providers (their baseUrl is
-  // never pushed, and is a stable value).
+  // baseUrl IS included: for a custom provider it is pushed to the gateway
+  // as network_config.base_url, so a base-URL-only change must bust the memo
+  // and re-provision. Inert for standard providers (their baseUrl is never
+  // pushed and is a stable value).
   return createHash('sha256')
     .update(
       JSON.stringify({
         apiKey: p.apiKey,
         baseUrl: p.baseUrl ?? null,
         apiFormat: p.apiFormat ?? null,
-        models: p.models.map(toGatewayModelRef).sort(),
+        models: [...p.models].sort(),
       }),
     )
     .digest('hex');
 }
 
-/** Whether the gateway has a built-in implementation for this provider name (and so
- * rejects custom_provider_config / a base_url override on it). Standard names
- * keep native dispatch; everything else is provisioned as a custom
- * OpenAI-compatible upstream. */
-function isStandardProvider(p: ProviderProvision): boolean {
-  return isStandardGatewayProvider(p.name);
-}
-
-/** True when a provider cannot be provisioned at all: a non-standard (custom)
- * upstream with no base URL. The gateway requires `network_config.base_url` for a
- * custom provider, so there is nothing to point it at — warn + skip. Standard
- * providers (no base_url needed) and custom providers WITH a base_url both
- * proceed. */
+/** True when a provider cannot be provisioned at all: a custom upstream with
+ * no base URL — the gateway requires `network_config.base_url` for it, so
+ * there is nothing to point it at. Warn + skip. */
 function skipUnprovisionable(p: ProviderProvision): boolean {
-  if (isStandardProvider(p) || p.baseUrl) return false;
+  if (isStandardGatewayProvider(p.name) || p.baseUrl) return false;
   console.warn(
     `[llm-gateway] skipping custom provider '${p.name}' (no base URL to route to)`,
   );
   return true;
 }
 
-/** The gateway's OpenAI handler always appends `/v1/chat/completions` to a custom
- * The upstream base URL Bifrost appends the completions PATH to. We pin that
- * path to `/chat/completions` via `request_path_overrides` (see
+/** The upstream base URL the gateway appends the completions PATH to. That
+ * path is pinned to `/chat/completions` via `request_path_overrides` (see
  * ensureProviderConfig), so the gateway builds `<base>/chat/completions` —
- * EXACTLY the chat path's createOpenAICompatible contract. The base therefore
- * carries the provider's OWN API version in its path (`/v1`, `/api/paas/v4`, …)
- * and must NOT end in a slash (which would double the join to
- * `<base>//chat/completions`). So we strip only a trailing slash and PRESERVE
- * the version segment. (The old approach stripped a trailing `/v1` and relied on
- * Bifrost's default `/v1/chat/completions`; that broke any provider whose version
- * is not `/v1` — e.g. BigModel `.../api/paas/v4` → `.../paas/v4/v1/chat/completions`
- * 404, while chat worked. maximhq/bifrost issue #2356.) */
+ * exactly the platform chat path's contract. The base therefore carries the
+ * provider's OWN API version in its path (`/v1`, `/api/paas/v4`, …) and must
+ * not end in a slash (which would double the join). Strip only a trailing
+ * slash; PRESERVE the version segment — stripping `/v1` and relying on the
+ * gateway's default `/v1/chat/completions` breaks any provider whose version
+ * segment is not `/v1` (maximhq/bifrost issue #2356). */
 function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, '');
 }
 
 /**
- * Stable per-(org,provider) upstream-key name. v1.5.13 keys are a provider
+ * Stable per-(org, provider) upstream-key name. Keys are a provider
  * sub-resource, but their NAME must be unique GLOBALLY across all providers
- * (config store: "API key names must be unique across providers" — carried
- * over from v1.4.8's global key-name index). So the name embeds BOTH the org
- * and the provider: `tale-<orgId>-<provider>`. This lets each org's key
- * coexist under one shared provider record (no last-writer-wins clobber) AND
- * keeps one org's per-provider keys from colliding with each other. The id is
- * gateway-side state (changes if its store is reset); the NAME is the durable
- * handle the mint path resolves by.
+ * (the gateway's config store enforces one key-name index). The name embeds
+ * BOTH the org and the provider so each org's key coexists under one shared
+ * provider record without clobbering, and one org's per-provider keys never
+ * collide with each other. The id is gateway-side state (changes if its
+ * store is reset); the NAME is the durable handle the mint path resolves by.
  */
 function gatewayKeyName(organizationId: string, provider: string): string {
   return `tale-${organizationId}-${provider}`;
@@ -478,8 +439,7 @@ interface GatewayKey {
 }
 
 /** GET /api/providers/:provider/keys — the provider's key sub-resources
- * (v1.5.13; values are masked). Empty when the provider has no keys / is
- * absent. */
+ * (values are masked). Empty when the provider has no keys / is absent. */
 async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
   const res = await fetch(
     `${llmGatewayUrl()}/api/providers/${encodeURIComponent(provider)}/keys`,
@@ -491,8 +451,8 @@ async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
   );
   if (!res.ok) {
     // Treat as "no keys" but log: a transient gateway failure here would
-    // otherwise look like a clean empty set (e.g. the mint path's fail-closed
-    // resolve), masking the real cause.
+    // otherwise look like a clean empty set, masking the real cause behind
+    // the mint path's fail-closed error.
     console.warn(
       `[llm-gateway] list keys for provider ${provider} failed (${res.status}); treating as none`,
     );
@@ -515,10 +475,10 @@ async function resolveOrgProviderKeyId(
 }
 
 /** DELETE /api/providers/:name — remove a provider RECORD (and its key
- * sub-resources). v1.5.13 actually deletes the record (verified: GET 404s
- * after). Used to recreate a custom provider whose immutable
- * `base_provider_type` must change (openai↔anthropic) — the gateway forbids
- * mutating it in place. Tolerates 404 (already gone). */
+ * sub-resources; verified: GET 404s after). Used to recreate a custom
+ * provider whose immutable `base_provider_type` must change
+ * (openai↔anthropic) — the gateway forbids mutating it in place. Tolerates
+ * 404 (already gone). */
 async function deleteGatewayProvider(name: string): Promise<void> {
   const res = await fetch(
     `${llmGatewayUrl()}/api/providers/${encodeURIComponent(name)}`,
@@ -536,30 +496,25 @@ async function deleteGatewayProvider(name: string): Promise<void> {
 }
 
 /** PUT /api/providers/:name — provider RECORD config only (network +
- * concurrency). In v1.5.13 keys are NOT embedded here (they're a sub-resource,
- * see ensureProviderKey); a keys[] in this body is ignored. concurrency must
- * be > 0 or the config validator 400s. Idempotent; safe to call every
- * provision.
+ * concurrency; keys are a sub-resource, a keys[] in this body is ignored;
+ * concurrency must be > 0 or the config validator 400s). Idempotent.
  *
- * A STANDARD gateway provider carries its own base URL — overriding it breaks
- * the built-in URL construction, and the gateway rejects custom_provider_config on
- * it (400) — so we only widen the timeout and, for OpenRouter, add the Tale
- * attribution headers: `extra_headers` ride every upstream request the gateway
- * makes (v1.5.13 NetworkConfig.ExtraHeaders), so sandbox-agent traffic shows up
- * as Tale on OpenRouter's dashboard instead of Unknown. Same canonical helper
- * as the in-platform chat path.
+ * A STANDARD gateway provider carries its own base URL — overriding it
+ * breaks the built-in URL construction and custom_provider_config on it is
+ * rejected — so only the timeouts are widened and, for OpenRouter, the Tale
+ * attribution headers added (`extra_headers` ride every upstream request the
+ * gateway makes, so sandbox-agent traffic shows up as Tale instead of
+ * Unknown — the same canonical helper as the in-platform chat path).
  *
- * A CUSTOM (non-standard) provider is provisioned as an OpenAI-compatible
- * upstream: `network_config.base_url` (its own, trailing slash stripped — see
- * stripTrailingSlash) + `custom_provider_config` declaring base_provider_type
- * "openai", the request types the agent path uses, and `request_path_overrides`
- * pinning the completions path to `/chat/completions`. Bifrost's default is
- * `/v1/chat/completions`, which DOUBLES the version for a base that already
- * carries one in its path (BigModel `.../api/paas/v4` → `.../paas/v4/v1/...` 404);
- * pinning `/chat/completions` makes the gateway contract identical to the chat
- * path's createOpenAICompatible (`<base>/chat/completions`), so any provider that
- * works in chat works for external agents (incl. the /anthropic route, which
- * translates Anthropic↔OpenAI for any non-Claude model). */
+ * A CUSTOM provider is provisioned as an upstream in its declared wire
+ * format: `network_config.base_url` (trailing slash stripped — see
+ * stripTrailingSlash) + `custom_provider_config`. The openai format
+ * restricts requests to chat completions (most custom upstreams have no
+ * /v1/responses) and pins the completions path to `/chat/completions`; the
+ * anthropic format takes the base URL verbatim (the native handler appends
+ * `/v1/messages` itself) and allows all request types so pass-through server
+ * tools survive.
+ */
 async function ensureProviderConfig(
   p: ProviderProvision,
 ): Promise<{ recreated: boolean }> {
@@ -567,12 +522,8 @@ async function ensureProviderConfig(
     providerName: p.name,
     baseUrl: p.baseUrl ?? '',
   });
-  const custom = !isStandardProvider(p);
+  const custom = !isStandardGatewayProvider(p.name);
   const anthropic = custom && p.apiFormat === 'anthropic';
-  // Anthropic base_url is the `/anthropic` endpoint verbatim — the native
-  // Anthropic provider appends `/v1/messages` itself. The openai base keeps its
-  // version segment and drops only a trailing slash; the completions path is
-  // pinned to `/chat/completions` below (see stripTrailingSlash).
   const baseUrl =
     custom && p.baseUrl
       ? anthropic
@@ -582,8 +533,6 @@ async function ensureProviderConfig(
   const body = {
     network_config: {
       default_request_timeout_in_seconds: REQUEST_TIMEOUT_SECONDS,
-      // Don't let a custom OpenAI-compatible upstream's silent prefill / reasoning
-      // gap trip the gateway's 60s default idle abort mid-stream (see the constant).
       stream_idle_timeout_in_seconds: STREAM_IDLE_TIMEOUT_SECONDS,
       ...(baseUrl ? { base_url: baseUrl } : {}),
       ...(Object.keys(attribution).length > 0
@@ -594,23 +543,13 @@ async function ensureProviderConfig(
     ...(custom
       ? {
           custom_provider_config: anthropic
-            ? // Omit allowed_requests ⇒ allow-all ⇒ the Responses path stays
-              // (no Responses→Chat fallback), so Claude Code's web_search
-              // server tool survives to DeepSeek's /anthropic endpoint.
-              { base_provider_type: 'anthropic' }
+            ? { base_provider_type: 'anthropic' }
             : {
                 base_provider_type: 'openai',
-                // Restrict to chat so the OpenAI handler never tries
-                // /v1/responses (most custom openai upstreams have none).
                 allowed_requests: {
                   chat_completion: true,
                   chat_completion_stream: true,
                 },
-                // Pin the completions path to `/chat/completions` so it is
-                // appended to the base AS-IS — matching the chat path's
-                // createOpenAICompatible. Bifrost's default `/v1/chat/completions`
-                // double-versions a base that already carries its version in the
-                // path (e.g. BigModel `.../api/paas/v4`), 404-ing the upstream.
                 request_path_overrides: {
                   chat_completion: '/chat/completions',
                   chat_completion_stream: '/chat/completions',
@@ -630,11 +569,10 @@ async function ensureProviderConfig(
   const res = await putConfig();
   if (res.ok) return { recreated: false };
 
-  // `base_provider_type` and the presence of `custom_provider_config` are
-  // IMMUTABLE in the gateway — a PUT that changes them 400s ("base_provider_type
-  // cannot be changed from X to Y after creation"). This happens when a custom
-  // provider's apiFormat flips (openai↔anthropic). Recreate: delete the record
-  // (its keys go too — caller re-POSTs) then PUT fresh.
+  // A PUT that changes the immutable base type 400s ("base_provider_type
+  // cannot be changed from X to Y after creation") — this happens when a
+  // custom provider's apiFormat flips. Recreate: delete the record (its keys
+  // go too — the caller re-POSTs) then PUT fresh.
   const errBody = sanitizeError(await res.text());
   if (res.status === 400 && /cannot be (changed|removed)/i.test(errBody)) {
     console.warn(
@@ -656,8 +594,8 @@ async function ensureProviderConfig(
 
 /**
  * POST (create) / PUT (rotate) THIS org's upstream key as a sub-resource of
- * the provider (v1.5.13). `existing` is the already-resolved key row (or null)
- * so the caller's single GET serves both the skip check and this write.
+ * the provider. `existing` is the already-resolved key row (or null) so the
+ * caller's single GET serves both the skip check and this write.
  */
 async function writeProviderKey(
   organizationId: string,
@@ -667,7 +605,7 @@ async function writeProviderKey(
   const keyBody = {
     name: gatewayKeyName(organizationId, p.name),
     value: p.apiKey,
-    models: p.models.map(toGatewayModelRef),
+    models: p.models,
     weight: 1,
   };
   const url = existing
@@ -688,13 +626,13 @@ async function writeProviderKey(
 
 /**
  * Ensure a provider's record config + this org's key sub-resource are in the
- * gateway. One GET (list keys) drives both the skip check and the POST-vs-PUT
- * decision: when this org's key already exists AND the fingerprint memo
- * (keyed by org:provider) matches, the whole provider is skipped — no config
- * PUT, no key write — so steady-state session-create is one GET per provider.
- * An empty memo (fresh process) or a missing key rewrites once, which is also
- * what picks up `TALE_PROVIDER_KEY_*` env rotations. GET masks the key value,
- * so memo drift — not a value diff — is the rotation signal.
+ * gateway. One GET (list keys) drives both the skip check and the
+ * POST-vs-PUT decision: when this org's key already exists AND the
+ * fingerprint memo (keyed by org:provider) matches, the whole provider is
+ * skipped — no config PUT, no key write — so steady-state session create is
+ * one GET per provider. An empty memo (fresh process) or a missing key
+ * rewrites once. GET masks the key value, so memo drift — not a value diff —
+ * is the rotation signal.
  */
 async function provisionOne(
   organizationId: string,
@@ -712,18 +650,18 @@ async function provisionOne(
     return; // fully provisioned by this process already
   }
   const { recreated } = await ensureProviderConfig(p);
-  // A recreate (immutable base-type change) deletes the record + its keys, so
-  // the previously-fetched key row is gone — POST a fresh one (existing=null).
+  // A recreate (immutable base-type change) deleted the record + its keys,
+  // so the previously-fetched key row is gone — POST a fresh one.
   await writeProviderKey(organizationId, p, recreated ? null : existing);
   pushedProviderFingerprints.set(memoKey, providerFingerprint(p));
 }
 
 /**
  * Push one provider's current key + model list into the gateway for an org.
- * The provider-save actions call this so a key rotation reaches the gateway
- * immediately instead of at the next session create. Throws on failure —
- * callers own the degrade posture; the memo stays unset, so the next
- * session-create provision retries.
+ * The credential-save actions call this so a key rotation reaches the
+ * gateway immediately instead of at the next session create. Throws on
+ * failure — callers own the degrade posture; the memo stays unset, so the
+ * next session-create provision retries.
  */
 export async function reprovisionProvider(
   organizationId: string,
@@ -734,23 +672,20 @@ export async function reprovisionProvider(
 }
 
 /**
- * Reconcile the org's providers into the gateway: ensure each provider's record
- * config + this org's upstream key (per-org key sub-resource — see
- * ensureProviderKey). Called once per session create so a fresh gateway (or a
- * rotated key) is in place before the first mint; the provider-save actions
- * also push eagerly via reprovisionProvider, making this the self-heal
- * catch-up for pushes that failed (gateway down) or happened in another
- * process.
+ * Reconcile the org's providers into the gateway: ensure each provider's
+ * record config + this org's upstream key. Called once per session create so
+ * a fresh gateway (or a rotated key) is in place before the first mint; the
+ * credential-save actions also push eagerly via reprovisionProvider, making
+ * this the self-heal catch-up for pushes that failed (gateway down) or
+ * happened in another process.
  *
  * Per-org keys coexist under one shared provider record, so multiple orgs
- * holding distinct keys for the same provider no longer clobber each other,
- * and each session VK binds to its own org's key (see mintVirtualKey).
+ * holding distinct keys for the same provider never clobber each other, and
+ * each session VK binds to its own org's key (see mintVirtualKey).
  *
  * Per-provider resilient: a single provider's failure is logged and skipped
- * rather than aborting the whole reconcile. The org's providers all get
- * provisioned here (not just the turn's model provider), so one misconfigured
- * upstream must not starve the others — the turn's actual provider still gets
- * its key, and a genuinely broken one surfaces via mintVirtualKey's
+ * rather than aborting the whole reconcile — one misconfigured upstream must
+ * not starve the others; a genuinely broken one surfaces via mintVirtualKey's
  * fail-closed error, not a silent gap here.
  */
 export async function provisionProviders(
@@ -771,18 +706,22 @@ export async function provisionProviders(
 }
 
 /**
- * Harden the gateway's auth posture (idempotent; safe to call every provision).
- *   - client_config.enforce_auth_on_inference = true → inference REQUIRES a
- *     minted virtual key (a legacy enforce-virtual-keys env never did this;
- *     the gateway only reads this config field). Closes the open-inference hole.
- *   - auth_config (admin basic-auth over /api/*) when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
- *     is set → the management plane stops being anonymous. The stored password is
- *     a bcrypt hash (the gateway compares with bcrypt.CompareHashAndPassword);
- *     managementHeaders() sends the plaintext as Basic auth.
+ * Harden the gateway's auth posture (idempotent; safe to call every
+ * provision):
+ *   - `client_config.enforce_auth_on_inference` → inference REQUIRES a
+ *     minted virtual key (closes open inference).
+ *   - `enforce_governance_header` → allowed_models / key binding is actually
+ *     enforced on that VK (without it the gateway stores allowed_models but
+ *     does not enforce it on the inference path).
+ *   - `auth_config` (admin Basic auth over /api/*) when
+ *     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is set → the management plane stops
+ *     being anonymous. The gateway hashes the stored password itself and
+ *     compares with bcrypt; managementHeaders() sends the plaintext as
+ *     Basic.
  *
- * GET-merge-PUT: `PUT /api/config` reads several client_config fields directly
- * from the payload (EnableLogging, MaxRequestBodySizeMB, …), so we must send
- * the FULL current client_config with only enforce flipped, never a partial.
+ * GET-merge-PUT: `PUT /api/config` reads several client_config fields
+ * directly from the payload, so the FULL current client_config is sent with
+ * only the enforce flags flipped, never a partial.
  */
 export async function applyGatewayConfig(): Promise<void> {
   const getRes = await fetch(`${llmGatewayUrl()}/api/config`, {
@@ -800,8 +739,8 @@ export async function applyGatewayConfig(): Promise<void> {
   const current = cfg.client_config ?? {};
   // `PUT /api/config` re-validates the whole client_config, but GET returns
   // server-side zero-defaults that fail it — notably log_retention_days=0 vs
-  // the `min=1` validator. Echoing the GET'd config back verbatim 400s, so
-  // clamp the known-constrained field before re-PUTting.
+  // the `min=1` validator. Clamp the known-constrained field before
+  // re-PUTting.
   const logRetentionRaw = current.log_retention_days;
   const logRetention =
     typeof logRetentionRaw === 'number' && logRetentionRaw >= 1
@@ -810,24 +749,21 @@ export async function applyGatewayConfig(): Promise<void> {
   const clientConfig = {
     ...current,
     log_retention_days: logRetention,
-    // Inference requires a minted VK (closes open-inference)...
     enforce_auth_on_inference: true,
-    // ...and governance (allowed_models / key binding) is enforced on that VK.
-    // Without this v1.5.x stores allowed_models but does not enforce it on the
-    // inference path — the gap this whole change closes.
     enforce_governance_header: true,
   };
   const body: Record<string, unknown> = { client_config: clientConfig };
   const pw = adminPassword();
   if (pw) {
-    // Send the PLAINTEXT password — the gateway hashes it itself (encrypt.Hash) on
-    // store and compares with bcrypt at request time. Pre-hashing would
+    // Send the PLAINTEXT password — the gateway hashes it itself on store
+    // and compares with bcrypt at request time. Pre-hashing would
     // double-hash and every Basic-auth call would 401.
     body.auth_config = {
       is_enabled: true,
       admin_username: adminUsername(),
       admin_password: pw,
-      // Inference is gated by enforce_auth_on_inference (VK), not admin login.
+      // Inference is gated by enforce_auth_on_inference (VK), not admin
+      // login.
       disable_auth_on_inference: true,
     };
   }
@@ -842,7 +778,8 @@ export async function applyGatewayConfig(): Promise<void> {
   }
 }
 
-/** sha256 hex of a minted virtual key — what we persist (never the plaintext). */
+/** sha256 hex of a minted virtual key — what gets persisted (never the
+ * plaintext). */
 export function hashVirtualKey(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }

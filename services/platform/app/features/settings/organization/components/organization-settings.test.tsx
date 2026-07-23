@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 
 import { useFormEditor } from '@/app/components/ui/editor';
 import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
-import enMessages from '@/messages/en.json';
+import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 

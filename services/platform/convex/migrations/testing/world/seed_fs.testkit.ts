@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import {
   parseProviderJson,
   serializeProviderJson,
-} from '../../../providers/file_utils';
+} from '../../../legacy/frozen/providers_file_utils';
 import { WORLD_ORGS } from './manifest.testkit';
 
 /** Absolute path of the checked-in fixture config root. */

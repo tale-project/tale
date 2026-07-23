@@ -1,0 +1,80 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: bg
+name: Bulgarian
+scripts:
+  - cyrl
+countries:
+  - BG
+phoneContextKeywords:
+  - телефон
+  - мобилен
+  - номер
+  - тел.
+  - тел
+cvcContextKeywords:
+  - код за сигурност
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - inverted
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: \d{4}
+  requireUppercase: false
+  streetKeywordsInverted:
+    - улица
+    - ул.
+    - булевард
+    - бул.
+    - площад
+    - пл.
+  poBoxKeywords:
+    - П.К.
+    - Пощенска кутия
+  floorKeywords:
+    - етаж
+    - ет.
+    - апартамент
+  countryNames:
+    - България
+    - Bulgaria
+    - BG
+  countryPostcodePrefixes: []
+nationalIds: []
+dateOfBirth:
+  monthsLong:
+    - януари
+    - февруари
+    - март
+    - април
+    - май
+    - юни
+    - юли
+    - август
+    - септември
+    - октомври
+    - ноември
+    - декември
+  monthsShort:
+    - ян.
+    - февр.
+    - март
+    - апр.
+    - май
+    - юни
+    - юли
+    - авг.
+    - септ.
+    - окт.
+    - ноем.
+    - дек.
+  contextKeywords:
+    - роден
+    - родена
+    - дата на раждане
+    - род.

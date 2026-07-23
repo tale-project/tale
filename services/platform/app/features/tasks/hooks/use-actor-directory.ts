@@ -1,27 +1,17 @@
 import { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 
-import {
-  useAgentInstallations,
-  useListAgents,
-} from '@/app/features/agents/hooks/queries';
-import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import { useListWorkflows } from '@/app/features/workflows/hooks/file-queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import {
-  getAgentDisplayCategory,
-  getTaskDispatchHintKey,
-  type AgentDisplayCategory,
-  type TaskDispatchHintKey,
-} from '@/lib/shared/agents/display-category';
-import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
+import type {
+  AgentDisplayCategory,
+  TaskDispatchHintKey,
+} from '../lib/agent-display';
 import type { TaskActorType, TaskCreatorType } from '../lib/display';
 import {
   buildAgentRunPreview,
@@ -55,23 +45,28 @@ export interface AssignableAgent extends AssignableActor {
   taskDispatchHintKey: TaskDispatchHintKey | null;
 }
 
+// The agents backend is offline while it is rebuilt, so the directory has no
+// agent or workflow catalog to draw from. Shared frozen instances keep hook
+// results referentially stable across renders.
+const EMPTY_AGENT_LIST: AssignableAgent[] = [];
+const EMPTY_CATALOG = new Map<string, { name: string; description?: string }>();
+
 /**
  * Resolves task actors (comment authors, activity actors, assignees) — which
  * are stored polymorphically as a Better Auth `userId` or an agent slug — to
  * human-readable display names, and exposes the assignable member/agent lists
- * for the assignee picker. Members come from the org directory; agents from the
- * org's agent config files (locale-resolved). Both underlying queries are
- * deduped by their cache key, so calling this in multiple places is cheap.
+ * for the assignee picker. Members come from the org directory.
+ *
+ * The agent and workflow catalogs came from the agents/automations backend,
+ * which is offline while it is rebuilt: until it returns, no agent is
+ * assignable (`agents` stays empty) and a historical agent/workflow actor
+ * resolves to its raw slug instead of a display name. The member paths are
+ * unaffected.
  */
 export function useActorDirectory(organizationId: string, projectId?: string) {
   const { members } = useMembers(organizationId);
-  const { agents: rawAgents } = useListAgents(organizationId);
-  const installs = useAgentInstallations(organizationId);
-  const { workflows: rawWorkflows } = useListWorkflows(organizationId);
   const { data: me } = useCurrentMemberContext(organizationId);
-  const { i18n } = useTranslation();
   const { t } = useT('tasks');
-  const locale = i18n.language;
 
   const previewLabels = useMemo(
     () => ({
@@ -92,34 +87,11 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     [members],
   );
 
-  const enabledAgentSlugs = useMemo(() => {
-    const set = new Set<string>();
-    for (const row of installs.data ?? []) {
-      if (row.enabled) set.add(row.agentSlug);
-    }
-    return set;
-  }, [installs.data]);
-
-  const agentList = useMemo<AssignableAgent[]>(() => {
-    if (installs.isLoading) return [];
-    const list: AssignableAgent[] = [];
-    for (const raw of rawAgents ?? []) {
-      const agent = toConfigurableAgent(raw);
-      if (!agent) continue;
-      if (!enabledAgentSlugs.has(agent.name)) continue;
-      const category = getAgentDisplayCategory(agent);
-      if (category === 'image-agent') continue;
-      const resolved = resolveAgentLocale(agent, locale);
-      list.push({
-        type: 'agent',
-        id: agent.name,
-        name: resolved.displayName || agent.name,
-        displayCategory: category,
-        taskDispatchHintKey: getTaskDispatchHintKey(agent),
-      });
-    }
-    return list;
-  }, [rawAgents, locale, enabledAgentSlugs, installs.isLoading]);
+  // Empty while the agents backend is rebuilt — kept as stable module-level
+  // constants so memos and effects downstream never re-fire.
+  const agentList = EMPTY_AGENT_LIST;
+  const agentCatalog = EMPTY_CATALOG;
+  const workflowCatalog = EMPTY_CATALOG;
 
   const memberMap = useMemo(() => {
     const map = new Map<string, AssignableActor>();
@@ -132,42 +104,6 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     for (const a of agentList) map.set(a.id, a);
     return map;
   }, [agentList]);
-
-  const agentCatalog = useMemo(() => {
-    const map = new Map<string, { name: string; description?: string }>();
-    for (const raw of rawAgents ?? []) {
-      const agent = toConfigurableAgent(raw);
-      if (!agent) continue;
-      const resolved = resolveAgentLocale(agent, locale);
-      map.set(agent.name, {
-        name: resolved.displayName || agent.name,
-        description: resolved.description ?? agent.description,
-      });
-    }
-    return map;
-  }, [rawAgents, locale]);
-
-  const workflowCatalog = useMemo(() => {
-    const map = new Map<string, { name: string; description?: string }>();
-    for (const raw of rawWorkflows ?? []) {
-      if (
-        !raw ||
-        typeof raw !== 'object' ||
-        !('slug' in raw) ||
-        !('name' in raw)
-      )
-        continue;
-      const slug = typeof raw.slug === 'string' ? raw.slug : undefined;
-      const name = typeof raw.name === 'string' ? raw.name : undefined;
-      if (!slug || !name) continue;
-      map.set(slug, {
-        name,
-        description:
-          typeof raw.description === 'string' ? raw.description : undefined,
-      });
-    }
-    return map;
-  }, [rawWorkflows]);
 
   const resolveActor = useMemo(
     () =>

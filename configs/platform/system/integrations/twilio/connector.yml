@@ -1,0 +1,250 @@
+# Integration connector — Twilio REST API (2010-04-01). HTTP Basic carries the
+# credential: the Account SID is the username, the Auth Token the password, and
+# the platform injects the Authorization header. The Account SID also names the
+# resource path, so the live bodies read it from `ctx.secrets` to build each URL;
+# writes post form-encoded bodies the way Twilio expects. Reads return the
+# resource(s) under a named key plus Twilio's paging URI. Every mock is
+# deterministic — same input, same output, no IO.
+name: twilio
+displayName: Twilio
+description: Send SMS and make voice calls with Twilio.
+tags:
+  - Messaging
+allowedHosts:
+  - api.twilio.com
+auth:
+  - method: basic
+actions:
+  - name: send_sms
+    description: Send an SMS message via Twilio.
+    effects: write
+    input:
+      type: object
+      required: [to, from, body]
+      properties:
+        to:
+          type: string
+          description: 'Recipient phone number in E.164 format (e.g. +15551234567).'
+        from:
+          type: string
+          description: 'Twilio phone number to send from, in E.164 format (e.g. +15559876543).'
+        body:
+          type: string
+          description: 'Text content of the SMS message.'
+    output: '{ sid: string, status: string, to: string, from: string }'
+    mock: |
+      return { sid: 'SM' + String(input.to.length + input.body.length).padStart(32, '0'), status: 'queued', to: input.to, from: input.from };
+    backend:
+      kind: yaml-js
+      live: |
+        const accountSid = ctx.secrets.get('username');
+        if (!accountSid) throw new Error('Twilio send_sms failed: the credential is missing the Account SID (the basic-auth username).');
+        const form = { To: input.to, From: input.from, Body: input.body };
+        const encoded = Object.keys(form).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(String(form[k]))).join('&');
+        const r = await ctx.http.post(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`, { headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: encoded });
+        if (!r.status || r.status >= 400) throw new Error(`Twilio send_sms failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        const j = r.json();
+        return { sid: j.sid, status: j.status, to: j.to, from: j.from };
+    exampleInput:
+      {
+        to: '+15551234567',
+        from: '+15559876543',
+        body: 'Your order has shipped.',
+      }
+  - name: list_messages
+    description: List SMS messages, optionally filtered by number or send date.
+    effects: read
+    input:
+      type: object
+      properties:
+        to:
+          type: string
+          description: 'Filter by recipient phone number in E.164 format.'
+        from:
+          type: string
+          description: 'Filter by sender phone number in E.164 format.'
+        dateSent:
+          type: string
+          format: date
+          description: 'Filter by date sent (YYYY-MM-DD).'
+        pageSize:
+          type: number
+          description: 'Number of messages per page (max 1000, default 50).'
+        page:
+          type: number
+          description: 'Page number (0-based).'
+    output: '{ messages: Array<{ sid: string, body: string, status: string, to: string, from: string, date_sent: string }>, next_page_uri: string | null }'
+    mock: |
+      return {
+        messages: [{ sid: 'SM' + '1'.padStart(32, '0'), body: 'Your order has shipped.', status: 'delivered', to: input.to || '+15551234567', from: input.from || '+15559876543', date_sent: '2024-01-01T00:00:00Z' }],
+        next_page_uri: null,
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const accountSid = ctx.secrets.get('username');
+        if (!accountSid) throw new Error('Twilio list_messages failed: the credential is missing the Account SID (the basic-auth username).');
+        const q = [];
+        if (input.to != null && input.to !== '') q.push('To=' + encodeURIComponent(String(input.to)));
+        if (input.from != null && input.from !== '') q.push('From=' + encodeURIComponent(String(input.from)));
+        if (input.dateSent != null && input.dateSent !== '') q.push('DateSent=' + encodeURIComponent(String(input.dateSent)));
+        q.push('PageSize=' + Math.min(Number(input.pageSize) || 50, 1000));
+        if (input.page != null) q.push('Page=' + encodeURIComponent(String(input.page)));
+        const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json?${q.join('&')}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Twilio list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        const j = r.json();
+        return { messages: j.messages || [], next_page_uri: j.next_page_uri || null };
+    exampleInput: { to: '+15551234567', pageSize: 20 }
+  - name: get_message
+    description: Get one SMS message by its SID.
+    effects: read
+    input:
+      type: object
+      required: [messageSid]
+      properties:
+        messageSid:
+          type: string
+          description: 'Twilio message SID (e.g. SM1234567890abcdef1234567890abcdef).'
+    output: '{ message: { sid: string, body: string, status: string, to: string, from: string, date_sent: string } }'
+    mock: |
+      return { message: { sid: input.messageSid, body: 'Your order has shipped.', status: 'delivered', to: '+15551234567', from: '+15559876543', date_sent: '2024-01-01T00:00:00Z' } };
+    backend:
+      kind: yaml-js
+      live: |
+        const accountSid = ctx.secrets.get('username');
+        if (!accountSid) throw new Error('Twilio get_message failed: the credential is missing the Account SID (the basic-auth username).');
+        const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages/${encodeURIComponent(input.messageSid)}.json`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Twilio get_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 404 ? 'message not found' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        return { message: r.json() };
+    exampleInput: { messageSid: 'SM1234567890abcdef1234567890abcdef' }
+  - name: list_calls
+    description: List voice calls, optionally filtered by number or status.
+    effects: read
+    input:
+      type: object
+      properties:
+        to:
+          type: string
+          description: 'Filter by recipient phone number in E.164 format.'
+        from:
+          type: string
+          description: 'Filter by caller phone number in E.164 format.'
+        status:
+          type: string
+          description: 'Filter by call status: queued, ringing, in-progress, completed, busy, failed, no-answer, or canceled.'
+        pageSize:
+          type: number
+          description: 'Number of calls per page (max 1000, default 50).'
+        page:
+          type: number
+          description: 'Page number (0-based).'
+    output: '{ calls: Array<{ sid: string, status: string, to: string, from: string, duration: string }>, next_page_uri: string | null }'
+    mock: |
+      return {
+        calls: [{ sid: 'CA' + '1'.padStart(32, '0'), status: input.status || 'completed', to: input.to || '+15551234567', from: input.from || '+15559876543', duration: '42' }],
+        next_page_uri: null,
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const accountSid = ctx.secrets.get('username');
+        if (!accountSid) throw new Error('Twilio list_calls failed: the credential is missing the Account SID (the basic-auth username).');
+        const q = [];
+        if (input.to != null && input.to !== '') q.push('To=' + encodeURIComponent(String(input.to)));
+        if (input.from != null && input.from !== '') q.push('From=' + encodeURIComponent(String(input.from)));
+        if (input.status != null && input.status !== '') q.push('Status=' + encodeURIComponent(String(input.status)));
+        q.push('PageSize=' + Math.min(Number(input.pageSize) || 50, 1000));
+        if (input.page != null) q.push('Page=' + encodeURIComponent(String(input.page)));
+        const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Calls.json?${q.join('&')}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Twilio list_calls failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        const j = r.json();
+        return { calls: j.calls || [], next_page_uri: j.next_page_uri || null };
+    exampleInput: { status: 'completed', pageSize: 20 }
+  - name: make_call
+    description: Start an outbound voice call via Twilio.
+    effects: write
+    input:
+      type: object
+      required: [to, from, url]
+      properties:
+        to:
+          type: string
+          description: 'Recipient phone number in E.164 format (e.g. +15551234567).'
+        from:
+          type: string
+          description: 'Twilio phone number to call from, in E.164 format.'
+        url:
+          type: string
+          description: 'TwiML URL containing the instructions for the call.'
+        method:
+          type: string
+          description: 'HTTP method Twilio uses to fetch the TwiML URL: GET or POST (default POST).'
+    output: '{ sid: string, status: string, to: string, from: string }'
+    mock: |
+      return { sid: 'CA' + String(input.to.length + input.url.length).padStart(32, '0'), status: 'queued', to: input.to, from: input.from };
+    backend:
+      kind: yaml-js
+      live: |
+        const accountSid = ctx.secrets.get('username');
+        if (!accountSid) throw new Error('Twilio make_call failed: the credential is missing the Account SID (the basic-auth username).');
+        const form = { To: input.to, From: input.from, Url: input.url };
+        if (input.method != null && input.method !== '') form.Method = input.method;
+        const encoded = Object.keys(form).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(String(form[k]))).join('&');
+        const r = await ctx.http.post(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Calls.json`, { headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: encoded });
+        if (!r.status || r.status >= 400) throw new Error(`Twilio make_call failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        const j = r.json();
+        return { sid: j.sid, status: j.status, to: j.to, from: j.from };
+    exampleInput:
+      {
+        to: '+15551234567',
+        from: '+15559876543',
+        url: 'https://example.com/twiml/greeting.xml',
+      }
+  - name: get_account
+    description: Get the Twilio account the credential belongs to.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ account: { sid: string, friendly_name: string, status: string, type: string } }'
+    mock: |
+      return { account: { sid: 'AC' + '1'.padStart(32, '0'), friendly_name: 'Demo Account', status: 'active', type: 'Full' } };
+    backend:
+      kind: yaml-js
+      live: |
+        const accountSid = ctx.secrets.get('username');
+        if (!accountSid) throw new Error('Twilio get_account failed: the credential is missing the Account SID (the basic-auth username).');
+        const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}.json`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Twilio get_account failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 404 ? 'account not found' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        return { account: r.json() };
+    exampleInput: {}
+  - name: list_phone_numbers
+    description: List the incoming phone numbers the Twilio account owns.
+    effects: read
+    input:
+      type: object
+      properties:
+        pageSize:
+          type: number
+          description: 'Number of phone numbers per page (max 1000, default 50).'
+        page:
+          type: number
+          description: 'Page number (0-based).'
+    output: '{ phone_numbers: Array<{ sid: string, phone_number: string, friendly_name: string }>, next_page_uri: string | null }'
+    mock: |
+      return {
+        phone_numbers: [{ sid: 'PN' + '1'.padStart(32, '0'), phone_number: '+15559876543', friendly_name: 'Main line' }],
+        next_page_uri: null,
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const accountSid = ctx.secrets.get('username');
+        if (!accountSid) throw new Error('Twilio list_phone_numbers failed: the credential is missing the Account SID (the basic-auth username).');
+        const q = ['PageSize=' + Math.min(Number(input.pageSize) || 50, 1000)];
+        if (input.page != null) q.push('Page=' + encodeURIComponent(String(input.page)));
+        const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/IncomingPhoneNumbers.json?${q.join('&')}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Twilio list_phone_numbers failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        const j = r.json();
+        return { phone_numbers: j.incoming_phone_numbers || [], next_page_uri: j.next_page_uri || null };
+    exampleInput: { pageSize: 20 }

@@ -21,28 +21,31 @@ const applyGatewayConfig = vi.fn();
 const hashVirtualKey = vi.fn();
 const mintVirtualKey = vi.fn();
 const provisionProviders = vi.fn();
-const resolveGatewayRoutingFromRef = vi.fn();
 
-vi.mock('./llm_gateway_admin', () => ({
-  applyGatewayConfig: (...args: unknown[]) => applyGatewayConfig(...args),
-  hashVirtualKey: (...args: unknown[]) => hashVirtualKey(...args),
-  mintVirtualKey: (...args: unknown[]) => mintVirtualKey(...args),
-  provisionProviders: (...args: unknown[]) => provisionProviders(...args),
-  resolveGatewayRoutingFromRef: (...args: unknown[]) =>
-    resolveGatewayRoutingFromRef(...args),
+vi.mock('./llm_gateway_admin', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./llm_gateway_admin')>();
+  return {
+    // resolveGatewayRouting stays real: it is a pure mapping and the
+    // env-triplet assertion should pin its actual output.
+    resolveGatewayRouting: original.resolveGatewayRouting,
+    applyGatewayConfig: (...args: unknown[]) => applyGatewayConfig(...args),
+    hashVirtualKey: (...args: unknown[]) => hashVirtualKey(...args),
+    mintVirtualKey: (...args: unknown[]) => mintVirtualKey(...args),
+    provisionProviders: (...args: unknown[]) => provisionProviders(...args),
+  };
+});
+
+const resolveOrgVisionModel = vi.fn();
+
+vi.mock('../../lib/providers/resolve_vision_model', () => ({
+  resolveOrgVisionModel: (...args: unknown[]) => resolveOrgVisionModel(...args),
 }));
 
-const resolveLanguageModel = vi.fn();
+const buildProviderProvision = vi.fn();
 
-vi.mock('../../providers/resolve_model', () => ({
-  resolveLanguageModel: (...args: unknown[]) => resolveLanguageModel(...args),
-}));
-
-const loadOrgGatewayProviders = vi.fn();
-
-vi.mock('../../providers/file_actions', () => ({
-  loadOrgGatewayProviders: (...args: unknown[]) =>
-    loadOrgGatewayProviders(...args),
+vi.mock('./gateway_provisioning', () => ({
+  buildProviderProvision: (...args: unknown[]) =>
+    buildProviderProvision(...args),
 }));
 
 import { armVisionLane } from './thread_session';
@@ -60,14 +63,17 @@ const makeCtx = () => {
 };
 
 const armHappyMocks = () => {
-  resolveLanguageModel.mockResolvedValue({
-    modelData: { providerName: 'openrouter', modelId: 'qwen-vl-max' },
+  resolveOrgVisionModel.mockResolvedValue({
+    providerSlug: 'openrouter',
+    modelId: 'qwen/qwen-vl-max',
   });
-  resolveGatewayRoutingFromRef.mockReturnValue({
-    gatewayProvider: 'openrouter',
-    gatewayModel: 'openrouter/qwen-vl-max',
+  buildProviderProvision.mockResolvedValue({
+    name: 'openrouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    apiFormat: 'openai',
+    apiKey: 'sk-live',
+    models: ['qwen/qwen-vl-max'],
   });
-  loadOrgGatewayProviders.mockResolvedValue([{ name: 'openrouter' }]);
   provisionProviders.mockResolvedValue(undefined);
   applyGatewayConfig.mockResolvedValue(undefined);
   mintVirtualKey.mockResolvedValue({ key: 'sk-bf-test-key', keyId: 'vk_1' });
@@ -87,23 +93,24 @@ describe('armVisionLane', () => {
     await armVisionLane(ctx, ARGS);
 
     // Provisioning ran before the mint (mint fails closed without it).
+    expect(buildProviderProvision).toHaveBeenCalledWith(ctx, {
+      organizationId: 'org_1',
+      providerSlug: 'openrouter',
+    });
     expect(provisionProviders).toHaveBeenCalledWith('org_1', [
-      { name: 'openrouter' },
+      expect.objectContaining({ name: 'openrouter' }),
     ]);
     expect(applyGatewayConfig).toHaveBeenCalledTimes(1);
 
-    // The key allows exactly the resolved vision ref, on the small budget.
-    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
-    const mintArgs = mintVirtualKey.mock.calls[0]?.[0] as {
-      budgetCents: number;
-      allowedModels: string[];
-      organizationId: string;
-      sessionId: string;
-    };
-    expect(mintArgs.budgetCents).toBe(200);
-    expect(mintArgs.allowedModels).toHaveLength(1);
-    expect(mintArgs.organizationId).toBe('org_1');
-    expect(mintArgs.sessionId).toBe('thr-thr_1');
+    // The key allows exactly the resolved vision model, on the small budget.
+    expect(mintVirtualKey).toHaveBeenCalledWith({
+      budgetCents: 200,
+      allowedModels: [
+        { providerSlug: 'openrouter', modelId: 'qwen/qwen-vl-max' },
+      ],
+      organizationId: 'org_1',
+      sessionId: 'thr-thr_1',
+    });
 
     // Token row: hash only, gateway key id for teardown revoke, scoped shape.
     // (Which mutation the ref points at is typechecked; Convex api refs are
@@ -130,7 +137,9 @@ describe('armVisionLane', () => {
     expect(mutationArgs.tokenHash).toBe('hash-of-key');
     expect(mutationArgs.llmGatewayKeyId).toBe('vk_1');
     expect(mutationArgs.scope.agentKind).toBe('run_code_vision');
-    expect(mutationArgs.scope.allowedModels).toEqual(mintArgs.allowedModels);
+    expect(mutationArgs.scope.allowedModels).toEqual([
+      'openrouter/qwen/qwen-vl-max',
+    ]);
     expect(mutationArgs.scope.integrationGrants).toEqual([]);
     expect(mutationArgs.scope.toolGrants).toEqual([]);
     expect(mutationArgs.scope.budgetCents).toBe(200);
@@ -143,7 +152,7 @@ describe('armVisionLane', () => {
       set: {
         TALE_GATEWAY_URL: 'http://sandbox-llm-gateway:8080',
         TALE_GATEWAY_TOKEN: 'sk-bf-test-key',
-        TALE_VISION_MODEL: 'openrouter/qwen-vl-max',
+        TALE_VISION_MODEL: 'openrouter/qwen/qwen-vl-max',
       },
     });
     const insertOrder = runMutation.mock.invocationCallOrder[0] ?? Infinity;
@@ -151,63 +160,78 @@ describe('armVisionLane', () => {
     expect(insertOrder).toBeLessThan(patchOrder);
   });
 
-  it('skips provisioning when the org has no gateway providers', async () => {
+  it('no vision-capable model → skips silently (no mint, no patch, no throw)', async () => {
     armHappyMocks();
-    loadOrgGatewayProviders.mockResolvedValue([]);
-    const { ctx } = makeCtx();
-
-    await armVisionLane(ctx, ARGS);
-
-    expect(provisionProviders).not.toHaveBeenCalled();
-    expect(applyGatewayConfig).toHaveBeenCalledTimes(1);
-    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
-    expect(sessionEnvPatch).toHaveBeenCalledTimes(1);
-  });
-
-  it('no vision-tagged model → skips silently (no mint, no patch, no throw)', async () => {
-    armHappyMocks();
-    resolveLanguageModel.mockRejectedValue(
-      new Error('no model with tag vision'),
-    );
+    resolveOrgVisionModel.mockResolvedValue(null);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { ctx, runMutation } = makeCtx();
 
     await expect(armVisionLane(ctx, ARGS)).resolves.toBeUndefined();
-
     expect(mintVirtualKey).not.toHaveBeenCalled();
     expect(runMutation).not.toHaveBeenCalled();
     expect(sessionEnvPatch).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('no gateway-servable vision-capable model'),
+    );
+    warn.mockRestore();
+  });
+
+  it('skips the provider push when no provision could be built, but still mints (fails closed downstream)', async () => {
+    armHappyMocks();
+    buildProviderProvision.mockResolvedValue(null);
+    const { ctx } = makeCtx();
+
+    await armVisionLane(ctx, ARGS);
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
   });
 
   it('mint failure → no token row, no env patch, no throw', async () => {
     armHappyMocks();
-    mintVirtualKey.mockRejectedValue(new Error('gateway 503'));
+    mintVirtualKey.mockRejectedValue(new Error('mint down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { ctx, runMutation } = makeCtx();
 
     await expect(armVisionLane(ctx, ARGS)).resolves.toBeUndefined();
-
     expect(runMutation).not.toHaveBeenCalled();
     expect(sessionEnvPatch).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('env patch failure → no throw; the row exists so teardown still revokes', async () => {
     armHappyMocks();
-    sessionEnvPatch.mockRejectedValue(new Error('spawner 502'));
+    sessionEnvPatch.mockRejectedValue(new Error('runnerd down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { ctx, runMutation } = makeCtx();
 
     await expect(armVisionLane(ctx, ARGS)).resolves.toBeUndefined();
-
     expect(runMutation).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it('gateway auth-posture failure → skips the lane (never a fail-open key)', async () => {
     armHappyMocks();
     applyGatewayConfig.mockRejectedValue(new Error('config PUT failed'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { ctx, runMutation } = makeCtx();
 
     await expect(armVisionLane(ctx, ARGS)).resolves.toBeUndefined();
-
     expect(mintVirtualKey).not.toHaveBeenCalled();
     expect(runMutation).not.toHaveBeenCalled();
     expect(sessionEnvPatch).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('a vision-resolution crash is contained (no throw into session create)', async () => {
+    armHappyMocks();
+    resolveOrgVisionModel.mockRejectedValue(new Error('catalog exploded'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx, runMutation } = makeCtx();
+
+    await expect(armVisionLane(ctx, ARGS)).resolves.toBeUndefined();
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

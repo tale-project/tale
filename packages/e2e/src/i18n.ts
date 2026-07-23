@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 
+import { parse as parseYaml } from 'yaml';
+
 /**
  * Resolve UI labels from a service's `messages/en.json` so locators never
  * hardcode English literals (AGENTS.md i18n rule). Every frontend service
@@ -19,7 +21,7 @@ export interface I18nResolver {
 }
 
 export function createI18n(messagesLocation: URL | string): I18nResolver {
-  const parsed: unknown = JSON.parse(readFileSync(messagesLocation, 'utf8'));
+  const parsed: unknown = parseYaml(readFileSync(messagesLocation, 'utf8'));
   if (!isRecord(parsed)) {
     throw new Error(
       `messages JSON did not parse to an object: ${messagesLocation.toString()}`,

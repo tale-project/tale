@@ -488,7 +488,7 @@ describe('agentCreateTask — description mention fallback (#2637)', () => {
     return scheduled.filter((job) => job.name.includes('runAgentOnTask'));
   }
 
-  it('schedules runAgentOnTask for an @mentioned agent on a fresh org (no pack installed)', async () => {
+  it('creates the task but schedules no runAgentOnTask for the @mention — direct dispatch is offline', async () => {
     const t = convexTest(schema, modules);
     const projectId = await seedProject(t, 'Ops');
 
@@ -503,14 +503,10 @@ describe('agentCreateTask — description mention fallback (#2637)', () => {
       },
     );
 
-    const runs = await scheduledAgentRuns(t);
-    expect(runs).toHaveLength(1);
-    expect(runs[0]?.args[0]).toMatchObject({
-      organizationId: ORG,
-      agentSlug: 'assistant',
-      taskId,
-      trigger: 'mention',
-    });
+    // The task itself still materializes normally — only the mention's agent
+    // dispatch is offline.
+    expect(await taskTitle(t, taskId)).toBe('Investigate outage');
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
   });
 
   it('does not dispatch when the task.mentioned pack is installed and active — the automation stays the single owner', async () => {

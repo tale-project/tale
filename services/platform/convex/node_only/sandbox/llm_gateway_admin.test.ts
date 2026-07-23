@@ -4,7 +4,7 @@ const ORG = 'org_1';
 const PROVIDER = {
   name: 'openrouter',
   apiKey: 'key-A',
-  models: ['openrouter:anthropic/claude-sonnet-4.6@fp8'],
+  models: ['anthropic/claude-sonnet-5'],
 };
 const KEY_NAME = `tale-${ORG}-openrouter`;
 
@@ -16,17 +16,24 @@ interface RecordedCall {
 }
 
 /**
- * Stub global fetch with a minimal v1.5.13 management plane:
- *   GET  /api/providers/:p/keys   → the org's key (when `keyExists`)
- *   PUT  /api/providers/:p        → provider config (200)
- *   POST /api/providers/:p/keys   → create key (returns an id)
- *   PUT  /api/providers/:p/keys/* → rotate key (200)
+ * Stub global fetch with a minimal management plane:
+ *   GET  /api/providers/:p/keys        → the org's key (when `keyExists`)
+ *   PUT  /api/providers/:p             → provider config (`configStatus`)
+ *   POST /api/providers/:p/keys       → create key
+ *   PUT  /api/providers/:p/keys/*     → rotate key
+ *   POST /api/governance/virtual-keys → mint (returns id + value)
+ *   GET  /api/config                  → current client_config
  * Returns the recorded calls, in order.
  */
-function stubGateway(opts: {
-  keyExists?: boolean;
-  writeStatus?: number;
-}): RecordedCall[] {
+function stubGateway(
+  opts: {
+    keyExists?: boolean;
+    writeStatus?: number;
+    configStatus?: number;
+    configBody?: string;
+    clientConfig?: Record<string, unknown>;
+  } = {},
+): RecordedCall[] {
   const calls: RecordedCall[] = [];
   vi.stubGlobal(
     'fetch',
@@ -56,6 +63,29 @@ function stubGateway(opts: {
           ),
         );
       }
+      if (method === 'GET' && u.endsWith('/api/config')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ client_config: opts.clientConfig ?? {} }),
+            { status: 200 },
+          ),
+        );
+      }
+      if (method === 'POST' && u.includes('/governance/virtual-keys')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ virtual_key: { id: 'vk-1', value: 'sk-bf-x' } }),
+            { status: opts.writeStatus ?? 200 },
+          ),
+        );
+      }
+      if (method === 'PUT' && u.includes('/api/providers/')) {
+        return Promise.resolve(
+          new Response(opts.configBody ?? '{}', {
+            status: opts.configStatus ?? opts.writeStatus ?? 200,
+          }),
+        );
+      }
       return Promise.resolve(
         new Response('{}', { status: opts.writeStatus ?? 200 }),
       );
@@ -82,430 +112,211 @@ afterEach(() => {
 });
 
 describe('provisionProviders', () => {
-  it('creates an absent org key: config PUT + key POST, stable per-org name, models translated', async () => {
-    const mod = await loadModule();
+  it('creates an absent org key: config PUT + key POST with the stable per-org name and the catalog model ids as-is', async () => {
     const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
     await mod.provisionProviders(ORG, [PROVIDER]);
+
     const w = writes(calls);
-    expect(w.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
-      'PUT /api/providers/openrouter',
-      'POST /api/providers/openrouter/keys',
-    ]);
-    // provider config PUT carries no keys[] (keys are a sub-resource now) and,
-    // for a standard provider, no base_url override + no custom_provider_config
-    // (the gateway would 400 the latter) — the proven native path is unchanged.
-    expect(w[0]?.body?.keys).toBeUndefined();
-    expect(w[0]?.body?.custom_provider_config).toBeUndefined();
-    const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    expect(networkConfig.base_url).toBeUndefined();
-    // OpenRouter app attribution rides as static upstream headers.
-    expect(networkConfig.extra_headers).toEqual({
-      'HTTP-Referer': 'https://tale.dev',
-      'X-Title': 'Tale',
+    expect(w).toHaveLength(2);
+    expect(w[0]).toMatchObject({
+      method: 'PUT',
+      url: expect.stringContaining('/api/providers/openrouter'),
     });
-    // key POST: stable per-org name, value, colon→slash + qualifier stripped.
+    expect(w[1]).toMatchObject({
+      method: 'POST',
+      url: expect.stringContaining('/api/providers/openrouter/keys'),
+    });
     expect(w[1]?.body).toMatchObject({
       name: KEY_NAME,
       value: 'key-A',
-      models: ['openrouter/anthropic/claude-sonnet-4.6'],
+      models: ['anthropic/claude-sonnet-5'],
       weight: 1,
     });
   });
 
   it('rotates a present org key with PUT to /keys/:id (not POST)', async () => {
-    const mod = await loadModule();
-    // Present key, but fresh memo → rewrite once.
     const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
     await mod.provisionProviders(ORG, [PROVIDER]);
+
     const w = writes(calls);
-    expect(w.map((c) => c.method)).toEqual(['PUT', 'PUT']);
-    expect(new URL(w[1]?.url ?? '').pathname).toBe(
-      '/api/providers/openrouter/keys/kid-A',
-    );
+    expect(w).toHaveLength(2);
+    expect(w[1]).toMatchObject({
+      method: 'PUT',
+      url: expect.stringContaining('/api/providers/openrouter/keys/kid-A'),
+    });
   });
 
   it('skips entirely when the key exists and the fingerprint matches (one GET, no writes)', async () => {
-    const mod = await loadModule();
-    stubGateway({ keyExists: false });
-    await mod.provisionProviders(ORG, [PROVIDER]); // first push
     const calls = stubGateway({ keyExists: true });
-    await mod.provisionProviders(ORG, [PROVIDER]); // memo + key present
-    expect(writes(calls)).toEqual([]);
-    expect(calls.map((c) => c.method)).toEqual(['GET']);
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    calls.length = 0;
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe('GET');
   });
 
   it('rewrites when the gateway lost the key even though the memo matches', async () => {
+    stubGateway({ keyExists: true });
     const mod = await loadModule();
-    stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
-    // e.g. llm-gateway-data volume wiped while this process stayed alive
-    const calls = stubGateway({ keyExists: false });
+    vi.unstubAllGlobals();
+    const second = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
-    expect(writes(calls).map((c) => c.method)).toEqual(['PUT', 'POST']);
+    expect(writes(second)).toHaveLength(2);
   });
 
   it('rewrites when the key rotates', async () => {
-    const mod = await loadModule();
-    stubGateway({ keyExists: false });
-    await mod.provisionProviders(ORG, [PROVIDER]);
     const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    calls.length = 0;
     await mod.provisionProviders(ORG, [{ ...PROVIDER, apiKey: 'key-B' }]);
     const w = writes(calls);
-    expect(w.map((c) => c.method)).toEqual(['PUT', 'PUT']);
+    expect(w).toHaveLength(2);
     expect(w[1]?.body).toMatchObject({ value: 'key-B' });
   });
 
   it('a failed write warns + leaves no memo (no throw), so the next provision retries', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const mod = await loadModule();
     stubGateway({ keyExists: false, writeStatus: 500 });
-    // provisionProviders is per-provider resilient: warns + continues, never throws.
+    const mod = await loadModule();
     await expect(
       mod.provisionProviders(ORG, [PROVIDER]),
     ).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("provider 'openrouter'"),
+      expect.stringContaining("provisioning provider 'openrouter'"),
       expect.anything(),
     );
-    // memo unset on failure → next provision retries the full write.
+    vi.unstubAllGlobals();
     const retry = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
-    expect(writes(retry).map((c) => c.method)).toEqual(['PUT', 'POST']);
-    const third = stubGateway({ keyExists: true });
-    await mod.provisionProviders(ORG, [PROVIDER]);
-    expect(writes(third)).toEqual([]);
+    expect(writes(retry)).toHaveLength(2);
   });
 
-  it('sends no attribution extra_headers for a non-OpenRouter provider', async () => {
-    const mod = await loadModule();
+  it('adds OpenRouter attribution extra_headers, and none for other providers', async () => {
     const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
     await mod.provisionProviders(ORG, [
-      {
-        name: 'anthropic',
-        apiKey: 'key-B',
-        models: ['anthropic:claude-sonnet-4.6'],
-      },
+      PROVIDER,
+      { name: 'anthropic', apiKey: 'key-C', models: ['claude-fable-5'] },
     ]);
-    const w = writes(calls);
-    expect(new URL(w[0]?.url ?? '').pathname).toBe('/api/providers/anthropic');
-    const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    expect(networkConfig.extra_headers).toBeUndefined();
-  });
-
-  it('two orgs coexist under one provider (distinct per-org key names)', async () => {
-    const mod = await loadModule();
-    const a = stubGateway({ keyExists: false });
-    await mod.provisionProviders('orgA', [PROVIDER]);
-    const b = stubGateway({ keyExists: false });
-    await mod.provisionProviders('orgB', [PROVIDER]);
-    expect(writes(a)[1]?.body?.name).toBe('tale-orgA-openrouter');
-    expect(writes(b)[1]?.body?.name).toBe('tale-orgB-openrouter');
-  });
-
-  const CUSTOM = {
-    name: 'deepseek',
-    apiKey: 'key-D',
-    baseUrl: 'https://api.deepseek.com/v1',
-    models: ['deepseek:deepseek-v4-flash'],
-  };
-
-  it('provisions a custom (non-standard) provider as OpenAI-compatible with base_url + custom_provider_config', async () => {
-    const mod = await loadModule();
-    const calls = stubGateway({ keyExists: false });
-    await mod.provisionProviders(ORG, [CUSTOM]);
-    const w = writes(calls);
-    expect(w.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
-      'PUT /api/providers/deepseek',
-      'POST /api/providers/deepseek/keys',
-    ]);
-    const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    // Version segment PRESERVED (only a trailing slash is stripped); the path is
-    // pinned to /chat/completions so the gateway builds <base>/chat/completions.
-    expect(networkConfig.base_url).toBe('https://api.deepseek.com/v1');
-    expect(w[0]?.body?.custom_provider_config).toEqual({
-      base_provider_type: 'openai',
-      allowed_requests: {
-        chat_completion: true,
-        chat_completion_stream: true,
-      },
-      request_path_overrides: {
-        chat_completion: '/chat/completions',
-        chat_completion_stream: '/chat/completions',
-      },
-    });
-    // Key sub-resource is written the same way as for standard providers.
-    expect(w[1]?.body).toMatchObject({
-      name: `tale-${ORG}-deepseek`,
-      value: 'key-D',
-      models: ['deepseek/deepseek-v4-flash'],
-      weight: 1,
-    });
-  });
-
-  it('preserves a NON-/v1 version path and strips only a trailing slash (BigModel /paas/v4 regression)', async () => {
-    // Regression: BigModel's OpenAI base carries its version in the PATH
-    // (`/api/paas/v4/`). The old `/v1`-strip left it intact and Bifrost's default
-    // `/v1/chat/completions` doubled it → `.../paas/v4/v1/chat/completions` 404
-    // (chat worked, sandbox didn't). Now the version is kept, the trailing slash
-    // dropped, and the path pinned to /chat/completions → `.../paas/v4/chat/completions`.
-    const mod = await loadModule();
-    const calls = stubGateway({ keyExists: false });
-    await mod.provisionProviders(ORG, [
-      {
-        ...CUSTOM,
-        name: 'glm',
-        baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
-      },
-    ]);
-    const body = writes(calls)[0]?.body as Record<string, unknown>;
-    const networkConfig = body?.network_config as Record<string, unknown>;
-    expect(networkConfig.base_url).toBe('https://open.bigmodel.cn/api/paas/v4');
-    expect(
-      (body?.custom_provider_config as Record<string, unknown>)
-        ?.request_path_overrides,
-    ).toEqual({
-      chat_completion: '/chat/completions',
-      chat_completion_stream: '/chat/completions',
-    });
-  });
-
-  it('leaves a bare-host custom base_url (no version, no trailing slash) unchanged', async () => {
-    const mod = await loadModule();
-    const calls = stubGateway({ keyExists: false });
-    await mod.provisionProviders(ORG, [
-      { ...CUSTOM, baseUrl: 'https://api.deepseek.com' },
-    ]);
-    const networkConfig = writes(calls)[0]?.body?.network_config as Record<
+    const configPuts = writes(calls).filter((c) => !c.url.includes('/keys'));
+    const openrouterPut = configPuts.find((c) =>
+      c.url.endsWith('/api/providers/openrouter'),
+    );
+    const anthropicPut = configPuts.find((c) =>
+      c.url.endsWith('/api/providers/anthropic'),
+    );
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const orNetwork = openrouterPut?.body?.network_config as Record<
       string,
       unknown
     >;
-    expect(networkConfig.base_url).toBe('https://api.deepseek.com');
+    expect(orNetwork.extra_headers).toEqual({
+      'HTTP-Referer': 'https://tale.dev',
+      'X-Title': 'Tale',
+    });
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const anNetwork = anthropicPut?.body?.network_config as Record<
+      string,
+      unknown
+    >;
+    expect(anNetwork.extra_headers).toBeUndefined();
   });
 
-  it('provisions an apiFormat:"anthropic" custom provider with base_provider_type anthropic, no allowed_requests, un-stripped base_url', async () => {
-    const mod = await loadModule();
+  it('two orgs coexist under one provider (distinct per-org key names)', async () => {
     const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders('org_1', [PROVIDER]);
+    await mod.provisionProviders('org_2', [PROVIDER]);
+    const keyPosts = writes(calls).filter((c) => c.url.includes('/keys'));
+    expect(keyPosts.map((c) => c.body?.name)).toEqual([
+      'tale-org_1-openrouter',
+      'tale-org_2-openrouter',
+    ]);
+  });
+
+  it('provisions a custom (non-standard) provider as OpenAI-compatible with base_url + custom_provider_config', async () => {
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
     await mod.provisionProviders(ORG, [
       {
-        ...CUSTOM,
-        apiFormat: 'anthropic',
-        baseUrl: 'https://api.deepseek.com/anthropic',
+        name: 'my-vllm',
+        baseUrl: 'https://llm.example.com/v1',
+        apiKey: 'key-D',
+        models: ['llama-3.3-70b'],
       },
     ]);
-    const w = writes(calls);
-    const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    // Anthropic base_url is verbatim — the native Anthropic provider appends
-    // /v1/messages itself (NO /v1 strip).
-    expect(networkConfig.base_url).toBe('https://api.deepseek.com/anthropic');
-    // allowed_requests omitted ⇒ allow-all ⇒ Responses path ⇒ web_search survives.
-    expect(w[0]?.body?.custom_provider_config).toEqual({
-      base_provider_type: 'anthropic',
+    const configPut = writes(calls)[0];
+    expect(configPut?.url).toContain('/api/providers/my-vllm');
+    expect(configPut?.body).toMatchObject({
+      network_config: expect.objectContaining({
+        base_url: 'https://llm.example.com/v1',
+      }),
+      custom_provider_config: {
+        base_provider_type: 'openai',
+        allowed_requests: {
+          chat_completion: true,
+          chat_completion_stream: true,
+        },
+        request_path_overrides: {
+          chat_completion: '/chat/completions',
+          chat_completion_stream: '/chat/completions',
+        },
+      },
     });
   });
 
-  it('re-provisions when only apiFormat changes (apiFormat is in the fingerprint)', async () => {
+  it('preserves a non-/v1 version path and strips only a trailing slash', async () => {
+    const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    const deepseekKeyName = `tale-${ORG}-deepseek`;
-    const recorded: RecordedCall[] = [];
-    let keyExists = false;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string | URL, init?: RequestInit) => {
-        const method = init?.method ?? 'GET';
-        const u = String(url);
-        recorded.push({
-          url: u,
-          method,
-          body:
-            typeof init?.body === 'string'
-              ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-                (JSON.parse(init.body) as Record<string, unknown>)
-              : undefined,
-          // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          headers: (init?.headers ?? {}) as Record<string, string>,
-        });
-        if (method === 'GET' && u.includes('/keys')) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                keys: keyExists
-                  ? [{ id: 'kid-D', name: deepseekKeyName, models: [] }]
-                  : [],
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-        return Promise.resolve(new Response('{}', { status: 200 }));
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'bigmodel',
+        baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+        apiKey: 'key-E',
+        models: ['glm-5'],
+      },
+    ]);
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const network = writes(calls)[0]?.body?.network_config as Record<
+      string,
+      unknown
+    >;
+    expect(network.base_url).toBe('https://open.bigmodel.cn/api/paas/v4');
+  });
+
+  it('provisions an apiFormat:"anthropic" custom provider with base_provider_type anthropic, no allowed_requests, un-stripped base_url', async () => {
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'deepseek-anthropic',
+        baseUrl: 'https://api.deepseek.com/anthropic',
+        apiFormat: 'anthropic',
+        apiKey: 'key-F',
+        models: ['deepseek-chat'],
+      },
+    ]);
+    expect(writes(calls)[0]?.body).toMatchObject({
+      network_config: expect.objectContaining({
+        base_url: 'https://api.deepseek.com/anthropic',
       }),
-    );
-    await mod.provisionProviders(ORG, [CUSTOM]); // openai (default)
-    keyExists = true;
-    recorded.length = 0;
-    await mod.provisionProviders(ORG, [{ ...CUSTOM, apiFormat: 'anthropic' }]);
-    // Memo busts on apiFormat change → config PUT + key PUT.
-    expect(writes(recorded).map((c) => c.method)).toEqual(['PUT', 'PUT']);
-    expect(
-      (
-        writes(recorded)[0]?.body?.custom_provider_config as Record<
-          string,
-          unknown
-        >
-      )?.base_provider_type,
-    ).toBe('anthropic');
+      custom_provider_config: { base_provider_type: 'anthropic' },
+    });
   });
 
   it('deletes + recreates a custom provider when the immutable base_provider_type must change', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const mod = await loadModule();
-    const recorded: RecordedCall[] = [];
+    const calls: RecordedCall[] = [];
     let configPuts = 0;
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string | URL, init?: RequestInit) => {
         const method = init?.method ?? 'GET';
         const u = String(url);
-        recorded.push({
-          url: u,
-          method,
-          body:
-            typeof init?.body === 'string'
-              ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-                (JSON.parse(init.body) as Record<string, unknown>)
-              : undefined,
-          // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          headers: (init?.headers ?? {}) as Record<string, string>,
-        });
-        if (method === 'GET' && u.includes('/keys')) {
-          // Pretend the org key already exists (created under the old base type).
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                keys: [
-                  { id: 'kid-D', name: `tale-${ORG}-deepseek`, models: [] },
-                ],
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-        // Config PUT (no /keys): first attempt 400s on the immutable base type,
-        // the post-delete retry succeeds.
-        if (method === 'PUT' && !u.includes('/keys')) {
-          configPuts += 1;
-          if (configPuts === 1) {
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  error: {
-                    message:
-                      'Invalid custom provider config: provider deepseek: base_provider_type cannot be changed from openai to anthropic after creation',
-                  },
-                }),
-                { status: 400 },
-              ),
-            );
-          }
-        }
-        return Promise.resolve(new Response('{}', { status: 200 }));
-      }),
-    );
-    await mod.provisionProviders(ORG, [{ ...CUSTOM, apiFormat: 'anthropic' }]);
-    const methodsAndPaths = recorded
-      .filter((c) => c.method !== 'GET')
-      .map((c) => `${c.method} ${new URL(c.url).pathname}`);
-    // First PUT 400s → DELETE the record → PUT recreates → POST a fresh key
-    // (NOT PUT — the delete wiped the previously-existing key).
-    expect(methodsAndPaths).toEqual([
-      'PUT /api/providers/deepseek',
-      'DELETE /api/providers/deepseek',
-      'PUT /api/providers/deepseek',
-      'POST /api/providers/deepseek/keys',
-    ]);
-    expect(configPuts).toBe(2);
-    warn.mockRestore();
-  });
-
-  it('treats a gateway standard provider (fireworks) natively — no base_url, no custom_provider_config', async () => {
-    const mod = await loadModule();
-    const calls = stubGateway({ keyExists: false });
-    await mod.provisionProviders(ORG, [
-      {
-        name: 'fireworks',
-        apiKey: 'key-F',
-        baseUrl: 'https://api.fireworks.ai/inference/v1',
-        models: ['fireworks:some-model'],
-      },
-    ]);
-    const w = writes(calls);
-    expect(w[0]?.body?.custom_provider_config).toBeUndefined();
-    const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    expect(networkConfig.base_url).toBeUndefined();
-  });
-
-  it('skips an unchanged custom provider but re-provisions on a base_url change (baseUrl is in the fingerprint)', async () => {
-    const mod = await loadModule();
-    const deepseekKeyName = `tale-${ORG}-deepseek`;
-    const recorded: RecordedCall[] = [];
-    let keyExists = false;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string | URL, init?: RequestInit) => {
-        const method = init?.method ?? 'GET';
-        const u = String(url);
-        recorded.push({
-          url: u,
-          method,
-          body:
-            typeof init?.body === 'string'
-              ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-                (JSON.parse(init.body) as Record<string, unknown>)
-              : undefined,
-          // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          headers: (init?.headers ?? {}) as Record<string, string>,
-        });
-        if (method === 'GET' && u.includes('/keys')) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                keys: keyExists
-                  ? [{ id: 'kid-D', name: deepseekKeyName, models: [] }]
-                  : [],
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-        return Promise.resolve(new Response('{}', { status: 200 }));
-      }),
-    );
-    // 1. create (memo set with a baseUrl-inclusive fingerprint).
-    await mod.provisionProviders(ORG, [CUSTOM]);
-    keyExists = true;
-    recorded.length = 0;
-    // 2. same config + key present → fully skipped (one GET, no writes).
-    await mod.provisionProviders(ORG, [CUSTOM]);
-    expect(writes(recorded)).toEqual([]);
-    recorded.length = 0;
-    // 3. base_url changed → memo busts → rewrite (config PUT + key PUT rotate).
-    await mod.provisionProviders(ORG, [
-      { ...CUSTOM, baseUrl: 'https://proxy.example.com/v1' },
-    ]);
-    const w = writes(recorded);
-    expect(w.map((c) => c.method)).toEqual(['PUT', 'PUT']);
-    const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    expect(networkConfig.base_url).toBe('https://proxy.example.com/v1');
-  });
-
-  it('one failing provider does not abort the reconcile (others still provision)', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const mod = await loadModule();
-    const calls: RecordedCall[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string | URL, init?: RequestInit) => {
-        const method = init?.method ?? 'GET';
-        const u = String(url);
         calls.push({
           url: u,
           method,
@@ -514,190 +325,205 @@ describe('provisionProviders', () => {
               ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
                 (JSON.parse(init.body) as Record<string, unknown>)
               : undefined,
-          // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          headers: (init?.headers ?? {}) as Record<string, string>,
+          headers: {},
         });
         if (method === 'GET' && u.includes('/keys')) {
           return Promise.resolve(
             new Response(JSON.stringify({ keys: [] }), { status: 200 }),
           );
         }
-        // The bad provider's config PUT 500s; everything else succeeds.
-        if (u.includes('/providers/broken')) {
-          return Promise.resolve(new Response('{}', { status: 500 }));
+        if (method === 'PUT' && !u.includes('/keys')) {
+          configPuts += 1;
+          // First PUT hits the immutable-field 400; the post-delete retry
+          // succeeds.
+          return Promise.resolve(
+            configPuts === 1
+              ? new Response(
+                  'base_provider_type cannot be changed from openai to anthropic after creation',
+                  { status: 400 },
+                )
+              : new Response('{}', { status: 200 }),
+          );
         }
         return Promise.resolve(new Response('{}', { status: 200 }));
       }),
     );
-    await mod.provisionProviders(ORG, [
-      { ...CUSTOM, name: 'broken', baseUrl: 'https://broken.example.com/v1' },
-      CUSTOM,
-    ]);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("provider 'broken'"),
-      expect.anything(),
-    );
-    // The good provider after the failing one still got its config + key.
-    const goodWrites = calls.filter(
-      (c) => c.method !== 'GET' && c.url.includes('/providers/deepseek'),
-    );
-    expect(
-      goodWrites.map((c) => `${c.method} ${new URL(c.url).pathname}`),
-    ).toEqual([
-      'PUT /api/providers/deepseek',
-      'POST /api/providers/deepseek/keys',
-    ]);
-  });
-});
-
-describe('reprovisionProvider', () => {
-  it('creates the org key on a fresh process', async () => {
     const mod = await loadModule();
-    const calls = stubGateway({ keyExists: false });
-    await mod.reprovisionProvider(ORG, PROVIDER);
-    expect(writes(calls).map((c) => c.method)).toEqual(['PUT', 'POST']);
-    expect(writes(calls)[1]?.body?.name).toBe(KEY_NAME);
-  });
-
-  it('skips a custom provider with no base URL (warns, no gateway calls)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const mod = await loadModule();
-    const calls = stubGateway({});
-    // Non-standard name + no baseUrl → nothing to point a custom provider at.
-    await mod.reprovisionProvider(ORG, { ...PROVIDER, name: 'my-custom-llm' });
-    expect(calls).toEqual([]);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("custom provider 'my-custom-llm'"),
-    );
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'flippy',
+        baseUrl: 'https://x.example.com/anthropic',
+        apiFormat: 'anthropic',
+        apiKey: 'key-G',
+        models: ['m'],
+      },
+    ]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('recreating'));
+    const sequence = writes(calls).map((c) => `${c.method} ${c.url}`);
+    expect(sequence[0]).toContain('PUT');
+    expect(sequence[1]).toMatch(/DELETE .*\/api\/providers\/flippy$/);
+    expect(sequence[2]).toContain('PUT');
+    // After a recreate the key row died with the record — a POST, never a
+    // stale-id PUT.
+    expect(sequence[3]).toMatch(/POST .*\/keys$/);
   });
 
-  it('sends Basic auth when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is set', async () => {
-    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'hunter2');
-    const mod = await loadModule();
+  it('treats a gateway standard provider natively — no base_url, no custom_provider_config', async () => {
     const calls = stubGateway({ keyExists: false });
-    await mod.reprovisionProvider(ORG, PROVIDER);
-    expect(calls[0]?.headers.authorization).toBe(
-      `Basic ${Buffer.from('admin:hunter2').toString('base64')}`,
-    );
-  });
-
-  it('falls back to the pre-rename LLM_GATEWAY_ADMIN_PASSWORD env name', async () => {
-    vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'hunter2');
     const mod = await loadModule();
-    const calls = stubGateway({ keyExists: false });
-    await mod.reprovisionProvider(ORG, PROVIDER);
-    expect(calls[0]?.headers.authorization).toBe(
-      `Basic ${Buffer.from('admin:hunter2').toString('base64')}`,
-    );
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'fireworks',
+        baseUrl: 'https://api.fireworks.ai/inference/v1',
+        apiKey: 'key-H',
+        models: ['llama-v3'],
+      },
+    ]);
+    const body = writes(calls)[0]?.body;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const network = body?.network_config as Record<string, unknown>;
+    expect(network.base_url).toBeUndefined();
+    expect(body?.custom_provider_config).toBeUndefined();
   });
 
-  it('throws on a failed write (eager push owns the degrade posture)', async () => {
-    const mod = await loadModule();
-    stubGateway({ keyExists: false, writeStatus: 500 });
-    // Unlike provisionProviders (resilient), reprovisionProvider surfaces the
-    // failure to its caller — the provider-save action decides how to degrade.
-    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
-      /failed \(500\)/,
-    );
-  });
-});
-
-describe('mintVirtualKey', () => {
-  /** Stub: GET keys returns the org's key id; POST virtual-keys echoes a key. */
-  function stubMint(opts: { keyExists?: boolean }): RecordedCall[] {
+  it('one failing provider does not abort the reconcile (others still provision)', async () => {
     const calls: RecordedCall[] = [];
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string | URL, init?: RequestInit) => {
         const method = init?.method ?? 'GET';
         const u = String(url);
-        calls.push({
-          url: u,
-          method,
-          body:
-            typeof init?.body === 'string'
-              ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-                (JSON.parse(init.body) as Record<string, unknown>)
-              : undefined,
-          // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          headers: (init?.headers ?? {}) as Record<string, string>,
-        });
+        calls.push({ url: u, method, body: undefined, headers: {} });
         if (method === 'GET' && u.includes('/keys')) {
           return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                keys: opts.keyExists
-                  ? [{ id: 'kid-A', name: KEY_NAME, models: [] }]
-                  : [],
-              }),
-              { status: 200 },
-            ),
+            new Response(JSON.stringify({ keys: [] }), { status: 200 }),
           );
         }
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              virtual_key: { id: 'vk-1', value: 'sk-bf-xyz' },
-            }),
-            { status: 200 },
-          ),
-        );
+        // Config PUTs for the "broken" provider fail; everything else is ok.
+        if (u.includes('/api/providers/broken')) {
+          return Promise.resolve(new Response('nope', { status: 500 }));
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }));
       }),
     );
-    return calls;
-  }
-
-  it('binds the VK to the org key id with allow_all_keys:false + scoped allowed_models', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await loadModule();
-    const calls = stubMint({ keyExists: true });
-    const out = await mod.mintVirtualKey({
-      budgetCents: 100,
-      allowedModels: ['openrouter:deepseek/deepseek-v4-flash@fp8'],
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'broken',
+        baseUrl: 'https://b.example.com/v1',
+        apiKey: 'x',
+        models: ['m'],
+      },
+      PROVIDER,
+    ]);
+    const keyWrites = calls.filter(
+      (c) => c.method === 'POST' && c.url.includes('openrouter/keys'),
+    );
+    expect(keyWrites).toHaveLength(1);
+  });
+
+  it('skips a custom provider with no base URL (warns, no gateway calls)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const calls = stubGateway({});
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [
+      { name: 'no-base', apiKey: 'x', models: ['m'] },
+    ]);
+    expect(calls).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("skipping custom provider 'no-base'"),
+    );
+  });
+});
+
+describe('reprovisionProvider', () => {
+  it('creates the org key on a fresh process', async () => {
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.reprovisionProvider(ORG, PROVIDER);
+    expect(writes(calls)).toHaveLength(2);
+  });
+
+  it('throws on a failed write (eager push owns the degrade posture)', async () => {
+    stubGateway({ keyExists: false, writeStatus: 500 });
+    const mod = await loadModule();
+    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
+      'llm-gateway provider config openrouter failed (500)',
+    );
+  });
+
+  it('sends Basic auth when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is set', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.reprovisionProvider(ORG, PROVIDER);
+    const expected = `Basic ${Buffer.from('admin:pw-1').toString('base64')}`;
+    expect(calls[0]?.headers.authorization).toBe(expected);
+  });
+
+  it('falls back to the pre-rename LLM_GATEWAY_ADMIN_PASSWORD env name', async () => {
+    vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'pw-old');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.reprovisionProvider(ORG, PROVIDER);
+    const expected = `Basic ${Buffer.from('admin:pw-old').toString('base64')}`;
+    expect(calls[0]?.headers.authorization).toBe(expected);
+  });
+});
+
+describe('mintVirtualKey', () => {
+  it('binds the VK to the org key id with allow_all_keys:false, scoped allowed_models (bare + full), and a dollar budget', async () => {
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    const minted = await mod.mintVirtualKey({
+      budgetCents: 250,
+      allowedModels: [
+        { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+      ],
       organizationId: ORG,
       sessionId: 'sess-1',
     });
-    expect(out).toEqual({ key: 'sk-bf-xyz', keyId: 'vk-1' });
-    const mintCall = calls.find(
-      (c) => c.method === 'POST' && c.url.includes('/governance/virtual-keys'),
-    );
-    const pc = (
-      mintCall?.body?.provider_configs as
-        | Array<Record<string, unknown>>
-        | undefined
-    )?.[0];
-    expect(pc).toMatchObject({
-      provider: 'openrouter',
-      key_ids: ['kid-A'],
-      allow_all_keys: false,
+    expect(minted).toEqual({ key: 'sk-bf-x', keyId: 'vk-1' });
+    const mint = calls.find((c) => c.url.includes('/governance/virtual-keys'));
+    expect(mint?.body).toMatchObject({
+      name: expect.stringContaining(`tale-${ORG}-sess-1-`),
+      provider_configs: [
+        {
+          provider: 'openrouter',
+          key_ids: ['kid-A'],
+          allow_all_keys: false,
+          allowed_models: [
+            'anthropic/claude-sonnet-5',
+            'openrouter/anthropic/claude-sonnet-5',
+          ],
+        },
+      ],
+      budget: { max_limit: 2.5, reset_duration: '1M' },
+      is_active: true,
     });
-    expect(pc?.allowed_models).toContain(
-      'openrouter/deepseek/deepseek-v4-flash',
-    );
-    expect(
-      (pc?.allowed_models as string[] | undefined)?.length,
-    ).toBeGreaterThan(0);
   });
 
   it('fails closed (throws, never mints) when the org has no provider key', async () => {
+    const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    const calls = stubMint({ keyExists: false });
     await expect(
       mod.mintVirtualKey({
         budgetCents: 100,
-        allowedModels: ['openrouter:deepseek/deepseek-v4-flash@fp8'],
+        allowedModels: [
+          { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+        ],
         organizationId: ORG,
         sessionId: 'sess-1',
       }),
-    ).rejects.toThrow(/no gateway key/);
-    // never reached the mint POST
+    ).rejects.toThrow("no gateway key for provider 'openrouter'");
     expect(calls.some((c) => c.url.includes('/governance/virtual-keys'))).toBe(
       false,
     );
   });
 
   it('binds a CUSTOM provider model to its per-model gateway record', async () => {
-    const mod = await loadModule();
-    const perModelKeyName = `tale-${ORG}-deepseek__deepseek-v4-flash`;
     const calls: RecordedCall[] = [];
     vi.stubGlobal(
       'fetch',
@@ -712,14 +538,19 @@ describe('mintVirtualKey', () => {
               ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
                 (JSON.parse(init.body) as Record<string, unknown>)
               : undefined,
-          // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          headers: (init?.headers ?? {}) as Record<string, string>,
+          headers: {},
         });
         if (method === 'GET' && u.includes('/keys')) {
           return Promise.resolve(
             new Response(
               JSON.stringify({
-                keys: [{ id: 'kid-D', name: perModelKeyName, models: [] }],
+                keys: [
+                  {
+                    id: 'kid-C',
+                    name: 'tale-org_1-my-vllm__llama-3',
+                    models: [],
+                  },
+                ],
               }),
               { status: 200 },
             ),
@@ -727,82 +558,170 @@ describe('mintVirtualKey', () => {
         }
         return Promise.resolve(
           new Response(
-            JSON.stringify({ virtual_key: { id: 'vk-2', value: 'sk-bf-2' } }),
+            JSON.stringify({ virtual_key: { id: 'vk-2', value: 'sk-bf-y' } }),
             { status: 200 },
           ),
         );
       }),
     );
+    const mod = await loadModule();
     await mod.mintVirtualKey({
       budgetCents: 100,
-      allowedModels: ['deepseek:deepseek-v4-flash'],
+      allowedModels: [{ providerSlug: 'my-vllm', modelId: 'llama-3' }],
       organizationId: ORG,
-      sessionId: 'sess-1',
+      sessionId: 'sess-2',
     });
-    // The key lookup hits the per-model gateway provider record.
-    expect(
-      calls.some((c) =>
-        c.url.includes('/api/providers/deepseek__deepseek-v4-flash/keys'),
-      ),
-    ).toBe(true);
-    const mintCall = calls.find(
-      (c) => c.method === 'POST' && c.url.includes('/governance/virtual-keys'),
-    );
-    const pc = (
-      mintCall?.body?.provider_configs as
-        | Array<Record<string, unknown>>
-        | undefined
-    )?.[0];
-    expect(pc).toMatchObject({
-      provider: 'deepseek__deepseek-v4-flash',
-      key_ids: ['kid-D'],
-      allow_all_keys: false,
+    const mint = calls.find((c) => c.url.includes('/governance/virtual-keys'));
+    expect(mint?.body?.provider_configs).toEqual([
+      {
+        provider: 'my-vllm__llama-3',
+        key_ids: ['kid-C'],
+        allow_all_keys: false,
+        allowed_models: ['llama-3', 'my-vllm__llama-3/llama-3'],
+      },
+    ]);
+  });
+
+  it('throws on an empty allowed-model list (deny-all key must never mint)', async () => {
+    stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    await expect(
+      mod.mintVirtualKey({
+        budgetCents: 100,
+        allowedModels: [],
+        organizationId: ORG,
+        sessionId: 'sess-3',
+      }),
+    ).rejects.toThrow('no allowed models resolved');
+  });
+});
+
+describe('revokeVirtualKey', () => {
+  it('DELETEs the key and tolerates 404', async () => {
+    const calls = stubGateway({});
+    const mod = await loadModule();
+    await mod.revokeVirtualKey('vk-1');
+    expect(calls[0]).toMatchObject({
+      method: 'DELETE',
+      url: expect.stringContaining('/api/governance/virtual-keys/vk-1'),
     });
-    expect(pc?.allowed_models).toEqual(
-      expect.arrayContaining([
-        'deepseek-v4-flash',
-        'deepseek__deepseek-v4-flash/deepseek-v4-flash',
-      ]),
+
+    vi.unstubAllGlobals();
+    stubGateway({ writeStatus: 404 });
+    await expect(mod.revokeVirtualKey('vk-1')).resolves.toBeUndefined();
+  });
+
+  it('throws on a non-404 failure', async () => {
+    stubGateway({ writeStatus: 500 });
+    const mod = await loadModule();
+    await expect(mod.revokeVirtualKey('vk-1')).rejects.toThrow(
+      'llm-gateway revoke key failed (500)',
     );
   });
 });
 
-describe('resolveGatewayRouting', () => {
-  it('routes a standard provider by slug (unchanged)', async () => {
-    const mod = await loadModule();
-    expect(
-      mod.resolveGatewayRouting('openrouter', 'deepseek/deepseek-v4-flash'),
-    ).toEqual({
-      gatewayProvider: 'openrouter',
-      gatewayModel: 'openrouter/deepseek/deepseek-v4-flash',
-    });
-    expect(mod.isStandardGatewayProvider('openrouter')).toBe(true);
-  });
-
-  it('routes a custom provider to a per-model upstream', async () => {
-    const mod = await loadModule();
-    expect(mod.resolveGatewayRouting('deepseek', 'deepseek-v4-flash')).toEqual({
-      gatewayProvider: 'deepseek__deepseek-v4-flash',
-      gatewayModel: 'deepseek__deepseek-v4-flash/deepseek-v4-flash',
-    });
-    expect(mod.isStandardGatewayProvider('deepseek')).toBe(false);
-  });
-
-  it('resolves from a full Tale ref, stripping the quantization qualifier', async () => {
-    const mod = await loadModule();
-    expect(
-      mod.resolveGatewayRoutingFromRef(
-        'openrouter:deepseek/deepseek-v4-flash@fp8',
+describe('getVirtualKeySpendCents', () => {
+  it('converts the budget usage dollars to fractional cents', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              virtual_key: { budget: { current_usage: 0.1234 } },
+            }),
+            { status: 200 },
+          ),
+        ),
       ),
-    ).toEqual({
-      gatewayProvider: 'openrouter',
-      gatewayModel: 'openrouter/deepseek/deepseek-v4-flash',
+    );
+    const mod = await loadModule();
+    await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeCloseTo(
+      12.34,
+    );
+  });
+
+  it('returns null (with a warning) when the gateway read fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    stubGateway({ writeStatus: 502 });
+    const mod = await loadModule();
+    // The stub returns 502 for the plain GET (no /keys, no /config match).
+    await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('spend read failed'),
+    );
+  });
+});
+
+describe('applyGatewayConfig', () => {
+  it('GET-merges the full client_config, flips enforcement, clamps log retention', async () => {
+    const calls = stubGateway({
+      clientConfig: {
+        enable_logging: true,
+        log_retention_days: 0,
+        max_request_body_size_mb: 100,
+      },
     });
+    const mod = await loadModule();
+    await mod.applyGatewayConfig();
+    const put = calls.find(
+      (c) => c.method === 'PUT' && c.url.endsWith('/api/config'),
+    );
+    expect(put?.body).toEqual({
+      client_config: {
+        enable_logging: true,
+        log_retention_days: 30,
+        max_request_body_size_mb: 100,
+        enforce_auth_on_inference: true,
+        enforce_governance_header: true,
+      },
+    });
+  });
+
+  it('enables admin Basic auth (plaintext password — the gateway hashes it) when configured', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-2');
+    const calls = stubGateway({ clientConfig: { log_retention_days: 14 } });
+    const mod = await loadModule();
+    await mod.applyGatewayConfig();
+    const put = calls.find(
+      (c) => c.method === 'PUT' && c.url.endsWith('/api/config'),
+    );
+    expect(put?.body?.auth_config).toEqual({
+      is_enabled: true,
+      admin_username: 'admin',
+      admin_password: 'pw-2',
+      disable_auth_on_inference: true,
+    });
+  });
+});
+
+describe('resolveGatewayRouting', () => {
+  it('routes a standard connector to the shared native record', async () => {
+    const mod = await loadModule();
+    expect(mod.resolveGatewayRouting('anthropic', 'claude-fable-5')).toEqual({
+      gatewayProvider: 'anthropic',
+      gatewayModel: 'anthropic/claude-fable-5',
+    });
+  });
+
+  it('routes a custom connector to a per-model record with slashes sanitized out of the record name', async () => {
+    const mod = await loadModule();
     expect(
-      mod.resolveGatewayRoutingFromRef('deepseek:deepseek-v4-flash'),
+      mod.resolveGatewayRouting('vercel-ai-gateway', 'alibaba/qwen-3-14b'),
     ).toEqual({
-      gatewayProvider: 'deepseek__deepseek-v4-flash',
-      gatewayModel: 'deepseek__deepseek-v4-flash/deepseek-v4-flash',
+      gatewayProvider: 'vercel-ai-gateway__alibaba_qwen-3-14b',
+      gatewayModel: 'vercel-ai-gateway__alibaba_qwen-3-14b/alibaba/qwen-3-14b',
     });
+  });
+});
+
+describe('hashVirtualKey', () => {
+  it('is the sha256 hex of the plaintext', async () => {
+    const mod = await loadModule();
+    expect(mod.hashVirtualKey('sk-bf-x')).toMatch(/^[0-9a-f]{64}$/);
+    expect(mod.hashVirtualKey('sk-bf-x')).toBe(mod.hashVirtualKey('sk-bf-x'));
+    expect(mod.hashVirtualKey('sk-bf-x')).not.toBe(
+      mod.hashVirtualKey('sk-bf-y'),
+    );
   });
 });

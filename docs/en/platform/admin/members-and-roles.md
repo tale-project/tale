@@ -35,7 +35,7 @@ Pick the role on the form before you submit; promoting or changing it later is a
 
 **Developer** builds: agents, workflows, integrations, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the integration tooling.
 
-**Editor** curates and operates: agents, the knowledge base (documents, contacts, products, vendors, websites), the conversation inbox, approvals, the prompt library. Editors can read workflows but not modify them; they can read integrations but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or integration plane.
+**Editor** curates and operates: agents, the knowledge base (documents, contacts, products, vendors, websites), the conversation inbox, approvals, the skill library. Editors can read workflows but not modify them; they can read integrations but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or integration plane.
 
 **Member** runs: chat, browse the knowledge base, and read conversations and approvals. Conversation read is org-wide by default; turn on **Conversation assignee control** under [Policies and limits](/platform/admin/governance/policies-and-limits#conversation-assignee-control) when Members should only see unassigned threads plus those assigned to them or their teams. Members write only to message feedback (thumbs up / down). Reach for Member as the default — most users in most organisations are Members.
 

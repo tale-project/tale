@@ -7,7 +7,7 @@ Entwicklung ist der Abschnitt für Integratoren und Contributors — alle, die T
 
 Wenn du innerhalb des Produkts als Entwickler-Rolle arbeitest (Agents, Workflows, eigene Tools), deckt der Reiter Plattform deinen Alltag ab; Entwicklung ist dann gefragt, wenn du außerhalb des Produkts stehst und über die Leitung mit ihm sprichst.
 
-Lieber erst zusehen? Die Bonus-Episode geht die Entwickler-Oberfläche ab — Schlüssel, APIs, Webhooks, Sandbox-Coding-Agenten — in gut zwei Minuten.
+Lieber erst zusehen? Die Bonus-Episode geht die Entwickler-Oberfläche ab — Schlüssel, APIs, Webhooks, Sandbox-Agents — in gut zwei Minuten.
 
 <Video src="/videos/de/tutorials/ep10-developers/ep10-developers.de.mp4" poster="/videos/de/tutorials/ep10-developers/ep10-developers.de.webp" captions="/videos/de/tutorials/ep10-developers/ep10-developers.de.vtt" lang="de" title="Bonus — Tale für Entwickler" caption="Bonus — Tale für Entwickler (2:38)">
 

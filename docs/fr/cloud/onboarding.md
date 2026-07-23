@@ -59,7 +59,7 @@ Pour la matrice des rôles (qui peut faire quoi), voir [Membres et rôles](/fr/p
 
 <Step title="Ajoute un fournisseur de modèles">
 
-Ouvre **Paramètres > Fournisseurs IA** et clique sur **Ajouter un fournisseur**. Choisis le fournisseur pour lequel tu as des identifiants et colle la clé API. Enregistre. Tale valide la clé en arrière-plan ; une confirmation sur la ligne du fournisseur signifie que la clé fonctionne. Si la validation échoue, la ligne affiche l’erreur telle quelle — la cause la plus fréquente est un espace autour de la clé.
+Ouvre **Paramètres > Fournisseurs IA**, repère le connecteur pour lequel tu détiens une clé et clique sur **Ajouter un identifiant**. Donne-lui un nom qui dira plus tard de quelle clé il s’agit, choisis **Clé API** comme méthode d’authentification et colle la clé. Elle est stockée chiffrée et devient l’identifiant par défaut du connecteur quand c’est le premier ; un second identifiant sur le même connecteur est permis, et c’est toi qui désignes le défaut. Quand une clé est rejetée, c’est presque toujours un espace autour d’elle.
 
 <Frame caption="Le fournisseur connecté — à partir d’ici, chaque agent peut répondre.">
 

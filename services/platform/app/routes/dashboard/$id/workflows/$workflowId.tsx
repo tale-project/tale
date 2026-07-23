@@ -1,20 +1,24 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { paramToAutomationSlug } from '@/lib/shared/schemas/automations';
+import {
+  automationSlugToParam,
+  paramToAutomationSlug,
+} from '@/app/features/automations/lib/slug';
 
 /**
- * Legacy-bookmark shim. Standalone workflows are gone — a workflow lives only
- * inline in its owning automation's manifest and its slug IS the automation
- * slug — so the whole `/workflows/$workflowId` family (editor + executions/
- * configuration/triggers children) collapsed into the automation detail page's
- * tabs. Old bookmarks land on the automation (or its not-found panel).
+ * Redirect for a bookmark to the standalone workflow editor.
  *
- * Old foldered workflow slugs encoded `/` as `__` in the URL (e.g.
- * `projects__tasks__run-assigned-task`) — the SAME encoding an automation slug
- * (itself a path) travels under now, so the old id decodes straight into a
- * candidate automation slug. A builtin whose leaf was also renamed in the
- * cutover (`…/run-assigned-task` → `…/run-assigned`) lands on the not-found
- * panel, which is the honest answer for a bookmark to a retired workflow.
+ * A workflow is no longer addressed on its own: it is the document of an
+ * automation, and its slug IS the automation's name — so the whole
+ * `/workflows/$workflowId` family (editor plus its executions, configuration,
+ * and triggers children) is now the automation detail page. A saved link lands
+ * on that automation, or on its not-found panel.
+ *
+ * Foldered workflow ids already encoded `/` as `__` in the URL (for example
+ * `projects__tasks__run-assigned-task`) — the same encoding an automation slug
+ * travels under now — so an old id decodes straight into a candidate name. One
+ * whose leaf was also renamed lands on the not-found panel, which is the honest
+ * answer for a link to a workflow that no longer exists.
  */
 export const Route = createFileRoute('/dashboard/$id/workflows/$workflowId')({
   loader: ({ params }) => {
@@ -22,7 +26,12 @@ export const Route = createFileRoute('/dashboard/$id/workflows/$workflowId')({
       to: '/dashboard/$id/automations/$automationSlug',
       params: {
         id: params.id,
-        automationSlug: paramToAutomationSlug(params.workflowId),
+        // Round-tripped through the shared codec so either form of an old
+        // bookmark lands correctly: the `__` the workflow ids already used,
+        // and a hand-written one carrying a literal `/`.
+        automationSlug: automationSlugToParam(
+          paramToAutomationSlug(params.workflowId),
+        ),
       },
     });
   },

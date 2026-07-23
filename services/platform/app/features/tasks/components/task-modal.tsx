@@ -16,11 +16,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useProject } from '@/app/features/projects/hooks/queries';
 import {
   type FileAttachment,
   useConvexFileUpload,
-} from '@/app/features/chat/hooks/use-convex-file-upload';
-import { useProject } from '@/app/features/projects/hooks/queries';
+} from '@/app/features/shared/files/use-convex-file-upload';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';

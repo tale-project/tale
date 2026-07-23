@@ -31,21 +31,19 @@ async function startWorkflowForTask(
   // workflow's Triggers tab), read inside the workflow itself rather than
   // threaded through this action's `input`. (N3 wires that up for issue-desk.)
   try {
-    return await ctx.runAction(
-      api.workflow_executions.actions.startWorkflowFromFile,
+    // Task workflows ran on the retired automation engine, which is offline
+    // while it is rebuilt. Callers already treat a failed start as
+    // "not started", so degrade the same way.
+    console.warn(
+      '[task-workflow] start skipped — automation engine offline while it is rebuilt',
       {
-        organizationId: args.organizationId,
         workflowSlug: args.workflowSlug,
-        triggeredBy: 'user',
-        input: {
-          task: args.task,
-          issueNumber,
-          owner: repoRef?.owner ?? null,
-          repo: repoRef?.repo ?? null,
-        },
-        subject: { type: 'task', id: args.task._id },
+        taskId: args.task._id,
+        issueNumber,
+        repo: repoRef ? `${repoRef.owner}/${repoRef.repo}` : null,
       },
     );
+    return null;
   } catch (err) {
     console.error(
       '[task-workflow] workflow start failed',
@@ -311,15 +309,9 @@ export const startTaskWorkflow = action({
       throw new Error('Task not found');
     }
 
-    const active = await ctx.runQuery(
-      internal.workflow_executions.internal_queries
-        .getActiveExecutionForSubject,
-      {
-        organizationId: args.organizationId,
-        subjectType: 'task',
-        subjectId: args.taskId,
-      },
-    );
+    // No executions can be active while the automation engine is rebuilt,
+    // so the duplicate-run pre-check short-circuits to "none".
+    const active = null as { executionId: string } | null;
     if (active) {
       return {
         started: false,
@@ -374,25 +366,10 @@ export const cancelTaskWorkflow = action({
       throw new Error('Task not found');
     }
 
-    const active = await ctx.runQuery(
-      internal.workflow_executions.internal_queries
-        .getActiveExecutionForSubject,
-      {
-        organizationId: args.organizationId,
-        subjectType: 'task',
-        subjectId: args.taskId,
-      },
-    );
-
-    let executionCancelled = false;
-    let executionId: string | null = null;
-    if (active) {
-      executionId = active.executionId;
-      await ctx.runMutation(api.workflow_executions.mutations.cancelExecution, {
-        executionId: active.executionId,
-      });
-      executionCancelled = true;
-    }
+    // No executions can be active while the automation engine is rebuilt —
+    // there is nothing to cancel; the task itself still gets cancelled below.
+    const executionCancelled = false;
+    const executionId: string | null = null;
 
     if (loaded.task.status !== 'cancelled') {
       await ctx.runMutation(api.tasks.mutations.updateTaskStatus, {
@@ -408,39 +385,6 @@ export const cancelTaskWorkflow = action({
     };
   },
 });
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-interface PullSummary {
-  number: number;
-  state: string;
-  mergedAt: string | null;
-}
-
-/**
- * Pull requests out of an `executeIntegration` result. The connector return is
- * nested under `.result` ({ data: [...] }); be defensive about the v.any()
- * boundary and keep only entries with a numeric `number`. Carries `state` and
- * `mergedAt` so the caller can tell an open PR (to merge) from one already merged.
- */
-function pullsFromResult(raw: unknown): PullSummary[] {
-  if (!isObject(raw)) return [];
-  const inner = isObject(raw.result) ? raw.result : raw;
-  if (!Array.isArray(inner.data)) return [];
-  const pulls: PullSummary[] = [];
-  for (const pr of inner.data) {
-    if (isObject(pr) && typeof pr.number === 'number') {
-      pulls.push({
-        number: pr.number,
-        state: typeof pr.state === 'string' ? pr.state : 'open',
-        mergedAt: typeof pr.merged_at === 'string' ? pr.merged_at : null,
-      });
-    }
-  }
-  return pulls;
-}
 
 /**
  * Merge the pull request a task's issue-desk run produced, then close the task.
@@ -492,74 +436,14 @@ export const mergeTaskPullRequest = action({
         'This task is not linked to a GitHub repository, so its pull request cannot be merged.',
       );
     }
-    const { owner, repo } = repoRef;
-    const headBranch = `tale/${args.taskId}`;
-
-    // Find the PR for this deterministic branch (any state) rather than threading
-    // the PR number through the workflow.
-    const listed = await ctx.runAction(
-      internal.agent_tools.integrations.internal_actions.executeIntegration,
-      {
-        organizationId: args.organizationId,
-        integrationName: 'github',
-        operation: 'list_pull_requests',
-        params: {
-          owner,
-          repo,
-          head: `${owner}:${headBranch}`,
-          state: 'all',
-          per_page: 20,
-        },
-        skipApprovalCheck: true,
-      },
-    );
-    const pulls = pullsFromResult(listed);
-    const open = pulls.filter((pr) => pr.state === 'open');
-    if (open.length > 1) {
-      throw new Error(
-        `Found ${open.length} open pull requests for branch ${headBranch}; refusing to merge ambiguously.`,
-      );
-    }
-
-    let pullNumber: number;
-    let alreadyMerged: boolean;
-    if (open.length === 1) {
-      pullNumber = open[0].number;
-      alreadyMerged = false;
-      // The user click + confirm IS the approval — skip the integration queue.
-      await ctx.runAction(
-        internal.agent_tools.integrations.internal_actions.executeIntegration,
-        {
-          organizationId: args.organizationId,
-          integrationName: 'github',
-          operation: 'merge_pull_request',
-          params: {
-            owner,
-            repo,
-            pull_number: open[0].number,
-            merge_method: args.mergeMethod ?? 'squash',
-          },
-          skipApprovalCheck: true,
-        },
-      );
-    } else {
-      // No open PR — treat an already-merged PR as success (idempotent).
-      const merged = pulls.find((pr) => pr.mergedAt !== null);
-      if (!merged) {
-        throw new Error(
-          `No open or merged pull request found for branch ${headBranch}.`,
-        );
-      }
-      pullNumber = merged.number;
-      alreadyMerged = true;
-    }
-
-    // Merged (now or already) — close the task out (it was parked at in_review).
-    await ctx.runMutation(api.tasks.mutations.updateTaskStatus, {
-      taskId: args.taskId,
-      status: 'done',
+    // Merging rides the integrations backend (GitHub connector), which is
+    // offline while it is rebuilt. Fail with a typed error the task UI can
+    // render; the pull request itself is untouched and can be merged on
+    // GitHub directly in the meantime.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'Merging from Tale is unavailable right now: the integrations backend is offline while it is rewritten. Merge the pull request on GitHub directly.',
     });
-
-    return { merged: true, pullNumber, alreadyMerged };
   },
 });

@@ -1,4 +1,3 @@
-import type { SearchSourceState } from '@tale/ui/search';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -9,29 +8,18 @@ import {
   waitForElementToBeRemoved,
 } from '@/tests/utils/render';
 
-import enMessages from '../../../../messages/en.json';
+import enMessages from '../../../../messages/en.yml';
 import { SidebarProvider } from './sidebar-context';
 import { SidebarSearchCommand } from './sidebar-search-command';
 
-// Shared, controllable mocks (hoisted so the vi.mock factories can close over
-// them). `navigate` is asserted on selection; `sourceRef` lets each test drive
-// what the threads SearchCommand source returns.
-const { mockNavigate, sourceRef } = vi.hoisted(() => ({
+// While the chat backend is rebuilt the palette runs an inline empty source
+// (no Convex reads), so no data mocks are needed — only the router.
+const { mockNavigate } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
-  sourceRef: {
-    current: { results: [], status: 'idle' } as SearchSourceState,
-  },
 }));
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
-}));
-
-// Stub the threads source so the palette doesn't reach Convex (the source hook
-// calls `useThreads`, which needs a ConvexProvider). The returned state is
-// driven by `sourceRef` so tests can vary results/status.
-vi.mock('@/app/features/chat/components/threads-search-source', () => ({
-  createThreadsSearchSource: () => () => sourceRef.current,
 }));
 
 vi.mock('@/app/hooks/use-convex-auth', () => ({
@@ -49,7 +37,6 @@ function renderPalette() {
 describe('SidebarSearchCommand', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
-    sourceRef.current = { results: [], status: 'idle' };
     window.localStorage.clear();
   });
   afterEach(() => {
@@ -101,47 +88,17 @@ describe('SidebarSearchCommand', () => {
     );
   });
 
-  it('renders matching threads from the source', async () => {
-    sourceRef.current = {
-      results: [{ id: 'thread-1', title: 'Budget kickoff', group: 'today' }],
-      status: 'ready',
-    };
+  // Chat search is offline while the chat backend is rebuilt: the inline
+  // source answers every query with zero results, so the palette must land on
+  // its "no results" state instead of a spinner or a crash.
+  it('shows the empty state for any query while chat search is offline', async () => {
     const { user } = renderPalette();
     const input = await openSearch(user);
-    // The threads source is mocked (ignores the query), so any text triggers it.
     await user.type(input, 'budget');
-    // `toHaveTextContent` is robust to the highlight <mark> splitting the title.
-    expect(await screen.findByRole('option')).toHaveTextContent(
-      'Budget kickoff',
-    );
-  });
-
-  it('navigates to the chosen thread on selection', async () => {
-    sourceRef.current = {
-      results: [{ id: 'thread-42', title: 'Roadmap review', group: 'today' }],
-      status: 'ready',
-    };
-    const { user } = renderPalette();
-    const input = await openSearch(user);
-    await user.type(input, 'road');
-    await user.click(await screen.findByRole('option'));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        params: { id: 'org-1', threadId: 'thread-42' },
-      }),
-    );
-  });
-
-  it('surfaces the error state when the threads source fails', async () => {
-    sourceRef.current = {
-      results: [],
-      status: 'error',
-      error: new Error('boom'),
-    };
-    const { user } = renderPalette();
-    const input = await openSearch(user);
-    await user.type(input, 'x');
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(
+      await screen.findByText(enMessages.dialogs.searchChat.noResults),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
   });
 
   describe('accessibility', () => {

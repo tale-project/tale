@@ -309,8 +309,15 @@ async function cleanupTmp(tmpPath: string, label: string): Promise<void> {
   });
 }
 
+/** Extensions a history snapshot can carry (one per superseded format). */
+const HISTORY_SNAPSHOT_EXTENSIONS = ['.json', '.yml', '.md'];
+
 /**
- * Prune history entries to keep only the most recent N.
+ * Prune history entries to keep only the most recent N. History snapshots
+ * carry the format the superseded file had (`.yml` after the YAML cutover,
+ * `.json` from before it, `.md` for the markdown-bodied skill documents), so
+ * every one of those extensions counts against the cap — the timestamped
+ * basenames keep the sort chronological across formats.
  */
 export async function pruneHistory(
   historyDir: string,
@@ -323,10 +330,12 @@ export async function pruneHistory(
     return;
   }
 
-  const jsonFiles = entries.filter((e) => e.endsWith('.json')).sort();
-  if (jsonFiles.length <= maxEntries) return;
+  const snapshots = entries
+    .filter((e) => HISTORY_SNAPSHOT_EXTENSIONS.some((ext) => e.endsWith(ext)))
+    .sort();
+  if (snapshots.length <= maxEntries) return;
 
-  const toDelete = jsonFiles.slice(0, jsonFiles.length - maxEntries);
+  const toDelete = snapshots.slice(0, snapshots.length - maxEntries);
   await Promise.all(
     toDelete.map((f) =>
       unlink(path.join(historyDir, f)).catch((err: unknown) => {

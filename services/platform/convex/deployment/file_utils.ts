@@ -4,12 +4,15 @@
  * Deployment-config file I/O helpers (deployment-SCOPED — no org slug).
  *
  * The single deployment config lives at the config ROOT as
- * `<configRoot>/deployment.json` (+ SOPS sidecar `deployment.secrets.json`).
+ * `<configRoot>/deployment.yml` (+ SOPS sidecar `deployment.secrets.json`;
+ * the retired `deployment.json` stays readable until the next save converts
+ * it).
  * Because the path is one segment (no `<orgSlug>/` prefix) it is intentionally
  * ignored by the per-org config-watcher — this config is consumed by the
  * rag/convex/platform entrypoints AT BOOT, not hot-reloaded.
  */
 
+import { parseYamlOrThrow, stringifyYaml } from '../../lib/shared/config/yaml';
 import type {
   DeploymentConfig,
   DeploymentSecrets,
@@ -18,12 +21,7 @@ import {
   deploymentConfigSchema,
   deploymentSecretsSchema,
 } from '../../lib/shared/schemas/deployment';
-import {
-  getConfigRoot,
-  safeJoinWithinDir,
-  serializeJson,
-  sha256,
-} from '../lib/file_io';
+import { getConfigRoot, safeJoinWithinDir, sha256 } from '../lib/file_io';
 
 export { sha256 };
 export type { DeploymentConfig, DeploymentSecrets };
@@ -45,6 +43,11 @@ export type DeploymentReadResult =
     };
 
 export function resolveDeploymentConfigPath(): string {
+  return safeJoinWithinDir(getConfigRoot('deployment'), 'deployment.yml');
+}
+
+/** The retired JSON form — read as a fallback, deleted on the next save. */
+export function resolveLegacyDeploymentConfigPath(): string {
   return safeJoinWithinDir(getConfigRoot('deployment'), 'deployment.json');
 }
 
@@ -56,12 +59,13 @@ export function resolveDeploymentSecretsPath(): string {
 }
 
 export function serializeDeploymentConfig(config: DeploymentConfig): string {
-  return serializeJson(config);
+  return stringifyYaml(config);
 }
 
 export function parseDeploymentConfig(content: string): DeploymentConfig {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON before Zod validation
-  const parsed = JSON.parse(content) as Record<string, unknown>;
+  // YAML is a superset of JSON, so one parser reads both the current .yml
+  // form and the retired .json fallback.
+  const parsed = parseYamlOrThrow(content);
   const result = deploymentConfigSchema.safeParse(parsed);
   if (!result.success) {
     throw new Error(`Invalid deployment config: ${result.error.message}`);

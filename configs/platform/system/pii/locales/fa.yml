@@ -1,0 +1,85 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: fa
+name: Persian
+scripts:
+  - arab
+countries:
+  - IR
+  - AF
+phoneContextKeywords:
+  - تلفن
+  - موبایل
+  - شماره
+  - tel.
+  - tel
+cvcContextKeywords:
+  - کد امنیتی
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - inverted
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: \d{10}
+  requireUppercase: false
+  streetKeywordsInverted:
+    - خیابان
+    - کوچه
+    - میدان
+    - بلوار
+  poBoxKeywords:
+    - صندوق پستی
+    - P.O.Box
+  floorKeywords:
+    - طبقه
+    - واحد
+    - پلاک
+  countryNames:
+    - ایران
+    - Iran
+    - افغانستان
+    - Afghanistan
+    - IR
+    - AF
+  countryPostcodePrefixes: []
+nationalIds:
+  - id: ir-national-id
+    name: Iranian National ID
+    pattern: \b\d{10}\b
+    replacement: '[IR_ID]'
+dateOfBirth:
+  monthsLong:
+    - ژانویه
+    - فوریه
+    - مارس
+    - آوریل
+    - مه
+    - ژوئن
+    - ژوئیه
+    - اوت
+    - سپتامبر
+    - اکتبر
+    - نوامبر
+    - دسامبر
+    - فروردین
+    - اردیبهشت
+    - خرداد
+    - تیر
+    - مرداد
+    - شهریور
+    - مهر
+    - آبان
+    - آذر
+    - دی
+    - بهمن
+    - اسفند
+  contextKeywords:
+    - تاریخ تولد
+    - متولد
+    - زاده
+    - تولد

@@ -25,7 +25,7 @@ The six roles and the resource-level matrix that says who can read, write, confi
 
 <Card title="Teams" icon="users-round" href="/platform/admin/teams">
 
-Group members into teams that share agents, prompts, and integrations.
+Group members into teams that share agents, skills, and integrations.
 
 </Card>
 
@@ -37,19 +37,13 @@ Every agent the org has, and where an Admin steps in when one needs governance.
 
 <Card title="AI providers" icon="cpu" href="/platform/admin/providers">
 
-Connect the OpenAI-compatible providers behind every reply and pick which models the org may use.
-
-</Card>
-
-<Card title="Token sources" icon="key-round" href="/platform/admin/token-sources">
-
-Shared credentials that agents and tools draw on without each member holding the secret.
+Store the credentials behind every reply and pick which models the org may call.
 
 </Card>
 
 <Card title="Integrations" icon="plug" href="/platform/admin/integrations">
 
-Install and rotate the credentials behind Slack, Gmail, Outlook, Google Drive, GitHub, Shopify, and more.
+Store and replace the credentials behind Slack, Gmail, Outlook, Google Drive, GitHub, Shopify, and more.
 
 </Card>
 
@@ -93,4 +87,4 @@ Audit logs, policies and limits, guardrails, analytics, retention, and legal hol
 
 ## Where this fits
 
-Admin is the surface every other tab assumes. Chat resolves a model through the providers configured here; agents call tools through the integrations configured here; the prompt library and the inbox respect the team boundaries configured here. The natural first read is [Members and roles](/platform/admin/members-and-roles) — every other Admin page references the role names it defines.
+Admin is the surface every other tab assumes. Chat resolves a model through the providers configured here; agents call tools through the integrations configured here; the skill library and the inbox respect the team boundaries configured here. The natural first read is [Members and roles](/platform/admin/members-and-roles) — every other Admin page references the role names it defines.

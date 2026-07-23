@@ -1,8 +1,0 @@
-{"type":"step_start","sessionID":"ses_xyz"}
-{"type":"text","part":{"text":"Implementing the fix."}}
-{"type":"tool_use","part":{"id":"call_1","tool":"bash","state":{"status":"running","input":{"command":"git checkout -b fix/issue-1"}}}}
-{"type":"tool_use","part":{"id":"call_1","tool":"bash","state":{"status":"completed","input":{"command":"git checkout -b fix/issue-1"},"output":"Switched to a new branch"}}}
-{"type":"tool_use","part":{"id":"call_2","tool":"edit","state":{"status":"error","input":{"path":"missing.ts"},"output":"file not found"}}}
-{"type":"step_finish","sessionID":"ses_xyz","part":{"cost":0.0042,"reason":"tool-calls","tokens":{"input":900,"output":40,"reasoning":10,"cache":{"read":500,"write":0}}}}
-{"type":"text","part":{"text":"Opening the PR."}}
-{"type":"step_finish","sessionID":"ses_xyz","part":{"cost":0.0061,"reason":"stop","tokens":{"input":1100,"output":55,"reasoning":0,"cache":{"read":800,"write":0}}}}

@@ -1,59 +1,108 @@
 /**
- * Data-driven fixture test.
+ * The 43-locale fixture corpus, exhaustively.
  *
- * Iterates every per-locale `positives.json` / `negatives.json` under
- * `test/fixtures/` and asserts the detector's behavior:
+ * `fixtures/<locale>/{positives,negatives}.yml` is FROZEN data (see
+ * fixtures/LICENSES.md): generated once from public-dataset slices,
+ * validated against the reference engine, and committed as the ground
+ * truth the rewritten engine must keep matching. The retired generator is
+ * not needed to verify freshness — the corpus is the contract.
  *
- *   - Positive cases: `scrubber.scrub(input).kind` is `'modified'`. The
- *     detector must find at least one PII span. Span-precision assertions
- *     are deliberately loose at this stage (Phase 1 lift-and-shift) —
- *     spans are tightened by adding span-overlap checks in Phase 7.
- *   - Negative cases: `kind === 'pass'`. Detector found nothing.
+ * Assertions:
+ *  - every positive is detected (`modified`) AND every pattern its
+ *    `expected` list names appears in the outcome's categoryIds — a
+ *    positive being caught by the wrong pattern is a regression too;
+ *  - every negative passes untouched.
  *
- * 2,000+ cases per locale fan out via `describe.each` × `it.each` —
- * Vitest handles that scale comfortably and parallel-shards across cores.
+ * One full-coverage scrubber per locale, shared across its cases (the
+ * vitest project runs with `isolate: false` so the pre-built scrubbers
+ * amortize across the ~67k cases).
  */
 
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+/**
+ * Fixture cases whose `expected` label the REFERENCE engine itself never
+ * satisfied: for these ten Persian address cases the reference detected
+ * only a national-ID lookalike in the postcode digits (`sa-national-id` /
+ * `cz-birth-number`), never `address` — verified by running the retired
+ * engine side by side. The corpus stays frozen, so the label defect is
+ * carried here explicitly: these cases must still be DETECTED, but their
+ * pattern label is not enforced.
+ */
+const MISLABELED_EXPECTED: ReadonlySet<string> = new Set([
+  'fa/addr-fa-00000',
+  'fa/addr-fa-00001',
+  'fa/addr-fa-00002',
+  'fa/addr-fa-00003',
+  'fa/addr-fa-00004',
+  'fa/addr-fa-00005',
+  'fa/addr-fa-00006',
+  'fa/addr-fa-00007',
+  'fa/addr-fa-00008',
+  'fa/addr-fa-00009',
+]);
+
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { createScrubber, listLocales, type Scrubber } from '../../lib/pii';
-import type { FixtureFile } from '../../scripts/pii-fixtures/gen/schema';
+import { PatternRegistry, createScrubber, type Scrubber } from '../../lib/pii';
+import { parseYamlOrThrow } from '../../lib/shared/config/yaml';
+
+/** Shape of the frozen fixture files (formerly the generator's output). */
+interface FixtureCase {
+  id: string;
+  input: string;
+  expected: Array<{ pattern: string; start: number; end: number }>;
+}
+
+interface FixtureFile {
+  _meta: { locale: string; counts: { positives: number; negatives: number } };
+  positives?: FixtureCase[];
+  negatives?: FixtureCase[];
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_ROOT = join(__dirname, 'fixtures');
+
+// The larger locale files are well past the shared parser's org-config
+// default byte cap.
+const FIXTURE_MAX_BYTES = 32 * 1024 * 1024;
 
 function loadFixture(
   locale: string,
   kind: 'positives' | 'negatives',
 ): FixtureFile | null {
-  const path = join(FIXTURES_ROOT, locale, `${kind}.json`);
+  const path = join(FIXTURES_ROOT, locale, `${kind}.yml`);
   if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, 'utf8'));
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- frozen corpus data validated by shape below
+  return parseYamlOrThrow(readFileSync(path, 'utf8'), {
+    maxBytes: FIXTURE_MAX_BYTES,
+  }) as FixtureFile;
 }
+
+const REGISTRY = PatternRegistry.fromDefaults();
+const REGISTERED = new Set(REGISTRY.listLocales());
 
 function localesWithFixtures(): string[] {
   if (!existsSync(FIXTURES_ROOT)) return [];
-  const registered = new Set(listLocales());
   return readdirSync(FIXTURES_ROOT, { withFileTypes: true })
     .filter((d) => d.isDirectory() && !d.name.startsWith('_'))
     .map((d) => d.name)
-    .filter((name) => registered.has(name));
+    .filter((name) => REGISTERED.has(name));
 }
 
 const LOCALES = localesWithFixtures();
 
-// Pre-build one full-coverage scrubber per locale. Reused across all `it.each`
-// cases — building per case would dominate runtime.
+// One full-coverage scrubber per locale, built once and reused across all
+// of that locale's cases.
 const SCRUBBERS = new Map<string, Scrubber>();
 for (const locale of LOCALES) {
   SCRUBBERS.set(
     locale,
     createScrubber({
       mode: 'mask',
+      registry: REGISTRY,
       patterns: {
         email: true,
         phone: true,
@@ -72,6 +121,10 @@ for (const locale of LOCALES) {
   );
 }
 
+it('has fixture coverage for every registered locale', () => {
+  expect(LOCALES.length).toBe(43);
+});
+
 describe.each(LOCALES)('locale: %s', (locale) => {
   const scrubber = SCRUBBERS.get(locale);
   if (!scrubber) {
@@ -83,12 +136,16 @@ describe.each(LOCALES)('locale: %s', (locale) => {
   const posCases = positives?.positives;
   if (posCases && posCases.length > 0) {
     describe('positives', () => {
-      // Full coverage — no `.slice`. The generator's self-consistency
-      // filter guarantees every case is detectable, so the per-case cost
-      // is sub-ms and the suite scales linearly with corpus size.
       it.each(posCases)('detects $id', (c) => {
         const outcome = scrubber.scrub(c.input);
         expect(outcome.kind).toBe('modified');
+        if (outcome.kind !== 'modified') return;
+        if (MISLABELED_EXPECTED.has(`${locale}/${c.id}`)) return;
+        for (const expectedPattern of new Set(
+          c.expected.map((e) => e.pattern),
+        )) {
+          expect(outcome.categoryIds).toContain(expectedPattern);
+        }
       });
     });
   }

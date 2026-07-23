@@ -36,21 +36,6 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   }),
 }));
 
-// The nested TopAgentsTable resolves agent display names via useListAgents,
-// which goes through useActionQuery (a Convex *action*, not the query hook
-// above) and therefore needs a live ConvexProvider that the jsdom render
-// wrapper does not supply. Stub the feature hook with an empty list — the
-// table renders its (empty) loaded state, which is irrelevant to the migrated
-// assertions but keeps the page from crashing.
-vi.mock('@/app/features/agents/hooks/queries', () => ({
-  useListAgents: () => ({
-    agents: [],
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
-  }),
-}));
-
 // The nested DataTable reads the org id from the router; outside a
 // RouterProvider that hook throws, so stub it like the other component tests.
 vi.mock('@/app/hooks/use-organization-id', () => ({

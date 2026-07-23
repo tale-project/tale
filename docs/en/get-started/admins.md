@@ -23,7 +23,7 @@ If you arrived via the quickstart, your organization already exists — skip to 
 
 <Step title="Connect an AI provider">
 
-Nothing answers until a provider is connected. If you skipped the wizard's provider step, open **Settings > AI providers** and click **Add provider** — paste an [OpenRouter](https://openrouter.ai) key for the widest model catalog, or any OpenAI-compatible provider. A confirmation on the provider row means the key validates; from that moment every agent in the workspace can answer.
+Nothing answers until a provider is connected. If you skipped the wizard's provider step, open **Settings > AI providers** and click **Add credential** on a connector — an [OpenRouter](https://openrouter.ai) key reaches the widest model catalog, and every direct vendor ships its own connector beside it. A credential is usable the moment it is saved; from then on every agent in the workspace can answer with any model that connector exposes.
 
 <Frame caption="A connected provider with its model catalog.">
 

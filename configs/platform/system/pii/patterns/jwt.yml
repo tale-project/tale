@@ -1,0 +1,13 @@
+# Built-in PII pattern. `impl: native` — the shape regex below is the data
+# knob; a validator in the pii plugin (lib/pii/patterns/jwt.ts) decodes
+# the first two Base64URL segments and requires each to be a JSON object.
+name: jwt
+description: >-
+  JSON Web Tokens — three dot-separated Base64URL segments where header and
+  payload both start with the "eyJ" JSON-object prefix and decode to JSON
+  objects. Tokens are credentials; leaking one grants account access.
+replacement: '[JWT]'
+impl: native
+regex:
+  source: 'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'
+  flags: g

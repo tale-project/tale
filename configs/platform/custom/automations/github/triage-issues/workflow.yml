@@ -1,0 +1,125 @@
+# Scores a repository's open issues and returns a ranked shortlist. It only
+# reads from GitHub — nothing is written back, so a run is safe to schedule
+# and its result is a report a human acts on.
+version: 1
+name: github-triage-issues
+description: Score a repository's open GitHub issues and rank the ones that are ready to be worked.
+inputs:
+  type: object
+  properties:
+    owner:
+      type: string
+      description: Repository owner — the user or organization login.
+    repo:
+      type: string
+      description: Repository name.
+    limit:
+      type: number
+      description: How many open issues to score in one pass (50 when unset).
+  required:
+    - owner
+    - repo
+  additionalProperties: false
+nodes:
+  - id: issues
+    type: github.list_issues
+    input:
+      owner: '{{ input.owner }}'
+      repo: '{{ input.repo }}'
+      state: open
+      per_page: '{{ input.limit ?? 50 }}'
+
+  # GitHub returns pull requests from the issues endpoint too; a pull request
+  # carries a `pull_request` field that a plain issue lacks.
+  - id: open_issues
+    type: transform
+    input:
+      issues: '{{ nodes.issues.output.issues }}'
+      limit: '{{ input.limit ?? 50 }}'
+    code: |
+      const asText = (value) => (typeof value === 'string' ? value : '');
+      const issues = (Array.isArray(input.issues) ? input.issues : [])
+        .filter((issue) => issue.pull_request === undefined)
+        .slice(0, input.limit)
+        .map((issue) => ({
+          number: typeof issue.number === 'number' ? issue.number : 0,
+          title: asText(issue.title),
+          url: asText(issue.html_url),
+          body: asText(issue.body).slice(0, 2000),
+          labels: (Array.isArray(issue.labels) ? issue.labels : []).map((label) =>
+            typeof label === 'string' ? label : asText(label.name),
+          ),
+        }));
+      return { count: issues.length, issues };
+
+  - id: score
+    type: llm
+    forEach: '{{ nodes.open_issues.output.issues }}'
+    model: anthropic/claude-haiku-4-5
+    system: >-
+      You triage GitHub issues for an implementation team. Actionable means a
+      concrete bug report or a well-scoped request someone could start on today;
+      a question, a duplicate, or a discussion with no concrete ask is not.
+    prompt: |
+      Issue #{{ item.number }}: {{ item.title }}
+
+      Labels: {{ item.labels }}
+
+      Body:
+      {{ item.body }}
+    outputSchema:
+      type: object
+      properties:
+        actionable:
+          type: boolean
+          description: True when the issue describes concrete, startable work.
+        priority:
+          type: string
+          enum:
+            - p0
+            - p1
+            - p2
+            - p3
+          description: p0 is urgent and blocking, p3 is low.
+        reason:
+          type: string
+          description: One sentence explaining the score, shown to a human.
+      required:
+        - actionable
+        - priority
+        - reason
+
+  - id: report
+    type: transform
+    input:
+      issues: '{{ nodes.open_issues.output.issues }}'
+      scores: '{{ nodes.score.output }}'
+    code: |
+      const scores = Array.isArray(input.scores) ? input.scores : [];
+      const issues = Array.isArray(input.issues) ? input.issues : [];
+      const ranked = issues
+        .map((issue, at) => ({ ...issue, ...(scores[at] ?? {}) }))
+        .filter((issue) => issue.actionable === true)
+        .sort((left, right) => String(left.priority).localeCompare(String(right.priority)));
+      return { reviewed: issues.length, actionable: ranked.length, issues: ranked };
+output: '{{ nodes.report.output }}'
+tests:
+  - name: an open issue is scored and ranked
+    input:
+      owner: tale
+      repo: tale
+    expect:
+      output:
+        reviewed: 1
+        actionable: 0
+        issues: []
+  - name: reading nothing scores nothing
+    input:
+      owner: tale
+      repo: tale
+      limit: 0
+    expect:
+      output:
+        reviewed: 0
+        actionable: 0
+        issues: []

@@ -82,7 +82,7 @@ describe('resolveSessionCredentials — git identity + credential-helper injecti
     getDecryptedCredentials.mockResolvedValue({ accessToken: 'gh-token' });
   });
 
-  it('injects the credential helper AND the owner identity together for a github grant', async () => {
+  it('resolves a github grant to no credentials while integrations are offline, still injecting identity', async () => {
     const ctx = makeCtx({ credential: { _id: 'cred-1' }, identity: OWNER });
     const out = await resolve.handler(ctx as never, {
       organizationId: 'org-1',
@@ -91,19 +91,17 @@ describe('resolveSessionCredentials — git identity + credential-helper injecti
       kind: 'bootstrap',
     });
 
-    expect(out.env.GITHUB_TOKEN).toBe('gh-token');
-    expect(out.git).toEqual([
-      { slug: 'github', hosts: ['github.com'], username: 'x-access-token' },
-    ]);
-    expect(out.env.GIT_CONFIG_COUNT).toBe('3');
-    expect(out.env.GIT_CONFIG_KEY_0).toBe('credential.helper');
-    expect(out.env.GIT_CONFIG_VALUE_0).toBe(
-      '/usr/local/bin/tale-git-credential',
-    );
-    expect(out.env.GIT_CONFIG_KEY_1).toBe('user.name');
-    expect(out.env.GIT_CONFIG_VALUE_1).toBe(OWNER.name);
-    expect(out.env.GIT_CONFIG_KEY_2).toBe('user.email');
-    expect(out.env.GIT_CONFIG_VALUE_2).toBe(OWNER.email);
+    // Integration credential grants are offline while that backend is
+    // rebuilt: no token, no git credential entry, so no credential.helper
+    // pair — but the owner git identity is always-on and unaffected.
+    expect(out.env.GITHUB_TOKEN).toBeUndefined();
+    expect(out.git).toEqual([]);
+    expect(out.env.GIT_CONFIG_COUNT).toBe('2');
+    expect(out.env.GIT_CONFIG_KEY_0).toBe('user.name');
+    expect(out.env.GIT_CONFIG_VALUE_0).toBe(OWNER.name);
+    expect(out.env.GIT_CONFIG_KEY_1).toBe('user.email');
+    expect(out.env.GIT_CONFIG_VALUE_1).toBe(OWNER.email);
+    expect(Object.values(out.env)).not.toContain('credential.helper');
   });
 
   it('still injects identity when there is no git grant at all (always-on, not gated on git.length)', async () => {
@@ -125,7 +123,7 @@ describe('resolveSessionCredentials — git identity + credential-helper injecti
     expect(Object.values(out.env)).not.toContain('credential.helper');
   });
 
-  it('keeps the pre-existing helper-only shape when the owner has no resolvable identity (system/workflow-owned session)', async () => {
+  it('sets no git env for a granted session whose owner has no resolvable identity (system/workflow-owned)', async () => {
     const ctx = makeCtx({ credential: { _id: 'cred-1' }, identity: null });
     const out = await resolve.handler(ctx as never, {
       organizationId: 'org-1',
@@ -134,12 +132,10 @@ describe('resolveSessionCredentials — git identity + credential-helper injecti
       kind: 'bootstrap',
     });
 
-    expect(out.env.GIT_CONFIG_COUNT).toBe('1');
-    expect(out.env.GIT_CONFIG_KEY_0).toBe('credential.helper');
-    expect(out.env.GIT_CONFIG_VALUE_0).toBe(
-      '/usr/local/bin/tale-git-credential',
-    );
-    expect(out.env.GIT_CONFIG_KEY_1).toBeUndefined();
+    // With grants resolving empty (integrations offline) and no identity,
+    // there is nothing to inject at all — no helper pair, no count.
+    expect(out.env.GIT_CONFIG_COUNT).toBeUndefined();
+    expect(out.env.GIT_CONFIG_KEY_0).toBeUndefined();
   });
 
   it('sets no GIT_CONFIG_* env at all with neither a git grant nor a resolvable identity', async () => {

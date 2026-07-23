@@ -65,7 +65,7 @@ Le final : fournisseurs et politique de modèles, garde-fous, journal d'audit, g
 
 <Card title="Bonus — Tale pour les développeurs" icon="play" href="/fr/tutorials/videos/tale-for-developers">
 
-Le tour des bâtisseurs : clés bornées, quatre portes d'API, webhooks et agents de code en bac à sable qui échouent fermés. Deux minutes.
+Le tour des bâtisseurs : clés bornées, quatre portes d'API, webhooks et agents sandbox qui échouent fermés. Deux minutes.
 
 </Card>
 

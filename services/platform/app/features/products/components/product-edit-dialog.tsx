@@ -10,7 +10,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
-import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
+import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import {

@@ -4,7 +4,6 @@ import {
   Bell,
   ChartColumn,
   Database,
-  Globe,
   IdCard,
   KeyRound,
   Palette,
@@ -97,12 +96,6 @@ export function useSettingsMenuGroups(
         can: ['read', 'developerSettings'],
       },
       {
-        key: 'tokenSources',
-        icon: Variable,
-        path: 'token-sources',
-        can: ['read', 'developerSettings'],
-      },
-      {
         key: 'integrations',
         icon: Plug,
         path: 'integrations',
@@ -139,7 +132,7 @@ export function useSettingsMenuGroups(
         can: ['read', 'orgSettings'],
       },
       {
-        key: 'orgDataResidency',
+        key: 'dataResidency',
         icon: Database,
         path: 'data-residency',
         can: ['read', 'orgSettings'],
@@ -152,12 +145,6 @@ export function useSettingsMenuGroups(
         icon: KeyRound,
         path: 'api',
         can: ['read', 'developerSettings'],
-      },
-      {
-        key: 'dataResidency',
-        icon: Globe,
-        path: 'deployment',
-        can: ['read', 'orgSettings'],
       },
     ];
 

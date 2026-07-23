@@ -1,10 +1,9 @@
 import { convexTest, type TestConvex } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import schema from '../schema';
 import {
   DISCUSSION_MENTION_EVENT,
-  DISCUSSION_MENTION_INSTRUCTIONS,
   dispatchAgentMentionRuns,
   hasLiveDiscussionMentionAutomation,
 } from './mention_dispatch';
@@ -82,8 +81,9 @@ function dispatch(
 }
 
 describe('dispatchAgentMentionRuns', () => {
-  it('schedules one runAgentOnDiscussion per agent mention when no automation is live', async () => {
+  it('skips dispatch for agent mentions while agent runs are offline, with a warning', async () => {
     const t = convexTest(schema, modules);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const count = await dispatch(t, {
       mentions: [
@@ -93,23 +93,14 @@ describe('dispatchAgentMentionRuns', () => {
       ],
     });
 
-    expect(count).toBe(2);
-    const runs = await scheduledAgentRuns(t);
-    expect(runs).toHaveLength(2);
-    expect(runs.map((job) => job.args[0])).toEqual([
-      {
-        organizationId: ORG,
-        agentSlug: 'assistant',
-        threadId: THREAD,
-        instructions: DISCUSSION_MENTION_INSTRUCTIONS,
-      },
-      {
-        organizationId: ORG,
-        agentSlug: 'content-writer',
-        threadId: THREAD,
-        instructions: DISCUSSION_MENTION_INSTRUCTIONS,
-      },
-    ]);
+    // Agent dispatch is offline while the chat backend is rebuilt: nothing
+    // schedules, and the skip is loud (a warning naming the mention count)
+    // rather than silent — distinguishing this from the guard-based zeros
+    // in the cases below, which return before the warning.
+    expect(count).toBe(0);
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 
   it('never lets an agent trigger itself (mirrors the pack is_agent guard)', async () => {
@@ -145,29 +136,40 @@ describe('dispatchAgentMentionRuns', () => {
     expect(await scheduledAgentRuns(t)).toHaveLength(0);
   });
 
-  it('dispatches when the subscription is inactive (processEvent would skip it)', async () => {
+  it('still reaches the offline skip when the subscription is inactive (processEvent would skip it)', async () => {
     const t = convexTest(schema, modules);
     await seedSubscription(t, { isActive: false });
     await seedInstallation(t);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const count = await dispatch(t);
+    const count = await dispatch(t, {
+      mentions: [{ type: 'agent', id: 'assistant' }],
+    });
 
-    expect(count).toBe(1);
-    expect(await scheduledAgentRuns(t)).toHaveLength(1);
+    // An inactive subscription does NOT count as a live automation, so the
+    // detection logic falls through to the dispatch fallback — which is the
+    // offline no-op today. The warning proves the fallback was reached.
+    expect(count).toBe(0);
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 
-  it('dispatches when the subscribed workflow has no installation (processEvent would skip it)', async () => {
+  it('still reaches the offline skip when the subscribed workflow has no installation (processEvent would skip it)', async () => {
     const t = convexTest(schema, modules);
     await seedSubscription(t);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const count = await dispatch(t);
+    const count = await dispatch(t, {
+      mentions: [{ type: 'agent', id: 'assistant' }],
+    });
 
-    expect(count).toBe(1);
-    expect(await scheduledAgentRuns(t)).toHaveLength(1);
+    expect(count).toBe(0);
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
-});
 
-describe('hasLiveDiscussionMentionAutomation', () => {
   it('requires BOTH an active subscription and its installation', async () => {
     const t = convexTest(schema, modules);
     await expect(

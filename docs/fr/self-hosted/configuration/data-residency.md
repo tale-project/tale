@@ -9,13 +9,13 @@ Cette page couvre ce qui peut être déplacé, le seul prérequis qui mord (Para
 
 ## Activer la modification
 
-Voir la page est ouvert à tout owner ou admin d'une organisation, mais **modifier** — repointer une banque de données, enregistrer des secrets, lancer un test de connexion ou appliquer un redémarrage — est réservé à une allowlist nommée d'opérateurs. Liste leurs courriels de connexion (séparés par des virgules) dans `.env` et redémarre :
+**Paramètres > Résidence des données** est une seule page avec deux familles de sections : les banques à l'échelle du déploiement que toutes les organisations partagent, et celles qu'une organisation apporte pour elle seule. Chaque section s'affiche en lecture seule ou modifiable selon ce que la personne qui la lit a le droit de changer, et la page nomme l'état dans lequel tu te trouves. Voir la page est ouvert à tout owner ou admin d'une organisation ; **modifier les banques du déploiement** — repointer une banque de données, enregistrer des secrets, lancer un test de connexion ou appliquer un redémarrage — est réservé à une allowlist nommée d'opérateurs. Liste leurs courriels de connexion (séparés par des virgules) dans `.env` et redémarre :
 
 ```bash
 TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-Si l'allowlist est vide ou non définie, **Paramètres > Résidence des données** montre toujours la configuration actuelle aux administrateurs, mais en lecture seule — Enregistrer, Tester et Appliquer & redémarrer refusent pour tout le monde. Seul un admin connecté dont le courriel figure sur la liste obtient une page modifiable ; la page t'indique quel courriel ajouter. Les entrypoints consomment le fichier de configuration quelle que soit l'allowlist, donc un opérateur qui préfère éditer le fichier à la main sur le disque peut le faire sans nommer d'éditeurs UI.
+Si l'allowlist est vide ou non définie, les sections de déploiement montrent toujours la configuration actuelle aux administrateurs, mais en lecture seule — Enregistrer, Tester et Appliquer & redémarrer refusent pour tout le monde. Seul un admin connecté dont le courriel figure sur la liste rend ces sections modifiables ; la page t'indique quel courriel ajouter. Les entrypoints consomment le fichier de configuration quelle que soit l'allowlist, donc un opérateur qui préfère éditer le fichier à la main sur le disque peut le faire sans nommer d'éditeurs UI.
 
 ## Ce que tu peux relocaliser
 
@@ -46,7 +46,7 @@ Le même prérequis ParadeDB s'applique. L'org valide sa base candidate avec un 
 
 Ce chemin retombe sans risque. Une organisation sans `connection.json` garde le `knowledge-db` par défaut du déploiement exactement comme avant, la fonctionnalité ne change donc rien pour les orgs qui n'y adhèrent pas. Deux organisations qui pointent vers la même base partagent un seul pool de connexions et — contrairement aux banques au niveau du déploiement — un changement par org ne demande aucun redémarrage de conteneur : la prochaine requête de cette org est routée vers sa propre base.
 
-Un propriétaire ou un admin de l'organisation peut aussi gérer cette connexion depuis l'UI : **Paramètres > Résidence des données de l'organisation** lit et écrit exactement ces fichiers, avec le même test de connexion avant de basculer. Les fichiers JSON sur le disque restent la source de vérité — un opérateur qui préfère les éditer à la main n'a besoin d'aucune étape UI.
+Un propriétaire ou un admin de l'organisation peut aussi gérer cette connexion depuis l'UI : les sections par organisation de **Paramètres > Résidence des données** lisent et écrivent exactement ces fichiers, avec le même test de connexion avant de basculer. Ces sections restent modifiables pour un propriétaire ou un admin d'org, que l'allowlist d'opérateurs les nomme ou non, parce que les fichiers qu'elles touchent appartiennent à l'organisation et non au déploiement. Les fichiers JSON sur le disque restent la source de vérité — un opérateur qui préfère les éditer à la main n'a besoin d'aucune étape UI.
 
 ## Stockage d'objets par organisation
 
@@ -59,7 +59,7 @@ La connexion vit à côté de celle des connaissances, dans le répertoire de co
 
 Contrairement au basculement S3 au niveau du déploiement ci-dessus, ce chemin n'est **pas** réservé aux installations neuves : dès que la configuration existe, les nouveaux téléversements vont dans le bucket de l'org, tandis que les fichiers stockés avant restent lisibles là où ils sont — les références mixtes sont prises en charge, tu peux donc basculer à tout moment. Les fichiers stockés plus tôt restent dans le stockage Convex jusqu'à ce que tu les relocalises avec le backfill de blobs ci-dessous. Si tu supprimes la configuration, les nouveaux téléversements retournent au défaut du déploiement ; les fichiers déjà écrits dans le bucket y restent, mais Tale ne peut plus les lire tant que la connexion n'est pas rétablie. Aucun redémarrage n'est nécessaire, dans un sens comme dans l'autre.
 
-Les admins d'org gèrent aussi cette connexion dans **Paramètres > Résidence des données de l'organisation** ; son test de connexion effectue un aller-retour réel écriture-lecture-suppression contre le bucket avant que tu t'engages. Comme pour la connexion des connaissances, les fichiers JSON restent la source de vérité.
+Les admins d'org gèrent aussi cette connexion dans les mêmes sections par organisation de **Paramètres > Résidence des données** ; son test de connexion effectue un aller-retour réel écriture-lecture-suppression contre le bucket avant que tu t'engages. Comme pour la connexion des connaissances, les fichiers JSON restent la source de vérité.
 
 > **Autorise l'origine de l'app dans la politique CORS du bucket.** Les téléversements et les téléchargements passent directement du navigateur au bucket via des URL présignées : le bucket doit donc accepter les requêtes cross-origin depuis l'URL de ton déploiement — autorise cette origine avec les méthodes `GET`, `PUT` et `HEAD` et tous les en-têtes de requête (Cloudflare R2 : **Settings > CORS Policy** du bucket ; AWS S3 et MinIO : la configuration CORS du bucket). Le test de connexion dans l'app s'exécute côté serveur, pas dans le navigateur — une politique CORS manquante ne se montre donc que plus tard, sous la forme d'un téléversement échoué.
 

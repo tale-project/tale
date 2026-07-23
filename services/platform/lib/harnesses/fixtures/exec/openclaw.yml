@@ -1,0 +1,245 @@
+managed-baseline:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}}}}'
+  stdinMode: close
+managed-model-opus:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"tale/claude-opus-4-6"}}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[{"id":"claude-opus-4-6","name":"Tale
+    gateway
+    model","reasoning":false,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000}]}}}}}'
+  stdinMode: close
+managed-model-gateway-ref:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"tale/openrouter/anthropic/claude-sonnet-4.6"}}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[{"id":"openrouter/anthropic/claude-sonnet-4.6","name":"Tale
+    gateway
+    model","reasoning":false,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000}]}}}}}'
+  stdinMode: close
+managed-model-default:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"tale/default"}}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[{"id":"default","name":"Tale
+    gateway
+    model","reasoning":false,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000}]}}}}}'
+  stdinMode: close
+managed-plan:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}}}}'
+  stdinMode: close
+managed-act:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}}}}'
+  stdinMode: close
+managed-resume:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+    - --resume
+    - golden-resume-handle
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}}}}'
+  stdinMode: close
+managed-instructions:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}}},"system_prompt":"Golden
+    instructions: follow the org runbook."}'
+  stdinMode: close
+managed-dirs:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}}}}'
+  stdinMode: close
+managed-mcp-headless-bridge:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}}'
+  stdinMode: close
+managed-mcp-cdp:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--cdp-endpoint","http://127.0.0.1:9222"]}}}}}'
+  stdinMode: close
+managed-mcp-bridge-only:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}}'
+  stdinMode: close
+managed-vision:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}}'
+  stdinMode: close
+managed-steer:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}}}}'
+  stdinMode: close
+managed-kitchen-sink:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+    - --resume
+    - golden-resume-handle
+  env:
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"tale/claude-opus-4-6"}}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[{"id":"claude-opus-4-6","name":"Tale
+    gateway
+    model","reasoning":false,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000}]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}},"system_prompt":"Golden
+    instructions: follow the org runbook."}'
+  stdinMode: close
+byo-baseline:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding"}}}'
+  stdinMode: close
+byo-model:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"claude-opus-4-6"}}},"tools":{"profile":"coding"}}}'
+  stdinMode: close
+byo-model-default:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"default"}}},"tools":{"profile":"coding"}}}'
+  stdinMode: close
+byo-kitchen-sink:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /user/workspace
+    - --resume
+    - golden-resume-handle
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"claude-opus-4-6"}}},"tools":{"profile":"coding"},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}},"system_prompt":"Golden
+    instructions: follow the org runbook."}'
+  stdinMode: close

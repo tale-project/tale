@@ -1,0 +1,32 @@
+languageSwitcher:
+  ariaLabel: Sprache wechseln
+markdownImage:
+  zoom: Bild vergrößern
+  close: Schließen
+skeleton:
+  loading: Inhalt wird geladen
+themeSwitcher:
+  ariaLabel: Design wechseln
+  light: Hell
+  dark: Dunkel
+  system: System
+search:
+  title: Suchen
+  placeholder: Suchen…
+  empty: Tippe los, um zu suchen.
+  emptyHint: Finde alles in diesem Arbeitsbereich.
+  keepTyping: Tippe weiter, um zu suchen…
+  noResultsTitle: Keine Ergebnisse
+  noResultsHint: Probiere andere Begriffe.
+  errorTitle: Etwas ist schiefgelaufen
+  errorHint: Prüfe deine Verbindung und versuche es erneut.
+  resultsGroup: Ergebnisse
+  loading: Suche läuft…
+  close: Suche schließen
+  recent: Letzte Suchen
+  clearRecent: Leeren
+  removeRecent: Aus den letzten Suchen entfernen
+  tipNavigate: zum Navigieren
+  tipSelect: zum Öffnen
+  tipClose: zum Schließen
+  results: '{count, plural, =0 {keine Ergebnisse} =1 {# Ergebnis} other {# Ergebnisse}}'

@@ -14,14 +14,85 @@ import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 vi.setConfig({ testTimeout: 60_000 });
 
+// Phase-0's real `seedDomain` (`organizations/scaffold.ts`) refuses every
+// `scaffoldKind` but `flat` — `automations` is `scaffoldKind: 'bundle'`
+// (`legacy/frozen/config_domains.ts`), so it throws unconditionally, by
+// design (see that file's own doc comment: "the only caller that can
+// currently reach a non-flat domain is the pre-rewrite v0_3_4/33 migration
+// ... failing loud there is correct"). This migration's OWN test still needs
+// to exercise its "catalog seeded in" path, so this mock restores JUST the
+// bundle-copy behaviour `up()` needs — a recursive merge-copy from the
+// catalog onto the org's automations dir (an existing org-authored bundle at
+// a path the catalog doesn't have, e.g. `org-own`, is left untouched, same
+// override contract the pre-rewrite `seedDomain` implemented for
+// `scaffoldKind: 'bundle'`). Precedent:
+// `v0_3_4/02_install_email_apps/migration.test.ts` mocks
+// `automations/install_actions` the same way, for the same reason (a gutted
+// dependency, not this migration's own logic).
+vi.mock('../../../../organizations/scaffold', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../../../../organizations/scaffold')>();
+  const { cp } = await import('node:fs/promises');
+  const { resolveAutomationsDir } =
+    await import('../../../../legacy/frozen/automations_file_utils');
+  return {
+    ...original,
+    seedDomain: async (
+      domain: { name: string },
+      catalogRoot: string,
+      orgSlug: string,
+    ) => {
+      const sourceDir = path.join(catalogRoot, domain.name);
+      const targetDir = resolveAutomationsDir(orgSlug);
+      await cp(sourceDir, targetDir, { recursive: true, force: true }).catch(
+        (err: NodeJS.ErrnoException) => {
+          if (err.code !== 'ENOENT') throw err;
+        },
+      );
+      return { domain: domain.name, ok: true };
+    },
+  };
+});
+
+// The wrap-org-authored-workflows half of `up()` enumerates the org's
+// workflows dir via `listCatalogArea('workflows', orgSlug, {...})`
+// (`lib/config_store/catalog.ts`), which resolves the domain dir through
+// `lib/config_store/resolvers.ts`'s `DOMAIN_DIR_RESOLVERS` — Phase-0-minimal
+// (`governance`/`sso`/`prompts` only), so it throws `No directory resolver
+// registered for config domain: workflows` for every org. `up()` swallows
+// that error (`catch { return; }`, written for the "no workflows dir yet"
+// case), silently no-opping the wrap step. This mock adds back JUST the
+// `workflows` → `resolveWorkflowsDir` mapping (the same frozen legacy path
+// helper `v0_3_4/06`'s migration.ts already uses) so `listCatalogArea` finds
+// the seeded dir; every other domain still resolves through the real
+// registry.
+vi.mock('../../../../lib/config_store/resolvers', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('../../../../lib/config_store/resolvers')
+    >();
+  const { resolveWorkflowsDir } =
+    await import('../../../../legacy/frozen/workflows_file_utils');
+  return {
+    ...original,
+    resolveDomainDir: (domain: string, orgSlug: string) =>
+      domain === 'workflows'
+        ? resolveWorkflowsDir(orgSlug)
+        : original.resolveDomainDir(domain, orgSlug),
+  };
+});
+
 const DIR = 'migrations/versions/v0_3_4/33_workflows_become_automations';
 
-// `up` seeds from the builtin catalog. Point the env at a MINI catalog —
-// two real bundles copied from the repo — instead of all ~29: the ritual
-// re-seeds per phase and per org, and the full catalog's I/O starves the
-// parallel suite's other workers (vitest isolates env per file).
+// `up` seeds from the builtin catalog. Point the env at a MINI catalog — two
+// real bundles copied from a committed fixture — instead of all ~29: the
+// ritual re-seeds per phase and per org, and the full catalog's I/O starves
+// the parallel suite's other workers (vitest isolates env per file). The repo
+// root `builtin-configs/` catalog was retired with the rest of the old
+// backend; `testing/fixtures/builtin-catalog/` is a
+// faithful copy of just the two bundles this test touches.
 const REAL_BUILTIN = fileURLToPath(
-  new URL('../../../../../../../builtin-configs', import.meta.url),
+  new URL('../../../testing/fixtures/builtin-catalog', import.meta.url),
 );
 const MINI_CATALOG = mkdtempSync(path.join(tmpdir(), 'wf33-catalog-'));
 mkdirSync(path.join(MINI_CATALOG, 'automations'), { recursive: true });

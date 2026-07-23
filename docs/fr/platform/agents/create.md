@@ -1,60 +1,40 @@
 ---
 title: Créer un agent
-description: Va du dialogue Créer un agent à un agent publié — nomme-le, écris ses instructions, cadre ses connaissances, accorde ses outils et vérifie-le dans le chat.
+description: Du dialogue vide à un agent utilisable — nomme-le, écris ses instructions, accorde outils et skills, cadre ses connaissances et essaie-le dans le chat.
 ---
 
-Ce tutoriel va d’un dialogue **Créer un agent** vide à un agent que tu publies et utilises. Le résultat est un agent qui connaît son domaine, a les outils pour agir sur ce qu’il lit, et reste joignable depuis n’importe quel chat de ton organisation. Compte une quinzaine de minutes si un fournisseur de modèles est déjà configuré ; davantage s’il faut aussi en mettre un en place.
+Ce parcours va d’un dialogue vide à un agent que tes collègues peuvent choisir. À l’arrivée, tu as une persona qui connaît son domaine, dispose des outils pour agir sur ce qu’elle lit, et reste joignable depuis n’importe quelle conversation de ton organisation. Compte une quinzaine de minutes.
 
-Le tutoriel prend un agent de tri de support comme exemple filé — le même que celui qu’introduit [Concepts d’agent](/fr/platform/agents/concepts). Remplace librement par ton propre domaine ; les étapes ne dépendent pas de l’exemple.
+L’exemple fil rouge est un agent de tri du support, celui-là même que présente [Concepts d’agent](/fr/platform/agents/concepts). Remplace-le par ton propre domaine sans hésiter : aucune étape ne dépend de l’exemple.
 
 ## Avant de commencer
 
-Vérifie que deux choses sont en place :
+Deux choses doivent être en place :
 
-- Un fournisseur de modèles est configuré sous **Paramètres > Fournisseurs**. Les utilisateurs Cloud en ont un par défaut ; les opérateurs auto-hébergés suivent [Configuration → fournisseurs](/fr/self-hosted/configuration/providers). Sans lui, le dialogue t’arrête : un agent a besoin d’un modèle pour tourner.
-- Tu détiens le rôle Éditeur ou supérieur dans cette organisation. En cas de doute, vérifie ta ligne de membre sous **Paramètres > Organisation**.
+- Ton organisation dispose d’au moins un accès fournisseur sous **Paramètres > Fournisseurs**. L’agent lui-même ne nomme aucun modèle — c’est celui qui envoie le message qui le choisit dans le composer — mais le composer n’a rien à proposer tant qu’aucun accès n’existe. En Cloud, il y en a un par défaut ; en auto-hébergement, suis [Configuration → fournisseurs](/fr/self-hosted/configuration/providers).
+- Tu as ici le rôle Editor ou plus. Vérifie sur [Membres et rôles](/fr/platform/admin/members-and-roles) si tu as un doute.
 
-## Étape 1 — Créer l’agent
+## Étape 1 — Le nommer et décider qui le voit
 
-Ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**, puis choisis **Vierge** (le menu propose aussi **À partir d'un modèle** et **Téléverser un fichier** pour importer du JSON d’agent). Le dialogue demande quatre choses : un **Nom** — l’identifiant unique utilisé dans les liens et l’API, que tu ne peux plus changer ensuite ; utilise uniquement des lettres minuscules, des chiffres, des tirets et des underscores, par exemple `seo-writer` — un **Nom d'affichage** que tes coéquipiers voient dans le chat, une **Description**, et la liste **Modèle**. Le premier modèle est celui par défaut et les suivants sont des fallbacks ; glisse pour réordonner ou ajoutes-en d’autres à tout moment. Clique sur **Continuer** et l’éditeur s’ouvre sur l’onglet **Général**.
+Ouvre **Agents** dans la barre latérale et crées-en un. Le dialogue demande un **Nom** — l’identifiant unique utilisé dans les liens et l’API, impossible à changer ensuite, donc parlant et en minuscules, `support-triage` plutôt que `agent2` — puis un **Nom affiché** sous lequel l’équipe le rencontre et une courte **Description**. Valide, et l’éditeur s’ouvre sur **Général**.
 
-<Frame caption="La liste des agents — Créer un agent se trouve en haut à droite.">
-
-![La liste des agents avec le dossier chat déplié, montrant les lignes Assistant et Automation Assistant avec leurs modèles par défaut et le nombre d’outils.](/images/platform/agents-list-expanded.webp)
-
-</Frame>
+**Général** porte l’identité : le nom affiché, la description, une icône et la **visibilité** de l’agent. Garde-le privé tant que tu le façonnes, et toi seul l’atteins ; partage-le avec l’organisation, et chaque membre peut le choisir dans le composer. Un agent privé enregistre un propriétaire, en l’occurrence toi : un agent que personne ne possède et que personne ne voit ne serait joignable par personne.
 
 ## Étape 2 — Écrire les instructions
 
-Ouvre **Instructions et modèles**. Le champ **Instructions système** est du markdown pur, avec **Parcourir les prompts** pour partir de la bibliothèque de prompts de l’organisation et des variables de template résolues à l’exécution. Trois conseils venus du terrain :
+Ouvre **Instructions**. Le champ est du markdown simple, plafonné à 20 000 caractères, et il est placé en tête de chaque tour auquel l’agent répond. Trois conseils de terrain :
 
-- **Ouvre par la voix.** Un paragraphe qui nomme qui est l’agent, à qui il répond et quel ton il adopte. Le modèle traite cela comme le signal le plus fort.
-- **Nomme explicitement les cas de refus.** Trois ou quatre phrases qui disent ce que l’agent refuse de faire et ce qu’il dit quand il refuse.
-- **Résiste à l’envie de tout spécifier.** De longues instructions se diluent dans les longues conversations. Si un comportement relève du code, appuie-toi sur un outil ; s’il relève des données, appuie-toi sur les connaissances.
+- **Commence par la voix.** Un paragraphe qui dit qui est l’agent, à qui il répond et sur quel ton. Le modèle en fait le signal le plus fort de tout le fichier.
+- **Nomme explicitement les cas de refus.** Trois ou quatre phrases sur ce que l’agent ne fait pas, et sur ce qu’il répond quand il refuse.
+- **Résiste à tout spécifier.** De longues instructions se diluent dans les longues conversations. Si un comportement relève du code, appuie-toi sur un outil ; s’il relève des documents, sur la portée des connaissances ; s’il se répète d’un agent à l’autre, sur un skill.
 
-Le même onglet contient la liste de modèles fixée dans le dialogue — le premier modèle est le primaire, et chaque modèle en dessous est le fallback suivant quand celui du dessus est indisponible.
+Les instructions se traduisent par langue, au même titre que le nom affiché et la description : un lecteur français obtient ainsi un agent briefé en français, plutôt qu’un briefing anglais qui répond en français.
 
-<Frame caption="Instructions et modèles — le prompt système au-dessus, la liste ordonnée de modèles en dessous.">
+## Étape 3 — Accorder outils et skills
 
-![L’onglet Instructions et modèles de l’éditeur d’agent, montrant le champ d’instructions système avec ses onglets de langue et une liste ordonnée de cinq modèles avec leurs contrôles de réordonnancement.](/images/platform/agent-editor-instructions.webp)
+Passe sur **Outils**. Les outils sont des interrupteurs individuels regroupés en cartes de catégorie — contacts, produits, fichiers, connaissances, automatisations et le reste — et chacun que tu accordes élargit ce que l’agent peut lire ou modifier en ton nom. Accorde le plus petit ensemble qui fait le travail et laisse le reste éteint. Les intégrations connectées et les automatisations de l’organisation figurent dans la même liste : en lier une revient exactement à accorder un outil de la plateforme.
 
-</Frame>
-
-## Étape 3 — Cadrer ses connaissances
-
-Passe à l’onglet **Base de connaissances**. Choisis un **Mode de récupération** — **Outil** laisse l’agent chercher à la demande, **Contexte** injecte les connaissances pertinentes dans chaque réponse, **Les deux** fait les deux, **Désactivé** coupe la base de connaissances. Cadre ensuite ce qui est interrogeable : **Inclure les documents de l'équipe**, **Inclure les documents de l'organisation**, et les **Documents de l'agent** que tu téléverses pour cet agent seul. Lie le plus petit ensemble utile — tout ce que tu inclus concourt à la récupération à chaque question.
-
-<Frame caption="L’onglet Base de connaissances — le mode de récupération, les portées de documents et les documents d’organisation indexés.">
-
-![L’onglet Base de connaissances de l’éditeur d’agent avec Outil choisi comme mode de récupération, les interrupteurs des documents d’équipe et d’organisation tous deux actifs, et la liste des documents de l’organisation où chaque fichier porte un badge Indexé.](/images/platform/agent-editor-knowledge.webp)
-
-</Frame>
-
-## Étape 4 — Accorder les outils
-
-Passe à l’onglet **Outils**. Les outils sont des cases à cocher individuelles groupées par catégorie — contacts, produits, fichiers, workflows et plus — plus un sélecteur de mode **Recherche web** en haut. Accorde ce dont l’agent a besoin et laisse le reste éteint ; chaque case cochée élargit la frontière de confiance.
-
-<Frame caption="L’onglet Outils — une liste de cases par outil, groupée en cartes de catégorie, chacune comptant ce qu’elle a accordé.">
+<Frame caption="Le catalogue d’outils — une carte par catégorie, chacune comptant combien de ses outils l’agent a reçus.">
 
 ![L’onglet Outils de l’éditeur d’agent, défilé jusqu’aux cartes de catégorie, avec Connaissances à trois outils cochés sur quatre et Fichiers à sept sur sept, tandis que Conversations, Discussions, Analytique et Tâches et projets n’ont rien d’accordé.](/images/platform/agent-editor-tools.webp)
 
@@ -62,21 +42,31 @@ Passe à l’onglet **Outils**. Les outils sont des cases à cocher individuelle
 
 <Note>
 
-**Exécuter du code** (sous **Système**) exécute des scripts dans une sandbox et relève de la [politique run-code](/fr/platform/admin/governance/run-code-policy) de l’organisation — la case accorde l’outil, la politique décide de ce qu’une exécution peut faire.
+**Exécuter du code** lance des scripts dans une sandbox et relève de la [politique d’exécution de code](/fr/platform/admin/governance/run-code-policy) de l’organisation : l’interrupteur accorde l’outil, la politique décide de ce qu’une exécution a réellement le droit de faire.
 
 </Note>
 
-## Étape 5 — Le rendre visible et l’essayer
+Ouvre ensuite **Skills** et lie les bundles que cet agent doit pouvoir déplier, dix au plus. Un skill est un paquet de connaissances issu de la [bibliothèque de skills](/fr/platform/workspace/skills) de l’organisation : lie ici le bundle maison sur le ton des réponses, et l’agent de tri formulera comme tous les autres. Laisse la liste vide et il ne déplie rien.
 
-De retour sur **Général**, active **Visible dans le chat** et clique sur **Enregistrer**. Un toast confirme **Agent enregistré**. Ouvre un nouveau chat, choisis l’agent dans le sélecteur et envoie un message qui sollicite les connaissances et les outils accordés. Si l’agent répond comme tu l’as écrit, c’est terminé ; sinon, le bouton **Historique** en haut à droite de l’éditeur montre chaque version enregistrée et te laisse comparer ou restaurer.
+## Étape 4 — Cadrer ses connaissances
+
+Passe sur **Connaissances**. Un seul réglage décide quel corpus la recherche de l’agent a le droit de lire : les **documents** téléversés par l’organisation, les pages **web** récupérées pour son compte, **tout** cela fusionné, ou **rien**, auquel cas aucune recherche ne lui est proposée. La recherche ne part que si l’agent la juge utile : rien n’est injecté dans une réponse sans qu’il l’ait demandé.
+
+Resserre la portée quand tu le peux. Tout ce qui est dans le périmètre se dispute la pertinence à chaque question, et un agent pointé sur les documents qui comptent répond mieux qu’un agent pointé sur tout ce que possède l’organisation.
+
+## Étape 5 — Enregistrer et essayer
+
+Clique sur **Enregistrer**. Ouvre une nouvelle conversation, choisis l’agent, choisis un modèle dans le sélecteur du composer et envoie un message qui sollicite les connaissances et les outils que tu as accordés. Le modèle est ton choix à chaque tour : le même agent peut donc traiter une question bon marché sur un petit modèle et une question difficile sur un grand, sans la moindre modification.
+
+S’il répond comme tu l’as écrit, c’est terminé. Sinon, le bouton **Historique** en haut à droite de l’éditeur conserve chaque version enregistrée et permet de comparer ou de restaurer — voir [Versions d’agent](/fr/platform/agents/versions).
 
 ## Dépannage
 
-- **L’enregistrement échoue avec un avertissement de modèle.** L’agent n’a aucun modèle — ajoutes-en un sur l’onglet Instructions et modèles avant d’enregistrer.
-- **L’agent n’apparaît pas dans le sélecteur du chat.** Confirme que **Visible dans le chat** est activé ; éteint, l’agent n’est joignable que par délégation. S’il est activé, regarde la section **Accès** — un agent assigné à une équipe n’est utilisable que par cette équipe.
-- **Les réponses ignorent les connaissances.** Le mode de récupération est peut-être **Désactivé**, les interrupteurs de portée éteints, ou le document pas encore **Indexé** — ouvre-le depuis [Documents](/fr/platform/knowledge/documents) pour vérifier.
-- **Un appel d’outil est refusé à l’exécution.** Une politique de gouvernance verrouille l’outil : la définition de l’agent l’autorise, l’exécution le refuse. Regarde [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
+- **L’agent n’apparaît pas dans le sélecteur du chat.** Sa visibilité est encore privée, donc toi seul le vois. Partage-le avec l’organisation depuis l’onglet **Général**.
+- **Les réponses ignorent les connaissances.** La portée est peut-être réglée sur rien, ou le document n’est pas encore indexé — ouvre-le depuis [Documents](/fr/platform/knowledge/documents) pour vérifier son état.
+- **Un skill lié ne sert jamais.** Un modèle va chercher un skill par sa description, donc une description vague est ignorée : dis ce qu’il fait et quand il s’applique. Un bundle marqué `disable-model-invocation` attend délibérément qu’on le nomme.
+- **Un appel d’outil est refusé à l’exécution.** Une politique de gouvernance filtre l’outil : l’agent a le droit de l’appeler, et l’exécution refuse. Regarde du côté de [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
 
-## Où ça sert ensuite
+## Où cela sert
 
-Créer un agent est le moment où le reste de la plateforme commence à sentir comme Tale plutôt que comme un chat générique. La marche suivante naturelle est [Agent avec connaissances](/fr/tutorials/editor/agent-with-knowledge) — même forme, mais lie un dossier de PDF et exerce la pipeline de citations de bout en bout. Pour voir un agent confier une sous-tâche à un worker, [Confier du travail à un worker](/fr/tutorials/editor/delegate-between-agents) est le parcours.
+Créer un premier agent, c’est le moment où le reste de la plateforme se met à ressembler à Tale plutôt qu’à une fenêtre de chat générique. Tu as écrit une persona, tracé ses limites avec deux listes d’autorisation et une portée de connaissances, et laissé à la conversation toute question sur le déroulé d’un tour. La suite naturelle est [Agent avec connaissances](/fr/tutorials/editor/agent-with-knowledge) — même forme, mais avec un dossier de documents lié et la chaîne de citations exercée de bout en bout. Pour voir un agent confier une sous-tâche à un worker, parcours [Confier du travail à un worker](/fr/tutorials/editor/delegate-between-agents).

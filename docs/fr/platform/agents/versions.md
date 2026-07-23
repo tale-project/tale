@@ -17,7 +17,7 @@ Depuis un instantané, clique sur **Restaurer cette version**. L’état courant
 
 ## Ce qui est versionné
 
-Le versionnage couvre la configuration de l’agent : les instructions, la liste de modèles, la sélection d’outils, les réglages de connaissances, les amorces de conversation et les métadonnées. Il ne couvre pas les sources de connaissances sous-jacentes — remplacer un document depuis lequel l’agent récupère change ce que l’agent répond sans incrémenter la version de l’agent. Pour auditer un changement de connaissances, voir [Journaux d’audit](/fr/platform/admin/governance/audit-logs).
+Le versionnage couvre la configuration de l’agent : ses textes d’affichage et sa description, ses instructions, les listes d’autorisation d’outils et de skills, la portée des connaissances, sa visibilité et ses métadonnées. Il n’atteint pas ce que l’agent se contente de désigner. Remplacer un document depuis lequel il récupère change sa réponse sans incrémenter sa version, et remplacer un bundle de skill qu’il lie aussi — la liaison nomme un slug, donc la configuration propre de l’agent reste inchangée alors que son comportement, non. Pour auditer l’un comme l’autre, voir [Journaux d’audit](/fr/platform/admin/governance/audit-logs).
 
 ## Où ça se situe
 

@@ -1,0 +1,58 @@
+# Sandbox harness — Cursor Agent CLI (`agent -p`). Bring-your-own only: the
+# CLI authenticates with just --api-key / CURSOR_API_KEY and has no
+# OpenAI-compatible base-URL override, so it cannot route through the
+# platform gateway. The prompt rides argv — the CLI has no stdin prompt
+# channel. Cursor models are raw runtime ids that match no catalog entry, so
+# the vendor-native dialect passes refs through unchanged.
+#
+# NO maxTurns slot: the pinned CLI has no such option, and an unknown flag
+# makes `agent -p` exit 1 SILENTLY (no stdout/stderr) — verified in-sandbox.
+# The runaway backstop is the platform runner. The CLI's own OS sandbox is
+# disabled (--force --trust --sandbox disabled): the container is the safety
+# boundary. Composed instructions have no delivery channel on this CLI and
+# are dropped by design.
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/cursor.json pin the built
+# execs against the pinned CLI version below.
+slug: cursor
+displayName: Cursor
+credentialPolicy:
+  managed: false
+  byo: true
+credentialEnvKeys:
+  - CURSOR_API_KEY
+modelIdDialect: vendor-native
+promptTransport: argv
+capabilities:
+  planMode: false
+  steering: false
+  # The CLI can read MCP servers from a repo-local config file, but the exec
+  # facts stage no MCP config for it — a requested browser/bridge mount
+  # would silently drop. Declared off until the exec vocabulary carries a
+  # delivery channel for it.
+  mcp: false
+pinnedVersion: 2026.03.20-44cb435
+parser: cursor-jsonl
+exec:
+  bin: agent
+  argv:
+    - args:
+        - '-p'
+        - '--force'
+        - '--trust'
+        - '--sandbox'
+        - disabled
+        - '--output-format'
+        - stream-json
+        - '--workspace'
+        - '${workdir}'
+    - resume: { flag: '--resume' }
+    # `default` is the CLI's own model sentinel — passing it as --model is
+    # rejected, so the flag is omitted for it.
+    - model:
+        flag: '--model'
+        omitValues: [default]
+    - prompt: {}
+  stdin:
+    mode: none

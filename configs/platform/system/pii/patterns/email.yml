@@ -1,0 +1,13 @@
+# Built-in PII pattern. `impl: native` — the wide-net regex below is the
+# data knob; the RFC 5321 length gate (local part ≤ 64, domain ≤ 255) is a
+# validator in the pii plugin (lib/pii/patterns/email.ts).
+name: email
+description: >-
+  Email addresses in the pragmatic local@host.tld form that covers virtually
+  every real address. Punycode/IDNA and quoted local parts are accepted false
+  negatives — chasing RFC 5322 invites ReDoS-prone monster regexes.
+replacement: '[EMAIL]'
+impl: native
+regex:
+  source: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+  flags: g

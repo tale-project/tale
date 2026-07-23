@@ -11,11 +11,11 @@ import type { MutationCtx } from '../_generated/server';
 import { mutation } from '../_generated/server';
 import { notifyDiscussionMentions } from '../collab/notify';
 import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
+import { emitEvent } from '../events/emit';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import type { AuthenticatedUser } from '../lib/rls/types';
-import { emitEvent } from '../workflows/triggers/emit_event';
 import { dispatchAgentMentionRuns } from './mention_dispatch';
 
 const mentionResultValidator = v.object({

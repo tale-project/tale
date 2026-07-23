@@ -43,9 +43,9 @@ Der geteilte Workspace, den ein Redakteur um einen Kontakt oder einen Launch bü
 
 </Card>
 
-<Card title="Prompt-Bibliothek" icon="list-plus" href="/de/platform/workspace/prompt-library">
+<Card title="Skill-Bibliothek" icon="list-plus" href="/de/platform/workspace/skills">
 
-Der Bereich für gespeicherte Prompts, in dem ein Redakteur wiederkehrende Chat-Starter wiederverwendbar hält.
+Die Bundle-Bibliothek, in der ein Redakteur eine wiederkehrende Anleitung über Chats und Agents hinweg wiederverwendbar hält.
 
 </Card>
 

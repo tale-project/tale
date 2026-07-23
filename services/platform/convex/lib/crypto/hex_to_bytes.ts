@@ -1,5 +1,5 @@
 /**
- * Convert hex string (even length) to Uint8Array
+ * Decode an even-length hex string into raw bytes.
  */
 export function hexToBytes(hex: string): Uint8Array {
   const clean = hex.trim().toLowerCase();

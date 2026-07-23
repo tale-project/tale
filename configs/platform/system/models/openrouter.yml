@@ -1,0 +1,270 @@
+# Curated DEFAULT catalog for the openrouter connector — the flagship
+# models of the top-10 vendors on OpenRouter, captured from the live
+# listing on 2026-07-21 through the platform normalizer. The live
+# openrouter-api fetch is merged OVER this set (fetched entries win by
+# id); on a cold fetch failure these defaults serve alone, so an
+# air-gapped install still gets a working model picker.
+- id: anthropic/claude-sonnet-5
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: budget-tokens
+  contextWindow: 1000000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 1000
+- id: anthropic/claude-fable-5
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: budget-tokens
+  contextWindow: 1000000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 1000
+    outputCentsPerMillion: 5000
+- id: openai/gpt-5.6-luna-pro
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 100
+    outputCentsPerMillion: 600
+- id: openai/gpt-5.6-luna
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 100
+    outputCentsPerMillion: 600
+- id: google/gemini-3.6-flash
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 150
+    outputCentsPerMillion: 750
+- id: google/gemini-3.5-flash-lite
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 30
+    outputCentsPerMillion: 250
+- id: x-ai/grok-4.5
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 500000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 600
+- id: x-ai/grok-build-0.1
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 256000
+  pricing:
+    inputCentsPerMillion: 100
+    outputCentsPerMillion: 200
+- id: deepseek/deepseek-v4-pro
+  provider: openrouter
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: false
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  maxOutputTokens: 384000
+  pricing:
+    inputCentsPerMillion: 43.5
+    outputCentsPerMillion: 87
+- id: deepseek/deepseek-v4-flash
+  provider: openrouter
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: false
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  pricing:
+    inputCentsPerMillion: 9.38
+    outputCentsPerMillion: 18.76
+- id: qwen/qwen3.7-plus
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 32
+    outputCentsPerMillion: 128
+- id: qwen/qwen3.7-max
+  provider: openrouter
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: false
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 147.5
+    outputCentsPerMillion: 442.5
+- id: moonshotai/kimi-k3
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  pricing:
+    inputCentsPerMillion: 300
+    outputCentsPerMillion: 1500
+- id: moonshotai/kimi-k2.7-code
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 262144
+  pricing:
+    inputCentsPerMillion: 82
+    outputCentsPerMillion: 375
+- id: z-ai/glm-5.2
+  provider: openrouter
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: false
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  maxOutputTokens: 131072
+  pricing:
+    inputCentsPerMillion: 77.7
+    outputCentsPerMillion: 244.2
+- id: z-ai/glm-5.1
+  provider: openrouter
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: false
+  reasoning:
+    knob: effort
+  contextWindow: 204800
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 96.6
+    outputCentsPerMillion: 303.6
+- id: mistralai/mistral-medium-3-5
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 262144
+  pricing:
+    inputCentsPerMillion: 150
+    outputCentsPerMillion: 750
+- id: mistralai/mistral-small-2603
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 262144
+  pricing:
+    inputCentsPerMillion: 15
+    outputCentsPerMillion: 60
+- id: meta-llama/llama-4-maverick
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  contextWindow: 1048576
+  maxOutputTokens: 16384
+  pricing:
+    inputCentsPerMillion: 20
+    outputCentsPerMillion: 80
+- id: meta-llama/llama-4-scout
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  contextWindow: 1310720
+  maxOutputTokens: 16384
+  pricing:
+    inputCentsPerMillion: 10
+    outputCentsPerMillion: 30

@@ -11,13 +11,7 @@ Das Modell, was eine Genehmigungskarte ist und wer sie entscheidet, steht auf [G
 
 Jede Integration deklariert ihre Operationen, und jede Operation trägt ihr eigenes Genehmigungs-Flag. Öffne **Einstellungen > Integrationen**, klicke auf eine Integration, und ihre Operationsliste kennzeichnet die als **Genehmigung erforderlich** markierten — bei den mitgelieferten Konnektoren ist das die Schreibseite: Mail senden, Nachrichten posten, Issues erstellen. Lesezugriffe laufen ohne Karte; markierte Schreibzugriffe halten im Chat mit ihren exakten Parametern, bis jemand genehmigt.
 
-Bei einer eigenen Integration ist das Flag `requiresApproval` pro Operation in der `config.json`, die du mit **Integration hinzufügen** paketierst — entscheide beim Schreiben des Konnektors, welche seiner Operationen folgenreich genug sind, um zu fragen.
-
-<Frame caption="Der Integrationskatalog — die Detailansicht jedes Eintrags listet seine Operationen und welche davon eine Genehmigung verlangen.">
-
-![Die Seite Einstellungen Integrationen auf dem Tab Alle Integrationen mit einem Kartenraster aus zwölf verbindbaren Diensten wie GitHub, Slack und Gmail.](/images/platform/integrations-catalog.webp)
-
-</Frame>
+Das Flag ist keine separate Einstellung, die ein Admin umlegt. Jede Aktion, die ein Connector deklariert, trägt einen Effekt — `read` oder `write` —, und die Schreibseite ist das, was die Genehmigungsrichtlinie abfängt. Das hält beide ehrlich zueinander: Eine Aktion kann sich nicht klammheimlich von einem Lese- in einen Schreibzugriff verwandeln, ohne auch zu ändern, wofür sie fragen muss.
 
 ## MCP-Tools
 

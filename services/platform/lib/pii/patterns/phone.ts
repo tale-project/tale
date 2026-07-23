@@ -1,47 +1,32 @@
 /**
- * Phone-number detection — hybrid: libphonenumber-js + context-anchored regex.
+ * Phone numbers — hybrid detection.
  *
- * Why hybrid
- *   - `libphonenumber-js` is the canonical international phone parser: it
- *     handles country dial codes, formatting variants, and validation.
- *     Its matcher only fires on internationally-formatted numbers
- *     (`+CC ...`) without a `defaultCountry`, so it misses the common
- *     local form `Tel: 030 12345678`.
- *   - The context-anchored regex catches the local form: any digit run
- *     adjacent to a phone keyword from any enabled locale.
+ * Two passes, because neither alone covers real input:
+ *  - `libphonenumber-js` finds internationally formatted numbers
+ *    (`+CC …`) with real validation, but without a default country it
+ *    misses the everyday local form `Tel: 030 12345678`.
+ *  - A context-anchored regex composed from the union of every enabled
+ *    locale's `phoneContextKeywords` catches exactly that local form: a
+ *    digit run adjacent to a phone keyword.
  *
- * Locale composition
- *   - The keyword regex is built from the union of every enabled locale's
- *     `phoneContextKeywords`. Longest-first ordering so JavaScript's
- *     leftmost-first alternation favors `téléphone` over `tél`. Keywords
- *     are regex-escaped at composition.
- *
- * Performance defenses
- *   - libphonenumber's PhoneNumberMatcher re-validates every digit cluster;
- *     phone-saturated inputs can spike to ~180 ms p99. We cap input length
- *     (32 KB) and cluster count (200) before invoking libphone; a 40 ms
- *     wall-clock budget terminates the loop early. In those fail-open
- *     cases, the context regex (sub-millisecond) is still the fallback.
- *
- * `00`-prefix handling
- *   - libphone recognizes only `+` international prefix. Business-card-style
- *     `0049 30 ...` is converted to `+49 30 ...` via `buildPhonePosMap`,
- *     which also produces a position map so libphone's offsets translate
- *     back to original text. Conversion is conservative — only triggers at
- *     start-of-string or after a non-digit, never inside a number body.
+ * Performance bounds: libphonenumber re-validates every digit cluster and
+ * spikes on phone-saturated payloads, so its pass is gated on input length
+ * (32 KB) and cluster count (200) and cut off by a 40 ms wall-clock budget
+ * — fail-open, with the sub-millisecond context regex as the remaining
+ * net. Business-card `00`-prefixed international numbers (`0049 30 …`) are
+ * converted to `+` form for the scan through a position map that
+ * translates libphonenumber's offsets back to the original text; the
+ * conversion only fires at a string start or after a non-digit, never
+ * inside a number body.
  */
 
 import { findPhoneNumbersInText } from 'libphonenumber-js/min';
 
-import type {
-  PiiMatchSpan,
-  PiiPattern,
-  PiiPatternFactory,
-} from '../core/types';
-import { composeKeywordAlternation } from '../locales';
-import type { LocaleConfig } from '../locales/types';
+import type { PiiMatchSpan, PiiPattern } from '../core/types';
+import type { LocaleConfig } from '../schema';
+import { composeKeywordAlternation } from './keywords';
+import type { NativePatternBuilder } from './native';
 
-// libphone performance bounds.
 const PHONE_LIBPHONE_MAX_LEN = 32_000;
 const PHONE_LIBPHONE_MAX_CLUSTERS = 200;
 const PHONE_LIBPHONE_BUDGET_MS = 40;
@@ -59,14 +44,8 @@ function countMatches(re: RegExp, s: string): number {
 }
 
 /**
- * Convert leading `00` international-prefix groups to `+` so
- * libphonenumber-js (which only recognizes the `+` form) catches the
- * `0049 30 ...` business-card form. Returns the converted string plus a
- * position map.
- *
- * Replacement triggers only when the `00` sits at start-of-string OR after
- * a non-digit, non-`+` char — that prevents rewriting inside `1-200-...`
- * style numbers where `00` appears mid-body.
+ * Convert leading `00` international prefixes to `+` and return the
+ * converted text plus an offset map back into the original.
  */
 function buildPhonePosMap(orig: string): {
   converted: string;
@@ -99,10 +78,6 @@ function buildPhonePosMap(orig: string): {
   return {
     converted,
     mapToOrig: (pos: number) => {
-      // `pos === map.length` is also out of range — the map has indices
-      // `[0, map.length - 1]`, so the `>` comparison was off by one
-      // and silently skipped warning on the boundary case. The actual
-      // return below is still safe via `Math.min(pos, map.length - 1)`.
       if (pos < 0 || pos >= map.length) {
         console.debug(
           `[pii] phone pos-map offset out of range pos=${pos} mapLen=${map.length}`,
@@ -113,18 +88,8 @@ function buildPhonePosMap(orig: string): {
   };
 }
 
-/**
- * Compose the context-anchor keyword regex from the union of phone
- * keywords across `locales`.
- *
- * Returns a regex that captures the keyword + separator chars + a digit
- * group (the group is what gets masked; the keyword stays). Unicode-aware
- * boundary lookarounds so NFD-decomposed `é` doesn't slip past.
- *
- * Cached by a JSON-stringified `{locale, keywords}` digest sorted by
- * locale code so the cache stays correct when an embedder overrides
- * `phoneContextKeywords` for the same locale code via `PatternRegistry`.
- */
+// Content-digest cache: the keyword sets come from injected locale data,
+// so the key includes the actual keywords, not just locale codes.
 const PHONE_REGEX_CACHE = new Map<string, RegExp>();
 
 function composePhoneContextRegex(
@@ -132,10 +97,7 @@ function composePhoneContextRegex(
 ): RegExp {
   const cacheKey = JSON.stringify(
     locales
-      .map((l) => ({
-        locale: l.locale,
-        keywords: l.phoneContextKeywords.slice(),
-      }))
+      .map((l) => ({ locale: l.locale, keywords: l.phoneContextKeywords }))
       .sort((a, b) => (a.locale < b.locale ? -1 : a.locale > b.locale ? 1 : 0)),
   );
   const cached = PHONE_REGEX_CACHE.get(cacheKey);
@@ -144,6 +106,8 @@ function composePhoneContextRegex(
   const keywordAlternation = composeKeywordAlternation(
     locales.map((l) => l.phoneContextKeywords),
   );
+  // Unicode-aware boundaries around the keyword; the captured group is the
+  // digit run that gets masked (the keyword itself stays).
   const regex = new RegExp(
     `(?<![\\p{L}\\p{M}])(?:${keywordAlternation})(?![\\p{L}\\p{M}])[\\s:.\\-/]*(\\+?[\\d(][\\d\\s\\-()./]{6,24})`,
     'giu',
@@ -152,13 +116,13 @@ function composePhoneContextRegex(
   return regex;
 }
 
-export const phoneFactory: PiiPatternFactory = (locales) => {
+export const buildPhonePattern: NativePatternBuilder = (file) => (locales) => {
   const contextRegex = composePhoneContextRegex(locales);
 
   const detect = (text: string): PiiMatchSpan[] => {
     const out: PiiMatchSpan[] = [];
 
-    // libphone path — gated on input size and cluster count.
+    // libphonenumber pass, gated on size and cluster count.
     const tooLarge = text.length > PHONE_LIBPHONE_MAX_LEN;
     const clusterCount = countMatches(PHONE_CLUSTER_RE, text);
     const tooMany = clusterCount > PHONE_LIBPHONE_MAX_CLUSTERS;
@@ -189,17 +153,17 @@ export const phoneFactory: PiiPatternFactory = (locales) => {
       }
     }
 
-    // Context-anchored local-number path.
+    // Context-anchored local-number pass.
     contextRegex.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = contextRegex.exec(text)) !== null) {
       const numberStr = m[1];
       if (!numberStr) continue;
-      // Trim trailing whitespace, punctuation (`.,;:`), and decorative
-      // dashes (`–`, `—`) inside the captured group so the masker doesn't
-      // swallow inter-word spacing or sentence-ending punctuation. Do NOT
-      // trim `)` — phones like `(030) 12345` legitimately end in `)`.
-      const trimmed = numberStr.replace(/[\s.,;:\u2013\u2014]+$/, '');
+      // Trim trailing whitespace, sentence punctuation, and decorative
+      // dashes from the captured group so the masker never swallows
+      // inter-word spacing. `)` stays — `(030) 12345` ends legitimately
+      // with one.
+      const trimmed = numberStr.replace(/[\s.,;:–—]+$/, '');
       if (trimmed.length === 0) continue;
       const numberStart = m.index + m[0].lastIndexOf(numberStr);
       const digits = countMatches(PHONE_DIGIT_RE, trimmed);
@@ -216,9 +180,9 @@ export const phoneFactory: PiiPatternFactory = (locales) => {
   };
 
   const pattern: PiiPattern = {
-    name: 'phone',
+    name: file.name,
     detect,
-    replacement: '[PHONE]',
+    replacement: file.replacement,
   };
   return [pattern];
 };

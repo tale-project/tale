@@ -45,7 +45,6 @@ type UsageMetricsData =
   | undefined;
 
 interface UsageMetricsPageViewProps {
-  organizationId: string;
   /** Resolved metrics payload; `undefined` while loading (masked by the
    *  enclosing `<Skeletonize>` — cards/chart/tables stand in at full height). */
   data: UsageMetricsData;
@@ -74,7 +73,6 @@ interface UsageMetricsPageViewProps {
 // DataTables render skeleton rows from `isLoading`.
 // =============================================================================
 export function UsageMetricsPageView({
-  organizationId,
   data,
   isLoading,
   periodDays,
@@ -197,7 +195,6 @@ export function UsageMetricsPageView({
         rows={topAgents}
         isLoading={isLoading}
         onSelectAgent={onSelectAgent}
-        organizationId={organizationId}
       />
 
       <TopModelsTable
@@ -279,7 +276,6 @@ export function UsageMetricsPage({
   return (
     <Skeletonize loading={isLoading} label={t('usage.title')}>
       <UsageMetricsPageView
-        organizationId={organizationId}
         data={data}
         isLoading={isLoading}
         periodDays={periodDays}

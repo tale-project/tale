@@ -8,7 +8,7 @@ import { memo } from 'react';
 import {
   formatFileSize,
   middleEllipsis,
-} from '@/app/features/chat/components/message-bubble/file-displays';
+} from '@/app/features/shared/files/file-displays';
 
 import type { AttachedFile } from './types';
 import { getFileIcon } from './types';

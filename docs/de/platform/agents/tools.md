@@ -1,6 +1,6 @@
 ---
 title: Agent-Tools
-description: Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, die Websuche-Modi und gebundene Integrationen und Workflows.
+description: Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Integrationen und Automatisierungen als Fähigkeiten.
 ---
 
 Tools sind das, was ein Agent über das Erzeugen von Text hinaus tun kann. Das Modell entscheidet, welches Tool es aus der Liste aufruft, die der Autor des Agents gewährt hat; Tale führt das Tool aus, reicht das Ergebnis zurück, und das Modell macht weiter. Der Tab **Tools** des Agents ist diese Liste — ein durchsuchbarer Katalog mit Schaltern pro Tool, gruppiert in Kategorie-Karten.
@@ -13,7 +13,7 @@ Tools sind das, was ein Agent über das Erzeugen von Text hinaus tun kann. Das M
 
 ## Tools einzeln gewähren
 
-Setz den Haken bei einem Tool, und der Agent kann es ab der nächsten Anfrage aufrufen; entfern den Haken, und der Agent vergisst, dass es existiert. **Tools durchsuchen…** filtert den Katalog nach Name oder Kategorie, jede Tool-Zeile trägt eine einzeilige Beschreibung dessen, was sie gewährt, und die Kopf-Checkbox einer Kategorie schaltet die ganze Gruppe auf einmal — der Zähler daneben zeigt, wie viele Tools der Gruppe an sind. Die Kategorien bilden die Oberflächen der Plattform ab: **Kontakte**, **Produkte**, **Lieferanten** und **Websites** stellen Lese- und Update-Tools über strukturierte Datensätze bereit; **Konversationen** und **Diskussionen** lassen den Agent lesen und antworten; **Wissen** deckt Dokumentsuche und Schreiben ab; **Aufgaben & Projekte** enthält die eigene To-do-Liste des Agents; **Workflows** lässt ihn Workflows anlegen und ausführen; **Dateien** deckt die Dateioperationen des Agents ab; **System** hält **Code ausführen**, **Mensch fragen** und die übrigen Laufzeit-Tools. Gewähre die kleinste Menge, die den Job erledigt — jedes aktivierte Tool weitet, was der Agent in deinem Namen lesen oder ändern kann.
+Setz den Haken bei einem Tool, und der Agent kann es ab der nächsten Anfrage aufrufen; entfern den Haken, und der Agent vergisst, dass es existiert. **Tools durchsuchen…** filtert den Katalog nach Name oder Kategorie, jede Tool-Zeile trägt eine einzeilige Beschreibung dessen, was sie gewährt, und die Kopf-Checkbox einer Kategorie schaltet die ganze Gruppe auf einmal — der Zähler daneben zeigt, wie viele Tools der Gruppe an sind. Die Kategorien bilden die Oberflächen der Plattform ab: **Kontakte**, **Produkte**, **Lieferanten** und **Websites** stellen Lese- und Update-Tools über strukturierte Datensätze bereit; **Konversationen** und **Diskussionen** lassen den Agent lesen und antworten; **Wissen** deckt Dokumentsuche und Schreiben ab; **Aufgaben & Projekte** enthält die eigene To-do-Liste des Agents; **Automatisierungen** lässt ihn die Automatisierungen der Organisation anlegen und ausführen; **Web** hält die Suche über die Sites, die deine Organisation hinzugefügt hat; **Dateien** deckt die Dateioperationen des Agents ab; **System** hält **Code ausführen**, **Mensch fragen** und die übrigen Laufzeit-Tools. Gewähre die kleinste Menge, die den Job erledigt — jedes aktivierte Tool weitet, was der Agent in deinem Namen lesen oder ändern kann.
 
 **Code ausführen** in der Gruppe **System** ist das weitreichendste dieser Tools: Es führt Python, Node oder bash in der eigenen Sandbox des Chats aus und arbeitet dabei auf den Dateien, die der Chat schon hält, statt in einer leeren Box. Ein Aufruf führt einen Schnipsel direkt aus, führt ein Skript aus, das der Agent unter `/user/code/` abgelegt hat, oder installiert nur Pakete — deklarierte Pakete werden zuerst installiert und bleiben den Rest des Zugs erhalten, und was der Lauf unter `/user/output/` schreibt, erscheint als Datei im Chat. Dateien und Ordner, die du mit `@` anheftest, landen in dieser Sandbox unter `/user/uploads/`, sodass der Code die echten Bytes öffnet statt eines Retrieval-Schnipsels.
 
@@ -23,13 +23,15 @@ Ein Agent startet für eine Teilaufgabe von sich aus einen fokussierten **Worker
 
 </Note>
 
-## Websuche konfigurieren
+## Web-Zugang ist ein Tool, kein Modus
 
-**Websuche** ganz oben im Tab ist ein Modus, keine Checkbox: **Aus**, **Tool** (der Agent sucht bei Bedarf), **Kontext** (relevante Web-Ergebnisse werden in jede Antwort injiziert) oder **Beides**. Die Websuche durchsucht nur Inhalte von Websites, die deiner Organisation hinzugefügt wurden — sie ist kein offener Crawl; die Quellen verwaltest du unter [Websites](/de/platform/knowledge/crawling).
+Die Websuche steht im Katalog wie alles andere. Gewähr sie, und der Agent kann suchen, wenn er es für richtig hält; lass sie aus, und er kann gar nicht suchen. Es gibt keinen eigenen Modus einzustellen und kein automatisches Einspeisen von Ergebnissen in eine Antwort — der Agent greift nach der Suche wie nach jedem anderen Tool. Durchsucht wird das Material, das deine Organisation hinzugefügt hat, und kein offener Crawl; die Quellen verwaltest du also unter [Websites](/de/platform/knowledge/crawling).
 
-## Integrationen und Workflows binden
+## Auch Integrationen und Automatisierungen sind Fähigkeiten
 
-Unter dem Katalog hängen **Gebundene Integrationen** und **Gebundene Workflows** bestimmte Integrationen oder Workflows als eigene Tools an, sodass der Agent sie aufrufen kann, ohne die Integration oder die Workflow-Id selbst zu benennen. Binde die, von denen der Job des Agents abhängt; verbundene [MCP-Server](/de/platform/integrations/mcp-servers) erreichen den Agent auf demselben Weg, über die Integrationen der Organisation.
+Eine angebundene Integration und eine veröffentlichte Automatisierung erreichen den Agenten über dieselbe Liste. Darunter liegt keine zweite Binde-Oberfläche: Nenn die Fähigkeit in der Erlaubnisliste des Agenten, und er kann sie aufrufen, ohne die Integration oder die Automatisierungs-Id selbst zu zitieren. Verbundene [MCP-Server](/de/platform/integrations/mcp-servers) kommen auf demselben Weg, über die Integrationen der Organisation.
+
+Eine Automatisierung, die nur ein Ereignis starten kann, wird aufgeführt, ist aber nicht aufrufbar. Der Agent sieht, dass es sie gibt, und wird klar darauf hingewiesen, dass sie läuft, wenn ihr Ereignis eintritt, und nicht auf Zuruf — ein Agent, der die Automatisierungen der Organisation nicht sieht, erfindet Umwege, statt auf die eine zu zeigen, die die Arbeit längst erledigt.
 
 ## Wie Tool-Aufrufe erscheinen
 

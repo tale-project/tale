@@ -159,13 +159,6 @@ function mockWhisperResponse(body: unknown, init: ResponseInit = {}) {
   );
 }
 
-function mockWhisperError(status: number, body = 'upstream error') {
-  globalThis.fetch = Object.assign(
-    vi.fn().mockResolvedValue(new Response(body, { status })),
-    { preconnect: vi.fn() },
-  );
-}
-
 beforeEach(() => {
   mockGetAuthUser.mockReset();
   mockResolveOrgSlug.mockReset();
@@ -222,15 +215,18 @@ describe('transcribeDictation handler', () => {
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
-    it('verifies organization membership before transcribing', async () => {
-      mockWhisperResponse({ text: 'hello' });
+    it('verifies organization membership before failing offline', async () => {
       const ctx = createMockCtx();
 
-      await handler(ctx, {
-        audio: makeAudio(100),
-        mimeType: 'audio/webm',
-        organizationId: ORG_ID,
-      });
+      // Membership is checked before the offline error so non-members never
+      // learn transcription is offline.
+      await expect(
+        handler(ctx, {
+          audio: makeAudio(100),
+          mimeType: 'audio/webm',
+          organizationId: ORG_ID,
+        }),
+      ).rejects.toThrow(/offline/i);
 
       expect(ctx.runQuery).toHaveBeenCalledWith(
         'verifyOrganizationMembership',
@@ -292,141 +288,37 @@ describe('transcribeDictation handler', () => {
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
-    it('accepts audio at exactly 8 MiB', async () => {
+    it('accepts audio at exactly 8 MiB (passes the size guard to the offline error)', async () => {
       const ctx = createMockCtx();
-      mockWhisperResponse({ text: 'ok' });
 
-      const result = await handler(ctx, {
-        audio: makeAudio(8 * 1024 * 1024),
-        mimeType: 'audio/webm',
-        organizationId: ORG_ID,
-      });
-      expect(result.text).toBe('ok');
-    });
-  });
-
-  describe('Whisper request', () => {
-    it('POSTs to the resolved model URL with the right form fields', async () => {
-      const ctx = createMockCtx();
-      mockWhisperResponse({ text: 'hello world' });
-
-      await handler(ctx, {
-        audio: makeAudio(256),
-        mimeType: 'audio/ogg;codecs=opus',
-        organizationId: ORG_ID,
-      });
-
-      expect(globalThis.fetch).toHaveBeenCalledOnce();
-      const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
-      expect(url).toBe('https://api.example.com/v1/audio/transcriptions');
-      // Bearer header must be set so the upstream auths.
-      expect((init?.headers as Record<string, string>)?.Authorization).toBe(
-        'Bearer sk-test',
-      );
-      const body = init?.body as FormData;
-      expect(body.get('model')).toBe('whisper-1');
-      expect(body.get('response_format')).toBe('verbose_json');
-      const file = body.get('file');
-      expect(file).toBeInstanceOf(Blob);
-      // Filename has the right extension for the recorded MIME — Whisper
-      // validates by extension, so `.ogg` matters.
-      expect((file as File).name).toBe('dictation.ogg');
-    });
-
-    it('throws with status + truncated upstream body on non-OK', async () => {
-      const ctx = createMockCtx();
-      mockWhisperError(429, 'rate limited please retry');
-
+      // At the cap it is NOT rejected as too large; it passes the guard and
+      // reaches the offline error like any in-bound request.
       await expect(
         handler(ctx, {
-          audio: makeAudio(100),
+          audio: makeAudio(8 * 1024 * 1024),
           mimeType: 'audio/webm',
           organizationId: ORG_ID,
         }),
-      ).rejects.toThrow(/Transcription API 429: rate limited/);
-    });
-
-    it('handles non-OK responses whose body cannot be read', async () => {
-      const ctx = createMockCtx();
-      globalThis.fetch = Object.assign(
-        vi.fn().mockResolvedValue({
-          ok: false,
-          status: 500,
-          text: vi.fn().mockRejectedValue(new Error('stream closed')),
-        }),
-        { preconnect: vi.fn() },
-      );
-
-      await expect(
-        handler(ctx, {
-          audio: makeAudio(100),
-          mimeType: 'audio/webm',
-          organizationId: ORG_ID,
-        }),
-      ).rejects.toThrow(/Transcription API 500/);
+      ).rejects.toThrow(/offline/i);
     });
   });
 
-  describe('response handling + usage', () => {
-    it('returns the transcribed text on success', async () => {
+  describe('offline contract', () => {
+    it('throws a typed offline error for an in-bound request, without calling Whisper', async () => {
       const ctx = createMockCtx();
-      mockWhisperResponse({ text: 'the quick brown fox', duration: 3 });
+      const fetchSpy = vi.fn();
+      globalThis.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() });
 
-      const result = await handler(ctx, {
-        audio: makeAudio(100),
-        mimeType: 'audio/webm',
-        organizationId: ORG_ID,
-      });
-      expect(result).toEqual({ text: 'the quick brown fox' });
-    });
-
-    it('defaults missing text field to empty string (passes v.string() validator)', async () => {
-      const ctx = createMockCtx();
-      // Some OpenAI-compatible servers return `{}` for empty audio.
-      mockWhisperResponse({});
-
-      const result = await handler(ctx, {
-        audio: makeAudio(100),
-        mimeType: 'audio/webm',
-        organizationId: ORG_ID,
-      });
-      expect(result).toEqual({ text: '' });
-    });
-
-    it('records transcription usage when duration is known', async () => {
-      const ctx = createMockCtx();
-      mockWhisperResponse({ text: 'hi', duration: 60 });
-
-      await handler(ctx, {
-        audio: makeAudio(100),
-        mimeType: 'audio/webm',
-        organizationId: ORG_ID,
-      });
-
-      expect(ctx.runMutation).toHaveBeenCalledWith(
-        'recordTranscriptionUsage',
-        expect.objectContaining({
+      await expect(
+        handler(ctx, {
+          audio: makeAudio(256),
+          mimeType: 'audio/ogg;codecs=opus',
           organizationId: ORG_ID,
-          userId: 'user_123',
-          agentSlug: '__transcription__',
-          model: 'whisper-1',
-          provider: 'openai',
-          audioDurationSec: 60,
-          costEstimateCents: 60, // 60s at 60 cents/min == 60 cents
         }),
-      );
-    });
+      ).rejects.toThrow(/offline while the platform AI backend is rewritten/i);
 
-    it('skips usage recording when duration is missing or zero', async () => {
-      const ctx = createMockCtx();
-      mockWhisperResponse({ text: 'hi' });
-
-      await handler(ctx, {
-        audio: makeAudio(100),
-        mimeType: 'audio/webm',
-        organizationId: ORG_ID,
-      });
-
+      // No upstream transcription call and no usage recording while offline.
+      expect(fetchSpy).not.toHaveBeenCalled();
       expect(ctx.runMutation).not.toHaveBeenCalled();
     });
   });

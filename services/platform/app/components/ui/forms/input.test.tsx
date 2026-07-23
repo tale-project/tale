@@ -386,4 +386,27 @@ describe('Input', () => {
       expect(input).toHaveAttribute('type', 'password');
     });
   });
+
+  describe('fixed addons', () => {
+    it('renders a fixed prefix inside the field and keeps the value editable', async () => {
+      const { user } = render(
+        <Input label="Variable" prefix="TALE_PROVIDER_KEY_" />,
+      );
+
+      expect(screen.getByText('TALE_PROVIDER_KEY_')).toBeInTheDocument();
+      const input = screen.getByLabelText('Variable');
+      await user.type(input, 'OPENAI');
+      // The prefix is display-only chrome — the value carries only the typed
+      // suffix; callers compose the full name on submit.
+      expect(input).toHaveValue('OPENAI');
+    });
+
+    it('renders prefix and suffix around the same field', () => {
+      render(<Input label="Bounded" prefix="pre-" suffix="-post" />);
+
+      expect(screen.getByText('pre-')).toBeInTheDocument();
+      expect(screen.getByText('-post')).toBeInTheDocument();
+      expect(screen.getByLabelText('Bounded')).toBeInTheDocument();
+    });
+  });
 });

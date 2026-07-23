@@ -1,60 +1,48 @@
 /**
- * PII detection engine.
+ * Detection core — runs an ordered pattern list over pre-normalized text
+ * and returns a deduplicated `PiiMatch[]`.
  *
- * Resolves an ordered list of `PiiPattern` against a (pre-normalized) input
- * text and returns a deduplicated `PiiMatch[]`. Three pattern shapes are
- * supported via `PiiPattern.regex` / `PiiPattern.detect` / `PiiPattern.validate`
- * — see `core/types.ts` for the contract.
+ * Never throws. Validator and detect exceptions are caught and logged with
+ * the pattern name and the error's NAME only — never the matched text or
+ * message, because either may itself contain PII.
  *
- * Never throws. Validator exceptions are caught and logged with the pattern
- * name and `err.name` only — never the matched text, because the match may
- * itself be PII (GDPR).
- *
- * Dedup policy: longest non-overlapping match wins. On equal length, the
- * pattern that appears earlier in the input registry wins (stable sort).
- * This prevents regressions like #1618 where the `phone` pattern's match
- * sat inside a longer `creditCard` match and the masker spliced both,
- * eating the replacement token of the second.
+ * Dedup policy: longest non-overlapping match wins; on equal length the
+ * pattern visited first wins (stable sort + registry order). Without this,
+ * a shorter match nested inside a longer one leaves both in the list and
+ * the splicing masker eats adjacent text — including, in the worst case,
+ * the next replacement token.
  */
 
 import { REGEX_EXEC_BUDGET_MS, execWithBudget } from '../core/regex-safety';
 import type { PiiMatch, PiiMatchSpan, PiiPattern } from '../core/types';
 
 /**
- * Run one pattern against the text and return its raw spans (pre-dedup).
- *
- * `budgetMs` is threaded from `ScrubberOptions.perPatternBudgetMs` all the
- * way down to the `execWithBudget` call so admin-tunable per-pattern
- * budgets actually take effect (the scrubber used to discard the option).
+ * Raw (pre-dedup) spans for one pattern. `budgetMs` reaches every regex
+ * exec loop; function-shaped patterns own their own performance contract
+ * and ignore it.
  */
 function resolveMatches(
   text: string,
   pattern: PiiPattern,
-  budgetMs: number = REGEX_EXEC_BUDGET_MS,
+  budgetMs: number,
 ): PiiMatchSpan[] {
   if (pattern.detect) {
     try {
       return pattern.detect(text);
     } catch (err) {
       console.debug(
-        `[pii] detect() threw for pattern ${pattern.name}: ${
-          err instanceof Error ? err.name : 'unknown'
-        }`,
+        `[pii] detect() threw for pattern ${pattern.name}: ${err instanceof Error ? err.name : 'unknown'}`,
       );
       return [];
     }
   }
 
-  // After the `pattern.detect` branch returns, the union narrows to
-  // `PiiPatternRegex` where `regex` is required. TypeScript can't see
-  // that on its own (both variants make `detect` optional via `?: never`),
-  // so we capture into a local and add a runtime guard for defense in
-  // depth against a malformed object that snuck past the schema.
+  // Past the detect branch the union narrows to the regex variant, but
+  // both variants type their other field via `?: never`, so capture and
+  // guard — also defense in depth against a malformed object.
   const regex = pattern.regex;
   if (!regex) return [];
 
-  // `execWithBudget` clones the regex internally for `lastIndex` isolation,
-  // so we pass `pattern.regex` directly — no redundant allocation here.
   const out: PiiMatchSpan[] = [];
   for (const m of execWithBudget(regex, text, budgetMs)) {
     if (pattern.validate) {
@@ -63,9 +51,7 @@ function resolveMatches(
         ok = pattern.validate(m.matchedText);
       } catch (err) {
         console.debug(
-          `[pii] validate() threw for pattern ${pattern.name}: ${
-            err instanceof Error ? err.name : 'unknown'
-          }`,
+          `[pii] validate() threw for pattern ${pattern.name}: ${err instanceof Error ? err.name : 'unknown'}`,
         );
         continue;
       }
@@ -81,25 +67,12 @@ function resolveMatches(
 }
 
 /**
- * Merge overlapping matches into a non-overlapping set.
- *
- * Without this, a `phone` match covering a 14-char prefix of a 19-char
- * `creditCard` match leaves both in the list; the masker (which splices
- * using original indices into a mutating string) sees the second range's
- * `end` pointing past where the string has shifted, and adjacent text —
- * sometimes the next replacement token entirely — gets eaten. (#1618.)
- *
- * Policy: longest match wins; on equal length, the entry inserted first
- * wins, courtesy of stable sort. The detector visits patterns in registry
- * order, so registry order is the implicit tie-breaker.
- *
- * Exported because plugin authors composing regex- and function-based
- * matches benefit from a single canonical dedup.
+ * Merge overlapping matches into a non-overlapping set: sort by ascending
+ * start, then descending length (so the longest match at an offset wins),
+ * keep a span only when it starts at or past the previous kept end — or
+ * replace the previous one when it is strictly longer.
  */
 function dedupOverlaps(matches: PiiMatch[]): PiiMatch[] {
-  // Primary: ascending start offset. Secondary: descending length so the
-  // longest match starting at the same offset wins. The expression
-  // `(b.end - b.start) - (a.end - a.start)` computes `lengthB - lengthA`.
   const sorted = [...matches].sort(
     (a, b) => a.start - b.start || b.end - b.start - (a.end - a.start),
   );
@@ -116,17 +89,9 @@ function dedupOverlaps(matches: PiiMatch[]): PiiMatch[] {
 }
 
 /**
- * Run every pattern against `text`, collect matches, dedup overlaps,
- * return the result.
- *
- * Note: this is a pure function. It does not normalize the input
- * (`core/normalize.ts`) and it does not validate the config — both are
- * the caller's responsibility. `scrubber.scrub()` and `scrubPii()`
- * orchestrate normalization and pattern selection on top of this.
- *
- * `budgetMs` is forwarded to every regex `execWithBudget` call. Function-
- * shaped patterns (`pattern.detect`) own their own performance contract
- * and ignore this knob.
+ * Run every pattern over `text`, collect and dedup matches. Pure: the
+ * caller owns normalization and clamping (`createScrubber` and
+ * `createTokenizer` orchestrate both on top of this).
  */
 export function detectPii(
   text: string,

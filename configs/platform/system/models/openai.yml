@@ -1,0 +1,40 @@
+# Static model catalog for the openai connector — flagship reasoning models
+# plus the everyday chat workhorse, in the vendor's own model ids. Pricing is
+# cents per million tokens.
+- id: gpt-5.5
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 400000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 500
+    outputCentsPerMillion: 3000
+- id: gpt-5.5-pro
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 400000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 3000
+    outputCentsPerMillion: 18000
+- id: gpt-5.3-chat
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  contextWindow: 128000
+  maxOutputTokens: 16384
+  pricing:
+    inputCentsPerMillion: 175
+    outputCentsPerMillion: 1400

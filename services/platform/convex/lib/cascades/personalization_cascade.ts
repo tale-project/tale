@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../../_generated/server';
-import { cascadeOnTtsForMemberRemoved } from '../../tts/cascade_helpers';
+import { cascadeOnTtsForMemberRemoved } from '../../legacy/tts_cascade';
 import {
   deleteBlobInMutation,
   scheduleS3BlobDeletes,

@@ -5,7 +5,7 @@ description: Der Webhook-Tab des Agents — eindeutige URLs, an die externe Syst
 
 Der Tab **Webhook** eines Agents erzeugt eindeutige URLs, an die externe Systeme POSTen und mit dem Agent chatten können — nichts in der UI ist beteiligt. Greif dazu, wenn etwas außerhalb von Tale den Agent antworten lassen soll: ein Slack-Bot, ein Formular-Handler, ein geplanter Job.
 
-Diese Seite deckt nur die Webhook-Oberfläche pro Agent ab. Für eingehende Trigger, die einen Workflow statt eines Agents starten, siehe [Workflows → Trigger](/de/platform/automations/triggers); für die volle Entwickler-Oberfläche siehe [Entwickeln → API-Referenz](/de/develop/api-reference).
+Diese Seite deckt nur die Webhook-Oberfläche pro Agent ab. Für eingehende Trigger, die eine Automatisierung statt eines Agents starten, siehe [Automatisierungen → Trigger](/de/platform/automations/triggers); für die volle Entwickler-Oberfläche siehe [Entwickeln → API-Referenz](/de/develop/api-reference).
 
 <Frame caption="Der Webhook-Tab — ein aktiver Webhook mit seinem Aktiv-Schalter und dem Zeitpunkt der letzten Auslösung.">
 
@@ -37,7 +37,7 @@ Die Aktion **Verwendungsbeispiele** jeder Zeile öffnet fertige Beispiele für a
 
 ## Der OpenAI-kompatible Endpunkt
 
-Ein an die Webhook-URL angehängtes `/chat/completions` stellt einen ChatCompletion-Endpunkt im OpenAI-Stil bereit, sodass fertige OpenAI-Clients auf einen Agent zeigen können: nutze die Webhook-URL als Basis-URL, einen beliebigen nicht-leeren Wert als API-Schlüssel und eine Modell-Id aus der Modell-Liste des Agents (unbekannte Werte fallen auf den Standard zurück). Datei-Uploads unterstützt nur die Basis-Webhook-URL, nicht dieser Unterpfad.
+Ein an die Webhook-URL angehängtes `/chat/completions` stellt einen ChatCompletion-Endpunkt im OpenAI-Stil bereit, sodass fertige OpenAI-Clients auf einen Agent zeigen können: nutze die Webhook-URL als Basis-URL, einen beliebigen nicht-leeren Wert als API-Schlüssel und als Modell-Id eines, das die Organisation anbietet. Der Agent nagelt kein eigenes Modell fest, in diesem Feld trifft also der Aufrufer die Wahl, die sonst der Composer träfe. Datei-Uploads unterstützt nur die Basis-Webhook-URL, nicht dieser Unterpfad.
 
 ## Verwalten und widerrufen
 

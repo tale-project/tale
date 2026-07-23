@@ -16,7 +16,7 @@ import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
 import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
-import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
+import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
 import {
   PRODUCT_CATEGORY_MAX,

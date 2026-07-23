@@ -28,12 +28,6 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@/app/features/operator/components/embedded-run', () => ({
-  EmbeddedRun: ({ executionId }: { executionId: string }) => (
-    <div data-testid="embedded-run">{executionId}</div>
-  ),
-}));
-
 vi.mock('@/app/components/ui/dialog/view-dialog', () => ({
   ViewDialog: ({
     open,
@@ -56,11 +50,13 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 }));
 
 describe('TaskAgentRunStatusBadge', () => {
-  it('opens the live EmbeddedRun dialog when a running badge is clicked', async () => {
+  // The embedded live-run transcript is offline while the automations backend
+  // is rebuilt — a linked execution opens the dialog with the "no live
+  // detail" notice instead of crashing on the retired run viewer.
+  it('opens the dialog with the no-live-detail notice for a running run', async () => {
     const user = userEvent.setup();
     render(
       <TaskAgentRunStatusBadge
-        organizationId="org_1"
         agentName="PR Creator"
         run={{
           runId: 'run_1' as Id<'taskAgentRuns'>,
@@ -83,14 +79,15 @@ describe('TaskAgentRunStatusBadge', () => {
     expect(
       screen.getByRole('dialog', { name: 'PR Creator — live run' }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('embedded-run')).toHaveTextContent('exec_1');
+    expect(
+      screen.getByText('No live transcript is available for this run.'),
+    ).toBeInTheDocument();
   });
 
   it('shows the stored error when a failed run has no execution id', async () => {
     const user = userEvent.setup();
     render(
       <TaskAgentRunStatusBadge
-        organizationId="org_1"
         agentName="PR Creator"
         run={{
           runId: 'run_2' as Id<'taskAgentRuns'>,

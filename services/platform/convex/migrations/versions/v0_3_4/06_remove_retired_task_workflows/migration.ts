@@ -17,8 +17,8 @@
 
 import path from 'node:path';
 
-import { internal } from '../../../../_generated/api';
-import { resolveWorkflowsDir } from '../../../../workflows/file_utils';
+import { retired } from '../../../../legacy/frozen/retired_refs';
+import { resolveWorkflowsDir } from '../../../../legacy/frozen/workflows_file_utils';
 import { defineNodeMigration } from '../../../framework/define';
 
 /** Slugs of the retired pack workflows (relative-path form, no `.json`). */
@@ -64,7 +64,7 @@ export const migration = defineNodeMigration({
       // The rows must go even when the file is already gone (a previous
       // partial run) — removeDefaultProvisioning is itself idempotent.
       const rows: unknown = await ctx.runMutation(
-        internal.workflows.provision_defaults_mutations
+        retired.workflows.provision_defaults_mutations
           .removeDefaultProvisioning,
         { organizationId: org.id, workflowSlug: slug },
       );
@@ -82,7 +82,7 @@ export const migration = defineNodeMigration({
     // re-installs the restored autoInstall files and recreates their
     // trigger rows.
     await ctx.runAction(
-      internal.workflows.provision_defaults.syncDefaultWorkflowInstallations,
+      retired.workflows.provision_defaults.syncDefaultWorkflowInstallations,
       { organizationId: org.id, orgSlug: org.slug },
     );
   },

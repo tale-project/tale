@@ -21,8 +21,8 @@ import path from 'node:path';
 import { defineSchema } from 'convex/server';
 import { beforeEach, expect, vi } from 'vitest';
 
+import { workflowEnvTable } from '../../../../legacy/schema';
 import { readFileSafe, sha256 } from '../../../../lib/file_io';
-import { workflowEnvTable } from '../../../../workflows/schema';
 import { buildModules } from '../../../framework/test_helpers';
 import {
   defineMigrationTest,

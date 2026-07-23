@@ -1,77 +1,96 @@
 ---
-title: Intégrations (vue Admin)
-description: Paramètres > Intégrations est l’endroit où les Administrateurs installent, configurent et rotent les identifiants derrière Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily et MCP. Cette page couvre la surface admin, pas la liste des fonctionnalités par intégration.
+title: Identifiants d’intégration
+description: Sous Paramètres > Intégrations, une organisation ajoute, nomme, promeut, désactive et reconnecte les identifiants avec lesquels chaque connecteur livré s’authentifie.
 ---
 
-Paramètres > Intégrations est la surface des identifiants pour chaque système tiers avec lequel Tale parle au nom de l’organisation. Les Administrateurs installent les intégrations une fois ; les agents, workflows et la pipeline documents les utilisent partout ailleurs. Cette page couvre le côté admin — ce que montre la liste, comment marchent installation et rotation, ce qu’un Admin peut scoper, et en quoi la surface diffère des serveurs MCP.
+Chaque connecteur est livré avec la plateforme, le travail d’administration ne consiste donc jamais à installer : il consiste à décider au nom de quels comptes Tale peut agir, puis à garder ces identifiants en bonne santé. Un connecteur porte autant de lignes que nécessaire — une par espace de travail, boutique, boîte mail ou bot — et l’une d’elles répond pour tout appelant qui n’en nomme aucune. Cette page est le versant exploitation : ce que la page affiche, comment se remplit chaque méthode d’authentification, et ce qui arrive quand tu promeus, désactives, supprimes ou reconnectes une ligne.
 
-L’histoire fonctionnelle de chaque intégration (ce qu’elle fait, quels périmètres elle demande, ce qu’un agent peut appeler) vit un onglet plus loin sur les pages par intégration et dans la page de concept inter-intégrations. Ce qui suit est la surface opérations : installer, roter, restreindre, révoquer.
+Le catalogue lui-même — les treize connecteurs, ce que chacun apporte, et comment leurs actions rejoignent les automatisations et le chat — est sur [Intégrations](/fr/platform/integrations/overview). Le temps de lecture ici est mieux investi dans le cycle de vie des identifiants, parce que c’est la partie qui varie d’une organisation à l’autre et la partie qui casse.
 
-<Frame caption="Le catalogue des intégrations sous Ajouter une intégration — chaque connecteur que Tale embarque, filtrable par catégorie.">
+## Ce que la page affiche
 
-![Le catalogue des intégrations montrant une grille de cartes de connecteurs — Slack, Gmail, Google Drive, GitHub, Tavily et plus — chacune avec une action Connecter.](/images/platform/integrations-catalog.webp)
+Ouvre **Paramètres > Intégrations**. La page demande des droits Admin ou Développeur et s’ouvre sur une section **Connecteurs** dont la ligne de résumé compte les deux côtés de la surface : combien de connecteurs sont livrés, et combien d’identifiants l’organisation a configurés en tout. En dessous, une section par connecteur, dans une seule liste déroulante.
 
-</Frame>
+La section de chaque connecteur porte son icône et son nom affiché, la ligne qui décrit ce qu’il fait, les catégories auxquelles il appartient et le nombre d’actions qu’il expose. Les connecteurs dont l’API vit chez toi plutôt que chez le fournisseur ajoutent la ligne _Chaque identifiant nomme sa propre instance._ En dessous vient la liste des identifiants, ou l’état vide **Aucun identifiant pour l’instant** tant que l’organisation n’en a pas ajouté.
 
-## Ce que la liste montre
+Deux avertissements peuvent apparaître au-dessus de la liste, et ils ne disent pas la même chose. _Aucun identifiant par défaut pour ce connecteur_ signifie que chaque ligne fonctionne mais que rien ne répond à un appelant qui n’en nomme aucune. _L’autorisation d’un identifiant ne fonctionne plus_ signifie qu’une autorisation OAuth ne se renouvelle plus et redemande un consentement — la ligne elle-même est saine.
 
-Ouvre **Paramètres > Intégrations** pour atterrir sur les intégrations installées de l’org. Chaque ligne nomme une intégration, montre sa catégorie (communication, stockage, identité, connaissance, contrôle de source, commerce, IA), le type d’identifiant (OAuth2, clé API, jeton d’app) et le statut de connexion (connectée, en attente, erreur). La liste est filtrable par catégorie et par statut.
+## Ajouter des identifiants
 
-Le catalogue des intégrations disponibles est à un clic sous **Ajouter une intégration**. Le catalogue ship actuellement Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify et AI image ; le même catalogue est la source que documente la vue d’ensemble des intégrations.
+**Ajouter des identifiants** ouvre le formulaire sur les connecteurs qui prennent un secret directement ; **Connecter** part chez le fournisseur sur les connecteurs OAuth. Les deux demandent d’abord un **Nom**, et le texte d’aide du champ dit pourquoi il compte : le nom sous lequel une action choisit ces identifiants. Prends quelque chose qu’un auteur d’automatisations reconnaîtra des mois plus tard, comme `Boîte de support` ou `Boutique UE`.
 
-## Installer une intégration
+Ce qui suit le nom dépend de la **Méthode d’authentification** que le connecteur accepte.
 
-Choisis une intégration du catalogue et clique sur **Connecter**. L’intégration déclare le type d’identifiant qu’elle attend et les périmètres dont elle a besoin ; Tale exécute la danse OAuth pour les intégrations OAuth et montre un formulaire pour les intégrations à clé API. Une fois l’identifiant déposé, Tale le vérifie avec un appel à vide vers le système amont avant d’enregistrer — un échec apparaît comme erreur de connexion avec le message amont attaché.
+<Tabs>
 
-Certaines intégrations portent des sous-options à l’installation. Microsoft 365 te laisse choisir s’il faut activer la sync OneDrive, la sync SharePoint, les deux, ou seulement le SSO ; GitHub te laisse choisir les dépôts auxquels l’org accorde l’accès ; Slack demande dans quels canaux le bot peut poster. Les sous-options peuvent être modifiées plus tard depuis la ligne de l’intégration sans réinstaller.
+<Tab title="Clé API">
 
-## Mettre à jour les définitions depuis le catalogue livré
+Un seul champ, **Clé API**. Ce sont les actions du connecteur qui décident par où la clé voyage — un en-tête imposé par le fournisseur, ou le corps de la requête là où le fournisseur l’exige. Shopify et Tavily sont les cas livrés.
 
-La définition de chaque intégration — son schéma de configuration, son connecteur, son icône — est copiée dans l’organisation à sa création et reste intacte ensuite ; une mise à jour de la plateforme ne la change donc jamais dans ton dos. **Mettre à jour les intégrations livrées** dans le menu **Ajouter une intégration** remplace chaque définition livrée qui diffère du catalogue courant par la dernière version. Les identifiants, les secrets et les intégrations que tu as ajoutées toi-même restent intacts ; la version précédente de chaque définition remplacée est conservée sur le serveur, pour qu’un opérateur puisse la récupérer.
+</Tab>
 
-## Roter les identifiants
+<Tab title="Jeton">
 
-Pour roter, ouvre la ligne de l’intégration et clique sur **Roter les identifiants**. Les intégrations OAuth refont la danse avec les mêmes périmètres ; les intégrations à clé API montrent un champ pour la nouvelle clé. L’ancien identifiant arrête de marcher dès que le nouveau est vérifié — il n’y a pas de fenêtre de chevauchement pour les identifiants au niveau de l’intégration. Va vers la rotation au rythme que ta politique de sécurité impose, ou chaque fois que le système amont rapporte un identifiant compromis.
+Un seul champ, **Jeton**, envoyé dans l’en-tête Authorization à chaque requête. GitHub prend ainsi un jeton d’accès personnel ; Discord prend un jeton de bot, que la plateforme envoie sous le schéma propre à Discord plutôt que sous le schéma habituel.
 
-Quand une mise à jour de la plateforme ajoute des périmètres à une intégration OAuth déjà connectée, rote une fois pour que l’écran de consentement les accorde. **Outlook** est le cas actuel : après la mise à jour qui lit l’adresse du compte pour la rédaction, les connexions Outlook existantes doivent roter une fois avant que la rédaction affiche la vraie adresse plutôt que le seul nom du fournisseur — jusqu’alors l’envoi continue de marcher ; seule la capture d’adresse attend le nouveau périmètre `User.Read`.
+</Tab>
 
-## Restreindre une intégration
+<Tab title="Nom d’utilisateur et mot de passe">
 
-Au-delà des identifiants, une intégration porte deux leviers de cadrage sous sa ligne :
+Deux champs, **Nom d’utilisateur** et **Mot de passe**, envoyés en HTTP Basic. Le couple n’est pas toujours un login au sens courant : Confluence prend l’e-mail du compte avec un jeton d’API, Twilio prend l’Account SID avec l’Auth Token, et le connecteur WebDAV prend un mot de passe d’application WebDAV. IMAP / SMTP prend le login de la boîte elle-même.
 
-- **Rôles autorisés.** Restreins quels rôles peuvent appeler l’intégration depuis leurs agents et workflows. Le défaut est chaque rôle écrivain (Éditeur, Développeur, Administrateur, Propriétaire) ; le rétrécir est la façon de garder, disons, l’intégration Twilio hors des agents construits par des Membres.
-- **Équipes autorisées.** Restreins quelles équipes peuvent appeler l’intégration depuis leurs agents et workflows. Utile quand l’identifiant appartient au travail d’une équipe (le Slack de l’équipe support) et que tu ne veux pas qu’il fuie vers une autre.
+</Tab>
 
-Les deux leviers sont appliqués à la requête, pas à l’installation — changer un levier prend effet au prochain appel.
+<Tab title="OAuth">
 
-## Révoquer une intégration
+Aucun secret à saisir. **Connecter** te remet à l’écran de consentement du fournisseur, et Tale range ce qui revient — jeton d’accès, jeton de rafraîchissement, expiration et portées accordées — dans une nouvelle ligne. Gmail, Google Drive, Outlook, Teams et Slack se connectent ainsi.
 
-Clique la ligne, puis **Déconnecter**. Une intégration déconnectée arrête d’authentifier immédiatement ; les agents et workflows qui en dépendent font remonter une erreur de configuration au prochain appel. La ligne reste dans la liste avec un badge déconnecté pour que la piste d’audit survive.
+</Tab>
 
-Déconnecter conserve l’identifiant enregistré : la ligne propose donc **Reconnecter** — un clic, rien à retaper. Tale teste d’abord l’identifiant enregistré et ne marque l’intégration comme connectée que s’il fonctionne toujours ; si le mot de passe ou la clé a changé entre-temps, le test échoue et la ligne reste déconnectée — un identifiant périmé n’a donc jamais l’air sain. **Utiliser d’autres identifiants** permet d’en saisir un nouveau à la place. Les intégrations OAuth se reconnectent via l’écran de consentement du fournisseur, car une autorisation révoquée ne se rétablit qu’en autorisant à nouveau. Reconnecter réactive aussi les agents que la déconnexion avait désactivés et relance les automatisations liées à l’intégration.
+</Tabs>
 
-**Retirer la connexion** va plus loin que Déconnecter : l’identifiant enregistré est supprimé. Le modèle de l’intégration reste au catalogue, tu peux donc la reconnecter plus tard en saisissant de nouveaux identifiants.
+Ajouter un second identifiant à un connecteur qui en a déjà un, c’est le même formulaire une seconde fois. Il n’y a aucune limite à contourner ni rien à déconnecter avant.
 
-## Faire tourner deux fois la même intégration
+<Note>
 
-Certaines intégrations servent plusieurs fois — deux boîtes mail, deux bases de données, deux locataires d’API. Ouvre l’intégration et choisis **Dupliquer** (également dans le menu ⋯ de la ligne) pour créer une seconde instance. Tale copie la configuration de l’intégration sous un nouveau nom (`Boîte support (2)`), laisse son identifiant vide pour que tu le renseignes, et clone toute automatisation liée à l’originale afin que la copie ait sa propre synchronisation et son propre fil de réception.
+Confluence et Shopify demandent en plus une **URL de l’instance**, faute d’hôte unique côté fournisseur. Confluence veut l’adresse de ton site Atlassian — celle où tu ouvres Confluence. Shopify veut l’adresse `myshopify.com` de ta boutique, c’est-à-dire l’adresse d’administration et non le domaine de la vitrine. Cette valeur est stockée en clair à dessein, pour que la liste puisse montrer sur quelle instance pointe chaque ligne.
 
-La copie démarre déconnectée et reste au repos : aucune exécution planifiée ne se déclenche avant que tu saisisses ses identifiants et la connectes, donc un doublon non configuré ne produit jamais d’exécutions en échec. Dupliquer n’est proposé que là où une seconde instance peut réellement fonctionner : les intégrations OAuth (Gmail, Outlook, Slack) et GitHub sont liées à leur identité exacte chez le fournisseur et ne peuvent donc pas être dupliquées.
+</Note>
 
-Un doublon se retire entièrement. Tant qu’il est déconnecté, son panneau propose **Supprimer**, ce qui retire l’instance, son identifiant et les automatisations clonées pour elle. Les intégrations livrées ne proposent jamais Supprimer : elles ne peuvent qu’être déconnectées, pour que le modèle survive à la prochaine connexion.
+## Choisir l’identifiant par défaut
 
-## Bot Slack et notifications
+Un identifiant par connecteur peut être celui **Par défaut**, et **Définir par défaut** le déplace sur n’importe quelle ligne. C’est lui qui répond quand un nœud d’automatisation ou une action de chat ne nomme aucun identifiant — soit la majorité des cas. Nommer un identifiant explicitement reste l’exception, réservée au workflow qui doit passer par un compte précis.
 
-Slack est bidirectionnel. Au-delà de l’agent qui appelle Slack (poster des messages, lire des canaux), l’org peut laisser des personnes parler à un agent depuis Slack et pousser des événements système dans un canal. Les deux se configurent sur la ligne Slack connectée, et les deux utilisent le même identifiant OAuth — pas de seconde connexion.
+Un connecteur avec plusieurs identifiants et aucun par défaut est une configuration qui marche, avec un trou dedans. Les appelants qui nomment une ligne continuent de tourner ; les autres ne peuvent pas choisir et échouent. Promeus une ligne et le trou se referme aussitôt.
 
-Chaque org apporte sa propre app Slack, configurée entièrement depuis la ligne Slack — il n’y a rien à définir sur le déploiement. Quand tu connectes Slack, la ligne affiche un panneau **Configurer votre application Slack** avec un manifeste d’app prêt à coller et les deux URLs auxquelles il fait référence : l’URL de requête des Event Subscriptions (`/api/integrations/slack/events`) et l’URL de redirection OAuth. Le manifeste pré-remplit les portées du bot, les événements `app_mention` et `message.im` ainsi que les deux URLs, si bien que créer l’app sur api.slack.com/apps ne prend que quelques clics. Recolle l'**ID client**, le **Secret client** et le **Secret de signature** de l’app dans la ligne, puis autorise via OAuth. Le secret de signature est ce qui vérifie les événements entrants, donc le bot reste muet tant qu’il n’est pas défini ; les messages entrants sont routés vers la bonne org via l’espace de travail Slack.
+## Remplacer un secret
 
-Sur la ligne Slack connectée, un admin choisit **quel agent répond sur Slack** (une mention dans un canal ou un message direct démarre une réponse en thread de cet agent) et **quels canaux reçoivent les notifications**, avec une bascule par événement. Les événements livrés sont workflow échoué, workflow terminé et alertes de sécurité ; un thread Slack correspond à une conversation d’agent, et l’auteur Slack y est conservé plutôt qu’enregistré comme le système.
+Changer une clé est une modification de l’identifiant, pas une opération à part. Ouvre la ligne et choisis **Remplacer la clé API**, **Remplacer le jeton** ou **Remplacer le nom d’utilisateur et le mot de passe**, selon la méthode. Le secret stocké n’est jamais réaffiché, et en saisir un nouveau le remplace partout où cet identifiant est utilisé — chaque nœud d’automatisation et chaque action de chat qui pointe dessus reprend le nouveau secret sans qu’on y touche.
 
-## Intégrations versus serveurs MCP
+L’identifiant garde son nom, son drapeau par défaut et son URL d’instance à travers un remplacement, rien n’a donc besoin d’être repointé en aval. **Modifier le nom et l’instance** couvre l’autre sens : renommer une ligne, ou la déplacer vers une autre instance.
 
-Deux surfaces laissent un agent atteindre au-delà de Tale. Les **Intégrations** sont les connecteurs spécifiques au fournisseur, premier-party, documentés ici. Les **serveurs MCP** sont des processus externes qui exposent le Model Context Protocol ; l’org les enregistre sous **Paramètres > Serveurs MCP** et approuve chaque tool à son premier appel. Va vers une intégration quand une existe pour le système cible ; va vers les [serveurs MCP](/fr/platform/integrations/mcp-servers) quand aucune intégration ne couvre ton besoin.
+## Désactiver et supprimer
+
+**Désactiver** retire un identifiant du service tout en gardant la ligne et tout ce qui y est configuré. L’identifiant apparaît comme **Désactivé** et plus rien ne se résout vers lui ; **Activer** le remet en jeu. Sers-t’en quand un compte est suspect plutôt que terminé, ou quand tu veux mettre une configuration de côté sans la perdre.
+
+<Warning>
+
+**Supprimer** agit tout de suite et sans retour. Les automatisations et actions de chat qui utilisent cet identifiant perdent l’accès à ce connecteur sur-le-champ — il n’y a pas de délai de grâce. Supprimer celui par défaut laisse le connecteur sans défaut jusqu’à ce qu’une autre ligne soit promue, et la confirmation le dit avant que tu valides.
+
+</Warning>
+
+## Reconnecter une autorisation cassée
+
+Un identifiant OAuth dont l’autorisation stockée a expiré ou a été révoquée affiche **Reconnexion requise** avec le motif. C’est un constat de la plateforme, pas une décision d’exploitant, et c’est pourquoi cela se lit autrement qu’un identifiant désactivé à la main : rien ne cloche dans la ligne, le fournisseur a seulement cessé d’honorer l’autorisation.
+
+**Reconnecter** relance le consentement du fournisseur et rétablit l’accès sur la même ligne, en gardant son nom, son drapeau par défaut et toutes les références qui pointent dessus. Un identifiant que tu as désactivé toi-même ne se répare pas ainsi : là, c’est **Activer** qui règle la question, et reconnecter répondrait à la mauvaise.
+
+## Connecteurs et serveurs MCP
+
+Les deux surfaces laissent un agent aller au-delà de Tale, et la différence tient à qui possède le pont. Un connecteur est propre à un fournisseur, arrive avec la plateforme et est maintenu pour toi ; ta part, ce sont les identifiants. Un serveur MCP est un processus que tu héberges et enregistres sous **Paramètres > API > MCP**, exposant les outils que tu écris. Prends le connecteur quand il en existe un pour le système visé, et les [serveurs MCP](/fr/platform/integrations/mcp-servers) quand il n’y en a pas.
 
 ## Où cela s’inscrit
 
-Les intégrations sont la moitié identifiants de l’histoire agent-vers-monde-extérieur ; la moitié agent (quels tools un agent obtient, comment il les appelle, à quoi ressemble la frontière de confiance) vit sous [Tools agents](/fr/platform/agents/tools). La lecture naturelle suivante pour un nouvel admin est [Vue d’ensemble des intégrations](/fr/platform/integrations/overview) — elle nomme chaque intégration livrée groupée par ce qu’elle fait et donne le setup par intégration d’un coup d'œil.
+Gérer les identifiants, c’est désormais toute l’administration des intégrations, puisque plus rien ne s’installe : ajouter les comptes, les nommer correctement, garder un identifiant par défaut par connecteur, et reconnecter les lignes OAuth qui expirent. [Intégrations](/fr/platform/integrations/overview) est le catalogue auquel ces identifiants s’attachent, [Outils d’agent](/fr/platform/agents/tools) montre comment les actions qui en découlent arrivent dans la trousse d’un agent, et [Configurer les approbations](/fr/platform/approvals/configure) est l’endroit où les actions en écriture attendent qu’une personne les libère.
+</content>
+</invoke>

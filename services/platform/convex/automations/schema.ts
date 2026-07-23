@@ -2,125 +2,140 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
- * One row per installed automation per org — the ORG-LEVEL resource ledger. An
- * automation is installed by COPYING its bundle's resources
- * (agents/workflows/integration-defs) from the template catalog into the org's
- * config dirs; this row is the activation record + the copied-file ledger that
- * powers integrity checks (missing file → status 'broken' → reinstall) and a
- * clean uninstall (remove exactly what was copied). Mirrors `wfInstallations`.
- * Secrets are NEVER part of an automation install — the per-org credential
- * (e.g. a GitHub token) lives in `integrationCredentials`.
+ * The automation store — the Convex host behind the workflow engine's
+ * `DispatchStore`. Four tables, each answering one question:
  *
- * Project membership for a `scope: 'project'` automation lives in the separate
- * `automationProjectBindings` junction (one row per bound project), NOT here:
- * this row is shared by every project the automation is bound to. Resources,
- * `status`, and `automationName` are therefore org-level and read through to
- * the binding.
+ *  - `workflows`           — what versions exist (immutable history)
+ *  - `workflowDeployments` — which single version triggers run
+ *  - `workflowTriggers`    — what starts a run
+ *  - `workflowRuns`        — what happened, step by step
+ *
+ * Versions are IMMUTABLE. The retired model kept one mutable document per
+ * automation, so editing a live automation changed what was already running
+ * and a failed run could never be reproduced against the document that
+ * produced it. Here a save always appends a version, and deploying is a
+ * separate, explicit act — which is also what makes the deploy gate
+ * meaningful: a version is promoted only once its own tests pass.
  */
-export const automationInstallationsTable = defineTable({
+
+/** A stored workflow version. The document itself is the engine's v1 shape,
+ * validated by the engine rather than re-declared here — Convex would have to
+ * mirror the whole node grammar to type it, and the two would drift. */
+export const workflowsTable = defineTable({
   organizationId: v.string(),
-  automationSlug: v.string(),
-  /**
-   * Denormalized automation display name (from the manifest at install) — lets
-   * the in-project nav render a labelled tab from a cheap reactive query
-   * without an FS manifest read. Refreshed on reinstall. Absent on legacy rows.
-   */
-  automationName: v.optional(v.string()),
-  installedAt: v.number(),
-  installedBy: v.string(),
-  /** 'active' = all copied resources present; 'broken' = a copied file is gone. */
-  status: v.union(v.literal('active'), v.literal('broken')),
-  /**
-   * Transient teardown lock. Set true by `uninstallAutomation` once it has confirmed 0
-   * bindings, before the (non-transactional) filesystem teardown;
-   * `bindAutomationToProject` refuses while it is true so a racing "add to
-   * project" can't resurrect an automation mid-uninstall. Cleared only by
-   * deleting the row at the end of teardown.
-   */
-  uninstalling: v.optional(v.boolean()),
-  /**
-   * Integration slugs the automation requires connected (denormalized from the
-   * manifest's `requires.integrations` at install) so the readiness query stays
-   * DB-only + reactive — no manifest re-read to compute the setup checklist.
-   */
-  requiredIntegrations: v.array(v.string()),
-  /**
-   * The copied-file ledger: one entry per file materialized into the org. `path`
-   * is relative to the domain dir (e.g. agents → 'desk-coordinator.json';
-   * workflows → 'issue-desk/desk-process.json'). Drives uninstall + integrity.
-   */
-  resources: v.array(
-    v.object({
-      domain: v.string(),
-      path: v.string(),
-      contentHash: v.string(),
-      /**
-       * The file existed before this automation claimed it (a pre-existing org
-       * file the install would have overwritten) — uninstall leaves it in
-       * place. Inherited across reinstalls; absent ⇒ automation-owned.
-       */
-      adopted: v.optional(v.boolean()),
-    }),
-  ),
+  /** Automation slug — a `/`-separated path, unique per organization. */
+  name: v.string(),
+  /** 1-based, contiguous per (organization, name). */
+  version: v.number(),
+  /** The v1 workflow document as authored. */
+  document: v.any(),
+  /** Author-supplied note for the version list. */
+  message: v.optional(v.string()),
+  /** Whether the version's own tests passed when it was saved — the deploy
+   * gate reads this instead of re-running them at promotion time. */
+  testsPassed: v.optional(v.boolean()),
+  createdBy: v.string(),
+  createdAt: v.number(),
 })
   .index('by_org', ['organizationId'])
-  .index('by_org_slug', ['organizationId', 'automationSlug']);
+  .index('by_org_name', ['organizationId', 'name'])
+  .index('by_org_name_version', ['organizationId', 'name', 'version']);
 
 /**
- * One row per (org, automationSlug, project): a `scope: 'project'` automation's
- * membership in a project. Drives the in-project nav tab and the project-delete
- * guard; the automation's shared org resources live once on
- * `automationInstallations`. A binding exists only while the org install row
- * exists (enforced in `bindAutomationToProject`), and removing a binding never
- * touches shared resources (that is `uninstallAutomation`'s job, and it is
- * refused while any binding remains).
+ * The one live-eligible version per automation. Separate from `workflows` so
+ * that promoting and rolling back are single writes that never touch history,
+ * and so a deployment can be absent — an automation may exist as drafts only.
  */
-export const automationProjectBindingsTable = defineTable({
+export const workflowDeploymentsTable = defineTable({
   organizationId: v.string(),
-  automationSlug: v.string(),
-  projectId: v.id('projects'),
-  boundAt: v.number(),
-  boundBy: v.string(),
+  name: v.string(),
+  version: v.number(),
+  deployedBy: v.string(),
+  deployedAt: v.number(),
 })
-  // listProjectAutomations (project Automations list) + the project-delete guard.
-  .index('by_project', ['projectId'])
-  // Prefix-queried for all bindings of (org, automationSlug) — uninstall guard,
-  // listAutomationBindings — and for the exact-row idempotent bind / unbind.
-  .index('by_org_slug_project', [
-    'organizationId',
-    'automationSlug',
-    'projectId',
-  ]);
+  .index('by_org', ['organizationId'])
+  .index('by_org_name', ['organizationId', 'name']);
 
 /**
- * Per-(organizationId, slug) exclusion lock for `uploadAutomationBundle` — the
- * private automation upload path. The upload does a stage-then-rename swap on disk;
- * two concurrent `force: true` uploads to the same slug would race past the
- * existence check and last-writer-wins, silently destroying one bundle. The
- * action inserts a claim row (uniqueness via the `by_org_slug` index +
- * pre-insert lookup that expires stale claims) before the rename pair and
- * deletes it in `finally` alongside the storage-blob cleanup. `expiresAt` lets
- * a crashed action's stale claim be reclaimed lazily on the next attempt — no
- * cron sweep. Mirrors `skillUploadClaims`.
+ * What starts a run. The kinds are closed and mirror the engine's
+ * `TriggerSpec`:
+ *
+ *  - `schedule` — a cron expression in a named timezone
+ *  - `webhook`  — an inbound URL guarded by a token
+ *  - `event`    — a platform event name
+ *  - `api-key`  — an explicit programmatic call
+ *
+ * The trigger binds to the automation NAME, not to a version, so redeploying
+ * never invalidates a webhook URL or a schedule someone else depends on.
  */
-export const automationUploadClaimTable = defineTable({
+export const workflowTriggersTable = defineTable({
   organizationId: v.string(),
-  slug: v.string(),
-  claimedAt: v.number(),
-  expiresAt: v.number(),
-}).index('by_org_slug', ['organizationId', 'slug']);
-
-/**
- * Binds an `_storage` blob to the org + user that requested its upload URL,
- * for `uploadAutomationBundle`. Without this, the action would `ctx.storage.get` a
- * client-supplied id with no ownership verification — letting a caller in org
- * A point the server at org B's pending blob. Written by `generateAutomationUploadUrl`
- * at presign time, looked up by `uploadAutomationBundle`, deleted in the same
- * `finally` block as the storage blob. Mirrors `skillUploadIntents`.
- */
-export const automationUploadIntentTable = defineTable({
-  storageId: v.id('_storage'),
-  organizationId: v.string(),
-  userId: v.string(),
+  name: v.string(),
+  kind: v.union(
+    v.literal('schedule'),
+    v.literal('webhook'),
+    v.literal('event'),
+    v.literal('api-key'),
+  ),
+  /** Cron expression, for `schedule`. */
+  cron: v.optional(v.string()),
+  /** IANA timezone the cron is read in, for `schedule`. */
+  timezone: v.optional(v.string()),
+  /** Hashed webhook token — the plaintext is shown once at creation and never
+   * stored, matching how every other inbound secret in the platform works. */
+  tokenHash: v.optional(v.string()),
+  /** Platform event name, for `event`. */
+  event: v.optional(v.string()),
+  enabled: v.boolean(),
+  /** Set when the scheduler last acted on this trigger, so a stuck or
+   * drifting schedule is visible without reading the run table. */
+  lastFiredAt: v.optional(v.number()),
+  createdBy: v.string(),
   createdAt: v.number(),
-}).index('by_storageId', ['storageId']);
+  updatedAt: v.number(),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_org_name', ['organizationId', 'name'])
+  .index('by_kind_enabled', ['kind', 'enabled'])
+  .index('by_token_hash', ['tokenHash']);
+
+/**
+ * One execution. `checkpoints` is what makes the run durable: a live run steps
+ * node by node across scheduler invocations, and each completed node records
+ * its output here, so an action that hits the Convex time window resumes from
+ * the last completed node instead of re-running side effects.
+ *
+ * `trace` and `effects` are the engine's own result shape, kept whole so the
+ * canvas can overlay the last run and so an effect is auditable after the
+ * fact.
+ */
+export const workflowRunsTable = defineTable({
+  organizationId: v.string(),
+  name: v.string(),
+  version: v.number(),
+  status: v.union(
+    v.literal('queued'),
+    v.literal('running'),
+    v.literal('waiting'),
+    v.literal('success'),
+    v.literal('failed'),
+    v.literal('cancelled'),
+  ),
+  /** `mock` never touches the outside world; `live` may. */
+  mode: v.union(v.literal('mock'), v.literal('live')),
+  /** What started it — a trigger id, or a caller marker for manual runs. */
+  startedBy: v.string(),
+  input: v.any(),
+  output: v.optional(v.any()),
+  /** Per-node results recorded as they complete, keyed by node id. */
+  checkpoints: v.optional(v.any()),
+  trace: v.optional(v.any()),
+  effects: v.optional(v.any()),
+  /** Why a run failed or is waiting — an approval id, an error message. */
+  detail: v.optional(v.string()),
+  startedAt: v.number(),
+  finishedAt: v.optional(v.number()),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_org_name', ['organizationId', 'name'])
+  .index('by_status', ['status']);

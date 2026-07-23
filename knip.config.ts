@@ -4,16 +4,6 @@ export default {
   // uv, not an npm-installed package, so knip can't resolve it.
   ignoreBinaries: ['uvx'],
   ignore: [
-    // Seed configs are data, not code — EXCEPT the one Bun-workspace skill
-    // nested there (visual-aspect-analyzer, image-baked), which declares its
-    // own `workspaces` entry below and must stay in the dead-code sweep.
-    'builtin-configs/**',
-    '!builtin-configs/skills/visual-aspect-analyzer/**',
-    // Generated skill trees (`bun run skills:sync`): the .agents projections
-    // and the whole .claude mirror duplicate sources that are already swept
-    // at builtin-configs/skills/ (the hand-written .agents guides are docs).
-    '.agents/skills/**',
-    '.claude/skills/**',
     // The e2e fixtures' `default/integrations` is a symlink to the shipped
     // `builtin-configs/integrations` catalog (sucrase-transpiled runtime
     // connectors, never imported) — ignore like builtin-configs/.
@@ -165,25 +155,6 @@ export default {
         // referenced, which is exactly the pattern we want here.
         'vite',
       ],
-    },
-    'tools/skills': {
-      // The sync engine is invoked as `bun tools/skills/src/index.ts [--check]`
-      // from the root package.json scripts, never imported — declare its bun:test
-      // files so knip doesn't flag the engine + guards as unused.
-      entry: ['tests/**/*.test.ts'],
-      project: ['**/*.ts'],
-    },
-    'builtin-configs/skills/visual-aspect-analyzer': {
-      // Self-contained Bun/TS skill bundle: a library with a public embed API
-      // (src/bundle.ts + src/driver.ts), CLI entrypoints (src/analyze-cli.ts,
-      // src/cli.ts), and an e2e runner (src/e2e.ts) — all run or embedded
-      // externally (by the agent / the sandbox-runtime image), not reached
-      // through the monorepo import graph, with co-located tests. Its source is
-      // the public surface, so it anchors the dead-code sweep directly. (The
-      // root-level `builtin-configs/**` ignore covers the root workspace's
-      // scan; this workspace declares its own files, so it stays swept.)
-      entry: ['src/**/*.ts'],
-      project: ['**/*.ts'],
     },
     'tools/cli': {
       project: ['**/*.ts'],

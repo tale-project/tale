@@ -1,57 +1,49 @@
 'use node';
 
 /**
- * Layer B of the config-domain registry: the filesystem path resolvers.
+ * Config-domain registry — Layer B (filesystem path resolvers).
  *
- * The V8-safe registry (`lib/shared/config/registry.ts`, Layer A) declares the
- * set of domains as pure data; it cannot reference the per-domain
- * `resolve<Domain>Dir` functions because those live in `'use node'`
- * `file_utils.ts` modules (they call `node:path` / `getConfigRoot`). This is the
+ * Layer A (`lib/shared/config/registry.ts`) declares the domains as pure
+ * data and cannot reference the per-domain `resolve<Domain>Dir` functions,
+ * because those live in `'use node'` `file_utils.ts` modules. This is the
  * ONE place that value-imports them, keyed by `ConfigDomain.name`, so the
- * scaffold and the generic file→cache sync action resolve a domain's on-disk
- * dir without re-importing each resolver. Never imported by V8 code.
+ * scaffolder and the generic file→cache sync resolve a domain's on-disk dir
+ * without each re-importing every resolver. Never imported by V8 code.
+ *
+ * Rebuilt AI-backend domains add their resolver here as
+ * their phases land.
  */
 
 import { resolveAgentsDir } from '../../agents/file_utils';
-import { resolveAutomationsDir } from '../../automations/file_utils';
-import { resolveBrandingDir } from '../../branding/file_utils';
 import { resolveSsoDir } from '../../enterprise_sso/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
-import { resolveIntegrationsDir } from '../../integrations/file_utils';
-import { resolveKnowledgeDir } from '../../knowledge/file_utils';
-import { resolveObjectStorageDir } from '../../object_storage/file_utils';
 import { resolvePromptsDir } from '../../prompts/file_utils';
-import { resolveProvidersDir } from '../../providers/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
-import { resolveTokenSourcesDir } from '../../token_sources/file_utils';
-import { resolveWorkflowsDir } from '../../workflows/file_utils';
+import { resolveProvidersDir } from '../providers/org_connectors';
 
 export type DomainDirResolver = (orgSlug: string) => string;
 
 /** `ConfigDomain.name` → absolute on-disk domain dir for an org. */
 export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
-  agents: resolveAgentsDir,
-  prompts: resolvePromptsDir,
-  providers: resolveProvidersDir,
-  integrations: resolveIntegrationsDir,
-  'token-sources': resolveTokenSourcesDir,
-  skills: resolveSkillsDir,
-  branding: resolveBrandingDir,
   governance: resolveGovernanceDir,
-  // `sso` is nested under governance — `resolveSsoDir` returns `<org>/governance/sso/`.
+  // `sso` is nested under governance — resolves to `<org>/governance/sso/`.
   sso: resolveSsoDir,
-  // Per-org knowledge-DB connection — `resolveKnowledgeDir` returns `<org>/knowledge/`.
-  knowledge: resolveKnowledgeDir,
-  // Per-org object-storage (BYO S3) connection — `<org>/object-storage/`.
-  'object-storage': resolveObjectStorageDir,
-  automations: resolveAutomationsDir,
-  // LEGACY-CHAIN ONLY: `workflows` left the config-domain registry when
-  // standalone workflows retired (a workflow lives inline in its automation).
-  // The resolver stays because pre-cutover v0_3_4 migrations (06, 30, and the
-  // 33-cutover itself) still address org trees that carry a `workflows/` dir
-  // mid-upgrade. Never reachable from live domain enumeration — the registry
-  // (Layer A) no longer lists the name.
-  workflows: resolveWorkflowsDir,
+  // `prompts` isn't a Layer-A `CONFIG_DOMAINS` entry yet (the minimal
+  // registry currently registers only governance + sso), but the prompts
+  // provisioner (`prompts/provision_defaults.ts`) resolves its catalog dir
+  // through `listCatalogArea('prompts', …)` → `resolveDomainDir`, independent
+  // of the scaffolder's domain loop. Register it here so that lookup doesn't
+  // throw ahead of `prompts` re-registering as a real config domain.
+  prompts: resolvePromptsDir,
+  // Org-defined custom AI-provider connectors (`<org>/providers/*.yml`),
+  // read node-direct by the provider-resolution modules.
+  providers: resolveProvidersDir,
+  // Skill bundles (`<org>/skills/<slug>/SKILL.md` + assets), read node-direct
+  // when staging a sandbox and when a turn expands a skill.
+  skills: resolveSkillsDir,
+  // Agent personas (`<org>/agents/<slug>.yml`), read node-direct by the
+  // org-facing editor and by the turn that resolves who is answering.
+  agents: resolveAgentsDir,
 };
 
 /** Resolve a domain's dir for an org, throwing if the domain has no resolver. */

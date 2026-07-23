@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import enMessages from '@/messages/en.json';
+import enMessages from '@/messages/en.yml';
 import { render } from '@/tests/utils/render';
 
 // Router: `useSearch` drives the SSO-error params under test; `useNavigate`

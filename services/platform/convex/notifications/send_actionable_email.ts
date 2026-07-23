@@ -3,89 +3,49 @@
 /**
  * Send helpers for actionable notification email — IMAP/SMTP mailboxes and
  * OAuth connector integrations (Gmail, Outlook).
+ *
+ * `../integrations/{build_test_secrets,
+ * guards/is_imap_smtp_integration,imap_smtp_config,load_integration}` moved
+ * with the integrations rewrite. `email_notification.ts`'s
+ * `deliverActionableEmailAction` is already designed to skip silently when
+ * "the org has no connected mailbox integration" (its own doc comment) — the
+ * in-app bell row is written regardless — so `findSendableMailbox` always
+ * returning `null` is a true, in-contract answer, not a lie: it degrades
+ * exactly like the "no mailbox configured" case always did, no caller
+ * changes needed. `sendActionableEmail` is kept exported (nothing calls it
+ * once `findSendableMailbox` always returns `null`, but the stub policy
+ * never deletes an export) and returns its established `{ success, error? }`
+ * failure shape instead of attempting a send.
  */
 
-import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { notificationFromAddress } from '../conversations/reply_from';
-import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
-import { isImapSmtpIntegration } from '../integrations/guards/is_imap_smtp_integration';
-import { resolveImapSmtpConnection } from '../integrations/imap_smtp_config';
-import type { LoadedIntegration } from '../integrations/load_integration';
-import { toConvexJsonRecord } from '../lib/type_cast_helpers';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 
-const CONNECTOR_MAILBOX_SLUGS = new Set(['gmail', 'outlook']);
-
-export type SendableMailbox =
-  | { kind: 'smtp'; integration: LoadedIntegration }
-  | { kind: 'connector'; integration: LoadedIntegration; slug: string };
-
-function resolveSmtpNotificationFrom(
-  integration: LoadedIntegration,
-  smtpUser: string,
-): string {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig carries mailbox-specific keys
-  const connConfig = integration.connectionConfig as
-    | Record<string, unknown>
-    | undefined;
-  const baseFrom =
-    connConfig &&
-    typeof connConfig.fromAddress === 'string' &&
-    connConfig.fromAddress.trim() !== ''
-      ? connConfig.fromAddress.trim()
-      : smtpUser;
-  return notificationFromAddress(baseFrom);
+export interface SendableMailbox {
+  kind: 'smtp' | 'connector';
 }
 
+/**
+ * No-op — always reports "no sendable mailbox found",
+ * which callers already treat as a normal, silent skip. See file header.
+ */
 export async function findSendableMailbox(
-  ctx: ActionCtx,
-  organizationId: string,
+  _ctx: ActionCtx,
+  _organizationId: string,
 ): Promise<SendableMailbox | null> {
-  const orgSlug = await resolveOrgSlug(ctx, organizationId);
-  const credentials = await ctx.runQuery(
-    internal.integrations.credential_queries.listInternal,
-    { organizationId },
+  console.debug(
+    '[findSendableMailbox] Actionable email delivery is offline while the platform AI backend is rewritten; reporting no sendable mailbox',
   );
-
-  let connectorFallback: SendableMailbox | null = null;
-
-  for (const cred of credentials) {
-    if (!cred.isActive || cred.status !== 'active') continue;
-
-    const integration = await ctx.runAction(
-      internal.integrations.load_integration.loadIntegration,
-      {
-        orgSlug,
-        organizationId,
-        slug: cred.slug,
-      },
-    );
-    if (!integration) continue;
-
-    if (isImapSmtpIntegration(integration)) {
-      return { kind: 'smtp', integration };
-    }
-
-    if (
-      CONNECTOR_MAILBOX_SLUGS.has(cred.slug) &&
-      integration.connector &&
-      !connectorFallback
-    ) {
-      connectorFallback = {
-        kind: 'connector',
-        integration,
-        slug: cred.slug,
-      };
-    }
-  }
-
-  return connectorFallback;
+  return null;
 }
 
+/**
+ * Offline — always fails. See file header. Unreachable in
+ * practice since `findSendableMailbox` never returns a mailbox, but kept
+ * exported and functional-shaped per the stub policy.
+ */
 export async function sendActionableEmail(
-  ctx: ActionCtx,
-  args: {
+  _ctx: ActionCtx,
+  _args: {
     organizationId: string;
     mailbox: SendableMailbox;
     to: string;
@@ -94,70 +54,9 @@ export async function sendActionableEmail(
     html: string;
   },
 ): Promise<{ success: boolean; error?: string }> {
-  if (args.mailbox.kind === 'smtp') {
-    const connection = await resolveImapSmtpConnection(
-      ctx,
-      args.mailbox.integration,
-    );
-    const from = resolveSmtpNotificationFrom(
-      args.mailbox.integration,
-      connection.smtp.user,
-    );
-    const sendResult = await ctx.runAction(
-      internal.node_only.imap_smtp.internal_actions.sendMessage,
-      {
-        smtp: connection.smtp,
-        from,
-        to: [args.to],
-        subject: args.subject,
-        text: args.text,
-        html: args.html,
-      },
-    );
-    return sendResult.success
-      ? { success: true }
-      : { success: false, error: sendResult.error };
-  }
-
-  const { integration, slug } = args.mailbox;
-  const connectorConfig = integration.connector;
-  if (!connectorConfig) {
-    return { success: false, error: 'missing_connector_config' };
-  }
-
-  const secrets = await buildIntegrationSecrets(
-    ctx,
-    {
-      ...integration,
-      secretBindings: integration.connector?.secretBindings,
-    },
-    integration._id,
-  );
-
-  const result = await ctx.runAction(
-    internal.node_only.integration_sandbox.internal_actions.executeIntegration,
-    {
-      code: connectorConfig.code,
-      operation: 'send_message',
-      params: toConvexJsonRecord({
-        to: [args.to],
-        subject: args.subject,
-        body: args.html,
-        contentType: 'HTML',
-      }),
-      variables: {},
-      secrets,
-      allowedHosts: connectorConfig.allowedHosts ?? [],
-      timeoutMs: connectorConfig.timeoutMs ?? 30000,
-      organizationId: args.organizationId,
-    },
-  );
-
-  if (!result.success) {
-    return {
-      success: false,
-      error: result.error ?? `connector_send_failed:${slug}`,
-    };
-  }
-  return { success: true };
+  return {
+    success: false,
+    error:
+      'Sending actionable email is offline while the platform AI backend is rewritten.',
+  };
 }

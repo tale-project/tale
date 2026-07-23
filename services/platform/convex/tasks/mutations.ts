@@ -28,7 +28,9 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
+import { emitEvent } from '../events/emit';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
+import { cascadeDeleteThreadChildren } from '../legacy/thread_cascade';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
   checkUserRateLimit,
@@ -41,8 +43,6 @@ import {
   assertHumanAssigneeAccess,
   resolveUserAccessContext,
 } from '../projects/resolve_project_access';
-import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
-import { emitEvent } from '../workflows/triggers/emit_event';
 import {
   canClaimTask,
   checkProjectAccess,

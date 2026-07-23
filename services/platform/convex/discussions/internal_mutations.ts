@@ -30,9 +30,9 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation } from '../_generated/server';
 import { notifyDiscussionMentions } from '../collab/notify';
+import { emitEvent } from '../events/emit';
 import { buildMentionDirectory } from '../tasks/directory';
 import { extractMentions, type ResolvedMention } from '../tasks/mentions';
-import { emitEvent } from '../workflows/triggers/emit_event';
 import { dispatchAgentMentionRuns } from './mention_dispatch';
 
 /** Actor attribution for emitted events (agent slug, or the `workflow` sentinel). */

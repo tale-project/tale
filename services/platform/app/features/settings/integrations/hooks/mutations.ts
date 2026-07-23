@@ -1,52 +1,42 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useAction } from 'convex/react';
-import { useCallback } from 'react';
-
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-export function useInvalidateIntegrations() {
-  const queryClient = useQueryClient();
-  return () =>
-    queryClient.invalidateQueries({ queryKey: ['config', 'integrations'] });
+/**
+ * Write hooks for the integrations settings page. The secret-carrying writes
+ * (create, update) are Convex ACTIONS — plaintext must reach the node-side
+ * encryption layer — while delete and default-swap are plain mutations. The
+ * credential list is a reactive query, so none of these invalidate anything.
+ * Error feedback belongs to the call sites (dialog-inline or toast, via
+ * `mapIntegrationError`), so the mutation hooks opt out of the generic toast.
+ *
+ * OAuth credentials have no write hook here: they are created and refreshed by
+ * the consent flow's callback, which the browser reaches through
+ * `integration-oauth.ts`.
+ */
+
+/** Create one credential for a connector. */
+export function useCreateCredential() {
+  return useConvexAction(api.integration_credentials.actions.createCredential);
 }
 
-export function useGenerateUploadUrl() {
-  return useConvexMutation(api.files.mutations.generateUploadUrl);
+/** Patch one credential: label, endpoint, status, or its secret. */
+export function useUpdateCredential() {
+  return useConvexAction(api.integration_credentials.actions.updateCredential);
 }
 
-export function useUpdateCredentials() {
-  const saveFn = useAction(api.integrations.actions.saveCredentials);
-  const invalidate = useInvalidateIntegrations();
-
-  const mutateAsync = useCallback(
-    async (...args: Parameters<typeof saveFn>) => {
-      const result = await saveFn(...args);
-      void invalidate();
-      return result;
-    },
-    [saveFn, invalidate],
+/** Delete one credential. */
+export function useDeleteCredential() {
+  return useConvexMutation(
+    api.integration_credentials.mutations.deleteCredential,
+    { errorToast: false },
   );
-
-  return { mutateAsync };
 }
 
-export function useDeleteIntegration() {
-  const mutation = useConvexMutation(
-    api.integrations.credential_mutations.deleteCredentials,
+/** Make one credential the default of its connector. */
+export function useSetDefaultCredential() {
+  return useConvexMutation(
+    api.integration_credentials.mutations.setDefaultCredential,
+    { errorToast: false },
   );
-  const invalidate = useInvalidateIntegrations();
-
-  const originalMutateAsync = mutation.mutateAsync;
-
-  const mutateAsync = useCallback(
-    async (...args: Parameters<typeof originalMutateAsync>) => {
-      const result = await originalMutateAsync(...args);
-      void invalidate();
-      return result;
-    },
-    [originalMutateAsync, invalidate],
-  );
-
-  return { ...mutation, mutateAsync };
 }

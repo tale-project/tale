@@ -24,17 +24,13 @@ import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import {
   type ModelInfoCapabilities,
   ModelInfoPopover,
-} from '@/app/features/chat/components/model-info-popover';
-import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import {
-  useListProviders,
-  useModelCapabilities,
-} from '@/app/features/settings/providers/hooks/queries';
-import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
+} from '@/app/features/shared/models/model-info-popover';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -49,6 +45,7 @@ import {
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
+import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { stripQualifier } from './model-id';

@@ -13,7 +13,7 @@ Tale ships automations out of the box: three that turn a mailbox into a shared i
 
 ## Sync Gmail, Outlook, and email over IMAP
 
-**Sync Gmail emails**, **Sync Outlook emails**, and **Sync emails via SMTP/IMAP** are the same automation three times over, one per mailbox kind: each requires exactly the integration its name says, each installs the same channel-agnostic **Inbox** builtin view, and each carries the mail-sync workflow that pulls the mailbox into conversations on a schedule (every six hours out of the box — tighten it on the automation's **Triggers** tab). An organization that receives mail on more than one kind of mailbox installs more than one of these; each Inbox only shows its own mailbox's traffic.
+**Sync Gmail emails**, **Sync Outlook emails**, and **Sync emails via SMTP/IMAP** are the same automation three times over, one per mailbox kind: each requires exactly the integration its name says, each installs the same channel-agnostic **Inbox** builtin view, and each carries the mail-sync workflow that pulls the mailbox into conversations on a schedule, every six hours out of the box (change the [schedule trigger](/platform/automations/triggers) to pull more often). An organization that receives mail on more than one kind of mailbox installs more than one of these; each Inbox only shows its own mailbox's traffic.
 
 | Automation                | Requires  | Mailbox                                |
 | ------------------------- | --------- | -------------------------------------- |
@@ -39,7 +39,7 @@ A human stays in the loop at two points: starting a proposed task off the Backlo
 
 ## Sync and upkeep templates
 
-Eight more automations sit in the catalog for the moments you need them. Each is a single workflow you install and then point at your data — the sync ones ask for their source on the schedule they create, and every one is editable afterwards on the automation's **Editor** tab.
+Eight more automations sit in the catalog for the moments you need them. Each is a single workflow you install and then point at your data — the sync ones ask for their source on the schedule they create, and every one is editable afterwards on the automation's own page, where an edit becomes a new version you deploy when you are ready.
 
 | Automation                         | Requires     | What it does                                                                  |
 | ---------------------------------- | ------------ | ----------------------------------------------------------------------------- |
@@ -54,7 +54,7 @@ Eight more automations sit in the catalog for the moments you need them. Each is
 
 ## The pre-installed packs
 
-The plumbing that runs every organization's boards ships as automations too — installed automatically at creation, hidden from the catalog, and visible on the **Installed** tab like anything else. The **task pack** runs an assigned agent the moment a task lands on it, triages unassigned work, reacts to @-mentions, routes finished work through review, sweeps stale runs, enforces SLAs, and keeps dependent tasks, subtasks, and archives moving; its sibling answers discussion mentions. Each is a normal automation — open one to read its workflow on the **Editor** tab, watch it under **Executions**, or switch off a trigger under **Triggers**; an uninstall sticks and is never re-installed behind your back. One more hidden automation joins them on demand: the engine that keeps OneDrive files synced installs itself the first time someone sets up a [sync import](/platform/knowledge/documents) — and setting up a new sync brings it back after an uninstall.
+The plumbing that runs every organization's boards ships as automations too — installed automatically at creation, hidden from the catalog, and visible on the **Installed** tab like anything else. The **task pack** runs an assigned agent the moment a task lands on it, triages unassigned work, reacts to @-mentions, routes finished work through review, sweeps stale runs, enforces SLAs, and keeps dependent tasks, subtasks, and archives moving; its siblings answer discussion mentions and keep OneDrive files synced. Each is a normal automation — open one to read its document on the canvas, follow what it did in its [run list](/platform/automations/execution-logs), or switch off a [trigger](/platform/automations/triggers) to stop it firing; an uninstall sticks and is never re-installed behind your back.
 
 ## Where this fits
 

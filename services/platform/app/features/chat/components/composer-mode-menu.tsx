@@ -1,282 +1,83 @@
 'use client';
 
+/**
+ * The composer's `+` menu — the modes a message can be sent in.
+ *
+ * A MODE is a property of the message you are about to send, not a stored
+ * preference: "Read replies aloud" belongs here, next to attaching a file,
+ * and nowhere in the preferences page. There is no entry for choosing a
+ * harness either — where a turn runs is decided by the model picker's
+ * sandbox toggle, in the same row as the model it applies to.
+ */
+
 import { Button } from '@tale/ui/button';
-import {
-  DropdownMenu,
-  type DropdownMenuGroup,
-  type DropdownMenuItem,
-} from '@tale/ui/dropdown-menu';
-import { useNavigate } from '@tanstack/react-router';
-import { FolderOpen, MonitorPlay, Paperclip, Plus, Swords } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Paperclip, Plus, Volume2 } from 'lucide-react';
+import { useMemo } from 'react';
 
-import { useLiveBrowserOptional } from '@/app/features/workspace/components/live-browser-context';
-import { useWorkspaceFilesOptional } from '@/app/features/workspace/components/workspace-files-context';
-import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useT } from '@/lib/i18n/client';
-import { DEFAULT_CHAT_AGENT_SLUG } from '@/lib/shared/constants/agents';
-
-import { useChatLayout } from '../context/chat-layout-context';
-import { useChatAgents } from '../hooks/queries';
-import {
-  getAgentMissingIntegrations,
-  resolveCapabilityIcon,
-  useComposerCapabilities,
-  useIntegrationReadiness,
-} from '../hooks/use-composer-capabilities';
-import { useEffectiveAgent } from '../hooks/use-effective-agent';
-import { useSandboxPanesAvailable } from '../hooks/use-sandbox-panes';
-import { useArenaModeOptional } from './arena/arena-mode-context';
 
 interface ComposerModeMenuProps {
-  organizationId: string;
-  /** Current thread (gates the mobile sandbox-view entries). */
-  threadId?: string;
-  onAttachFile?: () => void;
-  fileUploadDisabled?: boolean;
+  /** Read replies aloud, for the message being composed. */
+  voiceOutput: boolean;
+  onVoiceOutputChange: (next: boolean) => void;
+  onAttachFiles?: () => void;
   disabled?: boolean;
 }
 
 export function ComposerModeMenu({
-  organizationId,
-  threadId,
-  onAttachFile,
-  fileUploadDisabled = false,
-  disabled = false,
+  voiceOutput,
+  onVoiceOutputChange,
+  onAttachFiles,
+  disabled,
 }: ComposerModeMenuProps) {
   const { t } = useT('composer');
   const { t: tChat } = useT('chat');
-  const navigate = useNavigate();
-  const { setSelectedAgent, enabledCapabilities, setCapabilityEnabled } =
-    useChatLayout();
-  const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
-  const { agents } = useChatAgents(organizationId);
-
-  // Mobile-only: the desktop sandbox panes are right-edge strips, but there's no
-  // room for them under `md`, so surface the Workspace-files / Live-browser
-  // toggles here in the always-reachable `+` menu (the composer has no pill for
-  // them anymore). Same gate as the desktop strips, via the shared hook.
-  const isMobile = useIsMobile();
-  const files = useWorkspaceFilesOptional();
-  const live = useLiveBrowserOptional();
-  const sandboxPanesAvailable = useSandboxPanesAvailable(
-    organizationId,
-    threadId,
-  );
-  const showSandboxViews =
-    isMobile && sandboxPanesAvailable && !!files && !!live;
-  const capabilities = useComposerCapabilities(organizationId);
-  const readiness = useIntegrationReadiness(organizationId);
-  const arenaContext = useArenaModeOptional();
-
-  const modeAgents = useMemo(() => {
-    if (!agents) return [];
-    return agents
-      .filter((a) => a.composerMode)
-      .sort((a, b) => {
-        const aOrder = a.composerMode?.order ?? 100;
-        const bOrder = b.composerMode?.order ?? 100;
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        return a.displayName.localeCompare(b.displayName);
-      });
-  }, [agents]);
-
-  const chatAgent = useMemo(
-    () => agents?.find((a) => a.name === DEFAULT_CHAT_AGENT_SLUG) ?? null,
-    [agents],
-  );
-
-  const switchTo = useCallback(
-    (agentName: string) => {
-      const next = agents?.find((a) => a.name === agentName);
-      if (!next) return;
-      setSelectedAgent({
-        name: next.name,
-        displayName: next.displayName,
-      });
-    },
-    [agents, setSelectedAgent],
-  );
-
-  const openIntegrations = useCallback(
-    (slug?: string) => {
-      void navigate({
-        to: '/dashboard/$id/settings/integrations',
-        params: { id: organizationId },
-        search: { tab: 'all', slug },
-      });
-    },
-    [navigate, organizationId],
-  );
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
     const groups: DropdownMenuGroup[] = [];
 
-    if (!fileUploadDisabled && onAttachFile) {
+    if (onAttachFiles) {
       groups.push([
         {
           type: 'item',
           label: t('addFiles'),
           icon: Paperclip,
-          onClick: onAttachFile,
+          onClick: onAttachFiles,
         },
       ]);
     }
 
-    const hasArena = arenaContext != null;
-    const isArenaActive = arenaContext?.isArenaMode === true;
-    if (modeAgents.length > 0 || hasArena) {
-      const modeGroup: DropdownMenuGroup = [
-        { type: 'label', content: t('modeHeader') },
-      ];
-      for (const agent of modeAgents) {
-        const isActive = effectiveAgent?.name === agent.name && !isArenaActive;
-        const modeLabel = agent.composerMode?.label ?? agent.displayName;
-        const missing = getAgentMissingIntegrations(agent, readiness);
-        const modeReady = missing.length === 0;
-        const item: DropdownMenuItem = modeReady
-          ? {
-              type: 'item',
-              label: modeLabel,
-              selected: isActive,
-              icon: resolveCapabilityIcon(agent.composerMode?.icon),
-              onClick: () => {
-                if (isActive) {
-                  if (chatAgent) switchTo(chatAgent.name);
-                  return;
-                }
-                if (isArenaActive) arenaContext.exitArenaMode();
-                switchTo(agent.name);
-              },
-            }
-          : {
-              type: 'item',
-              label: modeLabel,
-              trailing: t('requiresIntegration', {
-                name: readiness.titleBySlug.get(missing[0]) ?? missing[0],
-              }),
-              icon: resolveCapabilityIcon(agent.composerMode?.icon),
-              onClick: () => openIntegrations(missing[0]),
-            };
-        modeGroup.push(item);
-      }
-      if (hasArena) {
-        modeGroup.push({
-          type: 'item',
-          label: tChat('arena.label'),
-          selected: isArenaActive,
-          icon: Swords,
-          onClick: () => {
-            if (isArenaActive) {
-              arenaContext.exitArenaMode();
-              return;
-            }
-            const isInComposerMode = modeAgents.some(
-              (a) => a.name === effectiveAgent?.name,
-            );
-            if (isInComposerMode && chatAgent) {
-              switchTo(chatAgent.name);
-            }
-            arenaContext.enableArenaMode();
-          },
-        });
-      }
-      groups.push(modeGroup);
-    }
-
-    if (capabilities.length > 0) {
-      const capabilityGroup: DropdownMenuGroup = [
-        { type: 'label', content: t('capabilityHeader') },
-      ];
-      for (const capability of capabilities) {
-        const isOn =
-          enabledCapabilities.includes(capability.slug) && capability.ready;
-        if (!capability.ready) {
-          const title =
-            readiness.titleBySlug.get(capability.slug) ?? capability.slug;
-          capabilityGroup.push({
-            type: 'item',
-            label: capability.label,
-            trailing: t('requiresIntegration', { name: title }),
-            icon: capability.icon,
-            onClick: () => openIntegrations(capability.slug),
-          });
-          continue;
-        }
-        capabilityGroup.push({
-          type: 'item',
-          label: capability.label,
-          icon: capability.icon,
-          selected: isOn,
-          onClick: () => setCapabilityEnabled(capability.slug, !isOn),
-        });
-      }
-      groups.push(capabilityGroup);
-    }
-
-    if (showSandboxViews && files && live) {
-      groups.push([
-        { type: 'label', content: tChat('sandbox.label') },
-        {
-          type: 'item',
-          label: tChat('workspaceFiles.toggleLabel'),
-          icon: FolderOpen,
-          selected: files.isOpen,
-          onClick: () => files.toggle(),
-        },
-        {
-          type: 'item',
-          label: tChat('liveBrowser.toggleLabel'),
-          icon: MonitorPlay,
-          selected: live.isOpen,
-          onClick: () => live.toggle(),
-        },
-      ]);
-    }
+    groups.push([
+      { type: 'label', content: t('modeHeader') },
+      {
+        type: 'checkbox',
+        label: tChat('voice.voiceModeEnable'),
+        icon: Volume2,
+        checked: voiceOutput,
+        onCheckedChange: onVoiceOutputChange,
+      },
+    ]);
 
     return groups;
-  }, [
-    showSandboxViews,
-    files,
-    live,
-    fileUploadDisabled,
-    onAttachFile,
-    modeAgents,
-    chatAgent,
-    effectiveAgent?.name,
-    capabilities,
-    readiness,
-    enabledCapabilities,
-    setCapabilityEnabled,
-    switchTo,
-    openIntegrations,
-    arenaContext,
-    t,
-    tChat,
-  ]);
-
-  if (items.length === 0) {
-    return null;
-  }
+  }, [onAttachFiles, voiceOutput, onVoiceOutputChange, t, tChat]);
 
   return (
     <DropdownMenu
+      align="start"
       tooltip={t('openMenu')}
-      tooltipSide="top"
+      disabled={disabled}
       trigger={
         <Button
           variant="ghost"
           size="icon"
           aria-label={t('openMenu')}
           aria-haspopup="menu"
-          disabled={disabled}
-          className="focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset"
         >
-          <Plus className="size-4" aria-hidden="true" />
+          <Plus aria-hidden className="size-4" />
         </Button>
       }
       items={items}
-      align="start"
     />
   );
 }

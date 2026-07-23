@@ -7,13 +7,14 @@ import type { Messages } from '@/lib/i18n/types';
  * Each page route defines its own metadata entry (e.g. `metadata.chat.title`),
  * and this type ensures only valid page keys are accepted.
  */
+type MetadataKey = Extract<keyof Messages['metadata'], string>;
 type MetadataPage = {
-  [K in keyof Messages['metadata']]: Messages['metadata'][K] extends {
+  [K in MetadataKey]: Messages['metadata'][K] extends {
     title: string;
   }
     ? K
     : never;
-}[keyof Messages['metadata']];
+}[MetadataKey];
 
 /**
  * Builds the meta tag array for a given page route.

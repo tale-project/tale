@@ -1,0 +1,24 @@
+# Automation manifest — everything about the pack that is not its workflow.
+# The directory path is the slug (`github/review-pull-requests`);
+# `workflow.yml` beside this file is the document that runs.
+name: Review GitHub pull requests
+description: Reviews every open pull request on a schedule and leaves the findings as a comment. It never approves and never merges — a human still does that.
+icon: check-check
+labels:
+  - GitHub
+  - Code review
+scope: org
+requires:
+  integrations:
+    - github
+triggers:
+  - kind: schedule
+    cron: '*/30 * * * *'
+    timezone: UTC
+i18n:
+  de:
+    name: GitHub-Pull-Requests prüfen
+    description: Prüft regelmäßig jeden offenen Pull Request und hinterlässt die Ergebnisse als Kommentar. Genehmigt und merged wird nie — das bleibt beim Menschen.
+  fr:
+    name: Examiner les pull requests GitHub
+    description: Examine régulièrement chaque pull request ouverte et publie ses conclusions en commentaire. Jamais d'approbation ni de fusion — cela reste humain.

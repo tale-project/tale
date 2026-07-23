@@ -1,0 +1,56 @@
+# Static model catalog for the moonshot connector — captured from
+# the live OpenRouter listing on 2026-07-21 (vendor-native ids; the
+# vendor publishes no usable public listing endpoint). Pricing is
+# cents per million tokens where the source published it.
+- id: kimi-k3
+  provider: moonshot
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  pricing:
+    inputCentsPerMillion: 300
+    outputCentsPerMillion: 1500
+- id: kimi-k2.7-code
+  provider: moonshot
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 262144
+  pricing:
+    inputCentsPerMillion: 82
+    outputCentsPerMillion: 375
+- id: kimi-k2.6
+  provider: moonshot
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 262144
+  pricing:
+    inputCentsPerMillion: 68.4
+    outputCentsPerMillion: 342
+- id: kimi-k2.5
+  provider: moonshot
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 262144
+  pricing:
+    inputCentsPerMillion: 57
+    outputCentsPerMillion: 285

@@ -59,7 +59,7 @@ For the role matrix (who can do what), see [Members and roles](/platform/admin/m
 
 <Step title="Add a model provider">
 
-Open **Settings > AI providers** and click **Add provider**. Pick the provider you have credentials for and paste the API key. Save. Tale validates the key in the background; a confirmation on the provider row means the key works. If validation fails, the row shows the error verbatim — the most common cause is whitespace around the key.
+Open **Settings > AI providers**, find the connector you hold a key for, and click **Add credential**. Name the credential so a later reader knows which key it is, pick **API key** as the authentication method, and paste the key. The credential is stored encrypted and becomes the connector's default when it is the first one; a second credential on the same connector is fine, and you choose which is the default. The most common reason a key is rejected is whitespace around it.
 
 <Frame caption="The connected provider — from here every agent can answer.">
 

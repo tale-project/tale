@@ -1,20 +1,16 @@
-/**
- * Read-side projection of a document's RAG indexing status.
- *
- * RAG status lives canonically on `fileMetadata.ragStatus` (join:
- * `documents.fileId == fileMetadata.storageId`, 1:1). The retired
- * `documents.ragInfo`/`indexed` fields are no longer written — every read that
- * used to consume them goes through this helper instead, so the projected shape
- * stays identical and the frontend is unchanged.
- *
- * A document with no `fileId`, or whose blob has no fileMetadata row, projects
- * as `{ indexed: false, status: undefined }` — the UI renders that as
- * `not_indexed`.
- */
-
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { BlobRef } from '../lib/storage/blob_ref';
+
+// The real projection (retired)
+// joined `fileMetadata.ragStatus` (canonical) for a document's blob. RAG
+// indexing is offline (nothing is ever dispatched — see
+// `file_metadata/rag_dispatch.ts` and `file_metadata/internal_actions.ts`)
+// and RAG search itself is gone with the rest of the knowledge-base rewrite,
+// so even a document whose `fileMetadata` row was left `'completed'` from
+// before the rewrite is not usefully "indexed" any more — nothing can search
+// it. Every document therefore projects as `{ indexed: false }`, which
+// `transform_to_document_item.ts` renders as `not_indexed` and
+// `projects/queries.ts` counts as zero indexed files.
 
 export interface DocumentRagProjection {
   status?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
@@ -25,72 +21,27 @@ export interface DocumentRagProjection {
 
 const NOT_INDEXED: DocumentRagProjection = { indexed: false };
 
-function projectFromFileMetadata(
-  fm: Doc<'fileMetadata'> | null,
-): DocumentRagProjection {
-  if (!fm) return NOT_INDEXED;
-  return {
-    status: fm.ragStatus,
-    indexedAt: fm.ragIndexedAt,
-    error: fm.ragError,
-    indexed: fm.ragStatus === 'completed',
-  };
-}
-
-/** Single-document projection. */
+/**
+ * No-op — always `{ indexed: false }`. See file header.
+ */
 export async function getDocumentRagProjection(
-  ctx: QueryCtx,
-  doc: Pick<Doc<'documents'>, 'fileId'>,
+  _ctx: QueryCtx,
+  _doc: Pick<Doc<'documents'>, 'fileId'>,
 ): Promise<DocumentRagProjection> {
-  const fileId = doc.fileId;
-  if (!fileId) return NOT_INDEXED;
-  const fm = await ctx.db
-    .query('fileMetadata')
-    .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
-    .first();
-  return projectFromFileMetadata(fm);
+  return NOT_INDEXED;
 }
 
 /**
- * Batch projection keyed by document `_id`. Looks up each distinct `fileId`
- * once on `by_storageId`. Mirrors the `batchGetStorageUrls` pattern in
- * `transform_to_document_item.ts`.
+ * No-op batch counterpart — every document projects as
+ * `{ indexed: false }`. See file header.
  */
 export async function getDocumentRagProjectionBatch(
-  ctx: QueryCtx,
+  _ctx: QueryCtx,
   docs: Array<Pick<Doc<'documents'>, '_id' | 'fileId'>>,
 ): Promise<Map<string, DocumentRagProjection>> {
   const result = new Map<string, DocumentRagProjection>();
-  if (docs.length === 0) return result;
-
-  // Deduplicate fileIds so a blob shared by multiple docs is fetched once.
-  const seen = new Set<string>();
-  const uniqueFileIds: BlobRef[] = [];
   for (const d of docs) {
-    if (!d.fileId) continue;
-    const key = String(d.fileId);
-    if (!seen.has(key)) {
-      seen.add(key);
-      uniqueFileIds.push(d.fileId);
-    }
-  }
-
-  const byFileId = new Map<string, DocumentRagProjection>();
-  await Promise.all(
-    uniqueFileIds.map(async (fileId) => {
-      const fm = await ctx.db
-        .query('fileMetadata')
-        .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
-        .first();
-      byFileId.set(String(fileId), projectFromFileMetadata(fm));
-    }),
-  );
-
-  for (const d of docs) {
-    const proj = d.fileId
-      ? (byFileId.get(String(d.fileId)) ?? NOT_INDEXED)
-      : NOT_INDEXED;
-    result.set(String(d._id), proj);
+    result.set(String(d._id), NOT_INDEXED);
   }
   return result;
 }

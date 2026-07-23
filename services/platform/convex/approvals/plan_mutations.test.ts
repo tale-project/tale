@@ -174,7 +174,7 @@ describe('approvePlan', () => {
     mockCreateStream.mockResolvedValue('stream_1');
   });
 
-  it('atomically resolves the card, flips the thread to act, and starts the act turn', async () => {
+  it('fails offline after its guards, leaving the approval pending', async () => {
     const meta = metaRow();
     const approval = planApprovalRow();
     const tables: Record<string, Row[]> = {
@@ -185,36 +185,23 @@ describe('approvePlan', () => {
     const ctx = makeCtx(tables);
     mockCanAccessThread.mockResolvedValue(meta);
 
-    await approve(ctx, { approvalId: 'appr_1', organizationId: 'org_1' });
+    // Executing an approved plan re-enters the chat pipeline, which is
+    // offline while it is rebuilt: the ownership/resolution guards still run,
+    // then the mutation refuses without resolving the card or queuing a turn.
+    await expect(
+      approve(ctx, { approvalId: 'appr_1', organizationId: 'org_1' }),
+    ).rejects.toThrow(/offline while the platform AI backend is rewritten/i);
 
-    expect(approval.status).toBe('completed');
-    expect(approval.approvedBy).toBe('user_1');
-    expect(approval.executedAt).toBeDefined();
-    // Mode flip + the queue-machinery kickoff (claims the row, marks
-    // generating) committed in the same call.
-    expect(meta.externalAgentMode).toBe('act');
-    expect(meta.generationStatus).toBe('generating');
-    expect(meta.streamId).toBe('stream_1');
-    const queueRow = tables.chatMessageQueue?.[0];
-    expect(queueRow).toMatchObject({
-      agentSlug: 'claude-code',
-      text: 'Approved — execute the plan.',
-      status: 'claimed',
-    });
-    // Act turn re-enters the normal pipeline with the approval message as
-    // the (already saved) prompt.
-    const scheduled = ctx.scheduler.runAfter.mock.calls.find(
-      ([, ref]) => ref === 'mock-runChatTurn',
-    );
-    expect(scheduled?.[2]).toMatchObject({
-      agentSlug: 'claude-code',
-      message: 'Approved — execute the plan.',
-      threadId: 'thread_1',
-      queuedPromptMessageId: 'msg_approved',
-    });
+    expect(approval.status).toBe('pending');
+    expect(meta.externalAgentMode).not.toBe('act');
+    expect(meta.generationStatus).not.toBe('generating');
+    expect(tables.chatMessageQueue).toHaveLength(0);
   });
 
-  it('rejects with TURN_RUNNING while the thread is generating', async () => {
+  it('fails offline (not TURN_RUNNING) while the thread is generating', async () => {
+    // The TURN_RUNNING race guard lived in the plan-execution path, which is
+    // offline while chat is rebuilt; a generating thread now reaches the
+    // offline error and the approval stays pending either way.
     const meta = metaRow({ generationStatus: 'generating' });
     const approval = planApprovalRow();
     const ctx = makeCtx({
@@ -224,10 +211,9 @@ describe('approvePlan', () => {
     });
     mockCanAccessThread.mockResolvedValue(meta);
 
-    await expectCode(
+    await expect(
       approve(ctx, { approvalId: 'appr_1', organizationId: 'org_1' }),
-      'TURN_RUNNING',
-    );
+    ).rejects.toThrow(/offline while the platform AI backend is rewritten/i);
     expect(approval.status).toBe('pending');
   });
 

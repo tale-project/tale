@@ -61,7 +61,7 @@ vi.mock('../lib/helpers/pii_hash', () => ({
   hashEmailForAudit: vi.fn(),
 }));
 
-vi.mock('../threads/cascade_helpers', () => ({
+vi.mock('../legacy/thread_cascade', () => ({
   cascadeDeleteThreadChildren: vi.fn(),
 }));
 

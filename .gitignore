@@ -176,3 +176,7 @@ services/*/dev-dist
 
 # Glossary-audit script outputs — regenerated on demand, never committed
 services/docs/scripts/audit-output/
+
+# Org/system config secrets sidecars (SOPS-encrypted or plaintext-local) — the
+# rebuilt configs/ tree mirrors the builtin-configs secrets rule.
+configs/**/*.secrets.yml

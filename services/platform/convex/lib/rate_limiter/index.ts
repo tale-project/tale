@@ -526,17 +526,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
     capacity: 1,
   },
-  // Per-org lazy cleanup of terminal agent-on-demand job rows (+ their
-  // transcript threads) past the `agent_jobs` policy TTL, and orphaned
-  // `running` rows. Scheduled from `finalizeJob` and the over-cap admission
-  // path — no cron. Token-bucket for the same minute-boundary reason as
-  // `cleanup:tts`.
-  'cleanup:agentJobs': {
-    kind: 'token bucket',
-    rate: 1,
-    period: HOUR,
-    capacity: 1,
-  },
   // Per-org opportunistic self-heal: the agent-liveness gate schedules the
   // autoInstall sweep when it finds a never-provisioned org at run admission.
   // Caps it to one schedule per org per few minutes so concurrent admissions in

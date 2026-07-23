@@ -48,9 +48,9 @@ Inline-Karten, Workflow-Gates und der Genehmiger-Pool, der Menschen in der Schle
 
 </Card>
 
-<Card title="Prompt-Bibliothek" icon="list-plus" href="/de/platform/workspace/prompt-library">
+<Card title="Skill-Bibliothek" icon="list-plus" href="/de/platform/workspace/skills">
 
-Gespeicherte Prompts mit persönlicher, Team- und globaler Sichtbarkeit, plus Versionsverlauf.
+Wiederverwendbare Anleitungs-Bundles, die du privat behältst oder mit der ganzen Organisation teilst.
 
 </Card>
 

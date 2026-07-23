@@ -19,13 +19,13 @@ Ouvre le menu plus du chat et choisis **Mode Arène** — le chat fait pousser d
 
 <Note>
 
-L’Arène a besoin d’un agent précis — choisis-en un à la place d’**Auto** dans le sélecteur d’agents avant de l’activer.
+Les deux colonnes tournent avec le même agent — choisis l’agent qui t’intéresse avant d’activer l’Arène. La comparaison ne dit quelque chose que si les instructions, les tools et la connaissance sont identiques de part et d’autre.
 
 </Note>
 
 ## Choisir les concurrents
 
-Les deux sélecteurs sont indépendants — n’importe quel modèle tagué chat que la politique de l’agent autorise est valable de chaque côté. Choisir le même modèle des deux côtés est permis (utile pour tester des différences de température si l’agent expose ça), mais la plupart des comparaisons traversent fournisseurs ou tailles. Les instructions, les connaissances et les outils de l’agent s’appliquent aux deux colonnes ; seul le modèle sous-jacent diffère.
+Les deux sélecteurs sont indépendants — n’importe quel modèle que la politique de l’agent autorise est valable de chaque côté. Choisir le même modèle des deux côtés est permis (utile pour tester des différences de température si l’agent expose ça), mais la plupart des comparaisons traversent fournisseurs ou tailles. Les instructions, les connaissances et les tools de l’agent s’appliquent aux deux colonnes ; seul le modèle sous-jacent diffère.
 
 ## Émettre un verdict
 
@@ -33,7 +33,7 @@ Le verdict se donne en un clic. **A est meilleur** et **B est meilleur** parlent
 
 ## Où les verdicts apparaissent
 
-Les verdicts remontent dans l’[Analyse des retours](/fr/platform/admin/governance/feedback-analytics) sous **Verdicts d'arène**, à côté d’un tableau **Top duels de modèles** qui classe les paires par taux de victoire. Les données sont à l’échelle de l’organisation, pas par utilisateur, donc les verdicts d’une petite équipe peuvent peser plus lourd que les défauts d’une grande quand un admin s’appuie sur le tableau pour fixer le modèle par défaut de l’organisation.
+Les verdicts remontent dans l’[Analyse des retours](/fr/platform/admin/governance/feedback-analytics) sous **Verdicts d'arène**, à côté d’un tableau **Top duels de modèles** qui classe les paires par taux de victoire. Les données sont à l’échelle de l’organisation plutôt que par utilisateur : une poignée de verdicts délibérés peut donc peser plus lourd qu’un gros tas d’habitudes quand quelqu’un lit le tableau pour décider vers quel modèle l’équipe devrait aller.
 
 ## Quand y recourir
 

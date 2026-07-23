@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { emitEvent } from '../workflows/triggers/emit_event';
+import { emitEvent } from '../events/emit';
 import { createConversationWithMessage } from './create_conversation_with_message';
 import type { CreateConversationWithMessageArgs } from './create_conversation_with_message';
 
@@ -18,7 +18,7 @@ vi.mock('./create_conversation', () => ({
   }),
 }));
 
-vi.mock('../workflows/triggers/emit_event', () => ({
+vi.mock('../events/emit', () => ({
   emitEvent: vi.fn().mockResolvedValue(undefined),
 }));
 

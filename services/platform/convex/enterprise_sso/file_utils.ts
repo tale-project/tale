@@ -1,23 +1,30 @@
 'use node';
 
 /**
- * Enterprise SSO JSON file utilities — per organization.
+ * Enterprise SSO file utilities — per organization.
  *
  * The org's single SSO connection is the source of truth on disk, alongside the
  * governance policies under the org's own subtree:
- *   {TALE_CONFIG_DIR}/<orgSlug>/governance/sso/connection.json          (config)
+ *   {TALE_CONFIG_DIR}/<orgSlug>/governance/sso/connection.yml           (config)
  *   {TALE_CONFIG_DIR}/<orgSlug>/governance/sso/connection.secrets.json  (secrets)
  *
- * The non-secret `connection.json` is mirrored into the generic `configCache`
+ * `connection.json` remains readable as the pre-conversion fallback (org
+ * trees are converted `.json`→`.yml` by a versioned node migration); writes
+ * emit `.yml` and supersede the `.json` sibling. The secrets sidecar keeps
+ * the `.secrets.json` name and format — secrets sidecars are deliberately
+ * NOT part of the YAML conversion (see `config/file_actions.ts`).
+ *
+ * The non-secret connection file is mirrored into the generic `configCache`
  * table (domain `sso`, key `connection`) so V8 code can read it; the plaintext
- * `connection.secrets.json` sidecar (clientId / clientSecret / spPrivateKey) is
- * read only by the `'use node'` sign-in adapters — the filesystem is the trust
- * boundary, exactly like `providers/*.secrets.json`.
+ * secrets sidecar (clientId / clientSecret / spPrivateKey) is read only by
+ * the `'use node'` sign-in adapters — the filesystem is the trust boundary,
+ * exactly like the provider secrets sidecars.
  *
  * Pure path + (de)serialization helpers. No Convex dependencies. The reads /
  * writes themselves live in `config/file_actions.ts`.
  */
 
+import { stringifyYaml } from '../../lib/shared/config/yaml';
 import {
   SSO_CONFIG_DOMAIN,
   SSO_CONNECTION_KEY,
@@ -40,12 +47,19 @@ export function resolveSsoDir(orgSlug: string): string {
   return safeJoinWithinDir(resolveGovernanceDir(orgSlug), SSO_CONFIG_DOMAIN);
 }
 
-/** `<orgSlug>/governance/sso/connection.json` — non-secret connection config. */
+/** `<orgSlug>/governance/sso/connection.json` — the pre-conversion format,
+ *  kept for the historical SSO cutover migration and the superseded-sibling
+ *  cleanup; live writes target {@link resolveSsoConnectionYamlFilePath}. */
 export function resolveSsoConnectionFilePath(orgSlug: string): string {
   return safeJoinWithinDir(
     resolveSsoDir(orgSlug),
     `${SSO_CONNECTION_KEY}.json`,
   );
+}
+
+/** `<orgSlug>/governance/sso/connection.yml` — canonical write target. */
+export function resolveSsoConnectionYamlFilePath(orgSlug: string): string {
+  return safeJoinWithinDir(resolveSsoDir(orgSlug), `${SSO_CONNECTION_KEY}.yml`);
 }
 
 /** `<orgSlug>/governance/sso/connection.secrets.json` — plaintext secrets sidecar. */
@@ -65,19 +79,33 @@ export function resolveSsoHistoryDir(orgSlug: string): string {
 }
 
 /**
- * Serialize the connection config to its canonical on-disk form. Uses a direct
- * `JSON.stringify` (not the `serializeJson` helper) so the schema-required empty
- * arrays (`oidc.scopes`, `provisioning.roleMappingRules`/`excludeGroups`) are
- * preserved, and applies schema defaults via `parse`.
+ * Serialize the connection config to the pre-conversion `.json` form. Uses a
+ * direct `JSON.stringify` (not the `serializeJson` helper) so the
+ * schema-required empty arrays (`oidc.scopes`,
+ * `provisioning.roleMappingRules`/`excludeGroups`) are preserved, and applies
+ * schema defaults via `parse`. Live writes serialize via
+ * {@link serializeSsoConnectionYaml}; this stays for the historical SSO
+ * cutover migration.
  */
 export function serializeSsoConnectionJson(config: SsoConnectionFile): string {
   return JSON.stringify(ssoConnectionFileSchema.parse(config), null, 2) + '\n';
 }
 
+/** Serialize the connection config to its canonical `.yml` on-disk form. */
+export function serializeSsoConnectionYaml(config: SsoConnectionFile): string {
+  return stringifyYaml(ssoConnectionFileSchema.parse(config));
+}
+
 /** Parse + validate `connection.json`. Throws on invalid input. */
 export function parseSsoConnectionJson(content: string): SsoConnectionFile {
   const parsed: unknown = JSON.parse(content);
-  const result = ssoConnectionFileSchema.safeParse(parsed);
+  return validateSsoConnectionData(parsed);
+}
+
+/** Validate already-parsed connection data (the yml-then-json reader hands
+ *  over plain data, not text). Throws on invalid input. */
+export function validateSsoConnectionData(data: unknown): SsoConnectionFile {
+  const result = ssoConnectionFileSchema.safeParse(data);
   if (!result.success) {
     throw new Error(
       zodErrorMessage('Invalid SSO connection config', result.error),

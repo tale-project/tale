@@ -2,10 +2,10 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
+import { AppSidebarPlaceholder } from './app-sidebar/app-sidebar-placeholder';
 // Relative imports on purpose: this module also runs under plain `bun`
 // (the boot-shell prerender), where the `@/` tsconfig alias isn't guaranteed.
-import { ChatSubPanelPlaceholder } from '../../features/chat/components/chat-sub-panel-placeholder';
-import { AppSidebarPlaceholder } from './app-sidebar/app-sidebar-placeholder';
+import { ChatSubPanelPlaceholder } from './chat-sub-panel-placeholder';
 
 /**
  * KEEP THIS MODULE LEAN. It is the boot-shell prerender root (rendered under

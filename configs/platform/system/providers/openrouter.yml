@@ -1,0 +1,12 @@
+# AI provider connector — OpenRouter, the multi-vendor aggregator. Speaks the
+# OpenAI Chat Completions wire shape; the model catalog is fetched live from
+# OpenRouter's own catalog API and normalized, so nothing is listed here.
+name: openrouter
+displayName: OpenRouter
+apiFormat: openai
+baseUrl: https://openrouter.ai/api/v1
+catalog:
+  source: openrouter-api
+auth:
+  - method: api-key
+  - method: env

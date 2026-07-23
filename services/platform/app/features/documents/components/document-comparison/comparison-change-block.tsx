@@ -3,9 +3,10 @@
 import { Row, Stack } from '@tale/ui/layout';
 import { useMemo } from 'react';
 
-import type { ChangeBlock } from '@/convex/agent_tools/documents/helpers/fetch_document_comparison';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import type { ChangeBlock } from './comparison-types';
 
 interface ComparisonChangeBlockProps {
   block: ChangeBlock;

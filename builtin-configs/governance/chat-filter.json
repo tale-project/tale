@@ -1,8 +1,0 @@
-{
-  "enabled": false,
-  "maskReplacement": "[BLOCKED]",
-  "appliesTo": ["input"],
-  "preferNonStreamingForFiltering": false,
-  "configVersion": 1,
-  "categories": []
-}

@@ -167,8 +167,8 @@ describe('ensureProjectTextDocument', () => {
     expect(storeCall?.[1]).toMatchObject({ content: 'hello: world\n' });
   });
 
-  it('seeds skill files verbatim into the same folder', async () => {
-    const { ctx, runMutation, runAction } = createCtx();
+  it('skips skill-file seeding while the skills backend is offline, keeping the primary doc', async () => {
+    const { ctx, runAction } = createCtx();
     const result = await handler(ctx, {
       ...BASE,
       yaml: { client: 'Acme AG' },
@@ -186,60 +186,13 @@ describe('ensureProjectTextDocument', () => {
         },
       ],
     });
-    expect(result.seededSkillFiles).toBe(2);
-    // read each table from the skill by the resolved orgSlug
-    expect(runAction).toHaveBeenCalledWith(
-      'readSkillAssetForExecution',
-      expect.objectContaining({
-        orgSlug: 'test-org',
-        slug: 'swiss-vat-return',
-        assetPath: 'mapping/rates.yaml',
-      }),
-    );
-    // stored verbatim + upserted into the folder (explicit + defaulted key)
-    const storedRates = runAction.mock.calls.find(
-      ([ref, a]) => ref === 'storeRawContent' && a.fileName === 'rates.yaml',
-    );
-    expect(storedRates?.[1]).toMatchObject({
-      content: 'rates:\n  standard: 0.081\n',
-      contentType: 'text/yaml',
-    });
-    expect(runMutation).toHaveBeenCalledWith(
-      'upsertDocumentByExternalId',
-      expect.objectContaining({
-        title: 'rates.yaml',
-        folderId: 'folder_1',
-        externalItemId: 'vatplus:project_1:rates.yaml',
-      }),
-    );
-    expect(runMutation).toHaveBeenCalledWith(
-      'upsertDocumentByExternalId',
-      expect.objectContaining({
-        title: 'vat-codes.yaml',
-        externalItemId: 'project-text:project_1:Setup:vat-codes.yaml',
-      }),
-    );
-  });
-
-  it('skips a missing skill file without failing the primary doc', async () => {
-    const { ctx } = createCtx();
-    const result = await handler(ctx, {
-      ...BASE,
-      yaml: { client: 'Acme AG' },
-      seedSkillFiles: [
-        {
-          skillSlug: 'swiss-vat-return',
-          skillPath: 'mapping/rates.yaml',
-          fileName: 'rates.yaml',
-        },
-        {
-          skillSlug: 'swiss-vat-return',
-          skillPath: 'mapping/missing.yaml',
-          fileName: 'missing.yaml',
-        },
-      ],
-    });
+    // The primary document is created; no companion files are seeded while the
+    // skills backend is offline, and no skill asset is read.
     expect(result.documentId).toBe('doc_1');
-    expect(result.seededSkillFiles).toBe(1);
+    expect(result.seededSkillFiles).toBe(0);
+    expect(runAction).not.toHaveBeenCalledWith(
+      'readSkillAssetForExecution',
+      expect.anything(),
+    );
   });
 });

@@ -1,0 +1,338 @@
+managed-baseline:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-model-opus:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --model
+    - claude-opus-4-6
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-model-gateway-ref:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --model
+    - openrouter/anthropic/claude-sonnet-4.6
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-model-default:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --model
+    - default
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-plan:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-act:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-resume:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --resume
+    - golden-resume-handle
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-instructions:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","system_prompt":"Golden instructions: follow the org runbook."}'
+  stdinMode: close
+managed-dirs:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-mcp-headless-bridge:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-mcp-cdp:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-mcp-bridge-only:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-vision:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-steer:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+managed-kitchen-sink:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --resume
+    - golden-resume-handle
+    - --model
+    - claude-opus-4-6
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","system_prompt":"Golden instructions: follow the org runbook."}'
+  stdinMode: close
+byo-baseline:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+byo-model:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --model
+    - claude-opus-4-6
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+byo-model-default:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --model
+    - default
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
+byo-kitchen-sink:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /user/workspace
+    - --max-turns
+    - '200'
+    - --resume
+    - golden-resume-handle
+    - --model
+    - claude-opus-4-6
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /user/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","system_prompt":"Golden instructions: follow the org runbook."}'
+  stdinMode: close

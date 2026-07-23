@@ -5,7 +5,7 @@ description: The agent's Webhooks tab — unique URLs external systems POST to s
 
 An agent's **Webhooks** tab creates unique URLs external systems can POST to and chat with the agent — nothing in the UI is involved. Reach for it when something outside Tale needs the agent to answer: a Slack bot, a form handler, a scheduled job.
 
-This page covers the per-agent webhook surface only. For inbound triggers that run a workflow rather than an agent, see [Workflows → triggers](/platform/automations/triggers); for the full developer surface, see [Develop → API reference](/develop/api-reference).
+This page covers the per-agent webhook surface only. For inbound triggers that run an automation rather than an agent, see [Automations → triggers](/platform/automations/triggers); for the full developer surface, see [Develop → API reference](/develop/api-reference).
 
 <Frame caption="The Webhooks tab — one live webhook with its Active toggle and last-triggered time.">
 
@@ -37,7 +37,7 @@ Each row's **Usage examples** action opens ready-made samples for all of these, 
 
 ## The OpenAI-compatible endpoint
 
-Appending `/chat/completions` to the webhook URL exposes an OpenAI-style ChatCompletion endpoint, so off-the-shelf OpenAI clients can point at an agent: use the webhook URL as the base URL, any non-empty value as the API key, and a model id from the agent's model list (unrecognised values fall back to the default). File uploads are only supported on the base webhook URL, not on this sub-path.
+Appending `/chat/completions` to the webhook URL exposes an OpenAI-style ChatCompletion endpoint, so off-the-shelf OpenAI clients can point at an agent: use the webhook URL as the base URL, any non-empty value as the API key, and a model the organization offers as the model id. The agent pins no model of its own, so this field is where the caller makes the choice the composer would otherwise make. File uploads are supported only on the base webhook URL, not on this sub-path.
 
 ## Manage and revoke
 

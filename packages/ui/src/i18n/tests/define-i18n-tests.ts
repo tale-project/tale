@@ -28,7 +28,7 @@ export function defineI18nTests(config: I18nTestsConfig): void {
   const repoRoot = resolveRepoRoot(config.serviceRoot);
   const messagesDir =
     config.messagesDir ?? path.join(config.serviceRoot, 'messages');
-  const sharedFiles = config.sharedFiles ?? ['global.json'];
+  const sharedFiles = config.sharedFiles ?? ['global.yml'];
   const requestedLocales = config.locales
     ? [...config.locales]
     : LOCALE_REGISTRY.map((l) => l.id);
@@ -40,7 +40,7 @@ export function defineI18nTests(config: I18nTestsConfig): void {
   );
   const presentLocales = new Set(presentSources.map((s) => s.locale));
   // Always include the base locale (en) in the context so terminology checks
-  // can resolve glossary against it even if en.json is shared elsewhere.
+  // can resolve glossary against it even if en.yml is shared elsewhere.
   presentLocales.add(config.baseLocale ?? 'en');
 
   const activeLocales = LOCALE_REGISTRY.filter((l) => presentLocales.has(l.id));

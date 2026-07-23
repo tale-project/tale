@@ -27,7 +27,17 @@ export const EQUALITY_EXEMPTIONS = Object.freeze({
    * `_id`/`_creationTime`, which table-rows restores mint fresh by design).
    * Key: table name; value: field names + the reason they may differ.
    */
-  dropFields: Object.freeze({}) as Readonly<Record<string, readonly string[]>>,
+  dropFields: Object.freeze({
+    integrationCredentials: Object.freeze([
+      // AES-256-GCM envelope minted by 0.4.0/23 with a random nonce: the same
+      // plaintext re-encrypts to different bytes on every run, so two
+      // independent `up`s can never agree byte-for-byte (chain C compares
+      // exactly that). What the envelope CARRIES is asserted decrypted in the
+      // migration's own test, and `down` restores the retired ciphertext
+      // columns — which are compared like any other field.
+      'encryptedData',
+    ]),
+  }) as Readonly<Record<string, readonly string[]>>,
 
   /** Config-dir path prefixes excluded from the fs digest. */
   skipFsPrefixes: Object.freeze({

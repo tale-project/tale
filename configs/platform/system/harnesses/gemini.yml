@@ -1,0 +1,110 @@
+# Sandbox harness — Google Gemini CLI, driven through the tale-gemini-run
+# wrapper (settings staged to disk, prompt via NDJSON stdin). Its
+# bring-your-own backend talks to Google's own GenAI/Vertex API, so catalog
+# refs resolve to the vendor-native model id.
+#
+# Prompt + instructions + settings travel as ONE JSON object on stdin, never
+# argv: process lists leak argv, and a prompt starting with '-' would parse
+# as a flag. The wrapper reads to EOF, stages the settings as a per-exec
+# SYSTEM settings file (GEMINI_CLI_SYSTEM_SETTINGS_PATH — system scope wins
+# over any repo .gemini/settings.json, so a run is reproducible regardless
+# of repo contents), stages the instructions as a per-exec context file
+# under ~/.gemini/ added to `context.fileName` alongside GEMINI.md (appended
+# to the model context every turn WITHOUT replacing the CLI's core system
+# prompt — GEMINI_SYSTEM_MD would replace it and drop the defaults), then
+# pipes the prompt into the CLI's stdin (its native headless prompt source).
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/gemini.json pin the built
+# execs against the pinned CLI version below.
+slug: gemini
+displayName: Gemini CLI
+credentialPolicy:
+  managed: true
+  byo: true
+credentialEnvKeys:
+  - GEMINI_API_KEY
+  - GOOGLE_API_KEY
+  - GOOGLE_GEMINI_BASE_URL
+  - GOOGLE_GENAI_USE_VERTEXAI
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: vendor-native
+promptTransport: stdin-ndjson
+capabilities:
+  planMode: false
+  steering: false
+  mcp: true
+parser: gemini-stream
+exec:
+  bin: tale-gemini-run
+  argv:
+    - args: ['--workdir', '${workdir}']
+    - resume: { flag: '--resume' }
+    # Managed: the gateway model id (the /genai route's {model:*} matcher
+    # takes slashed ids). byo: the caller-resolved vendor-native id.
+    - model: { flag: '--model' }
+    # Directories OUTSIDE cwd the agent must reach (e.g. the chat-upload
+    # staging dir) — Gemini CLI's own --include-directories widens the
+    # workspace context to them.
+    - additionalDirs: { flag: '--include-directories' }
+  stdin:
+    mode: json-envelope
+    envelope:
+      - prompt: {}
+      - doc:
+          key: settings
+          fragments:
+            # Managed pins the auth type: with GOOGLE_GEMINI_BASE_URL set
+            # the CLI's env inference selects the "gateway" auth type, which
+            # its headless auth validation REJECTS — "gemini-api-key" + the
+            # env base-URL override is the working path. byo leaves the
+            # CLI's env inference to pick GEMINI_API_KEY or the Vertex vars.
+            - when: [managed]
+              set:
+                security:
+                  auth:
+                    selectedType: gemini-api-key
+            - set:
+                privacy:
+                  usageStatisticsEnabled: false
+            # The only real turn cap among the wrapper-driven harnesses:
+            # FatalTurnLimitedError (exit 53) past this; the parser maps its
+            # message to the 'max-turns' status.
+            - maxTurns: { path: model.maxSessionTurns }
+            # Deny the CLI's NATIVE web tools on managed runs: both are
+            # ungoverned (no audit / untrusted-source wrapping / metering) —
+            # web access routes through the capability bridge instead. byo
+            # opts out of platform governance, so it runs with the native
+            # toolset. The CLI's interactive `ask_user` tool needs no deny
+            # here: headless mode force-excludes it.
+            - when: [managed]
+              set:
+                tools:
+                  exclude: [google_web_search, web_fetch]
+            # MCP servers via the settings `mcpServers` map (stdio:
+            # command/args/env — the CLI's MCPServerConfig). The bridge
+            # token rides `${TALE_GATEWAY_TOKEN}`: settings string values
+            # are env-resolved by the CLI at load, so the staged settings
+            # file never contains the key itself.
+            - mcpServers:
+                path: mcpServers
+                serverShape: command-args
+                bridgeEnvField: env
+                bridgeEnv:
+                  TALE_INTEGRATIONS_URL: '${bridgeUrl}'
+                  TALE_INTEGRATIONS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+      - instructions: { key: system_prompt }
+  env:
+    # MANAGED: Google GenAI-compatible route on the platform gateway; the
+    # session virtual key authenticates as the API key (x-goog-api-key).
+    managed:
+      GOOGLE_GEMINI_BASE_URL: '${gateway.baseUrl}/genai'
+      GEMINI_API_KEY: '${gateway.token}'
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+# A subscription-key credential (the Gemini CLI's Google-account sign-in /
+# Code Assist license) is the CLI's OAuth credentials blob, staged verbatim
+# as its credentials file under the session HOME (/user/.runtime/home).
+subscription:
+  kind: staged-file
+  path: .runtime/home/.gemini/oauth_creds.json
+pinnedVersion: 0.49.0

@@ -1,43 +1,44 @@
 ---
 title: Agent-Wissen
-description: Der Wissen-Tab des Agents — Abrufmodus, Scopes für Team- und Organisationsdokumente und Uploads nur für den Agent, und wie sie sich von Tools und Anhängen unterscheiden.
+description: Der Wissen-Tab des Agents — eine Einstellung dafür, welchen Bestand seine Suche lesen darf, und wie sich das von Tools und Anhängen unterscheidet.
 ---
 
-Wissen ist das, was ein Agent zur Antwortzeit abrufen und zitieren kann. Ohne Wissen ist der Agent generisch; mit Wissen antwortet er aus deinen Dokumenten und zitiert, woher die Antwort kam. Der Tab **Wissen** des Agents steuert zwei Dinge: _wie_ der Agent abruft (der Abrufmodus) und _was_ im Scope liegt (welche Dokumente).
+Wissen ist das, was ein Agent zur Antwortzeit heraussuchen und belegen kann. Ohne das bleibt er allgemein; damit antwortet er aus dem Material deiner Organisation und zeigt, woher die Antwort kommt. Auf dem Tab **Wissen** steht genau eine Entscheidung: welchen Bestand die Suche dieses Agenten lesen darf.
 
-<Frame caption="Der Wissen-Tab — oben der Abrufmodus, darunter die Dokument-Scopes und das, was jeder davon gerade hält.">
+Diese Entscheidung ist kleiner, als sie einmal sein musste, denn die Suche selbst ist kein Modus mehr, den du einstellst. Ein Agent sucht, wenn er es für nötig hält, und in eine Antwort rutscht nichts, wonach er nicht selbst gesucht hat.
 
-![Der Wissen-Tab des Agenten-Editors mit Tool als gewähltem der vier Abrufmodi, eingeschalteten Schaltern für Team- und Organisationsdokumente, einem Kasten für Team-Dokumente mit dem Hinweis, dass für dieses Team keine Dokumente gefunden wurden, und der Liste der Organisationsdokumente, in der jede Datei ein Abzeichen Indexiert trägt.](/images/platform/agent-editor-knowledge.webp)
+## Einen Bereich wählen
 
-</Frame>
+Vier Werte, eine Einstellung:
 
-## Einen Abrufmodus wählen
+- **Dokumente** — die hochgeladenen Dateien der Organisation und sonst nichts.
+- **Web** — die für die Organisation geholten Seiten und sonst nichts.
+- **Alles** — beide Bestände, zu einem Ranking zusammengeführt. Das bekommt ein Agent, wenn ihn niemand eingrenzt.
+- **Nichts** — dem Agenten wird gar keine Suche angeboten. Nimm das, wenn seine Aufgabe Denken oder Formulieren ist und Belege nur stören würden.
 
-Vier Modi wägen Kosten gegen Abdeckung ab. **Tool** lässt den Agent bei Bedarf suchen — der Abruf läuft nur, wenn das Modell entscheidet, dass es ihn braucht. **Kontext** injiziert relevantes Wissen in jede Antwort, ob das Modell gefragt hätte oder nicht. **Beides** kombiniert beide, und **Aus** schaltet die Wissensdatenbank für diesen Agent komplett ab. Starte mit **Tool**; wechsle zu **Kontext**, wenn der ganze Job des Agents das Antworten aus den Dokumenten ist und du den Abruf bei jeder Antwort willst.
+Jeder Bestand gehört deiner Organisation, ein weiterer Bereich reicht also nie in fremdes Material hinein. Er entscheidet nur, auf wie viel vom Eigenen der Agent zeigt.
 
-## Den Dokument-Scope setzen
+## Bewusst eingrenzen
 
-Die Wissensdatenbank durchsucht Dokumente, die in deine Organisation hochgeladen wurden — dieselbe Bibliothek, die du unter [Dokumente](/de/platform/knowledge/documents) verwaltest. Zwei Schalter setzen den Scope: **Team-Dokumente einbeziehen** deckt das zugewiesene Team des Agents ab, und **Organisationsdokumente einbeziehen** deckt Dokumente ab, die keinem Team zugewiesen sind. Der Tab listet, was jeder Scope gerade enthält, mit dem Indexzustand pro Dokument — nur Dokumente im Zustand **Indiziert** sind abrufbar.
+Alles im Bereich konkurriert bei jeder Frage um Relevanz, und deshalb antwortet ein enger Bereich meist besser als ein weiter. Ein Agent, der auf die Dokumente zeigt, die dein Team tatsächlich pflegt, findet die richtige Passage; derselbe Agent, der zusätzlich auf jede gecrawlte Seite zeigt, muss erst das Rauschen schlagen.
 
-## Dem Agent eigene Dokumente geben
+Nimm **Dokumente**, wenn die Wahrheit in Dateien liegt, die du kontrollierst, und eine veraltete Webseite ein Risiko wäre. Nimm **Web**, wenn es dem Agenten um Veröffentlichtes geht und nicht um Abgelegtes. Nimm **Alles**, wenn wirklich beides zählt und dir Trefferbreite lieber ist. Das Material selbst — was hochgeladen, was gecrawlt und was indexiert ist — verwaltest du unter [Dokumente](/de/platform/knowledge/documents) und [Websites](/de/platform/knowledge/crawling) und nicht hier; dieser Tab zeigt den Agenten nur darauf.
 
-**Agent-Dokumente** sind Uploads, auf die nur dieser Agent zugreifen kann — klicke auf **Dokumente hochladen**, und die Dateien treten in den Abruf-Scope dieses Agents ein, ohne die geteilte Bibliothek zu betreten. Greif dazu, wenn die Quelle zum Job des Agents gehört statt zur Organisation: ein Triage-Playbook, eine produktspezifische FAQ.
+## Wie die Suche in der Antwort landet
 
-## Wie der Abruf in der Antwort landet
+Sucht der Agent, hängen die Belege an den Sätzen, die sie stützen — beim Überfahren siehst du die Quelle, mit einem Klick öffnest du sie. Ein Dokument, dessen Indexierung noch läuft, ist noch nicht auffindbar; ein Agent, der eine offensichtliche Quelle zu übergehen scheint, wartet also oft nur auf den Index, statt falsch eingestellt zu sein.
 
-Wenn der Agent abruft, hängen sich Zitate an die Sätze, die sie stützen — Hovern zeigt die Quelle, Klicken öffnet sie. Alles Abrufbare konkurriert bei jeder Frage um Relevanz, also halte den Scope eng: ein breiter Scope macht den Abruf lauter, nicht klüger.
+## Wann du dazu greifst
 
-## Wann du danach greifst
+Strukturierte Datensätze und laufende Systeme sind Tools und kein Wissen, und eine Datei, die nur für ein Gespräch zählt, ist ein Anhang. Die Grenzen:
 
-Strukturierte Datensätze und Live-Quellen sind Tools, kein Wissen — und Dateien für eine einzelne Konversation sind Anhänge. Die Grenzen:
-
-| Nutze…                                                  | Wenn der Agent braucht…                                       |
-| ------------------------------------------------------- | ------------------------------------------------------------- |
-| Wissen (dieser Tab)                                     | Hochgeladene Dokumente in jedem Chat durchsuchen und zitieren |
-| [Tools](/de/platform/agents/tools)                      | Kontakte, Produkte, Lieferanten, Websites oder Live-Systeme   |
-| [Anhänge](/de/platform/chat/attachments)                | Eine Datei, die nur für einen Chat zählt                      |
-| [Projekt-Agenten](/de/platform/projects/project-agents) | Wissen, das auf ein Projekt begrenzt ist                      |
+| Nimm …                                                  | Wenn der Agent … braucht                                    |
+| ------------------------------------------------------- | ----------------------------------------------------------- |
+| Wissen (diesen Tab)                                     | Suche und Belege im Material der Organisation               |
+| [Tools](/de/platform/agents/tools)                      | Kontakte, Produkte, Lieferanten, Websites, laufende Systeme |
+| [Anhänge](/de/platform/chat/attachments)                | Eine Datei, die nur in einem Chat zählt                     |
+| [Projekt-Agenten](/de/platform/projects/project-agents) | Wissen, das auf ein Projekt begrenzt ist                    |
 
 ## Wo das hingehört
 
-Agent-Wissen ist die Antwort auf „dieser Agent soll aus diesen Dokumenten antworten“. Der breitere Abschnitt [Wissen](/de/platform/knowledge/overview) ist der Ort, an dem die Quellen liegen und indiziert werden; dieser Tab verdrahtet einen Agent mit einem Scope daraus. Für den Bau von Anfang bis Ende — hochladen, Scope setzen, fragen, Zitate prüfen — geh [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) durch.
+Agent-Wissen beantwortet eine Frage — soll dieser Agent die Dokumente der Organisation lesen, ihr gecrawltes Web, beides oder keines von beidem. Im größeren Kapitel [Wissen](/de/platform/knowledge/overview) leben und indexieren sich die Quellen; dieser Tab hängt einen Agenten an einen Ausschnitt davon. Den Weg von Anfang bis Ende — hochladen, eingrenzen, fragen, Belege prüfen — geht [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge).

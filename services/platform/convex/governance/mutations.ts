@@ -236,28 +236,15 @@ export const setTaskAutomationEnabled = action({
       throw new Error('Only admins can toggle task automation');
     }
 
-    // The twins write the `task_automation` policy file, flip the pack's
-    // trigger rows, and emit the audit entry (attributed to the caller).
-    if (args.enabled) {
-      await ctx.runAction(
-        internal.workflows.ops.disable_task_ops_pack.enableTaskOpsPack,
-        {
-          organizationId: args.organizationId,
-          actorId: authUser.userId,
-          actorEmail: authUser.email ?? undefined,
-        },
-      );
-    } else {
-      await ctx.runAction(
-        internal.workflows.ops.disable_task_ops_pack.disableTaskOpsPack,
-        {
-          organizationId: args.organizationId,
-          reason: args.reason ?? `disabled by ${authUser.userId}`,
-          actorId: authUser.userId,
-          actorEmail: authUser.email ?? undefined,
-        },
-      );
-    }
-    return null;
+    // The enable/disable twins lived in the retired automation engine: they
+    // wrote the `task_automation` policy file, flipped the pack's trigger
+    // rows, and emitted the audit entry. With the engine offline nothing
+    // dispatches task automations, so the toggle records nothing and reports
+    // the situation to the caller instead of pretending to take effect.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'Task automation cannot be toggled right now: the automation engine is offline while it is rebuilt.',
+    });
   },
 });

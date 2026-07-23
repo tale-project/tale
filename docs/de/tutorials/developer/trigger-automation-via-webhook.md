@@ -1,53 +1,48 @@
 ---
 title: Einen Workflow per Webhook auslösen
-description: Erzeug in einem Tale-Workflow einen Trigger-Schlüssel und POSTe von einem externen System auf die Trigger-URL, um mit Idempotenz einen Lauf zu starten.
+description: Häng einen Webhook-Trigger an eine Automatisierung und POSTe von einem externen System auf seine URL, um einen Lauf der deployten Version zu starten.
 ---
 
-Ein Webhook-Trigger macht aus einem Tale-Workflow etwas, das ein externes System per POSTen von JSON auslöst. Tale verifiziert das Bearer-Token, speichert den Idempotenz-Schlüssel, startet einen Lauf und gibt eine Execution-ID zurück — dieselbe Form, die jeder eingehende Webhook braucht, um wiederholungssicher zu sein. Dieser Spaziergang führt einen neuen Workflow von „ich will ihn von aussen feuern" zu „ein Order-Event POSTet und der Workflow läuft" auf einer Instanz.
+Ein Webhook-Trigger macht aus einer Automatisierung etwas, das ein externes System per JSON-POST feuern kann. Tale gleicht das Token in der URL gegen den Trigger ab, und der gestartete Lauf gehört zur deployten Version der Automatisierung — nie zu einem Entwurf, an dem gerade jemand arbeitet. Dieser Durchlauf bringt eine Automatisierung von „ich will sie von außen feuern“ zu „ein Bestellereignis kommt an und der Lauf taucht auf“ auf einer einzelnen Instanz.
 
-Du brauchst eine Developer-Rolle in der Org, einen vorhandenen Workflow (oder den leeren Starter) und eine Shell mit `curl`. Der volle Webhook-Vertrag — Signierung, Idempotenz, Wiederholungen — lebt in [Webhooks](/de/develop/webhooks); dieser Spaziergang ist die kleinste End-to-End-Nutzung der eingehenden Seite.
+Du brauchst die Rolle Entwickler in der Organisation, eine Automatisierung mit deployter Version und eine Shell mit `curl`. Der vollständige eingehende Vertrag — Statuscodes, Body-Behandlung, Größenlimits — steht in [Webhooks](/de/develop/webhooks); dieser Durchlauf ist die kleinste vollständige Nutzung davon.
 
 ## Bevor du beginnst
 
-Bestätige zwei Dinge. Der Workflow, den du auslöst, existiert und ist veröffentlicht — Entwürfe lassen sich nicht triggern. Deine Rolle ist mindestens Developer — Trigger-Schlüssel zu erzeugen ist auf Developer und höher beschränkt. Hast du noch keinen Workflow, ist der kanonisch kleine „log das Payload in den Execution-Record"; erstell ihn über [Workflow mit Genehmigungen](/de/tutorials/editor/workflow-with-approvals) und entferne den Genehmigungs-Schritt für diesen Spaziergang.
+Prüf zwei Dinge. Die Automatisierung, die du auslösen willst, hat eine **deployte** Version — eine gespeicherte Version reicht nicht, und deploybar wird eine Version erst, wenn ihre eigenen Tests grün sind; lass sie also zuerst laufen. Deine Rolle ist mindestens Entwickler; Trigger anlegen ist auf Entwickler und höher beschränkt. Hast du noch keine Automatisierung, ist die kanonische kleine „nimm das Payload auf und hör auf“ — bau sie über [Workflow mit Genehmigungen](/de/tutorials/editor/workflow-with-approvals) und lass für diesen Durchlauf den Genehmigungsknoten weg.
 
-## Schritt 1 — Einen Webhook-Trigger an den Workflow binden
+## Schritt 1 — Einen Webhook-Trigger anlegen
 
-Der erste Zug ist, einen Webhook-Trigger an den Workflow zu binden. Ohne Trigger lässt sich der Workflow nur aus der UI aufrufen; mit einem bekommt er eine URL, an die jedes System POSTen kann.
+Der erste Zug ist, einen Webhook-Trigger an die Automatisierung zu binden. Ohne ihn läuft die Automatisierung nur aus der UI oder per Zeitplan; mit ihm bekommt sie eine URL, auf die jedes System POSTen kann.
 
-Öffne den Tab **Trigger** des Workflows und klick auf **Webhook hinzufügen**. Tale erzeugt eine eindeutige **Webhook-URL**, in deren Pfad der Berechtigungsnachweis als Token eingebettet ist — es gibt keinen separaten Schlüssel und keinen Authorization-Header.
+Öffne den Tab **Trigger** der Automatisierung und leg einen Webhook an. Tale erzeugt eine URL, in deren Pfad der Berechtigungsnachweis als Token steckt — kein separater Schlüssel, kein Authorization-Header. Das Klartext-Token wird einmal angezeigt und nie gespeichert, kopier es also jetzt; abgelegt wird nur sein Hash, weshalb dir später niemand die URL zurückholen kann.
 
-Speichere die URL, solange sie angezeigt wird: Wer sie hält, kann den Workflow feuern; behandle also die ganze URL als Secret. Den Webhook zu löschen widerruft sie.
+Der Trigger bindet an den **Namen** der Automatisierung, nicht an die Version, die du deployt hast. Deploy morgen eine neue Version und diese URL funktioniert weiter — genau dafür sind die beiden getrennt.
 
 ```bash
-export TALE_TRIGGER_URL="https://your-host.example.com/api/workflows/wh/<token>"
+export TALE_TRIGGER_URL="https://your-host.example.com/api/automations/webhook/<token>"
 ```
 
 ## Schritt 2 — Ein Payload per curl POSTen
 
-Die Webhook-URL ist ein normaler POST-Endpoint. Der Body wird zum Input des ersten Schritts des Workflows; die Kopfzeile `Idempotency-Key` macht Wiederholungen sicher — ein Replay gibt den früheren Lauf zurück, statt einen neuen zu starten.
+Die Webhook-URL ist ein gewöhnlicher POST-Endpunkt, und der Body wird die Eingabe des Laufs. Ein Body, der kein JSON ist, wird als Text durchgereicht statt abgelehnt — ein Anbieter, der formularkodiert postet, erreicht deinen ersten Knoten also trotzdem.
 
 ```bash
 curl -sS "$TALE_TRIGGER_URL" \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: order-12345" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-Eine 200 gibt `{ "status": "accepted", "workflowSlug": "..." }` zurück. Der Workflow läuft jetzt asynchron; öffne den Tab **Ausführungen** des Workflows und du solltest einen laufenden Run mit deinem Payload als Trigger-Input sehen.
+Ein angenommener Aufruf antwortet **202** mit `{ "runId": "..." }`. Der Lauf arbeitet nun asynchron; öffne die Lauf-Liste der Automatisierung und du siehst ihn dort mit deinem Payload als Eingabe.
 
-Eine 401 heißt, der Schlüssel ist falsch; eine 404 heißt, der Trigger-Name in der URL passt zu keinem veröffentlichten Workflow; eine 422 heißt, der Workflow ist archiviert oder der Trigger deaktiviert.
+## Schritt 3 — Die Fehlerfälle lesen
 
-## Schritt 3 — Wiederholungen mit Idempotenz absichern
+Vier Antworten decken alles ab, was der Endpunkt sagen kann, und jede zeigt auf eine andere Behebung.
 
-Externe Systeme wiederholen bei Timeouts und 5xx-Fehlern; ohne Idempotenz feuert eine Wiederholung den Workflow doppelt. Die Kopfzeile `Idempotency-Key` aus Schritt 2 ist die Lösung: Tale speichert den Schlüssel 24 Stunden und gibt bei jeder Wiederholung mit demselben Schlüssel die ursprüngliche Execution zurück.
+**404** heißt: Das Token passt zu keinem aktiven Trigger — es ist falsch, es wurde gelöscht, oder der Trigger ist deaktiviert. Die Antwort sagt bewusst nie, welcher Fall zutrifft, damit jemand, der Tokens rät, aus dem Unterschied nichts lernt. **409** mit `{ "error": "automation has no deployed version" }` heißt: Die Automatisierung existiert, aber nichts ist live — deploy eine Version, deren Tests grün sind, und derselbe Aufruf läuft. **413** heißt: Der Body liegt über 256 KB; poste dann eine Referenz statt der Nutzlast. **202** ist der einzige Erfolg.
 
-Test das, indem du dieselbe curl-Anfrage oben erneut laufen lässt. Die Antwort trägt dieselbe `executionId` wie der erste Call, und der Tab **Ausführungen** zeigt weiterhin einen Lauf. Ändere den Schlüssel auf `order-12346` und curl erneut — der feuert einen zweiten Lauf.
-
-Das Quell-System muss pro logischem Event einen stabilen, deterministischen Schlüssel verwenden. Ein verbreitetes Muster ist `<event-type>-<event-id>`; nutze nie eine zur Wiederholungszeit generierte zufällige UUID, sonst erzeugt jede Wiederholung einen neuen Lauf.
+Retries verdienen einen eigenen Satz: Der Endpunkt dedupliziert nicht, ein wiederholter POST startet also einen zweiten Lauf. Sicher macht das der Lauf selbst — jeder abgeschlossene Knoten bekommt einen Checkpoint, ein nach einer Unterbrechung wiederaufgenommener Lauf wiederholt seine bereits erzeugten Seiteneffekte also nie. Wäre ein _doppelter_ Lauf trotzdem falsch, führ deine eigene Ereignis-ID im Payload mit und verzweig im ersten Knoten darauf.
 
 ## Wo das eingesetzt wird
 
-Webhook-Trigger sind die eingehende Hälfte von Tales Workflow-API — die Naht, in die dein CRM, dein Order-System oder dein Monitoring-Tool POSTet. Nimm sie für „das ist in unserer Welt passiert, bitte lass dazu einen Tale-Workflow laufen"; greif zur [API-Referenz](/de/develop/api-reference), wenn du stattdessen eine synchrone Antwort willst.
-
-Für die ausgehende Hälfte — Tale POSTet auf deine URL, wenn ein Tale-Event passiert — und für den vollen Signier- und Wiederholungs-Vertrag siehe [Webhooks](/de/develop/webhooks). Die Workflow-seitige Konfiguration des Triggers lebt auf der Seite [Workflow-Trigger](/de/platform/automations/triggers).
+Webhook-Trigger sind die eingehende Naht der Automatisierungs-Engine — das, worauf dein CRM, dein Bestellsystem oder dein Monitoring POSTet. Greif dazu, wenn der Satz lautet „das ist bei uns passiert, lass bitte etwas dazu laufen“; greif zur [API-Referenz](/de/develop/api-reference), wenn du stattdessen eine synchrone Antwort willst. Die Trigger-seitige Konfiguration und die anderen drei Arten, dieselbe Automatisierung zu starten, stehen unter [Workflow-Trigger](/de/platform/automations/triggers).

@@ -12,22 +12,21 @@
  *
  * The session is TURN-scoped: `ensureThreadSession` creates it lazily on the
  * first run_code call of a turn and every later call in that turn reuses it
- * warm; `runGenerationCore`'s finally schedules
- * `teardownThreadSessionAtTurnEnd` (session_teardown.ts), which destroys the
- * container + workspace unless a sibling turn on the thread still has a live
- * exec. It never idles across turns. {@link destroyThreadSession} is the
- * thread-delete teardown for whatever the turn-end path left behind.
+ * warm; the turn's finally schedules `teardownThreadSessionAtTurnEnd`
+ * (session_teardown.ts), which destroys the container + workspace unless a
+ * sibling turn on the thread still has a live exec. It never idles across
+ * turns. {@link destroyThreadSession} is the thread-delete teardown for
+ * whatever the turn-end path left behind.
  */
 
 import { v } from 'convex/values';
 
-import { formatModelRef } from '../../../lib/shared/utils/model-ref';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
-import { loadOrgGatewayProviders } from '../../providers/file_actions';
-import { resolveLanguageModel } from '../../providers/resolve_model';
+import { resolveOrgVisionModel } from '../../lib/providers/resolve_vision_model';
 import { sessionIdForThread } from '../../sandbox/session_naming';
+import { buildProviderProvision } from './gateway_provisioning';
 import {
   sessionCreate,
   sessionDestroy,
@@ -39,7 +38,7 @@ import {
   hashVirtualKey,
   mintVirtualKey,
   provisionProviders,
-  resolveGatewayRoutingFromRef,
+  resolveGatewayRouting,
 } from './llm_gateway_admin';
 
 const OWNER_TYPE = 'thread';
@@ -57,27 +56,30 @@ const VISION_BUDGET_CENTS = (() => {
 const VISION_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 // Always the sandbox-network alias (hardcoded in the runtime NO_PROXY); kept
 // separate from SANDBOX_LLM_GATEWAY_URL so host-run convex doesn't leak a
-// host-only URL into the container (same split as run_external_agent.ts).
+// host-only URL into the container (same split as the external-agent path).
 const VISION_GATEWAY_URL =
   process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://sandbox-llm-gateway:8080';
 
 /**
- * Arm the vision lane on a freshly (re)created thread session: mint a gateway
- * virtual key scoped to ONLY the org's vision-tagged model and patch
+ * Arm the vision lane on a freshly (re)created thread session: mint a
+ * gateway virtual key scoped to ONLY the org's auto-selected vision model
+ * (`resolveOrgVisionModel` — cheapest gateway-servable vision-capable model
+ * on the org's default credentials) and patch
  * `TALE_GATEWAY_URL`/`TALE_GATEWAY_TOKEN`/`TALE_VISION_MODEL` into the
  * session env store, so the baked `tale-vision` CLI works from run_code
  * execs.
  *
  * Best-effort BY DESIGN — a posture difference from the external-agent path,
- * where a gateway-auth failure fails the turn (fail-closed): here vision is a
- * convenience capability, so ANY failure (no vision-tagged model, gateway
+ * where a gateway-auth failure fails the turn (fail-closed): here vision is
+ * a convenience capability, so ANY failure (no vision-capable model, gateway
  * down, provisioning error) logs, and the session comes up without vision —
  * the CLI then exits 2 with an actionable message. Ordering matters: the
  * token row is inserted BEFORE the env patch so a crash can never leave an
  * injected-but-untracked key; turn-end teardown revokes every token row of
  * the session (session_teardown.ts) including stale ones from mid-turn
- * recreates. A reaped container always needs a fresh mint — the plaintext key
- * exists only in the container's in-memory env store, never on the platform.
+ * recreates. A reaped container always needs a fresh mint — the plaintext
+ * key exists only in the container's in-memory env store, never on the
+ * platform.
  */
 export async function armVisionLane(
   ctx: ActionCtx,
@@ -85,34 +87,36 @@ export async function armVisionLane(
 ): Promise<void> {
   const started = Date.now();
   try {
-    // Throws when the org has no vision-tagged model → graceful skip.
-    const vision = await resolveLanguageModel(ctx, {
-      tag: 'vision',
-      organizationId: args.organizationId,
-    });
-    const visionModelRef = formatModelRef({
-      providerName: vision.modelData.providerName,
-      modelId: vision.modelData.modelId,
-    });
-    const gatewayModel =
-      resolveGatewayRoutingFromRef(visionModelRef).gatewayModel;
+    const vision = await resolveOrgVisionModel(ctx, args.organizationId);
+    if (!vision) {
+      console.warn(
+        `[thread_session] vision lane not armed for ${args.sessionId}: no gateway-servable vision-capable model is available to this organization (run_code continues without tale-vision)`,
+      );
+      return;
+    }
+    const { gatewayModel } = resolveGatewayRouting(
+      vision.providerSlug,
+      vision.modelId,
+    );
 
     // Chat sessions never provision the gateway otherwise. mintVirtualKey
     // fails closed on a missing provider key, so a provisioning failure
-    // surfaces as a skipped lane, never an over-permissive key (same layering
-    // as run_external_agent.ts).
-    const gatewayProviders = await loadOrgGatewayProviders(
-      ctx,
-      args.organizationId,
-    );
-    if (gatewayProviders.length > 0) {
-      await provisionProviders(args.organizationId, gatewayProviders);
+    // surfaces as a skipped lane, never an over-permissive key (same
+    // layering as the external-agent path).
+    const provision = await buildProviderProvision(ctx, {
+      organizationId: args.organizationId,
+      providerSlug: vision.providerSlug,
+    });
+    if (provision) {
+      await provisionProviders(args.organizationId, [provision]);
     }
     await applyGatewayConfig();
 
     const minted = await mintVirtualKey({
       budgetCents: VISION_BUDGET_CENTS,
-      allowedModels: [visionModelRef],
+      allowedModels: [
+        { providerSlug: vision.providerSlug, modelId: vision.modelId },
+      ],
       organizationId: args.organizationId,
       sessionId: args.sessionId,
     });
@@ -125,7 +129,7 @@ export async function armVisionLane(
         llmGatewayKeyId: minted.keyId,
         scope: {
           agentKind: 'run_code_vision',
-          allowedModels: [visionModelRef],
+          allowedModels: [gatewayModel],
           integrationGrants: [],
           toolGrants: [],
           budgetCents: VISION_BUDGET_CENTS,
@@ -162,11 +166,10 @@ export async function armVisionLane(
  * Ensure the thread's session exists and is live; create or resume it.
  * Returns its deterministic `sessionId`. Idempotent within a turn: a warm
  * session is reused, a reaped one is recreated against the same id (its
- * preserved workspace re-attaches). TURN-scoped: `runGenerationCore`'s
- * finally destroys the session when the turn ends
- * (`teardownThreadSessionAtTurnEnd`, spared while a sibling turn's exec is
- * live) — it amortizes the run_code calls of one turn, never idles across
- * turns.
+ * preserved workspace re-attaches). TURN-scoped: the chat turn's finally
+ * destroys the session when the turn ends (`teardownThreadSessionAtTurnEnd`,
+ * spared while a sibling turn's exec is live) — it amortizes the run_code
+ * calls of one turn, never idles across turns.
  */
 export const ensureThreadSession = internalAction({
   args: {
@@ -187,8 +190,9 @@ export const ensureThreadSession = internalAction({
       if (await sessionIsAlive(sessionId)) {
         return { sessionId, created: false };
       }
-      // Row is live but the container was reaped/stopped — recreate against the
-      // same id to re-attach the preserved workspace, then normalize the row.
+      // Row is live but the container was reaped/stopped — recreate against
+      // the same id to re-attach the preserved workspace, then normalize the
+      // row.
       await sessionCreate({
         sessionId,
         organizationId: args.organizationId,
@@ -206,9 +210,10 @@ export const ensureThreadSession = internalAction({
       return { sessionId, created: false };
     }
 
-    // No row yet — reserve a slot (per-owner + per-org caps enforced there) and
-    // create fresh. A reserve conflict / capacity wait throws and surfaces to
-    // the model as a run_code failure (there is no one-shot fallback path).
+    // No row yet — reserve a slot (per-owner + per-org caps enforced there)
+    // and create fresh. A reserve conflict / capacity wait throws and
+    // surfaces to the model as a run_code failure (there is no one-shot
+    // fallback path).
     const rowId = await ctx.runMutation(
       internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
       {
@@ -249,9 +254,9 @@ export const ensureThreadSession = internalAction({
 });
 
 /**
- * Tear down a thread's session for good (thread delete): destroy the container
- * + its preserved workspace, then mark the row destroyed. Best-effort and
- * idempotent — a already-gone session/row is a no-op.
+ * Tear down a thread's session for good (thread delete): destroy the
+ * container + its preserved workspace, then mark the row destroyed.
+ * Best-effort and idempotent — an already-gone session/row is a no-op.
  */
 export const destroyThreadSession = internalAction({
   args: { organizationId: v.string(), threadId: v.string() },

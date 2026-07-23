@@ -13,6 +13,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { parse as parseYaml } from 'yaml';
+
 import { applyJsonMasks } from './mask';
 import type { Fragment, JsonSource } from './types';
 
@@ -41,9 +43,9 @@ function flatten(
 /** Read + parse + flatten a JSON source; emit one Fragment per leaf. */
 export function scanJson(source: JsonSource, repoRoot: string): Fragment[] {
   const raw = fs.readFileSync(source.path, 'utf8');
-  // JSON.parse returns `any` by default; `flatten` runtime-guards every value
+  // The parser returns `unknown`-ish data; `flatten` runtime-guards every value
   // (string vs object vs other) so the unknown annotation is the safe default.
-  const parsed: unknown = JSON.parse(raw);
+  const parsed: unknown = parseYaml(raw);
   const entries = flatten(parsed);
   const lineLookup = buildLineLookup(raw);
   const relFile = path.relative(repoRoot, source.path);

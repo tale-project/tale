@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
 const CLI_ROOT = resolve(dirname(Bun.main), '..');
@@ -67,7 +67,7 @@ async function collectFiles(
       await collectFiles(fullPath, baseDir, prefix, files);
     } else {
       if (shouldSkipFile(entry.name)) continue;
-      const content = await readFile(fullPath, 'utf-8');
+      const content = await Bun.file(fullPath).text();
       const relPath = join(prefix, relative(baseDir, fullPath));
       files.set(relPath, content);
     }
@@ -75,7 +75,12 @@ async function collectFiles(
 }
 
 async function main() {
-  if (!existsSync(join(REPO_ROOT, 'builtin-configs'))) {
+  // Root detection uses AGENTS.md (always present at the monorepo root)
+  // rather than any particular content directory — REFERENCE_DIRS entries
+  // that don't exist are skipped by collectFiles, so a missing content dir
+  // (e.g. the retired builtin-configs catalog) shrinks the bundle instead
+  // of failing the build.
+  if (!existsSync(join(REPO_ROOT, 'AGENTS.md'))) {
     console.error('Could not find monorepo root at', REPO_ROOT);
     process.exit(1);
   }
@@ -133,10 +138,8 @@ async function main() {
   ].join('\n');
 
   const outDir = join(CLI_ROOT, 'src', 'generated');
-  await mkdir(outDir, { recursive: true });
-
   const outPath = join(outDir, 'embedded-files.ts');
-  await writeFile(outPath, output, 'utf-8');
+  await Bun.write(outPath, output);
 
   console.log(`Written to ${relative(CLI_ROOT, outPath)}`);
   console.log(

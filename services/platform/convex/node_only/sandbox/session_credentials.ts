@@ -20,37 +20,17 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
-import { getDecryptedCredentials } from '../../integrations/get_decrypted_credentials';
 
-/** Map an integration slug + its decrypted secret to session env. v1 is a
- * small static map (github) + a generic fallback; new integration types add
- * one case here, the pipeline is unchanged. */
-function toSessionEnv(
-  slug: string,
-  secret: string,
-): {
-  env: Record<string, string>;
-  git?: { hosts: string[]; username: string };
-} {
-  if (slug === 'github') {
-    return {
-      env: { GITHUB_TOKEN: secret, GH_TOKEN: secret },
-      git: { hosts: ['github.com'], username: 'x-access-token' },
-    };
-  }
-  const envName = `TALE_INTEGRATION_${slug.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_TOKEN`;
-  return { env: { [envName]: secret } };
-}
-
-/** The single secret string to expose for a credential (prefer OAuth access
- * token, then API key, then basic-auth password). */
-function pickSecret(creds: {
-  accessToken?: string;
-  apiKey?: string;
-  password?: string;
-}): string | null {
-  return creds.accessToken ?? creds.apiKey ?? creds.password ?? null;
-}
+// `getDecryptedCredentials`
+// (`convex/integrations/get_decrypted_credentials.ts`) moved with the
+// integrations rewrite. Resolving a session's explicit integration grants
+// (github tokens, etc.) into env is offline — `resolveSessionCredentials`
+// below now always returns empty grants (with a debug log) instead of
+// decrypting anything, so sandbox sessions still start; only the git
+// credential helper activation (gated on a non-empty `git` array) is
+// affected. The session owner's git AUTHOR IDENTITY (name/email) is
+// unrelated to credential grants and has no AI/integrations dependency, so
+// it's kept fully functional.
 
 /** Assemble contiguous `GIT_CONFIG_COUNT`/`KEY_i`/`VALUE_i` env pairs
  * (equivalent to repeated `-c key=value`) from an ordered list — git requires
@@ -89,51 +69,12 @@ export const resolveSessionCredentials = internalAction({
   }),
   handler: async (ctx, args) => {
     const env: Record<string, string> = {};
+    // Always empty — see file header. `args.grants` is kept
+    // in the args validator (signature unchanged) but is not resolved.
     const git: Array<{ slug: string; hosts: string[]; username: string }> = [];
-
-    for (const slug of args.grants) {
-      const credential = await ctx.runQuery(
-        internal.integrations.credential_queries.getBySlugInternal,
-        { organizationId: args.organizationId, slug },
-      );
-      if (!credential) {
-        console.warn(
-          `[sandbox.broker] grant '${slug}' has no active credential for org ${args.organizationId}`,
-        );
-        continue;
-      }
-      let decrypted: Awaited<ReturnType<typeof getDecryptedCredentials>>;
-      try {
-        decrypted = await getDecryptedCredentials(ctx, {
-          credentialId: credential._id,
-        });
-      } catch (err) {
-        // A corrupt secret / missing decryption key must not abort the whole
-        // session create — skip this grant like a missing credential does.
-        console.warn(
-          `[sandbox.broker] grant '${slug}' failed to decrypt:`,
-          err instanceof Error ? err.message : String(err),
-        );
-        continue;
-      }
-      const secret = pickSecret(decrypted);
-      if (secret === null) {
-        console.warn(`[sandbox.broker] grant '${slug}' has no usable secret`);
-        continue;
-      }
-      const mapped = toSessionEnv(slug, secret);
-      Object.assign(env, mapped.env);
-      if (mapped.git) git.push({ slug, ...mapped.git });
-
-      // Audit every fetch (the Tier-2 traceability requirement).
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.recordCredentialAccess,
-        {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          slug,
-          kind: args.kind,
-        },
+    if (args.grants.length > 0) {
+      console.debug(
+        `[sandbox.broker] integration credential grants are offline while the platform AI backend is rewritten; not resolving ${args.grants.length} grant(s) for session ${args.sessionId}`,
       );
     }
 

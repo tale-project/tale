@@ -2,9 +2,15 @@ import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { fetchDocumentComparisonByStorageIds } from '../agent_tools/documents/helpers/fetch_document_comparison';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+
+// `fetchDocumentComparisonByStorageIds` lived under
+// `convex/agent_tools/documents/helpers/`, moved out wholesale with the rest
+// of the tool-calling/subagent plane. `compareDocuments` is a user-triggered
+// action (the Document Hub diff view), so it keeps its established
+// `ConvexError`-on-failure convention (see the auth/membership/ownership
+// checks below, all preserved — none of them are AI-related) and now also
+// throws for the comparison itself instead of silently returning nothing.
 
 export const compareDocuments = action({
   args: {
@@ -64,16 +70,8 @@ export const compareDocuments = action({
     // because the team-ACL scaffold is partially in place but not
     // consistently applied to all document read paths yet.
 
-    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    // In-process comparison reads the bytes from the `_storage` ids directly
-    // (no URL download / multipart upload to an external service).
-    return await fetchDocumentComparisonByStorageIds(
-      ctx,
-      args.baseStorageId,
-      args.baseFileName,
-      args.comparisonStorageId,
-      args.comparisonFileName,
-      orgSlug,
+    throw new ConvexError(
+      'Document comparison is offline while the platform AI backend is rewritten.',
     );
   },
 });

@@ -1,0 +1,341 @@
+'use node';
+
+/**
+ * The corpus readers — the SQL behind one organization's two retrieval legs.
+ *
+ * Each reader is constructed for ONE organization and holds its slug for its
+ * whole life. Retrieval never passes an organization around, so there is no
+ * branch in which one could be forgotten; the reader simply cannot be pointed
+ * at another tenant. The pool it was built on was resolved per organization
+ * too, so on a bring-your-own database the other tenants' rows are not even
+ * present.
+ *
+ * Both corpora are scoped, differently:
+ *
+ *  - `private_knowledge` — every document and chunk carries `org_slug`, and a
+ *    database-level composite foreign key makes a chunk of one organization
+ *    unable to point at another's document. Both statements filter on it.
+ *  - `public_web` — a page is fetched once per domain, and
+ *    `website_org_memberships` records which organizations asked for that
+ *    domain. Both statements JOIN through it, so a domain this organization
+ *    never registered is invisible even though the row is in the same table.
+ *
+ * The keyword leg returns `null` — not an empty list — when the database has no
+ * BM25 index. That distinction is what lets a search report itself as degraded
+ * instead of looking like a search that simply found nothing, and it is why a
+ * managed Postgres without ParadeDB still serves retrieval rather than erroring
+ * on every query.
+ */
+
+import type { Sql } from 'postgres';
+
+import { logger } from '../../lib/knowledge/logger';
+import type {
+  CorpusLegQuery,
+  CorpusReader,
+} from '../../lib/knowledge/retrieve';
+import {
+  PRIVATE_KNOWLEDGE_SCHEMA,
+  PUBLIC_WEB_SCHEMA,
+  type KnowledgeCorpus,
+  type KnowledgeHit,
+} from '../../lib/knowledge/types';
+import {
+  bm25Available,
+  isDataCorrupted,
+  isInternalError,
+  isUndefinedColumn,
+  isUndefinedFunction,
+  isUndefinedSchema,
+  isUndefinedTable,
+  markBm25Unavailable,
+} from './pool';
+
+/** Values postgres.js accepts as positional parameters. */
+type SqlParam = string | number | boolean | null | Date | string[] | number[];
+
+/** Row shape both corpus queries project into. */
+interface CorpusRow {
+  id: string;
+  chunk_content: string;
+  chunk_index: number;
+  ref: string;
+  title: string | null;
+  url: string | null;
+  modified_at: Date | null;
+  score: number;
+}
+
+/**
+ * Uploaded documents.
+ *
+ * The optional `refs` and `folder` filters restrict WITHIN the organization;
+ * they can only ever narrow what the org_slug filter already allowed.
+ */
+export class DocumentCorpusReader implements CorpusReader {
+  readonly corpus = 'documents' as const;
+  private readonly sql: Sql;
+  private readonly orgSlug: string;
+
+  constructor(sql: Sql, orgSlug: string) {
+    this.sql = sql;
+    this.orgSlug = orgSlug;
+  }
+
+  async keyword(
+    query: CorpusLegQuery,
+  ): Promise<readonly KnowledgeHit[] | null> {
+    if (!(await bm25Available(this.sql))) return null;
+    const scope = this.scope(query, 2);
+    const statement = `
+      SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
+             d.file_id AS ref, d.filename AS title, NULL::text AS url,
+             COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
+             paradedb.score(c.id) AS score
+      FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+      JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+        ON d.id = c.document_id AND d.org_slug = c.org_slug
+      WHERE c.id @@@ paradedb.match('chunk_content', $1)
+        AND c.org_slug = $2
+        ${scope.clause}
+      ORDER BY score DESC
+      LIMIT $${3 + scope.params.length}
+    `;
+    return this.runKeyword(statement, [
+      query.query,
+      this.orgSlug,
+      ...scope.params,
+      query.limit,
+    ]);
+  }
+
+  async dense(
+    query: CorpusLegQuery & { readonly embedding: readonly number[] },
+  ): Promise<readonly KnowledgeHit[]> {
+    const scope = this.scope(query, 2);
+    const statement = `
+      SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
+             d.file_id AS ref, d.filename AS title, NULL::text AS url,
+             COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
+             1 - (c.embedding <=> $1::vector) AS score
+      FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+      JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+        ON d.id = c.document_id AND d.org_slug = c.org_slug
+      WHERE c.embedding IS NOT NULL
+        AND c.org_slug = $2
+        ${scope.clause}
+      ORDER BY c.embedding <=> $1::vector
+      LIMIT $${3 + scope.params.length}
+    `;
+    return this.runDense(statement, [
+      JSON.stringify(query.embedding),
+      this.orgSlug,
+      ...scope.params,
+      query.limit,
+    ]);
+  }
+
+  /**
+   * The optional narrowing filters, as a clause appended AFTER the org filter.
+   *
+   * `offset` is how many parameters precede these, so the placeholder numbers
+   * line up. The organization is not a parameter of this method: it is already
+   * bound, and the clause returned here can only narrow.
+   */
+  private scope(
+    query: CorpusLegQuery,
+    offset: number,
+  ): { clause: string; params: SqlParam[] } {
+    const conditions: string[] = [];
+    const params: SqlParam[] = [];
+    if (query.refs !== undefined && query.refs.length > 0) {
+      params.push([...query.refs]);
+      conditions.push(`d.file_id = ANY($${offset + params.length})`);
+    }
+    if (query.folder !== undefined && query.folder !== '') {
+      params.push(query.folder);
+      const placeholder = `$${offset + params.length}`;
+      // The folder itself, or anything beneath it. Compared as a prefix ending
+      // in a separator so `/reports` cannot match `/reports-archive`.
+      conditions.push(
+        `(d.folder_path = ${placeholder} OR left(d.folder_path, char_length(${placeholder}) + 1) = ${placeholder} || '/')`,
+      );
+    }
+    return {
+      clause: conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '',
+      params,
+    };
+  }
+
+  private runKeyword(
+    statement: string,
+    params: SqlParam[],
+  ): Promise<readonly KnowledgeHit[] | null> {
+    return runKeywordLeg(this.sql, this.corpus, statement, params);
+  }
+
+  private runDense(
+    statement: string,
+    params: SqlParam[],
+  ): Promise<readonly KnowledgeHit[]> {
+    return runDenseLeg(this.sql, this.corpus, statement, params);
+  }
+}
+
+/**
+ * Crawled web pages.
+ *
+ * Every statement joins `website_org_memberships`, which is what scopes this
+ * corpus: the page rows themselves are shared within one database so a domain
+ * is fetched and embedded once, and the membership join is the only thing that
+ * decides which organization can see it.
+ */
+export class WebCorpusReader implements CorpusReader {
+  readonly corpus = 'web' as const;
+  private readonly sql: Sql;
+  private readonly orgSlug: string;
+
+  constructor(sql: Sql, orgSlug: string) {
+    this.sql = sql;
+    this.orgSlug = orgSlug;
+  }
+
+  async keyword(
+    query: CorpusLegQuery,
+  ): Promise<readonly KnowledgeHit[] | null> {
+    if (!(await bm25Available(this.sql))) return null;
+    const statement = `
+      SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
+             c.url AS ref, c.title, c.url,
+             u.last_crawled_at AS modified_at,
+             paradedb.score(c.id) AS score
+      FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+      JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
+        ON m.domain = c.domain AND m.org_slug = $2
+      JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
+        ON u.domain = c.domain AND u.url = c.url
+      WHERE c.id @@@ paradedb.match('chunk_content', $1)
+      ORDER BY score DESC
+      LIMIT $3
+    `;
+    return runKeywordLeg(this.sql, this.corpus, statement, [
+      query.query,
+      this.orgSlug,
+      query.limit,
+    ]);
+  }
+
+  async dense(
+    query: CorpusLegQuery & { readonly embedding: readonly number[] },
+  ): Promise<readonly KnowledgeHit[]> {
+    const statement = `
+      SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
+             c.url AS ref, c.title, c.url,
+             u.last_crawled_at AS modified_at,
+             1 - (c.embedding <=> $1::vector) AS score
+      FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+      JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
+        ON m.domain = c.domain AND m.org_slug = $2
+      JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
+        ON u.domain = c.domain AND u.url = c.url
+      WHERE c.embedding IS NOT NULL
+      ORDER BY c.embedding <=> $1::vector
+      LIMIT $3
+    `;
+    return runDenseLeg(this.sql, this.corpus, statement, [
+      JSON.stringify(query.embedding),
+      this.orgSlug,
+      query.limit,
+    ]);
+  }
+}
+
+/**
+ * Run the keyword leg, translating the ways a full-text index can be missing or
+ * broken into "no keyword results", never into a failed search.
+ *
+ * A missing `paradedb` schema or function is remembered on the pool so later
+ * searches skip the leg outright; corruption is reported and the search
+ * continues dense-only, because an index that needs rebuilding is an operational
+ * problem and not a reason to stop answering.
+ */
+async function runKeywordLeg(
+  sql: Sql,
+  corpus: Exclude<KnowledgeCorpus, 'all'>,
+  statement: string,
+  params: SqlParam[],
+): Promise<readonly KnowledgeHit[] | null> {
+  try {
+    return toHits(await sql.unsafe<CorpusRow[]>(statement, params), corpus);
+  } catch (err) {
+    if (isUndefinedSchema(err) || isUndefinedFunction(err)) {
+      markBm25Unavailable(sql);
+      logger.warn(
+        `this knowledge database has no usable full-text index; searching dense-only from now on: ${describe(err)}`,
+      );
+      return null;
+    }
+    if (isDataCorrupted(err) || isInternalError(err)) {
+      logger.warn(
+        `the ${corpus} full-text index reported a problem and needs rebuilding; searching dense-only: ${describe(err)}`,
+      );
+      return null;
+    }
+    if (isUndefinedTable(err) || isUndefinedColumn(err)) {
+      logger.info(`the ${corpus} corpus is not created yet on this database`);
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Run the dense leg. A corpus that does not exist yet is an empty result, not a
+ * failure — an organization that has never indexed anything should get "nothing
+ * found", not an error.
+ */
+async function runDenseLeg(
+  sql: Sql,
+  corpus: Exclude<KnowledgeCorpus, 'all'>,
+  statement: string,
+  params: SqlParam[],
+): Promise<readonly KnowledgeHit[]> {
+  try {
+    return toHits(await sql.unsafe<CorpusRow[]>(statement, params), corpus);
+  } catch (err) {
+    if (isUndefinedTable(err) || isUndefinedColumn(err)) {
+      logger.info(`the ${corpus} corpus is not created yet on this database`);
+      return [];
+    }
+    throw err;
+  }
+}
+
+function toHits(
+  rows: readonly CorpusRow[],
+  corpus: Exclude<KnowledgeCorpus, 'all'>,
+): KnowledgeHit[] {
+  const hits: KnowledgeHit[] = [];
+  for (const row of rows) {
+    hits.push({
+      id: row.id,
+      corpus,
+      // `chunk_content` already carries the contextual header, so a passage
+      // read on its own still says which document and section it came from.
+      text: row.chunk_content,
+      chunkIndex: row.chunk_index,
+      source: {
+        ref: row.ref,
+        title: row.title,
+        url: row.url,
+        modifiedAt: row.modified_at ? row.modified_at.getTime() : null,
+      },
+      score: row.score,
+    });
+  }
+  return hits;
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}

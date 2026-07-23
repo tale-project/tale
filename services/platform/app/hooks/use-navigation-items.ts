@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
+import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -60,10 +60,10 @@ export function useNavigationItems(businessId: string): NavigationItems {
   const { t: tConversations } = useT('conversations');
   const isMac = useIsMac();
   const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
-  // The Inbox entry is gated on at least one INSTALLED automation declaring
-  // the `inbox` builtin view — `useInboxAvailability` intersects the seeded
-  // org-dir list with the install rows and stays `hasInbox: false` while
-  // loading, so the entry never flashes in then out.
+  // The Inbox entry used to be gated on an installed automation declaring the
+  // `inbox` builtin view; that signal lives in the automations backend, which
+  // is offline while it is rebuilt, so `useInboxAvailability` currently
+  // reports every org as inbox-capable and the entry always shows.
   const { hasInbox: hasInboxAutomation } = useInboxAvailability(businessId);
   return useMemo(
     (): NavigationItems => ({

@@ -1,0 +1,91 @@
+# Sandbox harness — Qwen Code, Qwen's coding CLI (binary `qwen`), a
+# gemini-cli fork driven through the tale-qwen-run wrapper exactly like the
+# gemini harness (settings staged to disk, prompt via NDJSON stdin) — the
+# exec facts below are gemini's with the fork's auth delta. The fork
+# replaced Google-account auth with OpenAI-compatible credentials
+# (DashScope / Alibaba Cloud Model Studio, or any OPENAI_BASE_URL), so
+# managed runs ride the platform gateway's OpenAI route and bring-your-own
+# uses a DashScope key with the qwen provider's compatible-mode endpoint.
+# Qwen Code's own hosted OAuth free tier was discontinued 2026-04-15 (the
+# CLI itself is maintained), so there is NO subscription delivery — the
+# qwen provider connector carries API-key auth only.
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/qwen-code.json are authored
+# from these facts (no legacy glue existed for this harness).
+slug: qwen-code
+displayName: Qwen Code
+credentialPolicy:
+  managed: true
+  byo: true
+credentialEnvKeys:
+  - DASHSCOPE_API_KEY
+  - OPENAI_API_KEY
+  - OPENAI_BASE_URL
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: vendor-native
+promptTransport: stdin-ndjson
+capabilities:
+  planMode: false
+  steering: false
+  mcp: true
+parser: gemini-stream
+exec:
+  bin: tale-qwen-run
+  argv:
+    - args: ['--workdir', '${workdir}']
+    - resume: { flag: '--resume' }
+    - model: { flag: '--model' }
+    - additionalDirs: { flag: '--include-directories' }
+  stdin:
+    mode: json-envelope
+    envelope:
+      - prompt: {}
+      - doc:
+          key: settings
+          fragments:
+            # Managed pins the fork's OpenAI-compatible auth type so the
+            # CLI's env inference never wanders into the retired
+            # Qwen-OAuth path with a base-URL override set.
+            - when: [managed]
+              set:
+                security:
+                  auth:
+                    selectedType: openai
+            - set:
+                privacy:
+                  usageStatisticsEnabled: false
+            # Inherited gemini-cli turn cap (FatalTurnLimitedError past it);
+            # the gemini-stream parser maps its message to 'max-turns'.
+            - maxTurns: { path: model.maxSessionTurns }
+            # Deny the NATIVE web tools on managed runs (ungoverned — web
+            # access routes through the capability bridge; byo runs native).
+            # The fork renamed gemini's google_web_search to web_search;
+            # web_fetch kept its name.
+            - when: [managed]
+              set:
+                tools:
+                  exclude: [web_search, web_fetch]
+            # MCP servers via the settings `mcpServers` map — the fork kept
+            # gemini-cli's env-resolved settings strings, so the bridge
+            # token rides `${TALE_GATEWAY_TOKEN}` and the staged settings
+            # file never contains the key itself.
+            - mcpServers:
+                path: mcpServers
+                serverShape: command-args
+                bridgeEnvField: env
+                bridgeEnv:
+                  TALE_INTEGRATIONS_URL: '${bridgeUrl}'
+                  TALE_INTEGRATIONS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+      - instructions: { key: system_prompt }
+  env:
+    # MANAGED: OpenAI-compatible route on the platform gateway — the fork
+    # reads OPENAI_BASE_URL/OPENAI_API_KEY for its openai auth type.
+    managed:
+      OPENAI_BASE_URL: '${gateway.baseUrl}/openai/v1'
+      OPENAI_API_KEY: '${gateway.token}'
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+# Pin chosen from the fork's release line at authoring time; the pin MUST be
+# re-verified against the qwen-code releases before the sandbox image bakes
+# the CLI in.
+pinnedVersion: 0.10.3

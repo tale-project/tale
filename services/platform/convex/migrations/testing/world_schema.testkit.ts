@@ -36,13 +36,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import { agentEnvTable, agentInstallationsTable } from '../../agents/schema';
-import {
-  automationInstallationsTable,
-  automationProjectBindingsTable,
-  automationUploadClaimTable,
-  automationUploadIntentTable,
-} from '../../automations/schema';
 import { userNotificationsTable } from '../../collab/schema';
 import { contactsTable } from '../../contacts/schema';
 import {
@@ -54,37 +47,61 @@ import {
   ssoProvisioningLinksTable,
 } from '../../enterprise_sso/schema';
 import { dsarPolicyPendingChangesTable } from '../../governance/schema';
-import { integrationCredentialsTable } from '../../integrations/credentials_schema';
+import { integrationCredentialsTable } from '../../integration_credentials/schema';
+import {
+  agentInstallationsTable,
+  automationInstallationsTable,
+  automationProjectBindingsTable,
+  automationUploadClaimTable,
+  automationUploadIntentTable,
+  chatTypeValidator,
+  messageMetadataTable,
+  threadFilesTable,
+  threadStatusValidator,
+  wfDefaultProvisionsTable,
+  wfEventSubscriptionsTable,
+  wfInstallationsTable,
+  wfSchedulesTable,
+  workflowEnvTable,
+} from '../../legacy/schema';
 import { configCacheTable } from '../../lib/config_cache/schema';
 import { jsonRecordValidator } from '../../lib/validators/json';
 import { projectsTable } from '../../projects/schema';
+import { promptTemplatesTable } from '../../prompts/schema';
+import { providerCredentialsTable } from '../../provider_credentials/schema';
 import { ssoProvidersTable } from '../../sso_providers/schema';
-import { messageMetadataTable } from '../../streaming/schema';
 import { supportCasesTable } from '../../support_cases/schema';
-import { threadFilesTable } from '../../thread_files/schema';
-import {
-  chatTypeValidator,
-  threadStatusValidator,
-} from '../../threads/validators';
-import {
-  wfDefaultProvisionsTable,
-  wfInstallationsTable,
-  workflowEnvTable,
-} from '../../workflows/schema';
-import {
-  wfEventSubscriptionsTable,
-  wfSchedulesTable,
-} from '../../workflows/triggers/schema';
 import {
   migrationLedgerTable,
   migrationSnapshotsTable,
 } from '../framework/schema';
 import {
+  legacyAgentDefaultProvisionsTable,
+  legacyAgentEnvTable,
+  legacyAgentJobsTable,
+  legacyAgentRunCountersTable,
+  legacyAgentRuntimesTable,
+  legacyAgentTaskMetricsDailyTable,
+  legacyAutoRouteCacheTable,
+  legacyChatMessageQueueTable,
   legacyCustomersTable,
+  legacyExternalRunsTable,
   legacyGovernancePoliciesTable,
+  legacyMcpServersTable,
+  legacyModelCapabilityCacheTable,
+  legacyModelCatalogSyncTable,
   legacyModelSyncSettingsTable,
   legacyOrgPackagePolicyTable,
+  legacyReasoningProfilesTable,
+  legacySkillUploadClaimTable,
+  legacySkillUploadIntentTable,
+  legacySlackEventDedupTable,
+  legacySlackInstallationsTable,
+  legacyTtsGcCursorTable,
   legacyVendorsTable,
+  legacyWfApiKeysTable,
+  legacyWfWebhooksTable,
+  legacyWorkflowProcessingRecordsTable,
 } from '../framework/test_helpers';
 
 /**
@@ -269,11 +286,12 @@ export const worldSchema = defineSchema({
   // needs a chain-union twin restoring the field (same for `supportCases`).
   conversations: conversationsTable,
   conversationMessages: conversationMessagesTable,
+  // --- 0.4.0/23 integration-credential carry-over ---------------------------
+  // The production table already admits BOTH shapes (its own transitional
+  // union), so the chain reuses it rather than re-declaring the retired
+  // columns here — one source, no drift.
   integrationCredentials: integrationCredentialsTable,
   agentInstallations: agentInstallationsTable,
-  // Empty at baseline; agent deletion paths sweep it (agentEnv.by_org_agent)
-  // when 0.3.4/04 re-removes restored workforce personas on a re-up.
-  agentEnv: agentEnvTable,
   userNotifications: userNotificationsTable,
 
   // --- 0.2.93 threadMetadata renames ----------------------------------------
@@ -291,4 +309,52 @@ export const worldSchema = defineSchema({
   // the owning thread. Production shape imported directly (no chain rename); the
   // optional org field validates for pre-0.3.7 rows (absent) and post-up rows.
   messageMetadata: messageMetadataTable,
+
+  // --- 0.4.0 prompt library → skill files -----------------------------------
+  // Seeded at baseline (the table predates v0.2.84 and its required column set
+  // is identical in every checkpoint through 0.4.0). 0.4.0/30 READS it and
+  // writes skill files; the rows themselves are never touched, so the
+  // production shape is imported directly.
+  promptTemplates: promptTemplatesTable,
+
+  // --- 0.4.0 provider credentials -------------------------------------------
+  // Empty at baseline; 0.4.0/02 converts the retired providers/ +
+  // token-sources/ config files into rows and its down empties the table
+  // again. Production shape imported directly (the table was born current).
+  providerCredentials: providerCredentialsTable,
+
+  // --- 0.4.0 retired provider cache/governor drops (0.4.0/03–/05) -----------
+  // Seeded at baseline (all three predate or coincide with v0.2.84) and
+  // drained by the drop migrations; their era shapes live in test_helpers —
+  // the production schema no longer declares them.
+  reasoningProfiles: legacyReasoningProfilesTable,
+  modelCapabilityCache: legacyModelCapabilityCacheTable,
+  modelCatalogSync: legacyModelCatalogSyncTable,
+
+  // --- 0.4.0 retired AI-backend table drops (0.4.0/06–/22) ------------------
+  // Seeded at baseline when the table predates or coincides with v0.2.84, else
+  // injected at its birth release (see world/injections.testkit.ts), and
+  // drained by the drop migrations. Era shapes live in test_helpers; the
+  // production schema no longer declares them.
+  autoRouteCache: legacyAutoRouteCacheTable,
+  mcpServers: legacyMcpServersTable,
+  skillUploadClaims: legacySkillUploadClaimTable,
+  skillUploadIntents: legacySkillUploadIntentTable,
+  slackEventDedup: legacySlackEventDedupTable,
+  slackInstallations: legacySlackInstallationsTable,
+  ttsGcCursor: legacyTtsGcCursorTable,
+  wfApiKeys: legacyWfApiKeysTable,
+  wfWebhooks: legacyWfWebhooksTable,
+  workflowProcessingRecords: legacyWorkflowProcessingRecordsTable,
+  agentDefaultProvisions: legacyAgentDefaultProvisionsTable,
+  agentRunCounters: legacyAgentRunCountersTable,
+  agentRuntimes: legacyAgentRuntimesTable,
+  agentTaskMetricsDaily: legacyAgentTaskMetricsDailyTable,
+  chatMessageQueue: legacyChatMessageQueueTable,
+  externalRuns: legacyExternalRunsTable,
+  agentJobs: legacyAgentJobsTable,
+  // Injected at its 0.2.85 birth release and drained by 0.4.0/36: an agent
+  // holds no credentials any more, so the per-agent env store is gone from
+  // the production schema and its era shape lives in test_helpers.
+  agentEnv: legacyAgentEnvTable,
 });

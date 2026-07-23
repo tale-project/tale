@@ -25,55 +25,11 @@ const EXAMPLES_DIR = path.resolve(
   '../../../../../builtin-configs/prompts',
 );
 
-describe('builtin-configs/prompts/*.json invariants', () => {
-  const files = readdirSync(EXAMPLES_DIR).filter((f) => f.endsWith('.json'));
-
-  it('discovered at least one default prompt', () => {
-    expect(files.length).toBeGreaterThan(0);
-  });
-
-  it('all filenames are valid prompt slugs', () => {
-    for (const file of files) {
-      expect(validatePromptSlug(file.replace(/\.json$/, ''))).toBe(true);
-    }
-  });
-
-  for (const file of files) {
-    describe(file, () => {
-      const raw = readFileSync(path.join(EXAMPLES_DIR, file), 'utf-8');
-      const parsed = promptJsonSchema.safeParse(JSON.parse(raw));
-
-      it('parses against promptJsonSchema', () => {
-        expect(parsed.success).toBe(true);
-      });
-
-      it('is flagged autoInstall and within the content byte cap', () => {
-        if (!parsed.success) throw new Error('schema parse failed');
-        expect(parsed.data.metadata?.autoInstall).toBe(true);
-        const bytes = new TextEncoder().encode(
-          parsed.data.content.trim(),
-        ).byteLength;
-        expect(bytes).toBeLessThanOrEqual(MAX_PROMPT_CONTENT_BYTES);
-        expect(bytes).toBeGreaterThan(0);
-      });
-
-      it('ships a full translation for every supported locale', () => {
-        if (!parsed.success) throw new Error('schema parse failed');
-        for (const loc of NON_DEFAULT_LOCALES) {
-          const o = parsed.data.i18n?.[loc];
-          expect(o, `${file} missing i18n.${loc}`).toBeDefined();
-          // Resolver must yield fully-localized display copy (no English
-          // fallback leaking into a non-English org).
-          const display = resolvePromptDisplay(parsed.data, loc);
-          expect(display.title).toBe(o?.title);
-          expect(display.content).toBe(o?.content);
-          expect(display.title.length).toBeGreaterThan(0);
-          expect(display.content.length).toBeGreaterThan(0);
-        }
-      });
-    });
-  }
-});
+// The shipped default-prompt catalog retired with the rest of the builtin
+// config tree; the prompt library itself is replaced by user skills in a
+// later stage of the rewrite, so no new catalog returns. The schema and
+// display-resolution units below keep guarding the live prompts domain
+// (DB-backed templates) until that replacement lands.
 
 describe('resolvePromptDisplay', () => {
   const config = {

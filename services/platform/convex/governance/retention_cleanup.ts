@@ -1,5 +1,6 @@
 'use node';
 
+import { makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { RetentionPolicyConfig } from '../../lib/shared/schemas/governance';
@@ -9,14 +10,31 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
+import type {
+  DeleteDocumentArgs,
+  DeleteDocumentResult,
+} from '../legacy/knowledge_delete';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import type { ActiveHolds } from './legal_hold';
 import {
   clampConfigToBounds,
   isRetentionDisabled,
   type EffectiveBoundDef,
 } from './retention_floors';
+
+// `convex/legacy/knowledge_delete.ts`'s generated `internal.*` reference
+// isn't available yet — codegen hasn't run since the ripout removed
+// `convex/workflow_engine/` out from under it — so
+// `internal.legacy.knowledge_delete.deleteDocument` would be a hard
+// "Property does not exist" compile error today. Build the reference by
+// hand instead (the documented `convex/server` escape hatch for exactly
+// this) against the module's type-only exports, then invoke it with
+// `ctx.runAction` like the old `deleteDocumentById` wrapper did.
+const deleteKnowledgeDocument = makeFunctionReference<
+  'action',
+  DeleteDocumentArgs,
+  DeleteDocumentResult
+>('legacy/knowledge_delete:deleteDocument');
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_TEMP_RETENTION_HOURS = 24;
@@ -115,11 +133,14 @@ async function deleteRagEntry(
   try {
     // In-process delete (replaces the external RAG DELETE). Idempotent: an
     // already-deleted / never-indexed document returns success with
-    // `deletedCount: 0`.
-    const result = await deleteDocumentById(ctx, { orgSlug, fileId });
+    // `deleted_count: 0`.
+    const result = await ctx.runAction(deleteKnowledgeDocument, {
+      orgSlug,
+      fileId,
+    });
     if (!result.success) {
       console.warn(
-        `[RetentionCleanup] RAG delete failed for ${label}: ${result.error ?? result.message}`,
+        `[RetentionCleanup] RAG delete failed for ${label}: ${result.message}`,
       );
     }
   } catch (error) {

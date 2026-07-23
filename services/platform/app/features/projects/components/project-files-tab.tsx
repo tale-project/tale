@@ -24,6 +24,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  iconForPath,
+  TreeRowButton,
+  treeNavigationKeyDown,
+} from '@/app/components/ui/data-display/file-tree-primitives';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -31,11 +36,6 @@ import { DocumentHistoryDialog } from '@/app/features/documents/components/docum
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useDeleteFolder } from '@/app/features/documents/hooks/mutations';
 import { useDocumentByExternalItemId } from '@/app/features/documents/hooks/queries';
-import {
-  iconForPath,
-  TreeRowButton,
-  treeNavigationKeyDown,
-} from '@/app/features/workspace/components/file-tree-primitives';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';

@@ -1,6 +1,14 @@
 import { jexlInstance } from './jexl_instance';
 
 /**
+ * A faithful restore of the original `lib/variables/evaluate_expression.ts` —
+ * entity filtering (contacts/products) still depends on JEXL expression
+ * evaluation. The workflow engine's own JEXL usage was retired with
+ * the rest of the automations rewrite; when filters v2 lands this can be
+ * replaced, but entity filters keep JEXL until then.
+ */
+
+/**
  * Safe expression evaluator using JEXL
  * Supports: variables, comparisons, logic, math, ternary operator, array access, and more
  *

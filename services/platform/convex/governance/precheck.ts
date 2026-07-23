@@ -1,36 +1,27 @@
 import { ConvexError, v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { loadGuardrailsSnapshot, sanitizeMessage } from './sanitize';
+
+// `loadGuardrailsSnapshot`/`sanitizeMessage`
+// (`convex/governance/sanitize.ts`) moved with the config-loading/PII group.
+// `precheckInput` has a LIVE caller — the chat composer
+// (`app/features/chat/hooks/use-send-message.ts`) calls it on every send when
+// input guardrails are active — so per the stub policy this throws rather
+// than silently returning `{ blocked: false }` (a false "checked, nothing
+// found" signal indistinguishable from a real pass). The caller already
+// fails open on a thrown precheck error (a pre-existing resilience path,
+// logged via `console.warn`, falls through to send) — chat sending itself is
+// separately offline, so this only changes what shows up in that log.
 
 /**
  * Pre-send guardrails check for user input.
  *
- * Runs the full `sanitizeMessage` input-direction pipeline BUT with
- * moderation_provider stripped from the snapshot — moderation is HTTP-
- * expensive and always runs again on the real send path, so doing it
- * twice per message would double provider cost for no gain.
- *
- * Reusing `sanitizeMessage` means chat_filter + PII event writing
- * (`chatFilterEvents` + `auditLogs` on block) stays in exactly one place.
- * Previously this was a separate query that re-implemented the logic
- * without writing events, so mask/block outcomes never showed up in
- * Recent Events once the client started pre-masking based on the
- * precheck response.
- *
- * Returns:
- *  - `{ blocked: false }` on pass
- *  - `{ blocked: false, maskedText, categoryLabels }` on mask
- *    (client substitutes text before sending; server's real-send
- *    sanitize is idempotent on already-masked text so it won't
- *    double-write the event)
- *  - `{ blocked: true, code, categoryIds, categoryLabels }` on block
- *    (client aborts send; the single event written here IS the
- *    authoritative audit record)
+ * Offline. See file header. Auth + membership are still
+ * enforced before the error (no AI dependency); the `GUARDRAILS_DISABLED`
+ * operator escape hatch is also preserved as an explicit opt-out that's
+ * independent of whether the AI backend is up.
  */
 export const precheckInput = action({
   args: {
@@ -57,7 +48,7 @@ export const precheckInput = action({
     maskedText?: string;
   }> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     await ctx.runQuery(
       internal.governance.internal_mutations.requireOrganizationMemberInternal,
@@ -73,59 +64,8 @@ export const precheckInput = action({
       return { blocked: false };
     }
 
-    const fullSnapshot = await loadGuardrailsSnapshot(ctx, args.organizationId);
-    // Strip moderation so sanitizeMessage doesn't fire the HTTP call. It
-    // will run on the real send path — duplicating here would double
-    // provider cost and produce two audit rows per message.
-    const snapshot = { ...fullSnapshot, moderation: null };
-
-    // The real org slug for the audit context (membership is already verified
-    // above) — never a hardcoded `default`, which would mislabel every org's
-    // guardrail events.
-    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-
-    try {
-      const result = await sanitizeMessage(ctx, args.text, 'input', snapshot, {
-        organizationId: args.organizationId,
-        orgSlug,
-        threadId: 'precheck',
-        actorId: authUser.userId,
-        actorEmail: authUser.email,
-        actorType: 'user',
-      });
-      if (result.text !== args.text) {
-        return {
-          blocked: false,
-          maskedText: result.text,
-        };
-      }
-      return { blocked: false };
-    } catch (err) {
-      if (err instanceof ConvexError) {
-        const rawData: unknown = err.data;
-        if (isRecord(rawData)) {
-          const code = rawData['code'];
-          if (code === 'pii.blocked' || code === 'chat_filter.blocked') {
-            const rawCategoryIds = rawData['categoryIds'];
-            const rawCategoryLabels = rawData['categoryLabels'];
-            const categoryIds = Array.isArray(rawCategoryIds)
-              ? rawCategoryIds.filter((c): c is string => typeof c === 'string')
-              : undefined;
-            const categoryLabels = Array.isArray(rawCategoryLabels)
-              ? rawCategoryLabels.filter(
-                  (c): c is string => typeof c === 'string',
-                )
-              : undefined;
-            return {
-              blocked: true,
-              code,
-              categoryIds,
-              categoryLabels,
-            };
-          }
-        }
-      }
-      throw err;
-    }
+    throw new ConvexError(
+      'Guardrails precheck is offline while the platform AI backend is rewritten.',
+    );
   },
 });

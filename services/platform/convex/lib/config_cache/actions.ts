@@ -3,12 +3,16 @@
 /**
  * Generic file→`configCache` sync for `v8-sync` config domains.
  *
- * The source of truth is the per-org JSON tree at
- * `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`. V8 code can't read the filesystem, so
- * this `'use node'` action reads each domain key from the org's OWN files (no
- * cross-org fallback) and mirrors it into the non-authoritative `configCache`
- * table that queries/mutations read. Driven by the registry `V8SyncSpec`
- * (Layer A) + the domain dir resolvers (Layer B).
+ * The source of truth is the per-org config tree at
+ * `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`. V8 code can't read the filesystem,
+ * so this `'use node'` action reads each domain key from the org's OWN files
+ * (never a cross-org fallback) and mirrors it into the non-authoritative
+ * `configCache` table. Driven by the registry `V8SyncSpec` (Layer A) + the
+ * domain dir resolvers (Layer B).
+ *
+ * Each key is read through the shared domain-file helper: `<fileBase>.yml`
+ * first, `<fileBase>.json` as the fallback while org trees are converted to
+ * YAML org by org.
  */
 
 import { v } from 'convex/values';
@@ -21,18 +25,17 @@ import { zodErrorMessage } from '../../../lib/shared/schemas/format-error';
 import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import { readDomainConfigFile } from '../config_store/read_domain_file';
 import { resolveDomainDir } from '../config_store/resolvers';
-import { readJsonFile, safeJoinWithinDir } from '../file_io';
 import { orgSlugFromId } from '../helpers/org_slug';
 
 const MAX_FILE_SIZE_BYTES = 256 * 1024;
 
 /**
- * Read a config file for `(domain, key)` under `orgSlug` — the org's OWN file
- * only, no cross-org fallback (every org is fully seeded from the built-in
- * catalog at create). Returns the schema-normalized config record, or `null`
- * when the org has no such file — a genuine cache miss the reader resolves via
- * its schema default (a code baseline, never another org's config).
+ * Read the config file for `(domain, key)` under `orgSlug` — the org's own
+ * file only. Returns the schema-normalized config record, or `null` when the
+ * org has no such file — a genuine cache miss the reader resolves via its
+ * schema default (a code baseline, never another org's config).
  */
 async function readEffectiveConfig(
   domain: string,
@@ -42,29 +45,26 @@ async function readEffectiveConfig(
 ): Promise<Record<string, unknown> | null> {
   const schema = spec.schemaFor(key);
   const fileBase = spec.fileBaseFor(key);
-  const filePath = safeJoinWithinDir(
+  const result = await readDomainConfigFile(
     resolveDomainDir(domain, orgSlug),
-    `${fileBase}.json`,
-  );
-  const result = await readJsonFile(
-    filePath,
+    fileBase,
     MAX_FILE_SIZE_BYTES,
-    (content) => {
-      const parsed: unknown = JSON.parse(content);
-      const r = schema.safeParse(parsed);
-      if (!r.success) {
+    (data) => {
+      const outcome = schema.safeParse(data);
+      if (!outcome.success) {
         throw new Error(
-          zodErrorMessage(`Invalid ${domain}/${key} config`, r.error),
+          zodErrorMessage(`Invalid ${domain}/${key} config`, outcome.error),
         );
       }
-      return r.data;
+      return outcome.data;
     },
   );
   if (result.ok) {
     return isRecord(result.data) ? result.data : null;
   }
   if (result.error !== 'not_found') {
-    // Corrupt/oversized file: a genuine cache miss (reader uses schema default).
+    // Corrupt/oversized file: treated as a cache miss (reader uses the schema
+    // default) but loudly logged — the file is the source of truth.
     console.error(
       `[config_cache] failed to read ${orgSlug}/${domain}/${fileBase}: ${result.message}`,
     );
@@ -72,16 +72,16 @@ async function readEffectiveConfig(
   return null;
 }
 
-/** `config.enabled` when it is a boolean, else undefined (column stays unset). */
+/** `config.enabled` when boolean, else undefined (column stays unset). */
 function extractEnabled(config: Record<string, unknown>): boolean | undefined {
   return typeof config.enabled === 'boolean' ? config.enabled : undefined;
 }
 
 /**
  * Re-read every config file for a `v8-sync` domain and replace that org's
- * `configCache` rows. Idempotent; safe to call after any write and on
- * scaffold/reseed. Resolves the on-disk slug from `organizationId` server-side
- * (never trusted from a client).
+ * `configCache` rows. Idempotent; safe after any write and on scaffold or
+ * reseed. Resolves the on-disk slug from `organizationId` server-side —
+ * never trusted from a client.
  */
 export const syncConfigDomainFromFiles = internalAction({
   args: { organizationId: v.string(), domain: v.string() },

@@ -1,7 +1,6 @@
 import type { Infer } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import type { StepType } from '../workflow_engine/helpers/data_source/types';
 import type {
   approvalItemValidator,
   approvalPriorityValidator,
@@ -13,6 +12,24 @@ export type ApprovalStatus = Infer<typeof approvalStatusValidator>;
 export type ApprovalPriority = Infer<typeof approvalPriorityValidator>;
 export type ApprovalResourceType = Infer<typeof approvalResourceTypeValidator>;
 export type ApprovalItem = Infer<typeof approvalItemValidator>;
+
+/**
+ * Frozen copy of `StepType` from the retired
+ * `workflow_engine/helpers/data_source/types.ts` — the workflow engine is
+ * retired wholesale, but approval metadata
+ * (`WorkflowCreationMetadata`/`WorkflowUpdateMetadata` below) still records a
+ * step's type for display/history on already-created approvals. Inlined
+ * (types only, no runtime import) rather than importing the retired module.
+ */
+type StepType =
+  | 'start'
+  | 'trigger'
+  | 'llm'
+  | 'condition'
+  | 'action'
+  | 'loop'
+  | 'output'
+  | 'sandbox';
 
 export interface IntegrationOperationMetadata {
   integrationId: string;

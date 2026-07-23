@@ -1,0 +1,89 @@
+# Sandbox harness — Pi, driven through the tale-pi-run wrapper (prompt +
+# per-exec config as one JSON object on stdin, staged to disk before the CLI
+# starts — process lists leak argv, and a prompt starting with '-' would
+# parse as a flag). Pi has no MCP support at all, so no MCP-delivered
+# tooling (browser server, integration bridge) reaches it. Its
+# bring-your-own backend is commonly OpenRouter-style and speaks the
+# catalog's vendor-prefixed ids, so refs resolve in the catalog dialect.
+#
+# The wrapper stages the config files into a private per-exec
+# PI_CODING_AGENT_DIR, then pipes the prompt into the CLI's stdin (Pi's
+# native headless prompt source). Instructions are staged as
+# <agentDir>/APPEND_SYSTEM.md — auto-discovered and APPENDED to Pi's default
+# system prompt without replacing it (SYSTEM.md would replace it and drop
+# the defaults). Pi has NO native web tools (built-in tools: read, bash,
+# edit, write, grep, find, ls) and no interactive-question tool, so there is
+# nothing to deny for managed runs; additionalDirs needs no wiring either —
+# Pi's file tools are not cwd-scoped. No fallback and no turn cap — the
+# pinned CLI has neither flag; the runaway backstop is the platform runner.
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/pi.json pin the built execs
+# against the pinned CLI version below.
+slug: pi
+displayName: Pi
+credentialPolicy:
+  managed: true
+  byo: true
+credentialEnvKeys:
+  - OPENROUTER_API_KEY
+  - ANTHROPIC_API_KEY
+  - OPENAI_API_KEY
+  - GEMINI_API_KEY
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: catalog
+promptTransport: stdin-ndjson
+capabilities:
+  planMode: false
+  steering: false
+  mcp: false
+parser: pi-jsonl
+exec:
+  bin: tale-pi-run
+  argv:
+    - args: ['--workdir', '${workdir}']
+    - resume: { flag: '--resume' }
+    # Managed: pin the staged gateway provider so model resolution never
+    # wanders into Pi's built-in catalog (its default provider is google).
+    # byo: the caller-resolved catalog id (or raw ref) resolves against Pi's
+    # own registry with the user's credentials.
+    - model:
+        flag: '--model'
+        managedPrefixArgs: ['--provider', 'tale-gateway']
+  stdin:
+    mode: json-envelope
+    envelope:
+      - prompt: {}
+      # Staged as <agentDir>/settings.json. Default-on install telemetry
+      # pings home; a sandbox turn must not.
+      - doc:
+          key: settings
+          fragments:
+            - set:
+                enableInstallTelemetry: false
+      - instructions: { key: system_prompt }
+      # MANAGED: OpenAI-compatible route on the platform gateway, wired as a
+      # Pi custom provider in a staged models.json. The session key rides
+      # `$TALE_GATEWAY_TOKEN` env interpolation (Pi's models.json value
+      # resolution), never the staged JSON itself (the staged file may get
+      # logged).
+      - doc:
+          key: models
+          when: [managed]
+          fragments:
+            - set:
+                providers:
+                  tale-gateway:
+                    baseUrl: '${gateway.baseUrl}/openai/v1'
+                    api: openai-completions
+                    apiKey: $TALE_GATEWAY_TOKEN
+            - when: [model]
+              set:
+                providers:
+                  tale-gateway:
+                    models:
+                      - id: '${model}'
+  env:
+    managed:
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+pinnedVersion: 0.80.3

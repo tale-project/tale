@@ -8,7 +8,6 @@
 // alternates, and Article/Breadcrumb JSON-LD, which the old regex injector
 // dropped.
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -96,11 +95,9 @@ async function writeRedirectStubs(prerendered: Set<string>): Promise<void> {
       continue;
     }
     const outPath = resolve(DIST, redirect.from.slice(1), 'index.html');
-    await mkdir(dirname(outPath), { recursive: true });
-    await writeFile(
+    await Bun.write(
       outPath,
       redirectStub(redirect.locale, `${siteUrl}${redirect.to}`),
-      'utf-8',
     );
     written += 1;
   }
@@ -111,7 +108,7 @@ async function writeRedirectStubs(prerendered: Set<string>): Promise<void> {
 
 async function main() {
   const started = Date.now();
-  const template = await readFile(resolve(DIST, 'index.html'), 'utf-8');
+  const template = await Bun.file(resolve(DIST, 'index.html')).text();
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod = (await import(pathToFileURL(SSR_BUNDLE).href)) as {
     render: (url: string) => Promise<{ html: string; head: string }>;
@@ -141,8 +138,7 @@ async function main() {
       route.url === '/'
         ? resolve(DIST, 'index.html')
         : resolve(DIST, route.url.slice(1), 'index.html');
-    await mkdir(dirname(outPath), { recursive: true });
-    await writeFile(outPath, final, 'utf-8');
+    await Bun.write(outPath, final);
     process.stdout.write('done\n');
   }
 
@@ -159,8 +155,7 @@ async function main() {
       'en',
     );
     const outPath = resolve(DIST, '404', 'index.html');
-    await mkdir(dirname(outPath), { recursive: true });
-    await writeFile(outPath, final, 'utf-8');
+    await Bun.write(outPath, final);
   }
   process.stdout.write('done\n');
 

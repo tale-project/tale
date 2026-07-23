@@ -1,0 +1,11 @@
+# Built-in PII pattern, fully data-defined — no `impl`, so the engine
+# compiles the regex below directly with no post-filter.
+name: macAddress
+description: >-
+  MAC addresses in IEEE 802 colon/hyphen-separated and Cisco dotted formats.
+  All-zeros and broadcast placeholders are deliberately masked too — masking
+  a placeholder is harmless, skipping a real device identifier is a leak.
+replacement: '[MAC_ADDRESS]'
+regex:
+  source: '\b(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}\b|\b(?:[0-9a-fA-F]{4}\.){2}[0-9a-fA-F]{4}\b'
+  flags: g

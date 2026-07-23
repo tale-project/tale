@@ -11,13 +11,7 @@ Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur
 
 Chaque intégration déclare ses opérations, et chaque opération porte son propre drapeau d’approbation. Ouvre **Paramètres > Intégrations**, clique sur une intégration, et sa liste d’opérations badge celles marquées **Nécessite une approbation** — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; les écritures marquées tiennent dans le chat avec leurs paramètres exacts jusqu’à ce que quelqu’un approuve.
 
-Pour une intégration personnalisée, le drapeau est `requiresApproval` par opération dans le `config.json` que tu empaquettes avec **Ajouter une intégration** — décide au moment de l’écriture lesquelles de ses opérations sont assez lourdes de conséquences pour demander.
-
-<Frame caption="Le catalogue des intégrations — la vue de détail de chaque entrée liste ses opérations et lesquelles exigent une approbation.">
-
-![La page Intégrations des Paramètres sur l’onglet Toutes les intégrations montrant une grille de cartes de douze services connectables comme GitHub, Slack et Gmail.](/images/platform/integrations-catalog.webp)
-
-</Frame>
+Le drapeau n’est pas un réglage séparé qu’un administrateur bascule. Chaque action déclarée par un connecteur porte un effet — `read` ou `write` — et c’est le versant écriture que la politique d’approbation retient. Cela garde les deux honnêtes l’un envers l’autre : une action ne peut pas passer discrètement d’une lecture à une écriture sans changer aussi ce pour quoi elle doit demander.
 
 ## Outils MCP
 

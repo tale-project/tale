@@ -18,7 +18,10 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseAgentJson, serializeAgentJson } from '../../../agents/file_utils';
+import {
+  parseAgentJson,
+  serializeAgentJson,
+} from '../../../legacy/frozen/agents_file_utils';
 import {
   TRIAGE_WORKFLOW_HASH,
   WORLD_EPOCH_MS,
@@ -381,6 +384,150 @@ export const WORLD_INJECTIONS: readonly WorldInjection[] = [
         appSlug: 'issue-desk',
         subjectType: 'task', // slug-only path of 0.3.4/15 (subjectType untouched)
         subjectId: 'task-100',
+      });
+    },
+  },
+  {
+    afterVersion: '0.2.85',
+    reason:
+      'agentDefaultProvisions, agentRunCounters, agentRuntimes, agentTaskMetricsDaily, agentEnv, chatMessageQueue, and externalRuns first appear in the v0.2.85 schema (the agent-run + daemon subsystems and the per-agent env store), so a 0.2.84 baseline deployment cannot hold any of them; the 0.4.0/16–/22 and 0.4.0/36 drops drain them.',
+    tables: [
+      'agentDefaultProvisions',
+      'agentRunCounters',
+      'agentRuntimes',
+      'agentTaskMetricsDaily',
+      'agentEnv',
+      'chatMessageQueue',
+      'externalRuns',
+    ],
+    async seed(ctx, orgs) {
+      const { alpha } = orgs;
+      await ctx.db.insert('agentDefaultProvisions', {
+        organizationId: alpha.id,
+        agentSlug: 'assistant',
+        contentHash: 'world-assistant-provision-v1',
+        provisionedAt: WORLD_EPOCH_MS,
+      });
+      await ctx.db.insert('agentRunCounters', {
+        organizationId: alpha.id,
+        scope: 'org',
+        running: 0,
+        updatedAt: WORLD_EPOCH_MS,
+      });
+      await ctx.db.insert('agentRuntimes', {
+        organizationId: alpha.id,
+        daemonId: 'daemon-world-1',
+        adapterType: 'claude-code',
+        createdBy: 'user_alpha_admin',
+        registeredAt: WORLD_EPOCH_MS,
+        lastHeartbeatAt: WORLD_EPOCH_MS + 1000,
+      });
+      await ctx.db.insert('agentTaskMetricsDaily', {
+        organizationId: alpha.id,
+        agentSlug: 'assistant',
+        dateKey: '2024-05-29',
+        runsStarted: 2,
+        runsCompleted: 1,
+        runsFailed: 0,
+        runDurationSumMs: 4200,
+        runDurationCount: 1,
+        inputTokens: 1500,
+        outputTokens: 600,
+        costCents: 3,
+        tasksCompleted: 1,
+        reviewsPassed: 1,
+        reviewsChangesRequested: 0,
+        escalations: 0,
+        staleEod: 0,
+        computedAt: WORLD_EPOCH_MS + 2000,
+      });
+      // --- agentEnv — one plaintext var and one secret (fixed ciphertext, no
+      // --- Date.now()/random anywhere) so 0.4.0/36's drain covers both row
+      // --- shapes and its down proves the secret returns untouched. ---------
+      await ctx.db.insert('agentEnv', {
+        organizationId: alpha.id,
+        agentSlug: 'assistant',
+        key: 'REPORT_TIMEZONE',
+        isSecret: false,
+        value: 'Europe/Zurich',
+        updatedAt: WORLD_EPOCH_MS,
+        updatedBy: 'user_alpha_admin',
+      });
+      await ctx.db.insert('agentEnv', {
+        organizationId: alpha.id,
+        agentSlug: 'assistant',
+        key: 'PARTNER_API_TOKEN',
+        isSecret: true,
+        encryptedValue: 'world-agentenv-jwe-partner-token',
+        maskedPreview: '••••1234',
+        updatedAt: WORLD_EPOCH_MS,
+        updatedBy: 'user_alpha_admin',
+      });
+
+      // Era-pure: v0.2.85 chatMessageQueue had no media-wait facet
+      // (waiting_media / attachments / videoJobIds) — those joined later.
+      await ctx.db.insert('chatMessageQueue', {
+        organizationId: alpha.id,
+        threadId: 'thread_alpha_chat_1',
+        userId: 'user_alpha_admin',
+        userEmail: 'admin@baseline-alpha.example',
+        userName: 'Alpha Admin',
+        agentSlug: 'assistant',
+        messageId: 'qmsg_world_1',
+        text: 'keep going while it works',
+        status: 'queued',
+        createdAt: WORLD_EPOCH_MS,
+      });
+      await ctx.db.insert('externalRuns', {
+        organizationId: alpha.id,
+        taskId: 'task-100',
+        projectId: 'project-platform',
+        agentSlug: 'assistant',
+        adapterType: 'claude-code',
+        permissionMode: 'safe',
+        kind: 'initial',
+        trigger: 'assignment',
+        prompt: 'Resolve the assigned task.',
+        status: 'queued',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: WORLD_EPOCH_MS,
+        dispatchDeadlineAt: WORLD_EPOCH_MS + 300_000,
+      });
+    },
+  },
+  {
+    afterVersion: '0.3.4',
+    reason:
+      'agentJobs (the on-demand sub-agent job store) first appears in the v0.3.4 schema — no earlier release declared it; the 0.4.0/22 drop drains it.',
+    tables: ['agentJobs'],
+    async seed(ctx, orgs) {
+      const { alpha } = orgs;
+      await ctx.db.insert('agentJobs', {
+        organizationId: alpha.id,
+        threadId: 'thread_alpha_chat_1',
+        jobThreadId: 'jobthread_world_1',
+        parentAgentSlug: 'assistant',
+        name: 'Research task',
+        description: 'Investigate the reported regression.',
+        status: 'running',
+        specVersion: 1,
+        spec: {
+          instructions: 'Investigate and summarize.',
+          input: 'The regression appears after the last deploy.',
+          requestedTools: [],
+          effectiveTools: [],
+          skills: [],
+          integrations: [],
+          model: 'anthropic/claude-sonnet-4',
+          narrowed: { tools: [], skills: [], integrations: [] },
+        },
+        progress: [],
+        recentOpIds: [],
+        inputTokens: 0,
+        outputTokens: 0,
+        costCents: 0,
+        startedAt: WORLD_EPOCH_MS,
       });
     },
   },

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import { type Page } from '@playwright/test';
+import { parse as parseYaml } from 'yaml';
 
 import { TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
@@ -35,17 +36,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Read a dot-path key from the GERMAN catalog. Justified for a locale test:
- * after switching to German the visible UI no longer matches `messages/en.json`
+ * after switching to German the visible UI no longer matches `messages/en.yml`
  * (which the shared `t()` reads), so we need the German label to assert the
  * switch took. Mirrors `helpers/i18n.ts`, scoped to this spec.
  */
 function de(key: string): string {
-  const messagesUrl = new URL('../../../messages/de.json', import.meta.url);
-  const parsed: unknown = JSON.parse(readFileSync(messagesUrl, 'utf8'));
+  const messagesUrl = new URL('../../../messages/de.yml', import.meta.url);
+  const parsed: unknown = parseYaml(readFileSync(messagesUrl, 'utf8'));
   let node: unknown = parsed;
   for (const part of key.split('.')) {
     if (!isRecord(node)) {
-      throw new Error(`Missing de.json key: ${key} (failed at "${part}")`);
+      throw new Error(`Missing de.yml key: ${key} (failed at "${part}")`);
     }
     node = node[part];
   }

@@ -33,7 +33,7 @@ Pro-Datei- und Pro-Projekt-Limits werden von der Org unter [Richtlinien und Limi
 
 Ein Chat, der in einem Projekt gestartet wird, hat automatisch Zugriff auf jede Datei im Wissen-Tab des Projekts. Das Retrieval-Tool des Agents sieht Projekt-Dateien neben jeglichen agent-gebundenen Wissensquellen. Zitate aus Projekt-Dateien sind auf den Chat begrenzt, der sie erzeugt hat — einen Chat ausserhalb des Projekts zu teilen bewahrt die Zitate, aber der Betrachter kann nicht zur Quelle durchklicken, ausser er ist auch im Projekt.
 
-Anheften mit `@` verengt einen einzelnen Turn: `@Datei` heftet eine Datei an, `@Ordner` einen Ordner samt allem darunter (der Picker bietet in Projekt-Chats die Ordner des Projekts an, überall sonst die org-weiten Ordner). Angeheftete Dateien werden zusätzlich in die Sandbox des Agents unter `/user/uploads` geliefert — Coding-Agents wie Claude Code öffnen also die echten Bytes, statt nur Retrieval-Schnipsel zu zitieren.
+Anheften mit `@` verengt einen einzelnen Turn: `@Datei` heftet eine Datei an, `@Ordner` einen Ordner samt allem darunter (der Picker bietet in Projekt-Chats die Ordner des Projekts an, überall sonst die org-weiten Ordner). Angeheftete Dateien werden zusätzlich in die Sandbox des Agents unter `/user/uploads` geliefert — Sandbox-Agents wie Claude Code öffnen also die echten Bytes, statt nur Retrieval-Schnipsel zu zitieren.
 
 ## Wo das hineinpasst
 

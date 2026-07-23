@@ -1,0 +1,1075 @@
+managed-baseline:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-model-opus:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --model
+    - claude-opus-4-6[1m]
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    ANTHROPIC_DEFAULT_FABLE_MODEL: claude-opus-4-6
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: claude-opus-4-6
+    ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-4-6
+    ANTHROPIC_DEFAULT_SONNET_MODEL: claude-opus-4-6
+    ANTHROPIC_MODEL: claude-opus-4-6[1m]
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-model-gateway-ref:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --model
+    - openrouter/anthropic/claude-sonnet-4.6
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    ANTHROPIC_DEFAULT_FABLE_MODEL: openrouter/anthropic/claude-sonnet-4.6
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: openrouter/anthropic/claude-sonnet-4.6
+    ANTHROPIC_DEFAULT_OPUS_MODEL: openrouter/anthropic/claude-sonnet-4.6
+    ANTHROPIC_DEFAULT_SONNET_MODEL: openrouter/anthropic/claude-sonnet-4.6
+    ANTHROPIC_MODEL: openrouter/anthropic/claude-sonnet-4.6
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CODE_SUBAGENT_MODEL: openrouter/anthropic/claude-sonnet-4.6
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-model-default:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --model
+    - default
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    ANTHROPIC_DEFAULT_FABLE_MODEL: default
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: default
+    ANTHROPIC_DEFAULT_OPUS_MODEL: default
+    ANTHROPIC_DEFAULT_SONNET_MODEL: default
+    ANTHROPIC_MODEL: default
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CODE_SUBAGENT_MODEL: default
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-plan:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - plan
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-act:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-resume:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --resume
+    - golden-resume-handle
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-instructions:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+
+
+      Golden instructions: follow the org runbook.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-dirs:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --add-dir
+    - /user/uploads
+    - --add-dir
+    - /user/shared-data
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-mcp-headless-bridge:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --mcp-config
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"golden-session-virtual-key"}}}}'
+    - --strict-mcp-config
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-mcp-cdp:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --mcp-config
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--cdp-endpoint","http://127.0.0.1:9222"]}}}'
+    - --strict-mcp-config
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-mcp-bridge-only:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --mcp-config
+    - '{"mcpServers":{"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"golden-session-virtual-key"}}}}'
+    - --strict-mcp-config
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-vision:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --mcp-config
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors","--image-responses","omit"]}}}'
+    - --strict-mcp-config
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+    TALE_GATEWAY_URL: http://golden-gw:8080
+    TALE_VISION_MODEL: golden-vision-model
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-steer:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    TALE_STEER_DIR: /user/.runtime/tale/steer/exec-golden-42
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-kitchen-sink:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --add-dir
+    - /user/uploads
+    - --add-dir
+    - /user/shared-data
+    - --resume
+    - golden-resume-handle
+    - --model
+    - claude-opus-4-6[1m]
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+
+
+      Golden instructions: follow the org runbook.
+    - --mcp-config
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors","--image-responses","omit"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"golden-session-virtual-key"}}}}'
+    - --strict-mcp-config
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    ANTHROPIC_DEFAULT_FABLE_MODEL: claude-opus-4-6
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: claude-opus-4-6
+    ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-4-6
+    ANTHROPIC_DEFAULT_SONNET_MODEL: claude-opus-4-6
+    ANTHROPIC_MODEL: claude-opus-4-6[1m]
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+    TALE_GATEWAY_URL: http://golden-gw:8080
+    TALE_STEER_DIR: /user/.runtime/tale/steer/exec-golden-42
+    TALE_VISION_MODEL: golden-vision-model
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+byo-baseline:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion
+  env:
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+byo-model:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --model
+    - claude-opus-4-6[1m]
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion
+  env:
+    ANTHROPIC_MODEL: claude-opus-4-6[1m]
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+byo-model-default:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --model
+    - default
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion
+  env:
+    ANTHROPIC_MODEL: default
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+byo-kitchen-sink:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --add-dir
+    - /user/uploads
+    - --add-dir
+    - /user/shared-data
+    - --resume
+    - golden-resume-handle
+    - --model
+    - claude-opus-4-6[1m]
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+
+
+      Golden instructions: follow the org runbook.
+    - --mcp-config
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors","--image-responses","omit"]}}}'
+    - --strict-mcp-config
+    - --disallowedTools
+    - AskUserQuestion
+  env:
+    ANTHROPIC_MODEL: claude-opus-4-6[1m]
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+    TALE_STEER_DIR: /user/.runtime/tale/steer/exec-golden-42
+  cwd: /user/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold

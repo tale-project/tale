@@ -1,205 +1,315 @@
-import { mkdtemp, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
+// @vitest-environment node
+
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { readOrgSkill, readOrgSkills } from '../../lib/skills/listing';
 import {
-  resolveSkillAssetPath,
-  resolveSkillAssetPathChecked,
+  createOrgSkillReader,
+  listSkillSlugs,
+  readSkillMdText,
+  removeSkillBundle,
   resolveSkillDir,
+  resolveSkillHistoryDir,
   resolveSkillMdPath,
   resolveSkillsDir,
-  validateSkillSlug,
+  writeSkillMdText,
 } from './file_utils';
 
-// Under the uniform org-first layout, every org's skills live at
-// `${TALE_CONFIG_DIR}/<orgSlug>/skills/` — including the default org
-// (which is no longer special-cased). All resolvers compose on top of
-// `${TALE_CONFIG_DIR}`; the per-domain SKILLS_DIR override has been dropped.
 let configRoot: string;
-let prevTaleConfigDir: string | undefined;
-let prevSkillsDir: string | undefined;
+let savedConfigDir: string | undefined;
 
 beforeEach(async () => {
-  configRoot = await mkdtemp(path.join(tmpdir(), 'skills-test-'));
-  prevTaleConfigDir = process.env.TALE_CONFIG_DIR;
-  prevSkillsDir = process.env.SKILLS_DIR;
+  savedConfigDir = process.env.TALE_CONFIG_DIR;
+  configRoot = await mkdtemp(path.join(tmpdir(), 'tale-skills-'));
   process.env.TALE_CONFIG_DIR = configRoot;
-  // Explicitly clear the legacy per-domain override so its presence in the
-  // shell env can't accidentally satisfy any leftover fallback.
-  delete process.env.SKILLS_DIR;
 });
 
 afterEach(async () => {
-  if (prevTaleConfigDir === undefined) {
+  if (savedConfigDir === undefined) {
     delete process.env.TALE_CONFIG_DIR;
   } else {
-    process.env.TALE_CONFIG_DIR = prevTaleConfigDir;
-  }
-  if (prevSkillsDir !== undefined) {
-    process.env.SKILLS_DIR = prevSkillsDir;
+    process.env.TALE_CONFIG_DIR = savedConfigDir;
   }
   await rm(configRoot, { recursive: true, force: true });
 });
 
-// Helper: where this test's "default org skills dir" lives under org-first.
-function defaultSkillsDir(): string {
-  return path.join(configRoot, 'default', 'skills');
+function skillMd(fields: Record<string, string>, body = 'Body.\n'): string {
+  const frontmatter = Object.entries(fields)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+  return `---\n${frontmatter}\n---\n\n${body}`;
 }
 
-describe('validateSkillSlug', () => {
-  it('accepts hyphen-separated lowercase slugs', () => {
-    expect(validateSkillSlug('code-reviewer')).toBe(true);
-    expect(validateSkillSlug('pdf-extractor-v2')).toBe(true);
-    expect(validateSkillSlug('a')).toBe(true);
-  });
+async function seedSkill(
+  orgSlug: string,
+  slug: string,
+  content: string,
+): Promise<void> {
+  const dir = path.join(configRoot, orgSlug, 'skills', slug);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'SKILL.md'), content, 'utf-8');
+}
 
-  it('rejects underscores', () => {
-    expect(validateSkillSlug('code_reviewer')).toBe(false);
-  });
-
-  it('rejects leading/trailing/consecutive hyphens', () => {
-    expect(validateSkillSlug('-leading')).toBe(false);
-    expect(validateSkillSlug('trailing-')).toBe(false);
-    expect(validateSkillSlug('double--hyphen')).toBe(false);
-  });
-
-  it('rejects uppercase letters and special chars', () => {
-    expect(validateSkillSlug('CamelCase')).toBe(false);
-    expect(validateSkillSlug('with space')).toBe(false);
-    expect(validateSkillSlug('dot.case')).toBe(false);
-    expect(validateSkillSlug('semi:colon')).toBe(false);
-  });
-
-  it('rejects empty and over-length slugs', () => {
-    expect(validateSkillSlug('')).toBe(false);
-    expect(validateSkillSlug('a'.repeat(65))).toBe(false);
-  });
-});
-
-describe('resolveSkillsDir (org isolation, org-first)', () => {
-  it('default org lives at <root>/default/skills/', () => {
-    expect(resolveSkillsDir('default')).toBe(defaultSkillsDir());
-  });
-
-  it('other orgs live at <root>/<orgSlug>/skills/ (no @-prefix)', () => {
-    expect(resolveSkillsDir('acme-corp')).toBe(
-      path.join(configRoot, 'acme-corp', 'skills'),
+describe('path resolution', () => {
+  it('puts every org’s skills under its own config subtree', () => {
+    expect(resolveSkillsDir('acme')).toBe(
+      path.join(configRoot, 'acme', 'skills'),
+    );
+    expect(resolveSkillDir('acme', 'write-notes')).toBe(
+      path.join(configRoot, 'acme', 'skills', 'write-notes'),
+    );
+    expect(resolveSkillMdPath('acme', 'write-notes')).toBe(
+      path.join(configRoot, 'acme', 'skills', 'write-notes', 'SKILL.md'),
+    );
+    expect(resolveSkillHistoryDir('acme', 'write-notes')).toBe(
+      path.join(configRoot, 'acme', 'skills', '.history', 'write-notes'),
     );
   });
 
-  it('rejects invalid org slugs', () => {
-    expect(() => resolveSkillsDir('../escape')).toThrow();
-    expect(() => resolveSkillsDir('UPPER')).toThrow();
-  });
-});
-
-describe('resolveSkillDir', () => {
-  it('returns path under <org>/skills/<slug>', () => {
-    const p = resolveSkillDir('default', 'code-reviewer');
-    expect(p).toBe(path.join(defaultSkillsDir(), 'code-reviewer'));
-  });
-
-  it('rejects invalid slugs upstream', () => {
-    expect(() => resolveSkillDir('default', 'bad_slug')).toThrow();
-    expect(() => resolveSkillDir('default', '../escape')).toThrow();
-  });
-});
-
-describe('resolveSkillMdPath', () => {
-  it('appends SKILL.md', () => {
-    expect(resolveSkillMdPath('default', 'code-reviewer')).toBe(
-      path.join(defaultSkillsDir(), 'code-reviewer', 'SKILL.md'),
+  it('refuses an org slug or skill slug that could escape the tree', () => {
+    expect(() => resolveSkillsDir('../etc')).toThrow(/Invalid org slug/);
+    expect(() => resolveSkillDir('acme', '../../etc')).toThrow(
+      /Invalid skill slug/,
+    );
+    expect(() => resolveSkillDir('acme', 'Write-Notes')).toThrow(
+      /Invalid skill slug/,
     );
   });
 });
 
-describe('resolveSkillAssetPath (traversal hardening)', () => {
-  it('accepts a normal nested path', () => {
-    const p = resolveSkillAssetPath(
-      'default',
-      'pdf-extractor',
-      'scripts/extract.py',
+describe('listSkillSlugs', () => {
+  it('reads an org with no skills directory as an empty library', async () => {
+    expect(await listSkillSlugs('acme')).toEqual([]);
+  });
+
+  it('lists bundle directories and ignores everything else', async () => {
+    await seedSkill(
+      'acme',
+      'write-notes',
+      skillMd({ name: 'write-notes', description: 'x' }),
     );
-    expect(p).toBe(
-      path.join(defaultSkillsDir(), 'pdf-extractor', 'scripts', 'extract.py'),
+    await mkdir(
+      path.join(configRoot, 'acme', 'skills', '.history', 'write-notes'),
+      {
+        recursive: true,
+      },
     );
-  });
+    await writeFile(
+      path.join(configRoot, 'acme', 'skills', 'README.md'),
+      'not a bundle\n',
+      'utf-8',
+    );
+    await mkdir(path.join(configRoot, 'acme', 'skills', 'Not A Slug'), {
+      recursive: true,
+    });
 
-  it('rejects absolute paths', () => {
-    expect(() =>
-      resolveSkillAssetPath('default', 'x', '/etc/passwd'),
-    ).toThrow();
-  });
-
-  it('rejects `..` segments', () => {
-    expect(() => resolveSkillAssetPath('default', 'x', '../escape')).toThrow();
-    expect(() =>
-      resolveSkillAssetPath('default', 'x', 'scripts/../../escape'),
-    ).toThrow();
-  });
-
-  it('rejects leading-dot segments (hidden files)', () => {
-    expect(() => resolveSkillAssetPath('default', 'x', '.hidden')).toThrow();
-    expect(() =>
-      resolveSkillAssetPath('default', 'x', 'scripts/.secret'),
-    ).toThrow();
-  });
-
-  it('rejects Windows drive prefix', () => {
-    expect(() =>
-      resolveSkillAssetPath('default', 'x', 'C:\\Windows'),
-    ).toThrow();
-  });
-
-  it('rejects NUL bytes', () => {
-    expect(() =>
-      resolveSkillAssetPath('default', 'x', 'evil\0script.py'),
-    ).toThrow();
-  });
-
-  it('rejects over-length paths', () => {
-    expect(() =>
-      resolveSkillAssetPath('default', 'x', 'a/'.repeat(120)),
-    ).toThrow();
-  });
-
-  it('rejects SKILL.md (must be edited via markdown writer, not asset writer)', () => {
-    expect(() => resolveSkillAssetPath('default', 'x', 'SKILL.md')).toThrow();
+    expect(await listSkillSlugs('acme')).toEqual(['write-notes']);
   });
 });
 
-describe('resolveSkillAssetPathChecked (realpath / symlink defense)', () => {
-  it('catches a symlink planted as an intermediate directory', async () => {
-    // <root>/default/skills/<slug>/escape → ../../../outside
-    const slug = 'symlink-test';
-    const skillDir = path.join(defaultSkillsDir(), slug);
-    await mkdir(skillDir, { recursive: true });
+describe('readSkillMdText', () => {
+  it('returns null for a bundle with no SKILL.md', async () => {
+    await mkdir(path.join(configRoot, 'acme', 'skills', 'empty'), {
+      recursive: true,
+    });
+
+    expect(await readSkillMdText('acme', 'empty')).toBeNull();
+  });
+
+  it('refuses a symlinked SKILL.md instead of following it', async () => {
+    const secret = path.join(configRoot, 'secret.md');
+    await writeFile(secret, 'secret\n', 'utf-8');
+    await mkdir(path.join(configRoot, 'acme', 'skills', 'sneaky'), {
+      recursive: true,
+    });
+    await symlink(
+      secret,
+      path.join(configRoot, 'acme', 'skills', 'sneaky', 'SKILL.md'),
+    );
+
+    await expect(readSkillMdText('acme', 'sneaky')).rejects.toThrow(/Symlink/);
+  });
+
+  it('refuses a bundle directory that symlinks out of the tree', async () => {
     const outside = path.join(configRoot, 'outside');
     await mkdir(outside, { recursive: true });
-    await symlink(outside, path.join(skillDir, 'escape'));
+    await writeFile(path.join(outside, 'SKILL.md'), 'x\n', 'utf-8');
+    await mkdir(path.join(configRoot, 'acme', 'skills'), { recursive: true });
+    await symlink(outside, path.join(configRoot, 'acme', 'skills', 'escape'));
 
-    await expect(
-      resolveSkillAssetPathChecked('default', slug, 'escape/leak.txt'),
-    ).rejects.toThrow();
+    await expect(readSkillMdText('acme', 'escape')).rejects.toThrow(
+      /bundle directory is a symlink/,
+    );
+  });
+});
 
-    await rm(outside, { recursive: true, force: true });
+describe('per-organization isolation', () => {
+  it('keeps two orgs’ same-named skills apart, in both directions', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Acme voice.' }),
+    );
+    await seedSkill(
+      'globex',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Globex voice.' }),
+    );
+    await seedSkill(
+      'acme',
+      'acme-only',
+      skillMd({ name: 'acme-only', description: 'Acme only.' }),
+    );
+
+    const acme = await readOrgSkills(createOrgSkillReader('acme'));
+    const globex = await readOrgSkills(createOrgSkillReader('globex'));
+
+    expect(acme.skills.map((skill) => skill.slug)).toEqual([
+      'acme-only',
+      'house-voice',
+    ]);
+    expect(globex.skills.map((skill) => skill.slug)).toEqual(['house-voice']);
+
+    expect(
+      acme.skills.find((skill) => skill.slug === 'house-voice')?.meta
+        .description,
+    ).toBe('Acme voice.');
+    expect(
+      globex.skills.find((skill) => skill.slug === 'house-voice')?.meta
+        .description,
+    ).toBe('Globex voice.');
+
+    // Neither org can reach the other's exclusive bundle.
+    expect(
+      await readOrgSkill(createOrgSkillReader('globex'), 'acme-only'),
+    ).toBeNull();
+    await seedSkill(
+      'globex',
+      'globex-only',
+      skillMd({ name: 'globex-only', description: 'Globex only.' }),
+    );
+    expect(
+      await readOrgSkill(createOrgSkillReader('acme'), 'globex-only'),
+    ).toBeNull();
   });
 
-  it('allows asset reads through a real subdirectory', async () => {
-    const slug = 'normal-test';
-    const dir = path.join(defaultSkillsDir(), slug, 'scripts');
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, 'run.py'), 'print("ok")');
+  it('reports a malformed bundle with its own org’s path', async () => {
+    await seedSkill('acme', 'broken', '# no frontmatter\n');
 
-    const resolved = await resolveSkillAssetPathChecked(
-      'default',
-      slug,
-      'scripts/run.py',
+    const { skills, failures } = await readOrgSkills(
+      createOrgSkillReader('acme'),
     );
-    expect(resolved).toBe(
-      path.join(defaultSkillsDir(), slug, 'scripts', 'run.py'),
+
+    expect(skills).toEqual([]);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].path).toBe(resolveSkillMdPath('acme', 'broken'));
+    expect(failures[0].message).toContain(
+      path.join('acme', 'skills', 'broken'),
     );
+  });
+});
+
+describe('writeSkillMdText', () => {
+  it('creates the bundle on first write and leaves no history behind', async () => {
+    const content = skillMd({ name: 'write-notes', description: 'First.' });
+    await writeSkillMdText('acme', 'write-notes', content);
+
+    expect(
+      await readFile(resolveSkillMdPath('acme', 'write-notes'), 'utf-8'),
+    ).toBe(content);
+    await expect(
+      readdir(resolveSkillHistoryDir('acme', 'write-notes')),
+    ).rejects.toThrow();
+  });
+
+  it('keeps the superseded version in the domain’s history trail', async () => {
+    await writeSkillMdText(
+      'acme',
+      'write-notes',
+      skillMd({ name: 'write-notes', description: 'First.' }),
+    );
+    await writeSkillMdText(
+      'acme',
+      'write-notes',
+      skillMd({ name: 'write-notes', description: 'Second.' }),
+    );
+
+    const trail = await readdir(resolveSkillHistoryDir('acme', 'write-notes'));
+    expect(trail).toHaveLength(1);
+    expect(trail[0]).toMatch(/\.md$/);
+    expect(
+      await readFile(
+        path.join(resolveSkillHistoryDir('acme', 'write-notes'), trail[0]),
+        'utf-8',
+      ),
+    ).toContain('First.');
+    expect(await readSkillMdText('acme', 'write-notes')).toContain('Second.');
+  });
+
+  it('keeps the history trail out of the listed bundles', async () => {
+    await writeSkillMdText(
+      'acme',
+      'write-notes',
+      skillMd({ name: 'write-notes', description: 'First.' }),
+    );
+    await writeSkillMdText(
+      'acme',
+      'write-notes',
+      skillMd({ name: 'write-notes', description: 'Second.' }),
+    );
+
+    expect(await listSkillSlugs('acme')).toEqual(['write-notes']);
+  });
+});
+
+describe('removeSkillBundle', () => {
+  it('removes the bundle and its trail, and is a no-op the second time', async () => {
+    await writeSkillMdText(
+      'acme',
+      'write-notes',
+      skillMd({ name: 'write-notes', description: 'First.' }),
+    );
+    await writeSkillMdText(
+      'acme',
+      'write-notes',
+      skillMd({ name: 'write-notes', description: 'Second.' }),
+    );
+
+    expect(await removeSkillBundle('acme', 'write-notes')).toBe(true);
+    expect(await listSkillSlugs('acme')).toEqual([]);
+    await expect(
+      readdir(resolveSkillHistoryDir('acme', 'write-notes')),
+    ).rejects.toThrow();
+    expect(await removeSkillBundle('acme', 'write-notes')).toBe(false);
+  });
+
+  it('never reaches another organization’s bundle of the same name', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Acme voice.' }),
+    );
+    await seedSkill(
+      'globex',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Globex voice.' }),
+    );
+
+    await removeSkillBundle('acme', 'house-voice');
+
+    expect(await listSkillSlugs('acme')).toEqual([]);
+    expect(await listSkillSlugs('globex')).toEqual(['house-voice']);
   });
 });

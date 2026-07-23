@@ -19,12 +19,12 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import {
   evaluatePackageAgainstPolicy,
   packageBaseName,
-} from '@/convex/agent_tools/files/_shared';
+} from '@/app/features/settings/governance/lib/run-code-package-policy';
+import { useAbility } from '@/app/hooks/use-ability';
+import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { runCodePolicyConfigSchema } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';

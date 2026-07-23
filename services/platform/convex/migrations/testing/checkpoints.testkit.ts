@@ -1,7 +1,7 @@
 /**
  * Version checkpoints: the ground truth of every release, extracted from git
  * tags by `scripts/dump-version-schemas.ts` into a content-addressed store
- * under `testing/versions/` (`index.json` + gzipped blobs):
+ * under `testing/versions/` (`index.yml` + gzipped blobs):
  *
  *   dbSchema     — the Convex schema fingerprint the release shipped
  *   configSchema — the org-config (Zod → JSON Schema) fingerprint
@@ -33,6 +33,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
+import { parseYamlOrThrow } from '../../../lib/shared/config/yaml';
 import type { SchemaFingerprint } from '../framework/schema_fingerprint';
 import {
   configSchemaCandidates,
@@ -43,7 +44,7 @@ import { validateDoc } from './schema_validate.testkit';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(here, 'versions');
-const INDEX_PATH = path.join(FIXTURES_DIR, 'index.json');
+const INDEX_PATH = path.join(FIXTURES_DIR, 'index.yml');
 
 export type CheckpointKind = 'dbSchema' | 'configSchema' | 'scaffold';
 
@@ -82,7 +83,8 @@ function loadIndex(): Record<string, Partial<Record<CheckpointKind, string>>> {
         'no version checkpoint index — run `bun scripts/dump-version-schemas.ts`',
       );
     }
-    indexCache = JSON.parse(readFileSync(INDEX_PATH, 'utf-8')) as Record<
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the index is the dump script's own write
+    indexCache = parseYamlOrThrow(readFileSync(INDEX_PATH, 'utf-8')) as Record<
       string,
       Partial<Record<CheckpointKind, string>>
     >;
@@ -131,7 +133,9 @@ export function loadScaffold(version: string): ScaffoldManifest {
 /**
  * Materialize the version's builtin scaffold (what a fresh project of that
  * era was initialized from) into `targetDir`, preserving the catalog's
- * relative layout below `builtin-configs/`. Returns the written file count.
+ * relative layout below its era's root — `builtin-configs/` for pre-rewrite
+ * releases, `configs/platform/custom/` since the config-system rewrite.
+ * Returns the written file count.
  */
 export function materializeScaffold(
   version: string,
@@ -140,7 +144,9 @@ export function materializeScaffold(
   const manifest = loadScaffold(version);
   let written = 0;
   for (const [rel, blobKey] of Object.entries(manifest.files)) {
-    const below = rel.replace(/^builtin-configs\//, '');
+    const below = rel
+      .replace(/^builtin-configs\//, '')
+      .replace(/^configs\/platform\/custom\//, '');
     const target = path.join(targetDir, below);
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, readBlob(blobKey));

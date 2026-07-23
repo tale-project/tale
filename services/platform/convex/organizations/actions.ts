@@ -13,20 +13,22 @@
  * the files land.
  *
  * `retryProvisioning` re-runs the full org-create pipeline idempotently:
- * every scaffolded domain (providers + governance included — a superset of
- * the per-domain catalog sync in `builtin_sync.ts`) plus the same
- * post-scaffold provisioners `afterCreateOrganization` schedules. It then
- * RE-PROBES: `ok` is earned only when the post-repair probe lists nothing
- * missing — a repair that couldn't land the files must not toast success
- * while the banner persists (#2676). Gated on developer-settings access like
- * the catalog sync, since it (re)writes capability-bearing config files.
+ * every scaffolded domain in the current current minimal registry (just `governance`)
+ * plus the config-cache sync, the prompts provisioner, and starter content.
+ * The automations/agents default-install provisioners retired along with
+ * their domains (see the `the automation-engine rebuild`/`the chat rebuild` markers below)
+ * and will re-provision here once those phases land. It then RE-PROBES: `ok`
+ * is earned only when the post-repair probe lists nothing missing — a repair
+ * that couldn't land the files must not toast success while the banner
+ * persists (#2676). Gated on developer-settings access like the catalog
+ * sync, since it (re)writes capability-bearing config files.
  */
 
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { requireDeveloperSettingsAccessById } from '../providers/auth';
+import { requireDeveloperSettingsAccessById } from './auth';
 import { listMissingScaffoldDomains, scaffoldOrgFromCatalog } from './scaffold';
 
 export const getProvisioningStatus = action({
@@ -81,21 +83,14 @@ export const retryProvisioning = action({
 
     // Re-run the same post-scaffold provisioning `afterCreateOrganization`
     // schedules, so restored files become live (config caches for V8 readers,
-    // default workflow/prompt/agent installs, starter content). All are
-    // idempotent; the scaffold ran inline above, so no head-start delay is
-    // needed. `reinstallMissing` marks the agent pass as operator-consented —
-    // this is an explicit repair, same as the catalog-sync recovery path.
+    // default prompt installs, starter content). All are idempotent; the
+    // scaffold ran inline above, so no head-start delay is needed.
     await ctx.scheduler.runAfter(
       0,
       internal.lib.config_cache.sync_org.syncOrgConfigCaches,
       { organizationId: args.organizationId },
     );
-    await ctx.scheduler.runAfter(
-      0,
-      internal.automations.provision_defaults
-        .syncDefaultAutomationInstallations,
-      { organizationId: args.organizationId, orgSlug },
-    );
+    // Default automation installs re-provision here.
     // Locale intentionally omitted: the prompt provisioner resolves the org's
     // `defaultLocale` metadata itself when the arg is absent.
     await ctx.scheduler.runAfter(
@@ -103,13 +98,11 @@ export const retryProvisioning = action({
       internal.prompts.provision_defaults.syncDefaultPromptInstallations,
       { organizationId: args.organizationId, orgSlug },
     );
-    await ctx.scheduler.runAfter(
-      0,
-      internal.agents.provision_defaults.syncDefaultAgentInstallations,
-      { organizationId: args.organizationId, orgSlug, reinstallMissing: true },
-    );
-    // After the agent installs so the @mentioned assistant exists; idempotent
-    // (skips when the org already has any project).
+    // Default agent installs re-provision here.
+    // Delay kept at 10s (not 0) so this still runs after the agent installs
+    // once the chat rebuild re-adds them at delay 0 — seed_starter needs the
+    // @mentioned assistant to exist; idempotent regardless (skips when the
+    // org already has any project).
     await ctx.scheduler.runAfter(
       10_000,
       internal.provisioning.seed_starter.seedStarterContent,

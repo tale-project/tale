@@ -5,8 +5,8 @@ import { Row, Stack } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Input } from '@/app/components/ui/forms/input';
+import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -18,10 +18,6 @@ import {
 import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 import { cn } from '@/lib/utils/cn';
 
-import { ChatInput } from '../../chat/components/chat-input';
-import { useConvexFileUpload } from '../../chat/hooks/use-convex-file-upload';
-import type { FileAttachment } from '../../chat/types';
-import { useMentionActorOptions } from '../../tasks/lib/mention-actor-options';
 import { useCreateDiscussion } from '../hooks/mutations';
 
 interface DiscussionCreateDialogProps {
@@ -49,26 +45,16 @@ export function DiscussionCreateDialog({
   const [titleError, setTitleError] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
 
-  const {
-    attachments,
-    uploadingFiles,
-    uploadFiles,
-    removeAttachment,
-    clearAttachments,
-  } = useConvexFileUpload({ organizationId });
-
   const { mutateAsync: createDiscussion } = useCreateDiscussion();
-  const actorMentionOptions = useMentionActorOptions(organizationId, projectId);
 
   const reset = () => {
     setTitle('');
     setCategory(DEFAULT_DISCUSSION_CATEGORY);
     setBody('');
     setTitleError(undefined);
-    clearAttachments();
   };
 
-  const handleCreate = async (message: string, _att?: FileAttachment[]) => {
+  const handleCreate = async (message: string) => {
     if (isCreating) return;
     if (!title.trim()) {
       setTitleError(t('create.titleRequired'));
@@ -139,28 +125,26 @@ export function DiscussionCreateDialog({
             ))}
           </Row>
         </div>
-        <FileUpload.Root>
-          <ChatInput
-            variant="assistant"
-            placeholder={t('create.bodyPlaceholder')}
-            value={body}
-            onChange={setBody}
-            onSendMessage={handleCreate}
-            isLoading={isCreating}
-            organizationId={organizationId}
-            projectId={String(projectId)}
-            actorMentionOptions={actorMentionOptions}
-            attachments={attachments}
-            uploadingFiles={uploadingFiles}
-            uploadFiles={uploadFiles}
-            removeAttachment={removeAttachment}
-            clearAttachments={clearAttachments}
-          />
-        </FileUpload.Root>
+        {/* A plain textarea stands in for the chat composer (rich mentions,
+            attachments) while the chat backend is rebuilt — `@handle`
+            mentions typed as text are still parsed server-side. */}
+        <Textarea
+          aria-label={t('create.bodyPlaceholder')}
+          placeholder={t('create.bodyPlaceholder')}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={5}
+        />
         <p className="text-muted-foreground text-xs">{t('create.hint')}</p>
-        <Row gap={0} align="stretch" justify="end">
+        <Row gap={2} align="stretch" justify="end">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t('create.cancel')}
+          </Button>
+          <Button
+            onClick={() => void handleCreate(body)}
+            disabled={isCreating || !body.trim() || !title.trim()}
+          >
+            {t('create.title')}
           </Button>
         </Row>
       </Stack>

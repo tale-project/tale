@@ -1,127 +1,91 @@
 ---
 title: Anbieter
-description: Das Zwei-Datei-Anbieter-Format auf Platte — `<name>.json` für die öffentliche Form, `<name>.secrets.json` für die Schlüssel — plus der Workflow zum Hinzufügen, Austauschen und Deaktivieren eines Modell-Anbieters.
+description: Die Operator-Seite der KI-Anbieter — die Connector-Dateien, die mit der Plattform kommen, und die reservierten Umgebungsvariablen, mit denen das Deployment die API-Schlüssel hält statt der Datenbank.
 ---
 
-Tale speichert jeden Modell-Anbieter als zwei Dateien unter `providers/` — eine `<name>.json` für die öffentliche Form (Base-URL, Modelle, Capabilities) und eine `<name>.secrets.json` für die API-Schlüssel. Die Trennung existiert, damit die Config sicher zu committen ist und die Secrets die verschlüsselte Behandlung bekommen, die SOPS ihnen gibt. Der `tale-platform`-Container liest beide beim Boot und beobachtet sie auf Änderungen; den Container neu zu starten ist nicht nötig, um Edits aufzunehmen.
+Ein KI-Anbieter in Tale besteht aus zwei Hälften, die an zwei verschiedenen Orten leben. Der **Connector** — Wire-Format, Endpunkt, Quelle des Modellkatalogs, akzeptierte Authentifizierungsmethoden — kommt mit der Plattform als Datei, die du liest, aber nicht änderst. Die **Zugangsdaten** sind Organisationsdaten und werden in der App unter **Einstellungen > KI-Anbieter** angelegt und rotiert. Diese Seite ist die Operator-Hälfte: was in den mitgelieferten Dateien steht, und der eine Hebel, der wirklich dem Deployment gehört — Anbieter-Schlüssel in Umgebungsvariablen zu halten.
 
-Die Referenz ist das Dateiformat auf Platte und die Reihenfolge der Operationen, wenn du einen Anbieter hinzufügst. Der UI-gesteuerte Flow ("Einstellungen > Anbieter") sitzt auf denselben Dateien; beide erzeugen identische Resultate.
+## Wo die Connectoren liegen
 
-## Die Config-Datei
+Connector-Definitionen sind YAML-Dateien unter `configs/platform/system/providers/`, eine pro Anbieter, benannt nach dessen Slug — `openrouter.yml`, `openai.yml`, `anthropic.yml`, `azure.yml` und so weiter. Diese Dateien gehören zum Plattform-Image und werden mit ihm aktualisiert. Die passenden mitgelieferten Modellkataloge liegen daneben unter `configs/platform/system/models/<slug>.yml`.
 
-`providers/<name>.json` beschreibt die öffentliche Form des Anbieters. Der `displayName` taucht in der UI auf, das `models`-Array nennt alles, was durch diesen Anbieter erreichbar ist, und jedes Modell deklariert seine Tags (`chat`, `vision`, `embedding`, `transcription`, `text-to-speech`).
+<Warning>
 
-```json
-{
-  "displayName": "OpenRouter",
-  "description": "Chat, Vision, Embeddings, Sprache und Bildgenerierung über einen Key.",
-  "baseUrl": "https://openrouter.ai/api/v1",
-  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
-  "defaults": {
-    "transcription": "openai/whisper-1",
-    "text-to-speech": "openai/gpt-4o-mini-tts-2025-12-15"
-  },
-  "models": [
-    {
-      "id": "openai/whisper-1",
-      "displayName": "Whisper v1",
-      "tags": ["transcription"],
-      "transcriptionMode": "json-base64",
-      "cost": { "centsPerAudioMinute": 0.6 }
-    }
-  ]
-}
+Diese Dateien sind schreibgeschützte Eingaben, keine Deployment-Konfiguration. Wer eine davon in einem laufenden Container ändert, verliert die Änderung beim nächsten Upgrade, und eine Überschreibung auf Organisationsebene gibt es nicht. Fehlt ein Anbieter, den du brauchst, im mitgelieferten Satz, ist das eine Änderung an der Plattform und keine an der Konfiguration.
+
+</Warning>
+
+## Was ein Connector deklariert
+
+Ein Connector ist bewusst kurz. Er nennt den Anbieter, den Wire-Dialekt seiner API, den Endpunkt, auf dem er antwortet, die Herkunft seiner Modellliste und die akzeptierten Authentifizierungsmethoden — nichts Organisationsspezifisches und keine Secrets.
+
+<CodeGroup>
+
+```yaml anthropic.yml
+name: anthropic
+displayName: Anthropic
+apiFormat: anthropic
+baseUrl: https://api.anthropic.com
+catalog:
+  source: static
+auth:
+  - method: api-key
+  - method: env
+  - method: subscription-broker
+    constraints:
+      execution: sandbox
+      harness: claude-code
 ```
 
-Die vollständige Menge der Felder lebt in [`builtin-configs/providers/`](https://github.com/tale-project/tale/tree/main/builtin-configs/providers). Der ausgelieferte Default ist eine einzige `openrouter.json`, die Chat, Vision, Embeddings, Transkription, Text-to-Speech und Bildgenerierung abdeckt — ein Key für alles — mit kuratierten Presets für die gängigen Anbieter (Anthropic, OpenAI, Google, xAI, Mistral, Meta, DeepSeek, Qwen, Cohere, Amazon, Perplexity und mehr). Um einen Anbieter direkt statt über OpenRouter aufzurufen, füg eine weitere Datei hinzu (z. B. eine `openai.json`, die auf `https://api.openai.com/v1` zeigt); siehe [Modelle out of the box](/de/platform/models) für den vollen Default-Katalog.
-
-`transcriptionMode` wählt, wie der Request-Body eines `transcription`-Modells geformt wird: `json-base64` (OpenRouters `input_audio`-Envelope) oder, wenn weggelassen, `multipart` — der OpenAI/Whisper-`multipart/form-data`-Upload, den auch vLLM, LocalAI und ein direkter OpenAI-Key erwarten. Setz es passend zum Transkriptions-Endpunkt, auf den du zeigst.
-
-### Modell-Capabilities und Auto-Sync
-
-Jedes Modell kann optionale Metadaten deklarieren, die das komplexitätsbasierte Routing und der Adaptive Reasoning Governor nutzen: `contextWindow`, `maxOutputTokens`, `qualityScore` (0–1), `tier` (`draft`/`standard`/`frontier`), `routingTags` (bevorzugte Domänen), `reasoning` (der Steuer-Knopf — `effort` oder `budgetTokens`) und `promptCaching` (`auto-server` oder `explicit-breakpoints`). Was du weglässt, wird zur Laufzeit aus dem OpenRouter-Katalog ergänzt; was du setzt, gewinnt. Setze `"hidden": true`, um ein Modell aus den Auswahllisten (Chat-Eingabe, Agenten-Erstellung) zu entfernen, es aber für Agents auflösbar zu halten, die es bereits referenzieren — so ziehst du eine abgelöste Version zurück, ohne bestehende Workflows zu brechen.
-
-Diese Felder bleiben auch von selbst aktuell: Einmal pro Woche führt Tale frische OpenRouter-Fakten in die Anbieter-Config jeder Organisation zusammen — fügt neuere Flaggschiff-Versionen hinzu, blendet abgelöste aus und aktualisiert Capability-Werte — und verändert dabei nur die Felder, die du nicht angepasst hast. Schalte das pro Organisation mit dem **Wöchentliche Auto-Synchronisierung**-Schalter auf der Modellkatalog-Karte unter **Einstellungen > Anbieter** aus.
-
-Wenn `maxOutputTokens` nicht gesetzt ist, begrenzt Tale die Ausgabe auf **32'768** Tokens. Setze `0`, um gar keine Begrenzung zu senden. Senke den Wert auf das tatsächliche Limit deines Deployments, falls der Anbieter zu grosse Werte ablehnt (z. B. ein Azure-GPT-4o-Deployment mit `max_tokens is too large`).
-
-### Request-Body-Map
-
-Manche Endpunkte erwarten eine etwas andere Anfrageform als die übliche OpenAI-kompatible. Ein Modell — oder der Anbieter als Standard — kann eine `requestBodyMap` deklarieren, die den finalen Request-Body beim Versand umschreibt:
-
-```json
-{
-  "requestBodyMap": {
-    "rename": { "max_tokens": "max_completion_tokens" },
-    "remove": ["frequency_penalty"]
-  }
-}
+```yaml openrouter.yml
+name: openrouter
+displayName: OpenRouter
+apiFormat: openai
+baseUrl: https://openrouter.ai/api/v1
+catalog:
+  source: openrouter-api
+auth:
+  - method: api-key
+  - method: env
 ```
 
-`rename` benennt einen Feldnamen in einen anderen um (wird zuerst angewendet); `remove` entfernt Felder, die der Endpunkt ablehnt. Eine modell-spezifische `requestBodyMap` überschreibt die auf Anbieter-Ebene bei kollidierenden Schlüsseln. Anders als `providerOptions` erreichen diese Anweisungen den Anbieter nie — sie schreiben den Body direkt um und sind damit der unterstützte Weg, ein reserviertes Feld wie `max_tokens` zu ändern.
+</CodeGroup>
 
-Der klassische Fall ist ein OpenAI-/Azure-**Reasoning**-Deployment (o-Serie, GPT-5), das `max_tokens` ablehnt und `max_completion_tokens` verlangt. Wenn du das Modell als Reasoning-Modell kennzeichnest (den `reasoning`-Knopf setzt), wendet Tale genau diese Umbenennung automatisch an — `requestBodyMap` brauchst du dann nur noch für andere Endpunkt-Eigenheiten.
+`apiFormat` ist der Wire-Dialekt — `openai` oder `anthropic`. `baseUrl` ist der feste Endpunkt; ein Connector, der ihn weglässt, deklariert stattdessen `endpointMode: per-credential`, so wie Azure OpenAI: Jede Azure-Ressource bedient ihren eigenen Endpunkt, also trägt dort jeder Zugangsdaten-Eintrag seine eigene URL. `catalog.source` ist eines von `static` (eine mitgelieferte Datei unter `configs/platform/system/models/`), `openrouter-api`, `models-endpoint` oder `none`. Jeder Eintrag unter `auth` ist eine Methode, die die Zugangsdaten dieses Anbieters nutzen dürfen, und eine Methode kann `constraints` tragen, die sie auf sandboxed Ausführung mit einem benannten Harness festlegen.
 
-## Die Secrets-Datei
+## Umgebungsvariable als Schlüsselquelle
 
-`providers/<name>.secrets.json` ist ein flaches JSON-Objekt mit dem API-Schlüssel unter dem Feldnamen, den der Anbieter erwartet:
+Wenn deine API-Schlüssel bereits in Kubernetes-Secrets, Vault oder einem Cloud-Secret-Manager liegen, müssen die Zugangsdaten das Secret nicht halten. Die Authentifizierungsmethode **Umgebungsvariable** speichert nur den _Namen_ einer Deployment-Variable, und die Plattform liest den Wert zur Aufrufzeit aus der Prozessumgebung. Das ist der von Ops verwaltete Weg: Der Schlüssel landet nie in der Anwendungsdatenbank, und Rotieren ist eine Sache des Deployments statt einer Admin-Aufgabe.
 
-```json
-{
-  "apiKey": "sk-..."
-}
+Der Variablenname ist präfix-geschützt. Er muss mit `TALE_PROVIDER_KEY_` beginnen, und die App hält dieses Präfix im Formular fest, sodass nur das Suffix getippt wird:
+
+```bash
+TALE_PROVIDER_KEY_OPENROUTER=sk-or-...
+TALE_PROVIDER_KEY_OPENAI_PROD=sk-...
 ```
 
-Mit gesetztem `SOPS_AGE_KEY` oder `SOPS_AGE_KEY_FILE` wird diese Datei verschlüsselt auf Platte gespeichert. Mit beiden unset ist sie Klartext mit Dateimodus 0600 — erreich diesen Modus nur auf Platten, die at-rest verschlüsselt sind. Der vollständige Verschlüsselungs-Walkthrough lebt in [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops).
+<Note>
 
-## Umgebungsvariable als Schlüsselquelle {#environment-variable-key-source}
+Die Schranke ist fail-closed: Jeder Name ausserhalb des reservierten Präfixes wird abgelehnt. Genau das verhindert, dass Zugangsdaten ein fremdes Deployment-Geheimnis wie `SOPS_AGE_KEY` oder `BETTER_AUTH_SECRET` benennen und es als Bearer-Token an einen Anbieter-Endpunkt geschickt wird. Namen sind auf 40 Zeichen begrenzt — das Limit der Env-Synchronisierung von der Plattform zu Convex, denn ein längerer Name würde die Backend-Laufzeit nie erreichen.
 
-Liegen deine Secrets schon in Kubernetes Secrets, Vault oder einem Cloud-Secret-Manager, kannst du einen Anbieter auf eine **Umgebungsvariable** zeigen statt auf eine Secrets-Datei. Füg ein `secretsEnv` zur Config-Datei hinzu (es nennt die Variable; der Name selbst ist kein Secret und bleibt darum in der committbaren Config):
+</Note>
 
-```json
-{
-  "displayName": "OpenRouter",
-  "baseUrl": "https://openrouter.ai/api/v1",
-  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
-  "models": [
-    {
-      "id": "openai/gpt-4o",
-      "displayName": "GPT-4o",
-      "tags": ["chat", "vision"],
-      "secretsEnv": "TALE_PROVIDER_KEY_OPENAI_DIRECT"
-    }
-  ]
-}
-```
+Definier die Variable so, dass sowohl der Plattform-Container als auch das Convex-Backend sie lesen können. Die Plattform synchronisiert ihre Umgebung beim Boot zu Convex, damit die dortigen Actions denselben Wert auflösen; eine nach dem Boot hinzugefügte oder geänderte Variable braucht einen Neustart des Plattform-Containers, bevor sie sichtbar wird. Werte werden getrimmt, was dir den Zeilenumbruch am Ende einer gemounteten Secret-Datei und den daraus folgenden `401` erspart.
 
-Zwei Leitplanken gelten:
+## Broker-Secrets aus der Umgebung
 
-- **Reserviertes Präfix (Pflicht).** Der Variablenname muss mit `TALE_PROVIDER_KEY_` beginnen (z. B. `TALE_PROVIDER_KEY_OPENROUTER`). Jeder andere Name wird abgelehnt, sodass eine Config, die eine Variable ohne Präfix nennt, zu keinem Schlüssel auflöst. Das hindert einen Config-Schreib-Akteur daran, `secretsEnv` auf ein fremdes Deployment-Secret (z. B. `SOPS_AGE_KEY`) zu zeigen und es an eine Anbieter-URL senden zu lassen. Die Präfix-Schranke ist fest verdrahtet — es gibt keinen Deployment-Schalter.
-- **Länge.** Der Name muss 40 Zeichen oder kürzer sein — die Plattform synct Umgebungsvariablen zu ihrem Convex-Backend, das Variablennamen bei 40 kappt.
+Zugangsdaten vom Typ **Abo-Broker** müssen sich erst beim Broker ausweisen, bevor sie einen Token-Pool holen können, und dieses Broker-Secret kann ebenfalls vom Deployment kommen. Seine Variablen tragen ein eigenes reserviertes Präfix, `TALE_TOKEN_SOURCE_`, getrennt von den Anbieter-Schlüsseln, damit die beiden Namensräume nicht verwechselt werden können. Es gilt dieselbe fail-closed-Regel: Ein Name ausserhalb des Präfixes wird abgelehnt. Im Formular heisst das Feld **Secret aus Umgebungsvariable**; lässt du es leer, wird das Broker-Secret stattdessen verschlüsselt bei den Zugangsdaten gespeichert.
 
-Auflösungs-Reihenfolge, höchste zuerst: modell-level `secretsEnv` → anbieter-level `secretsEnv` → die Secrets-Datei (`modelKeys[id]`, dann `apiKey`). Jede Stufe wird übersprungen, wenn sie nichts liefert, sodass eine konfigurierte-aber-leere Variable auf die Datei zurückfällt. Env-Werte werden getrimmt (ein nachgestellter Zeilenumbruch aus einem gemounteten Secret ist eine häufige Ursache für `401`s).
+## Was Organisationsdaten sind statt Deployment-Konfiguration
 
-Anders als die Secrets-**Datei** — die der Watcher bei jeder Anfrage neu liest — wird ein Umgebungsvariablen-**Wert** einmal beim Prozessstart gelesen. Ihn zu ändern verlangt einen **Neustart des `tale-platform`-Containers** (er synct Env beim Boot neu zu Convex). Die Plattform synct die Variable automatisch zum Convex-Backend, also nehmen die In-Process-RAG- und Crawler-Actions sie aus demselben Sync auf — es gibt keinen separaten Service neu zu erstellen.
+Zugangsdaten, ihre Namen, ihre erlaubten Modelle, welcher Eintrag der Standard ist und welche aktiv sind — all das sind Organisationsdaten. Angelegt werden sie in der App, sie gehören genau einer Organisation, und es gibt keine Datei auf Platte, die du bearbeitest, um welche anzulegen — auch nicht auf einer selbst gehosteten Instanz.
 
-## Einen Anbieter hinzufügen
+<Tip>
 
-Die Reihenfolge ist wichtig — der Watcher liest die Config-Datei zuerst, um zu wissen, dass der Anbieter existiert, und löst dann das Secret bei der ersten Anfrage auf.
+Diese Trennung ordnet eine Aufgabe am schnellsten ein. Alles zur Frage, _welcher Anbieter existiert und was er kann_, ist ein mitgelieferter Connector; alles zur Frage, _wer ihn mit welchem Schlüssel aufrufen darf_, sind Zugangsdaten in der App. Die einzige Überschneidung ist der Weg über Umgebungsvariablen, bei dem das Deployment das Secret hält und die Zugangsdaten nur dessen Namen.
 
-1. Leg die Config-Datei bei `providers/<name>.json` ab.
-2. Leg die Secrets-Datei bei `providers/<name>.secrets.json` ab (verschlüsselt oder Klartext, je nach deinem SOPS-Modus).
-3. Aktualisiere **Einstellungen > Anbieter** in der UI — der neue Anbieter erscheint innerhalb weniger Sekunden (der Watcher pollt alle 2 s).
-4. Wähle das Default-Modell des neuen Anbieters unter **Einstellungen > Modelle**, damit Agents, die "default" auflösen, dort landen.
-
-Ist die Config-Datei fehlerhaft, loggt die Plattform eine Warnung und überspringt den Anbieter; der Rest bleibt erreichbar.
-
-## Einen Schlüssel austauschen
-
-Editier die Secrets-Datei in-place — der Watcher nimmt die Änderung auf, und die nächste Anfrage an diesen Anbieter nutzt den neuen Schlüssel. Bestehende in-flight-Anfragen halten noch den alten Schlüssel; abbrechen und neu versuchen, um die Re-Auflösung zu erzwingen. (Schlüssel, die aus einer [Umgebungsvariable](#environment-variable-key-source) stammen, sind die Ausnahme: den Wert zu ändern verlangt einen Container-Neustart, nicht nur einen Datei-Edit.)
-
-## Einen Anbieter deaktivieren
-
-Entweder lösch beide Dateien, oder setze `"disabled": true` an der obersten Ebene der Config. Das Deaktivieren hält die Datei für später auf Platte (praktisch, wenn du die Modell-Liste behalten willst, aber das Billing stoppen); das Löschen entfernt sie ganz. Agents, die den Anbieter explizit genannt haben, fangen an, bei der nächsten Anfrage zu scheitern — schalt sie vorher auf einen Fallback um.
+</Tip>
 
 ## Wo das hingehört
 
-Anbieter sind das eine Halb-und-Halb zwischen Server-Config (dieser Seite) und UI (dem **Anbieter**-Bildschirm). Die Schlüssel selbst leben in `providers/*.secrets.json`; das SOPS-Handling lebt in [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops). Die Modell-Level-Defaults, gegen die Agents auflösen, sind unter [Plattform > Modelle](/de/platform/models) dokumentiert.
+Die gesamte Oberfläche eines Operators besteht hier darin, Umgebungsvariablen bereitzustellen und zu wissen, welche Connectoren die Plattform mitbringt; alles andere rund um Anbieter passiert in der App. Die UI-Anleitung — Zugangsdaten anlegen, einen Standard wählen, erlaubte Modelle einschränken, Kataloge aktualisieren — ist [KI-Anbieter](/de/platform/admin/providers), was deine Leute am Ende sehen, steht im [Modellkatalog](/de/platform/models), und die Variablen selbst stehen neben dem Rest der Deployment-Konfiguration in der [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference).

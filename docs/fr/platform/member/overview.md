@@ -11,7 +11,7 @@ Cette vue d’ensemble nomme ce qu’un Membre peut faire et pointe vers les pag
 
 La surface Membre est volontairement étroite. Les quatre seaux sont :
 
-- **Chat** — choisir un agent (ou aucun), envoyer un message, lire la réponse. Le chat expose la bibliothèque de prompts, les pièces jointes, le mode vocal, le mode arène pour la comparaison côte à côte, et le panneau Canevas quand une réponse produit plus que le chat peut tenir en ligne.
+- **Chat** — choisir un agent (ou aucun), envoyer un message, lire la réponse. Le chat expose la bibliothèque de skills, les pièces jointes, le mode vocal, le mode arène pour la comparaison côte à côte, et le panneau Canevas quand une réponse produit plus que le chat peut tenir en ligne.
 - **Connaissance** — parcourir les documents, contacts, produits, fournisseurs, sites web que l’org a chargés. Lecture seule pour les Membres ; la curation arrive du côté Éditeur.
 - **Boîte de réception** — répondre dans l’onglet **Boîte de réception** qu’ajoute une automatisation d’e-mail installée. Les Membres répondent quand un agent leur rend une conversation ; installer l’automatisation elle-même est une action d’admin.
 - **Approbations** — lire les cartes d’approbation routées vers toi. Clique sur Approuver, Rejeter, ou Demander des changements ; laisse un commentaire si la règle le demande.

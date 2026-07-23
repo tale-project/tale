@@ -27,7 +27,7 @@ A resource without a team scope stays visible to everyone whose role allows it. 
 
 ## Creating a team
 
-Open **Settings > Teams** and click **Create team**. Give the team a name (`Support`, `Sales`, `Operations`) and an optional description; the name appears everywhere the team shows up — pickers, badges, the prompt library tabs, the integration allowed-teams field. Saving creates an empty team you can fill with members from the team's row.
+Open **Settings > Teams** and click **Create team**. Give the team a name (`Support`, `Sales`, `Operations`) and an optional description; the name appears everywhere the team shows up — pickers, badges, team-scoped document access, and the project assignment field. Saving creates an empty team you can fill with members from the team's row.
 
 The team's row carries three sub-views: **Members** (who is in the team), **Resources** (what the team owns), and **Settings** (the team's name, description, and lifecycle). The Resources view is the easiest way to see what a team can reach into; it doubles as the audit surface when someone asks why a team can see a particular agent.
 
@@ -47,4 +47,4 @@ Click the team's row, then **Delete team**. Deletion is hard-stop — the team i
 
 ## Where this fits
 
-Teams are the scoping layer right below roles — roles say _what_, teams say _where_. The natural next read depends on the resource you are scoping: [Prompt library](/platform/workspace/prompt-library) for how prompts attach to teams, [Integrations (admin view)](/platform/admin/integrations) for the allowed-teams lever, and [Projects](/platform/projects/overview) for project-to-team assignment.
+Teams are the scoping layer right below roles — roles say _what_, teams say _where_. The natural next read depends on the resource you are scoping: [Skill library](/platform/workspace/skills) for how a shared instruction reaches everyone, [Integrations (admin view)](/platform/admin/integrations) for the credentials a team's automations call, and [Projects](/platform/projects/overview) for project-to-team assignment.

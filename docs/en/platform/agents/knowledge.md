@@ -1,43 +1,44 @@
 ---
 title: Agent knowledge
-description: The agent's Knowledge tab — retrieval mode, team and organization document scopes, and agent-only uploads, and how they differ from tools and attachments.
+description: The agent's Knowledge tab — one scope deciding which corpus its retrieval may read, and how that differs from tools and attachments.
 ---
 
-Knowledge is what an agent can retrieve and cite at reply time. Without it the agent is generic; with it the agent answers from your documents and cites where the answer came from. The agent's **Knowledge** tab controls two things: _how_ the agent retrieves (the retrieval mode) and _what_ is in scope (which documents).
+Knowledge is what an agent can retrieve and cite at reply time. Without it the agent is generic; with it the agent answers from your organization's material and shows where the answer came from. The agent's **Knowledge** tab holds a single decision: which corpus this agent's retrieval is allowed to read.
 
-<Frame caption="The Knowledge tab — retrieval mode above, the document scopes and what each one currently holds below.">
+That decision is smaller than it used to need to be, because retrieval itself is no longer a mode you configure. An agent searches when it judges that it needs to, and nothing is injected into a reply the agent did not go looking for.
 
-![The agent editor's Knowledge tab with Tool picked among the four retrieval modes, the team and organization document toggles both on, a team-documents box reading that no documents were found for this team, and the organization documents list where every file carries an Indexed badge.](/images/platform/agent-editor-knowledge.webp)
+## Pick a scope
 
-</Frame>
+Four values, one setting:
 
-## Pick a retrieval mode
+- **Documents** — the organization's own uploads, and nothing else.
+- **Web** — the pages fetched on the organization's behalf, and nothing else.
+- **All** — both corpora, fused into one ranked result. This is what an agent gets when nobody narrows it.
+- **None** — the agent is offered no retrieval at all. Reach for it when the agent's job is reasoning or drafting and citations would only be noise.
 
-Four modes trade cost against coverage. **Tool** lets the agent search on demand — retrieval runs only when the model decides it needs it. **Context** injects relevant knowledge into every response, whether the model would have asked or not. **Both** combines them, and **Off** disables the knowledge base for this agent entirely. Start with **Tool**; move to **Context** when the agent's whole job is answering from the documents and you want retrieval on every reply.
+Every corpus belongs to your organization, so widening the scope never crosses into another tenant's material. It only decides how much of your own the agent is pointed at.
 
-## Scope the documents
+## Narrow it on purpose
 
-The knowledge base searches documents uploaded to your organization — the same library you manage under [Documents](/platform/knowledge/documents). Two switches set the scope: **Include team documents** covers the agent's assigned team, and **Include organization documents** covers documents not assigned to any team. The tab lists what each scope currently contains, with the index state per document — only **Indexed** documents are retrievable.
+Everything in scope competes for relevance on every question, which is why a narrower scope usually answers better than a wider one. An agent pointed at the documents your team actually maintains finds the right passage; the same agent pointed at every crawled page as well has to beat the noise first.
 
-## Give the agent its own documents
-
-**Agent documents** are uploads only this agent can access — click **Upload documents** and the files join this agent's retrieval scope without entering the shared library. Reach for them when the source belongs to the agent's job rather than the org: a triage playbook, a product-specific FAQ.
+Set **Documents** when the truth lives in files you control and a stale web page would be a liability. Set **Web** when the agent's job is about what is published rather than what is filed. Set **All** when both genuinely matter and you would rather have the recall. The material itself — what is uploaded, what is crawled, and what is indexed — is managed under [Documents](/platform/knowledge/documents) and [Websites](/platform/knowledge/crawling), not here; this tab only points the agent at it.
 
 ## How retrieval lands in the reply
 
-When the agent retrieves, citations attach to the sentences they support — hovering shows the source, clicking opens it. Everything retrievable competes for relevance on every question, so keep the scope tight: a broad scope makes retrieval noisier, not smarter.
+When the agent retrieves, citations attach to the sentences they support — hovering shows the source, clicking opens it. A document that has not finished indexing is not retrievable yet, so an agent that seems to be ignoring an obvious source is often waiting on the index rather than misconfigured.
 
 ## When to reach for it
 
-Structured records and live sources are tools, not knowledge — and files for a single conversation are attachments. The boundaries:
+Structured records and live systems are tools, not knowledge, and a file that matters for one conversation is an attachment. The boundaries:
 
 | Use…                                                | When the agent needs…                                  |
 | --------------------------------------------------- | ------------------------------------------------------ |
-| Knowledge (this tab)                                | To search and cite uploaded documents on every chat    |
+| Knowledge (this tab)                                | To search and cite the organization's material         |
 | [Tools](/platform/agents/tools)                     | Contacts, products, vendors, websites, or live systems |
 | [Attachments](/platform/chat/attachments)           | A file that matters for one chat only                  |
 | [Project agents](/platform/projects/project-agents) | Knowledge scoped to one Project                        |
 
 ## Where this fits
 
-Agent knowledge is the answer to "this agent should answer from these documents". The wider [Knowledge](/platform/knowledge/overview) section is where the sources live and get indexed; this tab wires one agent into a scope of them. For the end-to-end build — upload, scope, ask, verify the citations — walk [Agent with knowledge](/tutorials/editor/agent-with-knowledge).
+Agent knowledge answers one question — should this agent read the organization's documents, its crawled web, both, or neither. The wider [Knowledge](/platform/knowledge/overview) section is where those sources live and get indexed; this tab wires one agent into a slice of them. For the end-to-end build — upload, scope, ask, verify the citations — walk [Agent with knowledge](/tutorials/editor/agent-with-knowledge).

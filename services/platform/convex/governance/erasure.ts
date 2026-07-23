@@ -50,6 +50,7 @@
  *   - Receipt UI (admin "view erasure history" panel).
  */
 
+import { makeFunctionReference } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
@@ -61,6 +62,11 @@ import {
 } from '../_generated/server';
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
+import type {
+  DeleteDocumentArgs,
+  DeleteDocumentResult,
+} from '../legacy/knowledge_delete';
+import { cascadeDeleteThreadChildren } from '../legacy/thread_cascade';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
@@ -75,8 +81,6 @@ import {
 } from '../lib/storage/blob_delete';
 import { resolveActorAndSubject } from '../notifications/actor_name';
 import { writeNotificationForOrgs } from '../notifications/helpers';
-import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
-import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { getDsarPolicy } from './dsar_policy';
 import { eraseDocumentBlobs } from './erase_document_blobs';
 import {
@@ -84,6 +88,22 @@ import {
   ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
 } from './erasure_constants';
 import { loadActiveHolds } from './legal_hold';
+
+// `convex/legacy/knowledge_delete.ts` needs `'use node'` (the `postgres`
+// package); this file is a V8 mutation/action file and can't import it
+// directly across that runtime boundary. Its generated `internal.*`
+// reference also isn't available yet — codegen hasn't run since the
+// ripout removed `convex/workflow_engine/` out from under it — so
+// `internal.legacy.knowledge_delete.deleteDocument`
+// would be a hard "Property does not exist" compile error today. Build the
+// reference by hand instead (the documented `convex/server` escape hatch
+// for exactly this) against the module's type-only exports, then invoke it
+// with `ctx.runAction` like the old `deleteDocumentById` wrapper did.
+const deleteKnowledgeDocument = makeFunctionReference<
+  'action',
+  DeleteDocumentArgs,
+  DeleteDocumentResult
+>('legacy/knowledge_delete:deleteDocument');
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -2016,7 +2036,7 @@ export const processErasureRequest = internalAction({
         for (const fileId of docResult.fileIds) {
           try {
             // In-process delete (replaces external RAG DELETE); idempotent.
-            const result = await deleteDocumentById(ctx, {
+            const result = await ctx.runAction(deleteKnowledgeDocument, {
               orgSlug: ragOrgSlug,
               fileId,
             });
@@ -2024,7 +2044,7 @@ export const processErasureRequest = internalAction({
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG delete failed for fileId=${fileId}: ${result.error ?? result.message}`,
+                `[gdprErasure] RAG delete failed for fileId=${fileId}: ${result.message}`,
               );
             }
           } catch (error) {
@@ -2107,7 +2127,7 @@ export const processErasureRequest = internalAction({
         for (const storageId of perCategory.fileMetadata.ragPurgeStorageIds ??
           []) {
           try {
-            const result = await deleteDocumentById(ctx, {
+            const result = await ctx.runAction(deleteKnowledgeDocument, {
               orgSlug: ragOrgSlug,
               fileId: storageId,
             });
@@ -2115,7 +2135,7 @@ export const processErasureRequest = internalAction({
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG delete failed for chat-upload storageId=${storageId}: ${result.error ?? result.message}`,
+                `[gdprErasure] RAG delete failed for chat-upload storageId=${storageId}: ${result.message}`,
               );
             }
           } catch (error) {
@@ -2144,7 +2164,7 @@ export const processErasureRequest = internalAction({
         for (const storageId of perCategory.videoLinks.ragPurgeStorageIds ??
           []) {
           try {
-            const result = await deleteDocumentById(ctx, {
+            const result = await ctx.runAction(deleteKnowledgeDocument, {
               orgSlug: ragOrgSlug,
               fileId: storageId,
             });
@@ -2152,7 +2172,7 @@ export const processErasureRequest = internalAction({
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG delete failed for video-link storageId=${storageId}: ${result.error ?? result.message}`,
+                `[gdprErasure] RAG delete failed for video-link storageId=${storageId}: ${result.message}`,
               );
             }
           } catch (error) {

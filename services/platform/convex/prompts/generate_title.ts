@@ -1,38 +1,41 @@
-'use node';
-
 /**
  * AI-powered title generation for saved prompts.
  *
- * Wraps the LLM call in a 10-second timeout. Callers should fall back to a
- * generated PROMPT-XXXXX id if this throws or returns an empty title.
+ * The real implementation ran a short `generateText` call
+ * through an Agent SDK instance — model resolution
+ * (`convex/providers/failover`), the prompt registry (`lib/prompts/registry`),
+ * and provider-options building (`lib/provider_options`) all moved/broke with
+ * the chat pipeline rewrite. Callers already tolerate a `null` result (the
+ * original contract: "fall back to a generated PROMPT-XXXXX id if this
+ * throws or returns an empty title" — see `prompts/actions.ts`'s
+ * `aiTitle?.trim() || generateFallbackTitle()`), but a content-derived title
+ * is far more useful than an opaque id, so this deterministically returns the
+ * first 40 characters of the prompt content instead.
  */
 
-import type { LanguageModelV3 } from '@ai-sdk/provider';
-import { Agent } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { components } from '../_generated/api';
 import { internalAction } from '../_generated/server';
-import { renderPrompt } from '../lib/prompts/registry';
-import { buildCallProviderOptions } from '../lib/provider_options';
-import { resolveLanguageModelWithFallback } from '../providers/failover';
 
-const TITLE_TIMEOUT_MS = 10_000;
+const FALLBACK_TITLE_MAX_LENGTH = 40;
 
-const TITLE_INSTRUCTIONS = renderPrompt('title.saved_prompt');
-
-function createTitleGenerator(languageModel: LanguageModelV3): Agent {
-  return new Agent(components.agent, {
-    name: 'prompt-title-generator',
-    languageModel,
-    instructions: TITLE_INSTRUCTIONS,
-    callSettings: { maxOutputTokens: 64 },
-  });
+/**
+ * Deterministic fallback title: the first `FALLBACK_TITLE_MAX_LENGTH`
+ * characters of the (whitespace-collapsed) content, ellipsized when
+ * truncated. Empty input yields `''` — callers already treat an empty/falsy
+ * title as "generate your own fallback" (see file header).
+ */
+function fallbackTitleFromContent(content: string): string {
+  const singleLine = content.trim().replace(/\s+/g, ' ');
+  if (singleLine.length === 0) return '';
+  return singleLine.length > FALLBACK_TITLE_MAX_LENGTH
+    ? `${singleLine.slice(0, FALLBACK_TITLE_MAX_LENGTH).trimEnd()}…`
+    : singleLine;
 }
 
 /**
- * Race the title generation against a timeout. Returns null on timeout or
- * error so the caller can apply the PROMPT-XXXXX fallback.
+ * Offline — returns a deterministic content-derived title
+ * instead of calling the (gone) AI pipeline. See file header.
  */
 export const generatePromptTitle = internalAction({
   args: {
@@ -40,45 +43,11 @@ export const generatePromptTitle = internalAction({
     organizationId: v.string(),
   },
   returns: v.union(v.string(), v.null()),
-  handler: async (ctx, args): Promise<string | null> => {
-    try {
-      const titlePromise = (async (): Promise<string | null> => {
-        const { languageModel, modelData } =
-          await resolveLanguageModelWithFallback(ctx, {
-            tag: 'chat',
-            organizationId: args.organizationId,
-          });
-
-        const generator = createTitleGenerator(languageModel);
-        const callProviderOptions = buildCallProviderOptions(modelData);
-        const userId = `prompt-title-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 9)}`;
-
-        const result = await generator.generateText(
-          ctx,
-          { userId },
-          {
-            prompt: args.content.slice(0, 4000),
-            ...(callProviderOptions
-              ? { providerOptions: callProviderOptions }
-              : {}),
-          },
-          { storageOptions: { saveMessages: 'none' } },
-        );
-
-        const text = (result.text ?? '').trim();
-        return text.length > 0 ? text.slice(0, 120) : null;
-      })();
-
-      const timeoutPromise = new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), TITLE_TIMEOUT_MS),
-      );
-
-      return await Promise.race([titlePromise, timeoutPromise]);
-    } catch (error) {
-      console.warn('[generatePromptTitle] AI generation failed:', error);
-      return null;
-    }
+  handler: async (_ctx, args): Promise<string | null> => {
+    const title = fallbackTitleFromContent(args.content);
+    console.debug(
+      '[generatePromptTitle] AI title generation is offline while the platform AI backend is rewritten; using a content-derived fallback title',
+    );
+    return title.length > 0 ? title : null;
   },
 });

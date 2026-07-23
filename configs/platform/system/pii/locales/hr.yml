@@ -1,0 +1,77 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: hr
+name: Croatian
+scripts:
+  - latn
+countries:
+  - HR
+phoneContextKeywords:
+  - telefon
+  - mobitel
+  - broj
+  - tel.
+  - tel
+cvcContextKeywords:
+  - sigurnosni kod
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - inverted
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: \d{5}
+  requireUppercase: true
+  streetKeywordsInverted:
+    - ulica
+    - ul.
+    - trg
+    - aveniju
+  poBoxKeywords:
+    - P.P.
+    - Poštanski pretinac
+  floorKeywords:
+    - kat
+    - stan
+  countryNames:
+    - Hrvatska
+    - Croatia
+    - HR
+  countryPostcodePrefixes: []
+nationalIds: []
+dateOfBirth:
+  monthsLong:
+    - siječnja
+    - veljače
+    - ožujka
+    - travnja
+    - svibnja
+    - lipnja
+    - srpnja
+    - kolovoza
+    - rujna
+    - listopada
+    - studenoga
+    - prosinca
+  monthsShort:
+    - sij.
+    - velj.
+    - ožu.
+    - tra.
+    - svi.
+    - lip.
+    - srp.
+    - kol.
+    - ruj.
+    - lis.
+    - stu.
+    - pro.
+  contextKeywords:
+    - rođen
+    - rođena
+    - datum rođenja
+    - rođ.

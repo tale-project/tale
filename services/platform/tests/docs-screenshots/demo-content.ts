@@ -161,7 +161,7 @@ export const DEMO_PROJECT_FILES: readonly DemoDocument[] = [
 
 interface DemoDiscussion {
   readonly title: string;
-  /** Category key — `discussions.categories.<key>` in messages/en.json. */
+  /** Category key — `discussions.categories.<key>` in messages/en.yml. */
   readonly category: string;
   readonly body: string;
 }

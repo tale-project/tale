@@ -3,7 +3,7 @@
 /**
  * Governance file I/O actions — per organization.
  *
- * The source of truth for governance policies is the per-org JSON tree at
+ * The source of truth for governance policies is the per-org config tree at
  * `$TALE_CONFIG_DIR/<orgSlug>/governance/`. V8 code can't read the filesystem,
  * so writes re-sync the generic `configCache` mirror (domain `'governance'`,
  * via `lib/config_cache/actions.ts::syncConfigDomainFromFiles`) that
@@ -12,6 +12,12 @@
  * This file holds the admin-gated WRITE actions (atomic write + history
  * snapshot + audit log + re-sync), modeled on `branding/file_actions.ts`. The
  * file→cache READ sync is the generic `lib/config_cache` machinery.
+ *
+ * Writes emit the canonical `.yml` form and then DELETE the `.json` sibling:
+ * readers prefer `.yml`, so a stale `.json` left behind would silently shadow
+ * nothing today but would resurrect an outdated policy if the `.yml` were
+ * ever removed by hand. Superseding it on every successful write keeps
+ * exactly one authoritative file per policy.
  */
 
 import { mkdir } from 'node:fs/promises';
@@ -35,13 +41,15 @@ import {
   generateHistoryTimestamp,
   pruneHistory,
   readFileSafe,
+  removeFileSafe,
 } from '../lib/file_io';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   MAX_HISTORY_ENTRIES,
   resolveHistoryDir,
   resolvePolicyFilePath,
-  serializePolicyJson,
+  resolvePolicyYamlFilePath,
+  serializePolicyYaml,
 } from './file_utils';
 
 /** Policy types with bespoke write actions (grace windows / bounds) that the
@@ -62,6 +70,11 @@ function rotationDays(config: unknown): number {
  * `saveGovernancePolicy` and the bespoke retention/DSAR write actions. Does NOT
  * authenticate or audit — callers own those (they differ per policy).
  * `config` must already be schema-validated/normalized by the caller.
+ *
+ * Persists the canonical `.yml` and, only after that write succeeded,
+ * deletes the superseded `.json` sibling (pre-conversion trees still carry
+ * one). The history snapshot captures whichever format was current, under
+ * its own extension, so a restore-by-hand stays a plain copy.
  */
 async function writePolicyFileAndSync(
   ctx: ActionCtx,
@@ -70,18 +83,24 @@ async function writePolicyFileAndSync(
   policyType: FilePolicyType,
   config: unknown,
 ): Promise<void> {
-  const filePath = resolvePolicyFilePath(orgSlug, policyType);
-  const currentContent = await readFileSafe(filePath);
+  const yamlPath = resolvePolicyYamlFilePath(orgSlug, policyType);
+  const jsonPath = resolvePolicyFilePath(orgSlug, policyType);
+  const currentYaml = await readFileSafe(yamlPath);
+  const currentContent = currentYaml ?? (await readFileSafe(jsonPath));
   if (currentContent) {
     const historyDir = resolveHistoryDir(orgSlug, policyType);
     await mkdir(historyDir, { recursive: true });
     await atomicWrite(
-      path.join(historyDir, `${generateHistoryTimestamp()}.json`),
+      path.join(
+        historyDir,
+        `${generateHistoryTimestamp()}.${currentYaml ? 'yml' : 'json'}`,
+      ),
       currentContent,
     );
     await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
   }
-  await atomicWrite(filePath, serializePolicyJson(policyType, config));
+  await atomicWrite(yamlPath, serializePolicyYaml(policyType, config));
+  await removeFileSafe(jsonPath);
   // Mirror the just-written files into the generic `configCache` (domain
   // 'governance') so V8 readers observe the change immediately.
   await ctx.runAction(

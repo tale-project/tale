@@ -1,7 +1,3 @@
-import { useMemo } from 'react';
-
-import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
-import { useRequiredIntegrations } from '@/app/features/automations/hooks/use-required-integrations';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -9,10 +5,7 @@ import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import {
-  type EmailIntegrationOption,
-  resolvedEmailOption,
-} from '../lib/email-integrations';
+import { type EmailIntegrationOption } from '../lib/email-integrations';
 
 export type Conversation = ConvexItemOf<
   typeof api.conversations.queries.listConversations
@@ -94,51 +87,22 @@ export function useComposeContactName(
 }
 
 /**
- * The inboxes the compose dialog can send through — exactly the Inbox's own
- * connected providers, so compose can never disagree with the page it lives on
- * (reaching the Inbox already requires an installed email automation whose
- * provider is connected). Derived from the installed inbox automations'
- * `requiredIntegrations[0]` (the provider, as the channel filter reads it),
- * resolved through {@link useRequiredIntegrations} — which merges the file
- * config (title, type, connectionConfig) with the credential and reports the
- * authoritative `connected` (`isActive && status === 'active'`) status.
+ * The inboxes the compose dialog can send through. These were derived from
+ * the installed inbox automations' `requiredIntegrations` merged with the
+ * integration credentials — both live in the automations/integrations
+ * backend, which is offline while it is rebuilt. Until then no send-capable
+ * inbox can be resolved, so compose degrades to its "no connected mailbox"
+ * empty state while existing conversations stay readable.
  */
-export function useEmailIntegrations(organizationId: string): {
+export function useEmailIntegrations(_organizationId: string): {
   emailIntegrations: EmailIntegrationOption[];
   isLoading: boolean;
 } {
-  const { inboxAutomations, isLoading: inboxLoading } =
-    useInboxAvailability(organizationId);
-
-  const providerSlugs = useMemo(
-    () => [
-      ...new Set(
-        inboxAutomations
-          .map((automation) => automation.requiredIntegrations[0])
-          .filter((slug): slug is string => Boolean(slug)),
-      ),
-    ],
-    [inboxAutomations],
-  );
-
-  const { required, isLoading: requiredLoading } = useRequiredIntegrations(
-    organizationId,
-    providerSlugs,
-  );
-
-  const emailIntegrations = useMemo(
-    () =>
-      required
-        .filter((r) => r.connected)
-        .map((r) => resolvedEmailOption(r.slug, r.integration)),
-    [required],
-  );
-
-  return {
-    emailIntegrations,
-    isLoading: inboxLoading || requiredLoading,
-  };
+  return { emailIntegrations: EMPTY_EMAIL_INTEGRATIONS, isLoading: false };
 }
+
+// Stable identity so consumers' memos don't re-run every render.
+const EMPTY_EMAIL_INTEGRATIONS: EmailIntegrationOption[] = [];
 
 export function useConversationWithMessages(conversationId: string | null) {
   const organizationId = useOrganizationId();

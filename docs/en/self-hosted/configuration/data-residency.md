@@ -9,13 +9,13 @@ This page covers what can be relocated, the one prerequisite that bites (ParadeD
 
 ## Enabling editing
 
-Viewing the page is open to any organization owner or admin, but **editing** — repointing a data store, saving secrets, running a connection test, or applying a restart — is restricted to a named allowlist of operators. List their sign-in emails (comma-separated) in `.env` and restart:
+**Settings > Data residency** is one page with two kinds of section: the deployment-wide stores every organization shares, and the stores a single organization brings for itself. Each section renders read-only or editable depending on what the reader may change, and the page says which state you are in. Viewing is open to any organization owner or admin; **editing the deployment-wide stores** — repointing a data store, saving secrets, running a connection test, or applying a restart — is restricted to a named allowlist of operators. List their sign-in emails (comma-separated) in `.env` and restart:
 
 ```bash
 TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-With the allowlist empty or unset, **Settings > Data residency** still shows the current configuration to administrators, but read-only — Save, Test, and Apply & restart refuse for everyone. Only a signed-in admin whose email is on the list gets an editable page; the page tells you which email to add. The entrypoints always consume the config file regardless of the allowlist, so an operator who prefers to hand-edit the file on disk can do so without naming any UI editors.
+With the allowlist empty or unset, the deployment sections still show the current configuration to administrators, but read-only — Save, Test, and Apply & restart refuse for everyone. Only a signed-in admin whose email is on the list gets those sections editable; the page tells you which email to add. The entrypoints always consume the config file regardless of the allowlist, so an operator who prefers to hand-edit the file on disk can do so without naming any UI editors.
 
 ## What you can relocate
 
@@ -46,7 +46,7 @@ The same ParadeDB requirement applies. The org validates its candidate database 
 
 This path is fallback-safe. An organization with no `connection.json` keeps using the deployment-default `knowledge-db` exactly as before, so the feature changes nothing for orgs that don't opt in. Two organizations pointed at the same database share one connection pool, and — unlike the deployment-wide stores — a per-org change needs no container restart: the next request for that org routes to its own database.
 
-An organization owner or admin can also manage this connection from the UI: **Settings > Organization data residency** reads and writes exactly these files, with the same connection test before switching. The JSON files on disk stay the source of truth — an operator who prefers to edit them by hand needs no UI step.
+An organization owner or admin can also manage this connection from the UI: the per-organization sections of **Settings > Data residency** read and write exactly these files, with the same connection test before switching. Those sections stay editable for an org owner or admin whether or not the operator allowlist names them, because the files they touch belong to the organization rather than the deployment. The JSON files on disk stay the source of truth — an operator who prefers to edit them by hand needs no UI step.
 
 ## Per-organization object storage
 
@@ -59,7 +59,7 @@ The connection lives next to the knowledge one, under the organization's config 
 
 Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are in Convex storage — mixed references are supported, so you can switch at any time and relocate the older files afterward with the blob backfill below. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
 
-Org admins can manage this connection from **Settings > Organization data residency** too; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
+Org admins can manage this connection from the same per-organization sections of **Settings > Data residency**; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
 
 > **Allow the app's origin in the bucket's CORS policy.** Uploads and downloads run directly between the browser and the bucket via presigned URLs, so the bucket must accept cross-origin requests from your deployment's URL — allow that origin with the methods `GET`, `PUT`, and `HEAD` and all request headers (Cloudflare R2: the bucket's **Settings > CORS Policy**; AWS S3 and MinIO: the bucket's CORS configuration). The in-app connection test runs from the server, not the browser, so a missing CORS policy surfaces only later, as a failed upload.
 

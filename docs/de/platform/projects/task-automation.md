@@ -38,15 +38,15 @@ Org-weite Deckel (Lauf-Parallelität, Läufe pro Aufgabe und Stunde) sind feste 
 
 ## Den richtigen Bearbeiter wählen
 
-Nicht jede Aufgabe gehört auf einen Coding-Agenten. Als Faustregel:
+Nicht jede Aufgabe gehört auf einen Sandbox-Agenten. Als Faustregel:
 
-| Aufgabenform                                                                          | Zuweisen an                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Recherche, Texte, Zusammenfassungen, persönliche Liefergegenstände                    | Eine **Person** — schalte die Sichtung unzugewiesener Aufgaben in persönlichen Projekten ab, damit Agents sie nicht automatisch übernehmen                                                                                                                         |
-| Allgemeine Automatisierung mit Plattform-Tools (Kommentare, Workflows, Integrationen) | Einen **Agent** (Plattform-Tool-Schleife)                                                                                                                                                                                                                          |
-| Repository-Arbeit — Bugs, Features, Refactorings, PRs                                 | Einen **Coding-Agenten** mit dem passenden Dispatch: tale-daemon (`runtime`) für Git-Arbeitsbereiche, Durable-Sandbox wo konfiguriert — oder akzeptiere, dass Sandbox-only-Coding-Agenten auf dem Board die Plattform-Schleife nutzen, bis du diese Felder ergänzt |
+| Aufgabenform                                                                          | Zuweisen an                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recherche, Texte, Zusammenfassungen, persönliche Liefergegenstände                    | Eine **Person** — schalte die Sichtung unzugewiesener Aufgaben in persönlichen Projekten ab, damit Agents sie nicht automatisch übernehmen                                                                                                                  |
+| Allgemeine Automatisierung mit Plattform-Tools (Kommentare, Workflows, Integrationen) | Einen **Agent** (Plattform-Tool-Schleife)                                                                                                                                                                                                                   |
+| Repository-Arbeit — Bugs, Features, Refactorings, PRs                                 | Einen **Sandbox-Agenten** mit dem passenden Dispatch: tale-daemon (`runtime`) für Git-Arbeitsbereiche, Durable-Sandbox wo konfiguriert — oder akzeptiere, dass Sandbox-only-Agents auf dem Board die Plattform-Schleife nutzen, bis du diese Felder ergänzt |
 
-Die Bearbeiter-Auswahl gruppiert **Agents** und **Coding-Agenten** getrennt und zeigt zu jedem Coding-Agenten einen einzeiligen Dispatch-Hinweis. Bild-Agenten tauchen in der Aufgaben-Bearbeiterliste nicht auf.
+Die Bearbeiter-Auswahl gruppiert **Agents** und **Sandbox-Agents** getrennt und zeigt zu jedem Sandbox-Agenten einen einzeiligen Dispatch-Hinweis.
 
 ## Der Notausschalter
 

@@ -189,17 +189,27 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
   );
 
   // 0.3.4/03 dropped the workforce policy file; 0.2.85/01 exported the DB
-  // policies into governance/; 0.2.87/01 wrote the unified SSO connection.
+  // policies into governance/; 0.2.87/01 wrote the unified SSO connection;
+  // 0.4.0/01 then converted every known governance file to YAML, so at the
+  // frontier the connection lives as `.yml` with no `.json` original — and
+  // no converted-format `.json` policy file survives at all.
   expect(
     await exists(path.join(root, alpha, 'governance', 'agent-workforce.json')),
   ).toBe(false);
   const governanceFiles = await readdir(path.join(root, alpha, 'governance'));
   expect(governanceFiles.length).toBeGreaterThan(0);
   expect(
+    governanceFiles.filter((f) => f.endsWith('.json')),
+    'post-conversion governance dir still holds .json policy files',
+  ).toEqual([]);
+  expect(
+    await exists(path.join(root, alpha, 'governance', 'sso', 'connection.yml')),
+  ).toBe(true);
+  expect(
     await exists(
       path.join(root, alpha, 'governance', 'sso', 'connection.json'),
     ),
-  ).toBe(true);
+  ).toBe(false);
 
   // 0.3.4/06 removed the retired workflow file; the survivor then LEFT the
   // workflows tree with the 0.3.4/33-43 cutover — at the frontier its
@@ -325,10 +335,16 @@ describe('migration chain (0.2.84 → 0.3.4 → 0.2.84)', () => {
       //    backfilled rows), so the contactId FKs embedded by 0.3.4/24+25
       //    differ per cycle. Resolution is asserted separately below.
       //  - 0.3.4/12 stamps Date.now() on the subscription row it creates.
+      //  - 0.4.0/02 re-encrypts the file-sourced provider secrets on every
+      //    up (AES-GCM mints a fresh nonce per encryption) and stamps
+      //    Date.now(); the non-secret projection (name, method, env name,
+      //    masked preview, default flag, marker) still digest-compares, and
+      //    plaintext round-tripping is locked by the migration's own test.
       const remintExemptions = {
         conversations: ['contactId'],
         supportCases: ['contactId'],
         wfEventSubscriptions: ['createdAt'],
+        providerCredentials: ['encryptedData', 'createdAt', 'updatedAt'],
       } as const;
       const convergenceDigest = (): Promise<WorldDigest> =>
         digestWorld(worldTables(), collectVia(world.t), root, {

@@ -50,6 +50,20 @@ export const baselineTables: string[] = [
   'userNotifications', // the 0.2.84-valid task_assigned survivor
   'integrationCredentials', // 0.3.4/02 reads (inactive row → install no-op)
   'messageMetadata', // 0.3.7/01 backfills organizationId from threadMetadata
+  'reasoningProfiles', // 0.4.0/03 drains (born 0.2.79)
+  'modelCapabilityCache', // 0.4.0/04 drains (born 0.2.84)
+  'modelCatalogSync', // 0.4.0/05 drains (born 0.2.84)
+  'autoRouteCache', // 0.4.0/06 drains (born ≤0.2.84)
+  'mcpServers', // 0.4.0/07 drains (born ≤0.2.84)
+  'skillUploadClaims', // 0.4.0/08 drains (born ≤0.2.84)
+  'skillUploadIntents', // 0.4.0/09 drains (born ≤0.2.84)
+  'slackEventDedup', // 0.4.0/10 drains (born ≤0.2.84)
+  'slackInstallations', // 0.4.0/11 drains (born ≤0.2.84)
+  'ttsGcCursor', // 0.4.0/12 drains (born ≤0.2.84)
+  'wfApiKeys', // 0.4.0/13 drains (born ≤0.2.84)
+  'wfWebhooks', // 0.4.0/14 drains (born ≤0.2.84)
+  'workflowProcessingRecords', // 0.4.0/15 drains (born ≤0.2.84)
+  'promptTemplates', // 0.4.0/30 exports to skills/<slug>/SKILL.md (born ≤0.2.84)
 ];
 
 /**
@@ -73,7 +87,19 @@ export const baselineDomains: string[] = [
   'governance', // 0.2.85/01, 0.2.87/02+03 write INTO it; 0.3.4/03 deletes from it
   'integrations', // empty ballast (no chain migration touches it)
   'prompts', // ballast (no chain migration touches the prompts domain)
-  'providers', // 0.2.98/01 appends the Fable catalog entries
+  'providers', // 0.2.98/01 appends the Fable catalog entries; 0.4.0/02 reads
+  // Present EMPTY at baseline (.gitkeep), like `automations`: the domain was
+  // born mid-chain (the retired token-sources feature), and 0.4.0/02 declares
+  // it as a subject — its populated path is covered by the migration's own
+  // test; an empty dir is invisible to every era's config validation.
+  'token-sources',
+  // Present EMPTY at baseline (.gitkeep), like `automations`: the domain is
+  // born when an org gets its first skill, and 0.4.0/30 declares it as a
+  // subject — the chain exercises its POPULATED path, since 30's export
+  // writes alpha's and beta's prompt bundles into it and its down restores
+  // the empty dir. An empty dir is invisible to every era's config
+  // validation, and a SKILL.md is not a `.json` any era schema claims.
+  'skills',
   'workflows', // 0.3.4/06 removes the retired file; down re-syncs the dir
 ];
 
@@ -122,6 +148,9 @@ export const produces: Record<string, string[]> = {
   '0.3.4/22_backfill_contacts_from_vendors': ['contacts'],
   // Customer rows are copied into contacts (minus the status enum).
   '0.3.4/23_backfill_contacts_from_customers': ['contacts'],
+  // Retired provider auth files + token sources become credential rows
+  // (alpha's providers/openrouter.secrets.json feeds the in-chain datapoint).
+  '0.4.0/02_provider_credentials_from_files': ['providerCredentials'],
 };
 
 /**

@@ -1,0 +1,56 @@
+# Static model catalog for the xai connector — captured from
+# the live OpenRouter listing on 2026-07-21 (vendor-native ids; the
+# vendor publishes no usable public listing endpoint). Pricing is
+# cents per million tokens where the source published it.
+- id: grok-4.5
+  provider: xai
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 500000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 600
+- id: grok-build-0.1
+  provider: xai
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 256000
+  pricing:
+    inputCentsPerMillion: 100
+    outputCentsPerMillion: 200
+- id: grok-4.3
+  provider: xai
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  pricing:
+    inputCentsPerMillion: 125
+    outputCentsPerMillion: 250
+- id: grok-4.20-multi-agent
+  provider: xai
+  tags:
+    - chat
+    - vision
+  supportsTools: false
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 2000000
+  pricing:
+    inputCentsPerMillion: 125
+    outputCentsPerMillion: 250

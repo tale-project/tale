@@ -19,13 +19,7 @@ Pour des questions factuelles étroites (« quelle est la capitale du Sénégal
 
 ## Ouvrir la recherche approfondie
 
-Ouvre le menu plus du chat — les modes vivent sous son en-tête **Modes**, et **Deep research** y apparaît dès que l’agent Chercheur est disponible. Choisis-le et le chat bascule vers l’agent Chercheur. Tape la question et envoie. Le panneau de réponse passe du streaming texte habituel à une carte **Plan de recherche** avec trois à sept tâches que l’agent a choisies comme sous-questions.
-
-<Frame caption="Les modes vivent dans le menu plus du chat ; les entrées apparaissent quand leurs prérequis sont remplis.">
-
-![Le menu plus du chat ouvert, montrant une entrée Ajouter photos et fichiers et une section Modes listant le Mode Arène.](/images/platform/chat-composer-menu.webp)
-
-</Frame>
+Ouvre le menu plus de la zone de saisie — les modes vivent sous son en-tête **Modes**, et **Deep research** y apparaît dès que l’agent Chercheur est disponible. Choisis-le et le chat bascule vers l’agent Chercheur. Tape la question et envoie. Le panneau de réponse passe du streaming texte habituel à une carte **Plan de recherche** avec trois à sept tâches que l’agent a choisies comme sous-questions.
 
 Le mode est disponible quand un Éditeur ou un rôle supérieur a lié l’intégration **Tavily** sous [Paramètres > Intégrations](/fr/platform/integrations/overview) ; sans Tavily, l’entrée de menu nomme l’intégration manquante et un clic dessus ouvre les réglages d’intégrations.
 

@@ -1,0 +1,63 @@
+# Sandbox harness — Hermes, driven through the tale-hermes-run wrapper
+# (prompt + system prompt as one JSON object on stdin — process lists leak
+# argv, and a prompt starting with '-' would parse as a flag on the
+# argparse-based wrapper). Its bring-your-own backend is an OpenRouter-style
+# aggregator that speaks the catalog's own vendor-prefixed ids, so catalog
+# refs pass through in the catalog dialect.
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/hermes.json pin the built
+# execs against the pinned CLI version below.
+slug: hermes
+displayName: Hermes
+credentialPolicy:
+  managed: true
+  byo: true
+credentialEnvKeys:
+  - OPENAI_API_KEY
+  - OPENAI_BASE_URL
+  - OPENROUTER_API_KEY
+  - ANTHROPIC_API_KEY
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: catalog
+promptTransport: stdin-ndjson
+capabilities:
+  planMode: false
+  steering: false
+  # The wrapper accepts no MCP config and the exec facts mount none — a
+  # requested browser/bridge mount would silently drop. Declared off until
+  # the wrapper owns a delivery channel.
+  mcp: false
+parser: hermes-jsonl
+exec:
+  bin: tale-hermes-run
+  argv:
+    - args: ['--workdir', '${workdir}']
+    # Pinned to the fixed runaway backstop — the spec carries no turn knob.
+    - maxTurns: { flag: '--max-turns' }
+    - resume: { flag: '--resume' }
+    - model: { flag: '--model' }
+  stdin:
+    mode: json-envelope
+    envelope:
+      - prompt: {}
+      - instructions: { key: system_prompt }
+  env:
+    base:
+      HERMES_HOME: /user/.runtime/home/.hermes
+      HERMES_ACCEPT_HOOKS: '1'
+      HERMES_YOLO_MODE: '1'
+    # MANAGED: OpenAI-compatible route on the platform gateway.
+    managed:
+      OPENAI_BASE_URL: '${gateway.baseUrl}/openai/v1'
+      OPENAI_API_KEY: '${gateway.token}'
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+# A subscription-key credential (a Nous Portal subscription — the
+# nous-portal provider connector) reaches Hermes through its OpenAI-
+# compatible credential pair: the portal key as OPENAI_API_KEY with the
+# portal root as OPENAI_BASE_URL, the same vars the CLI resolves natively.
+subscription:
+  kind: env
+  tokenVar: OPENAI_API_KEY
+  baseUrlVar: OPENAI_BASE_URL
+pinnedVersion: 0.18.0

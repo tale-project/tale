@@ -4,7 +4,7 @@ import { internalMutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
-import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
+import { cascadeDeleteThreadChildren } from '../legacy/thread_cascade';
 import { eraseDocumentBlobs } from './erase_document_blobs';
 import { loadActiveHolds } from './legal_hold';
 

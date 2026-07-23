@@ -165,10 +165,11 @@ async function scheduleSessionCapacityWake(
   organizationId: string,
 ): Promise<void> {
   if (!organizationId) return;
-  await ctx.scheduler.runAfter(
-    0,
-    internal.workflow_engine.sandbox_capacity_wake.wakeHeadWaiters,
-    { organizationId, kind: 'session', count: 1 },
+  // The head-waiter wake targeted workflow-engine waiters parked on
+  // sandbox capacity. That engine is offline while it is rebuilt and no
+  // workflow waiters exist, so there is nothing to wake.
+  console.debug(
+    `[sandbox] capacity wake skipped (org ${organizationId}) — no workflow waiters while the automation engine is rebuilt`,
   );
 }
 

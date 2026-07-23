@@ -1,44 +1,139 @@
 ---
 title: AI providers
-description: Settings > AI providers is where Admins connect the OpenAI-compatible providers behind every reply, choose which models the org may call, and set the defaults. Every reply Tale streams comes from a model resolved through this page.
+description: Connect your organisation to the models it is allowed to call — the provider connectors Tale ships with, the credentials you store against them, and the defaults, allowlists, and catalogs that decide what everyone else can pick.
 ---
 
-Settings > AI providers is the surface where Tale meets the models it serves. A fresh org ships with one provider connected — **OpenRouter**, whose single key reaches chat, vision, embedding, transcription, speech, and image models — and Admins add, edit, or retire providers from here. Every reply Tale streams is routed through a model resolved on this page; touching it changes what the rest of the product can do.
+Nothing in Tale answers a prompt until your organisation holds a working credential for at least one AI provider. **Settings > AI providers** is where those credentials live, and it is the only place they can be created. Admins and Developers can open the page; everyone else meets its result later, as the list of models they can choose in chat, on an agent, or on a workflow step.
 
-<Frame caption="Settings > AI providers — the connected providers, each with its base URL and the size of its model list.">
+## Connectors and credentials
 
-![The AI providers settings page listing one connected provider, OpenRouter, with its base URL and a count of 52 models, beside an Add provider button and the model-catalog sync controls.](/images/get-started/settings-providers.webp)
+Two different things meet on this page, and telling them apart makes the rest of it obvious.
 
-</Frame>
+A **connector** is Tale's built-in knowledge of one provider: which wire dialect it speaks, which endpoint it answers on, where its model list comes from, and which kinds of authentication it accepts. Connectors ship with the platform. You cannot add, edit, or remove one from the UI, and a platform upgrade can bring more.
 
-## What the list shows
+A **credential** is your organisation's half — the part that actually authorises a call. You store as many as you need against a connector: a production key beside a staging key, one key per department, an ops-managed variable next to one you rotate by hand. Each credential carries a name, an authentication method, an optional model allowlist, and an enable state, and one of them is the default.
 
-Open **Settings > AI providers** and you land on the providers the org has connected. Each row names the provider and shows whether its API key is configured. Clicking a row opens the provider's drawer: its base URL and key, its **Default Models**, and the **Models** list itself — searchable, with the capability tags that decide where each model can be used.
+These are the connectors that ship today:
 
-The drawer is where all the per-provider work happens. The list view is deliberately thin; the depth is one click in.
+| Connector            | Wire format            | Model catalog            |
+| -------------------- | ---------------------- | ------------------------ |
+| OpenRouter           | OpenAI-compatible API  | OpenRouter catalog       |
+| OpenAI               | OpenAI-compatible API  | Built-in catalog         |
+| Anthropic            | Anthropic Messages API | Built-in catalog         |
+| Gemini               | OpenAI-compatible API  | Built-in catalog         |
+| Azure OpenAI         | OpenAI-compatible API  | No catalog               |
+| DeepSeek             | OpenAI-compatible API  | Built-in catalog         |
+| Moonshot AI (Kimi)   | OpenAI-compatible API  | Built-in catalog         |
+| Qwen (Alibaba)       | OpenAI-compatible API  | Built-in catalog         |
+| SpaceXAI             | OpenAI-compatible API  | Built-in catalog         |
+| Z.ai (GLM)           | OpenAI-compatible API  | Built-in catalog         |
+| Vercel AI Gateway    | OpenAI-compatible API  | Provider models endpoint |
+| Nous Portal (Hermes) | OpenAI-compatible API  | No catalog               |
 
-## Adding a provider
+## What the page shows
 
-Click **Add provider**. **Start from a known provider** picks OpenAI, Anthropic, or OpenRouter and fills in the provider name and base URL — the only thing left to add is your API key. Editing the name or base URL by hand switches the picker back to **Custom**, the manual path: a provider is a **base URL** plus an **API key** — a direct vendor's own endpoint, OpenRouter (`https://openrouter.ai/api/v1`) for the widest catalog, or a local Ollama or vLLM server on your network. The key is stored encrypted and used only to call that provider.
+Each connector owns a section. Its header names the provider and states the wire facts you need to recognise it — the API format and the endpoint host, as in `OpenAI-compatible API · openrouter.ai`, or `endpoint set per credential` for a connector with no fixed endpoint. Under the header, a badge names where the model list comes from: **Built-in catalog**, **OpenRouter catalog**, **Provider models endpoint**, or **No catalog**, followed by how many models that source currently holds.
 
-Once the credential lands, populate the model list: **Fetch models** pulls the list the provider's API reports, **Add model** declares one by hand, and — once the org's model catalog has synced — picking a model from the catalog inside that dialog fills its ID and known capabilities (context window, pricing, reasoning) instead of typing them. No model is callable until it is in the provider's list with the right capability tag.
+Below that sit your credentials for that connector, one row each. A row shows its name, a masked preview of the stored key or the name of the environment variable behind it, a **Default** badge on the one requests fall back to, a **Disabled** badge on any that is switched off, the credential's own endpoint URL where the connector needs one, and how many models its allowlist permits. **Add credential** sits in the section header, and the row's actions menu holds everything else.
 
-For OpenAI, Anthropic, and OpenRouter, the base URL stays locked to the published endpoint even after the provider is created — open the row's drawer, click **Edit** under **General**, and the field shows read-only with an **Override base URL** button beside it. Reach for the override only to point that provider's slug at a compatible proxy or regional mirror; every other provider's base URL is editable directly, no override needed.
+A connector with credentials but no default is called out in place: requests cannot pick one automatically until you promote one.
 
-## The model list and capability tags
+## Adding a credential
 
-Each model carries one or more capability tags — **Chat**, **Vision**, **Embedding**, **Transcription**, **Text-to-speech**, **Image generation**, **Image edit**. The tags are load-bearing: they decide which pickers a model appears in and which platform capability may call it. A model with no matching tag never appears where that capability is needed.
+The dialog belongs to a connector, so it only offers what that connector accepts — you are never asked for a base URL the platform already knows.
 
-**Hidden from model pickers** takes a model out of the chat and agent model selection while leaving it fully usable by agents and workflows that already reference it. That is how a superseded or deprecated version retires without breaking the agents bound to it.
+<Steps>
 
-## Default models
+<Step title="Open the connector's dialog">
 
-The **Default Models** card names which model each capability uses when nothing more specific is bound — the chat default for new chats and new agents, plus the vision, embedding, image-generation, and transcription defaults the background services use. Changing a default affects new objects only; existing chats and agents keep the model they were bound to. Reach for the defaults when you roll out a new generation of model across the org without re-editing every agent.
+Find the provider's section and click **Add credential**. The heading names the connector, and the **Authentication method** picker lists exactly the methods it supports.
 
-## Keeping the catalog fresh
+</Step>
 
-Two controls keep the catalog current without hand-editing. The **Model catalog** card refreshes each model's capabilities — pricing, context window, reasoning, vision — from OpenRouter's public catalog daily. The **Weekly auto-sync of provider config** toggle merges newly released flagship versions into the org's provider config once a week, hides superseded ones, and leaves any field you customized untouched.
+<Step title="Choose the authentication method">
+
+The method switches the rest of the form: a secret field for **API key** and **Subscription key**, a variable name for **Environment variable**, the full broker form for **Subscription broker**.
+
+</Step>
+
+<Step title="Name it for whoever reads it next">
+
+**Name** is what every later screen shows instead of the secret. Name it for its purpose — `Production key`, `Finance team`, `Ops-managed` — because that is the label someone will pick from months later.
+
+</Step>
+
+<Step title="Decide whether to narrow it">
+
+**Model allowlist** is optional. Leave it empty and the credential may use everything in the connector's catalog; set it and the credential is confined to what you picked.
+
+</Step>
+
+</Steps>
+
+### API key
+
+Paste the secret into **API key**. Tale stores it encrypted and never shows it again — the row displays a masked preview, not the key. To rotate, open the row's menu and choose **Replace API key**; the replacement takes effect everywhere that credential is used, at once.
+
+### Environment variable
+
+Here the key never enters Tale. It lives on the deployment, and the credential records only the name of the variable that holds it. Type the suffix; the reserved prefix `TALE_PROVIDER_KEY_` is fixed and cannot be edited away.
+
+<Note>
+
+Any name outside that prefix is rejected, so the field can never be pointed at an unrelated deployment secret. Names are capped at 40 characters. The variable itself is provisioned by whoever runs the deployment — the operator side is documented in [Providers](/self-hosted/configuration/providers).
+
+</Note>
+
+### Vendor subscriptions and brokers
+
+Two methods cover subscriptions rather than metered API keys. **Subscription key** stores a vendor's subscription secret directly; a Nous Portal subscription is one shipped case. **Subscription broker** points at an endpoint that hands out a pool of rotating OAuth tokens — the shape a Claude subscription uses.
+
+The broker form asks for the **Broker endpoint** and its **HTTP method**, then how Tale authenticates to the broker under **Broker authentication**: None, Bearer token, or Custom header, with a **Header name** and the **Broker secret**, or **Secret from environment variable** when your operations team holds it. The rest describes the response — the **Token array path**, the **Token field**, the **Target environment variable** the chosen token is injected into, and a **Token selection** strategy of Random, First usable, or Round-robin. **Advanced** carries the tuning: **Status field**, **Active status value**, **Expiry field**, **Request timeout (ms)**, **Max response size (bytes)**, and **Expiry safety margin (ms)**.
+
+<Info>
+
+Both kinds are consumed inside the vendor's own tooling rather than over a plain API call, so the dialog says so: **Runs sandboxed on its provider's harness.** An Anthropic subscription broker runs on the `claude-code` harness, a Nous Portal subscription key on `hermes`. Direct API calls are never offered for these credentials.
+
+</Info>
+
+## Connectors that set the endpoint per credential
+
+Azure OpenAI has no fixed endpoint because every Azure resource serves its own, in the form `https://<resource>.openai.azure.com/openai/v1`. Its section header says the endpoint is set per credential, and its dialog adds an **Endpoint URL** field so each credential carries the resource it belongs to.
+
+Azure also ships no model catalog, and the reason is worth knowing before you fill the form: on Azure the model id in a request is the deployment name you chose inside the resource, which Tale cannot know in advance. Type those names into the credential's **Model allowlist** as a comma-separated list. Without them, the credential makes no model available at all.
+
+## Choosing the default credential
+
+A request that names no credential uses the connector's default. That covers most traffic, so the default is the credential you want ordinary work to land on — the shared production key rather than the experiment.
+
+Open a row's menu and choose **Make default**. One credential per connector holds it, and promoting a different one moves it. A disabled credential cannot become the default. Leave a connector without a default and the platform will not choose for you: it says so on the page, and requests that do not name a credential have nothing to resolve to.
+
+## Narrowing what a credential may call
+
+**Model allowlist** limits one credential to a subset of its connector's models. With a catalog behind it the field is a searchable multi-select; without one it is a free-text list of ids. Leave it empty and the credential may use the whole catalog. Set it and the row shows the count, and anything outside the list stops resolving through that credential.
+
+<Tip>
+
+An allowlist narrows one credential. To narrow what a person, team, or role may pick across every provider at once, use the model-access rules under [Content and models](/platform/admin/governance/content-models). The two compose: a model has to clear both before it appears in a picker.
+
+</Tip>
+
+## Keeping the model catalogs current
+
+The **Model catalogs** card sits at the top of the page. **Refresh catalogs** re-fetches every live catalog and reports one line per connector — the number of models it found, or the error it hit, so a provider that is down is named rather than silently skipped.
+
+Catalogs that ship with the platform need nothing: when every connector has one, the card says there is nothing to refresh. Live catalogs are cached between refreshes and there is no background sync, so a model published this morning appears once somebody presses the button.
+
+## Disabling and deleting credentials
+
+**Disable** switches a credential off while keeping its configuration and its allowlist. Reach for it when a key is suspected, a quota is exhausted, or a department is paused — re-enabling is one click and nothing has to be re-entered.
+
+<Warning>
+
+Deleting is immediate and total. Agents and requests using that credential lose access to the provider straight away, so re-point anything that depends on it first. Deleting the default leaves the connector without one until you promote another, which the confirmation tells you before you commit.
+
+</Warning>
 
 ## Where this fits
 
-Providers are the bottom of the stack — every agent, every chat, every workflow step that produces text resolves through them. The catalogue of what each provider ships and which tags they carry lives in [Models](/platform/models); the file-based form of the same configuration lives under [Configuration → providers](/self-hosted/configuration/providers); and [Agent concepts](/platform/agents/concepts) covers how the model knob fits into the four-knob model an agent is built from.
+This page is the floor everything else stands on: an agent, a chat reply, a workflow step, a knowledge-base embedding all resolve to a model, and a model is only reachable when a credential on this page can call it. Which models that leaves you is covered in [Model catalog](/platform/models), the governance layer that narrows them further in [Content and models](/platform/admin/governance/content-models), and the deployment-side variables an operator provisions in [Providers](/self-hosted/configuration/providers).

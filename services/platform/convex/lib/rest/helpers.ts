@@ -192,7 +192,7 @@ export async function resolveOrganization(
   userId: string,
 ): Promise<OrgInfo> {
   return await ctx.runQuery(
-    internal.openai_compat.internal_queries.resolveUserOrganization,
+    internal.organizations.resolve_user_organization.resolveUserOrganization,
     { userId },
   );
 }

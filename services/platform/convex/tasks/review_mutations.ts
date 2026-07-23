@@ -13,7 +13,6 @@
  * workflow awake.
  */
 
-import type { WorkflowId } from '@convex-dev/workflow';
 import { ConvexError, v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
@@ -33,8 +32,6 @@ import {
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { workflowManagers } from '../workflow_engine/engine';
-import { safeShardIndex } from '../workflow_engine/helpers/engine/shard';
 import { checkProjectAccess } from './access';
 import { recordActivity, TASK_METRIC_ACTIONS } from './helpers';
 
@@ -295,31 +292,22 @@ export const respondToTaskReview = mutation({
       recipientUserIds: [...new Set(watcherIds)],
     });
 
-    // Resume the paused workflow — exact mirror of the human-input fork.
+    // Resuming the paused workflow needed `workflowManagers`
+    // (`convex/workflow_engine/engine.ts`) and `safeShardIndex`
+    // (`convex/workflow_engine/helpers/engine/shard.ts`), both moved with the
+    // automations/workflow-engine rewrite. The review decision itself is
+    // fully recorded above (approval patched, activity logged, audit logged,
+    // watchers notified) — only the "wake the paused workflow back up" step
+    // is a no-op now, since there is no workflow engine left to send the
+    // event to.
     if (approval.wfExecutionId) {
-      const execution = await ctx.db.get(approval.wfExecutionId);
-      if (execution?.componentWorkflowId) {
-        const manager = workflowManagers[safeShardIndex(execution.shardIndex)];
-        const rawWorkflowId: unknown = execution.componentWorkflowId;
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- branded type cast from string stored in DB, same pattern as the human-input respond fork
-        const workflowId = rawWorkflowId as WorkflowId;
-        await manager.sendEvent(ctx, {
-          workflowId,
-          name: `approval_response:${approval._id}`,
-          value: {
-            response: JSON.stringify({ decision: args.decision, feedback }),
-            respondedBy: member.userId,
-            question: task.title,
-            timestamp: now,
-            stepSlug: approval.stepSlug ?? '',
-          },
-        });
-      } else {
-        console.warn(
-          '[TaskReview] responded but execution missing componentWorkflowId',
-          { approvalId: String(args.approvalId) },
-        );
-      }
+      console.warn(
+        '[TaskReview] Workflow resume is offline while the platform AI backend is rewritten; review recorded but the paused workflow was not resumed',
+        {
+          approvalId: String(args.approvalId),
+          wfExecutionId: String(approval.wfExecutionId),
+        },
+      );
     }
 
     return null;

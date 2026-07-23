@@ -1,25 +1,26 @@
 'use node';
 
 /**
- * Provider secrets read utility.
+ * Provider-secrets file reader/writer, backed by the `sops` CLI.
  *
- * Hybrid format detection: a SOPS-encrypted JSON file always carries a
- * top-level `"sops"` object describing recipients and metadata. We use
- * that as the read-time signal — if present, decrypt via the `sops` CLI;
- * if absent, return the parsed plaintext JSON as-is. The file format is
- * thus self-describing and stable across processes that may load env
- * differently (Convex isolate vs `tale` CLI vs Python rag/crawler).
+ * Format detection is self-describing rather than config-driven: a
+ * SOPS-encrypted JSON file always carries a top-level `"sops"` key with
+ * recipient/metadata info. Reading checks for that key — present means
+ * decrypt via `sops`, absent means the file is already plaintext JSON. This
+ * keeps the file format stable across processes that might load env vars
+ * differently (the Convex isolate, the `tale` CLI, the Python rag/crawler
+ * services all need to agree on how to read the same file on disk).
  *
- * The `SOPS_AGE_KEY` / `SOPS_AGE_KEY_FILE` env vars are still required to
- * decrypt encrypted files; encountering an encrypted file without a key
- * configured throws `EncryptedFileWithoutKeyError` rather than letting
- * `ENC[…]` ciphertext flow downstream as a fake apiKey.
+ * Decrypting still requires `SOPS_AGE_KEY` or `SOPS_AGE_KEY_FILE` in the
+ * environment — an encrypted file found with neither configured throws
+ * `EncryptedFileWithoutKeyError` rather than silently treating the raw
+ * `ENC[…]` ciphertext as a usable value.
  *
- * Results are cached in memory and invalidated when the file's mtime
- * changes. Cache values are the parsed result (post-decrypt for SOPS
- * files, post-parse for plaintext), so format is invariant per cache
- * entry — env toggles don't poison the cache because they don't change
- * the file.
+ * Reads are cached by file path and invalidated on mtime change. The cache
+ * stores the fully-resolved result (decrypted for SOPS files, parsed as-is
+ * for plaintext), so toggling env vars between calls can't return a
+ * mismatched cached value — the cache key is the file's content, not the
+ * current env.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -51,11 +52,10 @@ export class EncryptedFileWithoutKeyError extends Error {
 }
 
 /**
- * True iff a SOPS age key is configured via env. Trim-aware to treat
- * `KEY=""` and `KEY="   "` as unset (matches `secret_box`'s defensive
- * handling). Checks both `SOPS_AGE_KEY` (inline) and `SOPS_AGE_KEY_FILE`
- * (path) — sops itself accepts either, so encryption/decryption work as
- * long as one of them is non-empty.
+ * True when a SOPS age key is configured. Both `SOPS_AGE_KEY` (inline) and
+ * `SOPS_AGE_KEY_FILE` (path) count — sops itself accepts either — and both
+ * are trimmed before the check, so `KEY=""` / `KEY="   "` count as unset
+ * (mirrors the defensive handling in `secret_box`).
  */
 export function hasSopsKey(): boolean {
   return Boolean(
@@ -83,25 +83,27 @@ function emitPlaintextWarnOnce(filePath: string): void {
 }
 
 /**
- * Invalidate the cache entry for a given file. Call after any write that
- * changes the file's content; mtime alone may not be enough on filesystems
- * with 1-second resolution if back-to-back writes collide.
+ * Drop the cached entry for a file. Call this after any write that changes
+ * the file's content — relying on mtime alone isn't safe on filesystems
+ * with 1-second mtime resolution, where two writes in quick succession can
+ * land on the same timestamp.
  */
 export function invalidateSecretsCache(filePath: string): void {
   cache.delete(filePath);
 }
 
 /**
- * Encrypt a JSON plaintext string with SOPS, addressing ALL configured age
- * recipients (so any key in `SOPS_AGE_KEY_FILE` can decrypt — the rotation
- * primitive). Returns the encrypted SOPS-JSON string. Throws if no age key is
- * configured or `sops` fails; callers wanting plaintext-mode fallback must
- * check `hasSopsKey()` first.
+ * Encrypt a JSON plaintext string with SOPS, addressed to every configured
+ * age recipient — so any key present in `SOPS_AGE_KEY_FILE` can decrypt the
+ * result later (the rotation primitive). Returns the encrypted SOPS-JSON
+ * string; throws if no age key is configured, or if `sops` itself fails.
+ * Callers that want to fall back to plaintext mode must check
+ * `hasSopsKey()` themselves before calling this.
  *
- * Writes the plaintext to a 0o600 file inside a 0o700 mkdtemp dir, runs
- * `sops -e`, and cleans both up. Cleanup failures are warned (not swallowed)
- * because a leaked temp file holds a plaintext secret until the OS reaper
- * sweeps it.
+ * The plaintext is written to a 0o600 file inside a 0o700 mkdtemp
+ * directory, `sops -e` runs against it, and both are removed afterwards.
+ * Cleanup failures are logged rather than swallowed — a leftover temp file
+ * holds a plaintext secret until the OS reaps it.
  */
 export function encryptJsonWithSops(plaintext: string): string {
   const recipients = resolveAgeRecipients();
@@ -131,16 +133,21 @@ export function encryptJsonWithSops(plaintext: string): string {
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `Failed to encrypt secrets with SOPS: ${message}. ` +
-        'Ensure sops is installed and SOPS_AGE_KEY / SOPS_AGE_KEY_FILE is set.',
+    // Object.assign bolts `cause` onto the Error: convex/tsconfig.json's
+    // "lib" predates the ES2022 two-argument Error constructor overload,
+    // even though the runtime itself supports it.
+    throw Object.assign(
+      new Error(
+        `Failed to encrypt secrets with SOPS: ${message}. ` +
+          'Ensure sops is installed and SOPS_AGE_KEY / SOPS_AGE_KEY_FILE is set.',
+      ),
       { cause: err },
     );
   } finally {
     try {
       unlinkSync(tmpFile);
     } catch (err) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always carry .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         console.warn(
           `[sops] failed to remove temp plaintext ${tmpFile}: ${
@@ -152,7 +159,7 @@ export function encryptJsonWithSops(plaintext: string): string {
     try {
       rmdirSync(tmpDir);
     } catch (err) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always carry .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         console.warn(
           `[sops] failed to remove temp dir ${tmpDir}: ${
@@ -180,8 +187,13 @@ export async function decryptSecretsFile(
     parsed = JSON.parse(raw);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `Failed to parse secrets file ${filePath} as JSON: ${message}.`,
+    // Object.assign bolts `cause` onto the Error: convex/tsconfig.json's
+    // "lib" predates the ES2022 two-argument Error constructor overload,
+    // even though the runtime itself supports it.
+    throw Object.assign(
+      new Error(
+        `Failed to parse secrets file ${filePath} as JSON: ${message}.`,
+      ),
       { cause: err },
     );
   }
@@ -201,13 +213,18 @@ export async function decryptSecretsFile(
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `Failed to decrypt secrets file ${filePath}: ${message}. ` +
-          'Ensure sops is installed and SOPS_AGE_KEY or SOPS_AGE_KEY_FILE is set correctly.',
+      // Object.assign bolts `cause` onto the Error: convex/tsconfig.json's
+      // "lib" predates the ES2022 two-argument Error constructor overload,
+      // even though the runtime itself supports it.
+      throw Object.assign(
+        new Error(
+          `Failed to decrypt secrets file ${filePath}: ${message}. ` +
+            'Ensure sops is installed and SOPS_AGE_KEY or SOPS_AGE_KEY_FILE is set correctly.',
+        ),
         { cause: err },
       );
     }
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns unknown; we validate via providerSecretsSchema downstream
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns unknown; providerSecretsSchema validates the shape downstream
     data = JSON.parse(stdout) as Record<string, unknown>;
   } else {
     if (
@@ -220,7 +237,7 @@ export async function decryptSecretsFile(
       );
     }
     emitPlaintextWarnOnce(filePath);
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns unknown; the typeof check above rules out null/array; downstream zod validates the shape via providerSecretsSchema
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the typeof/Array checks above rule out null/array; providerSecretsSchema validates the shape downstream
     data = parsed as Record<string, unknown>;
   }
 

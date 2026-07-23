@@ -483,4 +483,223 @@ export async function seedWorldDb(
     isActive: false,
     authMethod: 'oauth2',
   });
+
+  // --- retired provider cache/governor tables — drained by 0.4.0/03–/05 ----
+  // reasoningProfiles (born 0.2.79): one rich alpha profile (optional
+  // intensity + bucket fields present) and a minimal beta one, so the drop
+  // snapshots both shape extremes across two orgs. Era-pure on purpose: the
+  // baseline must validate as a 0.2.84 deployment, and the bucket's
+  // `lastTier` field only joined the shape in a later release — the
+  // migration's own test covers it.
+  const worldBucket = {
+    count: 3,
+    mean: 0.5,
+    m2: 0.06,
+    underResourcedEma: 0.12,
+  };
+  await db.insert('reasoningProfiles', {
+    organizationId: alpha.id,
+    scopeKey: 'openrouter:qwen-3-235b',
+    state: {
+      easy: worldBucket,
+      medium: { ...worldBucket, wastefulEma: 0.2, qualityEma: 0.7 },
+      hard: worldBucket,
+      turns: 14,
+      intensityCount: 6,
+      intensityMean: 0.55,
+      intensityM2: 0.03,
+    },
+    updatedAt: WORLD_EPOCH_MS,
+  });
+  await db.insert('reasoningProfiles', {
+    organizationId: beta.id,
+    scopeKey: 'anthropic:claude-sonnet-4',
+    state: {
+      easy: worldBucket,
+      medium: worldBucket,
+      hard: worldBucket,
+      turns: 2,
+    },
+    updatedAt: WORLD_EPOCH_MS + 100,
+  });
+
+  // modelCapabilityCache (born 0.2.84, global rows): one capability-rich and
+  // one sparse entry for 0.4.0/04's snapshot round-trip.
+  await db.insert('modelCapabilityCache', {
+    modelId: 'anthropic/claude-sonnet-4',
+    reasoning: { knob: 'budgetTokens', minBudgetTokens: 1024 },
+    promptCaching: { mode: 'explicit-breakpoints', maxBreakpoints: 4 },
+    inputCentsPerMillion: 300,
+    outputCentsPerMillion: 1500,
+    contextWindow: 200_000,
+    maxOutputTokens: 64_000,
+    supportsTools: true,
+    supportsVision: true,
+    source: 'openrouter',
+    fetchedAt: WORLD_EPOCH_MS,
+  });
+  await db.insert('modelCapabilityCache', {
+    modelId: 'sparse/no-capability-facts',
+    source: 'openrouter',
+    fetchedAt: WORLD_EPOCH_MS + 200,
+  });
+
+  // modelCatalogSync (born 0.2.84, global rows): a successful and a failed
+  // sync record for 0.4.0/05.
+  await db.insert('modelCatalogSync', {
+    source: 'openrouter',
+    lastSyncedAt: WORLD_EPOCH_MS,
+    modelCount: 231,
+    ok: true,
+  });
+  await db.insert('modelCatalogSync', {
+    source: 'provider:bigmodel',
+    lastSyncedAt: WORLD_EPOCH_MS + 300,
+    modelCount: 0,
+    ok: false,
+    error: 'catalog fetch 404 Not Found',
+  });
+
+  // --- retired AI-backend tables present at v0.2.84 — drained by 0.4.0/06–/15.
+  // Era-pure on purpose: the baseline must validate as a 0.2.84 deployment, so
+  // each row carries only the fields that release declared (e.g. autoRouteCache
+  // had no `seed` yet; the richer shapes live in each drop's own test). Alpha
+  // gets every table; beta a second cross-org datapoint on the router cache. --
+  await db.insert('autoRouteCache', {
+    organizationId: alpha.id,
+    candidatesHash: 'world-roster-hash-1',
+    messageKey: 'summarize the q2 report',
+    agentSlug: 'assistant',
+    source: 'classified',
+    hits: 3,
+    createdAt: WORLD_EPOCH_MS,
+    lastUsedAt: WORLD_EPOCH_MS + 500,
+  });
+  await db.insert('autoRouteCache', {
+    organizationId: beta.id,
+    candidatesHash: 'world-roster-hash-2',
+    messageKey: 'draft a reply',
+    agentSlug: 'assistant',
+    source: 'override',
+    hits: 1,
+    createdAt: WORLD_EPOCH_MS + 100,
+    lastUsedAt: WORLD_EPOCH_MS + 100,
+  });
+  await db.insert('mcpServers', {
+    organizationId: alpha.id,
+    name: 'filesystem',
+    displayName: 'Filesystem',
+    transportType: 'stdio',
+    authType: 'none',
+    status: 'active',
+  });
+  await db.insert('skillUploadClaims', {
+    organizationId: alpha.id,
+    slug: 'data-cleaner',
+    claimedAt: WORLD_EPOCH_MS,
+    expiresAt: WORLD_EPOCH_MS + 60_000,
+  });
+  await db.insert('skillUploadIntents', {
+    storageId: 'world-skill-upload-blob',
+    organizationId: alpha.id,
+    userId: 'user_alpha_admin',
+    createdAt: WORLD_EPOCH_MS,
+  });
+  await db.insert('slackEventDedup', {
+    eventId: 'Ev0WORLD001',
+    expiresAt: WORLD_EPOCH_MS + 3600_000,
+  });
+  await db.insert('slackInstallations', {
+    teamId: 'T0WORLD001',
+    organizationId: alpha.id,
+    slug: 'baseline-alpha',
+    credentialId: 'world-slack-credential',
+    installedAt: WORLD_EPOCH_MS,
+    updatedAt: WORLD_EPOCH_MS,
+  });
+  await db.insert('ttsGcCursor', {
+    job: 'gcOrgTtsChunks',
+    lastOrgId: alpha.id,
+    updatedAt: WORLD_EPOCH_MS,
+  });
+  await db.insert('wfApiKeys', {
+    organizationId: alpha.id,
+    name: 'CI trigger key',
+    keyHash: 'world-wf-key-hash',
+    keyPrefix: 'wfk_worl',
+    isActive: true,
+    createdAt: WORLD_EPOCH_MS,
+    createdBy: 'user_alpha_admin',
+  });
+  await db.insert('wfWebhooks', {
+    organizationId: alpha.id,
+    token: 'world-wf-webhook-token',
+    isActive: true,
+    createdAt: WORLD_EPOCH_MS,
+    createdBy: 'user_alpha_admin',
+  });
+  await db.insert('workflowProcessingRecords', {
+    organizationId: alpha.id,
+    tableName: 'tasks',
+    recordId: 'task-100',
+    wfDefinitionId: 'projects/tasks/triage-unassigned-tasks',
+    recordCreationTime: WORLD_EPOCH_MS,
+    processedAt: WORLD_EPOCH_MS + 250,
+  });
+
+  // --- prompt library — exported to skill files by 0.4.0/30 -----------------
+  // One row per scope so the export covers every visibility it can produce,
+  // plus a title collision (two "Weekly report" prompts) for the deterministic
+  // slug-disambiguation path and a soft-deleted row the export must skip.
+  // Beta carries a single global prompt: a second org's datapoint for the
+  // per-org fleet loop. Era-pure: only columns `promptTemplates` declares at
+  // v0.2.84 and still declares today, and no `categoryId` (its
+  // `promptCategories` table is not part of the world).
+  await db.insert('promptTemplates', {
+    organizationId: alpha.id,
+    createdBy: 'user_alpha_admin',
+    title: 'Weekly report',
+    content: 'Summarise the week in five bullets.',
+    description: 'The Monday status note.',
+    scope: 'global',
+    category: 'Reporting',
+    tags: ['status', 'weekly'],
+    usageCount: 12,
+    version: 1,
+  });
+  await db.insert('promptTemplates', {
+    organizationId: alpha.id,
+    createdBy: 'user_alpha_member',
+    title: 'Weekly report',
+    content: 'My own take on the weekly note.',
+    scope: 'personal',
+    usageCount: 3,
+  });
+  await db.insert('promptTemplates', {
+    organizationId: alpha.id,
+    createdBy: 'user_alpha_admin',
+    title: 'Support triage',
+    content: 'Classify the ticket, then propose the next action.',
+    scope: 'team',
+    teamId: 'team_alpha_support',
+    usageCount: 7,
+  });
+  await db.insert('promptTemplates', {
+    organizationId: alpha.id,
+    createdBy: 'user_alpha_member',
+    title: 'Abandoned draft',
+    content: 'Never finished.',
+    scope: 'personal',
+    usageCount: 0,
+    lifecycleStatus: 'trashed',
+    statusChangedAt: WORLD_EPOCH_MS + 300,
+  });
+  await db.insert('promptTemplates', {
+    organizationId: beta.id,
+    createdBy: 'user_beta_admin',
+    title: 'Release notes',
+    content: 'Turn the changelog into customer-facing notes.',
+    scope: 'global',
+    usageCount: 1,
+  });
 }

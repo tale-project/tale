@@ -43,9 +43,9 @@ L’espace de travail partagé qu’un Éditeur empaquette autour d’un contact
 
 </Card>
 
-<Card title="Bibliothèque de prompts" icon="list-plus" href="/fr/platform/workspace/prompt-library">
+<Card title="Bibliothèque de skills" icon="list-plus" href="/fr/platform/workspace/skills">
 
-La zone de prompts enregistrés qu’un Éditeur utilise pour garder les amorces de chat récurrentes réutilisables.
+La bibliothèque de bundles qu’un Éditeur utilise pour garder une instruction récurrente réutilisable d’un chat à l’autre.
 
 </Card>
 

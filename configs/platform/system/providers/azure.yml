@@ -1,0 +1,21 @@
+# AI provider connector — Azure OpenAI on the v1 unified endpoint. Every
+# Azure resource has its OWN endpoint
+# (https://<resource>.openai.azure.com/openai/v1 or
+# https://<resource>.services.ai.azure.com/openai/v1), so this connector has
+# no fixed baseUrl: each credential carries its resource endpoint
+# (endpointMode per-credential). The v1 GA surface speaks the standard
+# OpenAI wire format with no api-version parameter.
+#
+# There is no shippable model catalog either: on Azure, the model id in a
+# request is the DEPLOYMENT name the organization chose in its resource —
+# operators list their deployment names on the credential's model allowlist,
+# which becomes the availability set.
+name: azure
+displayName: Azure OpenAI
+apiFormat: openai
+endpointMode: per-credential
+catalog:
+  source: none
+auth:
+  - method: api-key
+  - method: env

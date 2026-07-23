@@ -1,10 +1,8 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { z } from 'zod';
 
-import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
-import { useRequiredIntegrations } from '@/app/features/automations/hooks/use-required-integrations';
 import { Conversations } from '@/app/features/conversations/components/conversations';
 import {
   useApproxConversationCountByStatus,
@@ -13,7 +11,6 @@ import {
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { startCase } from '@/lib/utils/string';
 
 const INITIAL_NUM_ITEMS = 30;
 
@@ -78,41 +75,19 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
 });
 
 /**
- * The Inbox's channel-filter options: the connected inbox providers, derived
- * from the installed automations that declare the inbox builtin view — their
- * first required integration IS the provider (gmail / outlook / imap_smtp).
- * Labels come from the org's integration definitions (the same resolver the
- * install wizard uses), falling back to a humanized slug.
+ * The Inbox's channel-filter options. They were derived from the installed
+ * inbox automations' required integrations; that backend is offline while it
+ * is rebuilt, so the filter has no providers to offer and stays hidden (an
+ * empty option list) until the automations rebuild restores the source.
  */
 function useChannelOptions(
-  organizationId: string,
+  _organizationId: string,
 ): Array<{ value: string; label: string }> {
-  const { inboxAutomations } = useInboxAvailability(organizationId);
-  const providerSlugs = useMemo(
-    () => [
-      ...new Set(
-        inboxAutomations
-          .map((automation) => automation.requiredIntegrations[0])
-          .filter((slug): slug is string => Boolean(slug)),
-      ),
-    ],
-    [inboxAutomations],
-  );
-  const { required } = useRequiredIntegrations(organizationId, providerSlugs);
-  return useMemo(
-    () =>
-      providerSlugs.map((slug) => {
-        const resolved = required.find((r) => r.slug === slug);
-        return {
-          value: slug,
-          label: resolved?.exists
-            ? resolved.integration.title
-            : startCase(slug),
-        };
-      }),
-    [providerSlugs, required],
-  );
+  return EMPTY_CHANNEL_OPTIONS;
 }
+
+// Stable identity so downstream memos don't re-run every render.
+const EMPTY_CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [];
 
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();

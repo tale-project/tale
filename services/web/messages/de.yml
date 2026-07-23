@@ -1,0 +1,2207 @@
+seo:
+  ogImageAlt: Tale — Der Orchestrator für KI-Agents
+  home:
+    title: 'Tale: Der Orchestrator für KI-Agents'
+    description: Tale verbindet die Agents deines Teams, bündelt ihr Wissen,
+      delegiert Arbeit und regelt jede Aktion — selbst gehostet, ISO 27001 & SOC
+      2 Type II zertifiziert.
+  pricing:
+    title: Was kostet Tale? — Community & Enterprise
+    description: 'Tale Enterprise: CHF 12 (EUR 14) pro User/Monat, zwei Monate
+      gratis bei Jahresabrechnung. Community ist unter MIT kostenlos selbst
+      gehostet.'
+  contact:
+    title: Kontakt zum Tale-Team
+    description: Sprich mit dem Tale-Team über selbst gehostete KI für deine
+      Organisation — Plattform, Preise, Hardware oder eine geführte Demo.
+      Antwort innerhalb eines Werktags.
+  requestDemo:
+    title: Demo anfragen
+    description: 'Buch eine geführte Tale-Demo: selbst gehostete KI-Agents,
+      Automatisierungen und Governance in Aktion. Für datensensible
+      Organisationen in der Schweiz und der EU.'
+  hardwarePricing:
+    title: Was kostet Tale-AI-Hardware?
+    description: Geräuscharme Inference-Hardware von einzelnen Nodes bis Racks —
+      mieten, leasen oder kaufen. Vor Ort mit Remote-Wartung oder in sicheren
+      Rechenzentren.
+  platform:
+    title: Wie funktioniert die Tale-Plattform?
+    description:
+      Tale verbindet Agenten, bündelt Wissen, führt Automations aus und
+      steuert jede Aktion — selbst gehostet für datensensible Teams in der
+      Schweiz und der EU.
+  platformAgents:
+    title: Was sind Agents in Tale?
+    description:
+      Tale-Agents kombinieren Anweisungen, Wissen, Tools und ein Modell.
+      Verbinde Claude Code, Codex, Hermes und OpenClaw unter einem Orchestrator,
+      den du hostest.
+  platformChat:
+    title: Chats in Tale
+    description:
+      'Tale Chat ist der Alltagseinstieg: Agent wählen, Nachricht senden,
+      gestreamte Antwort lesen — mit Zitaten, Tool-Aufrufen, Arena-Modus und
+      Freigaben im Chat.'
+  platformAutomations:
+    title: Was sind Automations in Tale?
+    description: Tale Automations bündeln Integrationen, Agents und typisierte
+      Workflow-Schritte — Trigger, Bedingungen, Aktionen und menschliche
+      Freigaben auf deiner Infrastruktur.
+  platformKnowledge:
+    title: Was ist Knowledge in Tale?
+    description: Tale Knowledge indexiert Dokumente, Websites und typisierte
+      Datensätze, damit Agents deine Realität abrufen und zitieren — nicht nur
+      Trainingsdaten.
+  platformGovernance:
+    title: Was ist Governance in Tale?
+    description: Tale Governance hält Agent-Aktionen hinter Freigabe-Karten,
+      schreibt jeden Entscheid ins Audit-Log und filtert PII und unsichere
+      Inhalte in beide Richtungen.
+  platformProjects:
+    title: Was sind Projekte in Tale?
+    description: Tale-Projekte bündeln Chats, Dateien, Anweisungen und ein
+      Task-Board in einem geteilten Arbeitsbereich — weise eine Aufgabe einem
+      Agent zu und prüfe das Ergebnis, bevor es rausgeht.
+  changelog:
+    title: Was ist neu in Tale? — Changelog
+    description: Release Notes zu jeder Tale-Version, neueste zuerst —
+      veröffentlicht aus GitHub Releases.
+notFound:
+  title: Diese Seite gibt es nicht
+  body: Die Adresse ist vielleicht vertippt, oder die Seite ist umgezogen. Am
+    besten startest du auf der Startseite neu.
+  backHome: Zur Startseite
+nav:
+  platform: Plattform
+  resources: Ressourcen
+  pricing: Preise
+  openMenu: Menü öffnen
+  closeMenu: Menü schließen
+  homeAriaLabel: Tale Startseite
+  skipToMain: Zum Hauptinhalt springen
+  product:
+    hub:
+      label: Platform-Übersicht
+      description: So verbindet Tale Agents, Wissen, Automations und Governance.
+    agents:
+      label: Agents
+      description: Claude Code, Codex, Hermes und OpenClaw orchestrieren.
+    chat:
+      label: Chats
+      description: Alltag-KI mit Zitationen, Tools und Arena.
+    projects:
+      label: Projekte
+      description: Geteilte Arbeitsbereiche, in denen Agents Aufgaben übernehmen.
+    automations:
+      label: Automations
+      description: Typisierte Workflows mit Triggern und Freigaben.
+    knowledge:
+      label: Knowledge
+      description: Dokumente, Websites und Datensätze, die Agents zitieren.
+    governance:
+      label: Governance
+      description: Freigaben, Audit-Trail und Ausgabenkontrolle.
+  resource:
+    hardware:
+      label: Hardware
+      description: On-Prem-Appliances, dimensioniert für deine Agent-Last.
+    docs:
+      label: Docs
+      description: Tale installieren, konfigurieren und betreiben.
+    changelog:
+      label: Changelog
+      description: Was neu ist, neueste zuerst.
+  contactUs: Kontakt aufnehmen
+  requestDemo: Demo anfragen
+  getStarted: Loslegen
+legal:
+  downloadPdf: Drucken oder als PDF speichern
+  downloadPdfAria: '{title} drucken oder als PDF speichern'
+  notFound: Dieses Dokument ist nicht verfügbar.
+  documentTabsAria: Dokument-Abschnitte
+  tabs:
+    data-processing-agreement: AVV
+    technical-organizational-measures: TOM
+footer:
+  resources: Ressourcen
+  legal: Rechtliches
+  pricing: Preise
+  hardwarePricing: Hardware-Preise
+  contact: Kontakt
+  serviceAgreement: Service-Vertrag
+  hardwareAgreement: Hardware-Vertrag
+  privacyPolicy: Datenschutzerklärung
+  termsOfService: Nutzungsbedingungen
+  processingAgreement: Auftragsverarbeitungsvertrag
+  technicalOrganizationalMeasures: Technische & organisatorische Maßnahmen
+  homeAriaLabel: Tale Startseite
+  githubAriaLabel: GitHub
+  llmsTxtLabel: llms.txt
+  llmsFullTxtLabel: llms-full.txt
+  copyright: © {year} Tale by Ruler GmbH — zertifiziert nach ISO 27001 und SOC 2
+    Type II. MIT-lizenziert.
+  platform: Platform
+  company: Unternehmen
+  changelog: Changelog
+  features: Funktionen
+address:
+  country: Schweiz
+home:
+  hero:
+    title: Orchestriere jeden KI-Agent auf deinem Stack
+    subtitle:
+      Verbinde Claude Code, Codex, Hermes, OpenClaw und die übrigen Agents
+      deines Teams. Bündle ihr Wissen, delegiere echte Arbeit — auf
+      Infrastruktur, die du betreibst.
+    ctaPrimary: Demo anfragen
+    ctaSecondary: Kontakt aufnehmen
+  demos:
+    chrome:
+      share: Teilen
+    hero:
+      label:
+        'Animierte Produktdemo: Eine Aufgabe wird in Tale eingetippt, Auto leitet
+        sie an den Support-Agent weiter, und die Antwort streamt herein — belegt
+        mit zwei zitierten Quellen.'
+      prompt: Fasse die gestrigen Support-Eskalationen zusammen und entwirf ein
+        Status-Update.
+      routedTitle: An Support-Agent geroutet
+      routedDetail: Auto hat Claude Sonnet für diesen Thread gewählt.
+      reply1: Gestern gab es 7 Eskalationen — 5 gelöst, 2 noch offen.
+      reply2: Beide offenen Fälle sind verzögerte Cargo-Bike-Lieferungen in der EU.
+      reply3: Ops bestätigt, dass die Ersatzgeräte diese Woche rausgehen —
+      reply4: beiden Kontakten kann also eine Lösung bis Freitag zugesagt werden.
+      citation1: q3-eskalationen.pdf
+      citation2: eu-liefer-runbook.pdf
+      thought: 1 s überlegt
+      composerAgent: Auto
+      composerAgentRouted: Support-Agent
+      composerModel: Claude Sonnet
+      inputPlaceholder: Frag einfach…
+    connect:
+      label: 'Animierte Demo: Die Agents-Liste zeigt Claude Code, Codex, Hermes,
+        Support-Agent und OpenClaw als installierte Zeilen mit Modell-Chips.'
+      windowTitle: Agents
+      searchPlaceholder: Agents suchen…
+      addLabel: Agents
+      colName: Name
+      colModel: Modell
+      colStatus: Status
+      statusReady: Bereit
+      agent1: Claude Code
+      agent2: Codex
+      agent3: Hermes
+      agent4: Support-Agent
+      agent5: OpenClaw
+      model1: Claude Opus
+      model2: GPT-5.5
+      model3: Claude Sonnet
+      model4: Claude Sonnet
+      model5: Claude Opus
+    knowledge:
+      label:
+        'Animierte Demo: Die Wissens-Dokumententabelle indexiert ein PDF, eine
+        Website, einen Produktkatalog und ein Runbook und zeigt
+        Index-Status-Badges.'
+      windowTitle: Knowledge
+      searchPlaceholder: Dokumente suchen…
+      addLabel: Knowledge
+      colName: Name
+      colType: Typ
+      colStatus: Status
+      typePdf: PDF
+      typeWebsite: Website
+      typeCatalog: Katalog
+      typeEntry: Eintrag
+      statusIndexing: Indexierung…
+      statusIndexed: Indexiert
+      source1: q3-eskalationen.pdf
+      sourceType1: pdf
+      source2: hilfe.nordwind.eu
+      sourceType2: website
+      source3: Produktkatalog
+      sourceType3: catalog
+      source4: eu-liefer-runbook.pdf
+      sourceType4: pdf
+    automation:
+      label:
+        'Animierte Demo: Eine Workflow-Canvas läuft Trigger → LLM → Bedingung →
+        Aktion, dann hält die Ausführungen-Tabelle den Lauf fest.'
+      windowTitle: Automations
+      kindTrigger: Trigger
+      kindLlm: LLM
+      kindCondition: Bedingung
+      kindAction: Aktion
+      statusCompleted: Abgeschlossen
+      statusAwaiting: Wartet auf Freigabe
+      statusRunning: Läuft
+      trigger: Neue Email
+      llm: Intent klassifizieren
+      condition: Rückerstattung?
+      branchYes: Ja
+      action: Antwort entwerfen
+      actionAlt: An Sales weiterleiten
+      logTitle: Ausführungen
+      logColRun: Lauf
+      logColStatus: Status
+      logColDuration: Dauer
+      run1: '#482'
+      runTone1: done
+      duration1: 3,2s
+      run2: '#483'
+      runTone2: pending
+      duration2: —
+      run3: '#484'
+      runTone3: running
+      duration3: 1,1s
+    govern:
+      label: 'Animierte Demo: Eine Freigabe-Karte im Chat fragt, ob 42
+        Rückerstattungs-Emails gesendet werden dürfen; Freigeben wird bestätigt
+        und der Lauf geht weiter.'
+      approvalTitle: 42 Rückerstattungs-Emails an betroffene Kontakte senden?
+      requester: Inbox-Triage · Antwort entwerfen
+      approve: Freigeben
+      reject: Ablehnen
+      approved: Freigegeben
+      auditTitle: Lauf-Journal
+      audit1: Freigegeben von anna@nordwind.eu
+      audit2: 42 Emails über Gmail eingereiht
+      audit3: Budget-Check bestanden · CHF 412 übrig
+      budgetLabel: Monatsbudget
+      budgetValue: CHF 412 / 1'000
+    arena:
+      label:
+        'Animierte Demo: Chat Arena stellt eine Anfrage zwei Modellen gegenüber —
+        Claude Sonnet und GPT-5.5 nebeneinander.'
+      prompt: Entwirf eine Kontaktantwort zur verzögerten EU-Lieferung.
+      agent: Support-Agent
+      modelA: Claude Sonnet
+      modelB: GPT-5.5
+      vs: vs
+      replyA1:
+        Entschuldige die Verzögerung und bestätige, dass Ersatzgeräte diese
+        Woche rausgehen.
+      replyA2:
+        Sage Freitag als Lösungstermin zu und sende den Tracking-Link, sobald
+        Ops ihn postet.
+      replyA3: Schließe mit dem Link zur Eskalations-Richtlinie, den der Kontakt
+        intern teilen kann.
+      replyB1:
+        Bestätige die Verzögerung, zitiere die Eskalations-Richtlinie und setze
+        Freitag als Zusage.
+      replyB2: Hänge eine kurze Next-Step-Checkliste an, die der Kontakt intern
+        weiterleiten kann.
+      replyB3:
+        Biete ein Rückruf-Fenster an, falls der Tracking-Link bis Donnerstag
+        fehlt.
+    projects:
+      label:
+        'Animierte Demo: Die Projekte-Liste zeigt abgegrenzte Workspaces mit
+        Agent-Anzahl und Mitgliedern.'
+      windowTitle: Projekte
+      searchPlaceholder: Projekte suchen…
+      newProject: Neues Projekt
+      colName: Name
+      colAgents: Agents
+      colMembers: Mitglieder
+      project1: Customer Support
+      project2: Engineering
+      project3: Vertriebs-Recherche
+      project4: Ops & Logistik
+      agents1: 3 Agents
+      agents2: 5 Agents
+      agents3: 2 Agents
+      agents4: 4 Agents
+      members1: '8'
+      members2: '14'
+      members3: '5'
+      members4: '11'
+    tasks:
+      windowTitle: Tasks
+      colTodo: To do
+      colInProgress: In progress
+      colInReview: In review
+      colDone: Done
+      working: Arbeitet
+      id1: WEB-14
+      id2: WEB-15
+      id3: WEB-12
+      id4: WEB-11
+      id5: WEB-9
+      label: 'Animierte Demo: Das Projekt-Task-Board zeigt die Spalten To do, In
+        progress, In review und Done — ein Agent bearbeitet eine Karte in In
+        progress.'
+      title1: /docs-Redirects mappen
+      assignee1: Nicht zugewiesen
+      title2: Pricing-Seiten-Copy entwerfen
+      assignee2: Mira
+      title3: Migrationsleitfaden schreiben
+      assignee3: Relaunch Agent
+      title4: Staging-Checkliste prüfen
+      assignee4: Relaunch Agent
+      title5: Brand-Tokens shippen
+      assignee5: Design Agent
+    sandbox:
+      filesTab: Files
+      liveTab: Live
+      treeRoot: workspace
+      liveHint: Live-Browseransicht
+      label:
+        'Animierte Demo: Ein Sandbox-Agent-Chat öffnet den Files-Bereich an einer
+        Python-CLI und wechselt dann zur Live-Browseransicht der laufenden App.'
+      prompt: Baue eine kleine Python-CLI und öffne sie im Browser, damit ich
+        durchklicken kann.
+      agent: Claude Code
+      model: Claude Opus
+      reply:
+        cli.py und eine lokale Vorschau sind da — Files zeigt den Tree; Live
+        streamt den Browser.
+      file1: cli.py
+      file2: pyproject.toml
+      file3: tests/test_cli.py
+      file4: README.md
+      activeFile: cli.py
+      code1: import click
+      code2: '@click.command()'
+      code3: 'def main():'
+      code4: '    click.echo("ready")'
+      browserUrl: http://127.0.0.1:5173
+      browserTitle: CLI-Vorschau · localhost
+  tour:
+    title: Wie Tale deine KI-Agents orchestriert
+    subtitle: Verbinde, was du nutzt. Bündle dein Wissen. Delegiere die Arbeit.
+      Kontrolliere das Ergebnis — vergleiche Modelle und grenze nach Projekt ab.
+    connect:
+      eyebrow: Agents & Integrationen
+      title: |-
+        Bring die Agents mit,
+        denen du schon vertraust
+      description:
+        Claude Code, Codex, Hermes, OpenClaw — plus Slack, GitHub, Outlook
+        und der Rest deines Stacks. Nichts wird ersetzt; alles wird koordiniert.
+    pool:
+      eyebrow: Wissen
+      title: |-
+        Eine Wissensbasis,
+        jede Antwort belegt
+      description:
+        Dokumente, Websites, Produkt- und Kontaktdaten landen in einer
+        gemeinsamen Wissensbasis. Agents antworten mit dem Wissen deines
+        Unternehmens — belegt mit prüfbaren Quellen.
+    delegate:
+      eyebrow: Automatisierungen
+      title: |-
+        Delegiere die Arbeit,
+        nicht die Kontrolle
+      description:
+        Automatisierungen verketten LLM-Schritte, Bedingungen und Aktionen
+        zu Workflows, die auf Trigger laufen — Inbox-Triage, Eskalationen,
+        Wochenberichte. Jeder Lauf hinterlässt ein Log.
+    govern:
+      eyebrow: Freigaben & Audit
+      title: |-
+        Erst freigeben.
+        Dann auditieren.
+      description: Human-in-the-Loop-Freigaben sichern die Aktionen, die zählen.
+        Audit-Logs, Budgets, Guardrails und SSO halten jeden Agent in deinen
+        Regeln.
+    arena:
+      eyebrow: Chat Arena
+      title: |-
+        Vergleiche Modelle
+        auf derselben Anfrage
+      description:
+        Arena schickt eine Frage an zwei Modelle nebeneinander. Du wählst
+        die passende Antwort — ohne den Thread zu verlassen oder die Frage neu
+        zu tippen.
+    projects:
+      eyebrow: Projekte
+      title: |-
+        Agents und Wissen
+        nach Team abgrenzen
+      description: Projekte halten Agents, Dokumente und Mitglieder im richtigen
+        Workspace. Support bleibt bei Support; Engineering behält seinen eigenen
+        Stack.
+    explore: '{module} entdecken'
+  tagline:
+    title: Deine Infrastruktur. Deine Daten. Deine Regeln.
+    subtitle: Betreibe KI zu deinen Bedingungen — vom Hosting bis zur Governance
+      jeder Aktion.
+    pillars:
+      selfHosted:
+        title: Standardmäßig selbst gehostet
+        description:
+          Läuft komplett auf deiner Infrastruktur — ganz ohne Cloud. Mit
+          lokalen Modellen verlassen keine Daten dein Netzwerk; und an einen
+          Anbieter bindet dich so oder so nichts.
+      security:
+        title: Eingebaute Sicherheit
+        description: Single Sign-on, Erkennung sensibler Daten,
+          Content-Safety-Guardrails, vollständige Aktivitätsprotokolle und
+          Budgetkontrollen — alles integriert, nichts nachträglich aufgesetzt.
+      openSource:
+        title: Vollständig Open Source
+        description:
+          Der gesamte Code ist öffentlich, unter MIT-Lizenz. Lies ihn,
+          auditier ihn, ändere, was du brauchst — ohne jemanden zu fragen.
+  integrations:
+    title: Angedockt an die Tools, die du schon nutzt
+    subtitle: Verbinde Gmail, Slack, GitHub, Shopify und deine Modell-Anbieter
+      einmal pro Organisation — alle Agents und Automatisierungen teilen
+      dieselben verwalteten Zugangsdaten.
+  agents:
+    title: Funktioniert mit den Agents, die du nutzt
+    subtitle: Docke Claude Code, Codex, Hermes, OpenClaw, Pi und OpenCode unter
+      einem Orchestrator an, den du hostest.
+  compliance:
+    eyebrow: SICHERHEIT
+    title: Compliance, die du prüfen kannst
+    independent:
+      title: Unabhängig & transparent
+      description:
+        In der Schweiz ansässig und herstellerneutral — ohne Bindung an
+        einen Cloud- oder Modellanbieter, damit dein Deployment nur dir
+        verpflichtet ist.
+    certified:
+      title: Zertifiziert & konform
+      description:
+        Zertifiziert nach ISO 27001 und SOC 2 Type II, DSGVO-konform —
+        Audit-Logs und Datenkontrollen zeigen dir jederzeit, wo deine Daten
+        gespeichert sind.
+  faq:
+    eyebrow: FAQ
+    title: Häufig gestellte Fragen
+    stillQuestions: Noch Fragen?
+    contactTeam: Team kontaktieren
+    whatIsTale:
+      q: Was ist Tale?
+      a: 'Tale ist eine quelloffene, selbst gehostete Plattform, die KI-Agents
+        orchestriert: Sie verbindet die Agents und CLIs, die dein Team bereits
+        nutzt, bündelt ihr Wissen in einer regelbaren Wissensdatenbank und führt
+        Automationen mit menschlicher Freigabe aus — auf deiner eigenen
+        Infrastruktur oder in einer verwalteten Cloud in der Schweiz oder der
+        EU.'
+    openSource:
+      q: Ist Tale Open Source?
+      a:
+        Ja. Tale ist MIT-lizenziert, und der volle Funktionsumfang steckt in der
+        kostenlosen Community-Edition — Enterprise ergänzt Support und Services,
+        keine Funktionen.
+    onPrem:
+      q: Läuft Tale komplett on-premises oder air-gapped?
+      a: Ja. Tale läuft selbst gehostet in deiner VPC, auf eigener Hardware oder
+        vollständig air-gapped; mit lokalen Modellen verlassen deine Daten dein
+        Netzwerk nie.
+    enterprisePricing:
+      q: Wie funktioniert die Enterprise-Preisgestaltung?
+      a:
+        Enterprise wird pro Nutzer und Monat abgerechnet, mit zwei Monaten gratis bei
+        jährlicher Zahlung. Speicher über das enthaltene Kontingent hinaus wird
+        pro TB/Monat berechnet. Die Community-Edition bleibt für den selbst
+        gehosteten Einsatz kostenlos.
+    enterpriseFeatures:
+      q: Gibt es zusätzliche Funktionen im Enterprise-Plan?
+      a:
+        Nein. Alle Produktfunktionen sind auch in der Open-Source-Version verfügbar.
+        Enterprise bietet erweiterten Support und zusätzliche Services.
+    byoModels:
+      q: Muss ich eigene KI-Modelle mitbringen?
+      a: Nein. Du kannst eigene Modelle mitbringen, musst es aber nicht. Tale
+        unterstützt die meisten großen AI-Anbieter ohne Aufschlag —
+        Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet und
+        ist nicht in den Plänen enthalten.
+    aiProviders:
+      q: Kann ich meinen bevorzugten KI-Anbieter nutzen?
+      a: Ja. Tale unterstützt die großen Cloud-KI-Anbieter ohne Aufschlag — die
+        Nutzung wird zu den Preisen deines Anbieters abgerechnet. Du behältst
+        deinen Anbieter und deine bestehende Abrechnung.
+    hardware:
+      q: Bietet ihr auch Hardware an?
+      a:
+        Ja — Hardware gibt es zur Miete, zum Leasing oder zum Kauf. Erwähne es beim
+        Kontakt, und du bekommst ein Angebot für die passende Konfiguration.
+    ownHardwareModels:
+      q: Kann ich meine eigene Hardware und KI-Modelle nutzen?
+      a: Ja. Tale ist hardware- und modellagnostisch — du kannst deine eigene
+        Infrastruktur und Modelle nutzen.
+    customTraining:
+      q: Bietet ihr individuelles KI-Modelltraining an?
+      a:
+        Ja. Training und Fine-Tuning eigener Modelle sind für Kunden verfügbar. Bring
+        es im Demo-Call zur Sprache, wenn du es brauchst.
+  cta:
+    title: Betreibe Tale auf deiner Infrastruktur.
+    description: Orchestriere deine KI-Agents auf einem souveränen Stack, den du
+      selbst betreibst — nimm Kontakt auf oder leg in vier Befehlen los.
+    primary: Demo anfragen
+    getStarted: Loslegen
+    terminalTitle: Selbst hosten in vier Befehlen
+    copy: Kopieren
+    copied: Kopiert
+    docsLink: Vollständige Installationsanleitung
+complianceTrust:
+  certifications:
+    iso27001: ISO 27001
+    soc2: SOC 2 Type II
+    gdpr: DSGVO
+    mit: MIT-lizenziert
+    openSource: Open Source
+pricing:
+  title: Was kostet Tale?
+  description: Tale Enterprise kostet CHF 12 (EUR 14) pro User/Monat, bei
+    Jahresabrechnung zwei Monate gratis. Die MIT-lizenzierte Community-Edition
+    ist kostenlos selbst gehostet.
+  note: Alle Produkt-Features sind in Community und Enterprise enthalten.
+    Zusätzliche Cloud-KI-Modellnutzung wird zu den Preisen deines Anbieters
+    abgerechnet.
+  popular: Beliebt
+  planIncludes: 'Im Plan enthalten:'
+  billing:
+    ariaLabel: Abrechnungszeitraum
+    monthly: Monatlich
+    yearly: Jährlich (2 Monate gratis)
+  billingNote:
+    monthly: Monatlich abgerechnet
+    yearly: Jährlich abgerechnet · 2 Monate gratis
+  users:
+    label: Anzahl der Nutzer
+    minTooltip: Mindestens 25 Nutzer
+  region:
+    ariaLabel: Währung
+    CH: CHF
+    DE: EUR
+  community:
+    deployment: Nur selbst gehostet
+    price: Kostenlos
+    priceSuffix: ''
+    tagline:
+      Jedes Produkt-Feature, kostenlos selbst gehostet — Support läuft über
+      GitHub.
+    cta: Loslegen
+    feature1: Selbst gehostet
+    feature2: MIT-Lizenz
+    feature3: Community-gepflegt (GitHub)
+    feature4: Community-Support (GitHub)
+  enterprise:
+    deployment: Cloud oder selbst gehostet
+    priceSuffix: /Monat + MwSt.
+    storageAddOn: 1 TB + {price}/TB/Monat zusätzlicher Speicher
+    userBreakdown: '{count} Nutzer × {perUser}/Nutzer/Monat'
+    tagline:
+      Alles aus Community, professionell betrieben — Installation, Wartung
+      und Support, in der Cloud oder auf deiner Hardware.
+    cta: Kontakt aufnehmen
+    feature1: Selbst gehostet oder Cloud
+    feature2: Professionell gewartet (ISO 27001 & SOC 2 Type II zertifiziert)
+    feature3: DSGVO-konform
+    feature4: E-Mail-, Telefon- und Remote-Support
+    feature5: Installation und laufende Wartung
+    feature7: Einfluss auf die Produkt-Roadmap
+  compare:
+    title: Pläne vergleichen
+    subtitle: Übersicht über jeden Plan
+    categories:
+      deployment: Bereitstellung
+      compliance: Compliance
+      support: Support
+      installation: Standardinstallation
+      maintenance: Wartung
+      customDevelopment: Individuelle Entwicklung
+      consulting: Beratung
+      roadmap: Einfluss auf die Produkt-Roadmap
+    values:
+      communityDeployment: Selbst gehostet
+      paidDeployment: Cloud, selbst gehostet
+      paidCompliance: DSGVO-konform, ISO 27001 & SOC 2 Type II zertifiziert
+      proSupport: E-Mail-Support
+      enterpriseSupport: Telefon/SMS-Support, WhatsApp-Support, Remote-Support,
+        Professional Services
+      installationFee:
+        CH: CHF 1.990
+        DE: EUR 2.290
+      hourlyRate:
+        CH: CHF 180 / Std.
+        DE: EUR 200–260 / Std.
+      yes: Ja
+      dash: —
+    sections:
+      services: Professionelle Dienstleistungen
+      other: Sonstiges
+    rows:
+      selfHosted: Selbst gehostet
+      cloud: Cloud
+      localDataCenters: Lokale Rechenzentren (CH & EU)
+      gdpr: DSGVO-konform
+      iso: ISO 27001 und SOC 2 Type II zertifiziert
+      piiRedaction: PII-Schwärzung
+      customDpa: Individueller AVV
+      customDpaInfo:
+        Wir akzeptieren auch individuelle Auftragsverarbeitungsverträge
+        mit unseren Kunden.
+      emailSupport: E-Mail-Support
+      emailSupportInfo: 'Antworten innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).'
+      phoneSupport: Telefon-Support
+      phoneSupportInfo: 'Verfügbar innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).'
+      remoteSupport: Remote-Support
+      remoteSupportInfo: 'Verfügbar innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).'
+    cellLabels:
+      yes: Enthalten
+      no: Nicht enthalten
+  extras:
+    training:
+      title: KI-Schulungen
+      description:
+        Kurse, die deinem Team beibringen, KI produktiv zu bauen und zu
+        betreiben — sieh dir unsere
+      linkLabel: KI-Schulungen
+      suffix: .
+    hardware:
+      title: Hardware
+      prefix: Für Self-Hosting bieten wir
+      linkLabel: flexible Hardware-Optionen
+      suffix: ' — Miete, Kauf oder Finanzierung.'
+    cloudProviders:
+      title: Cloud-KI-Anbieter
+      description: Wir unterstützen OpenAI, Anthropic, Gemini und weitere große
+        Cloud-KI-Anbieter in CH & EU — ohne Aufschlag; die Nutzung wird zu
+        Anbieterpreisen abgerechnet.
+  terms:
+    title: Bedingungen
+    prefix: Alle Konfigurationen unterliegen unserem
+    linkLabel: Servicevertrag
+    suffix: .
+hardwarePricing:
+  title: Was kostet Tale-AI-Hardware?
+  description: Geräuscharme Inference-Hardware von einzelnen Nodes bis Racks —
+    mieten, leasen oder kaufen. Vor Ort mit Remote-Wartung oder in sicheren
+    Rechenzentren.
+  popular: Beliebt
+  configIncludes: 'Konfiguration enthält:'
+  billing:
+    ariaLabel: Zahlungsoption
+    leasing: Leasing
+    buying: Kauf
+    termAriaLabel: Leasinglaufzeit
+    termHeading: 'Monate:'
+  modesAriaLabel: Bereitstellungsmodus
+  deploymentNote: Alle Hardware-Konfigurationen sind geräuschlos und können bei
+    dir vor Ort installiert und remote von unserem Team gewartet werden — oder
+    in unseren sicheren Rechenzentren gehostet werden.
+  tiers:
+    quality:
+      priceSuffix: + MwSt./Monat
+      buySuffix: + MwSt.
+      tagline: Abgestimmt auf Genauigkeit und konsistente Ergebnisse.
+      nodeTagline: Gebaut für Genauigkeit und konsistente Ergebnisse.
+      cta: Kontakt aufnehmen
+      highlightQuality: Qualität
+      highlightSpeed: Standard
+    hybrid:
+      priceSuffix: + MwSt./Monat
+      buySuffix: + MwSt.
+      tagline: Balanciert Genauigkeit und Tempo.
+      nodeTagline: Verbindet lokale Datenkontrolle mit schneller Inferenz.
+      cta: Kontakt aufnehmen
+      highlightQuality: Hoch
+      highlightSpeed: Hoch
+    speed:
+      priceSuffix: + MwSt./Monat
+      buySuffix: + MwSt.
+      tagline: Abgestimmt auf Antworten mit niedriger Latenz.
+      nodeTagline: Gebaut für Antworten mit niedriger Latenz.
+      cta: Kontakt aufnehmen
+      highlightQuality: Standard
+      highlightSpeed: Qualität
+    rack:
+      priceSuffix: + MwSt./Monat
+      buySuffix: + MwSt.
+      tagline: Multi-Node-Leistung in einem einzigen, sicheren Gehäuse — mit
+        Confidential Computing.
+      nodeTagline: Multi-Node-Leistung in einem einzigen, sicheren Gehäuse — mit
+        Confidential Computing.
+      cta: Kontakt aufnehmen
+      highlightQuality: Hoch
+      highlightSpeed: Hoch
+  compare:
+    title: Konfigurationen vergleichen
+    subtitle: Übersicht über jede Konfiguration
+    categories:
+      model: Empfohlenes KI-Modell
+      modelInfo:
+        Vorschlag für ein Multi-Node-Setup. Einzelne Nodes können kleinere
+        Varianten ausführen — das tatsächliche Modell wählt dein Team bei der
+        Inbetriebnahme.
+      size: Größe
+      sizeInfo: Richtwerte — die tatsächliche Größe kann leicht abweichen.
+      gpu: Chip (GPU)
+      cpu: Chip (CPU)
+      ram: KI-RAM
+      ramInfo:
+        Schneller Speicher für KI-Berechnungen, z. B. GDDR7-Videospeicher oder
+        Unified Memory (UMA).
+      umaInfo:
+        Unified Memory Architecture — RAM, der sich CPU und GPU auf demselben
+        Chip teilen (Apple Silicon).
+      gddr7Info:
+        Graphics DDR der 7. Generation — Videospeicher mit hoher Bandbreite
+        auf der GPU-Karte, optimiert für KI-Inferenz.
+      ddr5Info: DDR-SDRAM der fünften Generation (schneller und effizienter als DDR4).
+      ddr5eccInfo: DDR5 mit Fehlerkorrekturcode — Server-Speicher, der
+        Einzelbit-Fehler erkennt und korrigiert.
+      zen4Info: AMDs x86-CPU-Mikroarchitektur der 4. Generation (2022).
+      zen5Info: AMDs x86-CPU-Mikroarchitektur der 5. Generation (2024).
+      int4Info:
+        4-Bit-Integer-Quantisierung — minimaler Präzisionsverlust, ~4× weniger
+        Speicherbedarf.
+      m2nvmeInfo: m.2-NVMe-SSDs in einem ZFS-RAID-Pool — schneller, redundanter Speicher.
+      nqInfo: Quality-Node
+      naInfo: Application-Node
+      nsInfo: Speed-Node
+      mqInfo: Multi-Node Quality
+      mhInfo: Multi-Node Hybrid
+      msInfo: Multi-Node Speed
+      srInfo: Server Rack
+      systemRam: RAM
+      ssd: SSD
+      hdd: HDD
+      cables: Kabel & Netzwerkausrüstung
+      confidentialComputing: Confidential Computing
+      version: Produktversion
+      productNumber: Produktnummer
+      composition: Zusammensetzung
+    cellLabels:
+      yes: Enthalten
+      onRequest: Auf Anfrage verfügbar
+      notAvailable: Nicht verfügbar
+    sections:
+      specifications: Spezifikationen
+      other: Sonstiges
+  extras:
+    software:
+      title: Software & Services
+      prefix: Für Installation, Support und Professional Services bieten wir
+      linkLabel: flexible Optionen
+      suffix: .
+  terms:
+    title: Bedingungen
+    prefix: Alle Konfigurationen unterliegen unserem
+    linkLabel: Hardware-Vertrag
+    suffix: .
+  warranty:
+    title: Garantie
+    content: 24 Monate Hersteller-Garantie (auf Anfrage erweiterbar auf 36 Monate)
+  metrics:
+    quality: Ausgabequalität
+    speed: Token-Geschwindigkeit
+    storage: Datenspeicher
+requestDemo:
+  eyebrow: Demo
+  title: Sieh dir Tale live an
+  paragraph1: 'Eine geführte Demo ist das Produkt live, keine Folien: Agents
+    angedockt, Antworten in deiner Art von Wissen verankert, eine Automation,
+    die auf Freigabe wartet — auf einer selbst gehosteten Instanz.'
+  paragraph2: Erzähl uns, was dein Team heute nutzt und was dein Netzwerk nie
+    verlassen darf. Innerhalb eines Arbeitstags melden wir uns mit Termin und
+    einem Plan, der passt.
+  fieldName: Name
+  fieldPhone: Telefon
+  fieldCompany: Unternehmen
+  fieldInterests: Interessiert an
+  fieldMessage: Zusätzlicher Kommentar
+  placeholderName: Vollständigen Namen eingeben
+  placeholderEmail: E-Mail-Adresse eingeben
+  placeholderPhone: Telefonnummer eingeben
+  placeholderCompany: Firmennamen eingeben
+  placeholderMessage: Beschreib dein Projekt. Alle geteilten Projektdetails
+    behandeln wir vertraulich.
+  interests:
+    enterprise: Enterprise-Lösungen
+    professionalServices: Professional Services
+    customAiTraining: Individuelles KI-Modelltraining
+    aiHardware: KI-Hardware
+  submit: Kontakt aufnehmen
+contact:
+  eyebrow: Kontakt
+  title: Kontakt aufnehmen
+  description: Fragen zu Self-Hosting, Enterprise, Hardware oder einem geplanten
+    Deployment? Schreib dem Team — die Antwort kommt innerhalb eines
+    Arbeitstags.
+  fieldName: Name
+  fieldCompany: Unternehmen
+  fieldMessage: Nachricht
+  placeholderName: Vollständigen Namen eingeben
+  placeholderEmail: E-Mail-Adresse eingeben
+  placeholderCompany: Firmennamen eingeben
+  placeholderMessage:
+    Teil uns ein paar Details mit, damit wir deine Anforderungen
+    besser verstehen. Alle geteilten Projektdetails behandeln wir vertraulich.
+  submit: Kontakt aufnehmen
+forms:
+  email: E-Mail
+  honeypotLabel: Website
+  privacyPrefix: Ich bestätige, dass ich die
+  privacyLink: Datenschutzerklärung gelesen habe
+  privacyRequired: Du musst die Datenschutzerklärung akzeptieren
+  errors:
+    generic: Etwas ist schiefgelaufen. Versuch es erneut.
+    rateLimited: Zu viele Anfragen. Warte einen Moment, dann versuch es erneut.
+    notConfigured:
+      Diese Installation hat noch keinen Formularversand eingerichtet —
+      deine Nachricht wurde nicht gesendet. Erreich das Team bitte über einen
+      anderen Kanal.
+    serverUnavailable:
+      Deine Nachricht konnte gerade nicht gesendet werden. Versuch
+      es in ein paar Minuten erneut.
+    tooFast: Moment — prüf deine Angaben, bevor du absendest.
+  success:
+    title: Danke — wir haben es erhalten
+    description: Wir melden uns innerhalb eines Werktags.
+    sendAnother: Weitere Nachricht senden
+featureShared:
+  ctaPrimary: Demo anfragen
+  ctaSecondary: Kontakt
+  ctaGetStarted: Loslegen
+  ctaTitle: Sieh Tale auf deinem Stack
+  ctaDescription: Buch eine geführte Demo oder sprich mit dem Team über
+    Self-Hosted-Deployment, Preise und Hardware.
+  relatedHeading: Verwandte Module
+  docsHeading: Docs lesen
+platformAgents:
+  eyebrow: Agents
+  title: Was sind Agents in Tale?
+  description: Ein Tale Agent ist die Vier-Knopf-Kombination aus Anweisungen,
+    Wissen, Tools und Modell. Redakteure bauen sie einmal; das Team nutzt sie in
+    Chat, Automations und Projekten — inklusive externer Agents wie Claude Code,
+    Codex, Hermes und OpenClaw.
+  capabilities:
+    heading: Was können Agents?
+    description:
+      Was eine Agent-Definition dem ganzen Team gibt — und was sie einem
+      nackten Modell voraushat.
+    items:
+      - title: Vier Knöpfe, eine Einheit
+        body:
+          Anweisungen, Wissen, Tools und Modell definieren, wie ein Agent sich
+          verhält. Ändere einen Knopf, ohne etwas neu zu trainieren.
+        docsLabel: Agent-Konzepte
+      - title: Externe Agents docken an
+        body:
+          Verbinde Claude Code, Codex, Hermes und OpenClaw, damit Arbeit an den
+          Agent geroutet wird, der schon in deinem Stack lebt.
+        docsLabel: Externe Agents
+      - title: Delegation zwischen Agents
+        body:
+          Spezial-Agents übergeben Arbeit aneinander, wenn ein Thread eine Domäne
+          verlässt — ohne das Transkript zu verlieren.
+        docsLabel: Agent-Worker
+      - title: Skills als wiederverwendbare Bundles
+        body:
+          Packe eine Schreibstimme oder ein mehrstufiges Muster einmal und binde es
+          an bis zu zehn Agents.
+        docsLabel: Agent-Skills
+      - title: Wissen pro Agent begrenzt
+        body:
+          Jeder Agent durchsucht nur die Bibliotheks-Slices, die du freigibst —
+          Team-Docs bleiben außerhalb des Teams unsichtbar.
+        docsLabel: Agent-Wissen
+  faq:
+    heading: FAQ zu Agents
+    items:
+      - q: Was ist ein Agent in Tale?
+        a:
+          Ein Tale Agent kombiniert Anweisungen, Wissen, Tools und Modell zu einer
+          wiederverwendbaren Einheit, die Mitglieder in Chat und Automations
+          nutzen.
+      - q: Kann Tale Claude Code und Hermes orchestrieren?
+        a: Ja. Tale verbindet externe Agents wie Claude Code, Codex, Hermes und
+          OpenClaw, damit dein Team Arbeit über einen Orchestrator routet.
+      - q: Wann nutze ich einen Agent statt eines Workflows?
+        a:
+          Nutze einen Agent, wenn das Gespräch in einer Domäne und Stimme bleibt. Greif
+          zur Automation, wenn die Arbeit mehrere Schritte, Verzweigungen,
+          Zeitpläne oder Freigaben braucht.
+      - q: Kann jeder Agent ein anderes Modell nutzen?
+        a:
+          Ja. Jeder Agent bindet sein eigenes Primärmodell samt Fallbacks — Claude Code
+          kann auf Claude Opus laufen, während ein Support-Spezialist Claude
+          Sonnet nutzt. Das Modell wechselst du, ohne den Agent neu zu bauen.
+  docs:
+    - label: Agent-Konzepte
+      path: /platform/agents/concepts
+    - label: Agent anlegen
+      path: /platform/agents/create
+    - label: Externe Agents
+      path: /platform/agents/external-agent
+    - label: Delegation
+      path: /platform/agents/delegation
+    - label: Agent-Wissen
+      path: /platform/agents/knowledge
+  tour:
+    heading: So zeigen sich Agents in Tale
+    description:
+      Docke die Agents an, denen du vertraust, verankere sie im Wissen,
+      führe sie in Workflows aus und grenze sie nach Projekt ab.
+    stages:
+      - id: projects
+        eyebrow: Projekte
+        title: |-
+          Agents nach Team
+          abgrenzen
+        description:
+          Jedes Projekt hält Agents, Mitglieder und Wissen in einem Workspace
+          — Support sieht nie den Engineering-Stack.
+      - id: knowledge
+        eyebrow: Wissen
+        title: |-
+          Jeden Agent in dem
+          verankern, was du weißt
+        description: Der Support-Agent bekommt Makros, Brand Voice und den
+          Help-Center-Crawl — sonst nichts. Jeder Agent durchsucht nur die
+          Slices, die du ihm gibst.
+      - id: automations
+        eyebrow: Automatisierungen
+        title: |-
+          Agents in mehrstufiger
+          Arbeit ausführen
+        description: Workflows rufen Agents als LLM-Schritte mit Bedingungen und
+          Aktionen auf — jeder Lauf hinterlässt ein Log.
+      - id: chat
+        eyebrow: Sandbox
+        title: |-
+          Dem Agent in Files
+          und Live zusehen
+        description: Externe Agents arbeiten in einer Sandbox — brows den
+          Workspace-Tree, öffne die Datei, die sie gerade geschrieben haben, und
+          schau im Live-Browser zu, wie sie das Ergebnis durchklicken.
+  demos:
+    knowledge:
+      label:
+        'Animierte Demo: Die Wissens-Slices für einen Agent — Support-Makros,
+        Brand-Voice-Eintrag, Agent-Playbook-Crawl und Returns-Playbook.'
+      source1: support-macros.pdf
+      sourceType1: pdf
+      source2: Brand Voice
+      sourceType2: entry
+      source3: agents.nordwind.eu
+      sourceType3: website
+      source4: returns-playbook.pdf
+      sourceType4: pdf
+    automation:
+      label:
+        'Animierte Demo: Ein nächtlicher Workflow ruft den Release-Agent als
+        LLM-Schritt auf, prüft auf neue Änderungen und postet einen Digest nach
+        Slack; die Ausführungen-Tabelle hält jeden Lauf fest.'
+      trigger: Nachts 02:00
+      llm: Release-Agent
+      condition: Änderungen?
+      branchYes: Ja
+      action: Digest an Slack
+      actionAlt: Überspringen
+      run1: '#311'
+      runTone1: done
+      duration1: 6,1s
+      run2: '#312'
+      runTone2: done
+      duration2: 5,4s
+      run3: '#313'
+      runTone3: running
+      duration3: 0,8s
+    connect:
+      label: 'Animierte Demo: Die Agents-Liste dieser Seite — Support-Agent,
+        Docs-Agent, Release-Agent, Research-Agent und Pilot-Agent, jeweils mit
+        Modell.'
+      agent1: Support-Agent
+      model1: Claude Sonnet
+      agent2: Docs-Agent
+      model2: Claude Opus
+      agent3: Release-Agent
+      model3: GPT-5.5
+      agent4: Research-Agent
+      model4: Claude Opus
+      agent5: Pilot-Agent
+      model5: Claude Opus
+    projects:
+      label: 'Animierte Demo: Projekte so abgegrenzt, dass Support und Platform
+        jeweils ihren Agent-Stack und ihre Mitglieder behalten.'
+      project1: Support-Desk
+      agents1: 4 Agents
+      members1: '9'
+      project2: Platform Build
+      agents2: 6 Agents
+      members2: '12'
+      project3: Docs & Enablement
+      agents3: 2 Agents
+      members3: '4'
+      project4: Release-Zug
+      agents4: 3 Agents
+      members4: '7'
+    sandbox:
+      label:
+        'Animierte Demo: Hermes bearbeitet install_offline.py im Files-Bereich,
+        dann zeigt der Live-Browser die Air-Gap-Install-Checkliste.'
+      prompt: Fixe das Offline-Install-Skript und zeig mir die Checkliste im
+        Live-Browser.
+      agent: Hermes
+      model: Claude Sonnet
+      reply: Registry-Pfad gefixt — Files hat den Diff; Live ist auf der Checkliste.
+      file1: install_offline.py
+      file2: registry.json
+      file3: docs/checklist.md
+      file4: Dockerfile
+      activeFile: install_offline.py
+      code1: 'def resolve_registry(path):'
+      code2: '    root = Path(path).expanduser()'
+      code3: '    if not root.exists():'
+      code4: '        raise SystemExit("missing registry")'
+      browserUrl: http://127.0.0.1:8787/checklist
+      browserTitle: Air-Gap-Install-Checkliste
+platformAutomations:
+  eyebrow: Automations
+  title: Was sind Automations in Tale?
+  description: Eine Automation bündelt Integrationen, Agents, einen Workflow und
+    die Views, die sie mitbringt — zum Beispiel eine Inbox — zu einer
+    installierbaren Einheit. Der Workflow darin ist ein Graph typisierter
+    Schritte — LLM, Action, Condition, Loop, Sandbox — mit Zeitplänen, Webhooks,
+    Events und menschlichen Freigaben.
+  capabilities:
+    heading: Was steckt in einer Automation?
+    description:
+      Baue mehrstufige Arbeit als typisierten Graphen — LLM-, Action-,
+      Condition-, Loop- und Sandbox-Schritte — mit Freigaben und versionierten
+      Läufen.
+    items:
+      - title: Installierbare Bundles
+        body:
+          Owner und Admins installieren aus dem Katalog; Mitglieder nutzen Inbox,
+          Agents oder Views, die sie registriert, ohne Teile von Hand
+          zusammenzusetzen.
+        docsLabel: Automation-Konzepte
+      - title: Typisierte Workflow-Schritte
+        body:
+          LLM-, Action-, Condition-, Loop- und Sandbox-Schritte bilden den Graphen.
+          Jeder Save erzeugt eine Version, die du wiederherstellen kannst.
+        docsLabel: Workflow-Editor
+      - title: Trigger, die zur Aufgabe passen
+        body:
+          Zeitpläne (Cron), Webhooks, Plattform-Events oder ein manueller Testlauf
+          aus dem Editor.
+        docsLabel: Trigger
+      - title: Ausführungs-Logs
+        body:
+          Jeder Lauf protokolliert Status, Timing, Inputs und ein Schritt-Journal —
+          Audit-Trail und Debugger an einem Ort.
+        docsLabel: Ausführungs-Logs
+      - title: Freigaben im Loop
+        body: Vorgeschlagene Workflow-Änderungen, agent-gestartete Läufe und
+          Waiting-for-Input-Pausen landen als Freigabe-Karten, bevor die Arbeit
+          weitergeht.
+        docsLabel: Freigaben in Workflows
+  faq:
+    heading: FAQ zu Automations
+    items:
+      - q: Was ist eine Automation in Tale?
+        a:
+          Eine Tale-Automation ist ein installierbares Bündel — Integrationen, Agents,
+          ein Workflow und fertige Views wie eine Inbox — das mehrstufige Arbeit
+          mit Triggern und Freigaben ausführt.
+      - q: Gibt es ein eigenständiges Workflow-Produkt?
+        a:
+          Nein. Ein Workflow lebt in seiner Automation. Der Editor-Tab der Automation
+          ist dort, wo du den Graphen triffst.
+      - q: Wann nutze ich eine Automation statt eines Agents?
+        a:
+          Nutze eine Automation, wenn die Aufgabe mehrere Schritte, Verzweigungen,
+          Zeitpläne oder Freigaben dazwischen braucht — nicht, wenn ein
+          einzelner konversationeller Agent reicht.
+      - q: Kann ich einen Workflow testen, bevor er nach Zeitplan läuft?
+        a:
+          Ja. Der Editor hat einen manuellen Testlauf — du siehst eine komplette
+          Ausführung mit Eingaben, Schritt-Journal und Timing, bevor irgendein
+          Trigger live geht.
+  docs:
+    - label: Automation-Konzepte
+      path: /platform/automations/concepts
+    - label: Workflow-Editor
+      path: /platform/automations/editor
+    - label: Trigger
+      path: /platform/automations/triggers
+    - label: Ausführungs-Logs
+      path: /platform/automations/execution-logs
+    - label: Built-in Automations
+      path: /platform/automations/builtin
+  tour:
+    heading: So laufen Automatisierungen in Tale
+    description: Verkette Trigger, LLM-Schritte und Aktionen — gib frei, was
+      rausgeht, und verankere jeden Schritt im Wissen.
+    stages:
+      - id: govern
+        eyebrow: Freigaben
+        title: |-
+          Human-in-the-Loop
+          bevor es rausgeht
+        description:
+          Der Lauf pausiert genau dort, wo du es festgelegt hast. Freigeben
+          setzt den angehaltenen Schritt mit Journal-Eintrag fort; Ablehnen
+          stoppt den Lauf.
+      - id: agents
+        eyebrow: Agents
+        title: |-
+          Den richtigen Agent
+          als LLM-Schritt rufen
+        description:
+          Workflows wählen Spezialisten wie Chat — Anweisungen, Wissen und
+          Tools reisen mit dem Schritt.
+      - id: knowledge
+        eyebrow: Wissen
+        title: |-
+          Jeden Schritt in
+          indexierten Quellen verankern
+        description:
+          Die LLM-Schritte der Pipeline lesen aus Lieferantenverträgen, der
+          ERP-Feldzuordnung und dem Lieferanten-Crawl — jede Klassifikation
+          zitiert ihre Quelle.
+      - id: projects
+        eyebrow: Projekte
+        title: |-
+          Workflows nach
+          Workspace abgrenzen
+        description:
+          Projekte halten Automatisierungen, Agents und Mitglieder zusammen —
+          Ops-Läufe bleiben außerhalb von Engineering.
+  demos:
+    automation:
+      label:
+        "Animierte Demo: Eine Rechnungs-Pipeline extrahiert Positionen, hält
+        Beträge über CHF 5'000 zur Freigabe an und bucht den Rest ins ERP; die
+        Ausführungen-Tabelle hält jeden Lauf fest."
+      trigger: Neue Rechnung
+      llm: Posten lesen
+      condition: Ab CHF 5'000?
+      branchYes: Ja
+      action: Freigeben lassen
+      actionAlt: Ins ERP buchen
+      run1: '#1207'
+      runTone1: done
+      duration1: 4,8s
+      run2: '#1208'
+      runTone2: pending
+      duration2: —
+      run3: '#1209'
+      runTone3: running
+      duration3: 1,2s
+    govern:
+      label: 'Animierte Demo: Die angehaltene Rechnungs-Charge bittet im Chat um
+        Freigabe; nach dem Freigeben werden die Rechnungen gebucht und der Lauf
+        journaliert.'
+      approvalTitle: 7 Rechnungen über CHF 23'410 ins ERP buchen?
+      requester: 'Rechnungs-Pipeline · Lauf #1208'
+      audit1: Freigegeben von finance@nordwind.eu
+      audit2: 7 Rechnungen ins ERP gebucht
+      audit3: 'Lauf #1208 in 41s abgeschlossen'
+      budgetValue: CHF 1'240 / 2'500
+    knowledge:
+      label:
+        'Animierte Demo: Die Quellen, aus denen die LLM-Schritte der Pipeline
+        lesen — Lieferantenverträge, ein ERP-Feld-Eintrag, der Crawl des
+        Lieferantenportals und die Lieferanten-Datensätze.'
+      source1: lieferantenvertraege.pdf
+      sourceType1: pdf
+      source2: ERP-Feldzuordnung
+      sourceType2: entry
+      source3: lieferanten.nordwind.eu
+      sourceType3: website
+      source4: Lieferanten-Datensätze
+      sourceType4: catalog
+    connect:
+      label:
+        'Animierte Demo: Spezialisten, die Workflows als LLM-Schritte aufrufen —
+        Invoice-Agent, Vendor-Agent, ERP-Agent, Matching-Agent und
+        Exceptions-Agent.'
+      agent1: Invoice-Agent
+      model1: Claude Sonnet
+      agent2: Vendor-Agent
+      model2: GPT-5.5
+      agent3: ERP-Agent
+      model3: Claude Opus
+      agent4: Matching-Agent
+      model4: Claude Sonnet
+      agent5: Exceptions-Agent
+      model5: GPT-5.5
+    projects:
+      label:
+        'Animierte Demo: Projekte, die Automations nach Workspace abgrenzen —
+        Ops-Pipelines bleiben außerhalb von Engineering.'
+      project1: Invoice-Ops
+      agents1: 3 Agents
+      members1: '6'
+      project2: Vendor-Intake
+      agents2: 2 Agents
+      members2: '4'
+      project3: Engineering-CI
+      agents3: 4 Agents
+      members3: '10'
+      project4: Nächtliche Reviews
+      agents4: 2 Agents
+      members4: '5'
+platformChat:
+  eyebrow: Chats
+  title: Chats in Tale
+  description:
+    'Chat ist der Alltagseinstieg: Agent wählen (oder keinen), tippen,
+    und eine Antwort streamt mit Zitationen, Tool-Aufrufen und optionalen
+    Arena-Vergleichen — die Oberfläche, in die jedes andere Plattform-Modul
+    einmündet.'
+  capabilities:
+    heading: Was umfasst Chat?
+    description: Alltags-KI, die ihre Quellen zitiert, deine Tools aufruft und
+      Modelle nebeneinander vergleicht.
+    items:
+      - title: Composer mit Auto-Routing
+        body:
+          Der Composer trägt Agent-Picker und Modell-Picker. Auto lässt Tale das
+          Modell für den Thread wählen.
+        docsLabel: Chat-Grundlagen
+      - title: Zitationen bei jeder verankerten Antwort
+        body:
+          Abgerufene Passagen tragen ihre Quelle, damit Leser die Datei, den Eintrag
+          oder die Seite öffnen können, die die Antwort nutzte.
+        docsLabel: Chat-Grundlagen
+      - title: Arena-Modus
+        body:
+          Vergleiche Modelle oder Agents nebeneinander, wenn du eine zweite Meinung
+          brauchst, bevor du dich festlegst.
+        docsLabel: Arena-Modus
+      - title: Anhänge und Canvas
+        body:
+          Lade unterstützte Dateien hoch; öffne Canvas, wenn die Antwort ein langes
+          Dokument oder Diagramm neben dem Thread braucht.
+        docsLabel: Anhänge
+      - title: Agents im Thread
+        body:
+          Wechsle Agents mitten im Thread, starte One-Shot-Spezialisten oder behalte
+          einen festen Agent fürs Gespräch.
+        docsLabel: Agents im Chat
+  faq:
+    heading: FAQ zu Chat
+    items:
+      - q: Was ist Chat in Tale?
+        a:
+          Tale Chat ist die Alltagsoberfläche, auf der du einen Agent wählst, eine
+          Nachricht sendest und eine gestreamte Antwort mit Zitationen und
+          Tool-Aufrufen liest.
+      - q: Funktioniert Chat ohne Agent?
+        a:
+          Ja. Roher Chat nutzt die Modell-Defaults beim Erkunden; greif zum Agent, wenn
+          dieselbe Frage wiederkehrt.
+      - q: Was ist der Arena-Modus?
+        a:
+          Der Arena-Modus führt denselben Prompt gegen mehr als ein Modell oder Agent
+          aus, damit du Antworten vergleichen kannst, bevor du wählst.
+      - q: Kann Chat auch handeln — oder nur antworten?
+        a:
+          Beides. Würde eine Antwort eine Integration aufrufen oder einen Workflow
+          starten, pausiert die Aktion zuerst auf einer Freigabe-Karte im Chat —
+          genau dort, wo die Arbeit passiert.
+  docs:
+    - label: Chat-Übersicht
+      path: /platform/chat/overview
+    - label: Chat-Grundlagen
+      path: /platform/chat/basics
+    - label: Arena-Modus
+      path: /platform/chat/arena-mode
+    - label: Agents im Chat
+      path: /platform/chat/agents-in-chat
+    - label: Anhänge
+      path: /platform/chat/attachments
+  tour:
+    heading: So funktioniert Chat in Tale
+    description: Von der gestützten Antwort über Arena, Freigaben, Knowledge und
+      abgegrenzte Projekte — dieselben Oberflächen wie jeden Tag.
+    stages:
+      - id: govern
+        eyebrow: Freigaben
+        title: |-
+          Freigaben leben
+          im Thread
+        description:
+          Würde eine Antwort nach Slack posten, Mails senden oder ein System
+          ändern, landet eine Freigabe-Karte im Thread, bevor etwas rausgeht.
+      - id: projects
+        eyebrow: Projekte
+        title: |-
+          Threads bleiben
+          bei ihrem Team
+        description:
+          Ein Thread gehört zu seinem Workspace. Die Entwürfe des Comms-Agent
+          bleiben bei Comms — Engineering muss nie daran vorbeiscrollen.
+      - id: agents
+        eyebrow: Agents
+        title: |-
+          Den Agent wählen,
+          der die Frage besitzt
+        description:
+          Wechsle Spezialisten mitten im Thread oder lass Auto routen — jeder
+          Agent bringt eigene Anweisungen, Wissen und Tools mit.
+      - id: knowledge
+        eyebrow: Knowledge
+        title: |-
+          Jede Antwort
+          aus indexierten Quellen
+        description:
+          Chat holt aus den Bibliotheken, die du freigibst — Zitat-Karten
+          landen im Thread, damit Leser die Datei oder Seite öffnen können, die
+          die Antwort genutzt hat.
+  demos:
+    arena:
+      label:
+        'Animierte Demo: Chat Arena schickt denselben Ankündigungs-Prompt durch
+        Claude Sonnet und GPT-5.5 — der stärkere Entwurf gewinnt.'
+      prompt: Mach aus den 2.4-Release-Notes eine Release-Ankündigung.
+      agent: Comms-Agent
+      modelA: Claude Sonnet
+      modelB: GPT-5.5
+      replyA1:
+        'Starte mit der Headline: Offline-Installationen kommen jetzt als ein
+        Appliance-Image.'
+      replyA2: Danach zwei Zeilen zu schnellerer Indexierung und dem neuen Audit-Export.
+      replyA3: Schließe mit dem Upgrade-Pfad und dem Link zum Changelog.
+      replyB1: 'Beginn mit dem, was Piloten wollten: einfacheres Air-Gap-Setup,
+        geliefert.'
+      replyB2: Liste die drei Highlights als kurze Bullets mit Doku-Links.
+      replyB3: Ende mit einem Dank an die frühen Kontakte und dem Upgrade-Befehl.
+    govern:
+      label: 'Animierte Demo: Eine Freigabe-Karte im Chat fragt, ob die
+        Release-Ankündigung in den Slack-Kanal #customers gepostet werden darf;
+        die Freigabe wird erteilt und journaliert.'
+      approvalTitle: 'Ankündigung in #customers auf Slack posten?'
+      requester: Comms-Agent · Integrations-Aufruf
+      audit1: Freigegeben von comms@nordwind.eu
+      audit2: 'Ankündigung in #customers gepostet'
+      audit3: Entscheid im Audit-Log festgehalten
+      budgetValue: CHF 862 / 2'000
+    connect:
+      label: 'Animierte Demo: Das Chat-Spezialisten-Roster — Comms-Agent,
+        Support-Agent, Research-Agent, Docs-Agent und Release-Agent.'
+      agent1: Comms-Agent
+      model1: Claude Sonnet
+      agent2: Support-Agent
+      model2: Claude Sonnet
+      agent3: Research-Agent
+      model3: GPT-5.5
+      agent4: Docs-Agent
+      model4: Claude Opus
+      agent5: Release-Agent
+      model5: GPT-5.5
+    projects:
+      label:
+        'Animierte Demo: Projekte, die Chat-Threads im richtigen Workspace halten
+        — Comms-Entwürfe bleiben außerhalb von Engineering-Chat.'
+      project1: Support-Threads
+      agents1: 3 Agents
+      members1: '8'
+      project2: Engineering-Chat
+      agents2: 5 Agents
+      members2: '11'
+      project3: Comms-Entwürfe
+      agents3: 2 Agents
+      members3: '4'
+      project4: Pilot-War-Room
+      agents4: 3 Agents
+      members4: '6'
+    knowledge:
+      label:
+        'Animierte Demo: Die Quellen, die Chat für eine gestützte Antwort holt —
+        Release-Notes-PDF, Changelog-Crawl, Ankündigungs-Vorlage und
+        Brand-Voice-Eintrag.'
+      source1: release-notes-2.4.pdf
+      sourceType1: pdf
+      source2: changelog.nordwind.eu
+      sourceType2: website
+      source3: Ankündigungs-Vorlage
+      sourceType3: entry
+      source4: Ton-Guide
+      sourceType4: entry
+platformGovernance:
+  eyebrow: Governance
+  title: Was ist Governance in Tale?
+  description:
+    'Governance ist die Naht zwischen Agent-Initiative und menschlichem
+    Urteil: Freigabe-Karten halten Aktionen an, bis jemand entscheidet, jede
+    Entscheidung landet im Audit-Log, und Ausgaben bleiben sichtbar — ohne
+    separates Freigabe-Postfach.'
+  capabilities:
+    heading: Was umfasst Governance?
+    description: Setze einen Menschen dort in den Loop, wo es zählt — mit
+      Audit-Trail, Budget-Kontrollen und Filtern, die sensible Daten aus Prompts
+      und Antworten heraushalten.
+    items:
+      - title: Freigabe-Karten im Chat
+        body: Pläne, Dokument-Schreibvorgänge, Knowledge-Schreibvorgänge,
+          Integrations-Aufrufe, MCP-Tools und Workflow-Läufe pausieren bis
+          Freigabe oder Ablehnung.
+        docsLabel: Freigabe-Konzepte
+      - title: Änderungen bei Integrationen vorschlagen
+        body:
+          Beschreibe, was falsch ist; der Agent überarbeitet den Aufruf statt die
+          Arbeit abzubrechen.
+        docsLabel: Freigabe-Konzepte
+      - title: Audit-Trail
+        body:
+          Jede Entscheidung protokolliert Akteur, Aktion und Zeitstempel. Gelöste
+          Karten bleiben im Transkript.
+        docsLabel: Audit-Logs
+      - title: Guardrails und Policies
+        body:
+          Org-weite Guardrails und die Run-Code-Policy setzen die Grenzen dessen,
+          was Agents überhaupt versuchen dürfen — bevor eine Karte erscheint.
+        docsLabel: Guardrails
+      - title: PII in beide Richtungen gefiltert
+        body:
+          Jede Chat-Nachricht durchläuft Inhaltssicherheit, PII-Erkennung und
+          optional einen Moderations-Provider — auf dem Weg hinein und hinaus.
+          Treffer werden blockiert, maskiert oder markiert; der Fundtext selbst
+          wird nie gespeichert.
+        docsLabel: Guardrails
+      - title: Ausgaben-Sichtbarkeit
+        body: Usage Analytics und Budgets halten Modell-Ausgaben für Admins sichtbar.
+        docsLabel: Usage Analytics
+  faq:
+    heading: FAQ zu Governance
+    items:
+      - q: Was ist Governance in Tale?
+        a:
+          Tale Governance hält Agent-Aktionen hinter Freigabe-Karten im Chat, schreibt
+          Entscheidungen ins Audit-Log und macht Ausgaben für Admins sichtbar.
+      - q: Gibt es ein separates Freigabe-Postfach?
+        a:
+          Nein. Freigaben werden im Gespräch entschieden, das sie unterbrechen — von
+          wem auch immer diesen Chat hält.
+      - q: Kann ich wählen, welche Aktionen eine Freigabe brauchen?
+        a:
+          Ja. Freigaben sind pro Aktionstyp konfigurierbar — Pläne, Dokument- und
+          Knowledge-Schreibvorgänge, Integrations-Aufrufe, MCP-Tools und
+          Workflow-Läufe können jeweils eine menschliche Entscheidung verlangen,
+          bevor sie laufen.
+      - q: Können Agents Emails ohne Freigabe senden?
+        a:
+          Nicht, wenn du dafür eine Freigabe verlangst. Ausgehende Aktionen warten als
+          Karten im Chat, bis jemand entscheidet — welche Aktionstypen eine
+          Entscheidung brauchen, legst du selbst fest.
+      - q: Wie hilft Tale bei DSGVO und PII?
+        a: Verarbeite Daten auf Infrastruktur, die du kontrollierst, lass die
+          PII-Erkennung persönliche Daten maskieren, bevor sie ein Modell
+          erreichen oder verlassen, und zeig Auditoren das Audit-Log. Tale ist
+          DSGVO-konform, zertifiziert nach ISO 27001 und SOC 2 Type II — DPA
+          sowie technische und organisatorische Maßnahmen sind veröffentlicht.
+  docs:
+    - label: Freigabe-Konzepte
+      path: /platform/approvals/concepts
+    - label: Freigaben konfigurieren
+      path: /platform/approvals/configure
+    - label: Freigaben in Workflows
+      path: /platform/automations/approvals-in-workflows
+    - label: Audit-Logs
+      path: /platform/admin/governance/audit-logs
+    - label: Guardrails
+      path: /platform/admin/governance/guardrails
+  tour:
+    heading: So hält Governance die Linie
+    description: Gib frei, bevor Aktionen rausgehen, auditiere jeden Lauf,
+      vergleiche Modelle ehrlich und halte Agents in deinen Regeln.
+    stages:
+      - id: automations
+        eyebrow: Automatisierungen
+        title: |-
+          Jeder freigegebene Lauf
+          hinterlässt ein Log
+        description:
+          'Ein nächtlicher Access-Review läuft nach Zeitplan und alarmiert
+          #security bei neuen Admin-Rechten — jede Ausführung nummeriert im
+          selben Journal, in das auch Freigaben schreiben.'
+      - id: arena
+        eyebrow: Arena
+        title: |-
+          Vergleichen, bevor
+          du zusagst
+        description:
+          Gerade bei heikler Formulierung gehen Modelle auseinander. Arena
+          entwirft dieselbe Antwort zweimal — die sicherere Version geht raus.
+      - id: agents
+        eyebrow: Agents
+        title: |-
+          Agents bleiben in
+          Budgets und Tools
+        description:
+          Ausgabenkontrolle und Tool-Freigaben reisen mit jedem Agent —
+          Governance ist kein nachträglicher Aufsatz.
+      - id: knowledge
+        eyebrow: Wissen
+        title: |-
+          Zitiere, welche Policy
+          die Antwort erlaubt hat
+        description:
+          Belegte Antworten zeigen Policy- und Runbook-Quellen — Auditoren
+          folgen derselben Spur.
+  demos:
+    govern:
+      label:
+        'Animierte Demo: Ein Agent will drei Knowledge-Einträge aus einem Thread
+        veröffentlichen; eine Person gibt frei, und die Entscheidung landet im
+        Audit-Log.'
+      approvalTitle: 3 Knowledge-Einträge aus diesem Thread veröffentlichen?
+      requester: Policy-Agent · Knowledge-Write
+      audit1: Freigegeben von lena@nordwind.eu
+      audit2: 3 Einträge zur Policy-Bibliothek hinzugefügt
+      audit3: 'Audit-Eintrag #8841 geschrieben'
+      budgetValue: CHF 220 / 800
+    automation:
+      label: 'Animierte Demo: Ein geplanter Access-Review prüft jede Nacht die
+        Berechtigungs-Änderungen und alarmiert #security, sobald neue
+        Admin-Rechte auftauchen.'
+      trigger: Täglich 01:00
+      llm: Rechte prüfen
+      condition: Neue Admins?
+      branchYes: Ja
+      action: '#security-Alarm'
+      actionAlt: Bericht ablegen
+      run1: '#98'
+      runTone1: done
+      duration1: 3,4s
+      run2: '#99'
+      runTone2: done
+      duration2: 3,1s
+      run3: '#100'
+      runTone3: running
+      duration3: 0,6s
+    arena:
+      label:
+        'Animierte Demo: Zwei Modelle entwerfen dieselbe Access-Exception-Antwort
+        nebeneinander — die sicherere Formulierung geht raus.'
+      prompt: Ein Contractor will Admin auf der Staging-Org außerhalb der
+        Access-Policy — entwirf die Antwort.
+      agent: Access-Agent
+      modelA: Claude Sonnet
+      modelB: GPT-5.5
+      replyA1: Lehne dauerhaften Admin ab und zitiere die Least-Privilege-Klausel.
+      replyA2: Biete einen zeitlich begrenzten Break-Glass-Grant mit Audit an.
+      replyA3: Leite an Security weiter, falls sie Production brauchen.
+      replyB1: Anerkenne die Deadline, bevor du das Access-Fenster wiederholst.
+      replyB2: Schlage eine Read-only-Rolle plus einen Pair-Engineer als
+        dokumentierten Weg vor.
+      replyB3: Markiere die Anfrage für das wöchentliche Access-Exceptions-Review.
+    knowledge:
+      label:
+        'Animierte Demo: Der Richtlinien-Korpus, den Auditoren öffnen können —
+        AI-Usage-Policy, der Trust-Page-Crawl, ein Datenhandling-Eintrag und das
+        Modell-Risikoregister.'
+      source1: ai-usage-policy.pdf
+      sourceType1: pdf
+      source2: trust.nordwind.eu
+      sourceType2: website
+      source3: Datenhandling-Regeln
+      sourceType3: entry
+      source4: modell-risikoregister.pdf
+      sourceType4: pdf
+    connect:
+      label: 'Animierte Demo: Agents mit Ausgabenkontrolle und Tool-Freigaben —
+        Policy-Agent, Audit-Agent, Budget-Agent, Access-Agent und
+        Exceptions-Agent.'
+      agent1: Policy-Agent
+      model1: Claude Sonnet
+      agent2: Audit-Agent
+      model2: Claude Opus
+      agent3: Budget-Agent
+      model3: GPT-5.5
+      agent4: Access-Agent
+      model4: Claude Sonnet
+      agent5: Exceptions-Agent
+      model5: Claude Opus
+platformHub:
+  title: Wie funktioniert die Tale-Plattform?
+  description: 'Tale ist der Orchestrator für KI-Agents: ein Ort, an dem deine
+    Agents Wissen teilen, Automationen ausführen und denselben Freigaben
+    unterstehen — selbst gehostet, zu deinen Bedingungen.'
+  modulesHeading: Plattform-Module
+  modulesDescription:
+    Sechs Module — jedes für sich nützlich; zusammen ein System
+    mit eingebauter Governance. Öffne ein Modul für seine eigene Tour.
+  tour:
+    heading: So fügt sich die Plattform zusammen
+    description:
+      Jedes Fenster unten ist ein Modul mit seiner eigenen Geschichte —
+      in Knowledge verankert, durch Automations ausgeführt, von Governance
+      angehalten, in Arena verglichen. Öffne ein Modul für die ganze Tour.
+    stages:
+      - id: agents
+        eyebrow: Agents
+        title: |-
+          Jeder Agent,
+          ein Roster
+        description: Claude Code, Codex, Hermes, OpenClaw — angedockt neben
+          In-Product-Agents, damit Arbeit zum Tool geht, das dein Team schon
+          nutzt.
+      - id: knowledge
+        eyebrow: Wissen
+        title: |-
+          Eine Bibliothek,
+          überall zitiert
+        description:
+          Produkthandbuch, Docs-Crawl, Preisliste, ein FAQ-Eintrag — eine
+          indexierte Bibliothek, aus der jeder Agent zitiert.
+      - id: automations
+        eyebrow: Automatisierungen
+        title: |-
+          Mehrstufige Arbeit
+          delegieren
+        description:
+          Eine Rechnungs-Pipeline liest Positionen aus, hält alles über CHF
+          5'000 an und bucht den Rest ins ERP — jeder Lauf im Log.
+      - id: govern
+        eyebrow: Governance
+        title: |-
+          Angehalten, bis
+          jemand entscheidet
+        description:
+          Selbst ein Wissens-Eintrag wartet auf einen Menschen. Freigeben —
+          und der Entscheid landet im Audit-Log, das Budget im Blick.
+      - id: arena
+        eyebrow: Arena
+        title: |-
+          Zwei Entwürfe,
+          ein Briefing
+        description: Ein Ankündigungs-Briefing, zwei Modelle nebeneinander — der
+          stärkere Entwurf geht raus.
+      - id: projects
+        eyebrow: Projekte
+        title: Nach Team abgrenzen
+        description:
+          Jedes Fenster oben lief in einem Workspace. Projekte entscheiden,
+          welche Agents, Bibliotheken und Mitglieder zusammensitzen — und wer
+          die Läufe sieht.
+  faq:
+    heading: Plattform-FAQ
+    items:
+      - q: Was ist die Plattform in Tale?
+        a:
+          'Tale ist ein selbst gehosteter Orchestrator für KI-Agents: Agents verbinden,
+          Wissen bündeln, Automatisierungen ausführen und jede Aktion steuern —
+          auf Infrastruktur, die du betreibst.'
+      - q: Welche Module gehören zu Tale?
+        a:
+          Chat, Projekte, Knowledge, Agents, Automations und Governance — die Projekte
+          grenzen Arbeit, Dateien und Agents nach Team ab.
+      - q: Ist Tale Open Source?
+        a:
+          Ja. Community ist MIT-lizenziert und kostenlos selbst gehostet. Enterprise
+          ergänzt Support und Services auf derselben Codebasis.
+      - q: Wo fange ich an?
+        a:
+          Öffne Chat für eine belegte Antwort, oder Agents, um Claude Code, Codex,
+          Hermes und OpenClaw unter einem Orchestrator anzudocken.
+  demos:
+    hero:
+      label:
+        'Animierte Produktdemo: Eine Überblickfrage wird in Tale getippt, Auto
+        routet sie an den Orchestrator-Agent, und die Antwort nennt die Module
+        mit zwei zitierten Quellen.'
+      prompt: Wo treffen sich Agents, Wissen und Freigaben in Tale?
+      routedTitle: An Orchestrator-Agent geroutet
+      routedDetail: Auto hat Claude Sonnet für diesen Überblick gewählt.
+      reply1: Agents docken neben Chat; Knowledge stützt jede Antwort.
+      reply2: Automations ketten die mehrstufige Arbeit dazwischen.
+      reply3: Governance hält die Aktionen, die eine Person brauchen,
+      reply4: und Projekte halten jedes Team in seinem Workspace.
+      citation1: platform-overview.pdf
+      citation2: Modul-Karte
+      composerAgentRouted: Orchestrator-Agent
+      composerModel: Claude Sonnet
+    connect:
+      label: 'Animierte Demo: Der Hub-Agents-Sampler — Orchestrator-Agent,
+        Support-Agent, Docs-Agent, Invoice-Agent und Policy-Agent, jeweils mit
+        Modell.'
+      agent1: Orchestrator-Agent
+      model1: Claude Sonnet
+      agent2: Support-Agent
+      model2: Claude Sonnet
+      agent3: Docs-Agent
+      model3: Claude Opus
+      agent4: Invoice-Agent
+      model4: GPT-5.5
+      agent5: Policy-Agent
+      model5: Claude Opus
+    projects:
+      label:
+        'Animierte Demo: Hub-Projekte-Sampler — Platform Core, Kunden-Piloten,
+        Partner-Enablement und Internal Ops, jeweils mit eigenem Roster.'
+      project1: Platform Core
+      agents1: 6 Agents
+      members1: '12'
+      project2: Kunden-Piloten
+      agents2: 3 Agents
+      members2: '7'
+      project3: Partner-Enablement
+      agents3: 2 Agents
+      members3: '5'
+      project4: Internal Ops
+      agents4: 4 Agents
+      members4: '9'
+    knowledge:
+      label: 'Animierte Demo: Der Hub-Knowledge-Sampler indexiert den
+        Platform-Überblick, die Modul-Karte, den Trust-Center-Crawl und eine
+        Onboarding-FAQ.'
+      source1: platform-overview.pdf
+      sourceType1: pdf
+      source2: Modul-Karte
+      sourceType2: entry
+      source3: platform.nordwind.eu
+      sourceType3: website
+      source4: Erste Schritte
+      sourceType4: entry
+    automation:
+      label: 'Animierte Demo: Ein Hub-Sampler-Workflow fasst nächtliche
+        Modul-Aktivität zusammen, prüft offene Freigaben und postet ein
+        Morgen-Briefing nach Slack.'
+      trigger: Wochentags 07:00
+      llm: Orchestrator-Agent
+      condition: Offene Freigaben?
+      branchYes: Ja
+      action: Morgen-Briefing posten
+      actionAlt: Briefing überspringen
+      run1: '#901'
+      runTone1: done
+      duration1: 4.8s
+      run2: '#902'
+      runTone2: pending
+      duration2: —
+      run3: '#903'
+      runTone3: running
+      duration3: 1.4s
+    govern:
+      label: 'Animierte Demo: Der Hub-Sampler hält eine modulübergreifende
+        Veröffentlichung, bis eine Person freigibt; das Journal speichert die
+        Entscheidung.'
+      approvalTitle: 'Morgen-Briefing in #platform veröffentlichen?'
+      requester: 'Hub-Digest · Run #902'
+      audit1: Freigegeben von lead@nordwind.eu
+      audit2: 'Briefing in #platform gepostet'
+      audit3: Digest-Journal aktualisiert
+      budgetValue: CHF 180 / 500
+    arena:
+      label: 'Animierte Demo: Der Hub-Arena-Sampler vergleicht zwei
+        Modul-Überblick-Entwürfe — der stärkere Intro landet auf der
+        Platform-Seite.'
+      prompt: Schreib einen Zwei-Satz-Intro für die Platform-Hub-Seite.
+      agent: Orchestrator-Agent
+      modelA: Claude Sonnet
+      modelB: GPT-5.5
+      replyA1: Tale verbindet die Agents, die du schon nutzt,
+      replyA2: bündelt ihr Wissen und hält jede Aktion, die zählt.
+      replyA3: Öffne unten ein Modul für die eigene Tour.
+      replyB1: Ein Orchestrator für Agents, Wissen und Workflows —
+      replyB2: mit Freigaben und Budgets für Aktionen, die den Chat verlassen.
+      replyB3: Starte mit Agents oder Knowledge, dann Automations.
+platformKnowledge:
+  eyebrow: Knowledge
+  title: Was ist Knowledge in Tale?
+  description: Knowledge ist die gemeinsame Bibliothek der Organisation —
+    Dokumente, Knowledge-Einträge, gecrawlte Websites und typisierte Datensätze
+    — die Agents abrufen und zitieren, damit Antworten deine Realität
+    widerspiegeln, nicht nur Trainingsdaten.
+  capabilities:
+    heading: Was steckt in Knowledge?
+    description:
+      Gib Agents die Dokumente, Datensätze und Crawls, die sie brauchen —
+      und jede Antwort zitiert, woher sie stammt.
+    items:
+      - title: Dokumente mit Indexierungs-Pipeline
+        body:
+          Lade Dateien hoch; Tale extrahiert, chunked, embeddet und speichert sie
+          für Retrieval mit Zitationen.
+        docsLabel: Dokumente
+      - title: Knowledge-Einträge
+        body:
+          Kleine themenbezogene Fakten — aus dem Chat mit Freigabe erfasst oder von
+          Hand ergänzt.
+        docsLabel: Knowledge-Einträge
+      - title: Website-Crawls
+        body:
+          Indexiere Seiten, die Agents zitieren sollen, ohne sie in Prompts zu
+          pasten.
+        docsLabel: Crawling
+      - title: Typisierte Datensätze
+        body:
+          Products, Contacts und Vendors sind exakte Feldzeilen, die Agents als
+          Daten lesen, nicht als Prosa.
+        docsLabel: Strukturierte Daten
+      - title: Retrieval-Scope pro Agent
+        body:
+          Der Knowledge-Tab eines Agents legt fest, welche Slices er durchsuchen
+          kann; Team-Items bleiben team-begrenzt.
+        docsLabel: Agent-Wissen
+  faq:
+    heading: FAQ zu Knowledge
+    items:
+      - q: Was ist Knowledge in Tale?
+        a:
+          Tale Knowledge ist die gemeinsame Bibliothek der Organisation aus Dokumenten,
+          Fakten, Websites und typisierten Datensätzen, die Agents in Antworten
+          abrufen und zitieren.
+      - q: Sehen Agents standardmäßig die ganze Bibliothek?
+        a: Nein. Der Knowledge-Tab jedes Agents setzt den Retrieval-Scope.
+          Team-begrenzte Items bleiben außerhalb des Teams unsichtbar.
+      - q: Was ist der Unterschied zwischen Dokumenten und typisierten Datensätzen?
+        a:
+          Dokumente und Einträge werden für Retrieval indexiert. Products, Contacts und
+          Vendors sind strukturierte Zeilen, die Agents als exakte Werte lesen.
+      - q: Können Agents in Knowledge schreiben — oder nur lesen?
+        a:
+          Sie können vorschlagen. Wissens-Einträge aus einem Chat pausieren auf einer
+          Freigabe-Karte; ein Mensch entscheidet, was in die Bibliothek kommt —
+          und der Entscheid wird protokolliert.
+  docs:
+    - label: Knowledge-Übersicht
+      path: /platform/knowledge/overview
+    - label: Dokumente
+      path: /platform/knowledge/documents
+    - label: Knowledge-Einträge
+      path: /platform/knowledge/knowledge-entries
+    - label: Crawling
+      path: /platform/knowledge/crawling
+    - label: Strukturierte Daten
+      path: /platform/knowledge/structured-data
+  tour:
+    heading: So verankert Wissen Tale
+    description:
+      Indexiere, was dein Unternehmen weiß, zitiere es im Chat, binde es
+      an Agents und halte Vergleiche ehrlich.
+    stages:
+      - id: chat
+        eyebrow: Chat
+        title: |-
+          Jede belegte Antwort
+          trägt ihre Quellen
+        description:
+          Abgerufene Passagen landen als Zitat-Karten — Leser öffnen die
+          Datei oder Seite, die die Antwort genutzt hat.
+      - id: agents
+        eyebrow: Agents
+        title: |-
+          Libraries pro Agent
+          freigeben
+        description: Ein Agent sieht seine Freigaben und nicht mehr — was Legal
+          indexiert hat, taucht in keinem Support-Thread auf.
+      - id: arena
+        eyebrow: Arena
+        title: |-
+          Antworten auf denselben
+          Quellen vergleichen
+        description:
+          Arena lässt eine Anfrage durch zwei Modelle laufen — du siehst,
+          welche Antwort das Wissen besser nutzt.
+      - id: projects
+        eyebrow: Projekte
+        title: |-
+          Bibliotheken wohnen
+          bei ihren Teams
+        description:
+          Projekte legen fest, welche Dokumente neben welchen Agents und
+          Mitgliedern liegen.
+  demos:
+    knowledge:
+      label:
+        'Animierte Demo: Die Org-Bibliothek indexiert das Produkthandbuch, den
+        Docs-Site-Crawl, die Preisliste 2026 und einen Onboarding-FAQ-Eintrag.'
+      source1: produkthandbuch-v4.pdf
+      sourceType1: pdf
+      source2: docs.nordwind.eu
+      sourceType2: website
+      source3: Preisliste 2026
+      sourceType3: catalog
+      source4: Onboarding-FAQ
+      sourceType4: entry
+    hero:
+      label: 'Animierte Demo: Eine Frage zur Akkupflege wird aus dem indexierten
+        Produkthandbuch beantwortet — Handbuch und FAQ-Eintrag sind unter der
+        Antwort zitiert.'
+      prompt: Was hat sich in Handbuch v4 bei der Akkupflege im Winter geändert?
+      routedTitle: An Produkt-Agent geroutet
+      routedDetail: Auto hat Claude Sonnet für den Produkt-Korpus gewählt.
+      reply1: V4 engt die Langzeitlagerung auf 10–20 °C ein, ab 30 Tagen Standzeit.
+      reply2: Vor dem Einlagern auf 60 % laden — volle Ladung altert die Zellen
+        schneller.
+      reply3: Der Enteisungs-Hinweis ist in die Quick-Start-Beilage gewandert —
+      reply4: und Firmware 3.2 bringt eine Ladesperre bei Minustemperaturen.
+      citation1: produkthandbuch-v4.pdf
+      citation2: Onboarding-FAQ
+      composerAgentRouted: Produkt-Agent
+      composerModel: Claude Sonnet
+    arena:
+      label:
+        'Animierte Demo: Zwei Modelle beantworten dieselbe Garantiefrage aus
+        denselben indexierten Quellen — die besser belegte Antwort gewinnt.'
+      prompt: 'Antworte aus dem Handbuch: Wie lange gilt die Akku-Garantie?'
+      agent: Produkt-Agent
+      modelA: Claude Sonnet
+      modelB: Gemini 2.5
+      replyA1: Zwei Jahre ab Lieferung, laut Handbuch v4, Abschnitt 8.
+      replyA2: Wasserschäden und Fremd-Ladegeräte schließen sie aus.
+      replyA3:
+        Mit Registrierung innerhalb von 90 Tagen verlängert sie sich auf drei
+        Jahre.
+      replyB1: 24 Monate ab Lieferung, mit Registrierung verlängerbar auf 36.
+      replyB2: Das Verlängerungsfenster schließt 90 Tage nach dem Kauf.
+      replyB3: Abschnitt 8 listet die Ausschlüsse — Ladegeräte und Wasserschäden.
+    connect:
+      label: 'Animierte Demo: Agents mit Bibliotheks-Slices — Product-Agent,
+        Docs-Agent, Support-Agent, Research-Agent und Policy-Agent.'
+      agent1: Product-Agent
+      model1: Claude Sonnet
+      agent2: Docs-Agent
+      model2: Claude Opus
+      agent3: Support-Agent
+      model3: Claude Sonnet
+      agent4: Research-Agent
+      model4: GPT-5.5
+      agent5: Policy-Agent
+      model5: Claude Opus
+    projects:
+      label: 'Animierte Demo: Projekte, die Bibliotheken neben den Agents und
+        Mitgliedern halten, die sie nutzen.'
+      project1: Produkt-Korpus
+      agents1: 3 Agents
+      members1: '7'
+      project2: Support-Makros
+      agents2: 2 Agents
+      members2: '9'
+      project3: Policy-Regal
+      agents3: 2 Agents
+      members3: '5'
+      project4: Engineering-Wiki
+      agents4: 4 Agents
+      members4: '12'
+platformProjects:
+  eyebrow: Projekte
+  title: Was sind Projekte in Tale?
+  description: Projekte sind geteilte Arbeitsbereiche, die Chats, Dateien,
+    Anweisungen und das Task-Board zu einem Vorhaben bündeln — der Kontext
+    bleibt bei der Arbeit, und Agents übernehmen Aufgaben dort, wo dein Team sie
+    liegen lässt.
+  capabilities:
+    heading: Ein Arbeitsbereich pro Vorhaben
+    description: Ein Projekt hält alles, was ein Kontakt, ein Launch oder eine
+      Recherche braucht, an einem Ort — und setzt Agents mitten darin an die
+      Arbeit.
+    items:
+      - title: Kontext, der bei der Arbeit bleibt
+        body:
+          Chats, Dateien, Anweisungen und Diskussionen liegen auf den Tabs des
+          Projekts — niemand kopiert Hintergrund in einen frischen Composer.
+        docsLabel: Projekt-Überblick
+      - title: Ein Board, von dem Agents arbeiten
+        body:
+          Weise eine Aufgabenkarte einem Agent zu, und das Task-Ops-Paket führt sie
+          aus — Triage, Ausführung, Review und Eskalation inklusive.
+        docsLabel: Aufgaben-Automatisierung
+      - title: Ein Backlog mit menschlicher Triage
+        body:
+          Automatisierungen schlagen Arbeit vor; jemand startet, was sich lohnt, und
+          schließt, was nicht. Nichts läuft ungeprüft.
+        docsLabel: Projekt-Backlog
+      - title: Dateien, die im Projekt bleiben
+        body: Der Wissens-Tab hält den Ordnerbaum des Projekts — im Projekt für
+          Retrieval indexiert, außerhalb unsichtbar.
+        docsLabel: Dateien verwalten
+      - title: Die richtigen Agents griffbereit
+        body:
+          Kuratiere, welche Agents und Modelle Mitglieder im Projekt sehen — der
+          empfohlene Spezialist ist einen Klick entfernt.
+        docsLabel: Agents und Modelle
+  faq:
+    heading: Projekte-FAQ
+    items:
+      - q: Was ist ein Projekt in Tale?
+        a:
+          Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und
+          Diskussionen zu einem Vorhaben bündelt — ein Kontakt, ein Launch, eine
+          Recherche — damit der Kontext bei der Arbeit bleibt.
+      - q: Wie arbeiten Agents an Projektaufgaben?
+        a:
+          'Die Zuweisung einer Board-Aufgabe an einen Agent startet den Task-Ops-Loop:
+          Der Agent führt aus, ein menschliches Review-Gate prüft das Ergebnis,
+          und Budgets, Parallelitätslimits und ein Notausschalter halten Läufe
+          in Leitplanken.'
+      - q: Wer sieht die Chats und Dateien eines Projekts?
+        a:
+          Nur die Mitglieder des Projekts. Chats, Dateien und Threads bleiben auf ihren
+          Arbeitsbereich beschränkt — Support-Eskalationen bleiben aus dem
+          Engineering raus.
+      - q: Was unterscheidet ein Projekt von einem Chat?
+        a:
+          'Ein Chat beantwortet eine Frage und ist vorbei. Ein Projekt trägt laufende
+          Arbeit: geteilter Verlauf, ein Task-Board, Anweisungen für jeden Chat
+          und Dateien, die Agents zitieren können.'
+  docs:
+    - label: Projekt-Überblick
+      path: /platform/projects/overview
+    - label: Projekt-Konzepte
+      path: /platform/projects/concepts
+    - label: Aufgaben-Automatisierung
+      path: /platform/projects/task-automation
+    - label: Projekt-Backlog
+      path: /platform/projects/backlog
+    - label: Dateien verwalten
+      path: /platform/projects/manage-files
+    - label: Agents und Modelle
+      path: /platform/projects/project-agents
+  tour:
+    heading: Wie Projekte Arbeit erledigen
+    description:
+      Weise eine Aufgabe einem Agent zu, setz den Projekt-Chat mit seinem
+      Kontext fort, stütze Antworten auf Projektdateien — und halte, was
+      rausgeht, hinter dem Review.
+    stages:
+      - id: tasks
+        eyebrow: Aufgaben
+        title: |-
+          Karte zuweisen,
+          ein Agent übernimmt
+        description:
+          Die Zuweisung einer Board-Aufgabe an einen Agent startet den
+          Task-Ops-Loop — Ausführung, Prüfungen und Eskalation laufen über
+          Workflows, die deiner Organisation gehören.
+      - id: chat
+        eyebrow: Chats
+        title: |-
+          Jeder Chat startet
+          mit dem Kontext
+        description:
+          Projekt-Anweisungen und -Dateien reisen in jedem Thread mit — ein
+          neuer Chat setzt den Relaunch dort fort, wo der letzte aufgehört hat.
+      - id: knowledge
+        eyebrow: Wissen
+        title: |-
+          Dateien, die im
+          Projekt bleiben
+        description:
+          Der Wissens-Tab hält den Ordnerbaum des Projekts für Retrieval
+          indexiert — in Projekt-Chats zitiert, außerhalb unsichtbar.
+      - id: govern
+        eyebrow: Review
+        title: |-
+          Nichts geht raus
+          ohne Entscheidung
+        description: Würde eine Aufgabe veröffentlichen oder senden, landet die
+          Freigabe-Karte beim Projekt-Owner — und die Entscheidung bleibt im
+          Audit-Trail.
+  demos:
+    projects:
+      label:
+        'Animierte Demo: die Projektliste — jeder geteilte Arbeitsbereich mit
+        seinen Agents und Mitgliedern.'
+      project1: Website-Relaunch
+      agents1: 3 Agents
+      members1: '7'
+      project2: Acme-Onboarding
+      agents2: 2 Agents
+      members2: '5'
+      project3: Pricing-Revamp
+      agents3: 2 Agents
+      members3: '4'
+      project4: Support-Eskalationen
+      agents4: 1 Agent
+      members4: '6'
+    hero:
+      label:
+        'Animierte Demo: Ein Projekt-Chat setzt den Website-Relaunch mit den
+        Anweisungen und Dateien des Projekts als Kontext fort; der Agent
+        antwortet mit Zitaten.'
+      prompt: Was fehlt noch, bevor der Relaunch live geht?
+      routedTitle: Website-Relaunch · Projekt-Chat
+      routedDetail: Der Relaunch-Agent lädt die Projekt-Anweisungen und -Dateien.
+      reply1:
+        'Zwei Board-Aufgaben sind offen: das Redirect-Map-Review und der Text
+        der Pricing-Seite.'
+      reply2:
+        Die Launch-Checkliste verlangt einen Staging-Durchlauf, sobald beide zu
+        sind.
+      reply3: Der DNS-Umzug ist mit der IT für Donnerstag 06:00 gebucht,
+      reply4: das einzige offene Risiko ist also der ungetestete /docs-Redirect.
+      citation1: launch-checkliste.pdf
+      citation2: Redirect-Map
+      composerAgentRouted: Relaunch-Agent
+      composerModel: Claude Opus
+    knowledge:
+      label:
+        'Animierte Demo: der Wissens-Tab des Projekts — Brand-Guidelines, der
+        Crawl der aktuellen Site, die Redirect-Map und die Launch-Checkliste.'
+      source1: brand-guidelines.pdf
+      sourceType1: pdf
+      source2: Crawl der aktuellen Site
+      sourceType2: website
+      source3: Redirect-Map
+      sourceType3: entry
+      source4: launch-checkliste.pdf
+      sourceType4: pdf
+    govern:
+      label:
+        'Animierte Demo: Das Veröffentlichen der neuen Pricing-Seite pausiert auf
+        einer Freigabe-Karte, bis der Projekt-Owner entscheidet.'
+      approvalTitle: Neue Pricing-Seite in Produktion veröffentlichen?
+      requester: Website-Relaunch · Relaunch-Agent
+      audit1: Freigegeben von mira@nordwind.eu
+      audit2: Pricing-Seite veröffentlicht
+      audit3: 'Aufgabe #212 auf dem Board geschlossen'
+      budgetValue: CHF 120 / 400
+    tasks:
+      label:
+        'Animierte Demo: Das Website-Relaunch-Board — der Relaunch Agent arbeitet
+        an WEB-12 (Migrationsleitfaden) in In progress, während WEB-11 in In
+        review wartet.'
+      id1: WEB-14
+      title1: /docs-Redirect-Map fertigstellen
+      assignee1: Nicht zugewiesen
+      id2: WEB-15
+      title2: Pricing-Hero-Copy neu schreiben
+      assignee2: Mira
+      id3: WEB-12
+      title3: Migrationsleitfaden für den Relaunch entwerfen
+      assignee3: Relaunch Agent
+      id4: WEB-11
+      title4: Staging-Checkliste freigeben
+      assignee4: Relaunch Agent
+      id5: WEB-9
+      title5: Brand-Token-Set veröffentlichen
+      assignee5: Design Agent
+pricingPage:
+  relatedHeading: Weiterführend
+  ctaTitle: Lass dir dein Setup durchrechnen
+  ctaDescription: Fordere eine Demo an oder sprich mit dem Team über
+    Enterprise-Sitze, Speicher und Hardware.
+  faq:
+    heading: Preise FAQ
+    items:
+      - q: Was kostet Tale Enterprise?
+        a:
+          Tale Enterprise kostet CHF 12 (EUR 14) pro User und Monat, bei jährlicher
+          Abrechnung zwei Monate gratis. Speicher kostet CHF 10 (EUR 12) pro TB
+          und Monat.
+      - q: Ist Community kostenlos?
+        a:
+          Ja. Die Community-Edition kannst du unter der MIT-Lizenz kostenlos selbst
+          hosten.
+      - q: Kann ich Hardware mit Software kaufen?
+        a:
+          Ja. Leise Inference-Hardware gibt es zum Mieten, Leasen oder Kaufen — siehe
+          Hardware-Preise.
+changelogPage:
+  eyebrow: Changelog
+  title: Was ist neu in Tale?
+  description: Release Notes zu Tale, neueste zuerst — veröffentlicht aus GitHub Releases.
+  allReleases: Alle Releases
+  sourceNote: 'Quelle:'
+  githubLink: GitHub Releases
+  viewOnGithub: Auf GitHub ansehen
+  emptyBody: Keine Release Notes für diese Version.
+  untitledRelease: Tale v{version}
+  fetchedAt: Zuletzt aktualisiert am {date}.

@@ -21,11 +21,17 @@
  * stays the single owner — no double replies.
  */
 
-import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { hasLiveEventAutomation } from '../discussions/mention_dispatch';
 import type { ResolvedMention } from './mentions';
+
+// `internal.agents.run_agent_on_task.runAgentOnTask`
+// (`convex/agents/run_agent_on_task.ts`) moved with the agents domain.
+// `hasLiveEventAutomation`'s read logic below is kept faithfully (pure
+// `wfEventSubscriptions`/`wfInstallations` table reads, both still live
+// tables, no AI dependency) — only the direct-dispatch fallback becomes a
+// warn no-op.
 
 export const TASK_MENTION_EVENT = 'task.mentioned';
 
@@ -64,19 +70,10 @@ export async function dispatchAgentTaskMentionRuns(
     return 0;
   }
 
-  for (const mention of agentMentions) {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.agents.run_agent_on_task.runAgentOnTask,
-      {
-        organizationId: args.organizationId,
-        agentSlug: mention.id,
-        taskId: args.taskId,
-        trigger: 'mention' as const,
-        instructions: TASK_MENTION_INSTRUCTIONS,
-        promptContext: args.description,
-      },
-    );
-  }
-  return agentMentions.length;
+  // Offline — see file header. Reports 0 dispatched
+  // (honest: nothing was actually scheduled) rather than the mention count.
+  console.warn(
+    `[dispatchAgentTaskMentionRuns] Agent-run dispatch is offline while the platform AI backend is rewritten; not running ${agentMentions.length} agent mention(s) for task ${args.taskId}`,
+  );
+  return 0;
 }

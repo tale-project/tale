@@ -1,48 +1,58 @@
 ---
 title: Agent skills
-description: A skill is a reusable bundle — a SKILL.md plus optional scripts and references — that agents read at runtime. This page covers when to reach for one instead of longer instructions.
+description: Binding a skill from the organization's library to one agent — the allowlist on the Skills tab, its ceiling, and how a bundle reaches a sandbox session.
 ---
 
-A skill is the unit Tale reaches for when the same pattern appears across multiple agents. It is a reusable bundle — a `SKILL.md` with instructions, plus optional scripts, references, and assets — that lives in the org's skill library and that agents read at runtime. Bind the same skill to three agents and you maintain the behaviour in one place.
+An agent reaches a skill only when you bind it. The organization's [skill library](/platform/workspace/skills) holds the bundles, and an agent's **Skills** tab is the allowlist naming which of them this persona may expand. Bind one bundle to three agents and the behaviour stays in a single file, maintained once.
 
-This page hands you the mental model for when a skill is the right move and when inline instructions are. Read it before you upload your first skill; come back when an agent's instructions are getting long and you are wondering whether to split them out.
+This page is the agent side of skills: what a binding decides, what the ceiling is, and what changes when the turn runs in a sandbox. Writing and sharing the bundles themselves happens in the library.
 
-## What a skill bundles
+## What a binding decides
 
-A skill is uploaded as a zip with `SKILL.md` at the root. The file's frontmatter carries the metadata — description, license, recommended Python or Node versions — and the body carries the instructions. Bundle assets live under `scripts/`, `references/`, or `assets/`: code the agent can run when it works in a sandbox, and reference material it can read on demand.
+A bound skill is offered to the agent by its description. When the model judges that description relevant to what you asked, it expands the bundle — it reads the `SKILL.md` body, then opens individual bundle files where the body points at them. Nothing is executed and nothing is pasted in up front, so a skill costs context only on the turns where the agent actually reaches for it.
 
-A pure-instruction skill is the right shape when the behaviour is voice or constraint — "always cite the source by section number", "refuse questions outside this product". A skill with scripts is the right shape when the behaviour is a calculation, a transformation, or a multi-step task the model would otherwise have to improvise in tokens.
+A bundle whose frontmatter carries `disable-model-invocation: true` behaves differently. It stays bound and stays readable, but the model must not reach for it unprompted; it waits for a turn where somebody names it.
 
-## Binding to an agent
+## Bind a skill to an agent
 
-A skill becomes visible to an agent by binding it on the agent's **Skills** tab — **Bound skills** lists the org's library with a checkbox per skill. An agent can bind at most ten skills, and an agent with none bound sees none: there is no implicit fallback to org-wide visibility. The agent reads a bound skill at runtime — the description tells it when the skill applies, and it pulls in the body and bundle files when they do.
+Open the agent, switch to **Skills**, and pick from the organization's library. A counter beside the list shows what you have used against the ceiling: an agent may bind **at most ten skills**. Ten is deliberate — a binding list is a hard allowlist someone maintains by hand, and past a handful it stops being one.
 
-The binding is per agent: two agents can bind the same skill, and unbinding is symmetric — the next request runs without it.
+Treat the list as an allowlist rather than a hint. An agent whose list is empty expands no skills at all; there is no implicit fallback to everything the organization happens to share. Binding is per agent and symmetric — two agents can bind the same bundle, and unbinding takes effect from the next request.
 
-For **external agents** (Claude Code, Cursor, and other sandbox runtimes), workflow disciplines such as fix-bug and write-notes load automatically each turn — you do not bind them on the Skills tab. Use the tab to bind **extra org skills** only; bound skills are staged into the session as files the runtime discovers natively.
+<Note>
 
-## Managing the library
+Which bundles you can pick from is decided in the library, not here: an `org` skill is offered across the organization, a `private` one only where its owner works. Sharing a bundle is an edit to its `visibility` field on the [skill library](/platform/workspace/skills) page.
 
-Managing skills takes Admin or Developer permissions. The library lives in the org's Skills settings, where each skill shows its overview, instructions body, bundle file tree, and a **Recent changes** audit trail. **Upload skill** adds a new bundle, **Replace bundle** overwrites an existing one in place, and **Duplicate** forks it under a new slug.
+</Note>
+
+## When the bundle changes underneath
+
+A binding names a slug, never a snapshot. Replace a bundle in the library and every agent bound to it reads the new text from its next request — there is no version to pin and no re-binding to do afterwards. That is what makes a skill worth extracting in the first place: one edit reaches every agent that holds it.
 
 <Warning>
 
-There is no version pinning: replacing a bundle changes what every bound agent reads from the next request, and deleting a skill removes the bundle from disk — any agent currently bound to it loses access.
+Deleting a skill removes the bundle from disk, and every agent bound to it loses access with nothing to fall back on. Replace the bundle instead when you want to change what it says, and delete only once you have checked which agents still name it.
 
 </Warning>
 
-## When to reach for it
+## Skills in a sandbox session
 
-| Use … when                                                     | Skill | Inline instructions |
-| -------------------------------------------------------------- | ----- | ------------------- |
-| The pattern repeats across multiple agents                     | ✓     |                     |
-| The behaviour involves scripts the model would otherwise mimic | ✓     |                     |
-| The behaviour is one agent's voice                             |       | ✓                   |
-| You want the org to govern the behaviour through a single edit | ✓     |                     |
-| The agent's instructions still fit on one screen               |       | ✓                   |
+When a turn runs in a sandbox, bound bundles do not arrive through a tool call. They are staged into the session as files, in the layout the runtime already knows how to discover, so the coding agent finds them the way it would find a skill on any machine it works on.
 
-Inline instructions are the right shape for one agent. Skills are the right shape when the same behaviour shows up in two or three agents and the maintenance cost of keeping their inline instructions in sync starts to bite.
+One rule governs collisions: the repository wins. If the checked-out repository ships a skill under the same slug as one Tale would stage, Tale withholds its copy and the repository's version stands. A repository can always override what the platform would otherwise teach the agent, and the session never holds two bundles claiming the same name. Matching is exact, so a slug that differs by a single character is a different skill and both get staged.
 
-## Build one
+## Skill or instructions
 
-Skills are the level of abstraction above the four knobs — they let you ship a behaviour once and have every agent that needs it pick it up by binding. The natural next walk is [Build a custom tool](/tutorials/developer/build-a-custom-tool) — it goes from a blank page to a skill with scripts bound to an agent.
+| Use … when                                              | Skill | Agent instructions |
+| ------------------------------------------------------- | ----- | ------------------ |
+| The pattern repeats across several agents               | ✓     |                    |
+| The behaviour needs reference files alongside the prose | ✓     |                    |
+| The behaviour is this one agent's voice                 |       | ✓                  |
+| One edit should reach everyone who uses the behaviour   | ✓     |                    |
+| The agent's instructions still fit on one screen        |       | ✓                  |
+
+Instructions are the right shape for one agent's own character. A skill is the right shape as soon as the same behaviour turns up in a second and third agent and keeping their instructions in step starts to cost you.
+
+## Where this fits
+
+Binding is the narrow half of skills: the library decides what exists and who may see it, and the **Skills** tab decides which persona may expand what. Keep the lists short, prefer replacing a bundle over cloning it, and let a repository override what the platform stages when an agent works inside one. The other half of the story — writing a `SKILL.md`, uploading a zip, and sharing a bundle across the organization — is the [skill library](/platform/workspace/skills).

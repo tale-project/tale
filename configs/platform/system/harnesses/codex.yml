@@ -1,0 +1,121 @@
+# Sandbox harness — OpenAI Codex CLI (`codex exec --json`). One-shot process;
+# the prompt is raw text on stdin behind the `-` sentinel (no NDJSON
+# envelope). Its bring-your-own backend talks to OpenAI's own API, so catalog
+# refs resolve to the vendor-native model id.
+#
+# All configuration rides `-c key=value` overrides — the only config surface
+# `codex exec resume` shares with a fresh `codex exec` (resume has no
+# -s/-C/--add-dir flags; verified on the pinned CLI); the resume slot sits
+# between the `exec` chunk and the flags chunk because resume is a
+# SUBCOMMAND (`codex exec resume <id>`). `-c` values are TOML (the quoted
+# strings below). Non-interactive full-access posture: the container
+# (cap-drop, egress proxy, non-root) is the safety boundary, so Codex's own
+# OS sandbox and approval prompts are disabled; `sandbox_mode =
+# "danger-full-access"` also means no path scoping, so additionalDirs needs
+# no wiring. `codex exec` has no turn-cap flag — the runaway backstop is the
+# platform runner. (The interactive `request_user_input` tool needs no
+# denial: `codex exec` auto-declines it and the agent asks in prose.)
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/codex.json pin the built
+# execs against the pinned CLI version below.
+slug: codex
+displayName: Codex
+credentialPolicy:
+  managed: true
+  byo: true
+credentialEnvKeys:
+  - OPENAI_API_KEY
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: vendor-native
+promptTransport: stdin-text
+capabilities:
+  planMode: false
+  steering: false
+  mcp: true
+parser: codex-jsonl
+exec:
+  bin: codex
+  argv:
+    - args: ['exec']
+    - resume: { flag: 'resume' }
+    - args:
+        - '--json'
+        - '--skip-git-repo-check'
+        - '-c'
+        - 'approval_policy="never"'
+        - '-c'
+        - 'sandbox_mode="danger-full-access"'
+    # MANAGED: native web search is ungoverned (no audit / untrusted-source
+    # wrapping / metering) AND defaults to "live" under a full-access
+    # sandbox — force-disable it; web access routes through the capability
+    # bridge instead. Model calls route through the platform gateway via a
+    # custom provider (`model_providers.tale`): the pinned Codex speaks ONLY
+    # the OpenAI Responses API (`wire_api = "chat"` is a startup error), so
+    # the provider pins `wire_api = "responses"` — the gateway serves
+    # /openai/v1/responses and translates Responses→Chat for chat-only
+    # upstreams. The bearer key is read from the exec env via `env_key`,
+    # never placed on argv (process lists leak argv).
+    - managedArgs:
+        - '-c'
+        - 'web_search="disabled"'
+        - '-c'
+        - 'model_provider="tale"'
+        - '-c'
+        - 'model_providers.tale.name="Tale Gateway"'
+        - '-c'
+        - 'model_providers.tale.base_url="${gateway.baseUrl}/openai/v1"'
+        - '-c'
+        - 'model_providers.tale.env_key="TALE_GATEWAY_TOKEN"'
+        - '-c'
+        - 'model_providers.tale.wire_api="responses"'
+    # byo: the same provider shape against OpenAI's own API. `env_key` reads
+    # the caller-supplied OPENAI_API_KEY directly, so no `codex login` /
+    # auth.json state is required in the container. byo keeps the native
+    # web-search default (opts out of platform governance).
+    - byoArgs:
+        - '-c'
+        - 'model_provider="tale"'
+        - '-c'
+        - 'model_providers.tale.name="OpenAI"'
+        - '-c'
+        - 'model_providers.tale.base_url="https://api.openai.com/v1"'
+        - '-c'
+        - 'model_providers.tale.env_key="OPENAI_API_KEY"'
+        - '-c'
+        - 'model_providers.tale.wire_api="responses"'
+    # The instructions addendum rides the `developer_instructions` config
+    # key — Codex injects it as a developer message ahead of the user turn
+    # (the text lands verbatim in the request's developer message). Never
+    # dropped.
+    - instructions:
+        flag: '-c'
+        configKey: developer_instructions
+    # MCP servers as `mcp_servers.<id>` config pairs. Secrets reach the
+    # bridge via the `env_vars` whitelist — Codex forwards ONLY whitelisted
+    # vars from its own process env to MCP stdio servers — so the session
+    # key stays out of argv (bridgeEnv lands in the exec env).
+    - mcp:
+        delivery: codex-config-flags
+        bridgeEnv:
+          TALE_INTEGRATIONS_URL: '${bridgeUrl}'
+          TALE_INTEGRATIONS_TOKEN: '${gateway.token}'
+    # Model: managed = the gateway model id (matches the virtual-key
+    # allowlist); byo = the caller-resolved vendor-native id.
+    - model: { flag: '-m' }
+    # Prompt rides stdin via the `-` sentinel, never argv: process lists
+    # leak argv, and a prompt starting with '-' would parse as a flag. The
+    # trailing positional must come AFTER every option.
+    - args: ['-']
+  stdin:
+    mode: prompt-text
+  env:
+    # Session-relative Codex state root under HOME (/user/.runtime/home).
+    # Sessions (the resume store), logs, and auto-written trust state live
+    # here, on the /user volume, so `codex exec resume` finds the thread
+    # across turns.
+    base:
+      CODEX_HOME: /user/.runtime/home/.codex
+    managed:
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+pinnedVersion: 0.142.5

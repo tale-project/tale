@@ -7,6 +7,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { parse as parseYaml } from 'yaml';
+
 import { requiredCategories } from '../internals/plural-data';
 import { lexIcu } from '../scanner/icu-lexer';
 import type { Finding } from './types';
@@ -19,9 +21,9 @@ export const icuPluralRules = createCheck({
   localeFilter: (locale) => !locale.regional && locale.id !== 'en',
   run(ctx) {
     if (!ctx.messagesDir) return [];
-    const baseFile = path.join(ctx.messagesDir, 'en.json');
+    const baseFile = path.join(ctx.messagesDir, 'en.yml');
     if (!fs.existsSync(baseFile)) return [];
-    const base = flatten(JSON.parse(fs.readFileSync(baseFile, 'utf8')));
+    const base = flatten(parseYaml(fs.readFileSync(baseFile, 'utf8')));
 
     const findings: Finding[] = [];
     for (const locale of ctx.locales) {

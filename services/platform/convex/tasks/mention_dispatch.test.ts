@@ -1,11 +1,10 @@
 import { convexTest, type TestConvex } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 import {
   TASK_MENTION_EVENT,
-  TASK_MENTION_INSTRUCTIONS,
   dispatchAgentTaskMentionRuns,
 } from './mention_dispatch';
 
@@ -84,8 +83,9 @@ function dispatch(
 }
 
 describe('dispatchAgentTaskMentionRuns (#2637 sibling — task mentions)', () => {
-  it('schedules one runAgentOnTask per agent mention when no automation is live', async () => {
+  it('schedules no runAgentOnTask for any agent mention — direct dispatch is offline while the AI backend is rewritten', async () => {
     const t = convexTest(schema, modules);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const count = await dispatch(t, {
       mentions: [
@@ -95,27 +95,14 @@ describe('dispatchAgentTaskMentionRuns (#2637 sibling — task mentions)', () =>
       ],
     });
 
-    expect(count).toBe(2);
-    const runs = await scheduledAgentRuns(t);
-    expect(runs).toHaveLength(2);
-    expect(runs.map((job) => job.args[0])).toEqual([
-      {
-        organizationId: ORG,
-        agentSlug: 'assistant',
-        taskId: TASK_ID,
-        trigger: 'mention',
-        instructions: TASK_MENTION_INSTRUCTIONS,
-        promptContext: 'Please take a look @assistant',
-      },
-      {
-        organizationId: ORG,
-        agentSlug: 'content-writer',
-        taskId: TASK_ID,
-        trigger: 'mention',
-        instructions: TASK_MENTION_INSTRUCTIONS,
-        promptContext: 'Please take a look @assistant',
-      },
-    ]);
+    // Reports 0 dispatched (honest: nothing was scheduled), not the 2 agent
+    // mentions that would have run before direct dispatch went offline.
+    expect(count).toBe(0);
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('2 agent mention'),
+    );
+    warnSpy.mockRestore();
   });
 
   it('never lets an agent trigger itself (mirrors the pack is_agent guard)', async () => {
@@ -151,33 +138,45 @@ describe('dispatchAgentTaskMentionRuns (#2637 sibling — task mentions)', () =>
     expect(await scheduledAgentRuns(t)).toHaveLength(0);
   });
 
-  it('dispatches when the subscription is inactive (processEvent would skip it)', async () => {
+  it('reaches the offline no-op when the subscription is inactive (processEvent would skip it too)', async () => {
     const t = convexTest(schema, modules);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await seedSubscription(t, { isActive: false });
     await seedInstallation(t);
 
     const count = await dispatch(t);
 
-    expect(count).toBe(1);
-    expect(await scheduledAgentRuns(t)).toHaveLength(1);
+    // An inactive subscription still isn't live automation, so
+    // hasLiveEventAutomation correctly says no — but the fallback that used to
+    // pick this mention up directly is itself offline now, so nothing runs.
+    expect(count).toBe(0);
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
-  it('dispatches when the subscribed workflow has no installation — the fresh-org path (no pack installed yet)', async () => {
+  it('reaches the offline no-op when the subscribed workflow has no installation — the fresh-org path (no pack installed yet)', async () => {
     const t = convexTest(schema, modules);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await seedSubscription(t);
 
     const count = await dispatch(t);
 
-    expect(count).toBe(1);
-    expect(await scheduledAgentRuns(t)).toHaveLength(1);
+    expect(count).toBe(0);
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
-  it('dispatches on a completely fresh org with no subscription and no installation at all', async () => {
+  it('reaches the offline no-op on a completely fresh org with no subscription and no installation at all', async () => {
     const t = convexTest(schema, modules);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const count = await dispatch(t);
 
-    expect(count).toBe(1);
-    expect(await scheduledAgentRuns(t)).toHaveLength(1);
+    expect(count).toBe(0);
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });

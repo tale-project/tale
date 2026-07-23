@@ -3,18 +3,21 @@
 /**
  * The real `installAutomationInternal`/`uninstallAutomationInternal` engines
  * are catalog- and filesystem-bound (they copy bundle files from
- * TALE_CONFIG_BUILTIN_DIR), so this file vi.mocks ONLY those two actions with
- * row-effect equivalents (upsert/delete of the install row through the REAL
- * mutations). Everything else — org fleet loop, credential read, the
- * already-installed guard, the installedBy marker, and the marker-targeted
- * down — runs the real production path. The install/uninstall engines
- * themselves are covered by the automations test suites.
+ * TALE_CONFIG_BUILTIN_DIR) and were retired with the rest of the old
+ * automations domain. `testing/retired_runtime.testkit
+ * .ts` replaces them for every migration test world with row-effect
+ * equivalents (upsert/delete of the install row through the REAL mutations),
+ * injected automatically by `defineMigrationTest`'s `makeWorld` — this file
+ * needs no `vi.mock` of its own. Everything else — org fleet loop, credential
+ * read, the already-installed guard, the installedBy marker, and the
+ * marker-targeted down — runs the real production path.
  */
 
 import { expect, vi } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
 import { defineMigrationTest } from '../../../testing/harness.testkit';
+import { retiredAutomationInstallControl } from '../../../testing/retired_runtime.testkit';
 import {
   emailAppInstallTargets,
   MIGRATION_INSTALLED_BY,
@@ -29,64 +32,6 @@ vi.setConfig({ testTimeout: 60_000 });
 const DIR = 'migrations/versions/v0_2_90/03_install_email_apps';
 
 const EPOCH = 1_717_000_000_000;
-
-/** Per-case control for the mocked install action (catalog-missing sim). */
-const mockControl = vi.hoisted(() => ({
-  failInstalls: new Set<string>(),
-}));
-
-vi.mock('../../../../automations/install_actions', async (importOriginal) => {
-  const original =
-    await importOriginal<
-      typeof import('../../../../automations/install_actions')
-    >();
-  const { internalAction } = await import('../../../../_generated/server');
-  const { internal } = await import('../../../../_generated/api');
-  return {
-    ...original,
-    installAutomationInternal: internalAction({
-      handler: async (
-        ctx,
-        args: {
-          organizationId: string;
-          automationSlug: string;
-          installedBy: string;
-        },
-      ) => {
-        if (mockControl.failInstalls.has(args.automationSlug)) {
-          throw new Error(
-            `Automation "${args.automationSlug}" not found in the catalog`,
-          );
-        }
-        await ctx.runMutation(
-          internal.automations.install_mutations.upsertAutomationInstallation,
-          {
-            organizationId: args.organizationId,
-            automationSlug: args.automationSlug,
-            automationName: args.automationSlug,
-            installedBy: args.installedBy,
-            status: 'active',
-            resources: [],
-            requiredIntegrations: [],
-          },
-        );
-        return { ok: true, workflows: 0, agents: 0, resources: 0 };
-      },
-    }),
-    uninstallAutomationInternal: internalAction({
-      handler: async (
-        ctx,
-        args: { organizationId: string; automationSlug: string },
-      ) => {
-        await ctx.runMutation(
-          internal.automations.install_mutations.deleteAutomationInstallation,
-          args,
-        );
-        return { ok: true };
-      },
-    }),
-  };
-});
 
 function active(slug: string): CredentialLike {
   return { slug, isActive: true, status: 'active' };
@@ -177,7 +122,9 @@ defineMigrationTest({
         const warn = vi
           .spyOn(console, 'warn')
           .mockImplementation(() => undefined);
-        mockControl.failInstalls = new Set(['outlook/sync-emails']);
+        retiredAutomationInstallControl.failInstallSlugs = new Set([
+          'outlook/sync-emails',
+        ]);
         try {
           const orgId = world.orgs[0].id;
           await world.run(async (ctx) => {
@@ -199,7 +146,7 @@ defineMigrationTest({
           expect(slugs).toEqual(['gmail/sync-emails']);
           expect(warn).toHaveBeenCalled();
         } finally {
-          mockControl.failInstalls = new Set();
+          retiredAutomationInstallControl.failInstallSlugs = new Set();
           warn.mockRestore();
         }
       },

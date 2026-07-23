@@ -20,7 +20,6 @@ const ALL_TABLES = [
   'wfExecutions',
   'approvals',
   'websites',
-  'workflowProcessingRecords',
   'auditLogs',
 ] as const;
 
@@ -71,7 +70,6 @@ describe('authorizeRls', () => {
       'onedriveSyncConfigs',
       'wfDefinitions',
       'wfExecutions',
-      'workflowProcessingRecords',
     ];
 
     it('has read/write access to editable tables', () => {

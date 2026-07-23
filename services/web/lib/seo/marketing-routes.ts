@@ -1,4 +1,4 @@
-import enMessages from '../../messages/en.json';
+import enMessages from '../../messages/en.yml';
 
 interface MarketingRoute {
   /** Site-relative URL, e.g. `/`, `/pricing`. */

@@ -1,34 +1,22 @@
 /**
- * Public types for the PII detection library (`@/lib/pii`).
- *
- * Kept in `core/` rather than co-located with the consumers because every
- * subpath import (`engine/`, `patterns/`, `locales/`) depends on them.
- *
- * `LocaleConfig` is imported from `../locales/types` — that module has no
- * imports of its own, so the dependency is one-directional: locales/types
- * → core/types → engine/patterns. No circular risk.
+ * Engine-facing types for the pii library. The data-file shapes
+ * (`LocaleConfig`, `PiiPatternFile`) live in `../schema.ts` as Zod
+ * inferences; this module holds the runtime pattern contract the detector
+ * executes.
  */
 
-import type { LocaleConfig } from '../locales/types';
+import type { LocaleConfig } from '../schema';
 
 /**
- * BCP 47 locale code for opt-in address / national-ID detection. The
- * library ships 43 locales; users may pass any subset. `'*'` means "every
- * locale the library knows about".
- *
- * Typed loosely as `string` rather than a closed union so adding a new
- * locale isn't a breaking change for callers' type checks. Runtime
- * validation rejects unknown codes via `loadLocale`.
+ * BCP 47 locale code for the locale-aware patterns. Deliberately open
+ * (`string`, not a closed union) so adding a locale dataset is never a
+ * breaking type change; unknown codes fail at runtime resolution.
  */
 export type LocaleCode = string;
 
 /**
- * One span of detected PII inside the input text.
- *
- * `start` / `end` are UTF-16 code-unit offsets, matching `String.prototype.slice`
- * semantics. They are computed against the NFC-normalized input (see
- * `core/normalize.ts`); callers that need byte offsets against the original
- * pre-normalization text must track that mapping themselves.
+ * One span of detected PII. Offsets are UTF-16 code units against the
+ * NFC-normalized input (`String.prototype.slice` semantics).
  */
 export interface PiiMatchSpan {
   start: number;
@@ -36,10 +24,7 @@ export interface PiiMatchSpan {
   matchedText: string;
 }
 
-/**
- * A detected match enriched with the originating pattern's name and
- * replacement token. Returned by `detectPii` and consumed by `maskPii`.
- */
+/** A span enriched with its pattern's name and replacement token. */
 export interface PiiMatch {
   patternName: string;
   start: number;
@@ -49,29 +34,21 @@ export interface PiiMatch {
 }
 
 /**
- * A pattern definition modelled as a discriminated union so consumers
- * cannot construct a pattern carrying both `regex` and `detect`. The
- * `?: never` markers make the discriminator structural — detector.ts
- * can keep its truthiness narrowing (`if (pattern.detect)` then
- * `if (!pattern.regex)`) without changing the algorithm.
+ * A runtime pattern, discriminated so no value can carry both `regex` and
+ * `detect`:
  *
- *   - `PiiPatternRegex` (+ optional `validate`): classical pattern, runs
- *     under `execWithBudget`. The optional post-filter accepts or rejects
- *     each candidate (used for IBAN mod-97, credit-card Luhn, national-ID
- *     check digits — eliminates whole classes of false positive that
- *     pure regex cannot).
- *   - `PiiPatternDetect`: function form for libraries with their own
- *     scanner (`libphonenumber-js`). Skips `execWithBudget` because the
- *     library owns its own performance contract.
+ *  - `PiiPatternRegex`: classical shape, executed under the wall-clock
+ *    budget. The optional `validate` post-filter accepts or rejects each
+ *    candidate (Luhn, mod-97, checksum math) — it eliminates false-positive
+ *    classes pure regex cannot.
+ *  - `PiiPatternDetect`: function shape for libraries with their own
+ *    scanner (libphonenumber). Owns its own performance contract, so the
+ *    regex budget does not apply.
  *
- * `regex` on `PiiPatternRegex` is intentionally typed as optional so
- * detector.ts's defensive `if (!pattern.regex)` log-and-skip branch
- * still narrows cleanly. Construct sites should always populate it; the
- * shape discriminator is `detect?: never`, not `regex` presence.
- *
- * `validate` is wrapped in try/catch inside the detector: a thrown
- * exception never propagates matched text into the log line (GDPR — only
- * pattern name and `err.name` are logged).
+ * `regex` stays optional on the regex variant so the detector's defensive
+ * log-and-skip branch narrows cleanly; the discriminator is `detect`, not
+ * `regex` presence. `validate` runs inside a try/catch in the detector — a
+ * thrown exception never carries matched text into a log line.
  */
 export interface PiiPatternRegex {
   readonly name: string;
@@ -92,24 +69,16 @@ export interface PiiPatternDetect {
 export type PiiPattern = PiiPatternRegex | PiiPatternDetect;
 
 /**
- * Pattern factory.
+ * Pattern factory — every registered pattern is a factory from the enabled
+ * locale set to the patterns it contributes:
  *
- * Every built-in pattern is exposed as a factory rather than a static
- * `PiiPattern`. A factory takes the enabled-locale set and returns the
- * `PiiPattern`s that pattern contributes:
+ *  - universal patterns (email, iban, …) ignore `locales`, return one;
+ *  - locale-composed patterns (phone, cvc, address, dateOfBirth) build
+ *    their regex from the union of the locale vocabularies, return one or
+ *    a few;
+ *  - per-spec patterns (nationalId) return one pattern per locale spec.
  *
- *   - Universal patterns (email, SSN, IBAN, IP, credit card, DOB)
- *     ignore `locales` and return `[onePattern]`.
- *   - Locale-composed patterns (CVC, phone, address) build their regex
- *     from the union of keyword lists across `locales` and return
- *     `[oneComposedPattern]`.
- *   - Per-locale-instance patterns (national-ID) emit one pattern per
- *     locale that declares an ID spec, so the result is `N` patterns.
- *
- * Returning `[]` is valid — it means "this pattern contributes nothing
- * for the current locale selection." For example a `national-id`
- * factory called with `locales` of just `en` (which has no national ID)
- * returns `[]`.
+ * `[]` is a valid result: "nothing to contribute for this locale set".
  */
 export type PiiPatternFactory = (
   locales: ReadonlyArray<LocaleConfig>,

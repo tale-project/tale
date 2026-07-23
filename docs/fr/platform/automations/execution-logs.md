@@ -1,48 +1,79 @@
 ---
 title: Journaux d’exécution
-description: L’historique d’exécution par workflow — chaque exécution avec son statut, sa chronologie et sa source de déclenchement, dépliable en un journal par étape. À lire quand une exécution a échoué ou s’est comportée bizarrement.
+description: Comment lire les exécutions d’une automatisation — les statuts, le mode, ce qui a lancé chacune, les résultats par nœud et les effets, plus une séance de débogage jouée de bout en bout.
 ---
 
-Les journaux d’exécution sont l’historique d’un seul workflow. Chaque fois qu’un déclencheur se lance, Tale ouvre un enregistrement d’exécution et y écrit au fil de l’exécution — statut, chronologie, l’entrée reçue et ce que chaque étape a consommé et produit. L’onglet **Exécutions** est la surface de débogage vers laquelle chaque autre page des automatisations pointe quand quelque chose a mal tourné.
+Chaque lancement d’une automatisation ouvre une exécution, et cette exécution continue de s’écrire elle-même jusqu’à ce qu’elle se termine. Elle enregistre ce qui l’a lancée, la version qu’elle a utilisée, ce qu’elle a reçu, ce que chaque nœud a produit et tout ce qu’elle a changé hors de la plateforme. C’est la surface vers laquelle pointe chaque autre page d’automatisation quand quelque chose ne s’est pas passé comme prévu : autant savoir en lire une avant d’en avoir besoin.
 
-<Frame caption="L’onglet Exécutions — une ligne par exécution ; le seul badge rouge au milieu des verts est le point de départ d’une session de débogage.">
+## La liste des exécutions
 
-![L’onglet Exécutions d’une automatisation listant douze exécutions — onze avec un badge vert Terminé et une avec un badge rouge Échoué — chacune avec un ID d’exécution, un horodatage de départ, une durée et event comme source de déclenchement.](/images/platform/automation-executions.webp)
+La page d’une automatisation se termine par une liste **Exécutions**, la plus récente en premier. Chaque ligne porte le statut de l’exécution, s’il s’agissait d’un essai ou d’une exécution réelle, la version employée, l’heure de départ et ce qui l’a lancée. Une exécution en échec ou en attente affiche la raison sur la ligne même plutôt que son lanceur : la liste répond donc souvent à la question sans qu’il faille ouvrir quoi que ce soit.
 
-</Frame>
+Une automatisation qui ne s’est jamais exécutée le dit, au lieu d’afficher un tableau vide.
 
-## La vue liste
+## Ce que dit chaque statut
 
-Une ligne par exécution, la plus récente en premier. La barre d’outils porte **Rechercher par ID d'exécution**, un **Filtre** et un sélecteur de plage de dates.
+| Statut                | Ce qu’il t’apprend                                                             |
+| --------------------- | ------------------------------------------------------------------------------ |
+| **En file d’attente** | L’exécution existe et attend que le moteur la prenne en charge                 |
+| **En cours**          | Le moteur avance à travers les nœuds                                           |
+| **En attente**        | L’exécution est arrêtée sur une décision humaine ou une réponse qu’elle attend |
+| **Réussie**           | Chaque nœud atteint est allé au bout et la sortie a été produite               |
+| **En échec**          | Un nœud a levé une erreur et rien n’était réglé pour continuer au-delà         |
+| **Arrêtée**           | Quelqu’un a annulé l’exécution ; ce qui était déjà fait n’est pas défait       |
 
-| Colonne        | Description                                                                                                                                                                             |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ID d’exécution | Identifiant stable de l’exécution — l’icône de copie le met dans le presse-papiers.                                                                                                     |
-| Statut         | **En attente**, **En cours**, **Terminée** ou **Échouée** — plus **En attente de saisie** quand une exécution est bloquée sur un humain, et **En pause** pendant un débogage pas à pas. |
-| Démarrée le    | Heure de départ, montre en main, à la milliseconde.                                                                                                                                     |
-| Durée          | Du départ à la fin ; vide tant que l’exécution est en cours.                                                                                                                            |
-| Déclenchée par | Le chemin qui a démarré l’exécution — une planification, un webhook, un événement ou un test depuis l’éditeur.                                                                          |
+**En attente** est le statut le plus mal lu. Ce n’est ni un blocage ni un échec : l’exécution garde sa place et repartira du nœud où elle s’est arrêtée dès que la décision qu’elle attend sera prise. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique ce qu’elle attend.
 
-## L’exécution dépliée
+## Essais et exécutions réelles
 
-Déplie une ligne et l’enregistrement s’affiche en JSON : les métadonnées d’exécution (statut, chronologie, source de déclenchement et l’erreur s’il y en a une), les métadonnées portées par le déclencheur, les variables d’entrée et le **journal** — une entrée par étape exécutée avec ses entrées, ses sorties et son statut. Une étape échouée porte la chaîne d’erreur qui l’a tuée. Lis le journal de haut en bas et l’exécution se raconte à nouveau ; l’entrée dont le statut bascule est l’étape qui s’est mal comportée.
+Chaque exécution est marquée comme l’un ou l’autre, et la différence tient à ce que le monde extérieur ait été touché ou non. Un **essai** utilise la valeur déterministe de chaque connecteur : aucun courrier ne part, aucun enregistrement n’est écrit, rien n’est facturé. Une exécution **réelle** peut faire les trois, et c’est pourquoi en lancer une demande un droit de développeur et pourquoi chacun de ses effets est enregistré.
 
-## Nouvelles tentatives et relances
+Lire un essai te dit si le graphe et le flux de données sont justes. Seule une exécution réelle te dit si les systèmes extérieurs se sont comportés comme tu le pensais.
 
-Les échecs transitoires se retentent tout seuls. L’onglet **Configuration** du workflow fixe le défaut — **Nombre max de tentatives** et **Backoff (ms)** — et chaque étape peut le surcharger dans sa propre config.
+## Lire une exécution
 
-<Frame caption="L’onglet Configuration — le budget de tentatives et le backoff dont chaque étape hérite sauf si elle les surcharge.">
+Ouvre une exécution et tu obtiens le canvas de l’automatisation avec cette exécution peinte dessus, plus les faits propres à l’exécution autour : la version, le mode, l’heure de départ et l’heure de fin.
 
-![L’onglet Configuration d’une automatisation montrant des champs de nom et de description, un timeout de 600000 millisecondes, un nombre max de tentatives de 3, un backoff de 1000 millisecondes et un éditeur JSON de variables.](/images/platform/automation-configuration.webp)
+### Résultats par nœud
 
-</Frame>
+Chaque boîte du canvas porte le statut que l’exécution lui a donné — **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint**, ou **Pas encore atteint** tant que l’exécution continue. Un échec est donc une position dans le graphe plutôt qu’une ligne à chercher, et les nœuds en aval montrent clairement qu’ils n’ont jamais été atteints.
 
-Une exécution qui échoue au-delà de son budget de tentatives reste **Échouée** pour la piste d’audit ; pour réessayer, ouvre **Tester le workflow** dans l’éditeur, colle l’entrée copiée depuis le bloc de variables de l’exécution échouée et clique sur **Exécuter**. La relance est une exécution neuve avec son propre ID.
+Sélectionne un nœud et le panneau montre ce qui lui est arrivé : l’**Entrée résolue** qu’il a réellement reçue une fois tous les templates évalués, et sa **Sortie**. L’entrée résolue est le champ le plus utile de cette page. Elle montre la valeur qu’une référence a produite plutôt que la référence que tu as écrite, et c’est ainsi qu’on attrape un template qui s’est résolu en silence vers rien.
 
-## Une session de débogage de bout en bout
+Les nœuds ignorés méritent d’être lus plutôt que survolés, car la raison diffère : un nœud peut être ignoré par sa propre condition, parce qu’un nœud dont il dépend a été ignoré, parce qu’il est la branche « sinon » d’un nœud qui s’est exécuté, ou parce qu’il a échoué sous un réglage qui laisse l’exécution continuer.
 
-Un rapport quotidien n’est pas arrivé. Ouvre le workflow, passe sur **Exécutions** et filtre sur les échecs du jour — l’exécution fautive est en haut. Déplie-la : le journal montre que l’étape de synthèse a échoué sur un timeout, et ses entrées portent le prompt reçu. Corrige la cause, relance depuis le panneau de test avec la même entrée, et regarde la nouvelle exécution se terminer avant de faire confiance à la planification de demain.
+### Effets
+
+Une exécution conserve aussi la liste ordonnée de tout ce qu’elle a changé hors de la plateforme — chaque entrée nommant le nœud responsable, l’intégration appelée et l’entrée avec laquelle elle a été appelée. Une exécution qui n’a rien changé hors de la plateforme le dit explicitement, et c’est une vraie réponse plutôt qu’une section vide.
+
+La liste des effets est ce qui rend une exécution vérifiable après coup. Quand quelqu’un demande si un message est vraiment parti, c’est cette liste qui répond, et elle reste attachée à l’exécution en permanence.
+
+## Pourquoi une longue exécution ne se répète pas
+
+Une exécution réelle ne se déroule pas d’un seul tenant. Elle avance nœud par nœud, et chaque nœud terminé est enregistré comme point de reprise avant que le suivant ne commence : quand l’exécution atteint la fenêtre de temps de la plateforme, elle se rend la main et repart du dernier nœud terminé. Un nœud déjà exécuté n’est jamais atteint une seconde fois, et c’est ce qui empêche une exécution interrompue d’envoyer deux fois le même message.
+
+Ces mêmes points de reprise couvrent une exécution dont la continuation a été perdue. Une exécution restée dans un état non terminal au-delà d’un délai de grâce est reprise automatiquement et continue là où ses points de reprise la situent, plutôt que de redémarrer ou de rester inachevée pour toujours.
+
+## Une séance de débogage jouée de bout en bout
+
+La relance quotidienne n’est pas partie. Ouvre l’automatisation et regarde la liste **Exécutions** : celle de ce matin est là et elle est **En échec**, avec sa raison sur la ligne.
+
+Ouvre-la. Le canvas montre les trois premiers nœuds comme exécutés, le quatrième en échec, et tout ce qui suit comme jamais atteint : la question est déjà réduite à une boîte. Sélectionne le nœud en échec et lis son **Entrée résolue** : le nom du client est là, l’id de facture est une chaîne vide. Cela renvoie un nœud plus haut.
+
+Sélectionne ce nœud en amont et lis sa sortie. Il a retourné un enregistrement sans champ `id`, parce que le champ qu’il lisait avait été renommé. Le template qui le référençait s’est résolu vers rien, et le nœud en aval a échoué sur la valeur vide plutôt que sur quoi que ce soit qui lui soit propre.
+
+<Tip>
+
+Lis la liste des effets avant de corriger quoi que ce soit. Elle te dit si l’exécution est allée assez loin pour toucher le monde extérieur, ce qui décide si relancer est sans risque ou demande d’abord un nettoyage.
+
+</Tip>
+
+Corrige la référence dans le panneau du nœud, enregistre une version avec une note nommant le champ renommé, et appuie sur **Essai**. L’essai parcourt le même graphe et cette fois chaque boîte apparaît comme exécutée. Mets cette version en service, et la planification de demain la reprendra.
+
+## Arrêter une exécution
+
+Tant qu’une exécution n’est pas terminée, tu peux l’arrêter, et une exécution arrêtée est définitive : le moteur vérifie à chaque frontière de nœud et cesse de planifier le suivant. Ce qui a déjà été fait n’est pas annulé, parce que cela ne peut pas l’être : un message envoyé est envoyé. Lis la liste des effets pour voir jusqu’où elle est allée avant de décider de la suite.
 
 ## Où cela s’inscrit
 
-Les journaux d’exécution sont le reçu que chaque workflow laisse derrière lui. Associe-les aux [déclencheurs](/fr/platform/automations/triggers) pour le coup d’envoi qui a ouvert chaque enregistrement, et aux [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour la trace à l’échelle de l’org de qui a changé quoi.
+Une exécution est le reçu que laisse une automatisation : son statut dit ce qui s’est passé, ses résultats par nœud disent où, ses entrées résolues disent pourquoi, et ses effets disent ce qu’elle a changé hors de la plateforme. Associe cette page à [Déclencheurs de workflow](/fr/platform/automations/triggers) pour les sortes de lancement qui ouvrent ces enregistrements, et aux [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour la trace, à l’échelle de l’organisation, de qui a changé quoi.

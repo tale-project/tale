@@ -6,10 +6,12 @@ import react from '@vitejs/plugin-react';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
+import { yamlImports } from './src/vite/yaml';
+
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [yamlImports(), react()],
   resolve: {
     alias: {
       // More-specific first: `@/tests/*` resolves to the package-root `tests/`

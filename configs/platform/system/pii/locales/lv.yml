@@ -1,0 +1,74 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: lv
+name: Latvian
+scripts:
+  - latn
+countries:
+  - LV
+phoneContextKeywords:
+  - tālrunis
+  - mobilais
+  - numurs
+  - tel.
+  - tel
+cvcContextKeywords:
+  - drošības kods
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - inverted
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: LV-?\d{4}
+  requireUppercase: true
+  streetKeywordsInverted:
+    - iela
+    - bulvāris
+    - laukums
+  poBoxKeywords:
+    - a.k.
+    - abonenta kastīte
+  floorKeywords:
+    - stāvs
+    - dzīvoklis
+  countryNames:
+    - Latvija
+    - Latvia
+    - LV
+  countryPostcodePrefixes: []
+nationalIds: []
+dateOfBirth:
+  monthsLong:
+    - janvāris
+    - februāris
+    - marts
+    - aprīlis
+    - maijs
+    - jūnijs
+    - jūlijs
+    - augusts
+    - septembris
+    - oktobris
+    - novembris
+    - decembris
+    - janvāra
+    - februāra
+    - marta
+    - aprīļa
+    - maija
+    - jūnija
+    - jūlija
+    - augusta
+    - septembra
+    - oktobra
+    - novembra
+    - decembra
+  contextKeywords:
+    - dzimšanas datums
+    - dzimis
+    - dzimusi

@@ -12,7 +12,7 @@
  * provenance is never touched.
  */
 
-import { internal } from '../../../../_generated/api';
+import { retired } from '../../../../legacy/frozen/retired_refs';
 import { defineNodeMigration } from '../../../framework/define';
 import {
   MIGRATION_INSTALLED_BY,
@@ -43,18 +43,17 @@ export const migration = defineNodeMigration({
       Object.values(WORKFLOW_TO_AUTOMATION),
     )) {
       const wfRow: unknown = await ctx.runQuery(
-        internal.workflows.installations.getInstallationInternal,
+        retired.workflows.installations.getInstallationInternal,
         { organizationId: org.id, workflowSlug: automationSlug },
       );
       if (!wfRow) continue; // the workflow was never live in this org
       const existing: unknown = await ctx.runQuery(
-        internal.automations.install_mutations
-          .getAutomationInstallationInternal,
+        retired.automations.install_mutations.getAutomationInstallationInternal,
         { organizationId: org.id, automationSlug },
       );
       if (existing) continue; // e.g. reply-*-emails installed by 0.3.4/02
       await ctx.runMutation(
-        internal.automations.install_mutations.upsertAutomationInstallation,
+        retired.automations.install_mutations.upsertAutomationInstallation,
         {
           organizationId: org.id,
           automationSlug,
@@ -80,15 +79,14 @@ export const migration = defineNodeMigration({
       Object.values(WORKFLOW_TO_AUTOMATION),
     )) {
       const row: unknown = await ctx.runQuery(
-        internal.automations.install_mutations
-          .getAutomationInstallationInternal,
+        retired.automations.install_mutations.getAutomationInstallationInternal,
         { organizationId: org.id, automationSlug },
       );
       if (!isRecord(row) || row.installedBy !== MIGRATION_INSTALLED_BY) {
         continue; // human/system install (or already removed) — leave alone
       }
       await ctx.runMutation(
-        internal.automations.install_mutations.deleteAutomationInstallation,
+        retired.automations.install_mutations.deleteAutomationInstallation,
         { organizationId: org.id, automationSlug },
       );
       console.log(

@@ -3,16 +3,17 @@
 /**
  * Deployment-secrets I/O helper.
  *
- * Read-existing → merge → return-plaintext for the SOPS-encrypted
- * `deployment.secrets.json`. Secrets are a FLAT, dotted-key map
+ * Reads the existing SOPS-encrypted `deployment.secrets.json` (if any),
+ * merges incoming values over it, and hands back plaintext ready to
+ * persist. Secrets are a FLAT, dotted-key map
  * (`dataStores.knowledgePostgres.password`, …) validated against the
- * allowlist in `deploymentSecretsSchema`, so a new config section's secrets
- * merge independently without a deep merge.
+ * allowlist in `deploymentSecretsSchema`, so a new config section's
+ * secrets merge in independently — no deep-merge needed.
  *
- * The data-loss guard around overwriting an unreadable existing file mirrors
- * the providers flow and reuses its `UndecryptableExistingSecretError` /
- * `ForceOverwriteReason` types so the action layer + UI handle both the same
- * way.
+ * The refusal-to-overwrite-an-unreadable-file guard, and the
+ * `UndecryptableExistingSecretError` / `ForceOverwriteReason` types that
+ * carry it, mirror the same primitive used for provider secrets so the
+ * Convex action + UI layers can handle both the same way.
  */
 
 import type {
@@ -20,14 +21,42 @@ import type {
   DeploymentSecrets,
 } from '../../lib/shared/schemas/deployment';
 import { EncryptedFileWithoutKeyError, decryptSecretsFile } from '../lib/sops';
-import {
-  type ForceOverwriteReason,
-  UndecryptableExistingSecretError,
-} from '../providers/secret_io';
 import { parseDeploymentSecrets } from './file_utils';
 
-export { UndecryptableExistingSecretError };
-export type { ForceOverwriteReason };
+/**
+ * Thrown when an existing secrets file can't be read — decrypt failure,
+ * JSON parse failure, or a shape that fails `deploymentSecretsSchema` —
+ * and the caller didn't pass `force: true`. The Convex action layer turns
+ * this into a `ConvexError` with `data.kind = 'undecryptable_existing'` so
+ * the UI can offer a confirm dialog and retry with `force: true`.
+ *
+ * `reason` is the inner cause's message, unwrapped. It's what the UI's
+ * confirm dialog interpolates into its translated copy, so it must stay
+ * free of this wrapper's own path + remediation text.
+ */
+export class UndecryptableExistingSecretError extends Error {
+  readonly path: string;
+  readonly reason: string;
+  constructor(path: string, cause: unknown) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `Existing secrets file ${path} could not be read (${reason}). ` +
+        'Save again with the "overwrite anyway" option to discard it, or remove the file manually first.',
+    );
+    // Object.assign bolts `cause` onto the Error: convex/tsconfig.json's
+    // "lib" predates the ES2022 two-argument Error constructor overload,
+    // even though the runtime itself supports it.
+    Object.assign(this, { cause });
+    this.name = 'UndecryptableExistingSecretError';
+    this.path = path;
+    this.reason = reason;
+  }
+}
+
+/** Why a force-overwrite happened; populated only when `forced` is true. */
+export type ForceOverwriteReason =
+  | 'encrypted_no_key'
+  | 'undecryptable_existing';
 
 export interface PreparedDeploymentSecrets {
   /** Plaintext JSON ready to encrypt or write directly (trailing newline). */
@@ -72,7 +101,7 @@ export async function prepareMergedDeploymentSecrets(
       err instanceof Error &&
       (err as NodeJS.ErrnoException).code === 'ENOENT'
     ) {
-      // No file yet — fresh write; existing stays null.
+      // No file yet — this is a fresh write; existing stays null.
     } else if (options.force) {
       console.warn(
         `[deployment/secret_io] force-overwriting ${secretsPath}: ${
@@ -93,9 +122,9 @@ export async function prepareMergedDeploymentSecrets(
 
   const merged: Record<string, string> = { ...existing };
   for (const [key, value] of Object.entries(incoming)) {
-    if (value === undefined) continue; // not provided this save → keep existing
+    if (value === undefined) continue; // Not provided this save — keep existing.
     if (value === '') {
-      delete merged[key]; // explicit clear
+      delete merged[key]; // Explicit clear.
     } else {
       merged[key] = value;
     }

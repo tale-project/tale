@@ -1,77 +1,96 @@
 ---
-title: Integrationen (Admin-Sicht)
-description: Einstellungen > Integrationen ist der Ort, an dem Admins die Anmeldedaten hinter Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily und MCP installieren, konfigurieren und rotieren. Diese Seite behandelt die Admin-Oberfläche, nicht die Per-Integrations-Funktionsliste.
+title: Zugangsdaten für Integrationen
+description: Unter Einstellungen > Integrationen legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet — benennen, zum Standard machen, deaktivieren, neu verbinden.
 ---
 
-Einstellungen > Integrationen ist die Anmeldedaten-Oberfläche für jedes Drittanbieter-System, mit dem Tale im Namen der Organisation spricht. Admins installieren Integrationen einmal; Agents, Workflows und die Dokumenten-Pipeline nutzen sie überall sonst. Diese Seite behandelt die Admin-Seite — was die Liste zeigt, wie Installation und Rotation funktionieren, was ein Admin eingrenzen kann und wie sich die Oberfläche von MCP-Servern unterscheidet.
+Jeder Connector wird mit der Plattform ausgeliefert, deshalb besteht die Arbeit eines Admins nie aus Installation, sondern aus einer Entscheidung: als welche Konten Tale handeln darf, und wie diese Zugangsdaten gesund bleiben. Ein Connector hält so viele Einträge, wie du brauchst — einen pro Workspace, Shop, Postfach oder Bot — und einer davon antwortet für jeden Aufrufer, der keinen benennt. Diese Seite ist die Betriebsseite davon: was die Seite zeigt, wie jede Authentifizierungsmethode ausgefüllt wird und was beim Hochstufen, Deaktivieren, Löschen oder Neuverbinden einer Zeile geschieht.
 
-Die funktionale Geschichte jeder Integration (was sie tut, welche Scopes sie verlangt, was ein Agent aufrufen kann) liegt einen Tab weiter auf den Per-Integrations-Seiten und in der übergreifenden Konzeptseite. Was folgt, ist die Betriebsoberfläche: installieren, rotieren, einschränken, widerrufen.
+Der Katalog selbst — die dreizehn Connectoren, was jeder davon bringt und wie ihre Aktionen in Automationen und im Chat ankommen — steht unter [Integrationen](/de/platform/integrations/overview). Hier lohnt sich die Zeit für den Lebenszyklus der Zugangsdaten, denn dieser Teil unterscheidet sich pro Organisation und dieser Teil geht kaputt.
 
-<Frame caption="Der Integrations-Katalog unter Integration hinzufügen — jeder Connector, den Tale mitbringt, nach Kategorie filterbar.">
+## Was die Seite zeigt
 
-![Der Integrations-Katalog mit einem Raster aus Connector-Karten — Slack, Gmail, Google Drive, GitHub, Tavily und mehr — jede mit einer Verbinden-Aktion.](/images/platform/integrations-catalog.webp)
+Öffne **Einstellungen > Integrationen**. Die Seite verlangt Admin- oder Entwickler-Rechte und beginnt mit einem Abschnitt **Connectoren**, dessen Zusammenfassung beide Seiten der Oberfläche zählt: wie viele Connectoren ausgeliefert werden und wie viele Einträge die Organisation insgesamt eingerichtet hat. Darunter folgt ein Abschnitt pro Connector, in einer einzigen langen Liste.
 
-</Frame>
+Jeder Abschnitt trägt Icon und Anzeigename des Connectors, die einzeilige Beschreibung seiner Aufgabe, die Kategorien, zu denen er gehört, und die Anzahl seiner Aktionen. Connectoren, deren API bei dir statt beim Anbieter liegt, ergänzen die Zeile _Jeder Eintrag nennt seine eigene Instanz._ Darunter steht die Liste der Zugangsdaten — oder der leere Zustand **Noch keine Zugangsdaten**, solange die Organisation keine angelegt hat.
 
-## Was die Liste zeigt
+Über der Liste können zwei Warnungen erscheinen, und sie bedeuten Unterschiedliches. _Keine Standard-Zugangsdaten für diesen Connector_ heißt: jede Zeile funktioniert, aber für einen Aufrufer ohne eigene Angabe antwortet nichts. _Die Autorisierung eines Eintrags funktioniert nicht mehr_ heißt: eine OAuth-Freigabe lässt sich nicht mehr erneuern und braucht neue Zustimmung — mit der Zeile selbst ist alles in Ordnung.
 
-Öffne **Einstellungen > Integrationen**, um auf den installierten Integrationen der Organisation zu landen. Jede Zeile nennt eine Integration, zeigt ihre Kategorie (Kommunikation, Speicher, Identität, Wissen, Quellcode, Handel, KI), den Anmeldedaten-Typ (OAuth2, API-Schlüssel, App-Token) und den Verbindungs-Status (verbunden, ausstehend, Fehler). Die Liste ist nach Kategorie und Status filterbar.
+## Zugangsdaten hinzufügen
 
-Der Katalog verfügbarer Integrationen sitzt einen Klick entfernt unter **Integration hinzufügen**. Der Katalog liefert aktuell Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio, Microsoft 365, Google Drive, Confluence, WebDAV, Tavily, GitHub, Shopify und AI-Image; derselbe Katalog ist die Quelle, die die Integrations-Übersicht dokumentiert.
+**Zugangsdaten hinzufügen** öffnet das Formular bei Connectoren, die ein Secret direkt entgegennehmen; **Verbinden** führt bei OAuth-Connectoren zum Anbieter. Beide fragen zuerst nach einem **Namen**, und der Hilfetext des Felds erklärt, warum er zählt: unter diesem Namen wählt eine Aktion diesen Eintrag aus. Nimm etwas, das eine Autorin von Automationen Monate später wiedererkennt, etwa `Support-Postfach` oder `Shop EU`.
 
-## Eine Integration installieren
+Was nach dem Namen folgt, hängt von der **Authentifizierungsmethode** ab, die der Connector akzeptiert.
 
-Wähl eine Integration aus dem Katalog und klick auf **Verbinden**. Die Integration deklariert den erwarteten Anmeldedaten-Typ und die benötigten Scopes; Tale geht für OAuth-Integrationen den OAuth-Tanz und zeigt ein Formular für API-Schlüssel-Integrationen. Sobald die Anmeldedaten ankommen, prüft Tale sie mit einem No-op-Aufruf gegen das Upstream-System, bevor gespeichert wird — ein Fehler erscheint als Verbindungsfehler mit der Upstream-Meldung dran.
+<Tabs>
 
-Einige Integrationen tragen Unteroptionen bei der Installation. Microsoft 365 lässt dich wählen, ob OneDrive-Sync, SharePoint-Sync, beide oder nur Single Sign-on aktiviert werden; GitHub lässt dich die Repositories wählen, auf die die Organisation Zugriff erhält; Slack fragt, in welchen Kanälen der Bot posten darf. Die Unteroptionen lassen sich später aus der Zeile der Integration ändern, ohne neu zu installieren.
+<Tab title="API-Schlüssel">
 
-## Definitionen aus dem mitgelieferten Katalog aktualisieren
+Ein Feld, **API-Schlüssel**. Wohin der Schlüssel reist, entscheiden die Aktionen des Connectors selbst — ein Header, den der Anbieter vorgibt, oder der Request-Body, wo der Anbieter darauf besteht. Shopify und Tavily sind die ausgelieferten Fälle.
 
-Die Definition jeder Integration — ihr Konfigurationsschema, ihr Connector, ihr Icon — wird beim Anlegen der Organisation kopiert und bleibt danach unangetastet; ein Plattform-Upgrade ändert sie also nie hinter deinem Rücken. **Mitgelieferte Integrationen aktualisieren** im Menü **Integration hinzufügen** ersetzt jede mitgelieferte Definition, die vom aktuellen Katalog abweicht, durch die neueste Version. Anmeldedaten, Secrets und selbst hinzugefügte Integrationen bleiben unberührt; die vorherige Version jeder ersetzten Definition bleibt auf dem Server erhalten, sodass ein Operator sie wiederherstellen kann.
+</Tab>
 
-## Anmeldedaten rotieren
+<Tab title="Token">
 
-Zum Rotieren öffne die Zeile der Integration und klick auf **Anmeldedaten rotieren**. OAuth-Integrationen gehen den Tanz nochmal mit denselben Scopes; API-Schlüssel-Integrationen zeigen ein Feld für den neuen Schlüssel. Die alte Anmeldung hört auf zu funktionieren, sobald die neue verifiziert ist — auf Integrations-Ebene gibt es kein Überlappungsfenster für Anmeldedaten. Greif zur Rotation in dem Rhythmus, den deine Sicherheitsrichtlinie vorgibt, oder wann immer das Upstream-System meldet, dass die Anmeldung kompromittiert ist.
+Ein Feld, **Token**, das bei jeder Anfrage als Authorization-Header gesendet wird. GitHub nimmt so ein Personal Access Token entgegen; Discord nimmt ein Bot-Token, das die Plattform unter Discords eigenem Schema statt unter dem üblichen sendet.
 
-Wenn ein Plattform-Upgrade einer OAuth-Integration, die du schon verbunden hast, neue Scopes hinzufügt, rotier einmal, damit der Consent-Bildschirm sie vergibt. **Outlook** ist der aktuelle Fall: nach dem Upgrade, das die Kontoadresse fürs Verfassen liest, müssen bestehende Outlook-Verbindungen einmal rotieren, bevor das Verfassen die echte Adresse statt des bloßen Anbieternamens zeigt — bis dahin funktioniert das Senden weiter; nur das Erfassen der Adresse wartet auf den neuen Scope `User.Read`.
+</Tab>
 
-## Eine Integration einschränken
+<Tab title="Benutzername & Passwort">
 
-Über die Anmeldedaten hinaus trägt eine Integration zwei Eingrenzungs-Hebel unter ihrer Zeile:
+Zwei Felder, **Benutzername** und **Passwort**, gesendet als HTTP Basic. Das Paar ist nicht immer ein Login im Alltagssinn: Confluence nimmt die Konto-E-Mail mit einem API-Token, Twilio die Account SID mit dem Auth Token, und der WebDAV-Connector ein WebDAV-App-Passwort. IMAP / SMTP nimmt den Postfach-Login selbst.
 
-- **Erlaubte Rollen.** Schränke ein, welche Rollen-Agents und -Workflows die Integration aufrufen dürfen. Standard ist jede schreibende Rolle (Redakteur, Entwickler, Admin, Inhaber); das einzuengen ist die Art, wie du etwa die Twilio-Integration aus Mitglieder-Agents fernhältst.
-- **Erlaubte Teams.** Schränke ein, welche Team-Agents und -Workflows die Integration aufrufen dürfen. Nützlich, wenn die Anmeldung zur Arbeit eines Teams gehört (das Slack des Supports) und du nicht willst, dass es in ein anderes leakt.
+</Tab>
 
-Beide Hebel werden zur Anfrage-Zeit erzwungen, nicht zur Installations-Zeit — ein Hebelwechsel greift beim nächsten Aufruf.
+<Tab title="OAuth">
 
-## Eine Integration widerrufen
+Kein Secret zum Eintippen. **Verbinden** übergibt dich an den Freigabe-Dialog des Anbieters, und Tale legt ab, was zurückkommt — Access Token, Refresh Token, Ablauf und die erteilten Scopes — als neue Zeile. Gmail, Google Drive, Outlook, Teams und Slack verbinden sich so.
 
-Klick auf die Zeile, dann auf **Trennen**. Eine getrennte Integration hört sofort auf zu authentifizieren; Agents und Workflows, die von ihr abhängen, melden beim nächsten Aufruf einen Konfigurationsfehler. Die Zeile bleibt mit einem Getrennt-Badge in der Liste, damit der Audit-Pfad überlebt.
+</Tab>
 
-Beim Trennen bleibt die gespeicherte Anmeldung erhalten, deshalb bietet die Zeile **Neu verbinden** an — ein Klick, kein erneutes Eintippen. Tale prüft die gespeicherten Anmeldedaten zuerst und markiert die Integration nur dann als verbunden, wenn sie noch funktionieren; wurde das Passwort oder der Schlüssel in der Zwischenzeit geändert, scheitert die Prüfung und die Zeile bleibt getrennt — eine veraltete Anmeldung sieht also nie gesund aus. Über **Andere Anmeldedaten verwenden** trägst du stattdessen eine neue Anmeldung ein. OAuth-Integrationen verbinden sich über den Zustimmungsdialog des Anbieters neu, denn eine widerrufene Freigabe lässt sich nur durch erneutes Autorisieren wiederherstellen. Beim Neuverbinden werden außerdem die beim Trennen deaktivierten Agents wieder aktiv und die an die Integration gebundenen Automatisierungen laufen weiter.
+</Tabs>
 
-**Verbindung entfernen** geht weiter als Trennen: die gespeicherte Anmeldung wird vollständig gelöscht. Die Vorlage der Integration bleibt im Katalog, du kannst sie also später erneut mit neuen Anmeldedaten verbinden.
+Einen zweiten Eintrag an einem Connector anzulegen, der schon einen hat, ist dasselbe Formular noch einmal. Es gibt keine Grenze zu umgehen und nichts vorher zu trennen.
 
-## Zwei Instanzen derselben Integration betreiben
+<Note>
 
-Manche Integrationen braucht man mehrfach — zwei Postfächer, zwei Datenbanken, zwei API-Mandanten. Öffne die Integration und wähle **Duplizieren** (auch im ⋯-Menü der Zeile), um eine zweite Instanz anzulegen. Tale kopiert die Konfiguration der Integration unter einem neuen Namen (`Support-Postfach (2)`), lässt die Anmeldedaten für dich frei und klont jede an das Original gebundene Automatisierung, damit die Kopie ihre eigene Synchronisation und ihren eigenen Posteingang bekommt.
+Confluence und Shopify fragen zusätzlich nach einer **Instanz-URL**, weil beide keinen einheitlichen Anbieter-Host haben. Confluence will die Adresse deiner Atlassian-Site — dort, wo du Confluence öffnest. Shopify will die `myshopify.com`-Adresse deines Shops, also die Admin-Adresse statt der Storefront-Domain. Dieser Wert liegt absichtlich unverschlüsselt, damit die Liste zeigen kann, auf welche Instanz jede Zeile zeigt.
 
-Die Kopie startet getrennt und bleibt ruhig — bis du ihre Anmeldedaten einträgst und verbindest, läuft kein geplanter Durchlauf. Ein unkonfiguriertes Duplikat erzeugt also nie fehlschlagende Durchläufe. Duplizieren wird nur dort angeboten, wo eine zweite Instanz tatsächlich funktionieren kann: OAuth-Integrationen (Gmail, Outlook, Slack) und GitHub sind beim Anbieter an ihre exakte Identität gebunden und lassen sich deshalb nicht duplizieren.
+</Note>
 
-Ein Duplikat ist vollständig entfernbar. Solange es getrennt ist, bietet sein Panel **Löschen** an — das entfernt die Instanz, ihre Anmeldedaten und die für sie geklonten Automatisierungen. Mitgelieferte Integrationen bieten nie Löschen an: sie lassen sich nur trennen, damit die Vorlage für die nächste Verbindung erhalten bleibt.
+## Den Standard wählen
 
-## Slack-Bot und Benachrichtigungen
+Ein Eintrag pro Connector kann der **Standard** sein, und **Zum Standard machen** verschiebt ihn auf jede beliebige Zeile. Der Standard greift, wenn ein Automations-Node oder eine Chat-Aktion keine Zugangsdaten benennt — und das ist der Normalfall. Einen Eintrag ausdrücklich zu benennen ist die Ausnahme, reserviert für den Workflow, der ein bestimmtes Konto braucht.
 
-Slack ist zweigerichtet. Über den Agent, der Slack aufruft (Nachrichten posten, Kanäle lesen), hinaus kann die Organisation Leute aus Slack heraus mit einem Agent sprechen lassen und System-Events in einen Kanal pushen. Beides wird auf der verbundenen Slack-Zeile konfiguriert, und beides nutzt dieselbe OAuth-Anmeldung — keine zweite Verbindung.
+Ein Connector mit mehreren Einträgen und ohne Standard ist eine funktionierende Konfiguration mit einer Lücke darin. Aufrufer, die eine Zeile benennen, laufen weiter; alle anderen können nicht wählen und scheitern. Stufe eine Zeile hoch, und die Lücke schließt sich sofort.
 
-Jede Organisation bringt ihre eigene Slack-App mit, vollständig über die Slack-Zeile konfiguriert — auf dem Deployment ist nichts zu setzen. Wenn du Slack verbindest, zeigt die Zeile ein Panel **Slack-App einrichten** mit einem fertig einfügbaren App-Manifest und den beiden URLs, auf die es verweist: die Request-URL für Event Subscriptions (`/api/integrations/slack/events`) und die OAuth-Redirect-URL. Das Manifest füllt die Bot-Berechtigungen, die Events `app_mention` und `message.im` sowie beide URLs vor, sodass das Erstellen der App auf api.slack.com/apps nur ein paar Klicks dauert. Füge **Client-ID**, **Client-Secret** und **Signing-Secret** der App zurück in die Zeile ein und autorisiere dann per OAuth. Das Signing-Secret verifiziert eingehende Events, also bleibt der Bot stumm, bis es gesetzt ist; eingehende Nachrichten werden über den Slack-Workspace zurück an die richtige Organisation geroutet.
+## Ein Secret ersetzen
 
-Auf der verbundenen Slack-Zeile wählt ein Admin, **welcher Agent auf Slack antwortet** (eine Erwähnung in einem Kanal oder eine Direktnachricht startet eine Thread-Antwort dieses Agents) und **welche Kanäle Benachrichtigungen erhalten**, mit einem Schalter pro Event. Die ausgelieferten Events sind Workflow fehlgeschlagen, Workflow abgeschlossen und Sicherheitswarnungen; ein Slack-Thread bildet sich auf ein Agent-Gespräch ab, und der Slack-Autor bleibt darauf erhalten, statt als System verbucht zu werden.
+Einen Schlüssel zu wechseln ist eine Bearbeitung am Eintrag, keine eigene Operation. Öffne die Zeile und wähle je nach Methode **API-Schlüssel ersetzen**, **Token ersetzen** oder **Benutzername & Passwort ersetzen**. Das gespeicherte Secret wird nie angezeigt, und ein neuer Wert ersetzt es überall dort, wo dieser Eintrag verwendet wird — jeder Automations-Node und jede Chat-Aktion, die darauf zeigt, übernimmt den neuen Wert, ohne angefasst zu werden.
 
-## Integrationen versus MCP-Server
+Name, Standard-Kennzeichen und Instanz-URL überstehen den Wechsel, nachgelagert muss also nichts umgezogen werden. **Name & Instanz bearbeiten** deckt die andere Richtung ab: eine Zeile umbenennen oder auf eine andere Instanz umziehen.
 
-Zwei Oberflächen lassen einen Agent über Tale hinausgreifen. **Integrationen** sind die hier dokumentierten anbieterspezifischen Erstanbieter-Konnektoren. **MCP-Server** sind externe Prozesse, die das Model Context Protocol freilegen; die Organisation registriert sie unter **Einstellungen > MCP-Server** und genehmigt jedes Tool beim ersten Aufruf. Greif zu einer Integration, wenn eine für das Zielsystem existiert; greif zu [MCP-Servern](/de/platform/integrations/mcp-servers), wenn keine Integration deckt, was du brauchst.
+## Deaktivieren und löschen
+
+**Deaktivieren** nimmt einen Eintrag aus dem Betrieb und behält die Zeile mit allem, was daran konfiguriert ist. Der Eintrag erscheint als **Deaktiviert**, und nichts löst mehr auf ihn auf; **Aktivieren** holt ihn zurück. Greif dazu, wenn ein Konto verdächtig ist statt erledigt, oder wenn eine Konfiguration geparkt werden soll, ohne verloren zu gehen.
+
+<Warning>
+
+**Löschen** wirkt sofort und endgültig. Automationen und Chat-Aktionen, die diesen Eintrag verwenden, verlieren augenblicklich den Zugriff auf diesen Connector — eine Schonfrist gibt es nicht. Löschst du den Standard, bleibt der Connector ohne einen, bis du eine andere Zeile hochstufst; die Rückfrage weist darauf hin, bevor du bestätigst.
+
+</Warning>
+
+## Eine kaputte Autorisierung neu verbinden
+
+Ein OAuth-Eintrag, dessen gespeicherte Autorisierung abgelaufen ist oder widerrufen wurde, zeigt **Neu verbinden nötig** samt Grund. Das ist der Befund der Plattform und nicht die Entscheidung eines Admins, deshalb liest es sich anders als ein Eintrag, den jemand von Hand deaktiviert hat: an der Zeile ist nichts falsch, der Anbieter erkennt die Freigabe nur nicht mehr an.
+
+**Neu verbinden** startet den Freigabe-Dialog des Anbieters erneut und stellt den Zugriff auf derselben Zeile wieder her — mit Name, Standard-Kennzeichen und allen Verweisen darauf. Ein Eintrag, den du selbst deaktiviert hast, wird auf diesem Weg nicht repariert; dort hilft **Aktivieren**, und Neuverbinden würde die falsche Frage beantworten.
+
+## Connectoren und MCP-Server
+
+Beide Oberflächen lassen einen Agent über Tale hinausgreifen, und der Unterschied liegt darin, wem die Brücke gehört. Ein Connector ist anbieterspezifisch, kommt mit der Plattform und wird für dich gepflegt; deine Seite davon sind die Zugangsdaten. Ein MCP-Server ist ein Prozess, den du selbst betreibst und unter **Einstellungen > API > MCP** registrierst, mit genau den Tools, die du schreibst. Greif zum Connector, wenn es einen für das Zielsystem gibt, und zu [MCP-Servern](/de/platform/integrations/mcp-servers), wenn nicht.
 
 ## Wo das hingehört
 
-Integrationen sind die Anmelde-Hälfte der Agent-zu-Aussenwelt-Geschichte; die Agent-Hälfte (welche Tools ein Agent bekommt, wie er sie aufruft, wie die Vertrauensgrenze aussieht) liegt unter [Agent-Tools](/de/platform/agents/tools). Die natürliche nächste Lektüre für einen neuen Admin ist [Integrations-Übersicht](/de/platform/integrations/overview) — sie nennt jede ausgelieferte Integration nach Zweck gruppiert und gibt das Per-Integrations-Setup auf einen Blick.
+Zugangsdaten zu verwalten ist inzwischen die gesamte Integrations-Administration, weil nichts mehr installiert wird: Konten anlegen, gut benennen, pro Connector einen Standard halten und die OAuth-Einträge neu verbinden, die auslaufen. [Integrationen](/de/platform/integrations/overview) ist der Katalog, an dem diese Einträge hängen, [Agent-Tools](/de/platform/agents/tools) zeigt, wie die daraus entstehenden Aktionen im Werkzeugkasten eines Agents ankommen, und [Genehmigungen konfigurieren](/de/platform/approvals/configure) ist der Ort, an dem schreibende Aktionen auf eine Freigabe warten.
+</content>
+</invoke>

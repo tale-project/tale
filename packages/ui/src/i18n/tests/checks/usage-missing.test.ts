@@ -24,7 +24,7 @@ function write(rel: string, content: string): void {
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-missing-'));
   write(
-    'messages/en.json',
+    'messages/en.yml',
     JSON.stringify({
       metrics: { title: 'Metrics', cards: { total: 'Total' } },
       chat: { send: 'Send' },
@@ -66,7 +66,7 @@ describe('findMissingKeyRefs', () => {
   });
 
   it('skips prefix concatenations, defaultValue fallbacks, unknown namespaces, and allowlisted prefixes', () => {
-    write('lib/i18n/keys-dynamic.txt', 'metrics.dynamic\n');
+    write('lib/i18n/keys-dynamic.yml', 'entries:\n  - metrics.dynamic\n');
     write(
       'app/skips.tsx',
       `const { t } = useT('metrics');

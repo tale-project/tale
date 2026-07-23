@@ -1,0 +1,3 @@
+enabled: true
+maxFileSizeBytes: 104857600
+maxTotalVolumeBytesPerUser: 10737418240

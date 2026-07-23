@@ -1,29 +1,29 @@
-import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-// ---------------------------------------------------------------------------
-// File-based integration list (cached via TanStack Query,
-// invalidated by SSE file events and mutation onSuccess)
-// ---------------------------------------------------------------------------
+import { listConnectorsRef } from './backend';
 
-export function useIntegrations(organizationId: string) {
-  const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.list('integrations', organizationId),
-    api.integrations.file_actions.listIntegrations,
-    { organizationId, filter: 'all' },
-    { enabled: organizationId !== '' },
+/**
+ * Read hooks for the integrations settings page. Credentials come from a
+ * reactive Convex query (masked by construction — the server never selects
+ * ciphertext), so the writes next door propagate without manual invalidation.
+ * The connector catalog comes from an ACTION (it reads the shipped connector
+ * files from disk), so it goes through `useActionQuery`.
+ */
+
+/** Every shipped connector, with its icon, tags, and action count. */
+export function useIntegrationConnectors(organizationId: string) {
+  return useActionQuery(
+    ['integrations', 'connectors', organizationId],
+    listConnectorsRef,
+    { organizationId },
   );
-  return { integrations: data ?? [], isLoading, error, refetch };
 }
 
-// ---------------------------------------------------------------------------
-// Reactive credential/status data from integrationCredentials table
-// ---------------------------------------------------------------------------
-
+/** Every integration credential of the organization, masked. */
 export function useIntegrationCredentials(organizationId: string) {
-  return useConvexQuery(api.integrations.credential_queries.list, {
+  return useConvexQuery(api.integration_credentials.queries.listCredentials, {
     organizationId,
   });
 }

@@ -52,7 +52,7 @@ vi.mock('../file_metadata/helpers', () => ({
   deleteStorageWithMetadata: vi.fn(),
 }));
 
-vi.mock('../threads/cascade_helpers', () => ({
+vi.mock('../legacy/thread_cascade', () => ({
   cascadeDeleteThreadChildren: vi.fn(),
 }));
 

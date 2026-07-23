@@ -26,8 +26,7 @@ import {
   notifyTaskMentions,
   notifyTaskStatusChanged,
 } from '../collab/notify';
-import { emitEvent } from '../workflows/triggers/emit_event';
-import { automationOwnerOfWorkflowSlug } from '../workflows/triggers/slug_mutations';
+import { emitEvent } from '../events/emit';
 import { canClaimTask, normalizeAssignee } from './access';
 import {
   TASK_AUDIT_ACTIONS,
@@ -77,6 +76,26 @@ function eventActor(actorId: string): {
     actorType: actorId === 'workflow' ? 'workflow' : 'agent',
     actorId,
   };
+}
+
+/**
+ * No-op replacement for
+ * `automationOwnerOfWorkflowSlug` (from the retired `workflows/triggers/slug_mutations.ts`)
+ * — the workflows/automations domain is retired wholesale. Single caller
+ * (`agentUpsertTaskByExternalRef` below), so inlined rather than re-created as
+ * a module. Always reports "no owning app" (`null`); the caller already
+ * treats that as "attribute the task to the syncing agent instead of an
+ * installed app" (`ownerAutomation ?? args.actorId`), which is exactly what
+ * happens when no app owns the slug today, so external-issue sync (task CRUD)
+ * keeps working — every synced task is just attributed to the agent, never an
+ * app, until this is restored.
+ */
+async function automationOwnerOfWorkflowSlug(
+  _ctx: MutationCtx,
+  _organizationId: string,
+  _workflowSlug: string,
+): Promise<string | null> {
+  return null;
 }
 
 async function loadTaskInOrg(

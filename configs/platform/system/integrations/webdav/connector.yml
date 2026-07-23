@@ -1,0 +1,84 @@
+# Integration connector — the organization's own WebDAV file store (the
+# platform's `/dav/*` server). Workflow and chat actions read and write org
+# files through the platform's native WebDAV module; there is no external HTTP
+# to script, so every action is native-backed with a deterministic mock.
+# Basic auth carries a WebDAV app password.
+name: webdav
+displayName: WebDAV Files
+description: >-
+  Read, write, and list files in the organization's WebDAV store — the same
+  files the /dav endpoint serves.
+tags:
+  - Files
+auth:
+  - method: basic
+actions:
+  - name: list
+    description: List the entries directly under a folder path.
+    effects: read
+    input:
+      type: object
+      required: [path]
+      properties:
+        path: { type: string, description: 'Folder path, e.g. "/reports".' }
+    output: '{ entries: Array<{ path: string, name: string, isDir: boolean, size: number }> }'
+    mock: |
+      const base = input.path.replace(/\/+$/, '');
+      return {
+        entries: [
+          { path: `${base}/notes.md`, name: 'notes.md', isDir: false, size: 128 },
+          { path: `${base}/archive`, name: 'archive', isDir: true, size: 0 },
+        ],
+      };
+    backend:
+      kind: native
+      impl: webdav.list
+    exampleInput: { path: '/reports' }
+  - name: read
+    description: Read a file's contents.
+    effects: read
+    input:
+      type: object
+      required: [path]
+      properties:
+        path: { type: string, description: 'File path to read.' }
+    output: '{ path: string, contentType: string, content: string }'
+    mock: |
+      return { path: input.path, contentType: 'text/plain', content: `Mock contents of ${input.path}.` };
+    backend:
+      kind: native
+      impl: webdav.read
+    exampleInput: { path: '/reports/q3.md' }
+  - name: write
+    description: Create or overwrite a file with the given contents.
+    effects: write
+    input:
+      type: object
+      required: [path, content]
+      properties:
+        path: { type: string, description: 'File path to write.' }
+        content: { type: string, description: 'File contents (UTF-8).' }
+        contentType:
+          { type: string, description: 'MIME type (default text/plain).' }
+    output: '{ path: string, bytesWritten: number }'
+    mock: |
+      return { path: input.path, bytesWritten: input.content.length };
+    backend:
+      kind: native
+      impl: webdav.write
+    exampleInput: { path: '/reports/summary.md', content: '# Summary' }
+  - name: delete
+    description: Delete a file or folder.
+    effects: write
+    input:
+      type: object
+      required: [path]
+      properties:
+        path: { type: string, description: 'File or folder path to delete.' }
+    output: '{ path: string, deleted: boolean }'
+    mock: |
+      return { path: input.path, deleted: true };
+    backend:
+      kind: native
+      impl: webdav.delete
+    exampleInput: { path: '/reports/old.md' }

@@ -1,372 +1,182 @@
 'use node';
 
 /**
- * Agent JSON file utilities.
+ * On-disk plumbing for the `agents` config domain.
  *
- * Pure helpers for serializing, validating, and hashing agent JSON files.
- * No Convex dependencies — these can be used in any Node.js context.
+ * Every organization keeps its agents at
+ * `${TALE_CONFIG_DIR}/<orgSlug>/agents/<slug>.yml`, one flat file per agent.
+ * The file is the whole model: there is no agent row, no installation record
+ * and no per-org catalog index — listing an org's agents means reading its own
+ * directory, which is what makes the domain tenant-isolated by construction.
+ *
+ * Edits keep a trail under `<orgSlug>/agents/.history/<slug>/`, the same
+ * mechanism every other file-based domain uses; this domain adds no versioning
+ * of its own.
+ *
+ * Only `.yml` files are agents. A file left over in the shape this domain was
+ * converted FROM is a different document with different fields, not an agent
+ * in an older format, so it is skipped rather than parsed and reported broken;
+ * the versioned conversion is what turns one into an agent file.
+ *
+ * Path handling is defensive throughout: the org slug and the agent slug are
+ * validated before they are joined, joins go through the shared traversal
+ * guard, and reads refuse symlinks.
  */
 
-import type { Dirent } from 'node:fs';
-import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { AgentFileReader } from '../../lib/agents/listing';
 import {
-  agentJsonSchema,
-  type AgentMetadata,
-  type AgentRoutingConfig,
+  isValidAgentSlug,
+  MAX_AGENT_FILE_BYTES,
 } from '../../lib/shared/schemas/agents';
-import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
-import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
-import { resolveAutomationDir } from '../automations/file_utils';
 import {
-  errnoCode,
+  atomicWrite,
+  generateHistoryTimestamp,
   getConfigRoot,
+  pruneHistory,
+  readdirSafe,
+  readJsonFile,
+  removeDirSafe,
+  removeFileSafe,
   safeJoinWithinDir,
-  serializeJson,
-  sha256,
   validateOrgSlug,
 } from '../lib/file_io';
-import {
-  agentSlugFromFileName,
-  validateAgentName,
-  validateAgentSlug,
-} from './validators';
 
-export { sha256, validateAgentName };
+/** The config-domain name — the directory name inside an org's config tree. */
+export const AGENTS_CONFIG_DOMAIN = 'agents';
 
-const MAX_FILE_SIZE_BYTES = 256 * 1024; // 256 KB
-const MAX_HISTORY_ENTRIES = 100;
+/** Extension every agent file carries. */
+export const AGENT_FILE_EXTENSION = '.yml';
 
-export interface AgentI18nOverrides {
-  displayName?: string;
-  description?: string;
-  conversationStarters?: string[];
-  systemInstructions?: string;
-}
+/** How many superseded versions to keep per agent. */
+const MAX_HISTORY_ENTRIES = 20;
 
-export interface AgentJsonConfig {
-  /**
-   * Canonical, file-location-independent identity. Stored in the config so
-   * moving the file between folders or renaming it never breaks
-   * mentions/installations/thread refs. When absent, the loader
-   * falls back to the file basename. Mirrors `agentJsonSchema.slug`.
-   */
-  slug?: string;
-  /**
-   * Legacy top-level translatable fields. Canonical values live under
-   * `i18n.<locale>.*`. These remain as a fallback for agents authored before
-   * the i18n-first data model — resolution precedence is
-   * `i18n[locale] → i18n['en'] → top-level`.
-   */
-  displayName?: string;
-  description?: string;
-  avatarUrl?: string;
-  /**
-   * Root behavior. Omitted = 'chat' (default). 'image-generation' routes the
-   * user's message straight to an image model; 'external-agent' routes the
-   * whole turn to a coding agent in a sandbox session. Both bypass the tool
-   * loop.
-   */
-  primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
-  /** External agent runtime for `primaryBehavior: 'external-agent'`. */
-  agentKind?:
-    | 'claude-code'
-    | 'cursor'
-    | 'opencode'
-    | 'hermes'
-    | 'gemini'
-    | 'codex'
-    | 'pi'
-    | 'openclaw';
-  /**
-   * Credential / auth mode for `primaryBehavior: 'external-agent'`. 'managed'
-   * (default) routes through the platform gateway with a minted virtual key;
-   * 'byo' bypasses the gateway and uses the user-injected sandbox credentials
-   * with a raw model passthrough. The per-agent authMode is the sole control;
-   * there is no separate org-level gate.
-   */
-  authMode?: 'managed' | 'byo';
-  /**
-   * For `primaryBehavior: 'external-agent'` only — opt into the runtime's native
-   * web tools (Claude Code WebSearch/WebFetch). Managed runs force-disable these
-   * by default (governed routing through a search integration); `true` lifts the
-   * denial. Absent/`false` keeps the governed default; BYO is unaffected.
-   */
-  nativeWebTools?: boolean;
-  /**
-   * For managed `primaryBehavior: 'external-agent'` only — the vision model that
-   * backs the `vision_read` polyfill when this agent's own model is text-only.
-   * Unset falls back to the provider registry's `vision`-tagged default; ignored
-   * for BYO and when the agent's own model already sees images.
-   */
-  visionModel?: string;
-  systemInstructions?: string;
-  toolNames?: string[];
-  integrationBindings?: string[];
-  workflows?: string[];
-  /**
-   * Slugs of skills available to this agent — a hard allowlist. Each slug
-   * references a `${TALE_CONFIG_DIR}/<orgSlug>/skills/<slug>/SKILL.md` bundle. Empty or
-   * absent means the agent has zero skills available; there is no implicit
-   * "all org skills" fallback. At chat-turn start, `buildSkillContext` loads
-   * only the intersection of this list with the org's actual skills; slugs
-   * pointing at non-existent skills are silently dropped.
-   */
-  skillBindings?: string[];
-  supportedModels: string[];
-  provider?: string;
-  knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
-  webSearchMode?: 'off' | 'tool' | 'context' | 'both';
-  /**
-   * Per-agent personalization toggle. 'off' suppresses user memory and
-   * customInstructions injection AND strips the propose_memory tool. Use
-   * 'off' for strict-format workflow agents whose output shape would be
-   * polluted by user tone, and for agents whose outputs have legal or
-   * similarly significant effects on users (GDPR Art 22 / EU AI Act
-   * high-risk). Default 'on'.
-   */
-  personalizationMode?: 'on' | 'off';
-  includeOrgKnowledge?: boolean;
-  includeTeamKnowledge?: boolean;
-  knowledgeTopK?: number;
-  structuredResponsesEnabled?: boolean;
-  maxSteps?: number;
-  timeoutMs?: number;
-  outputReserve?: number;
-  maxIntegrationCallsPerRun?: number;
-  composerMode?: {
-    label: string;
-    icon?: string;
-    tooltip?: string;
-    order?: number;
-  };
-  /** Per-agent routing / cascade behaviour. Mirrors `agentRoutingSchema`. */
-  routing?: AgentRoutingConfig;
-  roleRestriction?: 'admin_developer';
-  conversationStarters?: string[];
-  visibleInChat?: boolean;
-  /**
-   * Monthly spend guardrail: warn at `warnPct` (default 80), refuse new runs
-   * at `pausePct` (default 100) of `monthlyCents`, measured against the
-   * usageLedger's month-to-date spend for this agentSlug. Mirrors
-   * `agentJsonSchema.budget`.
-   */
-  budget?: {
-    monthlyCents: number;
-    warnPct?: number;
-    pausePct?: number;
-  };
-  /** Max concurrent task runs; omitted = unlimited. Mirrors
-   *  `agentJsonSchema.maxConcurrentTasks`. */
-  maxConcurrentTasks?: number;
-  /** Opt-in: run task runs as a durable sandbox step (container, not the
-   *  inline LLM loop). Mutually exclusive with `runtime`. Mirrors
-   *  `agentJsonSchema.preferDurableStepForTasks`. */
-  preferDurableStepForTasks?: boolean;
-  /** External runtime binding (tale-daemon dispatch for task runs).
-   *  Mirrors `agentJsonSchema.runtime`. */
-  runtime?: {
-    adapterType: string;
-    daemonId?: string;
-    permissionMode: 'safe' | 'auto_edits' | 'full_auto';
-    workspaceKey?: string;
-  };
-  /** Marks the system "Auto" router agent (instructions generated per-request
-   *  from `buildRouterInstructions`; never answers a turn itself). */
-  isRouter?: boolean;
-  /** `false` = system-managed, not creatable/editable/deletable via the UI. */
-  uiConfigurable?: boolean;
-  i18n?: Record<string, AgentI18nOverrides>;
-  /** Install / catalog / cascade metadata. Mirrors `agentJsonSchema.metadata`. */
-  metadata?: AgentMetadata;
-}
-
-export type AgentReadResult =
-  | { ok: true; config: AgentJsonConfig; hash: string }
-  | {
-      ok: false;
-      error:
-        | 'not_found'
-        | 'corrupted'
-        | 'too_large'
-        | 'symlink'
-        | 'inaccessible';
-      message: string;
-    };
-
-export function serializeAgentJson(config: AgentJsonConfig): string {
-  return serializeJson(canonicalizeAgentConfig(config));
-}
-
-export function parseAgentJson(content: string): AgentJsonConfig {
-  const parsed: unknown = JSON.parse(content);
-  const result = agentJsonSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new Error(zodErrorMessage('Invalid agent JSON', result.error));
-  }
-  return result.data;
-}
-
+/** `<orgSlug>/agents/` — the org's agent domain directory. */
 export function resolveAgentsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  return path.join(getConfigRoot('agents'), orgSlug, 'agents');
+  return path.join(
+    getConfigRoot(AGENTS_CONFIG_DOMAIN),
+    orgSlug,
+    AGENTS_CONFIG_DOMAIN,
+  );
+}
+
+/** `<orgSlug>/agents/<slug>.yml` — one agent. */
+export function resolveAgentFilePath(orgSlug: string, slug: string): string {
+  if (!isValidAgentSlug(slug)) {
+    throw new Error(`Invalid agent slug: ${slug}`);
+  }
+  return safeJoinWithinDir(
+    resolveAgentsDir(orgSlug),
+    `${slug}${AGENT_FILE_EXTENSION}`,
+  );
+}
+
+/** `<orgSlug>/agents/.history/<slug>/` — superseded versions of one agent. */
+export function resolveAgentHistoryDir(orgSlug: string, slug: string): string {
+  if (!isValidAgentSlug(slug)) {
+    throw new Error(`Invalid agent slug: ${slug}`);
+  }
+  return safeJoinWithinDir(
+    safeJoinWithinDir(resolveAgentsDir(orgSlug), '.history'),
+    slug,
+  );
+}
+
+/** `agents/<slug>.yml` — the path an operator sees, org-tree relative. */
+export function relativeAgentPath(slug: string): string {
+  return `${AGENTS_CONFIG_DOMAIN}/${slug}${AGENT_FILE_EXTENSION}`;
 }
 
 /**
- * App-owned agents live under the automation's OWN bundle dir (`org/automations/<slug>/agents/`),
- * NOT the global `org/agents/`. This is what keeps them out of the global agent
- * surfaces (chat picker, `/agents`, org-chart) by construction.
+ * The agent slugs present for an org, unsorted. A missing domain directory is
+ * an empty roster, not an error — the directory is created on demand when the
+ * org authors its first agent. Entries that are not `.yml` files, or whose
+ * stem is not a valid slug, are ignored, which also skips the `.history/`
+ * trail and any editor leftovers.
  */
-export function resolveAutomationAgentsDir(
+export async function listAgentSlugs(orgSlug: string): Promise<string[]> {
+  const entries = await readdirSafe(resolveAgentsDir(orgSlug));
+  const slugs: string[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith(AGENT_FILE_EXTENSION)) continue;
+    const slug = entry.slice(0, -AGENT_FILE_EXTENSION.length);
+    if (isValidAgentSlug(slug)) slugs.push(slug);
+  }
+  return slugs;
+}
+
+/**
+ * The raw text of one agent file, or `null` when the org has none. A
+ * symlinked, oversized or unreadable file throws — silently treating one as
+ * absent would hide a broken agent from the operator who has to fix it.
+ */
+export async function readAgentFileText(
   orgSlug: string,
-  automationSlug: string,
-): string {
-  return path.join(resolveAutomationDir(orgSlug, automationSlug), 'agents');
+  slug: string,
+): Promise<string | null> {
+  const filePath = resolveAgentFilePath(orgSlug, slug);
+  const result = await readJsonFile(
+    filePath,
+    MAX_AGENT_FILE_BYTES,
+    (content) => content,
+  );
+  if (result.ok) return result.data;
+  if (result.error === 'not_found') return null;
+  throw new Error(`${filePath}: ${result.message}`);
 }
 
 /**
- * Split a possibly-composite agent identity. A flat name (no `/`) is a GLOBAL
- * agent; `<automationSlug>/<name>` is automation-owned. The automation slug is
- * itself a PATH (`github/create-pull-requests`) while an agent name is a single
- * segment, so the split is on the LAST `/` — `validateAgentName` has already
- * proven that shape.
+ * An {@link AgentFileReader} bound to ONE organization. Nothing downstream
+ * can widen it to another org: the slug is captured here and every path is
+ * resolved from it.
  */
-function splitAgentName(agentName: string): {
-  automationSlug?: string;
-  name: string;
-} {
-  const slash = agentName.lastIndexOf('/');
-  if (slash === -1) return { name: agentName };
+export function createOrgAgentReader(orgSlug: string): AgentFileReader {
   return {
-    automationSlug: agentName.slice(0, slash),
-    name: agentName.slice(slash + 1),
+    listSlugs: () => listAgentSlugs(orgSlug),
+    readAgentFile: (slug) => readAgentFileText(orgSlug, slug),
+    describe: (slug) => resolveAgentFilePath(orgSlug, slug),
   };
 }
 
-export function resolveAgentFilePath(
-  orgSlug: string,
-  agentName: string,
-): string {
-  if (!validateAgentName(agentName)) {
-    throw new Error(`Invalid agent name: ${agentName}`);
-  }
-  const { automationSlug, name } = splitAgentName(agentName);
-  const dir = automationSlug
-    ? resolveAutomationAgentsDir(orgSlug, automationSlug)
-    : resolveAgentsDir(orgSlug);
-  return safeJoinWithinDir(dir, `${name}.json`);
-}
-
-export function resolveHistoryDir(orgSlug: string, agentName: string): string {
-  // Defence-in-depth: `listHistory`, `readHistoryEntry`, and
-  // `restoreFromHistory` invoke this BEFORE any
-  // `resolveAgentFilePath`-style validation runs, so a crafted
-  // `agentName` containing `..` would otherwise traverse out of
-  // `agents/.history/`. Mirror the agent-name + safeJoin guard the
-  // other path builders already do.
-  if (!validateAgentName(agentName)) {
-    throw new Error(`Invalid agent name: ${agentName}`);
-  }
-  // App-owned history lives under the app's own agents dir, so it travels with
-  // the bundle (and is removed by the shell `rm` on uninstall). The final
-  // segment is the bare local name — never the composite (no `/` in it).
-  const { automationSlug, name } = splitAgentName(agentName);
-  const baseDir = automationSlug
-    ? resolveAutomationAgentsDir(orgSlug, automationSlug)
-    : resolveAgentsDir(orgSlug);
-  return safeJoinWithinDir(safeJoinWithinDir(baseDir, '.history'), name);
-}
-
-/** Dirs never treated as agent folders (history trails + archived catalog). */
-const SKIP_AGENT_DIRS = new Set(['.history', '_archive', 'old']);
-
 /**
- * Recursively list agent JSON file paths RELATIVE to the org's agents dir
- * (posix-style, e.g. `chat/researcher.json` or a flat
- * `chat-agent.json`). One real level of nesting is expected (chat/,
- * chat/) but the walk is depth-general. Skips `.history/`, dotfiles, and any
- * `_archive`/`old` dir (superseded catalog that must never load). Returns [] if
- * the dir is missing.
+ * Write an agent file, keeping the superseded version in the domain's history
+ * trail. The write itself is atomic, so a reader never observes a half-written
+ * file.
  */
-export async function walkAgentRelativePaths(
+export async function writeAgentFileText(
   orgSlug: string,
-): Promise<string[]> {
-  const root = resolveAgentsDir(orgSlug);
-  const out: string[] = [];
-
-  async function walk(absDir: string, relPrefix: string): Promise<void> {
-    let entries: Dirent[];
-    try {
-      entries = await readdir(absDir, { withFileTypes: true });
-    } catch (err) {
-      // Missing root is normal (org not scaffolded yet); anything else logs.
-      if (errnoCode(err) !== 'ENOENT') {
-        console.warn(
-          '[agents.walkAgentRelativePaths] readdir failed:',
-          absDir,
-          err,
-        );
-      }
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        if (SKIP_AGENT_DIRS.has(entry.name)) continue;
-        await walk(path.join(absDir, entry.name), rel);
-        continue;
-      }
-      if (entry.isFile() && entry.name.endsWith('.json')) out.push(rel);
-    }
+  slug: string,
+  content: string,
+): Promise<void> {
+  const filePath = resolveAgentFilePath(orgSlug, slug);
+  const current = await readAgentFileText(orgSlug, slug);
+  if (current !== null) {
+    const historyDir = resolveAgentHistoryDir(orgSlug, slug);
+    await atomicWrite(
+      path.join(
+        historyDir,
+        `${generateHistoryTimestamp()}${AGENT_FILE_EXTENSION}`,
+      ),
+      current,
+    );
+    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
   }
-
-  await walk(root, '');
-  return out;
+  await atomicWrite(filePath, content);
 }
 
 /**
- * Safe-join a relative agent path (possibly foldered, e.g.
- * `chat/researcher.json`) within the org's agents dir, validating every segment.
- * Used to read/write a file at the location the slug→path index resolved.
+ * Remove an agent and its history trail. Returns true when a file was
+ * actually removed, so a caller can tell a delete from a no-op.
  */
-export function resolveAgentFilePathFromRelative(
+export async function removeAgentFile(
   orgSlug: string,
-  relativePath: string,
-): string {
-  const segments = relativePath.replace(/\\/g, '/').split('/');
-  const fileSegment = segments.pop();
-  if (!fileSegment || !fileSegment.endsWith('.json')) {
-    throw new Error(`Invalid agent relative path: ${relativePath}`);
-  }
-  if (!validateAgentName(fileSegment.replace(/\.json$/, ''))) {
-    throw new Error(`Invalid agent file segment: ${fileSegment}`);
-  }
-  for (const segment of segments) {
-    if (!validateAgentName(segment)) {
-      throw new Error(`Invalid agent folder segment: ${segment}`);
-    }
-  }
-  let target = resolveAgentsDir(orgSlug);
-  for (const segment of segments) {
-    target = safeJoinWithinDir(target, segment);
-  }
-  return safeJoinWithinDir(target, fileSegment);
+  slug: string,
+): Promise<boolean> {
+  const removed = await removeFileSafe(resolveAgentFilePath(orgSlug, slug));
+  await removeDirSafe(resolveAgentHistoryDir(orgSlug, slug));
+  return removed;
 }
-
-/**
- * The canonical, file-location-independent identity for an agent file: the
- * explicit `config.slug` when valid, else the file basename (legacy fallback).
- */
-export function effectiveAgentSlug(
-  config: AgentJsonConfig,
-  relativePath: string,
-): string {
-  if (config.slug && validateAgentSlug(config.slug)) return config.slug;
-  return agentSlugFromFileName(relativePath);
-}
-
-export { MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

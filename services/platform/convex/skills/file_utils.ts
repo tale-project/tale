@@ -1,341 +1,201 @@
 'use node';
 
 /**
- * Skill file utilities.
+ * On-disk plumbing for the `skills` config domain.
  *
- * Pure helpers for resolving paths, validating slugs/asset paths, and
- * reading/serializing SKILL.md content. Mirrors the pattern in
- * agents/file_utils.ts and integrations/file_utils.ts but uses Markdown +
- * YAML frontmatter as the wire format (per agentskills.io spec).
+ * Every organization keeps its skills at
+ * `${TALE_CONFIG_DIR}/<orgSlug>/skills/<slug>/`, one directory per bundle
+ * with a `SKILL.md` at its root and optional small assets beside it. The
+ * directory is the whole model: there is no skill row, no sharing table and
+ * no per-org catalog index — listing an org's skills means reading its own
+ * directory, which is what makes the domain tenant-isolated by construction.
  *
- * Org isolation: every org's skills live under
- * `${TALE_CONFIG_DIR}/<orgSlug>/skills/` — uniform org-first layout. Every
- * resolver applies a path-traversal guard plus a `verifyPathWithinBase`
- * realpath check so symlinks planted in the bundle cannot escape the
- * skill's directory.
+ * Edits keep a trail under `<orgSlug>/skills/.history/<slug>/`, the same
+ * mechanism every other file-based domain uses. It sits at the domain root
+ * rather than inside the bundle so a skill's own directory stays exactly what
+ * gets copied into a sandbox.
+ *
+ * Path handling is defensive throughout: the org slug and the skill slug are
+ * validated before they are joined, joins go through the shared traversal
+ * guard, reads refuse symlinks, and a bundle directory is realpath-checked
+ * against the domain root so a planted link cannot reach outside the tree.
  */
 
-import { constants, lstat, open } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { stringify as stringifyYaml } from 'yaml';
-
 import {
-  parseSkillMd,
-  frontmatterToRaw,
-  MAX_SKILL_BUNDLE_ENTRIES,
-  MAX_SKILL_BUNDLE_FILE_BYTES,
-  MAX_SKILL_BUNDLE_TOTAL_BYTES,
-  RESERVED_SKILL_NAMES,
-  SKILL_NAME_REGEX,
-  type SkillFrontmatter,
+  isValidSkillSlug,
+  MAX_SKILL_MD_BYTES,
 } from '../../lib/shared/schemas/skills';
+import type { SkillBundleReader } from '../../lib/skills/listing';
 import {
+  atomicWrite,
+  errnoCode,
+  generateHistoryTimestamp,
   getConfigRoot,
+  handleDirReadError,
+  pruneHistory,
+  readdirSafe,
+  readJsonFile,
+  removeDirSafe,
   safeJoinWithinDir,
-  sha256,
   validateOrgSlug,
   verifyPathWithinBase,
 } from '../lib/file_io';
 
-/**
- * Names reserved by the SKILL.md frontmatter schema. Duplicated here so
- * `validateSkillSlug` enforces the same set at action-arg boundaries (where
- * the SKILL.md isn't read yet, but the slug is used to resolve paths).
- */
-// Re-import the canonical reserved-name set from the shared schema so
-// the runtime's lookup table cannot drift from what `parseSkillMd`
-// refuses. Earlier this file maintained a near-identical local Set with
-// an apologetic comment; that's the wrong dedup tradeoff.
-const RESERVED_SKILL_SLUGS = RESERVED_SKILL_NAMES;
+/** The config-domain name — the directory name inside an org's config tree. */
+export const SKILLS_CONFIG_DOMAIN = 'skills';
 
-export { sha256, parseSkillMd };
-export type { SkillFrontmatter };
+/** The one file every skill bundle must have. */
+export const SKILL_DOCUMENT_NAME = 'SKILL.md';
 
-/**
- * Skill slug — re-exported via the schemas module so a single source of
- * truth governs every validation site (runtime, frontend, schema). The
- * local alias keeps existing call sites unchanged.
- */
-const SKILL_SLUG_REGEX = SKILL_NAME_REGEX;
-const MAX_SLUG_LENGTH = 64;
+/** How many superseded `SKILL.md` versions to keep per bundle. */
+const MAX_HISTORY_ENTRIES = 20;
 
-/**
- * Canonical bundle subdirectories per agentskills.io spec. Skills may store
- * assets under any of these (or directly in the skill root) — the runtime
- * does not enforce a specific layout, this constant just documents intent.
- */
-export const SKILL_BUNDLE_SUBDIRS = [
-  'scripts',
-  'references',
-  'assets',
-] as const;
-
-// Bundle-size constants live in `lib/shared/schemas/skills.ts` so both the
-// browser-side zip parser and the server-side action enforce identical caps
-// without the browser having to pull in any Node-only modules from here.
-export {
-  MAX_SKILL_BUNDLE_ENTRIES,
-  MAX_SKILL_BUNDLE_FILE_BYTES,
-  MAX_SKILL_BUNDLE_TOTAL_BYTES,
-};
-
-export type SkillReadResult =
-  | {
-      ok: true;
-      meta: SkillFrontmatter;
-      body: string;
-      versionHash: string;
-    }
-  | {
-      ok: false;
-      error: 'not_found' | 'corrupted' | 'symlink' | 'inaccessible';
-      message: string;
-    };
-
-export function validateSkillSlug(slug: string): boolean {
-  if (slug.length === 0 || slug.length > MAX_SLUG_LENGTH) return false;
-  if (!SKILL_SLUG_REGEX.test(slug)) return false;
-  if (RESERVED_SKILL_SLUGS.has(slug)) return false;
-  return true;
-}
-
-/**
- * Resolve the skills directory for an organization. Org-first:
- * `${TALE_CONFIG_DIR}/<orgSlug>/skills/`.
- */
+/** `<orgSlug>/skills/` — the org's skill domain directory. */
 export function resolveSkillsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  return path.join(getConfigRoot('skills'), orgSlug, 'skills');
+  return path.join(
+    getConfigRoot(SKILLS_CONFIG_DOMAIN),
+    orgSlug,
+    SKILLS_CONFIG_DOMAIN,
+  );
 }
 
-const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
-
-/**
- * The built-in skill catalog dir (`<builtin>/skills`) — the read-only source
- * the "From template" create flow copies from and the per-domain builtin sync
- * refreshes against. Mirrors `resolveCatalogAutomationsDir` (`apps/file_utils.ts`):
- * the catalog root's children are the domains, so skills live at
- * `<catalog>/skills/<slug>` with no org level and no fallback.
- */
-export function resolveCatalogSkillsDir(): string {
-  const catalogRoot = process.env[BUILTIN_ENV];
-  if (!catalogRoot) {
-    throw new Error(
-      `${BUILTIN_ENV} is not set; cannot resolve the built-in skill catalog`,
-    );
-  }
-  return path.join(catalogRoot, 'skills');
-}
-
-/** The catalog bundle dir for one skill (`<builtin>/skills/<slug>`). */
-export function resolveCatalogSkillDir(slug: string): string {
-  if (!validateSkillSlug(slug)) {
-    throw new Error(`Invalid skill slug: ${slug}`);
-  }
-  return path.join(resolveCatalogSkillsDir(), slug);
-}
-
+/** `<orgSlug>/skills/<slug>/` — one skill bundle. */
 export function resolveSkillDir(orgSlug: string, slug: string): string {
-  if (!validateSkillSlug(slug)) {
+  if (!isValidSkillSlug(slug)) {
     throw new Error(`Invalid skill slug: ${slug}`);
   }
   return safeJoinWithinDir(resolveSkillsDir(orgSlug), slug);
 }
 
+/** `<orgSlug>/skills/<slug>/SKILL.md`. */
 export function resolveSkillMdPath(orgSlug: string, slug: string): string {
-  return path.join(resolveSkillDir(orgSlug, slug), 'SKILL.md');
+  return safeJoinWithinDir(resolveSkillDir(orgSlug, slug), SKILL_DOCUMENT_NAME);
+}
+
+/** `<orgSlug>/skills/.history/<slug>/` — superseded versions of one bundle. */
+export function resolveSkillHistoryDir(orgSlug: string, slug: string): string {
+  if (!isValidSkillSlug(slug)) {
+    throw new Error(`Invalid skill slug: ${slug}`);
+  }
+  return safeJoinWithinDir(
+    safeJoinWithinDir(resolveSkillsDir(orgSlug), '.history'),
+    slug,
+  );
 }
 
 /**
- * Resolve a bundle-asset path, guarding against every flavor of traversal:
- * absolute paths, `..` segments, leading-`.` segments, Windows drive
- * letters, NUL bytes, oversized paths. The caller MUST `await
- * verifyPathWithinBase(resolved, skillDir)` before any I/O — see
- * {@link resolveSkillAssetPathChecked} for the safe variant.
+ * The bundle slugs present for an org, unsorted. A missing domain directory
+ * is an empty library, not an error — the directory is created on demand when
+ * the org authors or imports its first skill. Entries that are not directories
+ * or whose name is not a valid slug are ignored, which also skips the
+ * `.history/` trail and any editor leftovers.
  */
-export function resolveSkillAssetPath(
-  orgSlug: string,
-  slug: string,
-  relPath: string,
-): string {
-  validateAssetRelPath(relPath);
-  const skillDir = resolveSkillDir(orgSlug, slug);
-  const resolved = safeJoinWithinDir(skillDir, relPath);
-  // Case-fold the SKILL.md lockout — on case-insensitive filesystems (macOS
-  // default, Windows) `skill.md` resolves to the same inode as `SKILL.md`
-  // but a literal `===` compare would miss it.
-  const expectedPrefix = path.resolve(skillDir);
-  const finalSegment = path.basename(resolved);
-  if (
-    path.dirname(resolved) === expectedPrefix &&
-    finalSegment.toLowerCase() === 'skill.md'
-  ) {
-    throw new Error(
-      'SKILL.md is not editable via the asset path; use the skill markdown writer instead',
-    );
-  }
-  return resolved;
-}
-
-/**
- * Safe variant of {@link resolveSkillAssetPath} that also realpath-checks
- * the parent directory after resolution. Use this on every read/write of a
- * bundle file so a symlink planted as an intermediate directory cannot
- * escape the skill root.
- */
-export async function resolveSkillAssetPathChecked(
-  orgSlug: string,
-  slug: string,
-  relPath: string,
-): Promise<string> {
-  const skillDir = resolveSkillDir(orgSlug, slug);
-  const resolved = resolveSkillAssetPath(orgSlug, slug, relPath);
-  await verifyPathWithinBase(resolved, skillDir);
-  return resolved;
-}
-
-function validateAssetRelPath(relPath: string): void {
-  if (relPath.length === 0 || relPath.length > 200) {
-    throw new Error('Asset path must be 1..200 characters');
-  }
-  if (relPath.includes('\0')) {
-    throw new Error('Asset path must not contain NUL bytes');
-  }
-  if (path.isAbsolute(relPath)) {
-    throw new Error('Asset path must be relative');
-  }
-  // Reject Windows drive prefixes even on POSIX (defense-in-depth).
-  if (/^[A-Za-z]:/.test(relPath)) {
-    throw new Error('Asset path must not contain a drive prefix');
-  }
-  const segments = relPath.split(/[\\/]+/);
-  for (const seg of segments) {
-    if (seg === '' || seg === '..') {
-      throw new Error('Asset path must not contain `..` or empty segments');
-    }
-    if (seg.startsWith('.')) {
-      throw new Error('Asset path segments must not start with `.`');
+export async function listSkillSlugs(orgSlug: string): Promise<string[]> {
+  const skillsDir = resolveSkillsDir(orgSlug);
+  const entries = await readdirSafe(skillsDir);
+  const slugs: string[] = [];
+  for (const entry of entries) {
+    if (!isValidSkillSlug(entry)) continue;
+    try {
+      const stats = await lstat(path.join(skillsDir, entry));
+      if (stats.isDirectory()) slugs.push(entry);
+    } catch (err) {
+      handleDirReadError(err, `listSkillSlugs(${orgSlug})`);
     }
   }
+  return slugs;
 }
 
 /**
- * Read a `SKILL.md`, returning the parsed frontmatter + body + content
- * hash. Mirrors the symlink/size/encoding protections of
- * `readJsonFile` but for the markdown shape — and computes
- * `versionHash = sha256(SKILL.md content)` so the runtime snapshot can
- * detect skill drift between bind time and execution time.
+ * The raw `SKILL.md` text of one bundle, or `null` when there is none. A
+ * symlinked, oversized or unreadable document throws — silently treating one
+ * as absent would hide a broken bundle from the operator who has to fix it.
  */
-export async function readSkillMd(
+export async function readSkillMdText(
   orgSlug: string,
   slug: string,
-): Promise<SkillReadResult> {
+): Promise<string | null> {
   const skillDir = resolveSkillDir(orgSlug, slug);
   const filePath = resolveSkillMdPath(orgSlug, slug);
+
+  // The O_NOFOLLOW read below only protects the final path component, so the
+  // bundle directory is checked here: a link planted in place of it would
+  // otherwise be followed straight out of the org's tree.
+  let bundleStats;
   try {
-    // Realpath-check the slug directory: defends against a symlink planted
-    // at <base>/<slug> that points outside the skills tree. `O_NOFOLLOW`
-    // below only protects the final component, not intermediate dirs.
-    try {
-      await verifyPathWithinBase(skillDir, resolveSkillsDir(orgSlug));
-    } catch (err) {
-      return {
-        ok: false,
-        error: 'symlink',
-        message: err instanceof Error ? err.message : String(err),
-      };
-    }
-
-    // lstat (not stat) so a symlink at SKILL.md itself surfaces as a
-    // symlink check rather than dereferencing through to the target's size.
-    const lst = await lstat(filePath).catch((err) => {
-      if (
-        err instanceof Error &&
-        (err as NodeJS.ErrnoException).code !== 'ENOENT'
-      ) {
-        console.warn('[readSkillMd] lstat failed:', filePath, err);
-      }
-      return null;
-    });
-    if (lst === null) {
-      return { ok: false, error: 'not_found', message: `SKILL.md not found` };
-    }
-    if (lst.isSymbolicLink()) {
-      return {
-        ok: false,
-        error: 'symlink',
-        message: 'SKILL.md is a symlink (rejected)',
-      };
-    }
-    let content: string;
-    try {
-      const fd = await open(
-        filePath,
-        constants.O_RDONLY | constants.O_NOFOLLOW,
-      );
-      try {
-        content = await fd.readFile('utf-8');
-      } finally {
-        await fd.close();
-      }
-    } catch (err) {
-      const code = err instanceof Error && 'code' in err ? err.code : undefined;
-      if (code === 'ELOOP' || code === 'EMLINK') {
-        return {
-          ok: false,
-          error: 'symlink',
-          message: 'SKILL.md is a symlink (rejected)',
-        };
-      }
-      if (code === 'ENOENT') {
-        return { ok: false, error: 'not_found', message: 'SKILL.md not found' };
-      }
-      return {
-        ok: false,
-        error: 'inaccessible',
-        message: err instanceof Error ? err.message : String(err),
-      };
-    }
-
-    try {
-      const { meta, body } = parseSkillMd(content);
-      return {
-        ok: true,
-        meta,
-        body,
-        versionHash: sha256(content),
-      };
-    } catch (err) {
-      return {
-        ok: false,
-        error: 'corrupted',
-        message: err instanceof Error ? err.message : String(err),
-      };
-    }
+    bundleStats = await lstat(skillDir);
   } catch (err) {
-    return {
-      ok: false,
-      error: 'inaccessible',
-      message: err instanceof Error ? err.message : String(err),
-    };
+    if (errnoCode(err) === 'ENOENT') return null;
+    throw err;
   }
+  if (bundleStats.isSymbolicLink()) {
+    throw new Error(`${skillDir}: skill bundle directory is a symlink`);
+  }
+  // Belt and braces once the directory is known to exist: realpath it and
+  // confirm it still lands inside the domain.
+  await verifyPathWithinBase(filePath, resolveSkillsDir(orgSlug));
+
+  const result = await readJsonFile(
+    filePath,
+    MAX_SKILL_MD_BYTES,
+    (content) => content,
+  );
+  if (result.ok) return result.data;
+  if (result.error === 'not_found') return null;
+  throw new Error(`${filePath}: ${result.message}`);
 }
 
 /**
- * Serialize a frontmatter + body pair back into the on-disk SKILL.md
- * format. Round-trips unknown community fields exactly as parsed.
+ * A {@link SkillBundleReader} bound to ONE organization. Nothing downstream
+ * can widen it to another org: the slug is captured here and every path is
+ * resolved from it.
  */
-export function serializeSkillMd(meta: SkillFrontmatter, body: string): string {
-  const raw = frontmatterToRaw(meta);
-  const yamlText = stringifyYaml(raw, {
-    lineWidth: 100,
-    minContentWidth: 20,
-    defaultStringType: 'PLAIN',
-    defaultKeyType: 'PLAIN',
-  });
-  const sep = body.startsWith('\n') ? '' : '\n';
-  return `---\n${yamlText}---${sep}${body.endsWith('\n') ? body : body + '\n'}`;
+export function createOrgSkillReader(orgSlug: string): SkillBundleReader {
+  return {
+    listSlugs: () => listSkillSlugs(orgSlug),
+    readSkillMd: (slug) => readSkillMdText(orgSlug, slug),
+    describe: (slug) => resolveSkillMdPath(orgSlug, slug),
+  };
+}
+
+/**
+ * Write a bundle's `SKILL.md`, keeping the superseded version in the domain's
+ * history trail. The write itself is atomic, so a reader never observes a
+ * half-written document.
+ */
+export async function writeSkillMdText(
+  orgSlug: string,
+  slug: string,
+  content: string,
+): Promise<void> {
+  const filePath = resolveSkillMdPath(orgSlug, slug);
+  const current = await readSkillMdText(orgSlug, slug);
+  if (current !== null) {
+    const historyDir = resolveSkillHistoryDir(orgSlug, slug);
+    await atomicWrite(
+      path.join(historyDir, `${generateHistoryTimestamp()}.md`),
+      current,
+    );
+    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
+  }
+  await atomicWrite(filePath, content);
+}
+
+/**
+ * Remove a skill bundle and its history trail. Returns true when a bundle
+ * directory was actually removed, so a caller can tell a delete from a no-op.
+ */
+export async function removeSkillBundle(
+  orgSlug: string,
+  slug: string,
+): Promise<boolean> {
+  const removed = await removeDirSafe(resolveSkillDir(orgSlug, slug));
+  await removeDirSafe(resolveSkillHistoryDir(orgSlug, slug));
+  return removed;
 }

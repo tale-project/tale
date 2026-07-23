@@ -21,7 +21,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 defineI18nTests({
   serviceRoot: path.resolve(HERE, '../..'),
-  allowlistDisplayPath: 'services/platform/lib/i18n/keys-dynamic.txt',
+  allowlistDisplayPath: 'services/platform/lib/i18n/keys-dynamic.yml',
   modes: {
     // Referenced-but-missing keys (raw-key rendering, the #2414 bug class).
     // Report during rollout: the known dangling refs are fixed, but flip to

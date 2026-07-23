@@ -3,8 +3,8 @@ import { ConvexError } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { emitAuditSuccess } from '../audit_logs/emit';
+import { emitEvent } from '../events/emit';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
-import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function closeConversation(
   ctx: MutationCtx,

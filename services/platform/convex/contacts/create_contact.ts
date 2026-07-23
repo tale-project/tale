@@ -6,8 +6,8 @@ import { ConvexError } from 'convex/values';
 
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { MutationCtx } from '../_generated/server';
+import { emitEvent } from '../events/emit';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
-import { emitEvent } from '../workflows/triggers/emit_event';
 
 export interface CreateContactArgs {
   organizationId: string;

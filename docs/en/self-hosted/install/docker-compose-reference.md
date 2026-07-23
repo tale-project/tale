@@ -45,7 +45,7 @@ The base graph brings up eight containers:
 - `tale-convex` — the Convex backend. WebSocket, queries, mutations, actions — and the in-process RAG search, document ingestion, web crawling, and document generation that used to be separate services.
 - `tale-db` — operational Postgres (ParadeDB). The Convex backend's persistent store.
 - `tale-knowledge-db` — knowledge corpus Postgres (ParadeDB). The `tale_knowledge` database holding document chunks, embeddings, and crawled pages, on port 5433 so it never clashes with `tale-db` on 5432.
-- `tale-sandbox-llm-gateway` — the LLM gateway for in-sandbox coding agents (pinned external image).
+- `tale-sandbox-llm-gateway` — the LLM gateway for sandbox agents (pinned external image).
 - `tale-sandbox-egress` and `tale-sandbox` — the sandbox plane. Run-code containers behind an egress proxy (open by default; lock down with `SANDBOX_EGRESS_ALLOWLIST`), also the headless-browser runtime the convex backend calls for web rendering and document generation.
 
 The stack is now entirely TypeScript — there is no Python service in the graph. [Container architecture](/self-hosted/operate/container-architecture) goes deeper on what owns what.

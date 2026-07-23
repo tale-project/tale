@@ -27,9 +27,9 @@ Anything requested outside those bounds is silently skipped and reported — the
 
 For open-ended work, the agent can grant a **methodology skill** as the worker's operating method — `web-research` ships built-in: live planning on the checklist, per-question search budgets, and a cited deliverable. Methodologies are skills, so admins govern them the same way as every other skill.
 
-## Timeouts and budget
+## Limits and spend
 
-A worker runs inside its agent's remaining turn budget and cannot extend it; if time runs out, the job ends `timed out` with its partial progress visible on the card. Token spend rolls up to the spawning agent, so monthly agent budgets and org budget rules see job spend as the agent's own. Admins cap concurrent jobs per organization under **Governance → agent_jobs** (default 10).
+A worker runs inside the turn that spawned it and cannot outlive it; when the ceiling is reached the job ends with its partial progress still visible on the card. That ceiling belongs to whatever host is running the turn rather than to the agent, which carries no deadline of its own. Token spend rolls up to the spawning agent, and spend limits are enforced for the organization as a whole rather than per agent, so a job's cost lands with the rest of the organization's usage. Admins cap how many jobs may run at once under **Governance → agent_jobs** (default 10).
 
 ## When to reach for it
 

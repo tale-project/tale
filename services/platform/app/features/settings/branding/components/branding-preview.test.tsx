@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
-import enMessages from '@/messages/en.json';
+import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { BrandingPreview } from './branding-preview';

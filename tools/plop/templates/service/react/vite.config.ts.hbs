@@ -1,4 +1,5 @@
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import { yamlImports } from '@tale/ui/vite/yaml';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
@@ -45,5 +46,5 @@ export default defineConfig({
       'i18next-icu',
     ],
   },
-  plugins: [tanstackRouter(), viteReact()],
+  plugins: [tanstackRouter(), viteReact(), yamlImports()],
 });

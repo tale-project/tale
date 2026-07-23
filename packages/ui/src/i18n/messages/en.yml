@@ -1,0 +1,32 @@
+languageSwitcher:
+  ariaLabel: Switch language
+markdownImage:
+  zoom: Zoom image
+  close: Close
+skeleton:
+  loading: Loading content
+themeSwitcher:
+  ariaLabel: Switch theme
+  light: Light
+  dark: Dark
+  system: System
+search:
+  title: Search
+  placeholder: Search…
+  empty: Start typing to search.
+  emptyHint: Find anything across this workspace.
+  keepTyping: Keep typing to search…
+  noResultsTitle: No results found
+  noResultsHint: Try different keywords.
+  errorTitle: Something went wrong
+  errorHint: Check your connection and try again.
+  resultsGroup: Results
+  loading: Searching…
+  close: Close search
+  recent: Recent searches
+  clearRecent: Clear
+  removeRecent: Remove from recent
+  tipNavigate: to navigate
+  tipSelect: to open
+  tipClose: to dismiss
+  results: '{count, plural, =0 {no results} =1 {# result} other {# results}}'

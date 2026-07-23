@@ -1,0 +1,149 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
+
+import { AutomationNodeBox } from './automation-node';
+
+/**
+ * The node box is the canvas's whole keyboard story: it is a real button, so
+ * Tab reaches it, Enter and Space activate it, and it announces that it expands
+ * the inspector. If any of that regresses the canvas becomes pointer-only,
+ * which is a defect rather than a rough edge.
+ */
+
+const node = {
+  id: 'send_digest',
+  type: 'slack.post_message',
+  when: '{{ nodes.calc.output.count > 0 }}',
+  input: { text: '{{ nodes.calc.output.summary }}' },
+};
+
+describe('AutomationNodeBox', () => {
+  it('is a button that names the node and its type', () => {
+    render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={['calc']}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole('button');
+    expect(button).toHaveAccessibleName(/send digest/i);
+    expect(button).toHaveAccessibleName(/slack\.post_message/i);
+  });
+
+  it('activates with the keyboard, not just a pointer', async () => {
+    const onSelect = vi.fn();
+    const { user } = render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        onSelect={onSelect}
+      />,
+    );
+    await user.tab();
+    expect(screen.getByRole('button')).toHaveFocus();
+    await user.keyboard('{Enter}');
+    await user.keyboard(' ');
+    expect(onSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it('announces whether the inspector is open for this node', () => {
+    const { rerender } = render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    rerender(
+      <AutomationNodeBox
+        node={node}
+        selected
+        inspectorId="inspector"
+        sources={[]}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button')).toHaveAttribute(
+      'aria-controls',
+      'inspector',
+    );
+  });
+
+  it('spells out the nodes it reads, so the edges are readable without seeing them', () => {
+    render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={['calc', 'fetch_orders']}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button')).toHaveAccessibleName(
+      /calc, fetch orders/i,
+    );
+  });
+
+  it('shows the control flow and the run status as words, not only colour', () => {
+    render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        runStatus="error"
+        reviewCount={2}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole('button');
+    expect(button).toHaveAccessibleName(/failed/i);
+    expect(button).toHaveAccessibleName(/2 review notes/i);
+    expect(button).toHaveAccessibleName(/when/i);
+  });
+
+  it('calls back on focus so the viewport can follow a keyboard user', async () => {
+    const onFocus = vi.fn();
+    const { user } = render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        onSelect={vi.fn()}
+        onFocus={onFocus}
+      />,
+    );
+    await user.tab();
+    expect(onFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={['calc']}
+        runStatus="ok"
+        reviewCount={1}
+        onSelect={vi.fn()}
+      />,
+    );
+    await checkAccessibility(container);
+  });
+});

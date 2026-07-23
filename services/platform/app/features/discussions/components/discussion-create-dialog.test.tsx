@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -14,93 +14,89 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));
 
-vi.mock('../../chat/hooks/use-convex-file-upload', () => ({
-  useConvexFileUpload: () => ({
-    attachments: [],
-    uploadingFiles: [],
-    uploadFiles: vi.fn(),
-    removeAttachment: vi.fn(),
-    clearAttachments: vi.fn(),
-  }),
-}));
-
+const createDiscussion = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
-  useCreateDiscussion: () => ({ mutateAsync: vi.fn() }),
-}));
-
-// Convex-backed (actor directory + project) — the dialog only forwards the
-// options to ChatInput, so an empty roster is enough here.
-vi.mock('../../tasks/lib/mention-actor-options', () => ({
-  useMentionActorOptions: () => [],
-}));
-
-const chatInputSpy = vi.fn();
-vi.mock('../../chat/components/chat-input', () => ({
-  ChatInput: (props: {
-    actorMentionOptions?: unknown;
-    onSendMessage?: (message: string) => void;
-    sendBlocked?: boolean;
-  }) => {
-    chatInputSpy(props);
-    return (
-      <div data-testid="chat-input-wrapper">
-        <div
-          data-testid="chat-input"
-          data-has-actor-mention={props.actorMentionOptions ? 'yes' : 'no'}
-        />
-        <button
-          type="button"
-          data-testid="chat-input-send"
-          onClick={() => props.onSendMessage?.('Opening post')}
-        >
-          Send
-        </button>
-      </div>
-    );
-  },
+  useCreateDiscussion: () => ({ mutateAsync: createDiscussion }),
 }));
 
 import { DiscussionCreateDialog } from './discussion-create-dialog';
 
+// The rich chat composer (mention picker, attachments) is offline while the
+// chat backend is rebuilt; the dialog runs on a plain textarea + explicit
+// create button. These tests pin that stand-in contract: creation still
+// works, and the title guard fires before the mutation.
 describe('DiscussionCreateDialog', () => {
-  it('wires actorMentionOptions so @-mentions work in the opening post composer', () => {
-    render(
-      <DiscussionCreateDialog
-        open
-        onOpenChange={vi.fn()}
-        organizationId="org-1"
-        projectId={'project-1' as never}
-        onCreated={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByTestId('chat-input')).toHaveAttribute(
-      'data-has-actor-mention',
-      'yes',
-    );
-    expect(chatInputSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorMentionOptions: expect.any(Array),
-      }),
-    );
-    expect(chatInputSpy.mock.calls[0]?.[0]).not.toHaveProperty('sendBlocked');
+  beforeEach(() => {
+    createDiscussion.mockReset();
   });
 
-  it('requires title on send instead of blocking the composer upfront', async () => {
-    const { user } = render(
+  function renderDialog(onCreated = vi.fn()) {
+    return render(
       <DiscussionCreateDialog
         open
         onOpenChange={vi.fn()}
         organizationId="org-1"
         projectId={'project-1' as never}
-        onCreated={vi.fn()}
+        onCreated={onCreated}
       />,
     );
+  }
 
-    await user.click(screen.getByTestId('chat-input-send'));
+  it('creates the discussion from the title, category, and body', async () => {
+    createDiscussion.mockResolvedValue({
+      threadId: 'thread-9',
+      unresolvedMentionTokens: [],
+    });
+    const onCreated = vi.fn();
+    const { user } = renderDialog(onCreated);
 
-    expect(
-      screen.getByText('discussions.create.titleRequired'),
-    ).toBeInTheDocument();
+    // The required marker contributes to the accessible name — match on the
+    // label part.
+    await user.type(
+      screen.getByRole('textbox', { name: /discussions\.create\.titleLabel/ }),
+      'Rollout plan',
+    );
+    await user.type(
+      screen.getByRole('textbox', {
+        name: 'discussions.create.bodyPlaceholder',
+      }),
+      'Kick things off',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'discussions.create.title' }),
+    );
+
+    expect(createDiscussion).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      projectId: 'project-1',
+      title: 'Rollout plan',
+      message: 'Kick things off',
+      category: expect.any(String),
+    });
+    expect(onCreated).toHaveBeenCalledWith('thread-9');
+  });
+
+  it('keeps the create action disabled until both title and body are filled', async () => {
+    const { user } = renderDialog();
+
+    const create = screen.getByRole('button', {
+      name: 'discussions.create.title',
+    });
+    expect(create).toBeDisabled();
+
+    await user.type(
+      screen.getByRole('textbox', {
+        name: 'discussions.create.bodyPlaceholder',
+      }),
+      'Body only',
+    );
+    expect(create).toBeDisabled();
+
+    await user.type(
+      screen.getByRole('textbox', { name: /discussions\.create\.titleLabel/ }),
+      'Now titled',
+    );
+    expect(create).toBeEnabled();
+    expect(createDiscussion).not.toHaveBeenCalled();
   });
 });

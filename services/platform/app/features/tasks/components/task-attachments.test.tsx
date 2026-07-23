@@ -10,7 +10,7 @@ import { render, screen } from '@/tests/utils/render';
 // not of the renderer's internals, so stub it down to its two load-bearing
 // bits: forward `onImageClick` (regression target for #2664) and render the
 // file name so each row is queryable by role/name.
-vi.mock('@/app/features/chat/components/message-bubble/file-displays', () => ({
+vi.mock('@/app/features/shared/files/file-displays', () => ({
   FileAttachmentDisplay: ({
     attachment,
     onImageClick,
@@ -24,7 +24,7 @@ vi.mock('@/app/features/chat/components/message-bubble/file-displays', () => ({
   ),
 }));
 
-vi.mock('@/app/features/chat/hooks/queries', () => ({
+vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrls: () => ({ data: undefined }),
 }));
 

@@ -26,13 +26,16 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { useProjectViewTabs } from '@/app/features/automations/hooks/use-project-view-tabs';
 import { ProjectBreadcrumbSwitcher } from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
+
+// Stable identity: the tabs memo keys on this, and a fresh array every render
+// would kick TabNavigation's ResizeObserver effect each time.
+const EMPTY_VIEW_TABS: TabNavigationItem[] = [];
 
 export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
   loader: async ({
@@ -86,10 +89,11 @@ function ProjectDetailLayout() {
 
   const { project, isLoading } = useProject(asProjectId(projectId));
 
-  // One first-class tab per bundled view of every bound automation — the
-  // operator surfaces (e.g. a VAT desk), between the core collaboration
-  // tabs and the management tabs.
-  const viewTabs = useProjectViewTabs(organizationId, asProjectId(projectId));
+  // Bound automations used to contribute one first-class tab per bundled view
+  // (the operator surfaces, e.g. a VAT desk). The automations backend is
+  // offline while it is rebuilt, so there are no view tabs to derive until it
+  // returns; the collaboration and management tabs are unaffected.
+  const viewTabs = EMPTY_VIEW_TABS;
 
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of
   // memos that bottom out at a `ResizeObserver` effect; a fresh array every

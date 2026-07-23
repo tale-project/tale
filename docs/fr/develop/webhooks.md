@@ -32,13 +32,12 @@ Vérifie la signature avant de faire confiance au body : HMAC-SHA256 sur le body
 Quand ton système doit tirer un workflow Tale, POST sur l'URL de webhook que Tale émet quand tu ajoutes un déclencheur webhook au workflow :
 
 ```bash
-curl -sS https://your-host.example.com/api/workflows/wh/<token> \
-  -H "Idempotency-Key: order-12345" \
+curl -sS https://your-host.example.com/api/automations/webhook/<token> \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-Le jeton dans le chemin de l'URL est le justificatif — aucun en-tête Authorization n'est requis ; traite donc l'URL entière comme un secret et supprime le webhook pour le révoquer. Le body devient l'entrée de la première étape du workflow. Une première acceptation renvoie `{ "status": "accepted", "workflowSlug": "..." }` ; un rejeu avec la même `Idempotency-Key` renvoie l'`executionId` de l'exécution d'origine au lieu d'en lancer une nouvelle.
+Le jeton dans le chemin de l'URL est le justificatif — aucun en-tête Authorization n'est requis ; traite donc l'URL entière comme un secret et supprime le déclencheur pour le révoquer. Le body devient l'entrée de l'exécution ; un body qui n'est pas du JSON est transmis tel quel en texte plutôt que refusé, et tout ce qui dépasse 256 Ko est rejeté en **413**. Un appel accepté renvoie **202** avec `{ "runId": "..." }`. Un jeton inconnu, désactivé ou mal tapé donne un simple **404** — la réponse ne distingue jamais les cas, celui qui devine n'apprend donc rien. Une automatisation sans version déployée répond **409** avec `{ "error": "automation has no deployed version" }` : déploie une version dont les tests passent et le même appel s'exécute.
 
 ## Signer et vérifier
 
@@ -60,7 +59,7 @@ def verify(body: bytes, signature: str, secret: str) -> bool:
 
 ## Idempotence
 
-Entrant : passe `Idempotency-Key` à chaque appel de déclencheur. Tale stocke la clé contre l'exécution résultante pendant 24 heures ; un retry avec la même clé renvoie le même ID d'exécution sans retirer le workflow.
+Entrant : le point de terminaison de déclenchement ne déduplique pas à ta place, un POST retenté lance donc une seconde exécution. Ce qui rend un retry sûr, c'est l'exécution elle-même — une exécution live pose un point de reprise après chaque nœud terminé, une exécution reprise ne rejoue donc jamais les effets de bord déjà produits. Là où une exécution en double resterait fausse, transporte ta propre clé de déduplication dans le payload et branche dessus dans le premier nœud du workflow.
 
 Sortant : chaque livraison porte un UUID `X-Tale-Delivery` unique. Utilise-le pour dédupliquer de ton côté — Tale retraite sur les réponses non-2xx, et le même UUID de livraison apparaîtra à chaque retry jusqu'à ce que le récepteur acquitte.
 

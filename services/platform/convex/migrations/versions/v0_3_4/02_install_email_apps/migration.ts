@@ -31,7 +31,7 @@
  */
 
 import { getString, isRecord } from '../../../../../lib/utils/type-utils';
-import { internal } from '../../../../_generated/api';
+import { retired } from '../../../../legacy/frozen/retired_refs';
 import { defineNodeMigration } from '../../../framework/define';
 import type { MigrationOrg, NodeMigrationCtx } from '../../../framework/types';
 
@@ -96,7 +96,7 @@ async function installedRow(
   automationSlug: string,
 ): Promise<unknown> {
   return await ctx.runQuery(
-    internal.automations.install_mutations.getAutomationInstallationInternal,
+    retired.automations.install_mutations.getAutomationInstallationInternal,
     { organizationId, automationSlug },
   );
 }
@@ -137,7 +137,7 @@ export const migration = defineNodeMigration({
 
   async up(ctx, org) {
     const credentials: CredentialLike[] = await ctx.runQuery(
-      internal.integrations.credential_queries.listInternal,
+      retired.integrations.credential_queries.listInternal,
       { organizationId: org.id },
     );
     const failures: string[] = [];
@@ -147,7 +147,7 @@ export const migration = defineNodeMigration({
       if (await installedRow(ctx, org.id, appSlug)) continue;
       try {
         await ctx.runAction(
-          internal.automations.install_actions.installAutomationInternal,
+          retired.automations.install_actions.installAutomationInternal,
           {
             organizationId: org.id,
             automationSlug: appSlug,
@@ -180,7 +180,7 @@ export const migration = defineNodeMigration({
       if (installedBy !== MIGRATION_INSTALLED_BY) continue;
       try {
         await ctx.runAction(
-          internal.automations.install_actions.uninstallAutomationInternal,
+          retired.automations.install_actions.uninstallAutomationInternal,
           { organizationId: org.id, automationSlug: appSlug },
         );
       } catch (err) {

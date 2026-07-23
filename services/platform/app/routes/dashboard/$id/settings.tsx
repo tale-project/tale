@@ -51,8 +51,7 @@ function SettingsLayout() {
     location.pathname.includes('/settings/governance') ||
     location.pathname.includes('/settings/metrics') ||
     location.pathname.includes('/settings/api') ||
-    location.pathname.includes('/settings/branding') ||
-    location.pathname.includes('/settings/deployment');
+    location.pathname.includes('/settings/branding');
 
   return (
     <ActiveEditorProvider>

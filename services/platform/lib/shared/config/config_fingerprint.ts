@@ -1,38 +1,42 @@
 /**
- * Config-schema fingerprint + drift classifier — the engine behind the
- * file-based-config "missing migration" guard (`scripts/check-config-snapshot.ts`).
+ * Fingerprints the org-config Zod schemas and classifies baseline→current
+ * drift — the engine behind the file-based-config "missing migration" guard
+ * (`scripts/check-config-snapshot.ts`).
  *
  * Per-org config lives in JSON files under `$TALE_CONFIG_DIR/<org>/<domain>/`,
- * validated by the Zod schemas in `lib/shared/schemas/*`. A change to one of
- * those schemas that makes existing on-disk files FAIL validation needs a `node`
- * migration to rewrite the files first. This module turns each schema's JSON
- * Schema (`z.toJSONSchema`) into a fingerprint and classifies a baseline→current
- * diff as `safe` or `breaking`, so the guard can fail the build on changes that
- * need a migration and wave through the ones that don't.
+ * validated against the Zod schemas in `lib/shared/schemas/*`. When a schema
+ * edit would make an already-written file fail that validation, the org needs
+ * a `node` migration to reshape its files first. This module renders each
+ * schema to JSON Schema (`z.toJSONSchema`), fingerprints the result, and
+ * labels a schema-by-schema diff `safe` (no rewrite needed) or `breaking`
+ * (rewrite first), so the guard can gate the build on the latter.
  *
- * Zod break-rules are the INVERSE of Convex on one point: `z.object` STRIPS
- * unknown keys by default, so a REMOVED field and a WIDENED enum are safe; a new
- * REQUIRED field, a real retype, a NARROWED enum/literal, optional→required, or
- * a TIGHTENED constraint break existing files.
+ * Zod's break rules run OPPOSITE to Convex's on one point: `z.object`
+ * silently strips unknown keys on parse, so removing a field or widening an
+ * enum is safe, while adding a required field, retyping, narrowing an
+ * enum/literal, flipping optional→required, or tightening a constraint all
+ * break files written under the old shape.
  *
- * The classification itself is the shared shape-drift core in
- * `lib/shared/fingerprint/` (one classifier, per-language rule tables); this
- * facade owns the JSON-Schema storage format — annotation stripping, the
- * snapshot serialization, and the diff report — which stays byte-compatible
- * with the committed `config.snapshot.json`.
+ * The actual shape comparison is delegated to the shared drift core in
+ * `lib/shared/fingerprint/` (one classifier, swappable per-language rule
+ * tables) — this module owns everything specific to the JSON-Schema storage
+ * format: stripping descriptive annotations, serializing the snapshot, and
+ * building the human-readable diff report. Its on-disk form must stay
+ * byte-compatible with the committed `config.snapshot.json`.
  *
- * Known limitations (documented, not bugs):
- *  - `z.toJSONSchema` renders both strip (default) AND `.strict()` objects as
- *    `additionalProperties: false`, so they are indistinguishable here. We treat
- *    a removed field as SAFE (the dominant strip case) and do NOT detect a
- *    `.strict()` transition. A field removed from a genuinely-`.strict()` schema
- *    is the one breaking case this guard cannot see — judge those by hand.
- *  - `.refine()`/`.superRefine()` cross-field rules are not representable in JSON
- *    Schema (rendered away by `unrepresentable: 'any'`), so a new refinement is
- *    invisible here.
+ * Two known gaps (by design, not bugs):
+ *  - `z.toJSONSchema` renders a plain (strip) object and a `.strict()` object
+ *    identically (`additionalProperties: false`), so this module cannot tell
+ *    them apart. A removed field is always classified `safe` (true for the
+ *    common strip case); the one case this misses is a field dropped from a
+ *    genuinely `.strict()` schema — review those by hand.
+ *  - `.refine()` / `.superRefine()` cross-field checks have no JSON Schema
+ *    representation (`unrepresentable: 'any'` erases them), so a new
+ *    refinement produces no visible diff here.
  *
- * Pure + dependency-free: no `zod`, no `node:*`, no fs — imported by both the CLI
- * guard and its unit test. The guard supplies already-rendered JSON Schemas.
+ * Dependency-free by design (no `zod`, no `node:*`, no fs) so both the CLI
+ * guard and its unit test can import it directly; the guard is the one that
+ * renders the Zod schemas and hands this module plain JSON Schema.
  */
 
 import { classifyShapes } from '../fingerprint/classify';
@@ -51,7 +55,7 @@ export interface ConfigFingerprint {
   readonly schemas: Record<string, JsonSchema>;
 }
 
-/** Keywords that describe, not validate — ignored so doc edits aren't "drift". */
+/** Descriptive keywords, not validation — excluded so a doc-only edit never reads as drift. */
 const ANNOTATION_KEYS = new Set([
   '$schema',
   '$id',
@@ -65,10 +69,12 @@ const ANNOTATION_KEYS = new Set([
   'deprecated',
 ]);
 
-/** Keys whose VALUE maps property NAMES to schemas — those names are data,
- *  not keywords: a config field is allowed to be called `description` or
- *  `default`, and dropping it here would blind the drift gate to its
- *  changes (a real bug the version-checkpoint suite caught). */
+/**
+ * Keys whose value maps property NAMES to nested schemas. Those names are
+ * config data, not schema keywords — a real field can be called `description`
+ * or `default`, and stripping it here would hide genuine drift on that field
+ * (a case the version-checkpoint corpus caught previously).
+ */
 const PROPERTY_MAP_KEYS = new Set([
   'properties',
   'patternProperties',
@@ -76,22 +82,22 @@ const PROPERTY_MAP_KEYS = new Set([
   'definitions',
 ]);
 
-/** Recursively drop annotation-only keywords so they never read as drift. */
+/** Recursively remove annotation-only keywords so they never register as drift. */
 function stripAnnotations(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(stripAnnotations);
   if (node && typeof node === 'object') {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(node)) {
-      if (PROPERTY_MAP_KEYS.has(k) && v && typeof v === 'object') {
+    for (const [key, value] of Object.entries(node)) {
+      if (PROPERTY_MAP_KEYS.has(key) && value && typeof value === 'object') {
         const map: Record<string, unknown> = {};
-        for (const [name, schema] of Object.entries(v)) {
+        for (const [name, schema] of Object.entries(value)) {
           map[name] = stripAnnotations(schema);
         }
-        out[k] = map;
+        out[key] = map;
         continue;
       }
-      if (ANNOTATION_KEYS.has(k)) continue;
-      out[k] = stripAnnotations(v);
+      if (ANNOTATION_KEYS.has(key)) continue;
+      out[key] = stripAnnotations(value);
     }
     return out;
   }
@@ -99,8 +105,8 @@ function stripAnnotations(node: unknown): unknown {
 }
 
 /**
- * Build a fingerprint from `{ "<file>.<export>": <jsonSchema> }`. The guard
- * renders each Zod schema with `z.toJSONSchema(s, { unrepresentable: 'any' })`.
+ * Build a fingerprint from `{ "<file>.<export>": <jsonSchema> }` — the guard
+ * supplies each entry as `z.toJSONSchema(schema, { unrepresentable: 'any' })`.
  */
 export function computeConfigFingerprint(
   raw: Record<string, JsonSchema>,
@@ -114,12 +120,13 @@ export function computeConfigFingerprint(
 
 // --- type-change classification --------------------------------------------
 
-/** `safe` = every value valid before is still valid; `breaking` = some isn't. */
+/** `safe` = everything the old shape accepted still validates; `breaking` = something no longer does. */
 type ConfigVerdict = Verdict;
 
 /**
- * Classify a schema-node change. `safe` widens the accepted set / loosens a
- * constraint; `breaking` narrows it (an existing stored value could now fail).
+ * Classify a single schema-node change. `safe` covers widening the accepted
+ * set or loosening a constraint; `breaking` covers narrowing it — a value an
+ * on-disk file already stores could now fail to parse.
  */
 export function classifyJsonSchema(
   a: JsonSchema,
@@ -142,8 +149,9 @@ interface ConfigSchemaChange {
 }
 
 /**
- * Diff two config fingerprints. `breaking` changes need a `node` migration to
- * rewrite existing on-disk files before they can validate; `safe` ones do not.
+ * Diff two fingerprints schema-by-schema. `breaking` entries need a `node`
+ * migration to reshape existing on-disk files before the new schema can
+ * validate them; `safe` entries need nothing.
  */
 export function diffConfigFingerprints(
   baseline: ConfigFingerprint,
@@ -171,14 +179,14 @@ export function diffConfigFingerprints(
     if (isObjectJsonSchema(o) && isObjectJsonSchema(n)) {
       diffObjectProps(schema, o, n, changes);
     } else {
-      const v = classifyJsonSchema(o, n);
-      if (v === 'breaking') {
+      const verdict = classifyJsonSchema(o, n);
+      if (verdict === 'breaking') {
         changes.push({
           schema,
           kind: 'breaking',
           detail: 'type narrowed/retyped/constrained',
         });
-      } else if (v === 'safe') {
+      } else if (verdict === 'safe') {
         changes.push({ schema, kind: 'safe', detail: 'widened' });
       }
     }
@@ -241,24 +249,24 @@ function diffObjectProps(
         detail: 'required → optional',
       });
     }
-    const v = classifyJsonSchema(
+    const verdict = classifyJsonSchema(
       asRecord(aProps[path]),
       asRecord(bProps[path]),
     );
-    if (v === 'breaking') {
+    if (verdict === 'breaking') {
       changes.push({
         schema,
         path,
         kind: 'breaking',
         detail: 'type narrowed/retyped or constraint tightened',
       });
-    } else if (v === 'safe') {
+    } else if (verdict === 'safe') {
       changes.push({ schema, path, kind: 'safe', detail: 'type widened' });
     }
   }
 }
 
-/** Deterministic JSON for the committed snapshot file (sorted keys, trailing \n). */
+/** Deterministic JSON for the committed snapshot file (sorted keys, trailing newline). */
 export function serializeConfigFingerprint(fp: ConfigFingerprint): string {
   return JSON.stringify(sortKeys(fp), null, 2) + '\n';
 }

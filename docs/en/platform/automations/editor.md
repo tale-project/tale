@@ -1,50 +1,99 @@
 ---
 title: The workflow editor
-description: The operating manual for an automation's Editor tab — where its workflow lives, how to run it, how to pause and disable, how to edit, and how the versioned history works. Read this when you are running a workflow day to day, not when you are learning the model.
+description: The operating manual for an automation's page — reading the canvas, editing a node, saving a version, running it against mocks, deploying it, and rolling back.
 ---
 
-This page is the operating manual for the workflow inside an automation — the surface behind the **Editor** tab. The mental model — what an automation bundles and what a definition, trigger, and execution are — lives on [Automation concepts](/platform/automations/concepts). This page is the hands-on half: where the workflow lives, how you run it from the UI, how you pause it without deleting it, how you edit and how the versioned history works. Editors and Developers read this when they are working with a workflow day to day.
+This page is the hands-on half of automations: what you click, in what order, to take a change from an idea to the version that triggers run. The model underneath — one document, immutable versions, one deployment, triggers bound to the name — lives on [Automation concepts](/platform/automations/concepts), and this page assumes it. Saving, testing, and deploying are three separate acts here, and keeping them separate is what lets you edit an automation that is live without disturbing a single running job.
 
-## Where workflows live
+## Where an automation lives
 
-Workflows have no standalone tab in the sidebar. A workflow belongs to the automation it powers — open the automation and its **Editor** tab is the workflow; you manage everything below from there. A direct link to a workflow keeps working when someone shares one, so bookmarks and the links on approval cards and execution views land on the workflow itself. Every surface this page covers (the editor, the executions tab, the version history) hangs off a single workflow you opened.
+Open **Automations** in the sidebar. The list shows every automation in the organization with how many versions it has and either the version that is live or **Not deployed** when it has none yet. Click one and you land on its page.
 
-## Running a workflow
+That page is a single scrolling surface rather than a set of tabs. At the top sit the automation's name, the version you are looking at, the live version, and the run control. Below that is the canvas with a node panel beside it, then the save bar, and at the bottom the **Versions** and **Runs** lists side by side.
 
-Three paths fire a workflow.
+## Read the canvas
 
-The **Triggers** tab on the workflow attaches the production paths: **Schedules** fire on a cron, **Webhooks** accept an external POST, and **Events** subscribe to internal signals such as `task.created`. The [triggers reference](/platform/automations/triggers) covers each in depth.
+The canvas draws the version on screen. Each box is one node, labelled with its id and its type, and boxes that read another node's output say so — a **Reads** line names the nodes it depends on. The arrows between boxes are not something you draw: an arrow exists because one node's field references another node's output, so the graph always matches the document.
 
-**Test workflow** in the editor toolbar opens the test panel and fires a one-off run. Paste the input JSON the run should receive, click **Execute**, and the run shows up in the Executions tab with its ID. Reach for the test panel when you are iterating on a workflow and want to see the full execution journal without wiring a trigger first.
+Control flow appears as badges on the box it applies to, in the same vocabulary the document uses — `when …`, `else of …`, `for each …`, `repeat until …` (with the cap shown when there is one), and `continue on error`. Nothing about the shape of the graph is hidden in a separate settings screen.
 
-While the run is live, the canvas mirrors it: every step carries a status badge — a spinner while running, a check on success, an alert on failure, a pause icon while waiting for input — and a banner above the canvas names the run being viewed. Click a badge to inspect the step's duration, error, and a preview of its output. The viewed run rides the `execution` URL parameter, so it survives a reload; dismiss the banner to clear the badges.
+Two states are worth recognising. A version with no nodes says so and tells you to add one to the document. A version whose nodes reference each other in a circle warns you that the order shown is the order they are written in, not an order the engine could run, and asks you to remove one of the references to break the cycle.
 
-The test panel itself mirrors the same feed as a step list: each executed step appears with its live status, retried or looped steps carry an attempt counter, and a failed step shows its error message inline — click the step's name to jump straight to its settings. When a run fails before any step ran — it never started, timed out, or was canceled — the panel names that reason instead. Test runs also validate the input on the server against the start step's schema: a missing or mistyped field is rejected with a field-specific message before the run is even created.
+<Note>
 
-The **Debug** button on the same panel starts the run in step-by-step mode. The engine pauses before every step: the paused step carries a debug badge on the canvas, and the panel shows which step is next together with the run's variables and each completed step's output, so you can check what a step is about to receive before it runs. **Step** executes the paused step and pauses again before the next one, **Continue** runs the rest of the workflow without further pauses, **Stop** cancels the run. Debug runs appear in the Executions tab with a _Paused (debug)_ badge while paused and `debug` as their trigger source.
+The canvas is for reading and selecting. You wire nodes together by referencing them, not by dragging a connection between two boxes.
 
-The **Dry run** button on the same panel simulates a run without side effects — the workflow validates against the input, walks the step graph, and reports errors and warnings without calling out to any agent, API, or mail server. Reach for dry run when the workflow is not yet safe to run end to end.
+</Note>
 
-## Pausing and disabling
+## Edit a node
 
-Pausing a workflow without deleting it lives on the triggers — every trigger row has an **Active** toggle. Switch each trigger off and the workflow stops firing; switch them back on to resume. The workflow itself stays in place and its history stays intact.
+Click a box and the node panel beside the canvas fills with that node's fields. Which fields appear depends on the node's type: **Code** for a `transform`, **Prompt**, **System prompt**, **Model** and **Output schema** for an `llm`, **Workflow** for a `subworkflow`, and **Input** for anything that takes one.
 
-Deleting a workflow is permanent. Tale prompts for confirmation before the delete; the executions and the version history go with the workflow.
+**Input** is a JSON object, and it is where references live. A string value may reference another node's output, and that reference is exactly what draws an arrow on the canvas. While the JSON is incomplete the panel tells you it is not valid yet and leaves the node unchanged, so a half-typed edit can never be saved by accident.
 
-## Editing
+Below the type-specific fields sits a **Control flow** group with **When**, **Else of**, **For each**, and **Repeat until**. These are the same fields the badges on the canvas reflect, so setting one here changes the badge immediately.
 
-Open the workflow and the editor surfaces the step graph on a canvas — this is the **Graph** view, one of two ways to read the same definition. Switch to **Specification** and the same workflow reads as a plain-language description you can edit directly; regenerating from either view keeps the two in sync, and a banner warns when they've drifted apart. Click a step on the graph to open its **Step editor** panel on the right; the panel carries the step's name, type, configuration, and the transitions to the next steps on success and failure. The canvas toolbar carries the zoom controls, **Test workflow**, and the **AI editor** toggle — a chat that edits the workflow for you, the same [Automation assistant](/platform/automations/assistant) embedded here. Adding steps directly on the canvas isn't wired up yet; new steps come from the AI editor or from the specification.
+## Save, run, deploy
 
-The banner **This workflow is active — saved changes apply to new runs.** above the canvas means exactly that: edits to a triggered workflow go live on the next run. Switch its triggers off first when the edits are not ready.
+The three acts are deliberately separate. Run through them in order the first time and the separation stops feeling like extra work.
 
-## Versioning and history
+<Steps>
 
-Every save snapshots a new version of the workflow. **History** in the workflow's navigation lists the versions newest first, each with a timestamp and the member who saved it. Opening one shows a **Compare changes** diff against the current definition; click **Restore** to roll back to that snapshot. Restoring creates a new version on top of the history — the rolled-back state is the new current, and the version you replaced still sits in the list.
+<Step title="Save a version">
 
-The history is per-workflow, not per-step. Restoring rolls the whole definition; partial restores live in the editor (copy the step config from the diff and paste it into the current version).
+Edits show an **Unsaved changes** marker until you save. Write a **Version message** saying what changed — that message is the only thing distinguishing two versions in the list later — then click **Save version**. The save appends a new version and leaves every earlier one exactly as it was. With nothing changed, the button tells you there is nothing to save rather than minting an identical version.
 
-Reinstalling or updating the automation this workflow belongs to never touches these steps — a workflow is exempt from that overwrite, precisely so your edits survive a catalog update. Uninstall the automation and install it again to pick up its latest shipped workflow instead.
+</Step>
+
+<Step title="Run it against mocks">
+
+**Test run** starts a run in mock mode: connectors return their deterministic stand-ins and nothing outside the platform is touched. It is safe to press repeatedly, which is what makes it the loop to work in while you are still shaping a node.
+
+</Step>
+
+<Step title="Deploy the version you want live">
+
+In the **Versions** list, click **Deploy** on the version you want triggers to run. The live one carries a **Live** badge, and deploying a different one moves that badge without touching any version's contents.
+
+</Step>
+
+</Steps>
+
+<Note>
+
+The run control on this page always runs against mocks. A run that may reach the outside world is started by a trigger or by a programmatic call, and starting one is a developer-level action.
+
+</Note>
+
+## Tests and the deploy gate
+
+Tests are part of the document, not a separate panel. Each test carries a name, an input, and expectations about the output and about the effects the run should produce, and they travel with the version like any other field.
+
+```yaml
+tests:
+  - name: reminds a late payer
+    input: { invoiceId: 'inv-1' }
+    expect:
+      effects:
+        - integration: email.send
+```
+
+Whether a version's tests passed is recorded at save time, and the **Versions** list shows the result as a **Tests passed** or **Tests failed** badge. Deploying reads that record: a version saved with failing tests is refused, and the list says the version was not deployed rather than silently doing nothing. Fix the cause and save a new version — a recorded result is a fact about that version and never changes.
+
+## Roll back
+
+Rolling back is deploying an earlier version. Find the version in the list, read its message to confirm it is the one you want, and click **Deploy**. The badge moves, the newer versions stay in the list untouched, and no document is rewritten.
+
+This is why version messages matter more than they look. Six versions in, the message is what tells you which one was the last good state, so write it for the person who will be reading it during an incident.
+
+## Read the last run on the canvas
+
+Once an automation has run, **Show last run** overlays that run onto the canvas. Every box picks up the status the run gave it — it **Ran**, was **Skipped**, **Failed**, was **Never reached**, or has **Not reached yet** while the run is still going — so a failure is visible as a position in the graph rather than as a line in a log.
+
+Select a node with the overlay on and the panel adds an **In this run** section: the **Resolved input** the node actually received after every template was evaluated, its **Output**, and the effects it produced, or a note that it changed nothing outside the platform. Resolved input is usually the fastest answer to "why did this node do that" — it shows the value a reference produced, not the reference you wrote.
+
+**Open the last run** goes to the full run page, where the same canvas sits alongside the run's input, its output, and the complete list of effects. [Execution logs](/platform/automations/execution-logs) reads that page end to end.
 
 ## Where this fits
 
-This page is the operating manual; [Automation concepts](/platform/automations/concepts) is the mental model. The natural neighbours are [triggers](/platform/automations/triggers) (the kick-off), [execution logs](/platform/automations/execution-logs) (the per-run detail), and [approvals in workflows](/platform/automations/approvals-in-workflows) (the human gate between steps). Reach for this page when you are working with a workflow that already exists; reach for concepts when you are building your first one.
+The loop is short once the three acts are clear: edit a node, save a version with a message worth reading, run it against mocks until it does what you meant, then deploy it — and deploy an older version when you need to undo. [Automation concepts](/platform/automations/concepts) is the model this page operates; [Workflow triggers](/platform/automations/triggers) is what starts the deployed version once you are happy with it.

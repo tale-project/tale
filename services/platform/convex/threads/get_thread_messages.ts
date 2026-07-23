@@ -5,6 +5,18 @@
  * Uses listMessages with excludeToolMessages: true to filter out tool messages
  * and paginates through ALL messages (not just the first 100) to support
  * threads with more than 100 messages.
+ *
+ * A faithful restore of the original `threads/get_thread_messages.ts` —
+ * despite having lived under the (wholesale-retired) `convex/threads/`
+ * chat-pipeline directory, this specific helper has no AI-backend
+ * dependency at all: it
+ * only wraps `@convex-dev/agent`'s own `listMessages`/`toUIMessages` (a
+ * still-installed, unrelated third-party message-store component). It is
+ * the read side `tasks/internal_queries.ts`'s `readTaskDiscussionMessages`
+ * (in turn read by the still-live, non-AI task/project discussion "comments"
+ * UI in `tasks/queries.ts`) depends on — stubbing it to return `[]` would
+ * have silently hidden every existing task comment, a real regression to a
+ * feature with nothing to do with the rewrite.
  */
 
 import { listMessages, toUIMessages, type MessageDoc } from '@convex-dev/agent';
@@ -46,8 +58,11 @@ export async function getThreadMessages(
   }
 
   // Convert to UI messages format using the agent component's helper
-  // Note: Messages are returned in desc order, we need to reverse for chronological display
-  const uiMessages = toUIMessages(allMessages.toReversed());
+  // Note: Messages are returned in desc order, we need to reverse for
+  // chronological display. `convex/tsconfig.json`'s `lib` doesn't include
+  // ES2023, so a copy + in-place `.reverse()` stands in for `.toReversed()`.
+  // oxlint-disable-next-line unicorn/no-array-reverse -- runtime lacks toReversed; the spread already copies
+  const uiMessages = toUIMessages([...allMessages].reverse());
 
   // Transform to our expected format
   // UIMessage has: key, text, _creationTime, role, parts, etc.

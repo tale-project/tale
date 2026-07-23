@@ -1,63 +1,128 @@
 ---
 title: Automatisierungskonzepte
-description: Eine Automatisierung ist das installierbare Bündel aus Integrationen, Agents, Skills, einem Workflow und mitgelieferten Ansichten — und der Workflow darin ist ihr Antrieb. Diese Seite benennt die Bestandteile, die Laufzeit darum herum und wann du zu einer Automatisierung greifst statt zu einem einzelnen Agent.
+description: Das Modell hinter jeder Automatisierung — ein Workflow-Dokument, eine Versionshistorie, die sich nie ändert, genau eine live geschaltete Version, die Trigger, die sie starten, und die Läufe, die sie aufzeichnet.
 ---
 
-Eine Automatisierung ist die Einheit, zu der Tale greift, wenn eine Aufgabe mehr als ein bewegliches Teil braucht, das zusammengeschaltet werden muss — eine Integration, ein oder mehrere Agents, ein Workflow, manchmal eine eigene Seite —, und du das Ganze lieber in einem Schritt installiert und verbunden haben willst, statt es von Hand zusammenzusetzen. Inhaber, Admins und Entwickler installieren Automatisierungen aus dem Automatisierungen-Katalog; einmal installiert, nutzen Redakteure und Mitglieder, was mitgeliefert wurde — ein Posteingang-Tab, ein Backlog-Eintrag, ein Chat-Agent —, ohne wissen zu müssen, was darunterliegt. Diese Seite benennt die Bestandteile, die eine Automatisierung bündelt, den Workflow, der sie antreibt, und wann eine Automatisierung die richtige Einheit ist statt eines einzelnen Agents.
+Eine Automatisierung ist ein gespeichertes Workflow-Dokument unter einem Namen — zusammen mit allem, was die Plattform darum herum aufbewahrt: der Historie seiner Versionen, der einen Version, die live ist, den Triggern, die sie starten dürfen, und dem Protokoll jedes Laufs. Öffne **Automatisierungen** in der Seitenleiste, und jede Zeile ist einer dieser Namen, mit der Version daneben, die live ist. Drei Gedanken auf dieser Seite bestimmen, wie sich alles Weitere verhält — Versionen ändern sich nie, Live-Schalten ist ein eigener Schritt, und ein Trigger hängt am Namen statt an einer Version —, also lies sie, bevor du etwas baust.
 
-Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine echte Freigabekarte vor der Kamera — mit Untertiteln.
+Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine echte Freigabekarte vor der Kamera, mit Untertiteln.
 
 <Video src="/videos/de/tutorials/ep5-automations/ep5-automations.de.mp4" poster="/videos/de/tutorials/ep5-automations/ep5-automations.de.webp" captions="/videos/de/tutorials/ep5-automations/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11)">
 
 </Video>
 
-## Was eine Automatisierung bündelt
+## Das Workflow-Dokument
 
-Das Manifest einer Automatisierung benennt bis zu fünf Arten von Bestandteilen, und die meisten Automatisierungen nutzen nur einen Teil davon.
+Alles, was eine Automatisierung tut, steht in einem einzigen Dokument. Sein `name` ist zugleich seine Identität — kleingeschriebene Slug-Segmente mit Bindestrichen, wobei `/` verwandte Automatisierungen zu Ordnern gruppiert, etwa `billing/dunning-reminder`. Um den Namen herum stehen eine `description`, ein `inputs`-JSON-Schema für die Eingabe zur Laufzeit, die `nodes`, die die Arbeit erledigen, ein `output` als Rückgabewert und die `tests`, die darüber entscheiden, ob eine Version live gehen darf.
 
-**Integrationen** sind die Anmeldedaten, die ihre Schritte und Agents brauchen — Gmail, GitHub, eine SQL-Datenbank. Eine Automatisierung speichert nie eine eigene Kopie einer Anmeldung; sie benennt nur, welche Integration sie braucht, und die Organisation verbindet diese Integration einmal — dieselbe Verbindung, die sich jede andere Automatisierung und jeder Agent teilt.
+```yaml
+name: billing/dunning-reminder
+description: Einen Kunden an eine überfällige Rechnung erinnern.
+inputs:
+  type: object
+  properties:
+    invoiceId: { type: string }
+  required: [invoiceId]
+nodes:
+  - id: invoice
+    type: transform
+    input:
+      id: '{{ input.invoiceId }}'
+    code: 'return { id: input.id, daysLate: 14 };'
+  - id: message
+    type: llm
+    model: openai/gpt-4o-mini
+    prompt: 'Schreibe eine höfliche Erinnerung zu Rechnung {{ nodes.invoice.output.id }}.'
+output:
+  text: '{{ nodes.message.output.text }}'
+tests:
+  - name: erzeugt eine Erinnerung
+    input: { invoiceId: 'inv-1' }
+```
 
-**Agents** sind die Chat- oder Aufgaben-Agents, die die Automatisierung installiert — ein Sichter, ein PR-Prüfer, ein Zusammenfasser. Einmal installiert, sind es ganz normale Agents: erwähnbar im Chat, zuweisbar auf einem Projekt-Board, editierbar im Agent-Editor.
+Die Positionen auf dem Canvas reisen in einem `ui`-Block mit, den die Engine ignoriert — eine Box zu verschieben ändert also nie das Verhalten.
 
-**Ein Workflow** ist die eine gebündelte Trigger-und-Schritte-Definition der Automatisierung — das, was tatsächlich nach einem Zeitplan, über einen Webhook oder per Klick läuft. Nicht jede Automatisierung liefert einen mit: Die E-Mail-Automatisierungen auf [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) haben keinen, weil Mail lesen und beantworten eine Seite ist, kein geplanter Lauf.
+### Kanten entstehen, sie werden nicht deklariert
 
-**Mitgelieferte Ansichten** sind Seiten, die die Automatisierung in die geteilte Ansichts-Registry der Plattform einträgt, etwa den Posteingang — die Plattform rendert die Seite selbst, die Automatisierung benennt nur, welche und worauf sie begrenzt ist.
+Es gibt keine Kantenliste. Eine Node liest eine andere, indem sie sie referenziert — `{{ nodes.invoice.output.id }}` —, und genau diese Referenz _ist_ die Kante, die der Canvas zeichnet. Die Reihenfolge ergibt sich aus einer topologischen Sortierung über diese abgeleiteten Kanten. Deshalb verschwindet mit einer gelöschten Referenz auch ein Pfeil, und deshalb weist die Plattform zwei Nodes zurück, die einander lesen.
 
-**Konfiguration** ist keine separate Einstellungsdatei. Eine Automatisierung, die einen Betriebswert braucht, liest ihn aus der Anmeldung einer Integration oder aus einer Trigger- oder Node-Variable des Workflows; der Tab **Konfiguration** der Automatisierung ist eine schreibgeschützte Zusammenfassung der obigen Bestandteile, kein Ort, um neue Einstellungen anzulegen.
+Templates nutzen eine einzige `{{ }}`-Grammatik aus JavaScript-Ausdrücken über `input`, `nodes.<id>.output` und, innerhalb einer iterierenden Node, `item` und `index`.
 
-## Der Workflow darin
+### Die Ablaufsteuerung sitzt an der Node
 
-Eine eigenständige Workflow-Oberfläche gibt es in Tale nicht — ein Workflow lebt und läuft in seiner Automatisierung, und ihr Tab **Editor** ist der Ort, an dem du ihm begegnest. Die Definition ist ein Graph aus typisierten Schritten: **LLM**-Schritte rufen einen Agent oder ein Modell auf, **Aktion**-Schritte erledigen konkrete Arbeit wie den Aufruf einer Integration oder das Anlegen und Aktualisieren von Aufgaben auf dem Projekt-Board, **Bedingung**-Schritte verzweigen den Graphen an einem Ja oder Nein, **Schleife**-Schritte wiederholen über eine Menge, und **Sandbox**-Schritte führen Code aus. Jedes Speichern legt eine Version an, die du über **Verlauf** wiederherstellen kannst. [Der Workflow-Editor](/de/platform/automations/editor) ist das Betriebshandbuch zu dieser Oberfläche.
+Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen. Der Canvas zeigt sie deshalb als Badges an genau der Box, die sie betreffen.
 
-**Trigger** entscheiden, wann der Workflow läuft. Drei Arten hängen am Tab **Trigger**: **Zeitpläne** (Cron), **Webhooks** (ein externer POST) und **Ereignisse** (etwas passiert innerhalb von Tale, etwa `task.created`) — und einen Lauf kannst du immer von Hand starten, über das Panel **Workflow testen** im Editor. Die [Trigger-Referenz](/de/platform/automations/triggers) behandelt jede Art.
+| Feld                         | Wirkung                                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------------------- |
+| `when`                       | Die Node läuft nur, wenn der Ausdruck wahr ist; abhängige Nodes werden mit übersprungen |
+| `elseOf`                     | Läuft genau dann, wenn die genannte Node durch ihr eigenes `when` übersprungen wurde    |
+| `forEach`                    | Läuft einmal pro Element einer Sammlung, mit `item` und `index` im Zugriff              |
+| `repeatUntil` / `maxRepeats` | Wiederholt, bis der Ausdruck wahr ist, mit Deckel (Standard 5, Maximum 20)              |
+| `onError`                    | `fail` bricht den Lauf ab; `continue` notiert den Fehler und überspringt Abhängige      |
 
-**Ausführungen** sind die Laufhistorie. Jeder Lauf schreibt einen Datensatz — Status, Zeiten, die empfangene Eingabe und ein Journal pro Schritt mit dem, was jeder Schritt konsumiert und produziert hat. Der Tab **Ausführungen** ist Audit-Spur und Debugging-Oberfläche in einem; [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest einen Lauf von Anfang bis Ende.
+### Node-Typen
 
-## Wo Menschen mitentscheiden
+Drei Typen sind eingebaut, und jede Integrationsaktion sowie jede Plattformfunktion — Wissenssuche, Dokumentoperationen — reiht sich in dieselbe Tabelle daneben ein.
 
-Automatisierungen laufen ohne dich, aber sie ändern und starten sich nur mit dir: Die vorgeschlagenen Änderungen des KI-Editors an einem Workflow landen als Genehmigungskarten, bevor sie greifen; ein Agent, der einen Workflow ausführen will, braucht zuerst deine Genehmigung; und ein Lauf, der eine Antwort braucht, pausiert als **Wartet auf Eingabe**. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt alle drei. Läuft eine Schleife erneut durch dasselbe Review-Gate — eine Aufgabe, die für eine weitere Runde zurückgeht —, öffnet sie jede Runde eine frische Anfrage, statt die bereits entschiedene Karte wiederzuverwenden.
+**`transform`** führt reines JavaScript aus, um Daten umzuformen. Ohne Netzwerk und ohne Imports: Der Rumpf liest die aufgelöste `input` der Node und muss einen Wert zurückgeben.
 
-## Bundles und versteckte Automatisierungen
+**`llm`** ruft ein Sprachmodell mit einem Prompt-Template auf. `model` ist Pflicht und immer ausdrücklich — die Plattform wählt nie eines für dich. Die Ausgabe ist `{text}` oder das Objekt in Form des Schemas, wenn die Node ein `outputSchema` deklariert.
 
-Ein Bundle fasst mehrere Automatisierungen zusammen, die nur gemeinsam installiert einen Sinn ergeben. [GitHub-Issues lösen](/de/platform/automations/builtin) installiert vier Automatisierungen — einen Sichter, einen Abgleicher, einen PR-Ersteller und einen PR-Prüfer — über einen gebündelten Assistenten, gebunden an das Projekt, das du wählst. Die meisten Mitglieder eines Bundles sind versteckt: Sie tauchen nie als eigene Karte im Katalog auf, weil eine Installation für sich allein ohne ihre Geschwister bedeutungslos wäre. Versteckt heisst nicht weg — der [Automatisierungs-Assistent](/de/platform/automations/assistant) findet und erklärt sie trotzdem; nur das Raster des Katalogs blendet sie aus.
+**`subworkflow`** führt eine andere gespeicherte Automatisierung als einzelne Node aus, referenziert als `"name"` oder `"name@version"`. Ohne Version läuft die live geschaltete, und die Verschachtelung endet bei drei Ebenen.
 
-## Alles zusammen — zwei Kombinationen
+### Strukturierte und unstrukturierte Ausgabe
 
-**Gmail-E-Mails synchronisieren** kombiniert die kleinstmögliche Menge: eine Integration (Gmail) und eine mitgelieferte Ansicht (Posteingang) — kein Agent, kein Workflow. Verbinde Gmail, und der Posteingang-Tab ist die ganze Automatisierung.
+Die Ausgabe jedes Node-Typs ist von einer von zwei Arten, und daran stolpern Autoren am häufigsten. Eine **strukturierte** Ausgabe ist eine typisierte Form, in die du mit `nodes.<id>.output.<field>` hineingreifen darfst. Eine **unstrukturierte** Ausgabe ist freier Text: Es existiert nur `nodes.<id>.output.text`, und das nur im Textkontext. Ein Werkzeug ohne deklariertes Ausgabeschema ist per Definition unstrukturiert, und die eine vorgesehene Brücke von Text zu strukturierten Daten ist eine `llm`-Node mit `outputSchema`.
 
-**GitHub-Issues lösen** kombiniert jeden Bestandteil auf einmal: eine Integration (GitHub), vier Agents verteilt über seine vier versteckten Mitglieder, vier Workflows und keine mitgelieferte Ansicht — es arbeitet stattdessen über das bestehende Board und Backlog des Projekts statt über eine eigene Seite. Die Installation des Bundles verdrahtet alle vier in einem gebündelten Assistenten, gebunden an das Projekt, das du wählst.
+Die Validierung weist den Fehler zurück, statt ihn erst zur Laufzeit auftauchen zu lassen, und jede Meldung trägt einen maschinenlesbaren Code sowie einen Hinweis darauf, was tatsächlich verfügbar ist. Diesen Hinweis zu lesen ist der Weg, die Form zu finden, die du referenzieren wolltest.
 
-## Wann du danach greifst
+## Versionen ändern sich nie
 
-| Nutz … wenn                                                                  | Automatisierung | Agent | Agent-Webhook |
-| ---------------------------------------------------------------------------- | --------------- | ----- | ------------- |
-| Du willst ein fertig integriertes Feature in einem Schritt installieren      | ✓               |       |               |
-| Die Arbeit hat mehrere Schritte, Verzweigungen, Zeitpläne oder Genehmigungen | ✓               |       |               |
-| Dieselbe Frage kehrt im Chat einfach wieder, kein externes System beteiligt  |                 | ✓     |               |
-| Eine Agent-Antwort pro eingehendem POST reicht                               |                 |       | ✓             |
+Speichern hängt eine neue Version an; es überschreibt nie eine bestehende. Versionen sind ab 1 nummeriert und bleiben je Automatisierung lückenlos, und jede trägt die Notiz, die ihr Autor zur Änderung geschrieben hat. Version 3 einer Automatisierung ist deshalb für immer dasselbe Dokument.
 
-Prüf den Katalog, bevor du irgendetwas baust — die Automatisierung, die du brauchst, wird vielleicht schon mitgeliefert. Wenn nichts Fertiges passt, baust du trotzdem eine Automatisierung: Beschreib den Workflow dem [KI-Editor](/de/platform/automations/editor) oder lade ein Paket hoch, statt lose Teile zusammenzusetzen. Ein [Agent-Webhook](/de/platform/agents/webhook-triggers) ist die eine Naht ausserhalb dieses Modells — greif dazu, wenn eine einzelne Agent-Antwort pro eingehender Nachricht alles ist, was die Aufgabe braucht.
+Daraus folgt zweierlei. Eine Automatisierung zu bearbeiten kann nicht stören, was gerade läuft, denn die laufende Version ist eine andere Zeile. Und ein Lauf, der letzten Monat fehlgeschlagen ist, lässt sich gegen genau das Dokument lesen, das ihn erzeugt hat — dieses Dokument existiert unverändert weiter.
 
-## Bau eine
+## Live-Schalten ist ein eigener Schritt
 
-Eine Automatisierung ist das ganze Bündel, das ein echtes Feature braucht — die Integration, die es aufruft, die Agents, die die Arbeit erledigen, der Workflow, der sie ausführt, die Ansicht, die es rendert —, zusammengeschaltet und in einem Schritt installiert, mit der Laufzeit des Workflows (Trigger, Ausführungen, Genehmigungen) auf den eigenen Tabs der Automatisierung. Die natürliche nächste Lektüre ist [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) — sie geht den Katalog, das Seitenpanel und den Installations-Assistenten von Anfang bis Ende durch; [Der Workflow-Editor](/de/platform/automations/editor) übernimmt danach für die Oberfläche, auf der der Antrieb der Automatisierung gebaut und justiert wird.
+Genau eine Version pro Automatisierung ist live, und diese Version führen die Trigger aus. Eine Version live zu schalten oder auf eine ältere zurückzugehen ist ein einzelner Schritt, der keine Historie umschreibt — die Versionsliste bleibt exakt, wie sie war, und nur der Zeiger wandert. Eine Automatisierung darf auch gar nichts live haben und rein als Entwurf existieren.
+
+Eine Version wird erst live-fähig, wenn ihre eigenen Tests bestanden sind. Tests liegen im Dokument: Jeder hat einen Namen, eine Eingabe und Erwartungen an die Ausgabe sowie an die Auswirkungen, die der Lauf erzeugen soll. Ob die Tests einer Version bestanden waren, wird beim Speichern festgehalten — das Live-Schalten liest diese festgehaltene Tatsache, statt die Suite erneut laufen zu lassen.
+
+<Note>
+
+Eine Automatisierung ohne live geschaltete Version lässt sich überhaupt nicht starten — weder von einem Trigger noch von Hand. Speichere eine Version und schalte sie dann live.
+
+</Note>
+
+## Was einen Lauf startet
+
+Ein Trigger sagt, was eine Automatisierung starten darf, und es gibt genau vier Arten: einen **schedule** (ein Cron-Ausdruck, gelesen in einer benannten IANA-Zeitzone), einen **webhook** (eine eingehende URL, geschützt durch ein Token), ein **event** (der Name eines Plattform-Ereignisses) und einen **api-key**-Aufruf (eine ausdrückliche programmatische Anfrage).
+
+Ein Trigger hängt am **Namen** der Automatisierung, nie an einer Version. Eine neue Version live zu schalten macht deshalb nie eine Webhook-URL ungültig, auf die ein externes System angewiesen ist, und wirft nie einen Zeitplan weg, auf den sich jemand verlässt. Jeder Trigger lässt sich aus- und wieder einschalten, ohne verloren zu gehen, und jeder hält fest, wann der Scheduler zuletzt auf ihn reagiert hat. [Workflow-Trigger](/de/platform/automations/triggers) behandelt, was jede Art in den Lauf trägt.
+
+## Was ein Lauf festhält
+
+Ein Lauf ist ein dauerhaftes Objekt, keine Logzeile. Er hält seinen Status — `queued`, `running`, `waiting`, `success`, `failed` oder `cancelled` —, seinen Modus, was ihn gestartet hat, die empfangene Eingabe, die erzeugte Ausgabe und einen **Checkpoint für jede abgeschlossene Node**.
+
+Diese Checkpoints sind der Kern. Ein Live-Lauf geht Node für Node vor, und wenn er an das Zeitfenster der Plattform stößt, gibt er sich zurück und setzt bei der letzten abgeschlossenen Node fort, statt bereits erledigte Nebenwirkungen zu wiederholen. Ein Lauf bewahrt außerdem die vollständige Spur der Engine und die geordnete Liste der Auswirkungen, die er erzeugt hat — das ist es, was den Canvas den Lauf nachzeichnen lässt und was jede Veränderung außerhalb der Plattform nachträglich prüfbar hält.
+
+Läufe gibt es in zwei Modi. **Test** berührt die Außenwelt nie und ist die schnelle Rückmeldeschleife beim Bauen. **Live** darf es, weshalb einen solchen Lauf zu starten eine Entwickler-Berechtigung braucht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest einen Lauf von Anfang bis Ende.
+
+## Wo ein Mensch entscheidet
+
+Ein Lauf, der eine Freigabe braucht, schlägt nicht fehl und startet nicht neu. Er pausiert im Status `waiting`, und sobald die Freigabe beantwortet ist, setzt er an genau der Node wieder ein, an der er stehen geblieben war, und trägt die Antwort weiter. Ein Lauf, der auf eine menschliche Eingabe wartet, verhält sich genauso. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt die Kontrollpunkte und was jede Entscheidung hinterlässt.
+
+## Die richtige Einheit wählen
+
+| Greif zu … bei                                                                     | Automatisierung | Agent | Agent-Webhook |
+| ---------------------------------------------------------------------------------- | --------------- | ----- | ------------- |
+| Arbeit mit mehreren Schritten, Verzweigungen, Zeitplänen oder Freigaben dazwischen | ✓               |       |               |
+| Etwas, das nach der Uhr laufen oder einen Webhook beantworten muss                 | ✓               |       |               |
+| Einer wiederkehrenden Frage im Chat, ohne externes System                          |                 | ✓     |               |
+| Einer Agent-Antwort pro eingehendem POST                                           |                 |       | ✓             |
+
+Prüf den Katalog, bevor du baust — die Automatisierung, die du brauchst, wird vielleicht schon mitgeliefert. Ein [Agent-Webhook](/de/platform/agents/webhook-triggers) ist die eine Naht außerhalb dieses Modells; greif dazu, wenn eine einzelne Agent-Antwort pro Payload die ganze Aufgabe ist.
+
+## Das Modell in die Praxis bringen
+
+Eine Automatisierung ist ein Dokument, geführt als ununterbrochene Kette von Versionen, von denen genau eine live ist, mit Triggern, die an ihrem Namen hängen statt an irgendeiner Version — und genau das macht Bearbeiten sicher, Zurückrollen billig und einen fehlgeschlagenen Lauf reproduzierbar. [Der Workflow-Editor](/de/platform/automations/editor) ist das praktische Handbuch zum Speichern, Testen, Live-Schalten und Zurückrollen; [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) führt zu denen, die schon mitgeliefert werden.

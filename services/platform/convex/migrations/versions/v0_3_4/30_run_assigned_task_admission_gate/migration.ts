@@ -34,7 +34,7 @@
  * change to this same pack.
  */
 
-import { resolveWorkflowFilePath } from '../../../../workflows/file_utils';
+import { resolveWorkflowFilePath } from '../../../../legacy/frozen/workflows_file_utils';
 import { defineNodeMigration } from '../../../framework/define';
 
 /** Exported for the sibling `migration.test.ts` (seed + assertions), so the

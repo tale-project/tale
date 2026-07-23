@@ -2,12 +2,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
+import { yamlImports } from '@tale/ui/vite/yaml';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // Every project inherits the root plugins via `extends: true`; the yaml
+  // transform must run everywhere message catalogs are imported.
+  plugins: [yamlImports()],
   resolve: {
     tsconfigPaths: true,
   },
@@ -43,9 +47,9 @@ export default defineConfig({
             'app/features/**/*.test.{ts,tsx}',
             'app/hooks/**/*.test.{ts,tsx}',
             '**/*.browser.test.{ts,tsx}',
-            // PII tests run in their own project below — they need
-            // `isolate: false` to amortize the pre-built scrubber across
-            // 67k+ data-driven cases.
+            // PII suites run in the dedicated `pii` project below — they
+            // need `isolate: false` to amortize the pre-built scrubbers
+            // across the 67k-case fixture corpus.
             'tests/pii/**',
             'lib/pii/**/*.test.{ts,tsx}',
             // Bun container/integration suites (`*-test.ts`) are run directly
@@ -60,9 +64,9 @@ export default defineConfig({
           name: 'pii',
           environment: 'node',
           include: ['tests/pii/**/*.test.ts', 'lib/pii/**/*.test.ts'],
-          // 67k+ data-driven cases — disable per-test isolation to
-          // amortize the pre-built `Scrubber` across cases. The detector
-          // is pure; tests do not share mutable state.
+          // The data-driven suite fans out to 67k+ cases — per-test
+          // isolation would rebuild the shared scrubbers constantly. The
+          // engine is pure; tests share no mutable state.
           isolate: false,
         },
       },

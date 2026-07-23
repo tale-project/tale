@@ -20,7 +20,9 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { windowKeys } from '../task_metrics/queries';
+// Task_metrics/ moved wholesale; windowKeys is restored
+// (read-only, self-contained) at convex/legacy/task_metrics_queries.ts.
+import { windowKeys } from '../legacy/task_metrics_queries';
 import { loadAccessibleProject, TASK_BOARD_CAP } from './queries';
 
 const statusCountsValidator = v.object({

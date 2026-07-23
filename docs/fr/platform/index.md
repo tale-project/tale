@@ -48,9 +48,9 @@ Cartes inline, points dans les workflows et le pool d’approbateurs qui garde l
 
 </Card>
 
-<Card title="Bibliothèque de prompts" icon="list-plus" href="/fr/platform/workspace/prompt-library">
+<Card title="Bibliothèque de skills" icon="list-plus" href="/fr/platform/workspace/skills">
 
-Prompts enregistrés avec visibilité personnelle, d’équipe et globale, plus l’historique des versions.
+Des bundles d’instructions réutilisables que tu gardes privés ou partages avec toute l’organisation.
 
 </Card>
 

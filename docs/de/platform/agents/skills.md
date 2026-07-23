@@ -1,46 +1,58 @@
 ---
 title: Agent-Skills
-description: Ein Skill ist ein wiederverwendbares Bündel — eine SKILL.md plus optionale Skripte und Referenzen — das Agenten zur Laufzeit lesen. Diese Seite zeigt, wann du dazu greifst statt zu längeren Anweisungen.
+description: Einen Skill aus der Bibliothek der Organisation an einen Agenten binden — die Liste auf dem Tab Skills, ihre Obergrenze und der Weg eines Bundles in eine Sandbox-Sitzung.
 ---
 
-Ein Skill ist die Einheit, zu der Tale greift, wenn dasselbe Muster über mehrere Agenten auftaucht. Er ist ein wiederverwendbares Bündel — eine `SKILL.md` mit Anweisungen, plus optionale Skripte, Referenzen und Assets — das in der Skill-Bibliothek der Organisation lebt und das Agenten zur Laufzeit lesen. Binde denselben Skill an drei Agenten, und du pflegst das Verhalten an einer Stelle.
+Ein Agent kommt an einen Skill nur heran, wenn du ihn bindest. In der [Skill-Bibliothek](/de/platform/workspace/skills) der Organisation liegen die Bundles, und der Tab **Skills** eines Agenten ist die Liste, die festhält, welche davon diese Persona aufklappen darf. Bind ein Bundle an drei Agenten, und das Verhalten bleibt in einer einzigen Datei, die du einmal pflegst.
 
-Diese Seite vermittelt dir das mentale Modell dafür, wann ein Skill der richtige Zug ist und wann Inline-Anweisungen es sind. Lies sie, bevor du deinen ersten Skill hochlädst; komm zurück, wenn die Anweisungen eines Agents lang werden und du überlegst, ob du sie auslagerst.
+Diese Seite ist die Agent-Seite der Skills: was eine Bindung entscheidet, wo die Obergrenze liegt und was sich ändert, sobald der Zug in einer Sandbox läuft. Geschrieben und geteilt werden die Bundles selbst in der Bibliothek.
 
-## Was ein Skill bündelt
+## Was eine Bindung entscheidet
 
-Ein Skill wird als Zip mit einer `SKILL.md` an der Wurzel hochgeladen. Das Frontmatter der Datei trägt die Metadaten — Beschreibung, Lizenz, empfohlene Python- oder Node-Versionen — und der Rumpf trägt die Anweisungen. Bündel-Assets liegen unter `scripts/`, `references/` oder `assets/`: Code, den der Agent ausführen kann, wenn er in einer Sandbox arbeitet, und Referenzmaterial, das er bei Bedarf liest.
+Ein gebundener Skill wird dem Agenten über seine Beschreibung angeboten. Hält das Modell diese Beschreibung für einschlägig, klappt es das Bundle auf: Es liest den Body der `SKILL.md` und öffnet einzelne Bundle-Dateien dort, wo der Body auf sie verweist. Nichts wird ausgeführt und nichts vorab eingefügt — ein Skill kostet nur in den Zügen Kontext, in denen der Agent tatsächlich danach greift.
 
-Ein reiner Anweisungs-Skill ist die richtige Form, wenn das Verhalten Stimme oder Einschränkung ist — „zitiere die Quelle immer mit Abschnittsnummer“, „lehne Fragen außerhalb dieses Produkts ab“. Ein Skill mit Skripten ist die richtige Form, wenn das Verhalten eine Berechnung, eine Transformation oder eine mehrstufige Aufgabe ist, die das Modell sonst in Tokens improvisieren müsste.
+Ein Bundle, dessen Frontmatter `disable-model-invocation: true` trägt, verhält sich anders. Es bleibt gebunden und lesbar, aber das Modell darf nicht von sich aus danach greifen; es wartet auf einen Zug, in dem jemand es benennt.
 
-## An einen Agent binden
+## Einen Skill an einen Agenten binden
 
-Ein Skill wird für einen Agent sichtbar, indem du ihn auf dem Tab **Skills** des Agents bindest — **Gebundene Skills** listet die Bibliothek der Organisation mit einer Checkbox pro Skill. Ein Agent kann höchstens zehn Skills binden, und ein Agent ohne Bindungen sieht keinen: es gibt keinen impliziten Rückfall auf organisationsweite Sichtbarkeit. Der Agent liest einen gebundenen Skill zur Laufzeit — die Beschreibung sagt ihm, wann der Skill greift, und dann zieht er Rumpf und Bündeldateien heran.
+Öffne den Agenten, wechsle auf **Skills** und wähle aus der Bibliothek der Organisation. Ein Zähler neben der Liste zeigt, wie viel von der Obergrenze du verbraucht hast: Ein Agent darf **höchstens zehn Skills** binden. Die Zehn ist Absicht — so eine Liste pflegt jemand von Hand, und jenseits einer Handvoll tut das niemand mehr.
 
-Die Bindung gilt pro Agent: zwei Agenten können denselben Skill binden, und das Lösen ist symmetrisch — die nächste Anfrage läuft ohne ihn.
+Behandle die Liste als harte Erlaubnis, nicht als Hinweis. Ein Agent mit leerer Liste klappt überhaupt keine Skills auf; es gibt keinen stillen Rückfall auf alles, was die Organisation gerade teilt. Gebunden wird pro Agent, und es geht in beide Richtungen — zwei Agenten dürfen dasselbe Bundle binden, und ein Lösen wirkt ab der nächsten Anfrage.
 
-## Die Bibliothek verwalten
+<Note>
 
-Skills zu verwalten verlangt Admin- oder Entwickler-Berechtigungen. Die Bibliothek liegt in den Skills-Einstellungen der Organisation; jeder Skill zeigt dort seine Übersicht, den Anweisungs-Rumpf, den Bündel-Dateibaum und die Änderungsspur **Letzte Änderungen**. **Skill hochladen** ergänzt ein neues Bündel, **Bundle ersetzen** überschreibt ein bestehendes an Ort und Stelle, und **Duplizieren** forkt es unter einem neuen Slug.
+Welche Bundles überhaupt zur Auswahl stehen, entscheidet die Bibliothek und nicht dieser Tab: Ein `org` Skill wird der ganzen Organisation angeboten, ein `private` nur dort, wo sein Besitzer arbeitet. Geteilt wird über das Feld `visibility` auf der Seite [Skill-Bibliothek](/de/platform/workspace/skills).
+
+</Note>
+
+## Wenn sich das Bundle darunter ändert
+
+Eine Bindung nennt einen Slug, nie einen Stand. Ersetz ein Bundle in der Bibliothek, und jeder daran gebundene Agent liest ab der nächsten Anfrage den neuen Text — es gibt keine Version festzuschreiben und nichts neu zu binden. Genau das macht es lohnend, ein Verhalten überhaupt herauszulösen: Eine Änderung erreicht jeden Agenten, der es hält.
 
 <Warning>
 
-Es gibt kein Versions-Pinning: ein ersetztes Bundle ändert ab der nächsten Anfrage, was jeder gebundene Agent liest, und ein gelöschter Skill entfernt das Bündel von der Platte — jeder aktuell gebundene Agent verliert den Zugriff.
+Ein gelöschter Skill verschwindet von der Platte, und jeder daran gebundene Agent verliert den Zugriff, ohne Rückfallebene. Willst du ändern, was drinsteht, ersetz das Bundle; löschen solltest du erst, wenn du geprüft hast, welche Agenten es noch nennen.
 
 </Warning>
 
-## Wann du danach greifst
+## Skills in einer Sandbox-Sitzung
 
-| Nutze … wenn                                                           | Skill | Inline-Anweisungen |
-| ---------------------------------------------------------------------- | ----- | ------------------ |
-| Das Muster sich über mehrere Agenten wiederholt                        | ✓     |                    |
-| Das Verhalten Skripte umfasst, die das Modell sonst imitieren würde    | ✓     |                    |
-| Das Verhalten die Stimme eines einzelnen Agents ist                    |       | ✓                  |
-| Die Organisation das Verhalten über eine einzige Änderung steuern soll | ✓     |                    |
-| Die Anweisungen des Agents noch auf einen Bildschirm passen            |       | ✓                  |
+Läuft ein Zug in einer Sandbox, kommen gebundene Bundles nicht über einen Tool-Aufruf. Sie werden als Dateien in die Sitzung gelegt, in der Anordnung, die die Laufzeitumgebung ohnehin kennt — der Coding-Agent findet sie also so, wie er einen Skill auf jeder anderen Maschine fände.
 
-Inline-Anweisungen sind die richtige Form für einen Agent. Skills sind die richtige Form, wenn dasselbe Verhalten in zwei oder drei Agenten auftaucht und die Wartungskosten, ihre Inline-Anweisungen synchron zu halten, zu beißen beginnen.
+Für Kollisionen gilt eine Regel: Das Repository gewinnt. Bringt das ausgecheckte Repository einen Skill unter demselben Slug mit, den auch Tale legen würde, hält Tale seine Kopie zurück, und die Fassung aus dem Repository bleibt stehen. Ein Repository kann damit immer überschreiben, was die Plattform dem Agenten sonst beibrächte, und in der Sitzung liegen nie zwei Bundles unter einem Namen. Verglichen wird exakt: Ein Slug, der sich um ein einziges Zeichen unterscheidet, ist ein anderer Skill, und beide werden gelegt.
 
-## Bau einen
+## Skill oder Anweisungen
 
-Skills sind die Abstraktionsebene über den vier Knöpfen — sie lassen dich ein Verhalten einmal ausliefern, und jeder Agent, der es braucht, holt es sich per Bindung. Der natürliche nächste Gang ist [Ein eigenes Tool bauen](/de/tutorials/developer/build-a-custom-tool) — er führt von der leeren Seite zu einem Skill mit Skripten, gebunden an einen Agent.
+| Nimm … wenn                                                  | Skill | Agent-Anweisungen |
+| ------------------------------------------------------------ | ----- | ----------------- |
+| Das Muster über mehrere Agenten hinweg wiederkehrt           | ✓     |                   |
+| Zum Text noch Referenzdateien gehören                        | ✓     |                   |
+| Es um die Stimme genau dieses einen Agenten geht             |       | ✓                 |
+| Eine Änderung alle erreichen soll, die das Verhalten nutzen  | ✓     |                   |
+| Die Anweisungen des Agenten noch auf einen Bildschirm passen |       | ✓                 |
+
+Anweisungen sind die richtige Form für den Charakter eines einzelnen Agenten. Ein Skill ist die richtige Form, sobald dasselbe Verhalten bei einem zweiten und dritten Agenten auftaucht und es anfängt, Mühe zu kosten, deren Anweisungen im Gleichschritt zu halten.
+
+## Wo das hingehört
+
+Das Binden ist die schmale Hälfte der Skills: Die Bibliothek entscheidet, was existiert und wer es sehen darf, der Tab **Skills** entscheidet, welche Persona was aufklappen darf. Halte die Listen kurz, ersetze ein Bundle lieber, als es zu klonen, und lass ein Repository überschreiben, was die Plattform legt, wenn ein Agent darin arbeitet. Die andere Hälfte — eine `SKILL.md` schreiben, ein Zip hochladen und ein Bundle für die Organisation freigeben — steht in der [Skill-Bibliothek](/de/platform/workspace/skills).

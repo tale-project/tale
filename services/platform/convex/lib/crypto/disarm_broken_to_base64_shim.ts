@@ -1,11 +1,16 @@
 /**
- * jose 6 prefers `Uint8Array.prototype.toBase64` when present and passes
- * `{ alphabet: 'base64url', omitPadding: true }`. A process-global shim that
- * ignores those options (the pdfjs Node polyfill regression) makes
- * CompactEncrypt emit std-base64 JWE that compactDecrypt rejects.
+ * Work around a broken `Uint8Array.prototype.toBase64` polyfill.
  *
- * Drop a broken shim so jose falls back to encodeBase64 + url rewrite.
- * Correct native / options-aware shims are left alone.
+ * jose 6 prefers the native/polyfilled `toBase64` when it's present and
+ * calls it with `{ alphabet: 'base64url', omitPadding: true }`. A stray
+ * process-global shim that ignores those options (seen from a pdfjs Node
+ * polyfill regression) then makes `CompactEncrypt` emit standard-base64
+ * JWE segments that `compactDecrypt` refuses to parse.
+ *
+ * Probe the installed shim and delete it if it can't honor the options
+ * jose passes, so jose falls back to its own safe base64url encoding.
+ * A correct, options-aware shim (or the real native implementation) is
+ * left untouched.
  */
 export function disarmBrokenToBase64Shim(): void {
   const toBase64 = Reflect.get(Uint8Array.prototype, 'toBase64');
@@ -17,8 +22,9 @@ export function disarmBrokenToBase64Shim(): void {
     ]);
     if (typeof out === 'string' && !/[+=/]/.test(out)) return;
   } catch {
-    // Treat a throwing shim as broken too.
+    // A shim that throws on the options form is broken too — fall through
+    // and remove it.
   }
-  // oxlint-disable-next-line no-extend-native -- removing a poison prototype shim so jose can use its safe fallback
+  // oxlint-disable-next-line no-extend-native -- deliberately removing a poisoned prototype shim so jose's safe fallback applies
   Reflect.deleteProperty(Uint8Array.prototype, 'toBase64');
 }

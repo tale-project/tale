@@ -1,0 +1,95 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: tr
+name: Turkish
+scripts:
+  - latn
+countries:
+  - TR
+phoneContextKeywords:
+  - telefon
+  - cep telefonu
+  - numara
+  - tel.
+  - tel
+  - gsm
+cvcContextKeywords:
+  - güvenlik kodu
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - inverted
+    - standard
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: \d{5}
+  streetKeywordsInverted:
+    - Sokak
+    - Sok.
+    - Cadde
+    - Cad.
+    - Mahalle
+    - Mah.
+    - Bulvar
+    - Bulvarı
+    - Bulv.
+    - Meydan
+  houseNumberMarkers:
+    - No.
+    - 'no:'
+    - no
+  poBoxKeywords:
+    - Posta Kutusu
+    - P.K.
+  floorKeywords:
+    - Daire
+    - D.
+    - Kat
+    - K.
+  countryNames:
+    - Türkiye
+    - Turkey
+    - TR
+  countryPostcodePrefixes: []
+  requireUppercase: true
+nationalIds:
+  - id: tr-tckn
+    name: Turkish TC Kimlik No
+    pattern: \b[1-9]\d{10}\b
+    checksum: tr-tckn
+    replacement: '[TC_KIMLIK]'
+dateOfBirth:
+  monthsLong:
+    - Ocak
+    - Şubat
+    - Mart
+    - Nisan
+    - Mayıs
+    - Haziran
+    - Temmuz
+    - Ağustos
+    - Eylül
+    - Ekim
+    - Kasım
+    - Aralık
+  contextKeywords:
+    - doğum tarihi
+    - doğum
+    - doğumlu
+  monthsShort:
+    - Oca.
+    - Şub.
+    - Mar.
+    - Nis.
+    - May.
+    - Haz.
+    - Tem.
+    - Ağu.
+    - Eyl.
+    - Eki.
+    - Kas.
+    - Ara.

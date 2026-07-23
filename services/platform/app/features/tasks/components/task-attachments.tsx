@@ -6,13 +6,13 @@ import { Loader, Paperclip, X } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { FileAttachmentDisplay } from '@/app/features/chat/components/message-bubble/file-displays';
+import { FileAttachmentDisplay } from '@/app/features/shared/files/file-displays';
+import type { FileAttachment } from '@/app/features/shared/files/use-convex-file-upload';
+import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import {
   ImagePreviewDialog,
   type GalleryImage,
-} from '@/app/features/chat/components/message-bubble/image-preview-dialog';
-import { useFileUrls } from '@/app/features/chat/hooks/queries';
-import type { FileAttachment } from '@/app/features/chat/hooks/use-convex-file-upload';
+} from '@/app/features/shared/markdown/image-preview-dialog';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_UPLOAD_ACCEPT, isImage } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';

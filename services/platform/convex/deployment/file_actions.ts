@@ -14,6 +14,8 @@
  * these once the RAG admin endpoint + S3 SDK land.
  */
 
+import { unlink } from 'node:fs/promises';
+
 import { ConvexError, v } from 'convex/values';
 
 import type {
@@ -32,9 +34,11 @@ import { action, type ActionCtx } from '../_generated/server';
 import {
   atomicWrite,
   atomicWriteSecret,
+  errnoCode,
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { SafeFetchError, safeFetch } from '../lib/http/safe_fetch';
 import {
   EncryptedFileWithoutKeyError,
@@ -44,7 +48,6 @@ import {
   invalidateSecretsCache,
 } from '../lib/sops';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
-import { checkProviderHostPolicy } from '../providers/file_actions';
 import { type InstanceAdminAuth, requireInstanceAdmin } from './auth';
 import { isDeploymentEditor } from './editors';
 import {
@@ -53,6 +56,7 @@ import {
   parseDeploymentSecrets,
   resolveDeploymentConfigPath,
   resolveDeploymentSecretsPath,
+  resolveLegacyDeploymentConfigPath,
   serializeDeploymentConfig,
 } from './file_utils';
 import {
@@ -154,17 +158,34 @@ let secretWriteLock: Promise<unknown> = Promise.resolve();
  * current config read-only even when they are not an editor. `canEdit` tells
  * the UI whether THIS caller may edit (their email is in the allowlist).
  */
+/**
+ * Read the deployment config, YAML-first: `deployment.yml` is the current
+ * form; the retired `deployment.json` stays readable until the next save
+ * converts it (the parser accepts both — YAML is a superset of JSON).
+ */
+async function readDeploymentConfigFile() {
+  const current = await readJsonFile(
+    resolveDeploymentConfigPath(),
+    MAX_FILE_SIZE_BYTES,
+    parseDeploymentConfig,
+  );
+  if (!current.ok && current.error === 'not_found') {
+    return await readJsonFile(
+      resolveLegacyDeploymentConfigPath(),
+      MAX_FILE_SIZE_BYTES,
+      parseDeploymentConfig,
+    );
+  }
+  return current;
+}
+
 export const readDeploymentConfig = action({
   args: {},
   returns: v.any(),
   handler: async (ctx) => {
     const auth = await requireInstanceAdmin(ctx);
 
-    const res = await readJsonFile(
-      resolveDeploymentConfigPath(),
-      MAX_FILE_SIZE_BYTES,
-      parseDeploymentConfig,
-    );
+    const res = await readDeploymentConfigFile();
     let config: DeploymentConfig;
     let hash: string | null;
     if (res.ok) {
@@ -245,11 +266,7 @@ export const saveDeploymentConfig = action({
 
     const configPath = resolveDeploymentConfigPath();
     if (args.expectedHash !== undefined) {
-      const existing = await readJsonFile(
-        configPath,
-        MAX_FILE_SIZE_BYTES,
-        parseDeploymentConfig,
-      );
+      const existing = await readDeploymentConfigFile();
       const currentHash = existing.ok ? existing.hash : null;
       if (currentHash !== args.expectedHash) {
         throw new ConvexError({
@@ -262,6 +279,18 @@ export const saveDeploymentConfig = action({
 
     const content = serializeDeploymentConfig(config);
     await atomicWrite(configPath, content);
+    // The YAML file is now the source of truth; retire the JSON-era copy so
+    // the fallback reader can never resurrect a stale config.
+    try {
+      await unlink(resolveLegacyDeploymentConfigPath());
+    } catch (err) {
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn(
+          '[deployment] could not remove the retired deployment.json:',
+          err,
+        );
+      }
+    }
     await auditBestEffort(ctx, auth, 'deployment_config_saved');
     return { hash: sha256(content) };
   },

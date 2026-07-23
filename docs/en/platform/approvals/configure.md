@@ -11,13 +11,7 @@ The model of what an approval card is and who decides it lives on [Approval conc
 
 Every integration declares its operations, and each operation carries its own approval flag. Open **Settings > Integrations**, click an integration, and its operations list badges the ones marked **Requires approval** — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; flagged writes hold in chat with their exact parameters until someone approves.
 
-For a custom integration, the flag is `requiresApproval` per operation in the `config.json` you package with **Add integration** — decide at authoring time which of its operations are consequential enough to ask.
-
-<Frame caption="The integrations catalog — each entry's detail view lists its operations and which of them require approval.">
-
-![The Settings Integrations page on the All integrations tab showing a card grid of twelve connectable services such as GitHub, Slack, and Gmail.](/images/platform/integrations-catalog.webp)
-
-</Frame>
+The flag is not a separate setting an admin toggles. Every action a connector declares carries an effect — `read` or `write` — and the write side is what the approval policy gates. That keeps the two honest with each other: an action cannot quietly change from a read to a write without also changing what it has to ask for.
 
 ## MCP tools
 

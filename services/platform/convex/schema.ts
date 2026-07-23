@@ -7,27 +7,15 @@
  * belongs to one org may be shared across orgs — a new cross-org shared surface
  * is a defect. Per-org knowledge/RAG/crawler data lives OUTSIDE Convex and is
  * routed through `getKnowledgePoolForOrg(orgSlug)`.
+ *
+ * Tables imported from `./legacy/schema` belong to the retired AI backend
+ * and are migration-pending — declared so existing
+ * deployments keep validating; live code never writes them. Each is re-homed
+ * or dropped by the rewrite that rebuilds its domain (map in legacy/schema.ts).
  */
 
 import { defineSchema } from 'convex/server';
 
-import { agentJobsTable } from './agent_jobs/schema';
-import { agentRuntimesTable } from './agent_runtimes/schema';
-import {
-  agentGuardrailNoticesTable,
-  agentRunCountersTable,
-} from './agents/guardrails/schema';
-import {
-  agentBindingsTable,
-  agentDefaultProvisionsTable,
-  agentEnvTable,
-  agentInstallationsTable,
-  autoRouteCacheTable,
-} from './agents/schema';
-import {
-  agentWebhooksTable,
-  agentWebhookUserThreadsTable,
-} from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import {
   auditIntegrityProgressTable,
@@ -35,12 +23,18 @@ import {
   auditLogsTable,
 } from './audit_logs/schema';
 import {
-  automationInstallationsTable,
-  automationProjectBindingsTable,
-  automationUploadClaimTable,
-  automationUploadIntentTable,
+  workflowDeploymentsTable,
+  workflowRunsTable,
+  workflowTriggersTable,
+  workflowsTable,
 } from './automations/schema';
 import { browserSessionsTable } from './browser_sessions/schema';
+import {
+  generationsTable,
+  memoriesTable,
+  messagesTable,
+  threadsTable,
+} from './chat/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   notificationPreferencesTable,
@@ -58,7 +52,6 @@ import {
   ssoConnectionsTable,
   ssoProvisioningLinksTable,
 } from './enterprise_sso/schema';
-import { externalRunsTable } from './external_runs/schema';
 import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
@@ -78,20 +71,47 @@ import {
   retentionRunsTable,
   usageLedgerTable,
 } from './governance/schema';
-import { externalIdentitiesTable } from './identities/external_identities_schema';
-import { integrationCredentialsTable } from './integrations/credentials_schema';
 import {
-  slackEventDedupTable,
+  integrationOauthStatesTable,
+  slackTeamRoutesTable,
+} from './http_integrations/schema';
+import { externalIdentitiesTable } from './identities/external_identities_schema';
+import { integrationCredentialsTable } from './integration_credentials/schema';
+import {
+  agentBindingsTable,
+  agentGuardrailNoticesTable,
+  agentInstallationsTable,
+  agentWebhooksTable,
+  agentWebhookUserThreadsTable,
+  automationInstallationsTable,
+  automationProjectBindingsTable,
+  automationUploadClaimTable,
+  automationUploadIntentTable,
+  knowledgeEntriesTable,
+  messageMetadataTable,
   slackThreadsTable,
-} from './integrations/slack/schema';
-import { slackInstallationsTable } from './integrations/slack_installations_schema';
-import { knowledgeEntriesTable } from './knowledge_entries/schema';
+  taskAgentRunsTable,
+  taskMetricsDailyTable,
+  threadBranchesTable,
+  threadFilesTable,
+  threadMetadataTable,
+  threadTodosTable,
+  ttsAudioChunksTable,
+  userMemoriesTable,
+  userMemoryAuditLogTable,
+  wfDefaultProvisionsTable,
+  wfEventSubscriptionsTable,
+  wfExecutionsTable,
+  wfInstallationsTable,
+  wfSchedulesTable,
+  wfTriggerLogsTable,
+  workflowEnvTable,
+} from './legacy/schema';
 import { configCacheTable } from './lib/config_cache/schema';
 import {
   loginAttemptsTable,
   loginBlockCountersTable,
 } from './login_attempts/schema';
-import { mcpServersTable } from './mcp_servers/schema';
 import {
   memberMirrorTable,
   memberMirrorReconcileCursorTable,
@@ -101,10 +121,6 @@ import {
   migrationLedgerTable,
   migrationSnapshotsTable,
 } from './migrations/framework/schema';
-import {
-  modelCapabilityCacheTable,
-  modelCatalogSyncTable,
-} from './model_catalog/schema';
 import { notificationsTable } from './notifications/schema';
 import { objectStorageBackfillRunsTable } from './object_storage/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
@@ -119,7 +135,7 @@ import {
   promptDefaultProvisionsTable,
   promptTemplatesTable,
 } from './prompts/schema';
-import { reasoningProfilesTable } from './reasoning_profiles/schema';
+import { providerCredentialsTable } from './provider_credentials/schema';
 import {
   sandboxAdmissionTicketsTable,
   sandboxAgentCheckpointsTable,
@@ -131,19 +147,12 @@ import {
   sandboxToolCallsTable,
   sandboxUserEnvTable,
 } from './sandbox/sessions_schema';
-import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
-import { messageMetadataTable } from './streaming/schema';
 import {
   supportCaseActivityTable,
   supportCaseCommentsTable,
   supportCasesTable,
 } from './support_cases/schema';
-import {
-  agentTaskMetricsDailyTable,
-  taskAgentRunsTable,
-  taskMetricsDailyTable,
-} from './task_metrics/schema';
 import {
   boardViewsTable,
   taskActivityTable,
@@ -151,14 +160,7 @@ import {
   taskDiscussionMessageMetaTable,
   tasksTable,
 } from './tasks/schema';
-import { threadFilesTable } from './thread_files/schema';
-import { threadTodosTable } from './thread_todos/schema';
-import { threadBranchesTable } from './threads/branch_schema';
-import { chatMessageQueueTable, threadMetadataTable } from './threads/schema';
-import { ttsAudioChunksTable, ttsGcCursorTable } from './tts/schema';
 import { twoFactorAttemptsTable } from './two_factor/schema';
-import { userMemoriesTable } from './user_memories/schema';
-import { userMemoryAuditLogTable } from './user_memory_audit_log/schema';
 import { userPreferencesTable } from './user_preferences/schema';
 import {
   userNotificationStateTable,
@@ -167,26 +169,29 @@ import {
 import { videoLinkJobsTable } from './video_links/schema';
 import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
-import {
-  wfDefaultProvisionsTable,
-  wfExecutionsTable,
-  wfInstallationsTable,
-  workflowEnvTable,
-  workflowProcessingRecordsTable,
-} from './workflows/schema';
-import {
-  wfApiKeysTable,
-  wfEventSubscriptionsTable,
-  wfSchedulesTable,
-  wfTriggerLogsTable,
-  wfWebhooksTable,
-} from './workflows/triggers/schema';
 
 export default defineSchema({
   automationInstallations: automationInstallationsTable,
   automationProjectBindings: automationProjectBindingsTable,
   automationUploadClaims: automationUploadClaimTable,
   automationUploadIntents: automationUploadIntentTable,
+  // The automation store: immutable workflow versions, the single deployed
+  // version per automation, what starts a run, and the durable run log whose
+  // per-node `checkpoints` let an interrupted run resume instead of repeating
+  // side effects. Tenant isolation: every row carries `organizationId` and
+  // every read goes through a `by_org…` index. See `automations/schema.ts`.
+  workflows: workflowsTable,
+  workflowDeployments: workflowDeploymentsTable,
+  workflowTriggers: workflowTriggersTable,
+  workflowRuns: workflowRunsTable,
+  // Chat storage. `generations` is split out because it is the only hot-written
+  // row during a turn — keeping it out of `threads` means a streaming turn does
+  // not rewrite a row every thread list reads. `memories` are pending until a
+  // user approves them. See `chat/schema.ts`.
+  threads: threadsTable,
+  messages: messagesTable,
+  generations: generationsTable,
+  memories: memoriesTable,
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
@@ -224,7 +229,6 @@ export default defineSchema({
   promptCategories: promptCategoriesTable,
   promptDefaultProvisions: promptDefaultProvisionsTable,
   messageFeedback: messageFeedbackTable,
-  mcpServers: mcpServersTable,
   // App-native cache of Better Auth `member` rows for the RLS hot path
   // (getUserOrganizations / isOrgMember). Performance optimization only —
   // never the authoritative gate. See `members/schema.ts`.
@@ -238,10 +242,6 @@ export default defineSchema({
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
   agentInstallations: agentInstallationsTable,
-  agentDefaultProvisions: agentDefaultProvisionsTable,
-  agentEnv: agentEnvTable,
-  agentJobs: agentJobsTable,
-  autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
   contacts: contactsTable,
@@ -249,10 +249,24 @@ export default defineSchema({
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
   knowledgeEntries: knowledgeEntriesTable,
+  // Integration credentials (rewrite): org-scoped, MULTIPLE per shipped
+  // connector, every secret inside one `encryptedData` envelope via
+  // lib/secret_box. Tenant isolation: every read/write goes through the
+  // `by_org` / `by_org_connector` indexes; nothing in this table is shared
+  // across organizations. See `integration_credentials/schema.ts`.
   integrationCredentials: integrationCredentialsTable,
-  slackInstallations: slackInstallationsTable,
+  // Pending OAuth2 authorizations — one short-lived row per consent redirect,
+  // holding the org/user/connector the callback is allowed to act for plus the
+  // PKCE verifier. Consumed (deleted) on callback, so it is single-use by
+  // construction; expired rows are swept when the next one is minted. See
+  // `http_integrations/schema.ts`.
+  integrationOauthStates: integrationOauthStatesTable,
+  // Inbound Slack routing: `team_id` → the organization that installed the app.
+  // Tenant isolation: a workspace maps to exactly one organization, an unmapped
+  // workspace is refused, and resolution reads only the `by_team` index — no
+  // event is ever fanned out across orgs. See `http_integrations/schema.ts`.
+  slackTeamRoutes: slackTeamRoutesTable,
   slackThreads: slackThreadsTable,
-  slackEventDedup: slackEventDedupTable,
   externalIdentities: externalIdentitiesTable,
   loginAttempts: loginAttemptsTable,
   loginBlockCounters: loginBlockCountersTable,
@@ -263,10 +277,8 @@ export default defineSchema({
   threadBranches: threadBranchesTable,
   threadFiles: threadFilesTable,
   threadMetadata: threadMetadataTable,
-  chatMessageQueue: chatMessageQueueTable,
   threadTodos: threadTodosTable,
   ttsAudioChunks: ttsAudioChunksTable,
-  ttsGcCursor: ttsGcCursorTable,
   twoFactorAttempts: twoFactorAttemptsTable,
   userMemories: userMemoriesTable,
   userMemoryAuditLog: userMemoryAuditLogTable,
@@ -275,6 +287,12 @@ export default defineSchema({
   userPreferences: userPreferencesTable,
   products: productsTable,
   projects: projectsTable,
+  // AI-provider credentials (rewrite): org-scoped, multiple per provider
+  // connector, secrets encrypted via lib/secret_box. Tenant isolation: every
+  // read/write goes through the `by_org` / `by_org_provider` indexes; nothing
+  // in this table is shared across organizations. See
+  // `provider_credentials/schema.ts`.
+  providerCredentials: providerCredentialsTable,
   tasks: tasksTable,
   taskDiscussionMessageMeta: taskDiscussionMessageMetaTable,
   taskActivity: taskActivityTable,
@@ -282,19 +300,12 @@ export default defineSchema({
   boardViews: boardViewsTable,
   taskAgentRuns: taskAgentRunsTable,
   taskMetricsDaily: taskMetricsDailyTable,
-  agentTaskMetricsDaily: agentTaskMetricsDailyTable,
-  agentRunCounters: agentRunCountersTable,
-  agentRuntimes: agentRuntimesTable,
-  externalRuns: externalRunsTable,
   agentGuardrailNotices: agentGuardrailNoticesTable,
   projectSecrets: projectSecretsTable,
   agentSecretAccess: agentSecretAccessTable,
   userNotifications: userNotificationsTable,
   taskSubscriptions: taskSubscriptionsTable,
   notificationPreferences: notificationPreferencesTable,
-  reasoningProfiles: reasoningProfilesTable,
-  modelCapabilityCache: modelCapabilityCacheTable,
-  modelCatalogSync: modelCatalogSyncTable,
   ssoProviders: ssoProvidersTable,
   // Unified Enterprise SSO + Provisioning. One connection per org carrying the
   // OIDC/OAuth2/SAML sign-in config, the role/team provisioning policy, and the
@@ -318,21 +329,16 @@ export default defineSchema({
   sandboxIntegrationCalls: sandboxIntegrationCallsTable,
   sandboxToolCalls: sandboxToolCallsTable,
   sandboxUserEnv: sandboxUserEnvTable,
-  skillUploadClaims: skillUploadClaimTable,
-  skillUploadIntents: skillUploadIntentTable,
   videoLinkJobs: videoLinkJobsTable,
   browserSessions: browserSessionsTable,
   webdavAppPasswords: webdavAppPasswordsTable,
   webdavLocks: webdavLocksTable,
   websites: websitesTable,
-  wfApiKeys: wfApiKeysTable,
   wfEventSubscriptions: wfEventSubscriptionsTable,
   wfExecutions: wfExecutionsTable,
   wfInstallations: wfInstallationsTable,
   wfDefaultProvisions: wfDefaultProvisionsTable,
   wfSchedules: wfSchedulesTable,
   wfTriggerLogs: wfTriggerLogsTable,
-  wfWebhooks: wfWebhooksTable,
   workflowEnv: workflowEnvTable,
-  workflowProcessingRecords: workflowProcessingRecordsTable,
 });

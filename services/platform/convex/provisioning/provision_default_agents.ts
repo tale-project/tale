@@ -18,7 +18,7 @@ import { v } from 'convex/values';
 
 import { isValidOrgSlug } from '../../lib/shared/constants/org-slug';
 import { getString, isRecord } from '../../lib/utils/type-utils';
-import { components, internal } from '../_generated/api';
+import { components } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 
 interface OrgRef {
@@ -64,15 +64,17 @@ export const provisionDefaultAgents = internalAction({
     ctx,
     args,
   ): Promise<{ provisioned: number; skipped: number; failed: number }> => {
-    const result = await ctx.runAction(
-      internal.agents.provision_defaults.syncDefaultAgentInstallations,
-      { organizationId: args.organizationId, orgSlug: args.orgSlug },
+    // Default-agent installs return with the chat rebuild
+    // slim-agent provisioner. Deploy-time provisioning must stay callable
+    // and idempotent, so this reports a clean no-op instead of throwing.
+    void ctx;
+    console.log(
+      '[AgentProvision] skipped — agent backend rewrite in progress',
+      {
+        organizationId: args.organizationId,
+      },
     );
-    console.log('[AgentProvision] migration run', {
-      organizationId: args.organizationId,
-      ...result,
-    });
-    return result;
+    return { provisioned: 0, skipped: 0, failed: 0 };
   },
 });
 
@@ -118,15 +120,15 @@ export const provisionDefaultAgentsAllOrgs = internalAction({
       isDone = parsed.isDone;
     }
 
-    let provisioned = 0;
+    const provisioned = 0;
     let failedOrgs = 0;
     for (const org of orgs.sort((a, b) => a.slug.localeCompare(b.slug))) {
       try {
-        const result = await ctx.runAction(
-          internal.agents.provision_defaults.syncDefaultAgentInstallations,
-          { organizationId: org.id, orgSlug: org.slug },
-        );
-        provisioned += result.provisioned;
+        // Per-org default-agent install returns with chat
+        // v2; the fleet sweep stays callable as a no-op meanwhile.
+        console.log('[AgentProvision] skipped (rewrite in progress)', {
+          orgSlug: org.slug,
+        });
       } catch (error) {
         // One broken org must not block the fleet; the next deploy retries.
         failedOrgs += 1;

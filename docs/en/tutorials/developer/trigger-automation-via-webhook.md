@@ -1,53 +1,48 @@
 ---
 title: Trigger a workflow via webhook
-description: Add a webhook to a Tale workflow and POST to its URL from an external system to start a run with idempotency.
+description: Add a webhook trigger to an automation and POST to its URL from an external system to start a run of the deployed version.
 ---
 
-A webhook trigger turns a Tale workflow into something an external system can fire by POSTing JSON. Tale recognizes the token in the URL, stores the idempotency key, and kicks off a run — the same shape any incoming webhook needs to be safe to retry. This walk takes a new workflow from "I want to fire it from outside" to "an order event posts and the workflow runs" on a single instance.
+A webhook trigger turns an automation into something an external system can fire by POSTing JSON. Tale matches the token in the URL against the trigger, and the run it starts belongs to the automation's deployed version — never to a draft someone is still editing. This walk takes an automation from "I want to fire it from outside" to "an order event posts and the run appears" on a single instance.
 
-You need a Developer role in the org, an existing workflow (or use the empty starter), and a shell with `curl`. The full webhook contract — signing, idempotency, retries — lives in [Webhooks](/develop/webhooks); this walk is the smallest end-to-end use of the inbound side.
+You need a Developer role in the org, an automation with a deployed version, and a shell with `curl`. The full inbound contract — status codes, body handling, size limits — lives in [Webhooks](/develop/webhooks); this walk is the smallest end-to-end use of it.
 
 ## Before you begin
 
-Confirm two things. The workflow you will trigger exists and is published — drafts cannot be triggered. Your role is at least Developer — adding webhook triggers is gated to Developer and above. If you do not have a workflow yet, the canonical small one is "log the payload to the execution record"; create it through [Workflow with approvals](/tutorials/editor/workflow-with-approvals) and remove the approval step for this walk.
+Confirm two things. The automation you will trigger has a **deployed** version — saving a version is not enough, and a version is only deployable once its own tests pass, so run them first. Your role is at least Developer; adding triggers is gated to Developer and above. If you have no automation yet, the canonical small one is "record the payload and stop" — build it through [Workflow with approvals](/tutorials/editor/workflow-with-approvals) and drop the approval node for this walk.
 
-## Step 1 — Add a webhook trigger to the workflow
+## Step 1 — Add a webhook trigger
 
-The first move is binding a webhook trigger to the workflow. Without a trigger, the workflow is only callable from the UI; with one, it gets a URL any system can POST to.
+The first move is binding a webhook trigger to the automation. Without one, the automation runs only from the UI or a schedule; with one, it gets a URL any system can POST to.
 
-Open the workflow's **Triggers** tab and click **Add webhook**. Tale mints a unique **Webhook URL** with the credential embedded as a token in the path — there is no separate key or Authorization header.
+Open the automation's **Triggers** tab and add a webhook. Tale mints a URL with the credential embedded as a token in the path — there is no separate key and no Authorization header. The plaintext token is shown once and never stored, so copy it now; only its hash is kept, which is why nobody can recover the URL for you later.
 
-Save the URL when it is shown: anyone holding it can fire the workflow, so treat the whole URL as a secret. Deleting the webhook revokes it.
+The trigger binds to the automation's **name**, not to the version you deployed. Deploy a new version tomorrow and this URL keeps working — that is the whole point of separating the two.
 
 ```bash
-export TALE_TRIGGER_URL="https://your-host.example.com/api/workflows/wh/<token>"
+export TALE_TRIGGER_URL="https://your-host.example.com/api/automations/webhook/<token>"
 ```
 
 ## Step 2 — POST a payload from curl
 
-The webhook URL is a normal POST endpoint. The body becomes the input of the workflow's first step; an `Idempotency-Key` header makes retries safe — a replay returns the earlier run instead of starting a new one.
+The webhook URL is an ordinary POST endpoint, and the body becomes the run's input. A body that is not JSON is handed through as text rather than refused, so a vendor that posts form-encoded data still reaches your first node.
 
 ```bash
 curl -sS "$TALE_TRIGGER_URL" \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: order-12345" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-A 200 returns `{ "status": "accepted", "workflowSlug": "..." }`. The workflow is now running asynchronously; open the workflow's **Executions** tab and you should see a run in progress with your payload as the trigger input.
+An accepted call answers **202** with `{ "runId": "..." }`. The run is now executing asynchronously; open the automation's run list and you will see it with your payload as the input.
 
-A 404 means the token in the URL matches no webhook; a 403 means the webhook is disabled or the workflow is no longer installed; a 429 means the caller's IP hit the rate limit.
+## Step 3 — Read the failure cases
 
-## Step 3 — Make retries safe with idempotency
+Four responses cover everything the endpoint can say, and each one points at a different fix.
 
-External systems retry on timeouts and 5xx errors; without idempotency, a retry double-fires the workflow. The `Idempotency-Key` header from Step 2 is the fix: Tale remembers the key per organization and answers a retry with `{ "status": "duplicate", "executionId": "..." }` — the original run — instead of firing again.
+**404** means the token matches no enabled trigger — it is wrong, it was deleted, or the trigger is disabled. The response deliberately never says which, so a caller guessing tokens learns nothing from the difference. **409** with `{ "error": "automation has no deployed version" }` means the automation exists but nothing is live: deploy a version whose tests pass and the same call runs. **413** means the body is over 256 KB; post a reference instead of the payload. **202** is the only success.
 
-Test it by re-running the same curl above. The response carries the first call's `executionId`, and the workflow's **Executions** tab still shows one run. Change the key to `order-12346` and curl again — that one fires a second run.
-
-The source system must use a stable, deterministic key per logical event. A common pattern is `<event-type>-<event-id>`; never use a random UUID generated at retry time, since each retry would mint a new run.
+Retries deserve one sentence of their own: the endpoint does not de-duplicate, so a retried POST starts a second run. What keeps that safe is the run itself — every completed node is checkpointed, so a run that resumes after an interruption never repeats the side effects it already produced. Where a _duplicate_ run would still be wrong, carry your own event id in the payload and branch on it in the first node.
 
 ## Where this fits
 
-Webhook triggers are the inbound half of Tale's workflow API — the seam your CRM, your order system, or your monitoring tool POSTs into. Use them for "this happened in our world, please run a Tale workflow about it"; reach for the [API reference](/develop/api-reference) when you want a synchronous reply instead.
-
-For the outbound half — Tale POSTing to your URL when a Tale event happens — and for the full signing and retry contract, see [Webhooks](/develop/webhooks). The workflow-side configuration of the trigger lives on the [Workflow triggers](/platform/automations/triggers) page.
+Webhook triggers are the inbound seam of the automation engine — what your CRM, your order system, or your monitoring tool POSTs into. Reach for one when the sentence is "this happened in our world, please run something about it"; reach for the [API reference](/develop/api-reference) when you want a synchronous answer instead. The trigger-side configuration, and the other three kinds that can start the same automation, live on [Workflow triggers](/platform/automations/triggers).

@@ -35,6 +35,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { internal } from '../../../../_generated/api';
+import { retired } from '../../../../legacy/frozen/retired_refs';
 import {
   getConfigRoot,
   sha256,
@@ -131,7 +132,7 @@ export const migration = defineNodeMigration({
 
   async up(ctx, org, helpers) {
     const install: unknown = await ctx.runQuery(
-      internal.automations.install_mutations.getAutomationInstallationInternal,
+      retired.automations.install_mutations.getAutomationInstallationInternal,
       { organizationId: org.id, automationSlug: APP_SLUG },
     );
     if (!install) {
@@ -144,7 +145,7 @@ export const migration = defineNodeMigration({
     const dir = legacyAppDir(org.slug);
 
     const bindings: Array<{ projectId: string }> = await ctx.runQuery(
-      internal.automations.install_mutations.listAutomationBindingsInternal,
+      retired.automations.install_mutations.listAutomationBindingsInternal,
       { organizationId: org.id, automationSlug: APP_SLUG },
     );
 
@@ -172,7 +173,7 @@ export const migration = defineNodeMigration({
 
     for (const binding of bindings) {
       await ctx.runMutation(
-        internal.automations.install_mutations.deleteProjectSchedules,
+        retired.automations.install_mutations.deleteProjectSchedules,
         {
           organizationId: org.id,
           automationSlug: APP_SLUG,
@@ -180,7 +181,7 @@ export const migration = defineNodeMigration({
         },
       );
       await ctx.runMutation(
-        internal.automations.install_mutations.unbindAutomationFromProject,
+        retired.automations.install_mutations.unbindAutomationFromProject,
         {
           organizationId: org.id,
           automationSlug: APP_SLUG,
@@ -195,7 +196,7 @@ export const migration = defineNodeMigration({
     );
 
     await ctx.runAction(
-      internal.automations.install_actions.uninstallAutomationInternal,
+      retired.automations.install_actions.uninstallAutomationInternal,
       {
         organizationId: org.id,
         automationSlug: APP_SLUG,
@@ -242,7 +243,7 @@ export const migration = defineNodeMigration({
       const content = await readFile(filePath, 'utf-8').catch(() => null);
       if (content === null) continue;
       await ctx.runMutation(
-        internal.workflows.installations.upsertInstallation,
+        retired.workflows.installations.upsertInstallation,
         {
           organizationId: org.id,
           workflowSlug: `${APP_SLUG}/${name}`,
@@ -257,7 +258,7 @@ export const migration = defineNodeMigration({
       const filePath = path.join(dir, 'agents', `${name}.json`);
       const content = await readFile(filePath, 'utf-8').catch(() => null);
       if (content === null) continue;
-      await ctx.runMutation(internal.agents.installations.upsertInstallation, {
+      await ctx.runMutation(retired.agents.installations.upsertInstallation, {
         organizationId: org.id,
         agentSlug: `${APP_SLUG}/${name}`,
         installedBy: RETIRE_MARKER,
@@ -268,7 +269,7 @@ export const migration = defineNodeMigration({
     }
 
     await ctx.runMutation(
-      internal.automations.install_mutations.upsertAutomationInstallation,
+      retired.automations.install_mutations.upsertAutomationInstallation,
       {
         organizationId: org.id,
         automationSlug: APP_SLUG,
@@ -282,7 +283,7 @@ export const migration = defineNodeMigration({
 
     for (const { projectId } of boundProjects) {
       await ctx.runMutation(
-        internal.automations.install_mutations.bindAutomationToProject,
+        retired.automations.install_mutations.bindAutomationToProject,
         {
           organizationId: org.id,
           automationSlug: APP_SLUG,
@@ -312,7 +313,7 @@ export const migration = defineNodeMigration({
           : 'UTC';
 
       await ctx.runMutation(
-        internal.automations.install_mutations.reconcileAutomationSchedules,
+        retired.automations.install_mutations.reconcileAutomationSchedules,
         {
           organizationId: org.id,
           automationSlug: APP_SLUG,

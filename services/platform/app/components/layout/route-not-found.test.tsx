@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
 
-import enMessages from '../../../messages/en.json';
+import enMessages from '../../../messages/en.yml';
 import { RouteNotFound } from './route-not-found';
 
 const notFoundMeta = enMessages.metadata.notFound;

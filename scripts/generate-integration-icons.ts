@@ -15,7 +15,6 @@
  * Run: bun scripts/generate-integration-icons.ts
  */
 
-import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { icons } from '@iconify-json/logos';
@@ -81,7 +80,7 @@ async function main(): Promise<void> {
     const height = data.height ?? icons.height ?? TILE;
     const svg = frame(data.body, width, height);
     const outPath = join(INTEGRATIONS_DIR, slug, 'icon.svg');
-    await writeFile(outPath, svg, 'utf-8');
+    await Bun.write(outPath, svg);
     console.log(`✓ ${slug} ← logos:${iconName}`);
   }
   console.log(`\nGenerated ${slugs.length} integration icons.`);

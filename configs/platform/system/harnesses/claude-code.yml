@@ -1,0 +1,158 @@
+# Sandbox harness — Claude Code (`claude -p`, stream-json in/out). The most
+# capable harness: held-open NDJSON stdin enables mid-turn steering, and
+# plan-mode turns end in a reviewable proposed plan. Its bring-your-own
+# backend talks to Anthropic's own API, so catalog refs resolve to the
+# vendor-native model id.
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts (the slot
+# vocabulary is documented at harnessConnectorSchema); everything here is
+# verified against the pinned CLI version below, and the golden fixtures in
+# lib/harnesses/fixtures/exec/claude-code.json pin the built execs.
+slug: claude-code
+displayName: Claude Code
+credentialPolicy:
+  managed: true
+  byo: true
+credentialEnvKeys:
+  - ANTHROPIC_BASE_URL
+  - ANTHROPIC_AUTH_TOKEN
+  - ANTHROPIC_API_KEY
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: vendor-native
+promptTransport: stdin-ndjson
+capabilities:
+  planMode: true
+  steering: true
+  mcp: true
+parser: claude-stream-json
+exec:
+  bin: claude
+  argv:
+    # stdin is a held-open NDJSON channel (the ndjson-user-message stdin
+    # mode): the prompt is the first user-message line; the platform pushes
+    # steer messages as further lines while the process lingers on
+    # background tasks. In this mode the CLI emits a per-turn `result` and
+    # keeps running until stdin EOF.
+    - args:
+        - '-p'
+        - '--output-format'
+        - stream-json
+        - '--input-format'
+        - stream-json
+        - '--verbose'
+        - '--include-partial-messages'
+    # plan: read-only exploration; the CLI denies writes and the turn ends
+    # with the proposed plan (ExitPlanMode carries it in input.plan). The
+    # platform gates execution — approval starts a fresh act turn that
+    # resumes this session. act: the container is the safety boundary, so
+    # full-access turns run with bypassPermissions (permitted because the
+    # session user is non-root).
+    - posture:
+        plan: ['--permission-mode', 'plan']
+        act: ['--permission-mode', 'bypassPermissions']
+    - maxTurns: { flag: '--max-turns' }
+    # Grant read/edit access to directories OUTSIDE cwd (e.g. the
+    # chat-upload staging dir /user/uploads). Claude Code's file tools are
+    # scoped to the working dir even under bypassPermissions, so a staged
+    # attachment at an absolute path outside the workspace is unreadable
+    # without this.
+    - additionalDirs: { flag: '--add-dir' }
+    - resume: { flag: '--resume' }
+    # Every session (managed AND byo) defaults to the max 1M context window:
+    # the claude-max-context transform appends the `[1m]` marker, which the
+    # CLI strips before the API call, so the provider / gateway only ever
+    # sees the bare model id. ANTHROPIC_MODEL pins the CLI's own default
+    # ahead of the per-tier aliases (queued-message replay resolves a model
+    # WITHOUT consulting --model — observed live: the replayed turn
+    # requested the built-in default and the org's restricted key 403'd the
+    # whole turn). The managed default-slot pins carry the BARE id
+    # (${model.raw}) so the CLI doesn't 404 resolving opus/sonnet/haiku/
+    # fable aliases — or a subagent's frontmatter model — against the
+    # virtual key's single-model allowlist. byo has no such allowlist, so
+    # the alias + subagent slots are left to the CLI / credential defaults.
+    - model:
+        flag: '--model'
+        transform: claude-max-context
+        env:
+          ANTHROPIC_MODEL: '${model}'
+        managedEnv:
+          ANTHROPIC_DEFAULT_OPUS_MODEL: '${model.raw}'
+          ANTHROPIC_DEFAULT_SONNET_MODEL: '${model.raw}'
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: '${model.raw}'
+          ANTHROPIC_DEFAULT_FABLE_MODEL: '${model.raw}'
+          CLAUDE_CODE_SUBAGENT_MODEL: '${model.raw}'
+    # The claude-house-rules transform prepends the baseline working rules
+    # to the composed addendum (and delivers them alone when nothing was
+    # composed), so the flag rides every session.
+    - instructions:
+        flag: '--append-system-prompt'
+        transform: claude-house-rules
+    # One merged --mcp-config (Playwright + the capability bridge), isolated
+    # from the repo's own .mcp.json via --strict-mcp-config so a run is
+    # reproducible regardless of repo contents. omitImagesOnVision: with the
+    # vision polyfill armed, browser tools save screenshots to disk instead
+    # of returning them inline (an inline image bypasses the Read hook and
+    # 400s on the text-only model).
+    - mcp:
+        delivery: config-json-flag
+        flag: '--mcp-config'
+        trailingArgs: ['--strict-mcp-config']
+        omitImagesOnVision: true
+        bridgeEnv:
+          TALE_INTEGRATIONS_URL: '${bridgeUrl}'
+          TALE_INTEGRATIONS_TOKEN: '${gateway.token}'
+    # A deny rule with a bare built-in name removes the tool from the
+    # model's context entirely (verified against the permissions docs).
+    # AskUserQuestion: there is NO answer path in our chat surface — the
+    # agent asks in prose and the user replies in chat; denied in BOTH modes
+    # (interaction-correctness, not governance). WebSearch/WebFetch are
+    # model-coupled and ungoverned (no audit / untrusted-source wrapping /
+    # metering) — managed runs route web access through the capability
+    # bridge instead; byo opts out of platform governance, so the
+    # governance-motivated denials are lifted there.
+    - toolDeny:
+        flag: '--disallowedTools'
+        always: [AskUserQuestion]
+        managed: [WebSearch, WebFetch]
+  # The prompt as one stream-json user-message line, stdin held open (the
+  # steering channel); the claude-ultrathink transform prepends the max-
+  # reasoning keyword.
+  stdin:
+    mode: ndjson-user-message
+    promptTransform: claude-ultrathink
+  env:
+    base:
+      CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    # MANAGED: Anthropic Messages route on the platform gateway; the session
+    # key is a bearer token (ANTHROPIC_AUTH_TOKEN takes precedence over
+    # X-Api-Key). Blank the API key so it never conflicts with the bearer
+    # (documented Claude Code gotcha → model-not-found otherwise).
+    managed:
+      ANTHROPIC_BASE_URL: '${gateway.baseUrl}/anthropic'
+      ANTHROPIC_AUTH_TOKEN: '${gateway.token}'
+      ANTHROPIC_API_KEY: ''
+  # Vision polyfill (managed, text-only model): the tale-vision-read-hook
+  # PreToolUse hook (registered globally in managed-settings.json) fires on
+  # every Read but self-gates on TALE_VISION_MODEL — set only for a
+  # text-only agent. Env, not MCP: the hook subprocess inherits it.
+  vision:
+    env:
+      TALE_GATEWAY_URL: '${gateway.baseUrl}'
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+      TALE_VISION_MODEL: '${vision.model}'
+  # Mid-turn steering: the in-image tale-steer-hook reads this per-exec dir
+  # and injects any platform-staged user messages at the next boundary —
+  # execId-keyed so concurrent turns from other threads sharing the
+  # workspace never see each other's messages.
+  steering:
+    env:
+      TALE_STEER_DIR: '/user/.runtime/tale/steer/${execId}'
+# A subscription-key credential (Claude coding plan) reaches the CLI as the
+# bearer-token env pair — the same vars the managed gateway uses, so the
+# subscription overrides them when present.
+subscription:
+  kind: env
+  tokenVar: ANTHROPIC_AUTH_TOKEN
+  baseUrlVar: ANTHROPIC_BASE_URL
+pinnedVersion: 2.1.173

@@ -41,18 +41,6 @@ vi.mock('@/app/hooks/use-cached-paginated-query', () => ({
   }),
 }));
 
-// The Top-Agents table resolves agent display names through this action-backed
-// hook (needs a ConvexProvider otherwise); the feedback heading does not depend
-// on it, so stub it with an empty agent list.
-vi.mock('@/app/features/agents/hooks/queries', () => ({
-  useListAgents: () => ({
-    agents: [],
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
-  }),
-}));
-
 // The DataTable inside the top-N tables reads the org id from the router; we
 // render outside a RouterProvider, so feed it a static id.
 vi.mock('@/app/hooks/use-organization-id', () => ({

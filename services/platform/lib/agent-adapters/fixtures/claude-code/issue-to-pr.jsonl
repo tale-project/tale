@@ -1,8 +1,0 @@
-{"type":"system","subtype":"init","session_id":"sess-abc","data":{"model":"claude-sonnet-4-6","tools":["Bash","Read","Edit"]}}
-{"type":"stream_event","event":{"delta":{"type":"text_delta","text":"Reading "}}}
-{"type":"stream_event","event":{"delta":{"type":"text_delta","text":"the issue."}}}
-{"type":"assistant","message":{"id":"msg_1","model":"claude-sonnet-4-6","content":[{"type":"text","text":"I'll implement the fix."},{"type":"tool_use","id":"tu_1","name":"Bash","input":{"command":"git checkout -b fix/issue-1"}}],"usage":{"input_tokens":1200,"output_tokens":45,"cache_read_input_tokens":800,"cache_creation_input_tokens":0}}}
-{"type":"assistant","message":{"id":"msg_1","model":"claude-sonnet-4-6","content":[{"type":"tool_use","id":"tu_2","name":"Read","input":{"file_path":"src/app.ts"}}],"usage":{"input_tokens":1200,"output_tokens":45,"cache_read_input_tokens":800,"cache_creation_input_tokens":0}}}
-{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_1","content":"Switched to a new branch","is_error":false}]}}
-{"type":"assistant","message":{"id":"msg_2","model":"claude-sonnet-4-6","content":[{"type":"tool_use","id":"tu_3","name":"Bash","input":{"command":"gh pr create"}}],"usage":{"input_tokens":1500,"output_tokens":30,"cache_read_input_tokens":1200,"cache_creation_input_tokens":0}}}
-{"type":"result","subtype":"success","session_id":"sess-abc","duration_ms":42000,"total_cost_usd":0.0123,"result":"Opened PR https://github.com/org/repo/pull/7"}
