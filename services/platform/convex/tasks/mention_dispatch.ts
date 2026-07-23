@@ -6,7 +6,7 @@
  * The PRIMARY route is event-driven: every task write that @mentions an
  * agent in its description emits `task.mentioned`, and the auto-installed
  * `react-to-task-mention` pack turns it into a `run_on_task` run (see
- * `builtin-configs/workflows/projects/tasks/react-to-task-mention.json`).
+ * `configs/platform/custom/automations/projects/tasks/react-to-task-mention/`).
  * That chain only exists once the org's workflow provisioner has run — a
  * fresh org, or any deployment whose catalog lacks the pack, would otherwise
  * drop the mention forever, since events are never replayed.

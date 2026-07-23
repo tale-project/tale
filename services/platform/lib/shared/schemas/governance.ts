@@ -309,10 +309,10 @@ export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
 /**
  * Per-org retention policy payload. Schema only validates structural
  * shape (integer + non-negative); category min/max bounds live in
- * `builtin-configs/governance/retention.json` (or per-org override files) and are
+ * `configs/platform/custom/governance/retention.yml` (or per-org override files) and are
  * enforced at write time by `assertWithinBounds` inside
  * `upsertRetentionPolicyAction`. Operators tighten or rename bounds by
- * editing the JSON file; the schema does not duplicate them.
+ * editing the YAML file; the schema does not duplicate them.
  *
  * Policy-level "enabled" is NOT in this schema — it lives on the
  * `governancePolicies` row (`enabled: v.optional(v.boolean())`) and is

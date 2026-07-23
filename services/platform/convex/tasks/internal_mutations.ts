@@ -323,7 +323,7 @@ const SYNC_OPEN_STATUS = 'backlog' as const;
  *    alone — sync must not resurrect rejected proposals.
  *  - otherwise the local status is left untouched
  *
- * Drives the GitHub issue-sync automation (builtin-configs/workflows/github/)
+ * Drives the GitHub issue-sync automation (configs/platform/custom/automations/github/)
  * through the generic `task` workflow action — there is no GitHub-specific
  * backend code.
  */

@@ -4,7 +4,7 @@ info:
   version: '1.0.0'
   description: >-
     Trimmed spec for the operations the Slack connector
-    (`builtin-configs/integrations/slack/connector.ts`) actually calls. Mounted
+    (`configs/platform/system/integrations/slack/connector.yml`) actually calls. Mounted
     by the mock gateway at `/mock/slack`; paths mirror `https://slack.com/api`.
     All responses are Slack's JSON envelope shaped `{ "ok": true, ... }`.
 servers:

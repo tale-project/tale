@@ -68,7 +68,7 @@ by the Playwright suite. The existing `*_connector.test.ts` unit tests (which mo
 
 ## Adding / extending a spec
 
-1. Read the connector (`builtin-configs/integrations/<name>/connector.ts`) for
+1. Read the connector (`configs/platform/system/integrations/<name>/connector.yml`) for
    the operations, paths, and the response fields it parses.
 2. Add `specs/integrations/<name>.openapi.yaml` — `servers: [{ url: /mock/<name> }]`,
    paths = the full upstream path **after the hostname**, one `example` per response.

@@ -5,7 +5,7 @@
  * The PRIMARY route is event-driven: every discussion post that @mentions an
  * agent emits `discussion.mentioned`, and the auto-installed
  * `react-to-discussion-mention` pack turns it into a `run_on_discussion` run
- * (see `builtin-configs/workflows/projects/discussions/`). That chain only
+ * (see `configs/platform/custom/automations/projects/discussions/`). That chain only
  * exists once the org's workflow provisioner has run — a fresh org's SEEDED
  * starter discussion (posted seconds after org creation) and any deployment
  * whose catalog lacks the pack would otherwise drop the mention forever, since

@@ -4,7 +4,7 @@ info:
   version: '2022-11-28'
   description: >-
     Trimmed spec for the operations the GitHub connector
-    (`builtin-configs/integrations/github/connector.ts`) actually calls. Mounted
+    (`configs/platform/system/integrations/github/connector.yml`) actually calls. Mounted
     by the mock gateway at `/mock/github`; paths mirror `https://api.github.com`.
 servers:
   - url: /mock/github

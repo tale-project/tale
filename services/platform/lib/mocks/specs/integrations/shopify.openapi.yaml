@@ -4,7 +4,7 @@ info:
   version: '2026-01'
   description: >-
     Trimmed spec for the operations the Shopify connector
-    (`builtin-configs/integrations/shopify/connector.ts`) actually calls.
+    (`configs/platform/system/integrations/shopify/connector.yml`) actually calls.
     Mounted by the mock gateway at `/mock/shopify`; paths mirror the upstream
     `https://{shopDomain}/admin/api/2026-01`. List endpoints paginate via a
     `Link` header with `rel="next"` carrying a `page_info` cursor.

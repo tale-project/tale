@@ -4,7 +4,7 @@ info:
   version: 'v3'
   description: >-
     Trimmed spec for the operations the Google Drive connector
-    (`builtin-configs/integrations/google_drive/connector.ts`) actually calls.
+    (`configs/platform/system/integrations/google-drive/connector.yml`) actually calls.
     Mounted by the mock gateway at `/mock/google-drive`; paths mirror
     `https://www.googleapis.com/drive/v3`.
 servers:

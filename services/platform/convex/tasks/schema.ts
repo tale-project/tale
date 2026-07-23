@@ -131,7 +131,7 @@ export const tasksTable = defineTable({
   // stable, system-scoped natural key (e.g. "owner/repo#123") used to upsert
   // the task idempotently on re-sync — mirroring the `documents.externalItemId`
   // + `sourceProvider` convention. Sync is driven by a file-based automation
-  // (builtin-configs/workflows/github/) through the generic `task` workflow
+  // (configs/platform/custom/automations/github/) through the generic `task` workflow
   // action, NOT by provider-specific backend code.
   externalSystem: v.optional(v.string()),
   externalId: v.optional(v.string()),
