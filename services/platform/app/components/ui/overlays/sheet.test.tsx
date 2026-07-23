@@ -8,6 +8,33 @@ import { Sheet } from './sheet';
 const MISSING_DESCRIPTION_WARNING = 'Missing `Description`';
 
 describe('Sheet', () => {
+  describe('full-bleed mobile edge borders', () => {
+    // Below `sm` the panel is `w-full`; a permanent side border reads as a
+    // hairline against the viewport. Borders apply from `sm` up where the
+    // panel is inset.
+    it('defers the left border on a right sheet to sm+', () => {
+      render(
+        <Sheet open onOpenChange={vi.fn()} title="Sheet Title" side="right">
+          <p>Sheet content</p>
+        </Sheet>,
+      );
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveClass('sm:border-l');
+      expect(dialog).not.toHaveClass('border-l');
+    });
+
+    it('defers the right border on a left sheet to sm+', () => {
+      render(
+        <Sheet open onOpenChange={vi.fn()} title="Sheet Title" side="left">
+          <p>Sheet content</p>
+        </Sheet>,
+      );
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveClass('sm:border-r');
+      expect(dialog).not.toHaveClass('border-r');
+    });
+  });
+
   describe('accessibility', () => {
     it('marks the content as a modal dialog (aria-modal)', () => {
       render(
