@@ -78,6 +78,7 @@ import {
 } from './http_integrations/schema';
 import { externalIdentitiesTable } from './identities/external_identities_schema';
 import { integrationCredentialsTable } from './integration_credentials/schema';
+import { knowledgeEntriesTable } from './knowledge_entries/schema';
 import { taskAgentRunsTable, wfExecutionsTable } from './legacy/schema';
 import { configCacheTable } from './lib/config_cache/schema';
 import {
@@ -229,6 +230,11 @@ export default defineSchema({
   // event is ever fanned out across orgs. See `http_integrations/schema.ts`.
   slackTeamRoutes: slackTeamRoutesTable,
   externalIdentities: externalIdentitiesTable,
+  // Topic-keyed knowledge facts (manual today; the chat-side approve-first
+  // tool returns with the knowledge capability). Metadata + version chain
+  // live HERE; the indexed CONTENT rides the documents pipeline into the
+  // per-org corpus — consistent with the "content outside Convex" doctrine.
+  knowledgeEntries: knowledgeEntriesTable,
   loginAttempts: loginAttemptsTable,
   loginBlockCounters: loginBlockCountersTable,
   notifications: notificationsTable,

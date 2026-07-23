@@ -14,6 +14,7 @@ import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
+import { markEntryChainDeleted } from '../knowledge_entries/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
   RateLimitExceededError,
@@ -143,6 +144,20 @@ export const deleteDocument = mutation({
     // run re-imports the file the user just removed. No-op for manual uploads
     // and folder-member docs.
     await stopSyncForDeletedDocument(ctx, document);
+
+    // Knowledge entries are backed by hub documents — deleting the backing
+    // document from the Documents tab must not orphan the entry, so mark
+    // every linked entry chain deleted too.
+    const linkedTopicKeys = new Set<string>();
+    for await (const entry of ctx.db
+      .query('knowledgeEntries')
+      .withIndex('by_documentId', (q) => q.eq('documentId', args.documentId))) {
+      if (entry.deletedAt !== undefined) continue;
+      linkedTopicKeys.add(entry.topicKey);
+    }
+    for (const topicKey of linkedTopicKeys) {
+      await markEntryChainDeleted(ctx, document.organizationId, topicKey);
+    }
 
     await ctx.scheduler.runAfter(
       0,
