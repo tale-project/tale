@@ -131,7 +131,7 @@ describe('MessageThread', () => {
     render(<MessageThread messages={[]} />);
 
     expect(
-      screen.getByRole('heading', { name: 'How can I assist you?' }),
+      screen.getByRole('heading', { name: 'What are we working on?' }),
     ).toBeInTheDocument();
   });
 });
