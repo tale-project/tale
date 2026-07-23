@@ -318,7 +318,7 @@ export class RetentionConfigMissingError extends Error {
   readonly hint: string;
   constructor(category: RetentionCategory) {
     const hint =
-      'Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/<orgSlug>/governance/retention.json';
+      'Copy configs/platform/custom/governance/retention.yml to $TALE_CONFIG_DIR/<orgSlug>/governance/retention.yml';
     super(`Retention config missing for category=${category}. ${hint}`);
     this.category = category;
     this.hint = hint;

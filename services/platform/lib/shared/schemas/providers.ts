@@ -87,9 +87,14 @@ export type ApiFormat = z.infer<typeof apiFormatSchema>;
 /**
  * Endpoint base URL. https-only: shipped connectors always point at public
  * provider APIs, and the SSRF host policy assumes no cleartext scheme can
- * smuggle past it. Org-defined custom connectors (Ollama/vLLM on a LAN) are
- * an org-config concern with its own schema, not this one. Exported for the
- * per-credential endpoint validation (Azure-style connectors).
+ * smuggle past it. Both shipped AND org-defined custom connectors
+ * (`providerConnectorSchema.baseUrl`) validate through this schema, so a
+ * self-hosted model server reachable only over cleartext http (Ollama/vLLM on
+ * localhost or a LAN) cannot be configured today — enabling it would need a
+ * scheme-and-host-aware relaxation (http permitted only for private/loopback
+ * hosts under `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS`, re-enforced at every
+ * request boundary), a deliberate security change made with review, not here.
+ * Exported for the per-credential endpoint validation (Azure-style connectors).
  */
 export const providerBaseUrlSchema = z
   .string()

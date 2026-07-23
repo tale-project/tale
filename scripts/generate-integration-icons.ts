@@ -21,7 +21,13 @@ import { icons } from '@iconify-json/logos';
 import { getIconData } from '@iconify/utils';
 
 const REPO_ROOT = resolve(import.meta.dir, '..');
-const INTEGRATIONS_DIR = join(REPO_ROOT, 'builtin-configs', 'integrations');
+const INTEGRATIONS_DIR = join(
+  REPO_ROOT,
+  'configs',
+  'platform',
+  'system',
+  'integrations',
+);
 
 /** Tile geometry shared by every integration icon. */
 const TILE = 24;
@@ -37,7 +43,7 @@ const SLUG_TO_ICON: Record<string, string> = {
   slack: 'slack-icon',
   discord: 'discord-icon',
   gmail: 'google-gmail',
-  google_drive: 'google-drive',
+  'google-drive': 'google-drive',
   shopify: 'shopify',
   confluence: 'confluence',
   twilio: 'twilio-icon',
