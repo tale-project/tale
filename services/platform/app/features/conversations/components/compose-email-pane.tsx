@@ -4,7 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Center, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Loader2Icon, Trash2Icon, XIcon } from 'lucide-react';
+import { Loader2Icon, Trash2Icon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
@@ -102,7 +102,6 @@ export function ComposeEmailPane({
   onClose,
 }: ComposeEmailPaneProps) {
   const { t } = useT('conversations');
-  const { t: tCommon } = useT('common');
   const { user } = useAuth();
   const { emailIntegrations, isLoading: integrationsLoading } =
     useEmailIntegrations(organizationId);
@@ -337,14 +336,6 @@ export function ComposeEmailPane({
                   onClick={() => setConfirmDiscardOpen(true)}
                 >
                   {t('compose.discard')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onClose}
-                  aria-label={tCommon('aria.close')}
-                >
-                  <XIcon className="size-4" />
                 </Button>
               </Row>
             </Row>

@@ -242,7 +242,9 @@ export function PromptHistoryDialog({
         onOpenChange={onOpenChange}
         title={dialogTitle}
         description={dialogDescription}
-        className="w-[95vw] max-w-[720px]"
+        // Width is desktop-only: unprefixed w/max-w override the shared Dialog
+        // mobile bottom-sheet (`w-full max-w-full`) and leave side gaps.
+        className="md:w-[95vw] md:max-w-[720px]"
       >
         {comparingVersion && history ? (
           <PromptCompareView

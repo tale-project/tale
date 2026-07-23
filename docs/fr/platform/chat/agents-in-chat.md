@@ -5,15 +5,15 @@ description: Comment fonctionne le sélecteur d’agents dans le Chat — quels 
 
 Choisir un agent dans le Chat fait la différence entre interroger un Assistant générique et interroger quelque chose que l’organisation a façonné pour un domaine. Le sélecteur d’agents est le contrôle le plus utilisé du chat ; les règles qui décident quel agent apparaît, quand un agent persiste, et ce qui se passe quand tu changes en cours de chat font l’objet de cette page.
 
-<Frame caption="Le sélecteur d’agents ouvert au-dessus du chat — Auto, les agents installés et le raccourci Catalogue.">
+<Frame caption="Le sélecteur d’agents ouvert au-dessus du chat — Auto, les agents installés et le raccourci Parcourir les agents.">
 
-![Le sélecteur d’agents ouvert au-dessus du chat, montrant un champ de recherche, une entrée Auto, l’Assistant sélectionné, une entrée Assistant d’automatisation et un bouton Parcourir les automatisations.](/images/platform/chat-agent-picker.webp)
+![Le sélecteur d’agents ouvert au-dessus du chat, montrant un champ de recherche, une entrée Auto, l’Assistant sélectionné, une entrée Assistant d’automatisation et un bouton Parcourir les agents.](/images/platform/chat-agent-picker.webp)
 
 </Frame>
 
 ## Le sélecteur d’agents
 
-Clique sur la puce d’agent du chat (son nom accessible est **Sélectionner un agent**) et le sélecteur s’ouvre avec **Rechercher des agents** en haut. La liste montre **Auto** — Tale route chaque message vers l’agent qui colle le mieux — suivi de chaque agent auquel tu as accès et qui est marqué **Visible dans le chat** ; les agents de code ont leur propre section **Agents de code** dès que l’un d’eux est visible. Les agents sans cette bascule existent dans l’organisation mais ne montent jamais ici, ce qui garde la liste courte. **Parcourir les automatisations**, en bas, mène au [catalogue des automatisations](/fr/platform/automations/catalog) — les nouveaux agents arrivent au sein d’une automatisation que tu installes.
+Clique sur la puce d’agent du chat (son nom accessible est **Sélectionner un agent**) et le sélecteur s’ouvre avec **Rechercher des agents** en haut. La liste montre **Auto** — Tale route chaque message vers l’agent qui colle le mieux — suivi de chaque agent auquel tu as accès et qui est marqué **Visible dans le chat** ; les agents de code ont leur propre section **Agents de code** dès que l’un d’eux est visible. Les agents sans cette bascule existent dans l’organisation mais ne montent jamais ici, ce qui garde la liste courte. **Parcourir les agents**, en bas, mène à la [liste des agents](/fr/platform/agents/create) — crée, charge ou gère les agents depuis là.
 
 ## « Visible dans le chat »
 

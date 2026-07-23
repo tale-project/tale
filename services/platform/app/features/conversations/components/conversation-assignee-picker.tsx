@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Check, UserPlus, Users } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import {
   SearchableSelect,
@@ -69,41 +69,85 @@ export function ConversationAssigneePicker({
   const team = teams.find((tm) => tm.id === assigneeTeamId);
   const teamName = team?.name;
 
-  // Trigger chips — the team queue and/or the individual owner, or a bare
-  // "Assign" affordance when neither is set.
-  const teamChip = assigneeTeamId ? (
-    <span className="flex items-center gap-1.5">
-      <Users className="text-muted-foreground size-4 shrink-0" />
-      <span className="max-w-[8rem] truncate text-sm">
-        {teamName ?? t('header.assignedTeam')}
-      </span>
-    </span>
-  ) : null;
-  const personChip = assigneeUserId ? (
-    <span className="flex items-center gap-1.5">
-      <AssigneeAvatar
-        assigneeType="user"
-        assigneeId={assigneeUserId}
-        name={assigneeName}
-        size="sm"
-      />
-      <span className="max-w-[8rem] truncate text-sm">
-        {assigneeName ?? t('header.assignee')}
-      </span>
-    </span>
-  ) : null;
-  const chips =
-    teamChip || personChip ? (
-      <span className="flex items-center gap-2">
-        {teamChip}
-        {personChip}
-      </span>
-    ) : (
+  // Trigger content for the assign control.
+  //
+  // Two independent dimensions (team queue + person claimer) can both be set —
+  // shared-inbox model. Labels are desktop-only; mobile stays icon-only but
+  // must still show BOTH dimensions when both are set (stacked pair), never
+  // drop one. Icons stay size-5 / avatar `md` for a usable hit target with the
+  // square trigger below.
+  const bothAssigned = Boolean(assigneeTeamId && assigneeUserId);
+
+  let chips: ReactNode;
+  if (bothAssigned && assigneeUserId) {
+    chips = (
+      <>
+        <span
+          data-testid="assign-dual-stack"
+          className="relative inline-flex size-7 items-center justify-center md:hidden"
+          aria-hidden="true"
+        >
+          <Users className="text-muted-foreground absolute top-0.5 left-0 size-4" />
+          <AssigneeAvatar
+            assigneeType="user"
+            assigneeId={assigneeUserId}
+            name={assigneeName}
+            size="sm"
+            className="border-background relative ml-2.5 border-2"
+          />
+        </span>
+        <span className="hidden items-center gap-2 md:flex">
+          <span className="flex items-center gap-1.5">
+            <Users className="text-muted-foreground size-5 shrink-0" />
+            <span className="max-w-[8rem] truncate text-sm">
+              {teamName ?? t('header.assignedTeam')}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <AssigneeAvatar
+              assigneeType="user"
+              assigneeId={assigneeUserId}
+              name={assigneeName}
+              size="md"
+            />
+            <span className="max-w-[8rem] truncate text-sm">
+              {assigneeName ?? t('header.assignee')}
+            </span>
+          </span>
+        </span>
+      </>
+    );
+  } else if (assigneeTeamId) {
+    chips = (
       <span className="flex items-center gap-1.5">
-        <UserPlus className="text-muted-foreground size-4 shrink-0" />
-        <span className="text-sm">{t('header.assign')}</span>
+        <Users className="text-muted-foreground size-5 shrink-0" />
+        <span className="hidden max-w-[8rem] truncate text-sm md:inline">
+          {teamName ?? t('header.assignedTeam')}
+        </span>
       </span>
     );
+  } else if (assigneeUserId) {
+    chips = (
+      <span className="flex items-center gap-1.5">
+        <AssigneeAvatar
+          assigneeType="user"
+          assigneeId={assigneeUserId}
+          name={assigneeName}
+          size="md"
+        />
+        <span className="hidden max-w-[8rem] truncate text-sm md:inline">
+          {assigneeName ?? t('header.assignee')}
+        </span>
+      </span>
+    );
+  } else {
+    chips = (
+      <span className="flex items-center gap-1.5">
+        <UserPlus className="text-muted-foreground size-5 shrink-0" />
+        <span className="hidden text-sm md:inline">{t('header.assign')}</span>
+      </span>
+    );
+  }
 
   // Compose a read-out of the current assignment for the trigger's aria-label.
   const parts: string[] = [];
@@ -207,7 +251,9 @@ export function ConversationAssigneePicker({
         <Button
           variant="ghost"
           size="sm"
-          className="gap-2"
+          // Mobile is icon-only: use a square ≥32px hit target. Desktop grows
+          // with the label (`md:w-auto md:px-3`).
+          className="size-8 shrink-0 gap-2 p-0 md:h-8 md:w-auto md:px-3"
           aria-label={assignedLabel}
         >
           {chips}
