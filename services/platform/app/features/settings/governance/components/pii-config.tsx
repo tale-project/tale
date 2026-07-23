@@ -214,7 +214,6 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
               value={value}
               onChange={handlePanelChange}
               disabled={cannotManage}
-              detectionLocales="*"
             />
           </SuspenseBoundary>
         )}

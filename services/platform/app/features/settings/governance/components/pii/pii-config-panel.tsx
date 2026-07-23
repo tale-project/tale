@@ -1,8 +1,6 @@
 /**
- * `PiiConfigPanel` — admin-facing PII configuration UI with a live
- * preview. The single canonical surface for editing a PII policy and
- * rehearsing its effect, shared between Storybook and the platform's
- * governance settings page.
+ * `PiiConfigPanel` — admin-facing PII configuration UI. The single canonical
+ * surface for editing a PII policy on the governance settings page.
  *
  * Sections, top to bottom:
  *
@@ -15,11 +13,12 @@
  *      replacement). Compiles the regex locally with `try/catch` so the
  *      Save button can refuse a syntactically broken pattern before it
  *      ever reaches the server. Backend re-validates with `safe-regex2`.
- *   4. Live preview — lazy-loaded. The preview pulls in `createTokenizer`,
- *      the 43-locale registry, and libphonenumber-js — none of which the
- *      mode / patterns / custom-patterns sections need to render. Code-
- *      splitting it keeps the panel's initial render fast; the preview
- *      hydrates asynchronously underneath a small skeleton.
+ *
+ * The pre-rewrite panel carried a live-preview pane running the detector
+ * in-browser. The rewritten `lib/pii` loads its locale data through
+ * `node:fs` (`data/loader.ts` — server-only by design), so the browser has
+ * no data path to run the detector on; the preview returns when the library
+ * grows a browser-safe data channel.
  *
  * Fully controlled: every edit fires `onChange(next)` with the complete
  * panel state so embedders can debounce, persist, or short-circuit
@@ -36,7 +35,7 @@ import { Input } from '@tale/ui/input';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import type { TFunction } from 'i18next';
 import { Plus, Trash2 } from 'lucide-react';
-import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { useT } from '@/lib/i18n/client';
@@ -53,13 +52,6 @@ import { piiTypeLabel } from './pii-type-labels';
 // the same `BuiltInPatternName` literal union but routed through the
 // bundle-light entry point.
 type BuiltInPatternName = (typeof BUILT_IN_PII_PATTERN_NAMES)[number];
-
-// `@/lib/pii`'s `createTokenizer` (and its locale registry +
-// libphonenumber-js) is the heaviest single chunk in this panel. The
-// rest of the form (mode, patterns, custom-patterns) doesn't need any
-// of it, so lazy-split the preview pane into its own chunk that loads
-// after first paint.
-const PiiConfigPreview = lazy(() => import('./pii-config-preview'));
 
 export type PiiConfigPanelMode = 'tokenize' | 'mask' | 'block';
 
@@ -81,36 +73,13 @@ export interface PiiConfigPanelProps {
    * admin can still inspect the active config.
    */
   disabled?: boolean;
-  /**
-   * Locales to enable in the live preview's detector. `'*'` (default)
-   * loads every locale the library knows about — the right choice for
-   * Storybook and ad-hoc demos. The platform passes `'*'` today because
-   * the saved config doesn't expose a locale picker yet.
-   */
-  detectionLocales?: string | string[];
-  /** Initial text in the preview area. */
-  initialPreviewInput?: string;
-  /** Mock AI handler for the tokenize round-trip stage. */
-  mockAi?: (tokenizedPrompt: string) => string;
   className?: string;
 }
-
-const DEFAULT_PREVIEW_INPUT = [
-  'Hi, I am Alice (alice@example.com, born 1990-04-15).',
-  'Please ship to 350 Fifth Avenue, New York, NY 10118.',
-  'Phone: +1 (415) 555-0123. IBAN: DE89370400440532013000.',
-].join(' ');
-
-const DEFAULT_MOCK_AI = (prompt: string): string =>
-  `Thanks — I have noted the following details:\n\n${prompt}\n\nI'll follow up shortly.`;
 
 export function PiiConfigPanel({
   value,
   onChange,
   disabled = false,
-  detectionLocales = '*',
-  initialPreviewInput = DEFAULT_PREVIEW_INPUT,
-  mockAi = DEFAULT_MOCK_AI,
   className,
 }: PiiConfigPanelProps): ReactNode {
   const { t: tTypes } = useT('piiTypes');
@@ -137,19 +106,6 @@ export function PiiConfigPanel({
         disabled={disabled}
         tPiiConfigPanel={tPiiConfigPanel}
       />
-      <Section
-        title={tPiiConfigPanel('previewTitle')}
-        description={tPiiConfigPanel('previewDescription')}
-      >
-        <Suspense fallback={<PreviewSkeleton />}>
-          <PiiConfigPreview
-            config={value}
-            detectionLocales={detectionLocales}
-            initialInput={initialPreviewInput}
-            mockAi={mockAi}
-          />
-        </Suspense>
-      </Section>
     </div>
   );
 }
@@ -179,17 +135,6 @@ function Section({ title, description, children }: SectionProps): ReactNode {
       </Stack>
       {children}
     </Stack>
-  );
-}
-
-function PreviewSkeleton(): ReactNode {
-  // Cheap placeholder that occupies roughly the same vertical space as
-  // the loaded preview, so the page doesn't jump when the chunk hydrates.
-  return (
-    <div
-      aria-busy="true"
-      className="h-64 animate-pulse rounded-lg border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)]/40"
-    />
   );
 }
 
