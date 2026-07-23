@@ -10,6 +10,8 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
+import { encodeChatError } from '../../lib/shared/chat-errors';
+import { DAY_MS } from '../../lib/shared/metrics-window';
 import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
@@ -36,13 +38,14 @@ async function seedMember(
   t: T,
   userId: string,
   organizationId: string,
+  role = 'member',
 ): Promise<void> {
   await t.run(async (ctx) => {
     await ctx.db.insert('memberMirror', {
       memberId: `m_${userId}_${organizationId}`,
       userId,
       organizationId,
-      role: 'member',
+      role,
       createdAt: 0,
     });
   });
@@ -52,12 +55,14 @@ async function seedThread(
   t: T,
   organizationId: string,
   userId: string,
+  agentSlug?: string,
 ): Promise<Id<'threads'>> {
   return t.run(async (ctx) =>
     ctx.db.insert('threads', {
       organizationId,
       userId,
       kind: 'direct',
+      ...(agentSlug !== undefined && { agentSlug }),
       archived: false,
       createdAt: 0,
       updatedAt: 0,
@@ -190,5 +195,209 @@ describe('chat messages — scoping', () => {
         threadId,
       });
     expect(asAliceInB).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getOrgChatHealth — the aggregation contract: assistant rows are the turns,
+// error/blocked classification, token sums, model/agent breakdowns, and the
+// admin gate. Rows are seeded oldest-first so `_creationTime` order matches
+// the `createdAt` monotonicity the newest-first walk relies on.
+// ---------------------------------------------------------------------------
+
+const ADMIN = 'user_admin';
+
+interface MessageSeed {
+  threadId: string;
+  role: 'user' | 'assistant' | 'tool' | 'system';
+  createdAt: number;
+  model?: string;
+  providerSlug?: string;
+  usage?: unknown;
+  blockedReason?: string;
+  error?: string;
+}
+
+/** Insert messages as given — callers list them OLDEST FIRST. */
+async function seedMessages(
+  t: T,
+  organizationId: string,
+  seeds: MessageSeed[],
+): Promise<void> {
+  await t.run(async (ctx) => {
+    let sequence = 0;
+    for (const seed of seeds) {
+      await ctx.db.insert('messages', {
+        organizationId,
+        threadId: seed.threadId,
+        role: seed.role,
+        parts: [],
+        sequence: sequence++,
+        ...(seed.model !== undefined && { model: seed.model }),
+        ...(seed.providerSlug !== undefined && {
+          providerSlug: seed.providerSlug,
+        }),
+        ...(seed.usage !== undefined && { usage: seed.usage }),
+        ...(seed.blockedReason !== undefined && {
+          blockedReason: seed.blockedReason,
+        }),
+        ...(seed.error !== undefined && { error: seed.error }),
+        createdAt: seed.createdAt,
+      });
+    }
+  });
+}
+
+describe('getOrgChatHealth', () => {
+  it('aggregates turns, errors, blocks, tokens, and breakdowns from assistant rows', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ADMIN, ORG_A, 'admin');
+    const pinnedThread = await seedThread(t, ORG_A, ALICE, 'helper');
+    const bareThread = await seedThread(t, ORG_A, ALICE);
+
+    const now = Date.now();
+    const hour = 60 * 60 * 1000;
+    await seedMessages(t, ORG_A, [
+      // Out of the 7-day window — proves the walk stops there while still
+      // marking the org as having data.
+      {
+        threadId: pinnedThread,
+        role: 'assistant',
+        createdAt: now - 10 * DAY_MS,
+        model: 'old-model',
+      },
+      // User rows are scanned but never counted as turns.
+      { threadId: pinnedThread, role: 'user', createdAt: now - 5 * hour },
+      {
+        threadId: pinnedThread,
+        role: 'assistant',
+        createdAt: now - 5 * hour + 1,
+        model: 'gpt-4o',
+        providerSlug: 'openai',
+        usage: { inputTokens: 100, outputTokens: 40, totalTokens: 140 },
+      },
+      {
+        threadId: pinnedThread,
+        role: 'assistant',
+        createdAt: now - 4 * hour,
+        model: 'gpt-4o',
+        providerSlug: 'openai',
+        // Malformed usage blob — read defensively as zero.
+        usage: 'not-an-object',
+        blockedReason: 'pii',
+      },
+      {
+        threadId: bareThread,
+        role: 'assistant',
+        createdAt: now - 3 * hour,
+        model: 'sonnet',
+        providerSlug: 'anthropic',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      },
+      // Enveloped error — the structured code wins over re-classification.
+      {
+        threadId: bareThread,
+        role: 'assistant',
+        createdAt: now - 2 * hour,
+        model: 'sonnet',
+        providerSlug: 'anthropic',
+        error: encodeChatError({ code: 'auth_error', raw: 'HTTP 401' }),
+      },
+      // Raw legacy error string — classified by pattern.
+      {
+        threadId: bareThread,
+        role: 'assistant',
+        createdAt: now - hour,
+        error: 'Rate limit reached: too many requests (429)',
+      },
+    ]);
+
+    const result = await t
+      .withIdentity({ subject: ADMIN })
+      .query(api.chat.messages.getOrgChatHealth, {
+        organizationId: ORG_A,
+        periodDays: 7,
+      });
+
+    expect(result.summary).toEqual({
+      totalTurns: 5,
+      errorCount: 2,
+      errorRate: 2 / 5,
+      blockedCount: 1,
+      blockedRate: 1 / 5,
+      tokens: { input: 110, output: 45, total: 155 },
+      capped: false,
+      hasAnyData: true,
+    });
+
+    expect(result.series).toHaveLength(7);
+    const sum = result.series.reduce(
+      (acc, point) => ({
+        turns: acc.turns + point.turns,
+        errors: acc.errors + point.errors,
+        blocked: acc.blocked + point.blocked,
+      }),
+      { turns: 0, errors: 0, blocked: 0 },
+    );
+    expect(sum).toEqual({ turns: 5, errors: 2, blocked: 1 });
+
+    // Counts tie at 2; the stable sort keeps first-seen (newest-first walk)
+    // order, and the newest model row is sonnet's.
+    expect(result.byModel).toEqual([
+      { provider: 'anthropic', model: 'sonnet', count: 2 },
+      { provider: 'openai', model: 'gpt-4o', count: 2 },
+    ]);
+    expect(result.byAgent).toEqual([
+      { agentSlug: '__unattributed__', count: 3 },
+      { agentSlug: 'helper', count: 2 },
+    ]);
+    expect(result.errorsByType).toEqual([
+      { key: 'rate_limited', count: 1 },
+      { key: 'auth_error', count: 1 },
+    ]);
+    // Newest error first; the unattributed thread omits agentSlug.
+    expect(result.recentErrors).toEqual([
+      { at: now - hour, type: 'rate_limited' },
+      { at: now - 2 * hour, type: 'auth_error', model: 'sonnet' },
+    ]);
+  });
+
+  it('reports hasAnyData=false for an org with no messages', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ADMIN, ORG_A, 'admin');
+
+    const result = await t
+      .withIdentity({ subject: ADMIN })
+      .query(api.chat.messages.getOrgChatHealth, {
+        organizationId: ORG_A,
+        periodDays: 1,
+      });
+
+    expect(result.summary.hasAnyData).toBe(false);
+    expect(result.summary.totalTurns).toBe(0);
+    expect(result.byModel).toEqual([]);
+    expect(result.recentErrors).toEqual([]);
+  });
+
+  it('refuses non-admin members and unauthenticated callers', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ADMIN, ORG_A, 'admin');
+    await seedMember(t, ALICE, ORG_A);
+
+    await expect(
+      t
+        .withIdentity({ subject: ALICE })
+        .query(api.chat.messages.getOrgChatHealth, {
+          organizationId: ORG_A,
+          periodDays: 7,
+        }),
+    ).rejects.toThrow(/Only admins/);
+
+    await expect(
+      t.query(api.chat.messages.getOrgChatHealth, {
+        organizationId: ORG_A,
+        periodDays: 7,
+      }),
+    ).rejects.toThrow(/Unauthenticated/);
   });
 });
