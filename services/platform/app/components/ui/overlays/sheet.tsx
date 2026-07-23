@@ -48,9 +48,11 @@ const sheetVariants = cva(
         top: 'inset-x-0 top-0 h-full sm:h-auto border-b pt-[calc(1.5rem+var(--safe-top))] data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
         bottom:
           'inset-x-0 bottom-0 h-full sm:h-auto border-t pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
-        left: 'inset-y-0 left-0 h-full w-full sm:w-3/4 border-r pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
+        // Side borders only from `sm` up — below that the panel is `w-full` and
+        // an edge border against the viewport reads as a stray hairline.
+        left: 'inset-y-0 left-0 h-full w-full sm:w-3/4 sm:border-r pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
         right:
-          'inset-y-0 right-0 h-full w-full sm:w-3/4 border-l pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
+          'inset-y-0 right-0 h-full w-full sm:w-3/4 sm:border-l pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
       },
       size: {
         sm: '',
