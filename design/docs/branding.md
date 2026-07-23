@@ -25,8 +25,8 @@ genuinely shared by design — everything else two surfaces have in common is a 
 Self-hosted/cloud orgs can override brand surfaces (logo, name, colours) — that is **configuration**,
 not a code change:
 
-- [`builtin-configs/branding/branding.json`](../../builtin-configs/branding/branding.json) — the default
-  branding config shape.
+- [`configs/platform/custom/branding/`](../../configs/platform/custom/branding/) — where an org's
+  branding config lives.
 - [`docs/en/platform/admin/branding.md`](../../docs/en/platform/admin/branding.md) — the user-facing
   reference for what an admin can change.
 
