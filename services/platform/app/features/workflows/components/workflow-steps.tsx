@@ -34,6 +34,10 @@ import { WorkflowCallbacksProvider } from './workflow-callbacks-context';
 import { WorkflowEdge } from './workflow-edge';
 import { WorkflowGroupNode } from './workflow-group-node';
 import { WorkflowLoopContainer } from './workflow-loop-container';
+import {
+  computeMinimapDimensions,
+  type MinimapDimensions,
+} from './workflow-minimap-dimensions';
 import { WorkflowStep } from './workflow-step';
 
 interface WorkflowStepsProps {
@@ -147,10 +151,8 @@ function WorkflowStepsInner({
   });
 
   const [showActivityBanner, setShowActivityBanner] = useState(true);
-  const [minimapDimensions, setMinimapDimensions] = useState({
-    width: 192,
-    height: 128,
-  });
+  const [minimapDimensions, setMinimapDimensions] =
+    useState<MinimapDimensions | null>(null);
 
   const { fitView, getViewport } = useReactFlow();
 
@@ -174,23 +176,13 @@ function WorkflowStepsInner({
     const container = containerRef.current;
     if (!container) return undefined;
 
-    const MINIMAP_BASE_WIDTH = 144;
-    const MINIMAP_MAX_WIDTH = 192;
     const WIDTH_CHANGE_THRESHOLD = 50;
 
     const handleContainerResize = () => {
       const { width, height } = container.getBoundingClientRect();
       if (width === 0 || height === 0) return;
 
-      const aspectRatio = width / height;
-      const isMobile = window.innerWidth < 768;
-      const baseWidth = isMobile ? MINIMAP_BASE_WIDTH : MINIMAP_MAX_WIDTH;
-      const calculatedHeight = Math.round(baseWidth / aspectRatio);
-
-      setMinimapDimensions({
-        width: baseWidth,
-        height: Math.max(80, Math.min(calculatedHeight, 200)),
-      });
+      setMinimapDimensions(computeMinimapDimensions(width, height));
 
       // Skip the first measurement: ReactFlow's own `fitView` prop already
       // centers the initial graph (instantly). Firing another fitView here on
@@ -337,19 +329,23 @@ function WorkflowStepsInner({
             nodesFocusable
             edgesFocusable
             multiSelectionKeyCode={['Meta', 'Ctrl']}
-            minimapProps={{
-              className:
-                'border-border overflow-hidden rounded-lg border shadow-sm',
-              style: {
-                width: minimapDimensions.width,
-                height: minimapDimensions.height,
-              },
-              nodeStrokeColor: minimapNodeStrokeColor,
-              nodeStrokeWidth: 3,
-              pannable: true,
-              zoomable: true,
-              inversePan: false,
-            }}
+            minimapProps={
+              minimapDimensions
+                ? {
+                    className:
+                      'border-border overflow-hidden rounded-lg border shadow-sm',
+                    style: {
+                      width: minimapDimensions.width,
+                      height: minimapDimensions.height,
+                    },
+                    nodeStrokeColor: minimapNodeStrokeColor,
+                    nodeStrokeWidth: 3,
+                    pannable: true,
+                    zoomable: true,
+                    inversePan: false,
+                  }
+                : undefined
+            }
             backgroundProps={{
               variant: BackgroundVariant.Dots,
               gap: 20,
