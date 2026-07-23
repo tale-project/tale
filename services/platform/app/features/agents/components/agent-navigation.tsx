@@ -439,8 +439,15 @@ export function AgentNavigation({
   ]);
 
   const historyMenuItems = useMemo(() => {
+    const labelGroup = [
+      {
+        type: 'label' as const,
+        content: t('agents.history.menuLabel'),
+      },
+    ];
     if (historyEntries.length === 0) {
       return [
+        labelGroup,
         [
           {
             type: 'item' as const,
@@ -451,6 +458,7 @@ export function AgentNavigation({
       ];
     }
     return [
+      labelGroup,
       historyEntries.map<DropdownMenuItem>((entry) => ({
         type: 'item',
         label: formatDate(new Date(entry.date), 'long'),
@@ -487,7 +495,7 @@ export function AgentNavigation({
               }
               items={historyMenuItems}
               align="end"
-              contentClassName="w-64"
+              contentClassName="w-52"
               onOpenChange={(open) => {
                 if (open) void handleLoadHistory();
               }}

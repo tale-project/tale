@@ -5880,6 +5880,9 @@
       "agentNotFound": "Agent not found or you don't have access.",
       "agentSaved": "Agent saved",
       "agentSaveFailed": "Failed to save agent",
+      "switcher": {
+        "ariaLabel": "Switch agent, current: {name}"
+      },
       "validation": {
         "displayNameRequired": "Enter a display name.",
         "systemInstructionsRequired": "Enter system instructions.",
@@ -5907,6 +5910,7 @@
       },
       "history": {
         "empty": "No history entries",
+        "menuLabel": "Version history",
         "diffTitle": "Compare changes",
         "diffDescription": "Review differences before restoring snapshot from {date}",
         "noDifferences": "No differences found",

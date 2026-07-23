@@ -19,6 +19,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { AgentBreadcrumbSwitcher } from '@/app/features/agents/components/agent-breadcrumb-switcher';
 import { AgentNavigation } from '@/app/features/agents/components/agent-navigation';
 import {
   useListAgents,
@@ -172,7 +173,13 @@ function AgentDetailLayout() {
             className="contents"
           >
             <SkeletonBox>
-              {resolvedDisplayName || (
+              {resolvedDisplayName ? (
+                <AgentBreadcrumbSwitcher
+                  organizationId={organizationId}
+                  agentId={agentId}
+                  displayName={resolvedDisplayName}
+                />
+              ) : (
                 <span className="inline-block h-4 w-32 align-middle" />
               )}
             </SkeletonBox>
