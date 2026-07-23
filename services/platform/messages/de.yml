@@ -883,7 +883,7 @@ chat:
     noResults: Keine Agents gefunden
     lockedExternal: Dieser Chat läuft in einer Sandbox und behält seinen
       Coding-Agent — starte einen neuen Chat, um einen anderen zu verwenden.
-    lockedExternalLabel: 'Agent: {{agent}} (für diesen Sandbox-Chat festgelegt)'
+    lockedExternalLabel: 'Agent: {agent} (für diesen Sandbox-Chat festgelegt)'
     browseAutomations: Automatisierungen durchsuchen
     sectionAgents: Agenten
     sectionImageAgents: Bild
@@ -1897,7 +1897,7 @@ common:
     title: Dieser Bereich wird neu aufgebaut
     description:
       Das KI-Backend der Plattform wird von Grund auf neu geschrieben.
-      {{feature}} ist offline, bis die neue Version verfügbar ist — alles andere
+      {feature} ist offline, bis die neue Version verfügbar ist — alles andere
       funktioniert weiter.
 composer:
   openMenu: Chat-Menü öffnen

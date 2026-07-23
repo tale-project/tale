@@ -887,7 +887,7 @@ chat:
     lockedExternal:
       Ce chat s'exécute dans un bac à sable et garde son agent de code
       — démarre un nouveau chat pour en utiliser un autre.
-    lockedExternalLabel: 'Agent : {{agent}} (fixé pour ce chat sandbox)'
+    lockedExternalLabel: 'Agent : {agent} (fixé pour ce chat sandbox)'
     browseAutomations: Parcourir les automatisations
     sectionAgents: Agents
     sectionImageAgents: Image
@@ -1908,7 +1908,7 @@ common:
   rebuildGate:
     title: Cette section est en cours de reconstruction
     description: Le backend IA de la plateforme est réécrit de fond en comble.
-      {{feature}} est hors ligne jusqu'à la sortie de sa nouvelle version — tout
+      {feature} est hors ligne jusqu'à la sortie de sa nouvelle version — tout
       le reste continue de fonctionner.
 composer:
   openMenu: Ouvrir le menu du chat

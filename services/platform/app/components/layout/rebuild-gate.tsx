@@ -1,5 +1,6 @@
 import { HardHat } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Full-pane placeholder for surfaces whose backend is offline while the
@@ -10,16 +11,16 @@ import { useTranslation } from 'react-i18next';
  * `<RebuildGate` to see what is still pending.
  */
 export function RebuildGate({ feature }: { feature: string }) {
-  const { t } = useTranslation();
+  const { t } = useT('common');
   return (
     <div
       className="flex h-full min-h-[50vh] flex-col items-center justify-center gap-3 p-8 text-center"
       role="status"
     >
       <HardHat aria-hidden className="text-muted-foreground size-10" />
-      <h1 className="text-lg font-semibold">{t('common.rebuildGate.title')}</h1>
+      <h1 className="text-lg font-semibold">{t('rebuildGate.title')}</h1>
       <p className="text-muted-foreground max-w-md text-sm">
-        {t('common.rebuildGate.description', { feature })}
+        {t('rebuildGate.description', { feature })}
       </p>
     </div>
   );

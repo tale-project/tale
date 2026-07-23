@@ -842,7 +842,7 @@ chat:
     lockedExternal:
       This chat runs in a sandbox and keeps its coding agent — start a
       new chat to use a different one.
-    lockedExternalLabel: 'Agent: {{agent}} (pinned for this sandbox chat)'
+    lockedExternalLabel: 'Agent: {agent} (pinned for this sandbox chat)'
     browseAutomations: Browse automations
     sectionAgents: Agents
     sectionImageAgents: Image agents
@@ -1811,7 +1811,7 @@ common:
     title: This area is being rebuilt
     description:
       The platform's AI backend is being rewritten from the ground up.
-      {{feature}} is offline until its rebuilt version ships — everything else
+      {feature} is offline until its rebuilt version ships — everything else
       keeps working.
 composer:
   openMenu: Open chat menu
