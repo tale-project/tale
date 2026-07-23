@@ -21,6 +21,7 @@ import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
+import { InboxMobileBackButton } from '@/app/features/conversations/components/inbox-mobile-back-button';
 import { useComposeContactName } from '@/app/features/conversations/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
@@ -218,31 +219,34 @@ function ConversationsLayout() {
       className="overflow-hidden"
       header={
         <>
-          <AdaptiveHeaderRoot standalone={false}>
+          <AdaptiveHeaderRoot standalone={false} className="gap-1">
+            <InboxMobileBackButton />
             <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
           <ConversationsNavigation
             organizationId={organizationId}
             action={
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={SquarePen}
-                onClick={() =>
-                  void navigate({
-                    to: '/dashboard/$id/conversations/$status',
-                    params: { id: organizationId, status: currentStatus },
-                    search: (prev) => ({
-                      ...prev,
-                      compose: 'new',
-                      composeContact: undefined,
-                      conversation: undefined,
-                    }),
-                  })
-                }
-              >
-                {t('compose.compose')}
-              </Button>
+              composeParam === undefined ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={SquarePen}
+                  onClick={() =>
+                    void navigate({
+                      to: '/dashboard/$id/conversations/$status',
+                      params: { id: organizationId, status: currentStatus },
+                      search: (prev) => ({
+                        ...prev,
+                        compose: 'new',
+                        composeContact: undefined,
+                        conversation: undefined,
+                      }),
+                    })
+                  }
+                >
+                  {t('compose.compose')}
+                </Button>
+              ) : undefined
             }
           />
         </>

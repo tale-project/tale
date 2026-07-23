@@ -7,6 +7,7 @@ import {
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
+import { MobileFloatingActions } from '@/app/components/layout/mobile-floating-actions';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import {
   ActiveEditorProvider,
@@ -21,6 +22,7 @@ import {
   useSettingsHeaderActions,
   type SettingsHeaderAction,
 } from '@/app/features/settings/components/settings-secondary-action-context';
+import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
@@ -60,7 +62,11 @@ function SettingsLayout() {
           <PageLayout
             organizationId={organizationId}
             header={
-              <AdaptiveHeaderRoot showBorder standalone={false}>
+              <AdaptiveHeaderRoot
+                showBorder
+                standalone={false}
+                className="gap-1"
+              >
                 <SettingsMobileBackButton organizationId={organizationId} />
                 <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
                 <SettingsEditorActionsSlot />
@@ -108,15 +114,18 @@ function HeaderActionButton({ action }: { action: SettingsHeaderAction }) {
  * Renders the unified Save/Discard cluster (from `useActiveEditor`) plus any
  * page-specific buttons registered via `useRegisterSettingsSecondaryAction`.
  * Data residency uses the latter exclusively: [Save] [Apply & restart].
+ * Desktop only — mobile uses `SettingsMobileActionBar` (single mount).
  */
 function SettingsEditorActionsSlot() {
   const controller = useActiveEditor();
   const actions = useSettingsHeaderActions();
+  const isMobile = useIsMobile();
 
+  if (isMobile) return null;
   if (!controller && actions.length === 0) return null;
 
   return (
-    <div className="ml-auto hidden items-center gap-2 md:flex">
+    <div className="ml-auto flex items-center gap-2">
       {controller && (
         <EditorActions controller={controller} entityKind="settings" />
       )}
@@ -128,22 +137,25 @@ function SettingsEditorActionsSlot() {
 }
 
 /**
- * Mobile-only bar — mirrors `SettingsEditorActionsSlot` for small screens.
+ * Mobile-only floating dock — mirrors `SettingsEditorActionsSlot` for small
+ * screens so Save/Discard no longer sit under the header and crowd the page.
  */
 function SettingsMobileActionBar() {
   const controller = useActiveEditor();
   const actions = useSettingsHeaderActions();
+  const isMobile = useIsMobile();
 
+  if (!isMobile) return null;
   if (!controller && actions.length === 0) return null;
 
   return (
-    <div className="border-border flex items-center justify-end gap-2 border-b px-4 py-2 md:hidden">
+    <MobileFloatingActions>
       {controller && (
         <EditorActions controller={controller} entityKind="settings" />
       )}
       {actions.map((action) => (
         <HeaderActionButton key={action.label} action={action} />
       ))}
-    </div>
+    </MobileFloatingActions>
   );
 }

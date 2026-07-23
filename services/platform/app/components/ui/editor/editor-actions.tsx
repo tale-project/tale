@@ -151,11 +151,7 @@ export function EditorActions({
 
   return (
     <div
-      className={cn(
-        'ml-auto sticky right-0 z-10 flex items-center gap-2 bg-background/95 pl-3',
-        'before:pointer-events-none before:absolute before:-left-6 before:top-0 before:h-full before:w-6 before:bg-gradient-to-r before:from-transparent before:to-background/95',
-        className,
-      )}
+      className={cn('flex items-center gap-2', className)}
       aria-live="polite"
     >
       {history}

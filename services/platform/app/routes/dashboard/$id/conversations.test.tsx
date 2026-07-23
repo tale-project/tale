@@ -82,9 +82,12 @@ vi.mock('@/app/components/layout/adaptive-header', () => ({
 vi.mock(
   '@/app/features/conversations/components/conversations-navigation',
   () => ({
-    ConversationsNavigation: () => (
-      <div data-testid="conversations-navigation" />
-    ),
+    ConversationsNavigation: ({
+      action,
+    }: {
+      organizationId: string;
+      action?: React.ReactNode;
+    }) => <div data-testid="conversations-navigation">{action}</div>,
   }),
 );
 
@@ -219,6 +222,23 @@ describe('ConversationsLayout', () => {
 
     // One-shot: the stash is cleared so a later visit doesn't reopen it again.
     expect(window.localStorage.getItem(pendingComposeKey)).toBeNull();
+  });
+
+  it('shows the Compose action when the inbox list is open', () => {
+    mockInboxAvailability = { isLoading: false, hasInbox: true };
+    render(<ConversationsLayout />);
+
+    expect(screen.getByRole('button', { name: 'Compose' })).toBeInTheDocument();
+  });
+
+  it('hides the Compose action while composing', () => {
+    mockInboxAvailability = { isLoading: false, hasInbox: true };
+    mockSearch = { compose: 'new' };
+    render(<ConversationsLayout />);
+
+    expect(
+      screen.queryByRole('button', { name: 'Compose' }),
+    ).not.toBeInTheDocument();
   });
 
   describe('accessibility', () => {

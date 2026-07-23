@@ -467,9 +467,6 @@ export function ConversationPanel({
                 onReopen={() => {
                   onSelectedConversationChange(null);
                 }}
-                onBack={() => {
-                  onSelectedConversationChange(null);
-                }}
               />
             ) : (
               <Stack

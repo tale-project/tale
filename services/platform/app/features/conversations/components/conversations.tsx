@@ -125,11 +125,32 @@ export function Conversations({
     initialConversationId ?? null,
   );
 
+  // Selection is mirrored in `?conversation=` so the mobile header back button
+  // (remounted in `AdaptiveHeaderSlot` outside this tree) can read it.
   useEffect(() => {
-    if (initialConversationId) {
-      setSelectedConversationId(initialConversationId);
-    }
+    setSelectedConversationId(initialConversationId ?? null);
   }, [initialConversationId]);
+
+  const handleSelectedConversationChange = useCallback(
+    (id: string | null) => {
+      setSelectedConversationId(id);
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status: status ?? 'open' },
+        search: (prev) => ({
+          ...prev,
+          conversation: id ?? undefined,
+          // Leaving compose for a thread (desktop list still visible) must
+          // drop the compose params or the reading pane stays on New email.
+          ...(id != null
+            ? { compose: undefined, composeContact: undefined }
+            : {}),
+        }),
+        replace: true,
+      });
+    },
+    [navigate, organizationId, status],
+  );
 
   // `searchQuery` is the single source of truth for the filter. It is seeded
   // once from the `?search=` URL param; thereafter the URL is kept in sync from
@@ -212,8 +233,8 @@ export function Conversations({
 
   const onBulkComplete = useCallback(() => {
     clearSelection();
-    setSelectedConversationId(null);
-  }, [clearSelection]);
+    handleSelectedConversationChange(null);
+  }, [clearSelection, handleSelectedConversationChange]);
 
   const {
     isBulkProcessing,
@@ -246,7 +267,7 @@ export function Conversations({
   const skeletonRows = Math.min(conversationCount ?? 12, 12);
 
   const handleConversationSelect = (conversation: Conversation) => {
-    setSelectedConversationId(conversation.id);
+    handleSelectedConversationChange(conversation.id);
   };
 
   const closeCompose = useCallback(() => {
@@ -264,7 +285,6 @@ export function Conversations({
 
   const handleComposeSent = useCallback(
     (conversationId: string) => {
-      setSelectedConversationId(conversationId);
       void navigate({
         to: '/dashboard/$id/conversations/$status',
         params: { id: organizationId, status: status ?? 'open' },
@@ -551,7 +571,7 @@ export function Conversations({
         ) : (
           <ConversationPanel
             selectedConversationId={selectedConversationId}
-            onSelectedConversationChange={setSelectedConversationId}
+            onSelectedConversationChange={handleSelectedConversationChange}
             status={status}
             forceLoading={isLoading}
           />

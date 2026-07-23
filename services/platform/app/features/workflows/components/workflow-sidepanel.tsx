@@ -241,7 +241,7 @@ export function WorkflowSidePanel({
       style={{ '--panel-width': `${width}px` }}
       as="aside"
       gap={0}
-      className="bg-background border-border relative min-h-0 w-(--panel-width) flex-[0_0_auto] overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full"
+      className="bg-background border-border relative min-h-0 w-(--panel-width) flex-[0_0_auto] overflow-hidden max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full md:border-l"
     >
       {/* Resize handle */}
       <div

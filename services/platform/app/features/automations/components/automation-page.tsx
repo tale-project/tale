@@ -327,6 +327,7 @@ function ReadinessSection({
  */
 function AutomationEditorActionsSlot({ trailing }: { trailing: ReactNode }) {
   const controller = useActiveEditor();
+  if (!controller && !trailing) return null;
   if (!controller) {
     return (
       <Row gap={2} className="ml-auto">

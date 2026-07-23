@@ -1173,7 +1173,7 @@
       "noResults": "No agents found",
       "lockedExternal": "This chat runs in a sandbox and keeps its coding agent — start a new chat to use a different one.",
       "lockedExternalLabel": "Agent: {{agent}} (pinned for this sandbox chat)",
-      "browseAutomations": "Browse automations",
+      "browseAgents": "Browse agents",
       "sectionAgents": "Agents",
       "sectionCodingAgents": "Coding agents",
       "sectionImageAgents": "Image agents"
