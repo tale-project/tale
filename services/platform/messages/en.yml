@@ -2811,11 +2811,6 @@ governance:
       description:
         Thumbs/comments left on agent messages. Free-text comments may
         contain quoted user content.
-    memoryAudit:
-      title: Memory audit log
-      description:
-        Change-log of personalization memories (proposed, approved, edited,
-        dismissed, deleted).
     contacts:
       title: Contacts
       description: 'Per-org CRM records: name, email, address, locale, metadata.'
@@ -2824,10 +2819,6 @@ governance:
       description:
         Top-level contact-channel inbox (email/chat integrations). Cascades
         to message bodies.
-    messageMetadata:
-      title: Message metadata
-      description: Per-message reasoning, full prompt context window, tool I/O.
-        High-PII derived data; sweep follows the message's thread retention.
     chatFilterEvents:
       title: Chat filter events
       description: Telemetry for content-filter triggers (PII, profanity, custom
@@ -2873,9 +2864,9 @@ governance:
     workflowLogs:
       title: Workflow execution logs
       description:
-        Automatically delete workflow execution records and trigger logs
-        older than the retention period. Includes per-execution variable/output
-        storage blobs.
+        Automatically delete workflow execution records older than the
+        retention period. Includes per-execution variable/output storage
+        blobs.
       placeholder: e.g. 30
       helper: Workflow runs older than this will be deleted (1–365 days).
     auditLogs:

@@ -42,12 +42,7 @@ export interface ResourceConfig {
    * tables that aren't user-attributed), the cascade is a no-op and
    * only org-wide holds apply.
    */
-  readonly authorField?:
-    | 'userId'
-    | 'createdBy'
-    | 'uploadedBy'
-    | 'actorId'
-    | 'subjectUserId';
+  readonly authorField?: 'userId' | 'createdBy' | 'uploadedBy' | 'actorId';
 }
 
 export const SOFT_DELETE_RESOURCE_CONFIG: Record<
@@ -140,14 +135,6 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditResourceType: 'chat_filter_event',
     // No direct author; cascade flows via the parent thread's `userId`
     // and is enforced by `retention_cleanup.ts:cleanupChatFilterEvents`.
-  },
-  memoryAudit: {
-    tableName: 'userMemoryAuditLog',
-    statusField: 'lifecycleStatus',
-    auditPrefix: 'memory_audit',
-    auditResourceType: 'memory_audit',
-    displayNameField: 'action',
-    authorField: 'subjectUserId',
   },
 };
 

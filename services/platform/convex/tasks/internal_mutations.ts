@@ -45,7 +45,6 @@ import {
   truncateImportedTitle,
   workflowActivityContext,
 } from './helpers';
-import { dispatchAgentTaskMentionRuns } from './mention_dispatch';
 import {
   extractMentions,
   parseMentionTokens,
@@ -264,17 +263,6 @@ export const agentCreateTask = internalMutation({
               mentions,
               ...eventActor(args.actorId),
             },
-          });
-          // Core fallback: when no task-mention automation is live (fresh org
-          // mid-provision, pack-less catalog), schedule the runs directly
-          // (#2637 sibling). `eventActor`'s 'workflow' sentinel already keeps
-          // engine-authored creates inert, same as the pack's guard.
-          await dispatchAgentTaskMentionRuns(ctx, {
-            organizationId: args.organizationId,
-            taskId,
-            description,
-            mentions,
-            ...eventActor(args.actorId),
           });
         }
       }
@@ -1251,34 +1239,12 @@ export const ensureTaskThread = internalMutation({
 // Sweeps (workflow `task.sweep` operations)
 // ---------------------------------------------------------------------------
 
-/**
- * Memoized per-app install check for the sweeps (one fetch per app slug per
- * sweep). App-owned tasks are normally driven by their app's own workflow and so
- * are skipped by the generic sweeps; but once the app is UNINSTALLED nothing
- * drives them, so they must fall through to the sweeps like any other task — no
- * app-owned task outlives its app with no driver and no sweep (I10).
- */
-function makeAutomationInstalledCache(
-  ctx: MutationCtx,
-  organizationId: string,
-): (automationSlug: string) => Promise<boolean> {
-  const cache = new Map<string, boolean>();
-  return async (automationSlug: string): Promise<boolean> => {
-    const cached = cache.get(automationSlug);
-    if (cached !== undefined) return cached;
-    const row = await ctx.db
-      .query('automationInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', organizationId)
-          .eq('automationSlug', automationSlug),
-      )
-      .first();
-    const installed = row !== null;
-    cache.set(automationSlug, installed);
-    return installed;
-  };
-}
+// App-owned tasks used to be skipped by the generic sweeps while their app's
+// `automationInstallations` row existed (the app's own workflow drove them).
+// The 0.4 baseline reset dropped that install bookkeeping, so every task —
+// app-created or not — falls through to the sweeps, exactly the retired
+// check's "app uninstalled" branch (no app-owned task is left with no driver
+// and no sweep, I10).
 
 /**
  * Stale-work sweep: agent-assigned tasks sitting in `in_progress` with no
@@ -1303,10 +1269,6 @@ export const sweepStaleTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
     const cutoff = Date.now() - args.staleAfterHours * 60 * 60 * 1000;
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
     const stale: Array<{
       taskId: Id<'tasks'>;
       title: string;
@@ -1320,15 +1282,6 @@ export const sweepStaleTasks = internalMutation({
       )) {
       if (task.archivedAt) continue;
       if (task.assigneeType !== 'agent') continue;
-      // App-owned tasks are driven by their app's own workflow — skip them while
-      // the app is still installed; sweep them once it has been uninstalled (I10).
-      if (
-        task.createdByType === 'app' &&
-        task.createdBy &&
-        (await isAutomationInstalled(task.createdBy))
-      ) {
-        continue;
-      }
       const lastMovement = task.statusChangedAt ?? task.updatedAt;
       if (lastMovement >= cutoff) continue;
       stale.push({
@@ -1392,10 +1345,6 @@ export const sweepDueSoonTasks = internalMutation({
     const now = Date.now();
     const windowEnd = now + args.windowHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
 
     const rows: Array<{
       taskId: Id<'tasks'>;
@@ -1415,13 +1364,6 @@ export const sweepDueSoonTasks = internalMutation({
           .lte('dueDate', windowEnd),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
-      if (
-        task.createdByType === 'app' &&
-        task.createdBy &&
-        (await isAutomationInstalled(task.createdBy))
-      ) {
-        continue;
-      }
       if ((task.slaLevel ?? 0) >= 1) continue;
       if (task.dueDate === undefined) continue;
       await ctx.db.patch(task._id, { slaLevel: 1, slaLevelAt: now });
@@ -1463,10 +1405,6 @@ export const sweepOverdueLadder = internalMutation({
     const managerMs = args.managerEscalationHours * 60 * 60 * 1000;
     const adminMs = args.adminEscalationHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
 
     const rows: Array<{
       taskId: Id<'tasks'>;
@@ -1487,13 +1425,6 @@ export const sweepOverdueLadder = internalMutation({
           .lte('dueDate', now),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
-      if (
-        task.createdByType === 'app' &&
-        task.createdBy &&
-        (await isAutomationInstalled(task.createdBy))
-      ) {
-        continue;
-      }
       if (task.dueDate === undefined) continue;
       const overdueMs = now - task.dueDate;
       const targetLevel =
@@ -1533,10 +1464,6 @@ export const sweepArchivableTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = clampSweepLimit(args.limit);
     const cutoff = Date.now() - args.olderThanDays * 24 * 60 * 60 * 1000;
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
     const rows: Array<{ taskId: Id<'tasks'>; title: string }> = [];
     for (const status of ['done', 'cancelled'] as const) {
       for await (const task of ctx.db
@@ -1545,13 +1472,6 @@ export const sweepArchivableTasks = internalMutation({
           q.eq('organizationId', args.organizationId).eq('status', status),
         )) {
         if (task.archivedAt) continue;
-        if (
-          task.createdByType === 'app' &&
-          task.createdBy &&
-          (await isAutomationInstalled(task.createdBy))
-        ) {
-          continue;
-        }
         const closedAt =
           task.completedAt ?? task.statusChangedAt ?? task.updatedAt;
         if (closedAt >= cutoff) continue;

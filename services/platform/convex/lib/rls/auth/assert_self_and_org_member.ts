@@ -6,18 +6,18 @@ import type { AuthenticatedUser } from '../types';
 /**
  * Tale resources are scoped along three orthogonal axes — pick one when
  * adding a new table:
- *  - org-scoped (e.g. agentBindings, integrations): gate via
+ *  - org-scoped (e.g. integrationCredentials, integrations): gate via
  *    getOrganizationMember; every member with the right role can read.
  *  - team-scoped (e.g. team-bound documents): org membership + teamMember
  *    lookup, sharing opt-in via per-resource fields.
- *  - user-private (e.g. userPreferences, userMemories, threadMetadata):
- *    visibility belongs to the row owner only, not derivable from org role —
- *    use this helper. Mixing axes on one row is a compatibility minefield;
- *    model as two rows or two relations instead.
+ *  - user-private (e.g. userPreferences, threadMetadata): visibility belongs
+ *    to the row owner only, not derivable from org role — use this helper.
+ *    Mixing axes on one row is a compatibility minefield; model as two rows
+ *    or two relations instead.
  *
  * Assert the authenticated principal is the owner of a user-private resource
- * (e.g. userPreferences, userMemories) AND is a current member of the org
- * the resource is scoped to.
+ * (e.g. userPreferences) AND is a current member of the org the resource is
+ * scoped to.
  *
  * Composes two checks:
  *  1. self-only — `authUser.userId === targetUserId`

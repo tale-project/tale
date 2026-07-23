@@ -52,7 +52,7 @@ vi.mock('../file_metadata/helpers', () => ({
   deleteStorageWithMetadata: vi.fn(),
 }));
 
-vi.mock('../legacy/thread_cascade', () => ({
+vi.mock('../discussions/thread_cascade', () => ({
   cascadeDeleteThreadChildren: vi.fn(),
 }));
 
@@ -217,12 +217,6 @@ describe('retention mutations thread the right authorUserId (source-grep regress
     expect(body).toMatch(/authorUserId:\s*row\.userId/);
   });
 
-  it('deleteExpiredMemoryAuditRow cascades through subjectUserId', () => {
-    const body = bodyOf('deleteExpiredMemoryAuditRow');
-    expect(body).toMatch(/row\.subjectUserId/);
-    expect(body).toMatch(/authorUserId/);
-  });
-
   it('deleteExpiredChatFilterEvent cascades via parent thread userId', () => {
     const body = bodyOf('deleteExpiredChatFilterEvent');
     expect(body).toMatch(/authorUserId:\s*thread\?\.userId/);
@@ -269,12 +263,6 @@ describe('retention_cleanup action-layer pre-filters via custodian cascade (sour
   it('cleanupMessageFeedback pre-filters via row.userId', () => {
     const body = bodyOf('cleanupMessageFeedback');
     expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.userId\)/);
-  });
-
-  it('cleanupMemoryAudit pre-filters by subject/actor user holds', () => {
-    const body = bodyOf('cleanupMemoryAudit');
-    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.subjectUserId\)/);
-    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.actorUserId\)/);
   });
 
   it('cleanupWorkflowLogs pre-filters via execution.userId', () => {

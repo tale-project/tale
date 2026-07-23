@@ -33,10 +33,8 @@ function detectRetentionShortening(
     ['chatFilterEventsRetentionDays', 'chat filter events'],
     ['promptTemplatesRetentionDays', 'prompt templates'],
     ['messageFeedbackRetentionDays', 'message feedback'],
-    ['memoryAuditRetentionDays', 'memory audit'],
     ['contactsRetentionDays', 'contacts'],
     ['externalConversationsRetentionDays', 'external conversations'],
-    ['messageMetadataRetentionDays', 'message metadata'],
     ['deletionGraceDays', 'deletion grace'],
   ];
   const reduced: string[] = [];

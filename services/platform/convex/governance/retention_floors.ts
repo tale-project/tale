@@ -224,8 +224,8 @@ function applyEnvTighteningWithMap(
 /**
  * Snapshot of every category's effective bounds, given the loaded file
  * content. Convenience wrapper over `applyEnvTightening` for the
- * editor's "show all 16 rows" view. Builds the path→env map once and
- * reuses it across categories.
+ * editor's "show every category row" view. Builds the path→env map once
+ * and reuses it across categories.
  */
 export function applyEnvTighteningAll(
   orgConfig: RetentionDefaultsConfig | null,
@@ -357,10 +357,8 @@ const CONFIG_FIELD_TO_CATEGORY: Record<string, RetentionCategory> = {
   chatFilterEventsRetentionDays: 'chatFilterEvents',
   promptTemplatesRetentionDays: 'promptTemplates',
   messageFeedbackRetentionDays: 'messageFeedback',
-  memoryAuditRetentionDays: 'memoryAudit',
   contactsRetentionDays: 'contacts',
   externalConversationsRetentionDays: 'externalConversations',
-  messageMetadataRetentionDays: 'messageMetadata',
   notificationsRetentionDays: 'notifications',
 };
 

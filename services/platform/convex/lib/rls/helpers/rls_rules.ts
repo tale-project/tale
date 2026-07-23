@@ -48,11 +48,11 @@ export async function rlsRules(
   );
 
   // Team IDs cost a cross-component Better Auth round-trip, but only the
-  // handful of team-scoped tables below (agentBindings, documents,
-  // promptTemplates, promptCategories) ever consult them. The vast majority of
-  // wrapped queries touch none of those tables, so resolving teams eagerly here
-  // burned a round-trip per query for nothing. Resolve them lazily and memoize:
-  // the cost is paid once, only when a team-scoped row policy actually runs.
+  // handful of team-scoped tables below (documents, promptTemplates,
+  // promptCategories) ever consult them. The vast majority of wrapped queries
+  // touch none of those tables, so resolving teams eagerly here burned a
+  // round-trip per query for nothing. Resolve them lazily and memoize: the
+  // cost is paid once, only when a team-scoped row policy actually runs.
   let teamIdsPromise: Promise<Set<string>> | undefined;
   const resolveTeamIds = (): Promise<Set<string>> => {
     if (prefetchedData?.userTeamIds) {
@@ -128,36 +128,6 @@ export async function rlsRules(
   };
 
   return {
-    // Agents - organization-scoped with team-based access control
-    agentBindings: {
-      read: async (_, agent) => {
-        if (!user) return false;
-        if (!userOrgIds.has(agent.organizationId)) return false;
-        if (!hasTeamAccess(agent, await resolveTeamIds())) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === agent.organizationId,
-        );
-        return authorizeRls(membership?.role, 'agentBindings', 'read');
-      },
-      modify: async (_, agent) => {
-        if (!user) return false;
-        if (!userOrgIds.has(agent.organizationId)) return false;
-        if (!hasTeamAccess(agent, await resolveTeamIds())) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === agent.organizationId,
-        );
-        return authorizeRls(membership?.role, 'agentBindings', 'write');
-      },
-      insert: async ({ user: ruleUser }, agent) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(agent.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === agent.organizationId,
-        );
-        return authorizeRls(membership?.role, 'agentBindings', 'write');
-      },
-    },
-
     // Documents - organization-scoped with team-based access control.
     // Project-scoped documents (projectId set) are denied outright: they are
     // not Knowledge Hub rows, and their read/edit paths go through the

@@ -1,25 +1,5 @@
 import { defineTable } from 'convex/server';
-import { v, type VOptional } from 'convex/values';
-
-import { integrationCredentialsTable as retiredIntegrationCredentialsTable } from '../legacy/schema';
-
-/**
- * Every retired column, re-declared as optional. Taken from the retired
- * table's own validator rather than re-typed, so the transitional shape below
- * cannot drift from the rows it has to admit.
- */
-type RetiredColumns =
-  typeof retiredIntegrationCredentialsTable.validator.fields;
-
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.fromEntries widens to Record<string, …>; this restores the per-column types the mapping preserves at runtime
-const retiredColumnsAsOptional = Object.fromEntries(
-  Object.entries(retiredIntegrationCredentialsTable.validator.fields).map(
-    ([name, field]) => [
-      name,
-      field.isOptional === 'optional' ? field : v.optional(field),
-    ],
-  ),
-) as { [K in keyof RetiredColumns]: VOptional<RetiredColumns[K]> };
+import { v } from 'convex/values';
 
 /**
  * Integration credentials — org-owned, MULTIPLE per connector. A row pairs one
@@ -77,7 +57,7 @@ export const integrationCredentialStatusValidator = v.union(
   v.literal('needs-reauth'),
 );
 
-const rebuiltFields = {
+export const integrationCredentialsTable = defineTable({
   organizationId: v.string(),
   /** Connector name — the `integrations/<slug>/` directory, which is also the
    * `<connector>` half of the engine node type `<connector>.<action>`. */
@@ -121,57 +101,6 @@ const rebuiltFields = {
   createdBy: v.string(),
   createdAt: v.number(),
   updatedAt: v.number(),
-};
-
-/**
- * The table admits the rebuilt shape AND every retired column, because during
- * an upgrade both genuinely exist: Convex validates every stored document when
- * a schema is pushed, and that push necessarily happens BEFORE the re-key
- * migration can run. A table declaring only the rebuilt shape would refuse to
- * deploy onto any organization still holding retired rows — the deployment
- * would fail before the migration that fixes it could ever execute.
- *
- * Everything except the organization column is therefore optional for now.
- * That is deliberately weaker than the shape the code works with: the write
- * paths (`mutations.ts`, `actions.ts`) validate their arguments strictly, so
- * nothing new is ever stored half-formed, and readers narrow before touching a
- * rebuilt field because a row genuinely may still be retired.
- *
- * The retired columns are derived from their own declaration rather than
- * re-typed here, so this cannot drift from the rows it must admit. They — and
- * this transitional optionality — come out once the re-key migration has
- * drained every organization the upgrade path supports, at which point the
- * rebuilt fields tighten back to required.
- */
-export const integrationCredentialsTable = defineTable({
-  ...retiredColumnsAsOptional,
-  ...rebuiltFields,
-  organizationId: v.string(),
-  connectorSlug: v.optional(v.string()),
-  authMethod: v.optional(
-    v.union(
-      integrationAuthMethodValidator,
-      // The retired underscored spellings, still present until the re-key runs.
-      v.literal('api_key'),
-      v.literal('bearer_token'),
-      v.literal('basic_auth'),
-    ),
-  ),
-  name: v.optional(v.string()),
-  encryptedData: v.optional(encryptedSecretValidator),
-  isDefault: v.optional(v.boolean()),
-  status: v.optional(
-    v.union(
-      integrationCredentialStatusValidator,
-      // The retired four-state spelling, still present until the re-key runs.
-      v.literal('inactive'),
-      v.literal('error'),
-      v.literal('testing'),
-    ),
-  ),
-  createdBy: v.optional(v.string()),
-  createdAt: v.optional(v.number()),
-  updatedAt: v.optional(v.number()),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_connector', ['organizationId', 'connectorSlug']);

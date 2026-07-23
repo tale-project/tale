@@ -27,9 +27,7 @@ import {
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
-import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -125,6 +123,8 @@ function shortDay(dateKey: string): string {
 }
 
 interface ProjectMetricsPageProps {
+  /** Kept in the contract for the rollup rebuild — the page currently has no
+   *  per-project data source to feed it to (see the component comment). */
   projectId: Id<'projects'>;
   periodDays: MetricsPeriodDays;
   onChangePeriod: (period: MetricsPeriodDays) => void;
@@ -141,13 +141,16 @@ interface ProjectMetricsPageProps {
  * period switcher, paired-KPI stat cards honoring the KPI pairing contract
  * with period-over-period deltas, and the task charts — cumulative flow,
  * created-vs-completed throughput, the cycle-time trend, agent-vs-human
- * completions, and daily spend. Reads only the per-project daily rollups; all
- * charts share the chart-theme tokens (theme-aware in dark mode).
- * Padding-agnostic like every metrics page — the host route owns the outer
- * container and any surrounding chrome (back link, picker).
+ * completions, and daily spend. Read from the per-project `taskMetricsDaily`
+ * rollups until the 0.4 baseline reset dropped that table; with no
+ * replacement rollup yet, the page renders its designed empty state
+ * permanently (zeroed stat cards, empty charts) so the layout is ready for
+ * the rollup rebuild to swap a data source back in. All charts share the
+ * chart-theme tokens (theme-aware in dark mode). Padding-agnostic like every
+ * metrics page — the host route owns the outer container and any surrounding
+ * chrome (back link, picker).
  */
 export function ProjectMetricsPage({
-  projectId,
   periodDays,
   onChangePeriod,
   as,
@@ -156,13 +159,11 @@ export function ProjectMetricsPage({
   const { t } = useT('tasks');
   const { formatCostCents } = useFormatNumber();
 
-  const { data, isLoading } = useConvexQuery(
-    api.legacy.task_metrics_queries.getProjectTaskMetrics,
-    { projectId, days: periodDays },
-  );
-  // The query returns v.any(); the shape is owned by getProjectTaskMetrics.
-  const daily: ProjectMetricsDay[] = data?.daily ?? [];
-  const previousDaily: ProjectMetricsDay[] = data?.previousDaily ?? [];
+  // No rollup source exists on 0.4 (see the component doc comment) — the
+  // honest fresh-deploy state is the empty series, never fabricated numbers.
+  const isLoading = false;
+  const daily: ProjectMetricsDay[] = [];
+  const previousDaily: ProjectMetricsDay[] = [];
 
   const totals = reduceTotals(daily);
   const prev = reduceTotals(previousDaily);

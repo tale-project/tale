@@ -213,10 +213,8 @@ export const upsertRetentionPolicyAction = action({
       ['chatFilterEvents', cfg?.chatFilterEventsRetentionDays],
       ['promptTemplates', cfg?.promptTemplatesRetentionDays],
       ['messageFeedback', cfg?.messageFeedbackRetentionDays],
-      ['memoryAudit', cfg?.memoryAuditRetentionDays],
       ['contacts', cfg?.contactsRetentionDays],
       ['externalConversations', cfg?.externalConversationsRetentionDays],
-      ['messageMetadata', cfg?.messageMetadataRetentionDays],
       ['notifications', cfg?.notificationsRetentionDays],
     ];
     for (const [cat, val] of checks) {

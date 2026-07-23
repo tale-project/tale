@@ -637,31 +637,6 @@ async function cleanupWorkflowLogs(
     );
     processed += 1;
   }
-
-  // Trigger logs cascade with executions and don't get their own grace
-  // window — keep the original single-pass age-based cleanup.
-  const expiredTriggerLogs = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredWorkflowTriggerLogs,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
-  for (const log of expiredTriggerLogs) {
-    // Action-layer preview is no longer reliable per-execution
-    // (custodian cascade requires the parent execution's `userId`,
-    // which we can read here but is mutation-side anyway). The
-    // mutation does the cascade re-check under TOCTOU. Skip preview
-    // to keep this loop simple — falling through to the mutation is
-    // safe.
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredWorkflowTriggerLog,
-      {
-        triggerLogId: log._id,
-        organizationId: org.organizationId,
-        cutoffMs,
-      },
-    );
-    processed += 1;
-  }
   return processed;
 }
 
@@ -969,96 +944,11 @@ async function cleanupMessageFeedback(
   return processed;
 }
 
-async function cleanupMemoryAudit(
-  ctx: ActionCtx,
-  org: OrgPolicy,
-  batchSize: number,
-  holds: ActiveHolds,
-): Promise<number> {
-  if (!org.config.memoryAuditEnabled) return 0;
-  const days = org.config.memoryAuditRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) {
-    console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping memory audit cleanup`,
-    );
-    return 0;
-  }
-  const cutoffMs = Date.now() - days * DAY_MS;
-  const graceDays = org.config.deletionGraceDays ?? 0;
-  let processed = 0;
-
-  if (graceDays > 0) {
-    const passA = await ctx.runQuery(
-      internal.governance.internal_queries.listExpiredMemoryAuditRows,
-      { organizationId: org.organizationId, cutoffMs, batchSize },
-    );
-    for (const row of passA) {
-      if (
-        holds.userMembershipIds.has(row.subjectUserId) ||
-        holds.userMembershipIds.has(row.actorUserId)
-      )
-        continue;
-      // Per-thread hold deprecated; cascade is via subject/actor user.
-      await ctx.runMutation(
-        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
-        {
-          resourceType: 'memoryAudit',
-          rowId: String(row._id),
-          organizationId: org.organizationId,
-          cutoffMs,
-          timestampField: 'createdAt',
-        },
-      );
-      processed += 1;
-    }
-  }
-
-  const expired =
-    graceDays > 0
-      ? await ctx.runQuery(
-          internal.governance.internal_queries.listGraceExpiredMemoryAuditRows,
-          {
-            organizationId: org.organizationId,
-            graceCutoffMs: Date.now() - graceDays * DAY_MS,
-            batchSize,
-          },
-        )
-      : await ctx.runQuery(
-          internal.governance.internal_queries.listExpiredMemoryAuditRows,
-          { organizationId: org.organizationId, cutoffMs, batchSize },
-        );
-  for (const row of expired) {
-    if (
-      holds.userMembershipIds.has(row.subjectUserId) ||
-      holds.userMembershipIds.has(row.actorUserId)
-    ) {
-      console.info(
-        `[RetentionCleanup] memoryAudit ${row._id} on user-custodian hold (subject=${row.subjectUserId} actor=${row.actorUserId}) — skipping`,
-      );
-      continue;
-    }
-    // Per-thread hold target type deprecated; subject/actor user cascade
-    // above is the only remaining gate beyond org-wide.
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredMemoryAuditRow,
-      {
-        rowId: row._id,
-        organizationId: org.organizationId,
-        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
-      },
-    );
-    processed += 1;
-  }
-  return processed;
-}
-
-// Phase 10 — PII tables. contacts / external conversations /
-// messageMetadata. Each follows the same simple retention shape: list
-// expired rows by `_creationTime < cutoff`, delete them. No cascade
-// (these tables don't own descendants except `conversations` which
-// cascades to `conversationMessages` via the dedicated mutation).
+// Phase 10 — PII tables. contacts / external conversations. Each
+// follows the same simple retention shape: list expired rows by
+// `_creationTime < cutoff`, delete them. No cascade (these tables
+// don't own descendants except `conversations` which cascades to
+// `conversationMessages` via the dedicated mutation).
 
 async function cleanupContacts(
   ctx: ActionCtx,
@@ -1193,48 +1083,6 @@ async function cleanupExternalConversations(
         organizationId: org.organizationId,
         cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
-    );
-    processed += 1;
-  }
-  return processed;
-}
-
-async function cleanupMessageMetadata(
-  ctx: ActionCtx,
-  org: OrgPolicy,
-  batchSize: number,
-  holds: ActiveHolds,
-): Promise<number> {
-  if (!org.config.messageMetadataEnabled) return 0;
-  const days = org.config.messageMetadataRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) {
-    console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping message metadata cleanup`,
-    );
-    return 0;
-  }
-  const cutoffMs = Date.now() - days * DAY_MS;
-  // Note: messageMetadata has no `organizationId` field today (Phase 10
-  // backfill is a follow-up). Until then, retention sweeps it via
-  // `_creationTime` only — but ONLY removes rows whose `threadId`
-  // resolves to a threadMetadata row in this org. The internal query
-  // does the join.
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredMessageMetadataForOrg,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
-  let processed = 0;
-  for (const row of expired) {
-    // Per-thread hold target type is deprecated. The mutation
-    // (`deleteExpiredMessageMetadata`) does the cascade re-check via
-    // a parent-thread lookup → user-membership hold; falling through
-    // to it is sufficient defence (and keeps this loop free of an
-    // extra index hit per row).
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredMessageMetadata,
-      { rowId: row._id, organizationId: org.organizationId },
     );
     processed += 1;
   }
@@ -1630,20 +1478,12 @@ export const runOrgRetentionCleanup = internalAction({
           run: () => cleanupMessageFeedback(ctx, org, batchSize, holds),
         },
         {
-          name: 'memoryAudit',
-          run: () => cleanupMemoryAudit(ctx, org, batchSize, holds),
-        },
-        {
           name: 'contacts',
           run: () => cleanupContacts(ctx, org, batchSize, holds),
         },
         {
           name: 'externalConversations',
           run: () => cleanupExternalConversations(ctx, org, batchSize, holds),
-        },
-        {
-          name: 'messageMetadata',
-          run: () => cleanupMessageMetadata(ctx, org, batchSize, holds),
         },
         {
           name: 'usageLedger',

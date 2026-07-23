@@ -6,7 +6,6 @@
  */
 
 type PlatformTable =
-  | 'agentBindings'
   | 'documents'
   | 'products'
   | 'projects'
@@ -59,7 +58,6 @@ const platformPermissions: Record<
   Partial<Record<PlatformTable, readonly PlatformAction[]>>
 > = {
   admin: {
-    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     projects: ALL,
@@ -89,7 +87,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   developer: {
-    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     projects: ALL,
@@ -117,7 +114,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   editor: {
-    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     projects: ALL,
@@ -145,7 +141,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   member: {
-    agentBindings: READ_ONLY,
     documents: READ_ONLY,
     products: READ_ONLY,
     projects: READ_ONLY,
@@ -177,7 +172,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   disabled: {
-    agentBindings: NONE,
     documents: NONE,
     products: NONE,
     projects: NONE,

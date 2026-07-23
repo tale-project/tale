@@ -538,31 +538,6 @@ export const listGraceExpiredWorkflowExecutions = internalQuery({
   },
 });
 
-export const listExpiredWorkflowTriggerLogs = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const logs = [];
-    for await (const log of ctx.db
-      .query('wfTriggerLogs')
-      .withIndex('by_org', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      if (log.receivedAt >= args.cutoffMs) continue;
-
-      logs.push(log);
-      if (logs.length >= args.batchSize) {
-        break;
-      }
-    }
-    return logs;
-  },
-});
-
 /**
  * Look up the active pending-shortening row for an org's retention
  * policy. Returns `null` when no pending row exists OR the pending row's
@@ -846,47 +821,6 @@ export const listGraceExpiredExternalConversations = internalQuery({
 });
 
 /**
- * Phase 10 — messageMetadata has no organizationId field today (the
- * proper backfill migration is a follow-up). Until then we walk the
- * rows by threadId join. The join is bounded by batchSize so we never
- * exceed the per-query scan limit.
- */
-export const listExpiredMessageMetadataForOrg = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    // Build a small set of threadIds owned by this org so we can filter
-    // messageMetadata rows. Bounded by batchSize × 4 to stay well under
-    // the per-query scan limit while still catching enough orphans.
-    const orgThreadIds = new Set<string>();
-    let scanned = 0;
-    for await (const t of ctx.db
-      .query('threadMetadata')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      orgThreadIds.add(t.threadId);
-      scanned++;
-      if (scanned >= args.batchSize * 4) break;
-    }
-    const rows = [];
-    // Now walk messageMetadata; until backfill, this iterates all rows.
-    // We stop after a single batch to keep latency bounded.
-    for await (const row of ctx.db.query('messageMetadata')) {
-      if (row._creationTime >= args.cutoffMs) continue;
-      if (!orgThreadIds.has(row.threadId)) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-/**
  * Round-2 V6 P0-17 — list notifications past the org's retention
  * cutoff. Walks the `by_org_created` index range, no per-row hold
  * cascade (notifications are admin telemetry, not user-attributed
@@ -908,56 +842,6 @@ export const listExpiredNotifications = internalQuery({
           .eq('organizationId', args.organizationId)
           .lt('createdAt', args.cutoffMs),
       )) {
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listExpiredMemoryAuditRows = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('userMemoryAuditLog')
-      .withIndex('by_org_at', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .lt('createdAt', args.cutoffMs),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'active') continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listGraceExpiredMemoryAuditRows = internalQuery({
-  args: {
-    organizationId: v.string(),
-    graceCutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('userMemoryAuditLog')
-      .withIndex('by_org_lifecycleStatus', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'trashed' && status !== 'expired') continue;
-      const ts = row.statusChangedAt ?? Date.now();
-      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }

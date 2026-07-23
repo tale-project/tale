@@ -7,11 +7,11 @@
  * tool can open discussions, post replies, resolve/lock them, and spawn tasks —
  * exactly mirroring the `agent*` task mutations in `tasks/internal_mutations.ts`.
  *
- * Posting a reply that @mentions another agent emits `discussion.mentioned`,
- * which the `react-to-discussion-mention` workflow turns into that agent's
- * reply — the same event-driven routing task comments use — with a direct
- * fallback dispatch when no such automation is live (`mention_dispatch.ts`,
- * #2637). The `agentReplyDepth` loop guard bounds runaway agent→agent chatter
+ * Posting a reply that @mentions another agent emits `discussion.mentioned` —
+ * the same event-driven routing task comments use. The event seam is the
+ * single dispatch route (the old workflow-engine direct-dispatch fallback
+ * died with its tables) and is a logged no-op until the automations rewrite
+ * lands. The `agentReplyDepth` loop guard bounds runaway agent→agent chatter
  * (reset by any human reply in the user-facing `postReply`).
  */
 
@@ -33,7 +33,6 @@ import { notifyDiscussionMentions } from '../collab/notify';
 import { emitEvent } from '../events/emit';
 import { buildMentionDirectory } from '../tasks/directory';
 import { extractMentions, type ResolvedMention } from '../tasks/mentions';
-import { dispatchAgentMentionRuns } from './mention_dispatch';
 
 /** Actor attribution for emitted events (agent slug, or the `workflow` sentinel). */
 function eventActor(actorId: string): {
@@ -125,16 +124,6 @@ async function emitMentionedEvent(
       mentions: args.mentions,
       ...actor,
     },
-  });
-  // Core fallback: when no discussion-mention automation is live (fresh org
-  // mid-provision — the SEEDED starter discussion posts seconds after org
-  // creation — or a pack-less catalog), schedule the runs directly (#2637).
-  await dispatchAgentMentionRuns(ctx, {
-    organizationId: args.organizationId,
-    threadId: args.threadId,
-    mentions: args.mentions,
-    actorType: actor.actorType,
-    actorId: actor.actorId,
   });
 }
 

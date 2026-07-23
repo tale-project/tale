@@ -28,9 +28,9 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
+import { cascadeDeleteThreadChildren } from '../discussions/thread_cascade';
 import { emitEvent } from '../events/emit';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
-import { cascadeDeleteThreadChildren } from '../legacy/thread_cascade';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
   checkUserRateLimit,
@@ -74,7 +74,6 @@ import {
   TERMINAL_STATUSES,
 } from './helpers';
 import { postTaskDiscussionMessage } from './internal_mutations';
-import { dispatchAgentTaskMentionRuns } from './mention_dispatch';
 import {
   addedMentions,
   extractMentions,
@@ -220,10 +219,10 @@ function validateLabels(labels: string[] | undefined): string[] | undefined {
 /**
  * Fan-out for `@mentions` in a task DESCRIPTION — the description-side mirror
  * of the comment mention pipeline: subscribe + notify mentioned humans
- * (`notifyTaskMentions`), emit `task.mentioned` so the mention-response
- * automation can put mentioned agents to work, then `dispatchAgentTaskMentionRuns`
- * schedules the same runs directly when no such automation is live for this
- * org (fresh org, pack-less catalog — events are never replayed). Callers
+ * (`notifyTaskMentions`), then emit `task.mentioned` so the mention-response
+ * automation can put mentioned agents to work once the automations rewrite
+ * lands (the event seam is the single dispatch route; the old
+ * workflow-engine direct-dispatch fallback died with its tables). Callers
  * pass only the mentions the write NEWLY introduced (see `addedMentions`).
  */
 async function fanOutDescriptionMentions(
@@ -251,17 +250,6 @@ async function fanOutDescriptionMentions(
       actorType: 'user',
       actorId: args.actorId,
     },
-  });
-  // Core fallback: when no task-mention automation is live (fresh org
-  // mid-provision, pack-less catalog), schedule the runs directly so an
-  // @mention in a task description always reaches the agent (#2637 sibling).
-  await dispatchAgentTaskMentionRuns(ctx, {
-    organizationId: args.task.organizationId,
-    taskId: args.task._id,
-    description: args.task.description,
-    mentions: args.mentions,
-    actorType: 'user',
-    actorId: args.actorId,
   });
 }
 

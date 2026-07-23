@@ -25,8 +25,11 @@ export const Route = createFileRoute(
   component: ProjectMetricsRoute,
 });
 
-// Access mirrors the tasks route: no client-side ability gate — the backing
-// query (getProjectTaskMetrics) enforces project read access server-side.
+// Access mirrors the tasks route: no client-side ability gate. The page
+// currently renders only its empty state (its rollup query died with the
+// `taskMetricsDaily` table in the 0.4 baseline reset — no org data is read),
+// and the rebuilt rollup query must enforce project read access server-side
+// exactly as `getProjectTaskMetrics` did.
 function ProjectMetricsRoute() {
   const { id: organizationId, projectId } = Route.useParams();
   const { period } = Route.useSearch();

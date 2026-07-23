@@ -1,9 +1,9 @@
 import { z } from 'zod/v4';
 
 /**
- * Canonical 16-category list. Source of truth for retention category
- * identifiers. Both `retention_floors.ts` (structural metadata + env
- * resolver) and the JSON config schema below import from here.
+ * Canonical retention-category list. Source of truth for retention
+ * category identifiers. Both `retention_floors.ts` (structural metadata
+ * + env resolver) and the JSON config schema below import from here.
  */
 export const RETENTION_CATEGORIES = [
   'documents',
@@ -17,10 +17,8 @@ export const RETENTION_CATEGORIES = [
   'chatFilterEvents',
   'promptTemplates',
   'messageFeedback',
-  'memoryAudit',
   'contacts',
   'externalConversations',
-  'messageMetadata',
   // Round-2 V6 P0-17: in-app notifications (security alerts, lockout
   // notices, system messages) carry peppered email + IP in `params`.
   // Without retention they accumulate indefinitely AND survive

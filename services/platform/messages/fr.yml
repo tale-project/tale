@@ -2978,10 +2978,6 @@ governance:
       description: Pouces/commentaires laissés sur les messages d'agent. Les
         commentaires en texte libre peuvent contenir du contenu utilisateur
         cité.
-    memoryAudit:
-      title: Journal d'audit des mémoires
-      description: Journal des modifications des mémoires de personnalisation
-        (proposées, approuvées, modifiées, ignorées, supprimées).
     contacts:
       title: Contacts
       description: 'Fiches CRM par organisation : nom, email, adresse, locale, métadonnées.'
@@ -2990,11 +2986,6 @@ governance:
       description:
         Boîte de réception de canal contact de haut niveau (intégrations
         email/chat). Cascade vers les corps de messages.
-    messageMetadata:
-      title: Métadonnées de messages
-      description:
-        Raisonnement par message, fenêtre de contexte de prompt complète,
-        E/S d'outils. Données dérivées à fort PII.
     chatFilterEvents:
       title: Événements chat-filter
       description:
@@ -3047,9 +3038,8 @@ governance:
     workflowLogs:
       title: Journaux d'exécution de workflow
       description: Supprime automatiquement les enregistrements d'exécution de
-        workflow et les journaux de déclenchement plus anciens que la période de
-        rétention. Inclut les blobs de stockage de variables/sorties par
-        exécution.
+        workflow plus anciens que la période de rétention. Inclut les blobs de
+        stockage de variables/sorties par exécution.
       placeholder: ex. 30
       helper:
         Les exécutions de workflow plus anciennes seront supprimées (1 à 365

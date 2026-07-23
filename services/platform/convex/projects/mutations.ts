@@ -1315,33 +1315,11 @@ export const deleteProject = mutation({
     assertReadable(project, auth);
     assertAdmin(auth);
 
-    // A project-scoped app bound here would be orphaned (its tasks/runs + nav
-    // entry point reference this project). Block the delete and name the app(s)
-    // so the operator removes the app from this project first. automationProjectBindings
-    // has no delete cascade, so this must be an explicit guard.
-    const boundAutomationNames: string[] = [];
-    const seenAutomationSlugs = new Set<string>();
-    for await (const binding of ctx.db
-      .query('automationProjectBindings')
-      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
-      if (seenAutomationSlugs.has(binding.automationSlug)) continue;
-      seenAutomationSlugs.add(binding.automationSlug);
-      const org = await ctx.db
-        .query('automationInstallations')
-        .withIndex('by_org_slug', (q) =>
-          q
-            .eq('organizationId', binding.organizationId)
-            .eq('automationSlug', binding.automationSlug),
-        )
-        .first();
-      boundAutomationNames.push(org?.automationName ?? binding.automationSlug);
-    }
-    if (boundAutomationNames.length > 0) {
-      throw new ConvexError({
-        code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
-        automations: boundAutomationNames,
-      });
-    }
+    // The PROJECT_HAS_BOUND_AUTOMATIONS guard lived here: it blocked the
+    // delete while `automationProjectBindings` rows referenced this project.
+    // The 0.4 baseline reset dropped that app-install bookkeeping (those
+    // tables can never hold a row again), so the guard is gone; a rebuilt
+    // app-install model must bring its own project-deletion guard.
 
     if (args.mode === 'cascade') {
       // H1: case-insensitive compare so "Q2 Sales" vs stored "Q2 sales"

@@ -139,26 +139,6 @@ async function seedCredential(
   );
 }
 
-/**
- * Insert a row still in the retired shape — what a deployment holds until the
- * re-key migration carries it over. Nothing in the live domain ever writes
- * one; the tests below assert it stays invisible to every path.
- */
-async function seedRetiredRow(
-  t: T,
-  organizationId: string,
-): Promise<Id<'integrationCredentials'>> {
-  return await t.run(async (ctx) =>
-    ctx.db.insert('integrationCredentials', {
-      organizationId,
-      slug: 'github',
-      status: 'active',
-      isActive: true,
-      authMethod: 'api_key',
-    }),
-  );
-}
-
 describe('listCredentials', () => {
   it('projects masked rows only — no encryptedData key anywhere — sorted connector-then-name', async () => {
     const t = newWorld();
@@ -284,49 +264,6 @@ describe('listCredentials', () => {
           organizationId: ORG,
         }),
     ).rejects.toThrowError(/Not a member/);
-  });
-});
-
-describe('rows the re-key migration has not carried over', () => {
-  it('are invisible to every read — not listed, not gettable, not resolvable', async () => {
-    const t = newWorld();
-    await seedMember(t, MEMBER, ORG);
-    const mine = await seedCredential(t, {
-      connectorSlug: 'github',
-      authMethod: 'bearer',
-      name: 'Carried over',
-    });
-    // The table still admits the retired shape until the migration drains it;
-    // its secret sits in the retired envelope, which nothing here can open.
-    const retiredId = await seedRetiredRow(t, ORG);
-
-    const rows = await t
-      .withIdentity({ subject: MEMBER })
-      .query(api.integration_credentials.queries.listCredentials, {
-        organizationId: ORG,
-      });
-    expect(rows.map((row) => row.id)).toEqual([mine]);
-
-    expect(
-      await catchCode(() =>
-        t
-          .withIdentity({ subject: MEMBER })
-          .query(api.integration_credentials.queries.getCredential, {
-            organizationId: ORG,
-            credentialId: retiredId,
-          }),
-      ),
-    ).toBe('CREDENTIAL_NOT_FOUND');
-
-    const resolved = await t.query(
-      internal.integration_credentials.queries.resolveCredentialRefInternal,
-      {
-        organizationId: ORG,
-        connectorSlug: 'github',
-        credentialRef: retiredId,
-      },
-    );
-    expect(resolved).toBeNull();
   });
 });
 

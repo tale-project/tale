@@ -46,10 +46,6 @@ export const supportCaseRowValidator = v.object({
   assigneeType: v.optional(supportCaseActorTypeValidator),
   assigneeId: v.optional(v.string()),
   contactId: v.optional(v.id('contacts')),
-  // Deprecated pre-#2618 link (expand-contract): getCase/listCases return the
-  // raw doc, which still carries customerId until the contract-phase clear, so
-  // the row validator must tolerate it or the query throws ReturnsValidationError.
-  customerId: v.optional(v.string()),
   requesterEmail: v.optional(v.string()),
   requesterName: v.optional(v.string()),
   slaDueAt: v.optional(v.number()),

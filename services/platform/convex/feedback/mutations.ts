@@ -5,8 +5,6 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { OrganizationMismatchError } from '../lib/rls/errors';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
-const ARENA_MESSAGE_ID_PREFIX = 'arena:';
-
 export const submitFeedback = mutation({
   args: {
     organizationId: v.string(),
@@ -45,27 +43,6 @@ export const submitFeedback = mutation({
       throw new OrganizationMismatchError();
     }
 
-    // Server-side attribution capture: read the source message's metadata
-    // (model / provider / agentSlug) and copy into the feedback row. We do
-    // not trust client-supplied attribution. Arena rows skip the lookup —
-    // their messageId is synthetic, and arena attribution lives in
-    // metadata.modelA/modelB which the client supplies and we do not bind
-    // to an agent.
-    let agentSlug: string | undefined;
-    let model: string | undefined;
-    let provider: string | undefined;
-    if (!args.messageId.startsWith(ARENA_MESSAGE_ID_PREFIX)) {
-      const msgMeta = await ctx.db
-        .query('messageMetadata')
-        .withIndex('by_messageId', (q) => q.eq('messageId', args.messageId))
-        .first();
-      if (msgMeta) {
-        agentSlug = msgMeta.agentSlug;
-        model = msgMeta.model || undefined;
-        provider = msgMeta.provider || undefined;
-      }
-    }
-
     const userId = authUser.userId;
 
     const existing = await ctx.db
@@ -80,9 +57,6 @@ export const submitFeedback = mutation({
         rating: args.rating,
         comment: args.comment,
         metadata: args.metadata,
-        agentSlug: agentSlug ?? existing.agentSlug,
-        model: model ?? existing.model,
-        provider: provider ?? existing.provider,
       });
       return existing._id;
     }
@@ -95,9 +69,6 @@ export const submitFeedback = mutation({
       rating: args.rating,
       comment: args.comment,
       metadata: args.metadata,
-      agentSlug,
-      model,
-      provider,
       createdAt: Date.now(),
     });
   },

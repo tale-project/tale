@@ -190,14 +190,8 @@ export async function transformConversation(
 
   // Base result conforming to ConversationItem type
   // Cast needed: Doc<'conversations'> has branded Id<> types while ConversationItem expects plain strings.
-  // `customerId` is a deprecated, storage-only field (issue #2618,
-  // expand-contract) retained so existing rows validate on read — strip it here
-  // so it never leaks into the ConversationItem API shape, which is keyed on
-  // `contactId` (the returns validator has no `customerId`).
-  const { customerId: _deprecatedCustomerId, ...conversationFields } =
-    conversation;
   const result = {
-    ...conversationFields,
+    ...conversation,
     id: conversation._id,
     title: conversation.subject || 'Untitled Conversation',
     description:

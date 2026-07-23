@@ -16,7 +16,6 @@ import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import type { AuthenticatedUser } from '../lib/rls/types';
-import { dispatchAgentMentionRuns } from './mention_dispatch';
 
 const mentionResultValidator = v.object({
   mentionCount: v.number(),
@@ -32,14 +31,13 @@ const mentionResultValidator = v.object({
  * body (mirrors the GitHub-Discussions "bring an agent in" model).
  *
  * Agent replies are EVENT-DRIVEN, not inline-streamed: posting a message that
- * @mentions one or more agents emits a `discussion.mentioned` event, which the
- * `react-to-discussion-mention` workflow turns into a `run_on_discussion`
- * run PER mentioned agent — so several agents can join one discussion off a
- * single human post (a board, not a 1:1 chat). When no such automation is live
- * yet (fresh org mid-provision, pack-less catalog), the write path schedules
- * the runs directly instead (`mention_dispatch.ts`, #2637) — the mention
- * always produces a run either way. This is the exact same routing agents
- * themselves use (`discussions/internal_mutations.ts`), so human- and
+ * @mentions one or more agents emits a `discussion.mentioned` event, which
+ * the automations rewrite will turn into one agent run PER mentioned agent —
+ * so several agents can join one discussion off a single human post (a
+ * board, not a 1:1 chat). The event seam is the single dispatch route (the
+ * old workflow-engine direct-dispatch fallback died with its tables), and it
+ * is a logged no-op until that rewrite lands. This is the exact same routing
+ * agents themselves use (`discussions/internal_mutations.ts`), so human- and
  * agent-authored mentions behave identically; runaway agent→agent chains are
  * bounded by the `agentReplyDepth` loop guard (reset to 0 by any human reply).
  */
@@ -122,16 +120,6 @@ async function handleDiscussionMentions(
       actorType: args.actorType,
       actorId: args.actorId,
     },
-  });
-  // Core fallback: when no discussion-mention automation is live (fresh org
-  // mid-provision, pack-less catalog), schedule the runs directly so the
-  // composer's "@mention an agent to ask it to respond" always holds (#2637).
-  await dispatchAgentMentionRuns(ctx, {
-    organizationId: args.organizationId,
-    threadId: args.threadId,
-    mentions,
-    actorType: args.actorType,
-    actorId: args.actorId,
   });
   return { mentionCount: agentMentions.length, unresolvedMentionTokens };
 }

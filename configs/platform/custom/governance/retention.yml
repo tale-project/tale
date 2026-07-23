@@ -34,18 +34,12 @@ _metadata:
     FEEDBACK_MIN: messageFeedback.min
     FEEDBACK_MAX: messageFeedback.max
     FEEDBACK_DEFAULT: messageFeedback.default
-    MEMORY_AUDIT_MIN: memoryAudit.min
-    MEMORY_AUDIT_MAX: memoryAudit.max
-    MEMORY_AUDIT_DEFAULT: memoryAudit.default
     CONTACTS_MIN: contacts.min
     CONTACTS_MAX: contacts.max
     CONTACTS_DEFAULT: contacts.default
     INBOX_MIN: externalConversations.min
     INBOX_MAX: externalConversations.max
     INBOX_DEFAULT: externalConversations.default
-    MSG_META_MIN: messageMetadata.min
-    MSG_META_MAX: messageMetadata.max
-    MSG_META_DEFAULT: messageMetadata.default
     NOTIFICATIONS_MIN: notifications.min
     NOTIFICATIONS_MAX: notifications.max
     NOTIFICATIONS_DEFAULT: notifications.default
@@ -107,11 +101,6 @@ messageFeedback:
   max: 3650
   default: 365
   unit: days
-memoryAudit:
-  min: 30
-  max: 3650
-  default: 365
-  unit: days
 contacts:
   min: 30
   max: 3650
@@ -121,11 +110,6 @@ externalConversations:
   min: 30
   max: 3650
   default: 730
-  unit: days
-messageMetadata:
-  min: 30
-  max: 3650
-  default: 365
   unit: days
 notifications:
   min: 1

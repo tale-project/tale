@@ -476,11 +476,11 @@ describe('recordAgentRunRefused — admission refusals reach the activity feed',
   });
 });
 
-// #2637 sibling: `task.mentioned` had no direct-dispatch fallback (unlike
-// `discussions/mention_dispatch.ts`), so an @mention in an agent-created
-// task's description was dropped forever on a fresh org (no
-// `react-to-task-mention` pack installed yet — the event is never replayed).
-describe('agentCreateTask — description mention fallback (#2637)', () => {
+// Agent-run dispatch for description @mentions goes through the
+// `task.mentioned` event seam alone (a logged no-op until the automations
+// rewrite lands); the old workflow-engine direct-dispatch fallback died with
+// its tables in the 0.4 baseline reset.
+describe('agentCreateTask — description mentions', () => {
   async function scheduledAgentRuns(t: T) {
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query('_scheduled_functions').collect(),
@@ -488,7 +488,7 @@ describe('agentCreateTask — description mention fallback (#2637)', () => {
     return scheduled.filter((job) => job.name.includes('runAgentOnTask'));
   }
 
-  it('creates the task but schedules no runAgentOnTask for the @mention — direct dispatch is offline', async () => {
+  it('creates the task and schedules no agent run for the @mention — dispatch is event-seam-only', async () => {
     const t = convexTest(schema, modules);
     const projectId = await seedProject(t, 'Ops');
 
@@ -503,57 +503,9 @@ describe('agentCreateTask — description mention fallback (#2637)', () => {
       },
     );
 
-    // The task itself still materializes normally — only the mention's agent
-    // dispatch is offline.
+    // The task itself still materializes normally — the mention only feeds
+    // the (currently no-op) event seam, never a direct schedule.
     expect(await taskTitle(t, taskId)).toBe('Investigate outage');
-    expect(await scheduledAgentRuns(t)).toHaveLength(0);
-  });
-
-  it('does not dispatch when the task.mentioned pack is installed and active — the automation stays the single owner', async () => {
-    const t = convexTest(schema, modules);
-    const projectId = await seedProject(t, 'Ops');
-    const packSlug = 'projects/tasks/react-to-task-mention';
-    await t.run(async (ctx) => {
-      await ctx.db.insert('wfEventSubscriptions', {
-        organizationId: ORG,
-        workflowSlug: packSlug,
-        eventType: 'task.mentioned',
-        isActive: true,
-        createdAt: 0,
-        createdBy: 'system',
-      });
-      await ctx.db.insert('wfInstallations', {
-        organizationId: ORG,
-        workflowSlug: packSlug,
-        installedAt: 0,
-        installedBy: 'system',
-        contentHash: 'hash',
-      });
-    });
-
-    await t.mutation(internal.tasks.internal_mutations.agentCreateTask, {
-      organizationId: ORG,
-      actorId: 'triager',
-      projectId,
-      title: 'Investigate outage',
-      description: 'Needs a look — @assistant can you help?',
-    });
-
-    expect(await scheduledAgentRuns(t)).toHaveLength(0);
-  });
-
-  it('never dispatches for a workflow-authored create (loop-safety invariant iii)', async () => {
-    const t = convexTest(schema, modules);
-    const projectId = await seedProject(t, 'Ops');
-
-    await t.mutation(internal.tasks.internal_mutations.agentCreateTask, {
-      organizationId: ORG,
-      actorId: 'workflow',
-      projectId,
-      title: 'Engine-authored task',
-      description: 'Auto-filed — @assistant fyi',
-    });
-
     expect(await scheduledAgentRuns(t)).toHaveLength(0);
   });
 });

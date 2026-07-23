@@ -15,10 +15,7 @@ import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
 import { isActiveDocument } from '../documents/_helpers';
-import {
-  buildPeriodKeyFromTimestamp,
-  readPolicyConfig,
-} from '../governance/helpers';
+import { readPolicyConfig } from '../governance/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
@@ -889,11 +886,16 @@ export const listTaskAgentRuns = query({
  * Mention trigger preview for the comment and description composers
  * (Multica-style): for each @-mentioned agent slug in the draft, whether
  * saving WILL put that agent to work — and if not, why (project gate,
- * automation kill switch, circuit breaker, exhausted budget, or a queue
- * wait). Read-only and cheap: one task + policy read plus two notice lookups
- * per slug (≤10). Pass `taskId` for an existing task, or `projectId` alone
- * for create mode (no task yet — the per-task breaker/queue checks are
- * skipped).
+ * automation kill switch, or circuit breaker). Read-only and cheap: one
+ * task + policy read for the whole slug set (≤10). Pass `taskId` for an
+ * existing task, or `projectId` alone for create mode (no task yet — the
+ * per-task breaker check is skipped).
+ *
+ * The `agent_not_live` / `budget_paused` / `queued_likely` reasons stay in
+ * the return union for shape stability, but are never produced any more:
+ * they were read from the `agentInstallations` / `agentGuardrailNotices`
+ * tables, which the 0.4 baseline reset dropped (agents now come from the
+ * file-based roster, and no guardrail bookkeeping exists yet).
  */
 export const mentionTriggerPreview = query({
   args: {
@@ -964,15 +966,6 @@ export const mentionTriggerPreview = query({
     );
     const packEnabled = automationRaw?.enabled !== false;
     const breakerPaused = task ? task.agentRunsPausedAt !== undefined : false;
-    const monthKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
-    const liveSlugs = new Set<string>();
-    for await (const row of ctx.db
-      .query('agentInstallations')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', organizationId),
-      )) {
-      if (row.enabled) liveSlugs.add(row.agentSlug);
-    }
 
     const rows: Array<{
       slug: string;
@@ -991,46 +984,12 @@ export const mentionTriggerPreview = query({
         rows.push({ slug, willTrigger: false, reason: 'not_mentionable' });
         continue;
       }
-      if (!liveSlugs.has(slug)) {
-        rows.push({ slug, willTrigger: false, reason: 'agent_not_live' });
-        continue;
-      }
       if (!packEnabled) {
         rows.push({ slug, willTrigger: false, reason: 'pack_disabled' });
         continue;
       }
       if (breakerPaused) {
         rows.push({ slug, willTrigger: false, reason: 'breaker_paused' });
-        continue;
-      }
-      const budgetNotice = await ctx.db
-        .query('agentGuardrailNotices')
-        .withIndex('by_org_agent_kind_period', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('agentSlug', slug)
-            .eq('kind', 'budget_paused')
-            .eq('periodKey', monthKey),
-        )
-        .first();
-      if (budgetNotice) {
-        rows.push({ slug, willTrigger: false, reason: 'budget_paused' });
-        continue;
-      }
-      const queuedNotice = task
-        ? await ctx.db
-            .query('agentGuardrailNotices')
-            .withIndex('by_org_agent_kind_period', (q) =>
-              q
-                .eq('organizationId', organizationId)
-                .eq('agentSlug', slug)
-                .eq('kind', 'concurrency_queued')
-                .eq('periodKey', String(task._id)),
-            )
-            .first()
-        : null;
-      if (queuedNotice && queuedNotice.resolvedAt === undefined) {
-        rows.push({ slug, willTrigger: true, reason: 'queued_likely' });
         continue;
       }
       rows.push({ slug, willTrigger: true, reason: 'ok' });

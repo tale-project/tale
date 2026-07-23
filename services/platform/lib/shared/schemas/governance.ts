@@ -351,14 +351,10 @@ export const retentionPolicyConfigSchema = z.object({
   promptTemplatesRetentionDays: z.number().int().nonnegative().optional(),
   messageFeedbackEnabled: z.boolean().optional(),
   messageFeedbackRetentionDays: z.number().int().nonnegative().optional(),
-  memoryAuditEnabled: z.boolean().optional(),
-  memoryAuditRetentionDays: z.number().int().nonnegative().optional(),
   contactsEnabled: z.boolean().optional(),
   contactsRetentionDays: z.number().int().nonnegative().optional(),
   externalConversationsEnabled: z.boolean().optional(),
   externalConversationsRetentionDays: z.number().int().nonnegative().optional(),
-  messageMetadataEnabled: z.boolean().optional(),
-  messageMetadataRetentionDays: z.number().int().nonnegative().optional(),
   /**
    * In-app notification retention. Notifications carry peppered email +
    * IP for security alerts (lockouts, etc.) and have no value past a

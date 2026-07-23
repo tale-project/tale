@@ -118,10 +118,8 @@ const POLICY_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
   chatFilterEvents: 'chatFilterEventsRetentionDays',
   promptTemplates: 'promptTemplatesRetentionDays',
   messageFeedback: 'messageFeedbackRetentionDays',
-  memoryAudit: 'memoryAuditRetentionDays',
   contacts: 'contactsRetentionDays',
   externalConversations: 'externalConversationsRetentionDays',
-  messageMetadata: 'messageMetadataRetentionDays',
   notifications: 'notificationsRetentionDays',
   agentRuns: 'agentRunsRetentionDays',
 };
@@ -138,10 +136,8 @@ const ENABLED_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
   chatFilterEvents: 'chatFilterEventsEnabled',
   promptTemplates: 'promptTemplatesEnabled',
   messageFeedback: 'messageFeedbackEnabled',
-  memoryAudit: 'memoryAuditEnabled',
   contacts: 'contactsEnabled',
   externalConversations: 'externalConversationsEnabled',
-  messageMetadata: 'messageMetadataEnabled',
   notifications: 'notificationsEnabled',
   agentRuns: 'agentRunsEnabled',
 };

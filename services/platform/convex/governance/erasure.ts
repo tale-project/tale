@@ -37,7 +37,7 @@
  *     `LEGAL_HOLD_BLOCKS_ERASURE` per Art 17(3)(e) preserve-for-claims.
  *
  * Out of scope (separate work-streams):
- *   - Subject-scope expansion to `userMemories`, `userPreferences`,
+ *   - Subject-scope expansion to `userPreferences`,
  *     `feedback`, `documents` / `fileMetadata` / `_storage`,
  *     `auditLogs` PII fields, BetterAuth tables, `loginAttempts` /
  *     `twoFactorAttempts`, `policyAcknowledgements`. The processor
@@ -62,11 +62,11 @@ import {
 } from '../_generated/server';
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
+import { cascadeDeleteThreadChildren } from '../discussions/thread_cascade';
 import type {
   DeleteDocumentArgs,
   DeleteDocumentResult,
 } from '../legacy/knowledge_delete';
-import { cascadeDeleteThreadChildren } from '../legacy/thread_cascade';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
@@ -727,7 +727,6 @@ const rowsAndHoldValidator = v.object({
 });
 
 const perCategoryValidator = v.object({
-  userMemories: rowsAndHoldValidator,
   userPreferences: rowsAndHoldValidator,
   messageFeedback: rowsAndHoldValidator,
   fileMetadata: v.object({
@@ -885,7 +884,7 @@ export const finalizeProcessing = internalMutation({
         documentsSkippedByHold > 0 ? documentsSkippedByHold : undefined,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
-      // Self-contained snapshot of all 13 categories' rows / skipped
+      // Self-contained snapshot of every category's rows / skipped
       // counts, written so the receipt is queryable without joining
       // the audit log. Audit log still carries the same payload via
       // `gdpr_erasure_executed.newState.perCategory` (redundant, but
@@ -1041,39 +1040,6 @@ async function countOrSkip<T>(
   for await (const _ of iter()) skippedByHold++;
   return { heldByOrgOrUser: true, skippedByHold };
 }
-
-export const eraseSubjectUserMemories = internalMutation({
-  args: { organizationId: v.string(), userId: v.string() },
-  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
-  handler: async (ctx, args) => {
-    // Use the existing compound index `by_user_org_status_deleted_created`
-    // as a `(userId, organizationId)` prefix scan so the read is bounded
-    // to the subject's own rows. Pre-fix the eraser walked
-    // `by_organizationId` and JS-filtered by userId — same 16K-cap
-    // spoliation pattern that was fixed for `threadMetadata` (round-2
-    // CRITICAL #13).
-    const iter = () =>
-      ctx.db
-        .query('userMemories')
-        .withIndex('by_user_org_status_deleted_created', (q) =>
-          q.eq('userId', args.userId).eq('organizationId', args.organizationId),
-        );
-    const guard = await countOrSkip(
-      ctx,
-      args.organizationId,
-      args.userId,
-      iter,
-    );
-    if (guard.heldByOrgOrUser)
-      return { rows: 0, skippedByHold: guard.skippedByHold };
-    let rows = 0;
-    for await (const row of iter()) {
-      await ctx.db.delete(row._id);
-      rows++;
-    }
-    return { rows, skippedByHold: 0 };
-  },
-});
 
 export const eraseSubjectUserPreferences = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
@@ -1922,7 +1888,6 @@ export const processErasureRequest = internalAction({
     // the receipt + audit log accurately reflect what was erased and what
     // was skipped by a mid-flight legal hold (round-2 v05 B6 part 2).
     const perCategory: PerCategoryCounts = {
-      userMemories: { rows: 0, skippedByHold: 0 },
       userPreferences: { rows: 0, skippedByHold: 0 },
       messageFeedback: { rows: 0, skippedByHold: 0 },
       fileMetadata: { rows: 0, blobs: 0, skippedByHold: 0 },
@@ -2060,13 +2025,6 @@ export const processErasureRequest = internalAction({
       // exists on indexed lookups), so a re-tried processor run after a
       // partial earlier run is safe. Counts surface in the audit log of
       // finalizeProcessing for the receipt.
-      perCategory.userMemories = await ctx.runMutation(
-        internal.governance.erasure.eraseSubjectUserMemories,
-        {
-          organizationId: state.organizationId,
-          userId: state.targetUserId,
-        },
-      );
       perCategory.userPreferences = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUserPreferences,
         {
@@ -2313,7 +2271,6 @@ interface LoginAttemptsCounts {
 }
 
 interface PerCategoryCounts {
-  userMemories: RowsAndHold;
   userPreferences: RowsAndHold;
   messageFeedback: RowsAndHold;
   fileMetadata: FileMetadataCounts;

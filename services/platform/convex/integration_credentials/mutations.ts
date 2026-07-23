@@ -21,9 +21,6 @@
  * connector use per-credential endpoints at all?) live in `actions.ts`: the
  * shipped catalog is on disk, which a V8 mutation cannot read.
  *
- * Every read narrows to the REBUILT row shape (`rows.ts`) — a row the re-key
- * migration has not carried over yet is not something this domain can act on.
- *
  * Writes are gated on the developer-settings capability
  * (`requireOrgAdminOrDeveloper`), matching the settings route that fronts
  * them; reads live in `queries.ts` under plain org membership.
@@ -31,11 +28,10 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation, mutation } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
-import { isRebuiltRow, type IntegrationCredentialRow } from './rows';
 import {
   encryptedSecretValidator,
   integrationAuthMethodValidator,
@@ -99,22 +95,18 @@ async function rowsForConnector(
   ctx: MutationCtx,
   organizationId: string,
   connectorSlug: string,
-): Promise<IntegrationCredentialRow[]> {
-  return (
-    await ctx.db
-      .query('integrationCredentials')
-      .withIndex('by_org_connector', (q) =>
-        q
-          .eq('organizationId', organizationId)
-          .eq('connectorSlug', connectorSlug),
-      )
-      .collect()
-  ).filter(isRebuiltRow);
+): Promise<Doc<'integrationCredentials'>[]> {
+  return await ctx.db
+    .query('integrationCredentials')
+    .withIndex('by_org_connector', (q) =>
+      q.eq('organizationId', organizationId).eq('connectorSlug', connectorSlug),
+    )
+    .collect();
 }
 
 /** Case-insensitive name-uniqueness check within (org, connector). */
 function assertNameFree(
-  rows: readonly IntegrationCredentialRow[],
+  rows: readonly Doc<'integrationCredentials'>[],
   name: string,
   excludeId?: Id<'integrationCredentials'>,
 ): void {
@@ -131,15 +123,14 @@ function assertNameFree(
 }
 
 /** Load a row and verify it belongs to the caller's organization. A row of
- * another org — or one the re-key migration has not carried over yet — reads
- * as not-found; existence is never leaked across tenants. */
+ * another org reads as not-found; existence is never leaked across tenants. */
 async function requireOwnRow(
   ctx: MutationCtx,
   organizationId: string,
   credentialId: Id<'integrationCredentials'>,
-): Promise<IntegrationCredentialRow> {
+): Promise<Doc<'integrationCredentials'>> {
   const row = await ctx.db.get(credentialId);
-  if (!row || row.organizationId !== organizationId || !isRebuiltRow(row)) {
+  if (!row || row.organizationId !== organizationId) {
     throw new ConvexError({
       code: 'CREDENTIAL_NOT_FOUND',
       message: 'Credential not found.',
@@ -173,8 +164,8 @@ async function clearOtherDefaults(
  * one its existing automations were authored against.
  */
 function oldestActive(
-  rows: readonly IntegrationCredentialRow[],
-): IntegrationCredentialRow | undefined {
+  rows: readonly Doc<'integrationCredentials'>[],
+): Doc<'integrationCredentials'> | undefined {
   return rows
     .filter((row) => row.status === 'active')
     .sort((a, b) => a.createdAt - b.createdAt || a._id.localeCompare(b._id))[0];
@@ -280,7 +271,7 @@ export const patchCredentialInternal = internalMutation({
       args.credentialId,
     );
 
-    const patch: Partial<IntegrationCredentialRow> = {
+    const patch: Partial<Doc<'integrationCredentials'>> = {
       updatedAt: Date.now(),
     };
     if (args.name !== undefined) {

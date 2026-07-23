@@ -11,18 +11,14 @@
  * The internal queries return full rows — ciphertext included — for the
  * `'use node'` action layer (`actions.ts`, `resolve_credential.ts`).
  * Internal functions are unreachable from clients.
- *
- * Every read narrows to the REBUILT row shape (`rows.ts`): a row the re-key
- * migration has not carried over yet holds its secret in the retired
- * envelope, which nothing here can open, so it is simply not listed.
  */
 
 import { ConvexError, v } from 'convex/values';
 
+import type { Doc } from '../_generated/dataModel';
 import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { isRebuiltRow, type IntegrationCredentialRow } from './rows';
 import {
   integrationAuthMethodValidator,
   integrationCredentialStatusValidator,
@@ -44,7 +40,7 @@ const maskedCredentialValidator = v.object({
   updatedAt: v.number(),
 });
 
-function toMasked(row: IntegrationCredentialRow) {
+function toMasked(row: Doc<'integrationCredentials'>) {
   return {
     id: row._id,
     connectorSlug: row.connectorSlug,
@@ -101,7 +97,6 @@ export const listCredentials = query({
             )
             .collect();
     return rows
-      .filter(isRebuiltRow)
       .sort(
         (a, b) =>
           a.connectorSlug.localeCompare(b.connectorSlug) ||
@@ -129,11 +124,7 @@ export const getCredential = query({
     }
     await getOrganizationMember(ctx, args.organizationId, authUser);
     const row = await ctx.db.get(args.credentialId);
-    if (
-      !row ||
-      row.organizationId !== args.organizationId ||
-      !isRebuiltRow(row)
-    ) {
+    if (!row || row.organizationId !== args.organizationId) {
       throw new ConvexError({
         code: 'CREDENTIAL_NOT_FOUND',
         message: 'Credential not found.',
@@ -176,16 +167,14 @@ export const resolveCredentialRefInternal = internalQuery({
   // Full row incl. system fields; v.any() also admits the null miss.
   returns: v.any(),
   handler: async (ctx, args) => {
-    const rows = (
-      await ctx.db
-        .query('integrationCredentials')
-        .withIndex('by_org_connector', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('connectorSlug', args.connectorSlug),
-        )
-        .collect()
-    ).filter(isRebuiltRow);
+    const rows = await ctx.db
+      .query('integrationCredentials')
+      .withIndex('by_org_connector', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('connectorSlug', args.connectorSlug),
+      )
+      .collect();
     if (args.credentialRef === undefined) {
       return rows.find((row) => row.isDefault) ?? null;
     }

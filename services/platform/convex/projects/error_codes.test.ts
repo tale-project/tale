@@ -139,12 +139,12 @@ describe('projects error-code ↔ i18n key consistency', () => {
       // at the regex match position, and intentionally lives outside the
       // PROJECT_/DOCUMENT_/THREAD_ namespaces so the regex skips it.
       'RATE_LIMITED',
-      // UI-only formatting variant of the server-thrown PROJECT_HAS_BOUND_AUTOMATIONS
-      // code: same condition, but with an `{automations}` placeholder so the
-      // delete dialog can list the bound automation names the backend returns
-      // in `error.data.automations`. There is no separate server throw — the
-      // thrown code stays PROJECT_HAS_BOUND_AUTOMATIONS; the UI picks the
-      // named vs. generic message.
+      // Dormant since the 0.4 baseline reset dropped the
+      // `automationProjectBindings`/`automationInstallations` tables and with
+      // them `deleteProject`'s bound-automations guard. The delete dialog
+      // still handles both keys (generic + `{automations}`-named variant), so
+      // they stay for the rebuilt app-install model's project-deletion guard.
+      'PROJECT_HAS_BOUND_AUTOMATIONS',
       'PROJECT_HAS_BOUND_AUTOMATIONS_NAMED',
     ]);
 

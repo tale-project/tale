@@ -76,12 +76,6 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     i18nKey: 'externalConversations',
   },
   {
-    id: 'messageMetadata',
-    configKey: 'messageMetadataRetentionDays',
-    enabledKey: 'messageMetadataEnabled',
-    i18nKey: 'messageMetadata',
-  },
-  {
     id: 'workflowLog',
     configKey: 'workflowLogRetentionDays',
     enabledKey: 'workflowLogEnabled',
@@ -116,12 +110,6 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     configKey: 'promptTemplatesRetentionDays',
     enabledKey: 'promptTemplatesEnabled',
     i18nKey: 'promptTemplates',
-  },
-  {
-    id: 'memoryAudit',
-    configKey: 'memoryAuditRetentionDays',
-    enabledKey: 'memoryAuditEnabled',
-    i18nKey: 'memoryAudit',
   },
   {
     id: 'notifications',

@@ -8,10 +8,10 @@
  * is a defect. Per-org knowledge/RAG/crawler data lives OUTSIDE Convex and is
  * routed through `getKnowledgePoolForOrg(orgSlug)`.
  *
- * Tables imported from `./legacy/schema` belong to the retired AI backend
- * and are migration-pending — declared so existing
- * deployments keep validating; live code never writes them. Each is re-homed
- * or dropped by the rewrite that rebuilds its domain (map in legacy/schema.ts).
+ * The two tables imported from `./legacy/schema` are deferred drops from the
+ * retired AI backend — forever empty on 0.4+ deployments (the 0.4 baseline
+ * reset removed the upgrade path), kept declared only because live schemas
+ * still reference their ids. See legacy/schema.ts for the removal contract.
  */
 
 import { defineSchema } from 'convex/server';
@@ -47,6 +47,7 @@ import {
   conversationsTable,
   conversationMessagesTable,
 } from './conversations/schema';
+import { threadMetadataTable } from './discussions/schema';
 import { documentsTable } from './documents/schema';
 import {
   ssoConnectionsTable,
@@ -77,36 +78,7 @@ import {
 } from './http_integrations/schema';
 import { externalIdentitiesTable } from './identities/external_identities_schema';
 import { integrationCredentialsTable } from './integration_credentials/schema';
-import {
-  agentBindingsTable,
-  agentGuardrailNoticesTable,
-  agentInstallationsTable,
-  agentWebhooksTable,
-  agentWebhookUserThreadsTable,
-  automationInstallationsTable,
-  automationProjectBindingsTable,
-  automationUploadClaimTable,
-  automationUploadIntentTable,
-  knowledgeEntriesTable,
-  messageMetadataTable,
-  slackThreadsTable,
-  taskAgentRunsTable,
-  taskMetricsDailyTable,
-  threadBranchesTable,
-  threadFilesTable,
-  threadMetadataTable,
-  threadTodosTable,
-  ttsAudioChunksTable,
-  userMemoriesTable,
-  userMemoryAuditLogTable,
-  wfDefaultProvisionsTable,
-  wfEventSubscriptionsTable,
-  wfExecutionsTable,
-  wfInstallationsTable,
-  wfSchedulesTable,
-  wfTriggerLogsTable,
-  workflowEnvTable,
-} from './legacy/schema';
+import { taskAgentRunsTable, wfExecutionsTable } from './legacy/schema';
 import { configCacheTable } from './lib/config_cache/schema';
 import {
   loginAttemptsTable,
@@ -147,7 +119,6 @@ import {
   sandboxToolCallsTable,
   sandboxUserEnvTable,
 } from './sandbox/sessions_schema';
-import { ssoProvidersTable } from './sso_providers/schema';
 import {
   supportCaseActivityTable,
   supportCaseCommentsTable,
@@ -171,10 +142,6 @@ import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
 
 export default defineSchema({
-  automationInstallations: automationInstallationsTable,
-  automationProjectBindings: automationProjectBindingsTable,
-  automationUploadClaims: automationUploadClaimTable,
-  automationUploadIntents: automationUploadIntentTable,
   // The automation store: immutable workflow versions, the single deployed
   // version per automation, what starts a run, and the durable run log whose
   // per-node `checkpoints` let an interrupted run resume instead of repeating
@@ -240,15 +207,10 @@ export default defineSchema({
   teamMemberMirror: teamMemberMirrorTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
-  agentBindings: agentBindingsTable,
-  agentInstallations: agentInstallationsTable,
-  agentWebhooks: agentWebhooksTable,
-  agentWebhookUserThreads: agentWebhookUserThreadsTable,
   contacts: contactsTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
-  knowledgeEntries: knowledgeEntriesTable,
   // Integration credentials (rewrite): org-scoped, MULTIPLE per shipped
   // connector, every secret inside one `encryptedData` envelope via
   // lib/secret_box. Tenant isolation: every read/write goes through the
@@ -266,22 +228,16 @@ export default defineSchema({
   // workspace is refused, and resolution reads only the `by_team` index — no
   // event is ever fanned out across orgs. See `http_integrations/schema.ts`.
   slackTeamRoutes: slackTeamRoutesTable,
-  slackThreads: slackThreadsTable,
   externalIdentities: externalIdentitiesTable,
   loginAttempts: loginAttemptsTable,
   loginBlockCounters: loginBlockCountersTable,
-  messageMetadata: messageMetadataTable,
   notifications: notificationsTable,
   objectStorageBackfillRuns: objectStorageBackfillRunsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
-  threadBranches: threadBranchesTable,
-  threadFiles: threadFilesTable,
+  // The discussion-thread container (task/project/automation discussions);
+  // predates the chat rewrite but is live — see discussions/schema.ts.
   threadMetadata: threadMetadataTable,
-  threadTodos: threadTodosTable,
-  ttsAudioChunks: ttsAudioChunksTable,
   twoFactorAttempts: twoFactorAttemptsTable,
-  userMemories: userMemoriesTable,
-  userMemoryAuditLog: userMemoryAuditLogTable,
   userNotificationState: userNotificationStateTable,
   userPasswordMetadata: userPasswordMetadataTable,
   userPreferences: userPreferencesTable,
@@ -298,20 +254,17 @@ export default defineSchema({
   taskActivity: taskActivityTable,
   taskDependencies: taskDependenciesTable,
   boardViews: boardViewsTable,
+  // Deferred drop (see legacy/schema.ts) — forever empty on 0.4+.
   taskAgentRuns: taskAgentRunsTable,
-  taskMetricsDaily: taskMetricsDailyTable,
-  agentGuardrailNotices: agentGuardrailNoticesTable,
   projectSecrets: projectSecretsTable,
   agentSecretAccess: agentSecretAccessTable,
   userNotifications: userNotificationsTable,
   taskSubscriptions: taskSubscriptionsTable,
   notificationPreferences: notificationPreferencesTable,
-  ssoProviders: ssoProvidersTable,
   // Unified Enterprise SSO + Provisioning. One connection per org carrying the
   // OIDC/OAuth2/SAML sign-in config, the role/team provisioning policy, and the
   // inbound SCIM token; `ssoProvisioningLinks` holds per-resource externalId /
-  // restore-role. Replaces the legacy `ssoProviders` + standalone SCIM tables
-  // (migrated by versions/.../enterprise_sso_unify).
+  // restore-role.
   ssoConnections: ssoConnectionsTable,
   ssoProvisioningLinks: ssoProvisioningLinksTable,
   // Customer support portal (issue #1923): org-scoped cases worked by support
@@ -334,11 +287,6 @@ export default defineSchema({
   webdavAppPasswords: webdavAppPasswordsTable,
   webdavLocks: webdavLocksTable,
   websites: websitesTable,
-  wfEventSubscriptions: wfEventSubscriptionsTable,
+  // Deferred drop (see legacy/schema.ts) — forever empty on 0.4+.
   wfExecutions: wfExecutionsTable,
-  wfInstallations: wfInstallationsTable,
-  wfDefaultProvisions: wfDefaultProvisionsTable,
-  wfSchedules: wfSchedulesTable,
-  wfTriggerLogs: wfTriggerLogsTable,
-  workflowEnv: workflowEnvTable,
 });

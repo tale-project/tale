@@ -12,10 +12,9 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { api, components, internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
-import { isRebuiltRow, type IntegrationCredentialRow } from './rows';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'integration_credentials';
 function toConvexRootKey(globKey: string): string {
@@ -139,14 +138,11 @@ async function insert(
   );
 }
 
-/** The row as the domain sees it: present AND in the rebuilt shape (the
- * table also admits retired rows until the re-key migration converts them). */
 async function getRow(
   t: T,
   id: Id<'integrationCredentials'>,
-): Promise<IntegrationCredentialRow | null> {
-  const row = await t.run((ctx) => ctx.db.get(id));
-  return row !== null && isRebuiltRow(row) ? row : null;
+): Promise<Doc<'integrationCredentials'> | null> {
+  return await t.run((ctx) => ctx.db.get(id));
 }
 
 /** Create a betterAuth organization; returns its component `_id`. */
@@ -180,26 +176,6 @@ async function seedAuthMember(
       },
     });
   });
-}
-
-/**
- * Insert a row still in the retired shape — what a deployment holds until the
- * re-key migration carries it over. Nothing in the live domain ever writes
- * one; the tests below assert it stays invisible to every path.
- */
-async function seedRetiredRow(
-  t: T,
-  organizationId: string,
-): Promise<Id<'integrationCredentials'>> {
-  return await t.run(async (ctx) =>
-    ctx.db.insert('integrationCredentials', {
-      organizationId,
-      slug: 'github',
-      status: 'active',
-      isActive: true,
-      authMethod: 'api_key',
-    }),
-  );
 }
 
 describe('insertCredentialInternal', () => {
@@ -541,37 +517,6 @@ describe('setDefaultCredential (public)', () => {
           ),
       ),
     ).toBe('FORBIDDEN_DEVELOPER_SETTINGS');
-  });
-});
-
-describe('rows the re-key migration has not carried over', () => {
-  it('cannot be defaulted or deleted through this domain', async () => {
-    const t = newWorld();
-    const orgId = await seedAuthOrg(t, 'ic-retired-row');
-    await seedAuthMember(t, orgId, 'user_admin', 'admin');
-    // Admitted by the table until the migration drains it, but not something
-    // this domain can act on: its secret is still in the retired envelope.
-    const retiredId = await seedRetiredRow(t, orgId);
-
-    const admin = t.withIdentity({ subject: 'user_admin' });
-    expect(
-      await catchCode(() =>
-        admin.mutation(
-          api.integration_credentials.mutations.setDefaultCredential,
-          { organizationId: orgId, credentialId: retiredId },
-        ),
-      ),
-    ).toBe('CREDENTIAL_NOT_FOUND');
-    expect(
-      await catchCode(() =>
-        admin.mutation(api.integration_credentials.mutations.deleteCredential, {
-          organizationId: orgId,
-          credentialId: retiredId,
-        }),
-      ),
-    ).toBe('CREDENTIAL_NOT_FOUND');
-    // Left exactly as it was, for the migration to carry over.
-    expect(await t.run((ctx) => ctx.db.get(retiredId))).not.toBeNull();
   });
 });
 

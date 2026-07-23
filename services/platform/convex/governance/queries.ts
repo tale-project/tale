@@ -530,7 +530,6 @@ const TRASH_VISIBLE_RESOURCE_TYPES: ReadonlyArray<SoftDeleteResourceType> = [
   'usageLedger',
   'auditLog',
   'chatFilterEvent',
-  'memoryAudit',
 ];
 
 interface TrashRow {
@@ -957,31 +956,6 @@ async function fetchTrashSubpage(
         .take(take);
       const expired = await ctx.db
         .query('chatFilterEvents')
-        .withIndex('by_org_lifecycleStatus', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('lifecycleStatus', 'expired'),
-        )
-        .take(take);
-      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
-        status: r.lifecycleStatus,
-        statusChangedAt: r.statusChangedAt ?? null,
-        createdAt: r.createdAt ?? r._creationTime,
-      })).filter((row) =>
-        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
-      );
-    }
-    case 'memoryAudit': {
-      const trashed = await ctx.db
-        .query('userMemoryAuditLog')
-        .withIndex('by_org_lifecycleStatus', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('lifecycleStatus', 'trashed'),
-        )
-        .take(take);
-      const expired = await ctx.db
-        .query('userMemoryAuditLog')
         .withIndex('by_org_lifecycleStatus', (q) =>
           q
             .eq('organizationId', organizationId)

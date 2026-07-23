@@ -2934,11 +2934,6 @@ governance:
       title: Nachrichten-Feedback
       description: Daumen/Kommentare zu Agenten-Nachrichten. Freitext-Kommentare
         können zitierten Nutzerinhalt enthalten.
-    memoryAudit:
-      title: Memory-Audit-Log
-      description:
-        Änderungsprotokoll von Personalisierungs-Memories (vorgeschlagen,
-        genehmigt, bearbeitet, verworfen, gelöscht).
     contacts:
       title: Kontakte
       description: 'Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten.'
@@ -2947,10 +2942,6 @@ governance:
       description:
         Top-Level-Kontaktkanal-Posteingang (E-Mail/Chat-Integrationen).
         Kaskadiert zu Nachrichteninhalten.
-    messageMetadata:
-      title: Nachrichten-Metadaten
-      description: Pro-Nachricht Reasoning, vollständiges Prompt-Kontextfenster,
-        Tool-I/O. Stark PII-haltige abgeleitete Daten.
     chatFilterEvents:
       title: Chat-Filter-Ereignisse
       description:
@@ -3001,9 +2992,9 @@ governance:
     workflowLogs:
       title: Workflow-Ausführungsprotokolle
       description:
-        Workflow-Ausführungseinträge und Trigger-Logs, die älter als die
-        Aufbewahrungsfrist sind, automatisch löschen. Schließt pro Ausführung
-        gespeicherte Variablen-/Output-Blobs ein.
+        Workflow-Ausführungseinträge, die älter als die Aufbewahrungsfrist
+        sind, automatisch löschen. Schließt pro Ausführung gespeicherte
+        Variablen-/Output-Blobs ein.
       placeholder: z. B. 30
       helper: Workflow-Läufe, die älter sind, werden gelöscht (1–365 Tage).
     auditLogs:

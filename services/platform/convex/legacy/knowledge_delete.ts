@@ -336,7 +336,7 @@ export interface DeleteDocumentsBatchResult {
 
 /**
  * Batch counterpart used by the legacy thread cascade
- * (`legacy/thread_cascade.ts`): purge every listed file's corpus rows over
+ * (`discussions/thread_cascade.ts`): purge every listed file's corpus rows over
  * ONE connection. Per-file failures are recorded and skipped (one bad row
  * must not strand the rest of a thread's purge) — the cascade re-runs are
  * idempotent, so a failed id is retried on the next sweep.

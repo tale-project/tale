@@ -13,11 +13,9 @@ interface FakeRow {
   storageId?: string;
 }
 
-// The fake store is keyed by `${table}::${index}` — NOT by index name alone.
-// `userMemories` and `userPreferences` both expose a `by_organizationId`
-// index, so keying by index name made the two collide and the prefs delete
-// path was never actually exercised (the memories sweep drained the shared
-// array first). The `(table, index)` key keeps each table's rows independent.
+// The fake store is keyed by `${table}::${index}` — NOT by index name alone —
+// so two tables exposing an identically-named index (e.g. `by_organizationId`)
+// can never collide and silently share one row array.
 function createCtx(rowsByKey: Record<string, FakeRow[]>) {
   const deleted: string[] = [];
   const storageDeleted: string[] = [];
@@ -92,37 +90,21 @@ async function drainToCompletion(
 describe('cascadeOnMemberRemoved', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('deletes (user, org) memories, prefs, and TTS chunks via composite indexes', async () => {
+  it('deletes (user, org) preferences via the composite index', async () => {
     const { ctx, deleted, storageDeleted, lastIndexUsed } = createCtx({
-      'userMemories::by_user_org_status_deleted_created': [
-        { _id: 'mem_1', userId: 'u_1', organizationId: 'o_1' },
-        { _id: 'mem_2', userId: 'u_1', organizationId: 'o_1' },
-      ],
       'userPreferences::by_userId_organizationId': [
         { _id: 'pref_1', userId: 'u_1', organizationId: 'o_1' },
-      ],
-      // GDPR Art 17 sweep — TTS chunks the member ever synthesized.
-      'ttsAudioChunks::by_user_org': [
-        {
-          _id: 'tts_1',
-          userId: 'u_1',
-          organizationId: 'o_1',
-          storageId: 'blob_1',
-        },
+        { _id: 'pref_2', userId: 'u_1', organizationId: 'o_1' },
       ],
     });
 
     await cascadeOnMemberRemoved(ctx, 'u_1', 'o_1');
 
-    expect(deleted).toEqual(
-      expect.arrayContaining(['mem_1', 'mem_2', 'pref_1', 'tts_1']),
-    );
-    expect(deleted).toHaveLength(4);
-    expect(storageDeleted).toEqual(['blob_1']);
+    expect(deleted).toEqual(expect.arrayContaining(['pref_1', 'pref_2']));
+    expect(deleted).toHaveLength(2);
+    expect(storageDeleted).toHaveLength(0);
     expect(lastIndexUsed.map((u) => u.name)).toEqual([
-      'by_user_org_status_deleted_created',
       'by_userId_organizationId',
-      'by_user_org',
     ]);
   });
 
@@ -141,8 +123,8 @@ describe('cascadeOnOrgDeleted', () => {
     // The kickoff must add ZERO writes to the caller's mutation — it only
     // schedules the self-rescheduling drain (which runs with its own budget).
     const { ctx, deleted, storageDeleted, scheduled } = createCtx({
-      'userMemories::by_organizationId': [
-        { _id: 'mem_a', organizationId: 'o_1' },
+      'userPreferences::by_organizationId': [
+        { _id: 'pref_a', organizationId: 'o_1' },
       ],
     });
 
@@ -160,87 +142,72 @@ describe('drainOrgPersonalizationErasureOnce', () => {
 
   it('drains at most ONE table per pass, in priority order, and erases everything', async () => {
     const c = createCtx({
-      'userMemories::by_organizationId': [
-        { _id: 'm1', organizationId: 'o_1' },
-        { _id: 'm2', organizationId: 'o_1' },
-      ],
       'userPreferences::by_organizationId': [
         { _id: 'p1', organizationId: 'o_1' },
-      ],
-      'ttsAudioChunks::by_org_createdAt': [
-        { _id: 't1', organizationId: 'o_1', storageId: 'bt1' },
+        { _id: 'p2', organizationId: 'o_1' },
       ],
       'videoLinkJobs::by_organizationId_and_status': [
         { _id: 'v1', organizationId: 'o_1', storageId: 'bv1' },
       ],
     });
 
-    // Pass 1: memories only.
+    // Pass 1: prefs only.
     let r = await drainOrgPersonalizationErasureOnce(c.ctx, 'o_1');
     expect(r.rescheduled).toBe(true);
-    expect(c.deleted).toEqual(['m1', 'm2']);
+    expect(c.deleted).toEqual(['p1', 'p2']);
     expect(c.storageDeleted).toEqual([]);
 
-    // Pass 2: prefs only (memories now empty).
+    // Pass 2: videoLink only (prefs now empty) — row deleted before its blob.
     r = await drainOrgPersonalizationErasureOnce(c.ctx, 'o_1');
     expect(r.rescheduled).toBe(true);
-    expect(c.deleted).toEqual(['m1', 'm2', 'p1']);
-
-    // Pass 3: TTS only — row deleted before its blob.
-    r = await drainOrgPersonalizationErasureOnce(c.ctx, 'o_1');
-    expect(r.rescheduled).toBe(true);
-    expect(c.deleted).toEqual(['m1', 'm2', 'p1', 't1']);
-    expect(c.storageDeleted).toEqual(['bt1']);
-    expect(c.timeline.indexOf('del:t1')).toBeLessThan(
-      c.timeline.indexOf('store:bt1'),
+    expect(c.deleted).toEqual(['p1', 'p2', 'v1']);
+    expect(c.storageDeleted).toEqual(['bv1']);
+    expect(c.timeline.indexOf('del:v1')).toBeLessThan(
+      c.timeline.indexOf('store:bv1'),
     );
 
-    // Pass 4: videoLink only.
-    r = await drainOrgPersonalizationErasureOnce(c.ctx, 'o_1');
-    expect(r.rescheduled).toBe(true);
-    expect(c.deleted).toEqual(['m1', 'm2', 'p1', 't1', 'v1']);
-    expect(c.storageDeleted).toEqual(['bt1', 'bv1']);
-
-    // Pass 5: all empty → done, no further reschedule.
+    // Pass 3: all empty → done, no further reschedule.
     r = await drainOrgPersonalizationErasureOnce(c.ctx, 'o_1');
     expect(r.rescheduled).toBe(false);
-    expect(c.scheduled).toHaveLength(4); // one per productive pass
+    expect(c.scheduled).toHaveLength(2); // one per productive pass
   });
 
-  it('caps a single pass at 6000 row-deletes for the pure-DB tables and never spills into the next table', async () => {
-    const manyMemories: FakeRow[] = Array.from({ length: 6001 }, (_, i) => ({
-      _id: `m_${i}`,
+  it('caps a single pass at 6000 row-deletes for the pure-DB table and never spills into the next table', async () => {
+    const manyPrefs: FakeRow[] = Array.from({ length: 6001 }, (_, i) => ({
+      _id: `p_${i}`,
       organizationId: 'o_1',
     }));
     const c = createCtx({
-      'userMemories::by_organizationId': manyMemories,
-      'userPreferences::by_organizationId': [
-        { _id: 'p1', organizationId: 'o_1' },
+      'userPreferences::by_organizationId': manyPrefs,
+      'videoLinkJobs::by_organizationId_and_status': [
+        { _id: 'v1', organizationId: 'o_1', storageId: 'bv1' },
       ],
     });
 
-    // Pass 1 must delete exactly the 6000-row cap and stop — prefs untouched.
+    // Pass 1 must delete exactly the 6000-row cap and stop — videoLink untouched.
     const r = await drainOrgPersonalizationErasureOnce(c.ctx, 'o_1');
     expect(r.rescheduled).toBe(true);
     expect(c.deleted).toHaveLength(6000);
-    expect(c.deleted).not.toContain('p1');
+    expect(c.deleted).not.toContain('v1');
 
-    // Drive the rest: the 6001st memory, then prefs, then done.
+    // Drive the rest: the 6001st pref, then the videoLink job, then done.
     const morePasses = await drainToCompletion(c.ctx, 'o_1');
-    expect(c.deleted).toHaveLength(6002); // 6001 memories + 1 pref
-    expect(c.deleted).toContain('m_6000');
-    expect(c.deleted).toContain('p1');
+    expect(c.deleted).toHaveLength(6002); // 6001 prefs + 1 videoLink job
+    expect(c.deleted).toContain('p_6000');
+    expect(c.deleted).toContain('v1');
     // 1 cap pass already counted above; remainder is bounded and small.
     expect(morePasses).toBeGreaterThanOrEqual(2);
   });
 
   it('caps a storage-bearing pass at 3000 rows (lower than the pure-DB cap)', async () => {
-    const manyChunks: FakeRow[] = Array.from({ length: 3001 }, (_, i) => ({
-      _id: `t_${i}`,
+    const manyJobs: FakeRow[] = Array.from({ length: 3001 }, (_, i) => ({
+      _id: `v_${i}`,
       organizationId: 'o_1',
       storageId: `b_${i}`,
     }));
-    const c = createCtx({ 'ttsAudioChunks::by_org_createdAt': manyChunks });
+    const c = createCtx({
+      'videoLinkJobs::by_organizationId_and_status': manyJobs,
+    });
 
     const r = await drainOrgPersonalizationErasureOnce(c.ctx, 'o_1');
     expect(r.rescheduled).toBe(true);
@@ -252,7 +219,7 @@ describe('drainOrgPersonalizationErasureOnce', () => {
     expect(c.storageDeleted).toHaveLength(3001);
   });
 
-  it('terminates and fully erases when all four tables hold near-cap data', async () => {
+  it('terminates and fully erases when both tables hold near-cap data', async () => {
     const mk = (prefix: string, n: number, blob = false): FakeRow[] =>
       Array.from({ length: n }, (_, i) => ({
         _id: `${prefix}_${i}`,
@@ -260,19 +227,17 @@ describe('drainOrgPersonalizationErasureOnce', () => {
         ...(blob ? { storageId: `${prefix}b_${i}` } : {}),
       }));
     const c = createCtx({
-      'userMemories::by_organizationId': mk('m', 6200),
       'userPreferences::by_organizationId': mk('p', 6100),
-      'ttsAudioChunks::by_org_createdAt': mk('t', 3200, true),
       'videoLinkJobs::by_organizationId_and_status': mk('v', 3100, true),
     });
 
     const passes = await drainToCompletion(c.ctx, 'o_1');
 
-    expect(c.deleted).toHaveLength(6200 + 6100 + 3200 + 3100);
-    expect(c.storageDeleted).toHaveLength(3200 + 3100);
-    // Bounded passes: memories(2) + prefs(2) + tts(2) + video(2) = 8 productive
-    // passes (each table needs one cap pass + one remainder pass).
-    expect(passes).toBe(8);
+    expect(c.deleted).toHaveLength(6100 + 3100);
+    expect(c.storageDeleted).toHaveLength(3100);
+    // Bounded passes: prefs(2) + video(2) = 4 productive passes (each table
+    // needs one cap pass + one remainder pass).
+    expect(passes).toBe(4);
   });
 
   it('is a no-op (no reschedule) for an org with no personalization rows', async () => {

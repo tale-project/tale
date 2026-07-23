@@ -1,48 +1,19 @@
 /**
- * LEGACY-DATA cascade — home `convex/legacy/`.
+ * Discussion-thread cascade — physically removes a `threadMetadata` thread
+ * and every descendant row. Retention Pass B, GDPR erasure, and task
+ * deletion all depend on this helper.
  *
- * the chat rebuild replaces this with the chat rebuild cascade; until then,
- * retention Pass B, GDPR erasure, and task deletion all depend on this
- * helper to physically remove a legacy chat thread and every descendant
- * row.
+ * Relocated from `legacy/thread_cascade.ts` by the 0.4 baseline reset with
+ * the retired-table arms (messageMetadata, threadTodos, threadBranches,
+ * ttsAudioChunks, agentWebhookUserThreads, slackThreads) removed — those
+ * tables no longer exist. What remains is the LIVE cascade for the
+ * discussion/thread world: sandbox rows, approvals, feedback, filter
+ * events, chat-upload files (+ RAG purge), video-link jobs, the
+ * agent-component thread, sub-threads, and finally the metadata row.
  *
- * A byte-faithful copy of the retired `threads/cascade_helpers.ts`.
- * `parseSubThreadIds` and the `ThreadSummaryWithSubThreads` /
- * `SubThreadsMap` types it needs are inlined below — origin comments at
- * each definition — because they came from `threads/delete_chat_thread.ts`
- * and `agent_tools/sub_agents/helpers/types.ts`, both retired along with
- * the rest of the chat/agent_tools backend.
- * `parseJson` is still live at `lib/utils/type-utils.ts`, so it's imported
- * rather than inlined.
- *
- * Shared cascade-deletion logic used by:
- *   - retention Pass B (`internal_mutations_retention.deleteExpiredThread`)
- *   - any future explicit "permanently delete" path
- *
- * The user-initiated `deleteChatThread` path does NOT call cascade — it
- * only flips status to `'trashed'`. Pass B (after grace expiry) calls this
- * helper to physically remove the thread + all its descendant rows.
- *
- * Order (children-first, parent-last) — verified in the v2 plan against
- * round-2 schema audit:
- *   1. agent-component messages (`components.agent.messages.deleteByIds`,
- *      paged)
- *   2. messageMetadata (by_threadId)
- *   3. threadTodos (by_thread)
- *   4. approvals (by_threadId, scoped to rows where threadId === args.threadId)
- *   5. threadBranches (by_rootThreadId ∪ by_branchThreadId ∪
- *      by_parentThreadId_forkAfterMessageId)
- *   6. messageFeedback (by_threadId)
- *   7. chatFilterEvents (by_org_threadId_createdAt)
- *   8. artifacts + artifactRevisions (two-step lookup via by_artifact)
- *   9. agentWebhookUserThreads (by_threadId)
- *  10. slackThreads (by_threadId) — the Slack-conversation → thread mapping
- *  11. sub-threads — recurse via parsed parent summary
- *  12. agent-component thread (`components.agent.threads.deleteAllForThreadIdAsync`)
- *  13. threadMetadata row (db.delete)
- *
- * `messageMetadata.organizationId` is not yet a field (Phase 10 backfill);
- * we look it up via `threadId` which is sufficient for cascade.
+ * The user-initiated delete path does NOT call cascade — it only flips
+ * status to `'trashed'`. Pass B (after grace expiry) calls this helper to
+ * physically remove the thread + all its descendant rows.
  */
 
 import { makeFunctionReference } from 'convex/server';
@@ -53,15 +24,15 @@ import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import type { ActiveHolds } from '../governance/legal_hold';
 import { loadActiveHolds } from '../governance/legal_hold';
+import type {
+  DeleteDocumentsBatchArgs,
+  DeleteDocumentsBatchResult,
+} from '../legacy/knowledge_delete';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import {
   deleteBlobInMutation,
   scheduleS3BlobDeletes,
 } from '../lib/storage/blob_delete';
-import type {
-  DeleteDocumentsBatchArgs,
-  DeleteDocumentsBatchResult,
-} from './knowledge_delete';
 
 // Audit actions emitted by this file. Keep grep-able:
 //   chat_thread.cascade_skipped_hold
@@ -145,12 +116,6 @@ const MAX_CASCADE_DEPTH = 32;
  * Bounded per call by PAGE_SIZE per child table. For threads with > 200
  * rows in any single child table, the caller is expected to invoke this
  * helper repeatedly until `done: true` is returned.
- *
- * NOTE on `messageMetadata`: that table's `_id` is the messageId; one
- * row per message. A thread with N messages produces N metadata rows.
- * For very-large threads (1000s of messages), the page-200 cap on this
- * step requires multiple calls — a future Phase-7 dispatcher will manage
- * this via cursor resume.
  */
 export async function cascadeDeleteThreadChildren(
   ctx: MutationCtx,
@@ -260,7 +225,7 @@ export async function cascadeDeleteThreadChildren(
     args.holds = holds;
   }
 
-  // 0. The AGENT sandbox is per-USER (one persistent sandbox shared across
+  // 1. The AGENT sandbox is per-USER (one persistent sandbox shared across
   // all the user's threads), so deleting a thread must NOT tear down the
   // sandbox — only prune this thread's progress/op rows. Thread-owned
   // sessions (the turn-scoped run_code session, destroyed at end of turn by
@@ -297,35 +262,7 @@ export async function cascadeDeleteThreadChildren(
     );
   }
 
-  // 1. messageMetadata — paged
-  const metadataPage = await ctx.db
-    .query('messageMetadata')
-    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-    .take(PAGE_SIZE);
-  for (const row of metadataPage) {
-    await ctx.db.delete(row._id);
-  }
-  if (metadataPage.length === PAGE_SIZE) {
-    return { done: false, remaining: 1 };
-  }
-
-  // 2. threadTodos
-  if (organizationId) {
-    const todosPage = await ctx.db
-      .query('threadTodos')
-      .withIndex('by_org_thread', (q) =>
-        q.eq('organizationId', organizationId).eq('threadId', threadId),
-      )
-      .take(PAGE_SIZE);
-    for (const row of todosPage) {
-      await ctx.db.delete(row._id);
-    }
-    if (todosPage.length === PAGE_SIZE) {
-      return { done: false, remaining: 1 };
-    }
-  }
-
-  // 3. approvals (only rows tied to this thread)
+  // 2. approvals (only rows tied to this thread)
   const approvalsPage = await ctx.db
     .query('approvals')
     .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
@@ -337,49 +274,7 @@ export async function cascadeDeleteThreadChildren(
     return { done: false, remaining: 1 };
   }
 
-  // 4. threadBranches — three different id fields point at this thread.
-  //    Iterate by_rootThreadId, by_branchThreadId, AND
-  //    by_parentThreadId_forkAfterMessageId so a thread that is the
-  //    parent of a branch (but not the root or the branch itself) is
-  //    not orphaned. Without the parentThreadId pass, cascading thread
-  //    A leaves a `threadBranches` row pointing parentThreadId=A in
-  //    place even though A is gone.
-  const rootBranchesPage = await ctx.db
-    .query('threadBranches')
-    .withIndex('by_rootThreadId', (q) => q.eq('rootThreadId', threadId))
-    .take(PAGE_SIZE);
-  for (const row of rootBranchesPage) {
-    await ctx.db.delete(row._id);
-  }
-  if (rootBranchesPage.length === PAGE_SIZE) {
-    return { done: false, remaining: 1 };
-  }
-
-  const branchBranchesPage = await ctx.db
-    .query('threadBranches')
-    .withIndex('by_branchThreadId', (q) => q.eq('branchThreadId', threadId))
-    .take(PAGE_SIZE);
-  for (const row of branchBranchesPage) {
-    await ctx.db.delete(row._id);
-  }
-  if (branchBranchesPage.length === PAGE_SIZE) {
-    return { done: false, remaining: 1 };
-  }
-
-  const parentBranchesPage = await ctx.db
-    .query('threadBranches')
-    .withIndex('by_parentThreadId_forkAfterMessageId', (q) =>
-      q.eq('parentThreadId', threadId),
-    )
-    .take(PAGE_SIZE);
-  for (const row of parentBranchesPage) {
-    await ctx.db.delete(row._id);
-  }
-  if (parentBranchesPage.length === PAGE_SIZE) {
-    return { done: false, remaining: 1 };
-  }
-
-  // 5. messageFeedback
+  // 3. messageFeedback
   const feedbackPage = await ctx.db
     .query('messageFeedback')
     .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
@@ -391,7 +286,7 @@ export async function cascadeDeleteThreadChildren(
     return { done: false, remaining: 1 };
   }
 
-  // 6. chatFilterEvents
+  // 4. chatFilterEvents
   if (organizationId) {
     const eventsPage = await ctx.db
       .query('chatFilterEvents')
@@ -407,9 +302,7 @@ export async function cascadeDeleteThreadChildren(
     }
   }
 
-  // 7. (artifacts cascade removed — artifacts module deleted)
-
-  // 7.5 chat-upload fileMetadata bound to this thread.
+  // 5. chat-upload fileMetadata bound to this thread.
   //
   // Files uploaded via the chat composer carry `fileMetadata.threadId` set
   // to the chat thread (no `documents` row — chat uploads index by
@@ -423,11 +316,11 @@ export async function cascadeDeleteThreadChildren(
   // chunks survive thread deletion forever (the GDPR `eraseSubjectFileMetadata`
   // path can't reach them either, because the fileMetadata row is gone
   // by the time it runs after this cascade).
-  // 7.5 chat-uploaded fileMetadata is org-scoped (needs the
+  // Chat-uploaded fileMetadata is org-scoped (needs the
   // `by_organizationId_and_threadId` compound index), so this branch
   // requires `organizationId`. If it's missing on a legacy thread row,
   // we still proceed past it to clean up the org-independent tables
-  // below (videoLinkJobs / tts) rather than silently skipping every
+  // below (videoLinkJobs) rather than silently skipping every
   // child cascade.
   const filesPageStorageIds: string[] = [];
   if (organizationId) {
@@ -494,9 +387,9 @@ export async function cascadeDeleteThreadChildren(
     }
   }
 
-  // 7.6 video-link jobs bound to this thread. videoLinkJobs is a sidecar
+  // 6. video-link jobs bound to this thread. videoLinkJobs is a sidecar
   // to fileMetadata — the orchestrator action stores the transcript on
-  // fileMetadata (deleted in 7.5 above when org is known) and stores the
+  // fileMetadata (deleted in 5 above when org is known) and stores the
   // job's pipeline state here. Lifted OUT of the `if (organizationId)`
   // guard above: the `by_threadId` index is org-independent, and legacy
   // thread rows without an organizationId would otherwise leak both
@@ -511,7 +404,7 @@ export async function cascadeDeleteThreadChildren(
     if (
       job.storageId &&
       // Skip when the blob was attached to a fileMetadata row we just
-      // deleted in 7.5 — Convex `_storage` is reference-counted and
+      // deleted in 5 — Convex `_storage` is reference-counted and
       // double-delete is a no-op, but logging the skip keeps the
       // diagnostic trail clean.
       !filesPageStorageIds.includes(String(job.storageId))
@@ -534,73 +427,7 @@ export async function cascadeDeleteThreadChildren(
     return { done: false, remaining: 1 };
   }
 
-  // 7c. ttsAudioChunks — voice-mode output is per-message but indexed
-  // by thread for cascade. Both the `_storage` audio blob and the DB
-  // row need cleanup; without this, voice content (PII verbatim of
-  // assistant replies) survives thread deletion forever and the GDPR
-  // erasure path can't reach the rows either (no per-user index).
-  //
-  // Paged via `by_thread_age`. The whole thread share the same threadId,
-  // so a thread with > PAGE_SIZE chunks comes back through here on the
-  // dispatcher's next sweep.
-  const ttsPage = await ctx.db
-    .query('ttsAudioChunks')
-    .withIndex('by_thread_age', (q) => q.eq('threadId', threadId))
-    .take(PAGE_SIZE);
-  const s3TtsRefs = new Map<string, string[]>();
-  for (const chunk of ttsPage) {
-    // db.delete BEFORE the blob delete — Convex `_storage` writes are
-    // out-of-band and not rolled back on transaction abort, so the
-    // reverse order can leave a row pointing at a dead storageId
-    // (404 on `/api/tts-audio`). Matches the documented contract in
-    // `tts/cascade_helpers.ts`. `s3:` refs batch onto the scheduled lane.
-    const storageId = chunk.storageId;
-    await ctx.db.delete(chunk._id);
-    if (storageId) {
-      const refs = s3TtsRefs.get(chunk.organizationId) ?? [];
-      await deleteBlobInMutation(
-        ctx,
-        storageId,
-        refs,
-        'cascadeDeleteThreadChildren.tts',
-      );
-      if (refs.length > 0) s3TtsRefs.set(chunk.organizationId, refs);
-    }
-  }
-  for (const [orgId, refs] of s3TtsRefs) {
-    await scheduleS3BlobDeletes(ctx, orgId, refs);
-  }
-  if (ttsPage.length === PAGE_SIZE) {
-    return { done: false, remaining: 1 };
-  }
-
-  // 8. agentWebhookUserThreads
-  const webhookPage = await ctx.db
-    .query('agentWebhookUserThreads')
-    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-    .take(PAGE_SIZE);
-  for (const row of webhookPage) {
-    await ctx.db.delete(row._id);
-  }
-  if (webhookPage.length === PAGE_SIZE) {
-    return { done: false, remaining: 1 };
-  }
-
-  // 9. slackThreads — the Slack-conversation → Tale-thread mapping. Removing it
-  // here prevents a dangling threadId from being reused by a later Slack message
-  // (which would resurrect an erased conversation under the same id).
-  const slackThreadsPage = await ctx.db
-    .query('slackThreads')
-    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-    .take(PAGE_SIZE);
-  for (const row of slackThreadsPage) {
-    await ctx.db.delete(row._id);
-  }
-  if (slackThreadsPage.length === PAGE_SIZE) {
-    return { done: false, remaining: 1 };
-  }
-
-  // 10. sub-threads — schedule cascade for each. Sub-threads are themselves
+  // 7. sub-threads — schedule cascade for each. Sub-threads are themselves
   // threadMetadata rows; the cleanupOrphanedSubThreads internal mutation
   // handles them via its own scheduling logic. We trigger here (best-effort)
   // before deleting the parent so its summary is still parseable.
@@ -609,7 +436,7 @@ export async function cascadeDeleteThreadChildren(
   });
   const subThreadIds = parseSubThreadIds(thread?.summary ?? undefined);
 
-  // 10. agent-component messages + thread — bulk delete via the component
+  // 8. agent-component messages + thread — bulk delete via the component
   // API (paged internally, async). The component handles message + stream
   // + thread cleanup transactionally. After this call the agent-side state
   // is effectively gone.
@@ -617,7 +444,7 @@ export async function cascadeDeleteThreadChildren(
     threadId,
   });
 
-  // 12. Recurse for sub-threads. Round-2 review CRITICAL #16: previously
+  // 9. Recurse for sub-threads. Round-2 review CRITICAL #16: previously
   // the recursive return value was discarded and the parent metadata row
   // was deleted unconditionally. When a sub-thread itself had > PAGE_SIZE
   // child rows (recursive call returns `done: false`), the parent's
@@ -643,7 +470,7 @@ export async function cascadeDeleteThreadChildren(
     return { done: false, remaining: 1 };
   }
 
-  // 13. threadMetadata row itself — last step, only fires when every child
+  // 10. threadMetadata row itself — last step, only fires when every child
   // step above reported done.
   const metaRow = await ctx.db
     .query('threadMetadata')

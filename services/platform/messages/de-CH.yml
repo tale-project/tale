@@ -94,9 +94,9 @@ governance:
   retentionPolicy:
     workflowLogs:
       description:
-        Workflow-Ausführungseinträge und Trigger-Logs, die älter als die
-        Aufbewahrungsfrist sind, automatisch löschen. Schliesst pro Ausführung
-        gespeicherte Variablen-/Output-Blobs ein.
+        Workflow-Ausführungseinträge, die älter als die Aufbewahrungsfrist
+        sind, automatisch löschen. Schliesst pro Ausführung gespeicherte
+        Variablen-/Output-Blobs ein.
   passwordPolicy:
     requireUpper: Grossbuchstabe erforderlich
   guardrailsOverview:
