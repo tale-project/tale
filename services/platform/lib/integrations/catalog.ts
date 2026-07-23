@@ -70,13 +70,24 @@ function findRepoSystemRoot(startDir: string): string | null {
   }
 }
 
+/** `$TALE_CONFIG_SYSTEM_DIR` when set to an absolute path — the deployment
+ * contract for shipped containers, which bake the tree in and have no repo
+ * checkout to walk up to. A set-but-relative value resolves to nothing rather
+ * than being guessed against the cwd. */
+function envSystemRoot(): string | undefined {
+  const fromEnv = process.env.TALE_CONFIG_SYSTEM_DIR;
+  if (fromEnv && path.isAbsolute(fromEnv)) return fromEnv;
+  return undefined;
+}
+
 export function resolveIntegrationsDir(
   options: LoadConnectorCatalogOptions = {},
 ): string {
-  const root = options.root ?? findRepoSystemRoot(process.cwd());
+  const root =
+    options.root ?? envSystemRoot() ?? findRepoSystemRoot(process.cwd());
   if (!root) {
     throw new Error(
-      '[integrations] no system config tree found: pass an explicit root or run inside a checkout with configs/platform/system',
+      '[integrations] no system config tree found: set TALE_CONFIG_SYSTEM_DIR (absolute), pass an explicit root, or run inside a checkout with configs/platform/system',
     );
   }
   return path.join(root, 'integrations');

@@ -179,6 +179,7 @@ ENV NODE_ENV=development \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
+    TALE_CONFIG_SYSTEM_DIR=/app/system \
     TALE_DEV_NO_PRIVDROP=1
 
 WORKDIR /app/services/platform
@@ -326,7 +327,12 @@ ENV NODE_ENV=production \
     # Generic catalog — its children ARE the domains
     # ($TALE_CONFIG_BUILTIN_DIR/<domain>/), with no org level and no fallback.
     # Every org is seeded from it. See convex/organizations/scaffold.ts.
-    TALE_CONFIG_BUILTIN_DIR=/app/builtin
+    TALE_CONFIG_BUILTIN_DIR=/app/builtin \
+    # Org-independent system config (providers/models/harnesses/integrations),
+    # read by 'use node' actions. Same push-to-Convex-env path as above; a
+    # container has no repo checkout to fall back on. Baked at /app/system in
+    # the convex image (services/convex/Dockerfile).
+    TALE_CONFIG_SYSTEM_DIR=/app/system
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
@@ -383,7 +389,8 @@ ENV NODE_ENV=production \
     INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
-    TALE_CONFIG_BUILTIN_DIR=/app/builtin
+    TALE_CONFIG_BUILTIN_DIR=/app/builtin \
+    TALE_CONFIG_SYSTEM_DIR=/app/system
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

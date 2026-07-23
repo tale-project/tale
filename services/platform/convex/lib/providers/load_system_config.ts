@@ -20,9 +20,12 @@
  * reference. A changed file is re-parsed on the next call.
  *
  * Root resolution mirrors the builtin-catalog convention: an explicit
- * `root` (the `system/` directory) wins; otherwise the loader walks up from
- * the working directory to the repo checkout's `configs/platform/system` —
- * which covers vitest, scripts, and a source checkout's convex dev process.
+ * `root` (the `system/` directory) wins; then `$TALE_CONFIG_SYSTEM_DIR` (the
+ * deployment contract — shipped containers bake the tree in and set this,
+ * since a container has no repo checkout to walk up to); otherwise the loader
+ * walks up from the working directory to the repo checkout's
+ * `configs/platform/system` — which covers vitest, scripts, and a source
+ * checkout's convex dev process.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -65,6 +68,15 @@ function findRepoSystemRoot(startDir: string): string | null {
   }
 }
 
+/** `$TALE_CONFIG_SYSTEM_DIR` when it is set to an absolute path. A set-but-
+ * relative value is a misconfiguration and resolves to nothing (mirrors the
+ * builtin-catalog convention) rather than being guessed against the cwd. */
+function envSystemRoot(): string | undefined {
+  const fromEnv = process.env.TALE_CONFIG_SYSTEM_DIR;
+  if (fromEnv && path.isAbsolute(fromEnv)) return fromEnv;
+  return undefined;
+}
+
 export interface LoadSystemConfigOptions {
   /**
    * Absolute path of the `system/` config directory (the one containing
@@ -74,10 +86,11 @@ export interface LoadSystemConfigOptions {
 }
 
 function resolveRoot(options: LoadSystemConfigOptions): string {
-  const root = options.root ?? findRepoSystemRoot(process.cwd());
+  const root =
+    options.root ?? envSystemRoot() ?? findRepoSystemRoot(process.cwd());
   if (!root) {
     throw new Error(
-      '[providers] no system config tree found: pass an explicit root or run inside a checkout with configs/platform/system',
+      '[providers] no system config tree found: set TALE_CONFIG_SYSTEM_DIR (absolute), pass an explicit root, or run inside a checkout with configs/platform/system',
     );
   }
   return root;

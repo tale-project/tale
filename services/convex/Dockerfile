@@ -130,7 +130,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && mkdir -p /app/data/convex /app/data/default \
                 /dashboard \
                 /app/builtin \
-    && chown -R app:app /app/data /dashboard /app/builtin \
+                /app/system \
+    && chown -R app:app /app/data /dashboard /app/builtin /app/system \
     # Strip system bloat from Convex backend base (~155 MB)
     && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
     && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
@@ -208,10 +209,16 @@ COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
 # ----------------------------------------------------------------------------
 # Builtin seed assets (one-time copy on fresh volume; .history/ preserves user edits).
-# Sources come from the repo-root builtin-configs/ catalog (generic — its
-# children ARE the domains, no org level); seeder reads $TALE_CONFIG_BUILTIN_DIR/<domain>.
+# The per-org seed catalog is configs/platform/custom/ (generic — its children
+# ARE the domains, no org level); seeder reads $TALE_CONFIG_BUILTIN_DIR/<domain>.
 # ----------------------------------------------------------------------------
-COPY --chown=app:app builtin-configs/ /app/builtin/
+COPY --chown=app:app configs/platform/custom/ /app/builtin/
+
+# System config (providers/models/harnesses/integrations) is org-independent and
+# read by 'use node' actions at $TALE_CONFIG_SYSTEM_DIR (set on the platform
+# image, synced into the deployment env). A container has no repo checkout, so
+# unlike host dev it cannot fall back to walking up to configs/platform/system.
+COPY --chown=app:app configs/platform/system/ /app/system/
 
 # ----------------------------------------------------------------------------
 # Entrypoint scripts
