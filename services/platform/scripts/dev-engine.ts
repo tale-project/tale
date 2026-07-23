@@ -190,22 +190,30 @@ function envNormalizeCommon() {
   // Convex derives sub-dirs from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
   // Default to a gitignored repo-relative dir: each org's files are seeded into
   // it from the built-in catalog at org-create. NOT the built-in catalog itself
-  // (that is `builtin-configs/`, which is not org-shaped). An explicit env wins
+  // (that is `configs/platform/custom/`, which is not org-shaped). An explicit env wins
   // (the user's .env or the E2E fixture point this at their own writable root).
   if (!process.env.TALE_CONFIG_DIR) {
     process.env.TALE_CONFIG_DIR = join(repoRoot, '.tale-config');
   }
 
   // Built-in config catalog: the single GENERIC template every org is seeded
-  // from. Its children ARE the domains (`builtin-configs/<domain>/`) — there is
-  // no org level, so the seeder reads `<builtin>/<domain>` with no `default`
-  // join. Prod sets this in the image (services/convex/Dockerfile copies
-  // builtin-configs/ → /app/builtin; services/platform/Dockerfile sets the env
-  // to /app/builtin). Dev has no build step, so default it to the repo's
-  // tracked catalog. Hermetic setups (E2E) pin their own builtin explicitly
-  // rather than inheriting this default.
+  // from. Its children ARE the org-scaffold domains
+  // (`configs/platform/custom/<domain>/` — agents, automations, branding,
+  // governance, skills), with no org level, so the seeder reads
+  // `<catalog>/<domain>` with no `default` join. System config
+  // (`configs/platform/system/`) is org-independent and deliberately NOT part
+  // of this root. Prod sets this in the image (services/convex/Dockerfile copies
+  // the catalog → /app/builtin; services/platform/Dockerfile sets the env to
+  // /app/builtin). Dev has no build step, so default it to the repo's tracked
+  // catalog. Hermetic setups (E2E) pin their own builtin explicitly rather than
+  // inheriting this default.
   if (!process.env.TALE_CONFIG_BUILTIN_DIR) {
-    process.env.TALE_CONFIG_BUILTIN_DIR = join(repoRoot, 'builtin-configs');
+    process.env.TALE_CONFIG_BUILTIN_DIR = join(
+      repoRoot,
+      'configs',
+      'platform',
+      'custom',
+    );
   }
 }
 
