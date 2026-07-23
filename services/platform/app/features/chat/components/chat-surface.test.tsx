@@ -28,7 +28,7 @@ describe('ChatSurface while the chat backend is unavailable', () => {
       screen.getByRole('heading', { name: "Chat isn't connected yet" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: 'How can I assist you?' }),
+      screen.queryByRole('heading', { name: 'What are we working on?' }),
     ).toBeNull();
   });
 

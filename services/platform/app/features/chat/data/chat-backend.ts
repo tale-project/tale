@@ -4,12 +4,14 @@
  * THE SEAM between the chat surface and its Convex functions.
  *
  * Each read this surface needs is declared here once, in the shape the screen
- * consumes, and bound to a live Convex query. The reads that HAVE a backend —
- * threads, messages, the live generation, and memories — subscribe to
- * `api.chat.*` and stream updates in real time. The reads whose backend is not
- * built yet report `unavailable` rather than inventing rows, so a component
- * renders an honest "not connected" state instead of a conversation that does
- * not exist.
+ * consumes. Live reads — threads, messages, the live generation, and memories
+ * — subscribe to `api.chat.*` and stream updates in real time. File-backed
+ * config reads — the composer's models and the agent picker — go through their
+ * domain's aggregator ACTION (models, harnesses, and agents live in the config
+ * tree, which only a `'use node'` action may read) and resolve on mount. The
+ * one read whose backend is not built yet, the Canvas, reports `unavailable`
+ * rather than inventing rows, so a component renders an honest "not connected"
+ * state instead of a session that does not exist.
  *
  * Subscriptions go through the Convex client directly (`useConvex` +
  * `useSyncExternalStore`) rather than the app's `useConvexQuery` wrapper. The
@@ -158,15 +160,54 @@ export function useChatGeneration(
 
 /**
  * What the composer's model picker offers. The model catalog and sandbox
- * harness listings are owned by the providers domain, not the chat backend, so
- * this reports `unavailable` until that seam is bound here rather than
- * fabricating a picker with no models behind it.
+ * harnesses are file-backed config the providers domain owns, so — like the
+ * agent read below — this is an ACTION, not a reactive watch: it resolves the
+ * org's models the same way a turn does (the connectors it has an active
+ * credential for) plus the shipped harnesses, loading once per org and again
+ * per mount. Failures degrade to `unavailable`, so the picker says "not
+ * connected" rather than offering a model no configured credential could serve.
  */
-export function useComposerModels(_organizationId: string): ChatQuery<{
+export function useComposerModels(organizationId: string): ChatQuery<{
   readonly models: readonly ComposerModelOption[];
   readonly sandboxAgents: readonly ComposerSandboxAgentOption[];
 }> {
-  return UNAVAILABLE;
+  const convex = useConvex();
+  const [state, setState] = useState<
+    ChatQuery<{
+      readonly models: readonly ComposerModelOption[];
+      readonly sandboxAgents: readonly ComposerSandboxAgentOption[];
+    }>
+  >({ status: 'loading' });
+
+  useEffect(() => {
+    if (!convex || !organizationId) return () => {};
+    let cancelled = false;
+    setState({ status: 'loading' });
+    convex
+      .action(api.chat.composer.listComposerModels, { organizationId })
+      .then(
+        (data) => {
+          if (cancelled) return;
+          setState({ status: 'ready', data });
+        },
+        (error: unknown) => {
+          if (cancelled) return;
+          // Pre-auth or backend failure: report honestly; the picker renders its
+          // unavailable state instead of an empty model list.
+          console.warn(
+            '[chat] could not list composer models for the picker',
+            error,
+          );
+          setState(UNAVAILABLE);
+        },
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [convex, organizationId]);
+
+  if (!convex) return UNAVAILABLE;
+  return state;
 }
 
 /**

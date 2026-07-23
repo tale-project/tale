@@ -65,6 +65,7 @@ import type * as browser_sessions_sessions from "../browser_sessions/sessions.js
 import type * as changelog_actions from "../changelog/actions.js";
 import type * as changelog_internal_actions from "../changelog/internal_actions.js";
 import type * as chat_capabilities_action from "../chat/capabilities_action.js";
+import type * as chat_composer from "../chat/composer.js";
 import type * as chat_generations from "../chat/generations.js";
 import type * as chat_memories from "../chat/memories.js";
 import type * as chat_messages from "../chat/messages.js";
@@ -886,6 +887,7 @@ declare const fullApi: ApiFromModules<{
   "changelog/actions": typeof changelog_actions;
   "changelog/internal_actions": typeof changelog_internal_actions;
   "chat/capabilities_action": typeof chat_capabilities_action;
+  "chat/composer": typeof chat_composer;
   "chat/generations": typeof chat_generations;
   "chat/memories": typeof chat_memories;
   "chat/messages": typeof chat_messages;
