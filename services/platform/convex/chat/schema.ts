@@ -38,12 +38,21 @@ export const threadsTable = defineTable({
    * from. */
   branchedFromMessageId: v.optional(v.string()),
   archived: v.boolean(),
+  /** Sharing: an org-internal, read-only snapshot link. The token is the URL
+   * credential; `sharedAt` is the snapshot boundary — messages appended after
+   * it are never part of the share. Unsharing flips `isShared` but keeps the
+   * token, so re-sharing restores the same URL. */
+  shareToken: v.optional(v.string()),
+  isShared: v.optional(v.boolean()),
+  sharedAt: v.optional(v.number()),
+  sharedBy: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_user', ['organizationId', 'userId'])
-  .index('by_org_user_updated', ['organizationId', 'userId', 'updatedAt']);
+  .index('by_org_user_updated', ['organizationId', 'userId', 'updatedAt'])
+  .index('by_shareToken', ['shareToken']);
 
 /**
  * One message. Tool calls and their results are messages too — the history is

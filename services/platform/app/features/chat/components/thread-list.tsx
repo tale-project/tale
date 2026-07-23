@@ -19,6 +19,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { ChatThreadSummary } from '../types';
+import { ThreadShareMenu } from './thread-share-menu';
 
 interface ThreadListProps {
   organizationId: string;
@@ -76,13 +77,13 @@ export function ThreadList({
           className="min-h-0 flex-1 gap-0.5 overflow-y-auto"
         >
           {threads.map((thread) => (
-            <li key={thread.id}>
+            <li key={thread.id} className="flex items-center gap-0.5">
               <Link
                 to="/dashboard/$id/chat/$threadId"
                 params={{ id: organizationId, threadId: thread.id }}
                 aria-current={thread.id === activeThreadId ? 'page' : undefined}
                 className={cn(
-                  'focus-visible:ring-ring flex min-h-8 items-center gap-1.5 rounded-md px-2 text-sm focus-visible:ring-2 focus-visible:outline-none',
+                  'focus-visible:ring-ring flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-sm focus-visible:ring-2 focus-visible:outline-none',
                   thread.id === activeThreadId
                     ? 'bg-muted text-foreground'
                     : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
@@ -103,6 +104,10 @@ export function ThreadList({
                   </span>
                 )}
               </Link>
+              <ThreadShareMenu
+                organizationId={organizationId}
+                thread={thread}
+              />
             </li>
           ))}
         </Stack>

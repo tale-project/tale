@@ -11,6 +11,12 @@
  * came from: a fork copies the conversation up to a chosen message into a
  * fresh thread, so the original is never rewritten and the two histories
  * diverge cleanly from that point on.
+ *
+ * Sharing is the one deliberate crack in the user-privacy wall, and it is
+ * opt-in, org-internal, and snapshotted: the owner mints an unguessable token,
+ * any authenticated member of the SAME organization can read through it, and
+ * the share exposes only the messages that existed at `sharedAt` — never the
+ * turns that follow. Other organizations still see nothing.
  */
 
 import { v } from 'convex/values';
@@ -28,9 +34,51 @@ const threadSummaryValidator = v.object({
   kind: chatKindValidator,
   agentSlug: v.optional(v.string()),
   archived: v.boolean(),
+  isShared: v.optional(v.boolean()),
   updatedAt: v.number(),
   generating: v.boolean(),
 });
+
+/** One message of a shared snapshot — the same projection `listMessages`
+ * returns, re-declared here because the share read authorizes by token + org
+ * membership rather than by thread ownership. */
+const sharedMessageValidator = v.object({
+  id: v.id('messages'),
+  role: v.union(
+    v.literal('user'),
+    v.literal('assistant'),
+    v.literal('tool'),
+    v.literal('system'),
+  ),
+  parts: v.any(),
+  sequence: v.number(),
+  model: v.optional(v.string()),
+  providerSlug: v.optional(v.string()),
+  blockedReason: v.optional(v.string()),
+  error: v.optional(v.string()),
+  createdAt: v.number(),
+});
+
+/** A shared thread as the read-only page renders it. */
+const sharedThreadValidator = v.object({
+  threadId: v.id('threads'),
+  title: v.optional(v.string()),
+  sharedBy: v.string(),
+  sharedAt: v.number(),
+  agentSlug: v.optional(v.string()),
+  messages: v.array(sharedMessageValidator),
+});
+
+/** 256 bits of Web Crypto randomness, hex encoded (64 chars) — the same
+ * entropy budget and encoding as a SCIM bearer token, and URL-safe, because
+ * the token is the whole credential of the share URL. */
+function mintShareToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 /** Resolve the caller, asserting they are still a member of the org. Returns
  * the authenticated user id every thread read and write scopes to. */
@@ -104,6 +152,7 @@ export const listThreads = query({
       kind: thread.kind,
       agentSlug: thread.agentSlug,
       archived: thread.archived,
+      isShared: thread.isShared,
       updatedAt: thread.updatedAt,
       generating: generating.has(thread._id),
     }));
@@ -133,6 +182,7 @@ export const getThread = query({
       kind: thread.kind,
       agentSlug: thread.agentSlug,
       archived: thread.archived,
+      isShared: thread.isShared,
       updatedAt: thread.updatedAt,
       generating: generation !== null,
     };
@@ -187,6 +237,129 @@ export const setThreadArchived = mutation({
       updatedAt: Date.now(),
     });
     return true;
+  },
+});
+
+/**
+ * Share a thread with the rest of the organization: mint the token that IS the
+ * share URL, and stamp `sharedAt` — the snapshot boundary the shared read
+ * enforces. Re-sharing an already-shared thread keeps the token (the URL stays
+ * stable) but refreshes `sharedAt`, so sharing again is how the owner
+ * publishes the turns that happened since. Returns null when the thread is not
+ * the caller's.
+ */
+export const shareThread = mutation({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.union(v.object({ shareToken: v.string() }), v.null()),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return null;
+
+    const shareToken = thread.shareToken ?? mintShareToken();
+    await ctx.db.patch(thread._id, {
+      shareToken,
+      isShared: true,
+      sharedAt: Date.now(),
+      sharedBy: userId,
+    });
+    return { shareToken };
+  },
+});
+
+/**
+ * Stop sharing a thread. The token is kept so re-sharing restores the same
+ * URL; only `isShared` gates the read, so an unshared link goes dark
+ * immediately.
+ */
+export const unshareThread = mutation({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return null;
+    await ctx.db.patch(thread._id, { isShared: false });
+    return null;
+  },
+});
+
+/**
+ * Resolve a share token to its read-only snapshot. The token authorizes the
+ * read TOGETHER with organization membership — sharing is org-internal, never
+ * public — and the snapshot is cut at `sharedAt`: messages appended after the
+ * share are not part of it. Returns null for an unknown token, an unshared
+ * thread, or a caller outside the thread's organization; the three are
+ * indistinguishable by design, so the token alone never confirms a thread
+ * exists.
+ */
+export const getSharedThread = query({
+  args: { shareToken: v.string() },
+  returns: v.union(sharedThreadValidator, v.null()),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const thread = await ctx.db
+      .query('threads')
+      .withIndex('by_shareToken', (q) => q.eq('shareToken', args.shareToken))
+      .first();
+    if (
+      !thread ||
+      thread.isShared !== true ||
+      thread.sharedAt === undefined ||
+      thread.sharedBy === undefined
+    ) {
+      return null;
+    }
+
+    try {
+      await getOrganizationMember(ctx, thread.organizationId, authUser);
+    } catch {
+      // A caller outside the thread's organization gets the same answer as an
+      // unknown token — membership is the authorization, and its absence must
+      // not read differently from the share not existing.
+      return null;
+    }
+
+    const sharedAt = thread.sharedAt;
+    const messages = await ctx.db
+      .query('messages')
+      .withIndex('by_thread_sequence', (q) => q.eq('threadId', thread._id))
+      .collect();
+
+    return {
+      threadId: thread._id,
+      title: thread.title,
+      sharedBy: thread.sharedBy,
+      sharedAt,
+      agentSlug: thread.agentSlug,
+      // Only what existed when the share was (re)published — the share is a
+      // snapshot in time, not a live feed of the conversation.
+      messages: messages
+        .filter((message) => message.createdAt <= sharedAt)
+        .map((message) => ({
+          id: message._id,
+          role: message.role,
+          parts: message.parts,
+          sequence: message.sequence,
+          model: message.model,
+          providerSlug: message.providerSlug,
+          blockedReason: message.blockedReason,
+          error: message.error,
+          createdAt: message.createdAt,
+        })),
+    };
   },
 });
 

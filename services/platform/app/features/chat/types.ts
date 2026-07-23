@@ -22,6 +22,8 @@ export interface ChatThreadSummary {
   readonly kind: ChatThreadKind;
   readonly agentSlug?: string;
   readonly archived: boolean;
+  /** True while the thread is published as an org-internal snapshot link. */
+  readonly isShared?: boolean;
   readonly updatedAt: number;
   /** True while a generation row exists for the thread. */
   readonly generating: boolean;

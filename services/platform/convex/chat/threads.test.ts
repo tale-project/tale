@@ -171,6 +171,222 @@ describe('chat threads — scoping', () => {
   });
 });
 
+describe('chat threads — sharing', () => {
+  /** Alice's thread with three messages stamped before any share. */
+  async function seedSharedFixture(t: T) {
+    await seedMember(t, ALICE, ORG_A);
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+        title: 'Quarterly numbers',
+      });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 3; i++) {
+        await ctx.db.insert('messages', {
+          organizationId: ORG_A,
+          threadId,
+          role: i % 2 === 0 ? 'user' : 'assistant',
+          parts: [{ type: 'text', text: `m${i}` }],
+          sequence: i,
+          createdAt: i,
+        });
+      }
+    });
+    return threadId;
+  }
+
+  /** The thread row as stored — sharing state lives on it. */
+  async function readThread(t: T, threadId: string) {
+    return await t.run(async (ctx) => {
+      const id = ctx.db.normalizeId('threads', threadId);
+      return id ? await ctx.db.get(id) : null;
+    });
+  }
+
+  it('mints a stable token and re-sharing only moves the snapshot boundary', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedSharedFixture(t);
+
+    const first = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    expect(first).not.toBeNull();
+    // The token is the whole credential of the URL — long and URL-safe.
+    expect(first?.shareToken).toMatch(/^[0-9a-f]{64}$/);
+
+    // Age the boundary, then re-share: the token must survive, the boundary
+    // must move.
+    await t.run(async (ctx) => {
+      const id = ctx.db.normalizeId('threads', threadId);
+      if (id) await ctx.db.patch(id, { sharedAt: 1 });
+    });
+    const again = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    expect(again?.shareToken).toBe(first?.shareToken);
+    const thread = await readThread(t, threadId);
+    expect(thread?.sharedAt).toBeGreaterThan(1);
+    expect(thread?.isShared).toBe(true);
+    expect(thread?.sharedBy).toBe(ALICE);
+  });
+
+  it('refuses to share a thread the caller does not own', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedSharedFixture(t);
+    await seedMember(t, BOB, ORG_A);
+
+    const asBob = await t
+      .withIdentity({ subject: BOB })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    expect(asBob).toBeNull();
+    expect((await readThread(t, threadId))?.isShared).toBeUndefined();
+  });
+
+  it('serves the snapshot to another member of the organization, in order', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedSharedFixture(t);
+    await seedMember(t, BOB, ORG_A);
+
+    const shared = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+
+    const view = await t
+      .withIdentity({ subject: BOB })
+      .query(api.chat.threads.getSharedThread, {
+        shareToken: shared?.shareToken ?? '',
+      });
+    expect(view).not.toBeNull();
+    expect(view?.threadId).toBe(threadId);
+    expect(view?.title).toBe('Quarterly numbers');
+    expect(view?.sharedBy).toBe(ALICE);
+    expect(view?.messages.map((m) => m.sequence)).toEqual([0, 1, 2]);
+    expect(view?.messages.map((m) => m.parts)).toEqual([
+      [{ type: 'text', text: 'm0' }],
+      [{ type: 'text', text: 'm1' }],
+      [{ type: 'text', text: 'm2' }],
+    ]);
+  });
+
+  it('cuts the snapshot at sharedAt — a message appended after the share stays private', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedSharedFixture(t);
+
+    const shared = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    const sharedAt = (await readThread(t, threadId))?.sharedAt ?? 0;
+
+    // The conversation continues after the share.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('messages', {
+        organizationId: ORG_A,
+        threadId,
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'after the share' }],
+        sequence: 3,
+        createdAt: sharedAt + 1,
+      });
+    });
+
+    const view = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getSharedThread, {
+        shareToken: shared?.shareToken ?? '',
+      });
+    expect(view?.messages).toHaveLength(3);
+    expect(view?.messages.map((m) => m.sequence)).toEqual([0, 1, 2]);
+  });
+
+  it('answers null for an unknown token and for an unshared thread', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedSharedFixture(t);
+
+    const unknown = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getSharedThread, { shareToken: 'nope' });
+    expect(unknown).toBeNull();
+
+    const shared = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.unshareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+
+    const afterUnshare = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getSharedThread, {
+        shareToken: shared?.shareToken ?? '',
+      });
+    expect(afterUnshare).toBeNull();
+
+    // Re-sharing restores the exact same URL — the token survived the unshare.
+    const reshared = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    expect(reshared?.shareToken).toBe(shared?.shareToken);
+  });
+
+  it('answers null for a caller outside the thread’s organization', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedSharedFixture(t);
+    // Bob belongs to another org. In the thread's org he is mirrored only as
+    // DISABLED — a mirror hit that denies, keeping the deny path off the
+    // Better Auth fallback convexTest cannot register.
+    await seedMember(t, BOB, ORG_B);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: `m_${BOB}_${ORG_A}_disabled`,
+        userId: BOB,
+        organizationId: ORG_A,
+        role: 'disabled',
+        createdAt: 0,
+      });
+    });
+
+    const shared = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.shareThread, {
+        organizationId: ORG_A,
+        threadId,
+      });
+
+    const asOutsider = await t
+      .withIdentity({ subject: BOB })
+      .query(api.chat.threads.getSharedThread, {
+        shareToken: shared?.shareToken ?? '',
+      });
+    expect(asOutsider).toBeNull();
+  });
+});
+
 describe('chat threads — branching', () => {
   it('forks the conversation up to a message into a new thread with fresh sequences', async () => {
     const t = convexTest(schema, modules);
