@@ -22,6 +22,7 @@ import {
   internalQuery,
   type ActionCtx,
 } from '../../_generated/server';
+import { BASELINE_VERSION } from './baseline';
 import { getLimits } from './limits';
 import {
   appliedFrontier,
@@ -36,7 +37,7 @@ import {
   type PlanStep,
 } from './planner';
 import { ALL_META } from './registry.gen';
-import { buildOrderKey } from './semver';
+import { buildOrderKey, compareSemver } from './semver';
 import {
   isRunnableKind,
   type MigrationDirection,
@@ -161,6 +162,40 @@ export const status = internalQuery({
       references,
       failed,
       failedErrors,
+    };
+  },
+});
+
+/**
+ * Breaking-cutover sentinel: ledger rows recorded by releases OLDER than the
+ * migration baseline. Any hit means this deployment lived through a
+ * pre-baseline release (every install replays the whole chain on first boot,
+ * so even a fresh 0.3 install stamped rows) — post-baseline code must refuse
+ * to serve its data, because the upgrade history was reset and nothing can
+ * migrate it. `status` above cannot see this: with the post-reset EMPTY
+ * registry it derives everything from ALL_META and reports a clean slate
+ * even over a pre-baseline ledger.
+ *
+ * Consumed by the docker-entrypoint boot backstop (fatal, escape hatch
+ * `TALE_ACCEPT_DATA_LOSS=1`); the CLI deploy guard refuses earlier via the
+ * running container's image version, before anything is touched.
+ */
+export const preBaselineLedger = internalQuery({
+  args: {},
+  returns: v.object({
+    baseline: v.string(),
+    count: v.number(),
+    examples: v.array(v.string()),
+  }),
+  handler: async (ctx) => {
+    const rows = await ctx.db.query('migrationLedger').collect();
+    const pre = rows.filter(
+      (r) => compareSemver(r.semver, BASELINE_VERSION) < 0,
+    );
+    return {
+      baseline: BASELINE_VERSION,
+      count: pre.length,
+      examples: pre.slice(0, 5).map((r) => r.migrationId),
     };
   },
 });
