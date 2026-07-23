@@ -44,6 +44,7 @@ import type * as audit_logs_types from "../audit_logs/types.js";
 import type * as audit_logs_validators from "../audit_logs/validators.js";
 import type * as audit_logs_verify_integrity from "../audit_logs/verify_integrity.js";
 import type * as auth from "../auth.js";
+import type * as automations_catalog from "../automations/catalog.js";
 import type * as automations_checkpoints from "../automations/checkpoints.js";
 import type * as automations_cron from "../automations/cron.js";
 import type * as automations_mutations from "../automations/mutations.js";
@@ -987,6 +988,7 @@ declare const fullApi: ApiFromModules<{
   "audit_logs/validators": typeof audit_logs_validators;
   "audit_logs/verify_integrity": typeof audit_logs_verify_integrity;
   auth: typeof auth;
+  "automations/catalog": typeof automations_catalog;
   "automations/checkpoints": typeof automations_checkpoints;
   "automations/cron": typeof automations_cron;
   "automations/mutations": typeof automations_mutations;
