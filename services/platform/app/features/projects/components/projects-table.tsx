@@ -232,6 +232,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
           icon: Folder,
           title: t('list.emptyTitle'),
           description: t('list.emptyDescription'),
+          headingLevel: 2,
           action: (
             <Button
               type="button"

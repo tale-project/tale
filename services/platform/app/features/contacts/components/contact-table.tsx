@@ -199,6 +199,7 @@ export function ContactsTable({
           icon: Users,
           title: tEmpty('contacts.title'),
           description: tEmpty('contacts.description'),
+          headingLevel: 2,
         }}
         footer={
           <BulkDeleteBar

@@ -209,6 +209,7 @@ export function WebsitesTable({
           icon: Globe,
           title: tEmpty('websites.title'),
           description: tEmpty('websites.description'),
+          headingLevel: 2,
         }}
         footer={
           <BulkDeleteBar
