@@ -80,6 +80,8 @@ Règle `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` pour désactiver le prune/nettoyage 
 
 En dernier recours seulement — `bun run setup:clean` efface **toutes** les données Convex de dev locales : chaque table du SQLite local, chaque upload dans `convex_local_storage/files/`, chaque bundle de fonctions. La config org sur disque et `.env.local` restent intacts.
 
+**Traverser la baseline 0.4 :** les données de dev locales et les arborescences de config par org créées par des checkouts pré-0.4 n'ont aucun chemin de migration — la remise à zéro de la baseline 0.4 a vidé l'historique des migrations, et l'aller-retour export/import ci-dessous ne peut pas non plus faire le pont (l'ancien export ne correspond pas au nouveau schéma). Faire passer une machine de dev de l'autre côté de la baseline, c'est réinitialiser les données Convex locales et recréer tes orgs de dev ; traite les répertoires d'org `$TALE_CONFIG_DIR` pré-0.4 de la même façon.
+
 **Garde tes données à travers le reset.** Même quand la barrière d'intégrité se déclenche (le bundle d'un module actif manque), le backend lui-même démarre encore — tu peux donc exporter tes données avant et les restaurer après, et le reset ne perd alors rien :
 
 ```bash

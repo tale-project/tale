@@ -5,6 +5,8 @@ description: Wie `tale update` eine Tale-Instanz vorwärtsbewegt — die automat
 
 Upgrades auf einer self-hosted Tale-Instanz laufen durch zwei Kommandos: `tale update` bewegt das CLI-Binary auf die neue Version und synct deine Projektdateien passend dazu, dann rollt `tale deploy` die Plattform-Container. Der Deploy nutzt ein Blue-Green-Pattern — die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet. Zero-Downtime ist der Default; macht ein Patch-Release Ärger, bringt `tale rollback` den vorherigen Patch in einem Kommando zurück, und alles Größere recovert aus dem Pre-Upgrade-Snapshot.
 
+**Eine harte Ausnahme:** Von 0.3.x auf 0.4 gibt es keinen Upgrade-Pfad. 0.4 ist ein Breaking Cutover, der ein frisches Deployment verlangt — lies zuerst [0.3 → 0.4: Breaking Cutover](#03--04-breaking-cutover), wenn deine Instanz auf 0.3.x läuft.
+
 Was du nicht mehr tust, ist das CLI von Hand im Gleichschritt zu halten: Das CLI gleicht sich automatisch an die Instanz an (siehe unten), sodass der einzige bewusste Schritt die Wahl ist, wann du mit `tale update` die Version wechselst.
 
 Die CLI-Installation lebt in [Tale-CLI installieren](/de/self-hosted/install/cli-install). Diese Seite deckt ab, was jedes Kommando tut und wie das Versions-Modell funktioniert.
@@ -77,7 +79,7 @@ Die vollständige Deploy-Prozedur inklusive der Cleanup-Phase lebt in `tale --he
 
 ## Mit Datenmigrationen arbeiten
 
-Jedes Deploy wendet ausstehende Datenmigrationen automatisch an — aber nur die nicht-destruktiven. Migrationen, die Daten entfernen oder überschreiben (ein Tabellen-Drop, eine entfernte Spalte), laufen nie unbeaufsichtigt: Das Deploy überspringt sie, listet auf, welche warten, und überlässt dir die Entscheidung.
+Die Migrationskette beginnt an der **0.4.0-Baseline**: Releases ab 0.4.0 tragen versionierte Migrationen für die Änderungen, die sie ausliefern, und nichts Älteres — die Prä-0.4-Historie steckt in keinem Binary (genau das macht den 0.3 → 0.4 Cutover breaking). Innerhalb der 0.4.x-Linie wendet jedes Deploy ausstehende Datenmigrationen automatisch an — aber nur die nicht-destruktiven. Migrationen, die Daten entfernen oder überschreiben (ein Tabellen-Drop, eine entfernte Spalte), laufen nie unbeaufsichtigt: Das Deploy überspringt sie, listet auf, welche warten, und überlässt dir die Entscheidung.
 
 ```bash
 # Was angewendet ist, was aussteht, was fehlgeschlagen ist
@@ -89,8 +91,8 @@ tale migrate up --step
 # Alles ohne Rückfragen anwenden (CI / nach Prüfung des Plans)
 tale migrate up --yes
 
-# Daten auf eine frühere Version zurückrollen
-tale migrate down --to 0.3.3
+# Daten auf eine frühere Version zurückrollen (0.4.0 oder neuer)
+tale migrate down --to 0.4.0
 ```
 
 Destruktive Migrationen sichern die betroffenen Zeilen bzw. Konfigurationsdateien, bevor sie sie anfassen — `tale migrate down` kann so wiederherstellen, was sie entfernt haben. Beide Richtungen sind fortsetzbar: Der Fortschritt wird pro Migration festgehalten (bei Konfigurationsdatei-Migrationen pro Organisation), ein Absturz oder Timeout setzt also dort wieder an, wo er unterbrochen wurde.
@@ -118,43 +120,37 @@ Tale-Versionen sind semver. Die Kompatibilitäts-Regeln:
 - Patch (`0.9.0 → 0.9.1`) — keine Migrationen, keine Config-Änderungen, `tale rollback` ist immer sicher.
 - Minor (`0.9.x → 0.10.x`) — kann forward-only Migrationen enthalten; `tale rollback` verweigert, Recovery ist Snapshot-Restore plus Redeploy.
 - Major (`0.x → 1.x`) — lies die Migrations-Notes, plan das Wartungsfenster, erwarte Überraschungen.
+- **Die 0.4.0-Baseline** — Versionen unter 0.4.0 und Versionen ab 0.4.0 sind getrennte Welten: kein Upgrade in keine Richtung, siehe den Cutover-Abschnitt unten.
 
-Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, solange die Zwischen-Migrationen noch im Binary sind; die Release-Notes nennen es, wenn das nicht der Fall ist.
+Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, solange die Zwischen-Migrationen noch im Binary sind; die Release-Notes nennen es, wenn das nicht der Fall ist. Die 0.4.0-Baseline ist der Dauerfall dieser Ausnahme: Prä-0.4-Migrationen stecken in keinem 0.4+-Binary.
 
-Um bewusst eine Version _runter_ zu gehen — etwa wenn ein Minor-Release Ärger macht und du seine Migrationen schon zurückgenommen hast —, nagle das Ziel mit `tale update --version <version>` fest. Das Kommando warnt, wenn das Ziel älter als die laufende Version ist, und erinnert dich, zuerst die Daten-Migrationen zurückzunehmen.
+Um bewusst eine Version _runter_ zu gehen — etwa wenn ein Minor-Release Ärger macht und du seine Migrationen schon zurückgenommen hast —, nagle das Ziel mit `tale update --version <version>` fest. Das Kommando warnt, wenn das Ziel älter als die laufende Version ist, und erinnert dich, zuerst die Daten-Migrationen zurückzunehmen. Ein Downgrade unter 0.4.0 kreuzt den Cutover rückwärts und ist nicht unterstützt: Ein 0.3.x-Release kann von 0.4+ erzeugte Daten nicht lesen — stelle einen Prä-0.4-Snapshot wieder her oder deploye 0.3.x frisch.
 
-## Upgrade von 0.3.1 oder älter
+## 0.3 → 0.4: Breaking Cutover
 
-Instanzen auf Version 0.3.1 oder älter halten die Daten des Convex-Backends im Docker-Volume `platform-data`. Neuere Versionen betreiben Convex als eigenen Service mit eigenem `convex-data`-Volume — und beim Deploy zieht nichts die Daten automatisch um. Springst du direkt über diese Grenze, legt `tale deploy` ein **leeres** `convex-data`-Volume an: Die Instanz kommt leer hoch, während jedes Byte deiner Daten unangetastet im alten `platform-data`-Volume liegt. Gelöscht wird nichts — aber die Daten ziehen nicht von selbst um, und `tale update` warnt, wenn es diese Konstellation erkennt, und bietet dir an, die Kopie direkt auszuführen.
+0.4 hat das KI-Backend der Plattform — und damit das Datenmodell — von einer sauberen Baseline neu aufgebaut. Die versionierte Migrations-Historie wurde bei 0.4.0 zurückgesetzt: Kein 0.4+-Release trägt die Prä-0.4-Migrationen, also **lässt sich eine 0.3.x-Instanz nicht in-place upgraden — 0.4 verlangt ein frisches Deployment.**
 
-Docker kennt kein natives Volume-Rename, der Umzug ist also eine Kopie durch einen Helfer-Container — genau die Schritte, die `tale update` für dich ausführt, wenn du den Prompt bestätigst (das alte Volume bleibt in jedem Fall erhalten). Von Hand — weil du den Prompt abgelehnt hast oder die automatische Kopie fehlgeschlagen ist — führst du ihn vor `tale deploy` aus, mit gestopptem Stack, damit nichts das Volume offen hält:
+**Was das praktisch heißt:**
+
+- `tale deploy` mit einem 0.4+-CLI **verweigert** jede Instanz, deren laufende Version unter 0.4.0 liegt — bevor ein Image gezogen oder irgendetwas geschrieben wird. Der Container trägt dieselbe Wache beim Boot (Log-Marker `[migrations][breaking-cutover]`) für Stacks, die außerhalb des CLI verwaltet werden.
+- Nichts aus einer 0.3-Instanz wird übernommen: Chats, Automationen samt Lauf-Historie, Wissenseinträge, Aufgaben-Historie, Benutzer und Anmeldungen. Dateien in einem BYO-S3-Bucket bleiben physisch im Bucket, aber die neue Instanz hat keine Referenzen darauf.
+- Die 0.3.x-Linie bleibt für Sicherheits- und kritische Fixes auf dem Branch `release/0.3` gepflegt — eine Weile auf 0.3.x zu bleiben ist ein unterstützter Weg; der Wechsel auf 0.4 ist ein Re-Onboarding, kein Upgrade.
+
+**Der Weg auf 0.4:**
 
 ```bash
-# 1. Das Legacy-Volume finden — <project> ist die `id` in tale.json.
-docker volume ls | grep platform-data
-# Installationen älter als 0.2.33 nutzten das feste Präfix `tale_`
-# statt `<project>_`; das Ziel unten nutzt weiterhin `<project>_`.
-
-# 2. Den laufenden Stack stoppen.
-docker compose -p <project> down
-
-# 3. Ziel-Volume anlegen und die Daten hinüberkopieren.
-docker volume create <project>_convex-data
-docker run --rm \
-  -v <project>_platform-data:/from:ro \
-  -v <project>_convex-data:/to \
-  alpine sh -c "cd /from && cp -a . /to"
-
-# 4. Stack rollen, dann prüfen, dass deine Daten da sind.
+# 1. Die 0.3-Instanz unangetastet lassen (sie bedient weiter).
+# 2. Ein NEUES Projektverzeichnis mit einem 0.4-CLI anlegen:
+mkdir tale-04 && cd tale-04
+tale init
 tale deploy
 
-# 5. Erst nach dem Prüfen das alte Volume freigeben.
-docker volume rm <project>_platform-data
+# 3. Re-Onboarding: Organisationen, Benutzer (Einladung / SSO),
+#    Konfiguration, Dokumente und Wissen neu hochladen.
+# 4. Die 0.3-Instanz stilllegen, sobald die neue abgenommen ist.
 ```
 
-Ein Dev-Workspace spiegelt denselben Umzug unter dem `-dev`-Scope: `<project>-dev_platform-data` → `<project>-dev_convex-data`, mit `docker compose -p <project>-dev down` als Stopp-Schritt.
-
-Hast du schon deployt und eine leere Instanz bekommen, sind deine Daten weiterhin sicher in `platform-data`. Stoppe den Stack, entferne das frisch angelegte leere Volume mit `docker volume rm <project>_convex-data`, führ dann die Kopie oben aus und deploye erneut.
+Der Experten-Override — `tale deploy --accept-data-loss` bzw. `TALE_ACCEPT_DATA_LOSS=1` am Container — existiert für den seltenen Fall, dass du bewusst einen Host wiederverwendest, dessen alte Volumes du bereits behandelt hast. Er tut genau, was sein Name sagt: Prä-0.4-Daten dieser Instanz werden dauerhaft unlesbar.
 
 ## Wo das hingehört
 

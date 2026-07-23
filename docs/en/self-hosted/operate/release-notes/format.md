@@ -12,7 +12,7 @@ The notes themselves live on the GitHub release page for each tag. The CLI also 
 Tale versions are semver, and the version number is the headline fact about an upgrade.
 
 - **Patch (`0.9.0 → 0.9.1`)** — bug fixes only. No schema migrations, no config changes, no behaviour changes other than the fix itself. Safe to upgrade without reading past the security section.
-- **Minor (`0.9.x → 0.10.x`)** — new features, possibly forward-only migrations. Backwards-compatible by default; deprecations are announced one minor in advance.
+- **Minor (`0.9.x → 0.10.x`)** — new features, possibly forward-only migrations. Backwards-compatible by default; deprecations are announced one minor in advance. The one standing exception is 0.4.0: a breaking minor that requires a fresh deployment (see [Upgrades → 0.3 → 0.4](/self-hosted/operate/upgrades)).
 - **Major (`0.x → 1.x`)** — breaking changes are allowed. Always carries a migration-notes link at the top of the release; read it end-to-end before starting.
 
 The version line at the top of every release page names the bump kind in plain English so you do not have to do the arithmetic yourself.

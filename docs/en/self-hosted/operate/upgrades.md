@@ -5,6 +5,8 @@ description: How `tale update` moves a Tale instance forward — automatic CLI/i
 
 Upgrades on a self-hosted Tale instance run through two commands: `tale update` moves the CLI binary to the new version and syncs your project files to match, then `tale deploy` rolls the platform containers. The deploy uses a blue-green pattern — the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
 
+**One hard exception:** there is no upgrade path from 0.3.x to 0.4. 0.4 is a breaking cutover that requires a fresh deployment — see [0.3 → 0.4: breaking cutover](#03--04-breaking-cutover) before anything else if your instance is on 0.3.x.
+
 What you no longer do is keep the CLI in sync by hand: the CLI aligns itself to the instance automatically (see below), so the only deliberate step is choosing when to move versions with `tale update`.
 
 The CLI install lives in [Install the tale CLI](/self-hosted/install/cli-install). This page covers what each command does and how the version model works.
@@ -77,7 +79,7 @@ The full deploy procedure including the cleanup phase lives in `tale --help`; th
 
 ## Working with data migrations
 
-Every deploy applies pending data migrations automatically — but only the non-destructive ones. Migrations that remove or overwrite data (a table drop, a column removal) are never run unattended: the deploy skips them, prints which ones are waiting, and leaves the decision to you.
+The migration chain starts at the **0.4.0 baseline**: releases from 0.4.0 on carry versioned migrations for the changes they ship, and nothing older — pre-0.4 history is not in the binary (that is what makes the 0.3 → 0.4 cutover breaking). Within the 0.4.x line, every deploy applies pending data migrations automatically — but only the non-destructive ones. Migrations that remove or overwrite data (a table drop, a column removal) are never run unattended: the deploy skips them, prints which ones are waiting, and leaves the decision to you.
 
 ```bash
 # What is applied, what is pending, what failed
@@ -89,8 +91,8 @@ tale migrate up --step
 # Apply everything without prompting (CI / after reviewing the plan)
 tale migrate up --yes
 
-# Roll data back to an earlier version
-tale migrate down --to 0.3.3
+# Roll data back to an earlier version (0.4.0 or later)
+tale migrate down --to 0.4.0
 ```
 
 Destructive migrations snapshot the affected rows or config files before touching them, so `tale migrate down` can rebuild what they removed. Both directions are resumable: progress is tracked per migration (and per organization for config-file migrations), so a crash or timeout picks up where it stopped instead of starting over.
@@ -118,43 +120,37 @@ Tale versions are semver. The compatibility rules:
 - Patch (`0.9.0 → 0.9.1`) — no migrations, no config changes, `tale rollback` is always safe.
 - Minor (`0.9.x → 0.10.x`) — may include forward-only migrations; `tale rollback` refuses, recovery is restore-snapshot-and-redeploy.
 - Major (`0.x → 1.x`) — read the migration notes, schedule the maintenance window, expect surprises.
+- **The 0.4.0 baseline** — versions below 0.4.0 and versions from 0.4.0 on are separate worlds: no upgrade in either direction, see the cutover section below.
 
-Skipping minor versions (going from 0.9 to 0.11) is supported as long as the intermediate migrations are still in the binary; the release notes call it out when this is not the case.
+Skipping minor versions (going from 0.9 to 0.11) is supported as long as the intermediate migrations are still in the binary; the release notes call it out when this is not the case. The 0.4.0 baseline is the standing instance of that exception: pre-0.4 migrations are not in any 0.4+ binary.
 
-To move _down_ a version deliberately — say a minor release misbehaves and you have already reversed its migrations — pin the target with `tale update --version <version>`. The command warns when the target is older than the running version and reminds you to reverse data migrations first.
+To move _down_ a version deliberately — say a minor release misbehaves and you have already reversed its migrations — pin the target with `tale update --version <version>`. The command warns when the target is older than the running version and reminds you to reverse data migrations first. A downgrade below 0.4.0 crosses the cutover backwards and is not supported: a 0.3.x release cannot read data created by 0.4+ — restore a pre-0.4 snapshot or deploy 0.3.x fresh instead.
 
-## Upgrading from 0.3.1 or earlier
+## 0.3 → 0.4: breaking cutover
 
-Instances on version 0.3.1 or earlier keep the Convex backend's data in the `platform-data` Docker volume. Newer versions run Convex as its own service with its own `convex-data` volume — and nothing moves the data across at deploy time. Upgrade straight across that boundary and `tale deploy` pre-creates an **empty** `convex-data` volume: the instance comes up blank while every byte of your data still sits, untouched, in the old `platform-data` volume. Nothing is deleted — but the data does not move by itself, and `tale update` warns when it detects this constellation and offers to run the copy for you on the spot.
+0.4 rebuilt the platform's AI backend, and with it the data model, from a clean baseline. The versioned-migration history was reset at 0.4.0: no 0.4+ release carries the pre-0.4 migrations, so **a 0.3.x instance cannot be upgraded in place — 0.4 requires a fresh deployment.**
 
-Docker has no native volume rename, so the move is a copy through a helper container — the same steps `tale update` runs when you accept its prompt (the old volume stays preserved either way). To do it by hand — you declined the prompt, or the automatic copy failed — run it before `tale deploy`, with the stack stopped, so nothing holds the volume open:
+**What this means in practice:**
+
+- `tale deploy` with a 0.4+ CLI **refuses** to touch an instance whose running version is below 0.4.0, before pulling an image or writing anything. The container has the same guard at boot (log marker `[migrations][breaking-cutover]`) for stacks managed outside the CLI.
+- Nothing from a 0.3 instance is carried over: chats, automations and their run history, knowledge entries, task history, users and sign-ins. Files in a BYO-S3 bucket physically remain in the bucket, but the new instance has no references to them.
+- The 0.3.x line stays maintained for security and critical fixes on the `release/0.3` branch — staying on 0.3.x for a while is a supported choice, moving to 0.4 is a re-onboarding, not an upgrade.
+
+**Moving to 0.4:**
 
 ```bash
-# 1. Find the legacy volume — <project> is the `id` in tale.json.
-docker volume ls | grep platform-data
-# Installs older than 0.2.33 used the fixed prefix `tale_` instead
-# of `<project>_`; the destination below still uses `<project>_`.
-
-# 2. Stop the running stack.
-docker compose -p <project> down
-
-# 3. Create the destination volume and copy the data across.
-docker volume create <project>_convex-data
-docker run --rm \
-  -v <project>_platform-data:/from:ro \
-  -v <project>_convex-data:/to \
-  alpine sh -c "cd /from && cp -a . /to"
-
-# 4. Roll the stack, then verify your data is there.
+# 1. Leave the 0.3 instance untouched (it keeps serving).
+# 2. Create a NEW project directory with a 0.4 CLI:
+mkdir tale-04 && cd tale-04
+tale init
 tale deploy
 
-# 5. Only after verifying, reclaim the old volume.
-docker volume rm <project>_platform-data
+# 3. Re-onboard: organizations, users (invite / SSO), configuration,
+#    documents and knowledge re-upload.
+# 4. Decommission the 0.3 instance once the new one is accepted.
 ```
 
-A dev workspace mirrors the same move under the `-dev` scope: `<project>-dev_platform-data` → `<project>-dev_convex-data`, with `docker compose -p <project>-dev down` as the stop step.
-
-If you already deployed and got an empty instance, your data is still safe in `platform-data`. Stop the stack, remove the freshly created empty volume with `docker volume rm <project>_convex-data`, then run the copy above and deploy again.
+The expert override — `tale deploy --accept-data-loss`, or `TALE_ACCEPT_DATA_LOSS=1` on the container — exists for the rare case where you deliberately reuse a host whose old volumes you have already dealt with. It does exactly what its name says: pre-0.4 data on that instance becomes permanently unreadable.
 
 ## Where this fits
 
