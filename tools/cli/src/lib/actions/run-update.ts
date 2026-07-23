@@ -3,10 +3,6 @@ import { join } from 'node:path';
 import pkg from '../../../package.json';
 import { compareVersions } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
-import {
-  type LegacyMigrationOutcome,
-  offerLegacyConvexDataMigration,
-} from '../docker/migrate-legacy-convex-data';
 import { requireProject } from '../project/find-project';
 import { readProject } from '../project/read-project';
 import { writeProject } from '../project/write-project';
@@ -20,6 +16,7 @@ import {
   resolveRelease,
   rollbackInstall,
 } from '../version/self-update';
+import { BREAKING_BASELINE } from './breaking-cutover-guard';
 import { update } from './update';
 
 /**
@@ -61,16 +58,6 @@ export interface RunUpdateDeps {
   spawnFileSync: (childArgs: string[]) => number;
   /** Run the file-sync phase in-process (no binary change). */
   syncProjectFiles: (opts: RunUpdateOptions) => Promise<void>;
-  /**
-   * Best-effort pre-0.3.2 volume-layout pass (P1-8, #1755): warns loudly
-   * about an orphaned `platform-data` volume and offers to copy it into
-   * the `convex-data` volume before the operator deploys onto a fresh
-   * empty one. Never throws.
-   */
-  offerLegacyConvexDataMigration: (
-    projectDir: string,
-    opts: { dryRun?: boolean },
-  ) => Promise<LegacyMigrationOutcome>;
 }
 
 const defaultDeps: RunUpdateDeps = {
@@ -104,7 +91,6 @@ const defaultDeps: RunUpdateDeps = {
     return result.exitCode ?? 1;
   },
   syncProjectFiles,
-  offerLegacyConvexDataMigration,
 };
 
 /** Sync the project files to the running binary's embedded templates. */
@@ -158,14 +144,6 @@ export async function runUpdate(
   logger.info(`Workspace version: ${prev}`);
   logger.info(`Target version:    ${target}`);
 
-  // Surface an orphaned pre-0.3.2 data volume BEFORE the operator moves on
-  // to `tale deploy` — deploying without the copy brings the instance up
-  // empty (P1-8, #1755). Warns loudly and offers to run the copy right
-  // here; best-effort, never blocks the update.
-  await deps.offerLegacyConvexDataMigration(projectDir, {
-    dryRun: opts.dryRun,
-  });
-
   if (!opts.version && skipped.length > 0) {
     logger.warn(
       `Skipping ${skipped.map((t) => t.replace(/^v/, '')).join(', ')} — ` +
@@ -181,11 +159,23 @@ export async function runUpdate(
     );
   }
   if (opts.version && !isDev && comparison < 0) {
-    logger.warn(
-      `Downgrading from ${deps.currentVersion} to ${target}. Data migrations ` +
-        `from the newer version persist — reverse them FIRST with ` +
-        `\`tale migrate down --to ${target}\` (check \`tale migrate status\`).`,
-    );
+    if (compareVersions(target, BREAKING_BASELINE) < 0) {
+      // Crossing the 0.4 baseline BACKWARDS: pre-0.4 releases cannot read
+      // data created by 0.4+ (the history reset severed both directions).
+      // `tale update` never blocks — enforcement lives in the deploy guard —
+      // but say it plainly here so the operator stops before deploying.
+      logger.warn(
+        `Downgrading below v${BREAKING_BASELINE} crosses the 0.4 breaking cutover: ` +
+          `a v${target} instance CANNOT read data created by v${deps.currentVersion}. ` +
+          `Restore a pre-${BREAKING_BASELINE} volume snapshot or deploy v${target} fresh.`,
+      );
+    } else {
+      logger.warn(
+        `Downgrading from ${deps.currentVersion} to ${target}. Data migrations ` +
+          `from the newer version persist — reverse them FIRST with ` +
+          `\`tale migrate down --to ${target}\` (check \`tale migrate status\`).`,
+      );
+    }
   }
 
   if (opts.dryRun) {
