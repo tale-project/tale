@@ -73,18 +73,6 @@
       "height": 1800
     },
     {
-      "file": "images/platform/agent-editor-webhooks.webp",
-      "shot": "agent-editor-webhooks",
-      "route": "/dashboard/:orgId/agents/assistant/webhook",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/platform/automation-editor-canvas.webp",
       "shot": "automation-editor-canvas",
       "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=editor",
