@@ -68,7 +68,7 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
   });
 
   // "Create agent" is a dropdown trigger; its "Blank" item opens the create
-  // dialog (siblings: "From template", "Upload file").
+  // dialog (sibling: "Upload file").
   await page
     .getByRole('button', { name: t('settings.agents.createAgent') })
     .click();
