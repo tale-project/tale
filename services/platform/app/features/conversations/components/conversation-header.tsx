@@ -5,7 +5,6 @@ import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
-  ArrowLeft,
   Ellipsis,
   Mail,
   MessageSquare,
@@ -46,7 +45,6 @@ interface ConversationHeaderProps {
   organizationId: string;
   onResolve?: () => void;
   onReopen?: () => void;
-  onBack?: () => void;
 }
 
 export function ConversationHeader({
@@ -54,10 +52,8 @@ export function ConversationHeader({
   organizationId,
   onResolve,
   onReopen,
-  onBack,
 }: ConversationHeaderProps) {
   const { t } = useT('conversations');
-  const { t: tCommon } = useT('common');
   const { contact } = conversation;
   const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
   const pendingContactInfo = useRef(false);
@@ -234,27 +230,19 @@ export function ConversationHeader({
     ? formatRelative(new Date(conversation.last_message_at))
     : null;
 
+  // Primary line prefers a display name; when the contact has none, it already
+  // shows the email — repeating it on the meta line is noise and eats width.
+  const primaryLabel = contact.name || contact.email;
+  const showEmailInMeta = Boolean(contact.name && contact.email);
+
   return (
     <Stack gap={3} className="border-border border-b p-4 sm:px-6 sm:py-4">
-      {/* Back button - visible only on mobile */}
-      {onBack && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="shrink-0 md:hidden"
-          onClick={onBack}
-          title={tCommon('actions.back')}
-        >
-          <ArrowLeft className="size-5" />
-        </Button>
-      )}
-
       {/* Subject Row */}
-      <Row justify="between">
+      <Row justify="between" gap={2} className="min-w-0">
         <Text className="min-w-0 truncate text-base font-semibold tracking-tight">
           {conversation.subject || conversation.title}
         </Text>
-        <Row gap={1} className="shrink-0">
+        <Row gap={2} className="shrink-0 items-center">
           <ConversationAssigneePicker
             conversation={conversation}
             organizationId={organizationId}
@@ -264,10 +252,10 @@ export function ConversationHeader({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7"
+                className="size-8 shrink-0"
                 aria-label={t('header.moreActions')}
               >
-                <Ellipsis className="text-muted-foreground size-4" />
+                <Ellipsis className="text-muted-foreground size-5" />
               </Button>
             }
             items={[moreMenuItems]}
@@ -278,7 +266,7 @@ export function ConversationHeader({
       </Row>
 
       {/* Sender Row */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-2.5">
         <ContactInfoPopover
           contact={contactData}
           open={isContactInfoOpen}
@@ -298,28 +286,38 @@ export function ConversationHeader({
         <div className="flex min-w-0 flex-col gap-px">
           <button
             type="button"
-            className="cursor-pointer text-left text-[13px] font-semibold tracking-tight hover:underline"
+            className="cursor-pointer truncate text-left text-[13px] font-semibold tracking-tight hover:underline"
             onClick={() => setIsContactInfoOpen(true)}
           >
-            {contact.name || contact.email}
+            {primaryLabel}
           </button>
-          <Row gap={0} className="text-muted-foreground text-xs tracking-tight">
-            <button
-              type="button"
-              className="cursor-pointer hover:underline"
-              onClick={() => setIsContactInfoOpen(true)}
-            >
-              {contact.email}
-            </button>
+          <div className="text-muted-foreground flex min-w-0 items-center text-xs tracking-tight">
+            {showEmailInMeta && (
+              <button
+                type="button"
+                className="hidden min-w-0 cursor-pointer truncate hover:underline md:inline"
+                onClick={() => setIsContactInfoOpen(true)}
+              >
+                {contact.email}
+              </button>
+            )}
             {lastMessageTime && (
               <>
-                <DotIcon className="mx-0.5 shrink-0" />
-                <span>{lastMessageTime}</span>
+                {showEmailInMeta && (
+                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline" />
+                )}
+                <span className="shrink-0 whitespace-nowrap">
+                  {lastMessageTime}
+                </span>
               </>
             )}
             {conversationFrom && (
               <>
-                <DotIcon className="mx-0.5 shrink-0" />
+                {lastMessageTime ? (
+                  <DotIcon className="mx-0.5 shrink-0" />
+                ) : showEmailInMeta ? (
+                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline" />
+                ) : null}
                 <Tooltip content={inboxLabel ?? conversationFrom}>
                   <span
                     className="inline-flex min-w-0 items-center gap-1"
@@ -333,7 +331,7 @@ export function ConversationHeader({
                 </Tooltip>
               </>
             )}
-          </Row>
+          </div>
         </div>
       </div>
     </Stack>
