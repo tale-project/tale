@@ -38,11 +38,19 @@ vi.mock('@/app/hooks/use-resize-observer', () => ({
   useResizeObserver: vi.fn(),
 }));
 
+const isMobileState = { value: false };
+vi.mock('@/app/hooks/use-is-mobile', () => ({
+  useIsMobile: () => isMobileState.value,
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 
 describe('TabNavigation', () => {
+  beforeEach(() => {
+    isMobileState.value = false;
+  });
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(
@@ -251,6 +259,21 @@ describe('TabNavigation', () => {
       ).toBeInTheDocument();
     });
 
+    it('contains the absolute measure row so it cannot widen PageLayout', () => {
+      // Regression: the invisible width-twin row is position:absolute and
+      // wider than the viewport. Without overflow-x-hidden on the <nav>, it
+      // inflates an ancestor `overflow-auto` scrollport and a horizontal
+      // swipe shifts the whole project shell — even when page content fits.
+      render(
+        <TabNavigation
+          ariaLabel="Project navigation"
+          items={items}
+          overflow="menu"
+        />,
+      );
+      expect(screen.getByRole('navigation')).toHaveClass('overflow-x-hidden');
+    });
+
     it('renders every tab inline (no More trigger) when the row fits', () => {
       // Two tabs: 120 + 16 + 120 = 256 ≤ 300 — nothing to fold.
       render(
@@ -264,6 +287,45 @@ describe('TabNavigation', () => {
       expect(
         screen.queryByRole('button', { name: 'aria.moreTabs' }),
       ).toBeNull();
+    });
+  });
+
+  describe('trailing children placement', () => {
+    const items = [
+      { label: 'General', href: '/dashboard/test-org/settings' },
+      { label: 'Branding', href: '/dashboard/test-org/settings/branding' },
+    ];
+
+    it('keeps children in the desktop trailing slot', () => {
+      isMobileState.value = false;
+      const { container } = render(
+        <TabNavigation ariaLabel="Settings navigation" items={items}>
+          <button type="button">Save</button>
+        </TabNavigation>,
+      );
+      const nav = screen.getByRole('navigation', {
+        name: 'Settings navigation',
+      });
+      expect(nav).toContainElement(
+        screen.getByRole('button', { name: 'Save' }),
+      );
+      expect(container.querySelector('.fixed.w-fit')).toBeNull();
+    });
+
+    it('moves children into the floating dock on mobile', async () => {
+      isMobileState.value = true;
+      render(
+        <TabNavigation ariaLabel="Settings navigation" items={items}>
+          <button type="button">Save</button>
+        </TabNavigation>,
+      );
+      const nav = screen.getByRole('navigation', {
+        name: 'Settings navigation',
+      });
+      const save = await screen.findByRole('button', { name: 'Save' });
+      expect(nav).not.toContainElement(save);
+      expect(save.closest('.fixed')).toHaveClass('right-4', 'w-fit');
+      expect(document.body.contains(save)).toBe(true);
     });
   });
 });

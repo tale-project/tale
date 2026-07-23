@@ -13,7 +13,7 @@ import { ContentArea } from '@/app/components/layout/content-area';
  */
 export function AgentTabContent({ children }: { children: ReactNode }) {
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 pt-4">
       {children}
     </ContentArea>
   );

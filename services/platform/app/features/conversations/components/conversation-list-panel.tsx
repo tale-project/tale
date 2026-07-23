@@ -21,7 +21,10 @@ export function ConversationListPanel({
         hidden ? 'hidden md:flex' : 'flex',
       )}
     >
-      <Stack gap={0} className="min-h-0 flex-1 overflow-y-auto">
+      <Stack
+        gap={0}
+        className="min-h-0 flex-1 overflow-y-auto pb-[length:var(--mobile-floating-actions-pad,0px)]"
+      >
         {children}
       </Stack>
       {overlay}

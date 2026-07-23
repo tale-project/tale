@@ -14,7 +14,9 @@ import {
 } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
+import { MobileFloatingActions } from '@/app/components/layout/mobile-floating-actions';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useResizeObserver } from '@/app/hooks/use-resize-observer';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
@@ -107,6 +109,10 @@ export function TabNavigation({
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
   const { t: tCommon } = useT('common');
+  // On `< md`, trailing actions move to a floating dock so they no longer
+  // pin over the scrolling tabs. Desktop keeps the trailing slot. Single
+  // mount either way — never render Save twice.
+  const isMobile = useIsMobile();
   // The horizontally-scrolling tab list. Kept separate from the outer <nav> so
   // the trailing button group can sit outside the scroll area and stay pinned
   // to the right while only the tabs scroll. All measurement/scroll logic reads
@@ -455,180 +461,192 @@ export function TabNavigation({
     );
 
   return (
-    <nav
-      ref={navRef}
-      className={cn(
-        // A single fixed height for EVERY tab strip — list and detail alike.
-        // `min-h-13` (52px) clamps both a bare tab row and one carrying the
-        // taller `h-8` editor actions (Save/Discard/History) to the same height,
-        // which plain `py-3` can't do (the taller content would win). It also
-        // matches the breadcrumb header (`h-13`). `page-action-header` mirrors
-        // this so moving between tabbed and non-tabbed pages doesn't bounce.
-        'relative border-b border-border min-h-13 flex items-stretch shrink-0',
-        standalone && 'bg-background z-10',
-        className,
-      )}
-      aria-label={ariaLabel}
-    >
-      <div
-        ref={scrollRef}
-        className="scrollbar-hide relative flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-4"
+    <>
+      <nav
+        ref={navRef}
+        className={cn(
+          // A single fixed height for EVERY tab strip — list and detail alike.
+          // `min-h-13` (52px) clamps both a bare tab row and one carrying the
+          // taller `h-8` editor actions (Save/Discard/History) to the same height,
+          // which plain `py-3` can't do (the taller content would win). It also
+          // matches the breadcrumb header (`h-13`). `page-action-header` mirrors
+          // this so moving between tabbed and non-tabbed pages doesn't bounce.
+          //
+          // `overflow-x-hidden` contains the absolute `overflow="menu"` measure
+          // row. That twin is `invisible` but still contributes to ancestor
+          // scrollable overflow; without this, PageLayout (`overflow-auto`)
+          // gains a phantom horizontal scrollbar and a trackpad swipe shifts
+          // the whole project shell sideways even though page content fits.
+          'relative overflow-x-hidden border-b border-border min-h-13 flex items-stretch shrink-0',
+          standalone && 'bg-background z-10',
+          className,
+        )}
+        aria-label={ariaLabel}
       >
-        {visibleItems.map((item, index) => {
-          const isActive = isPathActive(item);
-          const [path, queryString] = item.href.split('?');
-          const hrefSearch = queryString
-            ? Object.fromEntries(new URLSearchParams(queryString))
-            : undefined;
-          const isItemDirty =
-            dirtyKeys !== undefined &&
-            (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false);
+        <div
+          ref={scrollRef}
+          className="scrollbar-hide relative flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-4"
+        >
+          {visibleItems.map((item, index) => {
+            const isActive = isPathActive(item);
+            const [path, queryString] = item.href.split('?');
+            const hrefSearch = queryString
+              ? Object.fromEntries(new URLSearchParams(queryString))
+              : undefined;
+            const isItemDirty =
+              dirtyKeys !== undefined &&
+              (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false);
 
-          return (
-            <Link
-              // Search-param tab strips share one pathname across items, so
-              // the href alone is not unique — the label disambiguates.
-              key={`${item.href}|${item.label}`}
-              ref={(el) => {
-                itemRefs.current[index] = el;
-              }}
-              to={path}
-              search={item.search ?? hrefSearch}
-              preload={prefetch ? 'render' : false}
-              aria-current={isActive ? 'page' : undefined}
-              className={cn(
-                'relative flex h-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
-                isActive
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {isItemDirty && (
-                <>
-                  <span
-                    aria-hidden="true"
-                    className="inline-block size-1.5 rounded-full bg-amber-500"
-                  />
-                  {/* The dot alone is decorative (aria-hidden) — this is its
-                      text twin, so screen-reader users still hear that the
-                      tab carries unsaved changes. The trailing `{' '}`
-                      keeps it a separate word from the label that follows
-                      (adjacent JSX text nodes concatenate with no space). */}
-                  <span className="sr-only">
-                    {tCommon('aria.unsavedChanges')}
-                  </span>{' '}
-                </>
-              )}
-              {item.label}
-              {item.trailing}
-            </Link>
-          );
-        })}
-        {overflowItems.length > 0 && (
-          <DropdownMenu
-            align="end"
-            items={overflowMenuItems}
-            trigger={
-              <button
-                ref={moreTriggerRef}
-                type="button"
-                aria-label={tCommon('aria.moreTabs')}
+            return (
+              <Link
+                // Search-param tab strips share one pathname across items, so
+                // the href alone is not unique — the label disambiguates.
+                key={`${item.href}|${item.label}`}
+                ref={(el) => {
+                  itemRefs.current[index] = el;
+                }}
+                to={path}
+                search={item.search ?? hrefSearch}
+                preload={prefetch ? 'render' : false}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'relative flex h-full shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
-                  activeInOverflow
+                  'relative flex h-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
+                  isActive
                     ? 'text-foreground'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {overflowHasDirty && (
+                {isItemDirty && (
                   <>
                     <span
                       aria-hidden="true"
                       className="inline-block size-1.5 rounded-full bg-amber-500"
                     />
+                    {/* The dot alone is decorative (aria-hidden) — this is its
+                      text twin, so screen-reader users still hear that the
+                      tab carries unsaved changes. The trailing `{' '}`
+                      keeps it a separate word from the label that follows
+                      (adjacent JSX text nodes concatenate with no space). */}
                     <span className="sr-only">
                       {tCommon('aria.unsavedChanges')}
                     </span>{' '}
                   </>
                 )}
-                {tCommon('moreTabs')}
-                <ChevronDown aria-hidden="true" className="size-4" />
-              </button>
-            }
-          />
-        )}
-      </div>
+                {item.label}
+                {item.trailing}
+              </Link>
+            );
+          })}
+          {overflowItems.length > 0 && (
+            <DropdownMenu
+              align="end"
+              items={overflowMenuItems}
+              trigger={
+                <button
+                  ref={moreTriggerRef}
+                  type="button"
+                  aria-label={tCommon('aria.moreTabs')}
+                  className={cn(
+                    'relative flex h-full shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
+                    activeInOverflow
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {overflowHasDirty && (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="inline-block size-1.5 rounded-full bg-amber-500"
+                      />
+                      <span className="sr-only">
+                        {tCommon('aria.unsavedChanges')}
+                      </span>{' '}
+                    </>
+                  )}
+                  {tCommon('moreTabs')}
+                  <ChevronDown aria-hidden="true" className="size-4" />
+                </button>
+              }
+            />
+          )}
+        </div>
 
-      {/* Width twin of every tab (+ the More trigger, last) for the `menu`
+        {/* Width twin of every tab (+ the More trigger, last) for the `menu`
           overflow clamp. Clamped-away tabs unmount from the real row, so this
           hidden copy is the only place their widths stay measurable. Same
           typography/gap classes as the live row so the twin widths hold. */}
-      {isMenuOverflow && (
-        <div
-          ref={measureRowRef}
-          aria-hidden="true"
-          className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-4 whitespace-nowrap"
-        >
-          {accessibleItems.map((item) => (
-            <span
-              key={`${item.href}|${item.label}`}
-              className="flex items-center gap-1.5 py-1 text-sm font-medium"
-            >
-              {dirtyKeys !== undefined &&
-                (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false) && (
-                  <span className="inline-block size-1.5 rounded-full" />
-                )}
-              {item.label}
-              {item.trailing}
+        {isMenuOverflow && (
+          <div
+            ref={measureRowRef}
+            aria-hidden="true"
+            className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-4 whitespace-nowrap"
+          >
+            {accessibleItems.map((item) => (
+              <span
+                key={`${item.href}|${item.label}`}
+                className="flex items-center gap-1.5 py-1 text-sm font-medium"
+              >
+                {dirtyKeys !== undefined &&
+                  (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false) && (
+                    <span className="inline-block size-1.5 rounded-full" />
+                  )}
+                {item.label}
+                {item.trailing}
+              </span>
+            ))}
+            <span className="flex items-center gap-1 py-1 text-sm font-medium">
+              {tCommon('moreTabs')}
+              <ChevronDown className="size-4" />
             </span>
-          ))}
-          <span className="flex items-center gap-1 py-1 text-sm font-medium">
-            {tCommon('moreTabs')}
-            <ChevronDown className="size-4" />
-          </span>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Animated active indicator. Rendered as a child of the <nav> rather than
+        {/* Animated active indicator. Rendered as a child of the <nav> rather than
           the scroll container so it can sit flush on the nav's bottom border:
           the scroll container is `overflow-x: auto` (which forces `overflow-y`
           to clip too), so a child anchored to `bottom-0` there floats above the
           border by the nav's bottom padding. Its position is measured in JS
           relative to the nav and re-synced on scroll. */}
-      {activeIndex !== -1 && (
-        <div
-          ref={indicatorRef}
-          aria-hidden="true"
-          className={cn(
-            'pointer-events-none absolute bottom-0 h-0.5',
-            !accentColor && 'bg-foreground',
-            shouldAnimate &&
-              'transition-all duration-200 ease-out motion-reduce:transition-none',
-          )}
-          style={{
-            width: `${indicatorStyle.width}px`,
-            left: `${indicatorStyle.left}px`,
-            backgroundColor: accentColor || undefined,
-          }}
-        />
-      )}
+        {activeIndex !== -1 && (
+          <div
+            ref={indicatorRef}
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute bottom-0 h-0.5',
+              !accentColor && 'bg-foreground',
+              shouldAnimate &&
+                'transition-all duration-200 ease-out motion-reduce:transition-none',
+            )}
+            style={{
+              width: `${indicatorStyle.width}px`,
+              left: `${indicatorStyle.left}px`,
+              backgroundColor: accentColor || undefined,
+            }}
+          />
+        )}
 
-      {/* Trailing action group — pinned to the right, outside the scroll area,
-          so it stays in view while the tabs scroll under it. The left shadow +
-          background fade make the scrolling tabs visibly slide beneath it —
-          shown ONLY when the strip actually overflows, else it reads as a stray
-          shadow floating beside the buttons on a wide viewport. */}
-      {children && (
-        <div
-          className={cn(
-            'bg-background relative z-[1] flex shrink-0 items-center gap-2 self-stretch pr-4 pl-3',
-            isScrollable &&
-              'shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.18)] dark:shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.6)]',
-          )}
-        >
-          {children}
-        </div>
+        {/* Trailing action group — desktop only. Pinned to the right, outside the
+          scroll area, so it stays in view while the tabs scroll under it. The
+          left shadow + background fade make the scrolling tabs visibly slide
+          beneath it — shown ONLY when the strip actually overflows, else it
+          reads as a stray shadow floating beside the buttons on a wide
+          viewport. On mobile, the same children float above the bottom nav. */}
+        {children && !isMobile && (
+          <div
+            className={cn(
+              'bg-background relative z-[1] flex shrink-0 items-center gap-2 self-stretch pr-4 pl-3',
+              isScrollable &&
+                'shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.18)] dark:shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.6)]',
+            )}
+          >
+            {children}
+          </div>
+        )}
+      </nav>
+      {children && isMobile && (
+        <MobileFloatingActions>{children}</MobileFloatingActions>
       )}
-    </nav>
+    </>
   );
 }
