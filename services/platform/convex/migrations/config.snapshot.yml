@@ -2150,21 +2150,9 @@ schemas:
         maximum: 9007199254740991
         minimum: 0
         type: integer
-      memoryAuditEnabled:
-        type: boolean
-      memoryAuditRetentionDays:
-        maximum: 9007199254740991
-        minimum: 0
-        type: integer
       messageFeedbackEnabled:
         type: boolean
       messageFeedbackRetentionDays:
-        maximum: 9007199254740991
-        minimum: 0
-        type: integer
-      messageMetadataEnabled:
-        type: boolean
-      messageMetadataRetentionDays:
         maximum: 9007199254740991
         minimum: 0
         type: integer
@@ -4730,59 +4718,7 @@ schemas:
           - default
           - unit
         type: object
-      memoryAudit:
-        additionalProperties: false
-        properties:
-          default:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          max:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          min:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          unit:
-            enum:
-              - days
-              - hours
-            type: string
-        required:
-          - min
-          - max
-          - default
-          - unit
-        type: object
       messageFeedback:
-        additionalProperties: false
-        properties:
-          default:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          max:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          min:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          unit:
-            enum:
-              - days
-              - hours
-            type: string
-        required:
-          - min
-          - max
-          - default
-          - unit
-        type: object
-      messageMetadata:
         additionalProperties: false
         properties:
           default:

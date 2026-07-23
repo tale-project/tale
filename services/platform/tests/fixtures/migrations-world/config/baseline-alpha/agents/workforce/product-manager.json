@@ -1,7 +1,0 @@
-{
-  "description": "Coordinates roadmaps and specs",
-  "displayName": "Product Manager",
-  "supportedModels": ["openrouter:anthropic/claude-opus-4.8"],
-  "systemInstructions": "You are the workforce product manager persona.",
-  "visibleInChat": false
-}

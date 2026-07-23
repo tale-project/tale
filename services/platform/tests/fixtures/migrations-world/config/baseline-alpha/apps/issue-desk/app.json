@@ -1,7 +1,0 @@
-{
-  "agents": ["desk-implementer", "desk-reviewer"],
-  "name": "Resolve GitHub issues",
-  "requires": { "integrations": ["github"] },
-  "scope": "project",
-  "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"]
-}

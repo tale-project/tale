@@ -1,4 +1,0 @@
-{
-  "displayName": "Desk Reviewer",
-  "supportedModels": ["openrouter:anthropic/claude-opus-4.8"]
-}

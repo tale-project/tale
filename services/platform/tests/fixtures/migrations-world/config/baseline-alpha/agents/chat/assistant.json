@@ -1,7 +1,0 @@
-{
-  "description": "General help for everyday questions",
-  "displayName": "Assistant",
-  "supportedModels": ["openrouter:anthropic/claude-opus-4.8"],
-  "systemInstructions": "You are a helpful, concise assistant.",
-  "visibleInChat": true
-}

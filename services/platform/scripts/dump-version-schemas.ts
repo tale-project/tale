@@ -51,10 +51,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync, gzipSync } from 'node:zlib';
 
+import { BASELINE_VERSION } from '../convex/migrations/framework/baseline';
 import {
   computeFingerprint,
   serializeFingerprint,
 } from '../convex/migrations/framework/schema_fingerprint';
+import { compareSemver } from '../convex/migrations/framework/semver';
 import {
   computeConfigFingerprint,
   serializeConfigFingerprint,
@@ -105,9 +107,13 @@ function git(args: string[]): string {
 }
 
 function tagList(): string[] {
+  // Pre-baseline releases are not part of this world's ground truth: the 0.4
+  // baseline reset pruned their fixtures, and re-dumping them would resurrect
+  // checkpoints no test consumes (the chain restarts empty at the baseline).
   return git(['tag', '--sort=v:refname'])
     .split('\n')
-    .filter((t) => TAG_RE.test(t));
+    .filter((t) => TAG_RE.test(t))
+    .filter((t) => compareSemver(t.slice(1), BASELINE_VERSION) >= 0);
 }
 
 const INDEX_PATH = path.join(FIXTURES_DIR, 'index.yml');
@@ -192,19 +198,22 @@ function putBlob(content: string): string {
   return sha;
 }
 
-/** The in-development version = the highest migration version folder. */
+/**
+ * The in-development version = the highest migration version folder, or the
+ * baseline when the history is empty (right after a baseline reset, before
+ * the first post-baseline migration lands).
+ */
 function devVersion(): string {
   const versions = readdirSync(VERSIONS_DIR)
     .map((d) => /^v(\d+)_(\d+)_(\d+)$/.exec(d))
     .filter((m): m is RegExpExecArray => m !== null)
-    .map((m) => ({
-      key: `${m[1].padStart(6, '0')}.${m[2].padStart(6, '0')}.${m[3].padStart(6, '0')}`,
-      semver: `${m[1]}.${m[2]}.${m[3]}`,
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key));
+    .map((m) => `${m[1]}.${m[2]}.${m[3]}`)
+    .sort(compareSemver);
   const last = versions.at(-1);
-  if (!last) throw new Error('no migration version folders found');
-  return last.semver;
+  if (last === undefined || compareSemver(last, BASELINE_VERSION) < 0) {
+    return BASELINE_VERSION;
+  }
+  return last;
 }
 
 // ---------------------------------------------------------------------------

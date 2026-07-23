@@ -15,7 +15,6 @@ import type { GenericSchema, SchemaDefinition } from 'convex/server';
 
 import { internal } from '../../../_generated/api';
 import betterAuthSchema from '../../../betterAuth/schema';
-import { withRetiredRuntimeStubs } from '../retired_runtime.testkit';
 import { worldSchema } from '../world_schema.testkit';
 import { WORLD_ORGS } from './manifest.testkit';
 import { seedWorldDb, type SeedWorldOrgs } from './seed_db.testkit';
@@ -64,10 +63,7 @@ export async function buildSeededWorld(
   authModules: Record<string, () => Promise<unknown>>,
   schema: SchemaDefinition<GenericSchema, boolean> = worldSchema,
 ): Promise<SeededWorld> {
-  const t = convexTest(
-    schema,
-    withRetiredRuntimeStubs(modules),
-  ) as WorldTestConvex;
+  const t = convexTest(schema, modules) as WorldTestConvex;
   t.registerComponent('betterAuth', betterAuthSchema, authModules);
   const seeded: Array<{ id: string; slug: string }> = await t.mutation(
     internal.migrations.testing.support.seedAuthOrgs,

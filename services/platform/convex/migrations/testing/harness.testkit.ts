@@ -41,7 +41,6 @@ import {
   diffWorldDigests,
   type WorldDigest,
 } from './digest.testkit';
-import { withRetiredRuntimeStubs } from './retired_runtime.testkit';
 import { worldSchema } from './world_schema.testkit';
 
 /**
@@ -164,10 +163,7 @@ export function defineMigrationTest(spec: MigrationTestSpec): void {
     });
 
     async function makeWorld(): Promise<WorldHandle> {
-      const t = convexTest(
-        schema,
-        withRetiredRuntimeStubs(spec.modules),
-      ) as AnyTestConvex;
+      const t = convexTest(schema, spec.modules) as AnyTestConvex;
       t.registerComponent(
         'betterAuth',
         betterAuthSchema,
