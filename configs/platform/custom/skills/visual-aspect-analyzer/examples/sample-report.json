@@ -1,0 +1,60 @@
+{
+  "url": "https://example.test/",
+  "score": 92,
+  "audit": {
+    "wholePage": true,
+    "discovered": 1,
+    "capped": false
+  },
+  "hints": {
+    "layout-shift": "Reserve space for late content (width/height or aspect-ratio) to avoid CLS."
+  },
+  "elements": [
+    {
+      "selector": "footer",
+      "label": "contentinfo \"Site footer\"",
+      "testid": null,
+      "source": "affected",
+      "impact": ["paints", "layout"],
+      "anchoredTo": null,
+      "anchoredEdges": [],
+      "from": [0, 120, 200, 20],
+      "to": [0, 180, 200, 20],
+      "affectedBy": ["va-block"]
+    },
+    {
+      "selector": "#promo",
+      "label": "banner \"Promo\"",
+      "testid": "va-block",
+      "source": "matched",
+      "impact": ["paints", "layout"],
+      "anchoredTo": null,
+      "anchoredEdges": [],
+      "from": [0, 0, 200, 100],
+      "to": [0, 0, 200, 160]
+    }
+  ],
+  "defects": [
+    {
+      "type": "layout-shift",
+      "selector": "footer",
+      "label": "contentinfo \"Site footer\"",
+      "severity": 0.18,
+      "window": [32, 49],
+      "detail": "Layout shift of 0.180 moved the element.",
+      "metrics": {
+        "value": 0.18
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "selector": "footer",
+      "label": "contentinfo \"Site footer\"",
+      "kind": "move",
+      "smoothness": "shift",
+      "quality": 0.91
+    }
+  ],
+  "smoothTransitions": 1
+}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>a freeze-then-lurch motion is jank, not split into singletons</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 24px;
+        height: 1200px;
+      }
+      #box {
+        position: absolute;
+        top: 80px;
+        left: 20px;
+        width: 60px;
+        height: 40px;
+        background: #c00;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="box" data-testid="box">jank</div>
+    </main>
+    <script>
+      // A near-frozen 1px/frame crawl interrupted by two large lurches. The whole
+      // thing is ONE continuous motion, so jank must see both teleports — a
+      // per-frame split would hide them.
+      var box = document.getElementById('box');
+      var x = 20;
+      var frame = 0;
+      function tick() {
+        frame++;
+        x += frame === 8 || frame === 18 ? 80 : 1;
+        box.style.left = x + 'px';
+        if (frame < 30) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

@@ -193,12 +193,15 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   // the agent answering — so `node-direct` like skills and providers. Sharing
   // lives in the file (`visibility: private | org` with an `owner`), which is
   // also why nothing here is shared across organizations: a file only exists
-  // inside one org's tree. Not catalog-scaffolded: the directory appears when
-  // an org authors its first agent.
+  // inside one org's tree. Catalog-scaffolded (`flat`: one `<slug>.yml` per
+  // agent) so a fresh org ships with the builtin agents under
+  // `configs/platform/custom/agents/` — e.g. the Coding Agent, which lists the
+  // baked `visual-aspect-analyzer` skill in its `skills:` allowlist.
   {
     name: 'agents',
     readContext: 'node-direct',
     dataModel: 'config',
+    scaffoldKind: 'flat',
   },
 ];
 
