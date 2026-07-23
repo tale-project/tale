@@ -388,234 +388,65 @@ atomic_cp_bundle() {
 run_seed() {
   log_section "Seeding builtin configs into default org (TALE_VERSION=${TALE_VERSION:-dev})"
 
-  # --- Agents (flat) ---
-  local agents_dir="${data_dir}/default/agents"
-  local agents_builtin="/app/builtin/agents"
-  mkdir -p "$agents_dir"
-  if [ -d "$agents_builtin" ] && [ "$(ls -A "$agents_builtin" 2>/dev/null)" ]; then
-    for src in "$agents_builtin"/*.json; do
-      [ -f "$src" ] || continue
-      local name="$(basename "$src")"
-      local slug="$(basename "$src" .json)"
-      local dest="$agents_dir/$name"
-      local history_dir="$agents_dir/.history/$slug"
-      if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp "$src" "$dest"; echo "   - Seeded $name (forced)"
-      elif [ -f "$dest" ]; then
-        echo "   ⏭ Skipping $name (already exists)"
-      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-        echo "   ⏭ Skipping $name (user has modifications in .history)"
-      else
-        atomic_cp "$src" "$dest"; echo "   - Seeded agent $name"
-      fi
-    done
+  local builtin_root="${TALE_CONFIG_BUILTIN_DIR:-/app/builtin}"
+  if [ ! -d "$builtin_root" ]; then
+    log_warn "builtin catalog $builtin_root missing — nothing seeded"
+    touch "$seed_marker"
+    return 0
   fi
 
-  # --- Prompts (flat) ---
-  local prompts_dir="${data_dir}/default/prompts"
-  local prompts_builtin="/app/builtin/prompts"
-  mkdir -p "$prompts_dir"
-  if [ -d "$prompts_builtin" ] && [ "$(ls -A "$prompts_builtin" 2>/dev/null)" ]; then
-    for src in "$prompts_builtin"/*.json; do
-      [ -f "$src" ] || continue
-      local name="$(basename "$src")"
-      local slug="$(basename "$src" .json)"
-      local dest="$prompts_dir/$name"
-      local history_dir="$prompts_dir/.history/$slug"
-      if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp "$src" "$dest"; echo "   - Seeded prompt $name (forced)"
-      elif [ -f "$dest" ]; then
-        echo "   ⏭ Skipping prompt $name (already exists)"
-      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-        echo "   ⏭ Skipping prompt $name (user has modifications in .history)"
-      else
-        atomic_cp "$src" "$dest"; echo "   - Seeded prompt $name"
-      fi
-    done
-  fi
-
-  # --- Workflows (nested folder/name.json) ---
-  local workflows_dir="${data_dir}/default/workflows"
-  local workflows_builtin="/app/builtin/workflows"
-  mkdir -p "$workflows_dir"
-  if [ -d "$workflows_builtin" ] && [ "$(ls -A "$workflows_builtin" 2>/dev/null)" ]; then
-    # Aggregate per-file failure count. Previously the seed loop ran
-    # inside a `find | while` subshell — `log_error` printed to stderr
-    # but no aggregate counter survived past the subshell, so boot
-    # would silently complete with a partially-seeded workflows/ dir
-    # (disk-full mid-seed = boot succeeds, broken builtin workflows).
-    # Use process substitution so the counter lives in the parent
-    # shell.
-    local workflows_failed=0
-    while IFS= read -r src; do
-      local rel_path="${src#$workflows_builtin/}"
-      local dest="$workflows_dir/$rel_path"
-      local dest_dir="$(dirname "$dest")"
-      local slug="${rel_path%.json}"
-      local flat_slug="$(echo "$slug" | sed 's|/|__|g')"
-      local history_dir="$workflows_dir/.history/$flat_slug"
-
-      # Round-3 P2 R32-P2-b: `if mkdir && atomic_cp; then echo a marker; else log_error` —
-      # the previous `mkdir && atomic_cp && echo; continue` chain silently
-      # swallowed failures under `set -e` because the `; continue` reset
-      # the implicit last-status to 0, so a disk-full / permission denied
-      # in mkdir or atomic_cp produced neither a success line nor an error.
-      if [ "$FORCE_SEED" = "true" ]; then
-        if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
-          echo "   - Seeded workflow $rel_path (forced)"
+  # Generic per-domain seed. Every domain the baked catalog ships
+  # (configs/platform/custom -> /app/builtin: agents, automations, branding,
+  # governance, skills — whatever exists) is copied into
+  # "<data>/default/<domain>/". A flat item is a file ("<slug>.<ext>"); a
+  # bundle item is a directory ("<slug>/..."); a domain may mix both.
+  # Format-agnostic (YAML or JSON) so a catalog cutover needs no change here,
+  # and a domain the catalog dropped is simply never iterated. Idempotent +
+  # non-destructive: an existing dest, or a ".history/<slug>" capturing a user
+  # edit, is left alone unless FORCE_SEED=true; encrypted ".secrets.*" sidecars
+  # and the on-demand "sso/" subdir are never seeded.
+  local seed_failed=0
+  local domain_dir domain dest_domain entry base slug dest dest_dir history_dir
+  for domain_dir in "$builtin_root"/*/; do
+    [ -d "$domain_dir" ] || continue
+    domain="$(basename "$domain_dir")"
+    dest_domain="${data_dir}/default/${domain}"
+    mkdir -p "$dest_domain"
+    for entry in "$domain_dir"*; do
+      [ -e "$entry" ] || continue
+      base="$(basename "$entry")"
+      case "$base" in
+        sso) continue ;;
+        *.secrets.*) continue ;;
+      esac
+      if [ -d "$entry" ]; then
+        dest_dir="${dest_domain}/${base}"
+        if [ "$FORCE_SEED" = "true" ]; then
+          if atomic_cp_bundle "$entry/" "$dest_dir"; then echo "   - Seeded ${domain}/${base} (forced)"; else log_error "Failed to seed ${domain}/${base}"; seed_failed=$((seed_failed + 1)); fi
+        elif [ -d "$dest_dir" ]; then
+          echo "   ⏭ Skipping ${domain}/${base} (already exists)"
         else
-          log_error "Failed to seed workflow $rel_path (forced)"
-          workflows_failed=$((workflows_failed + 1))
+          if atomic_cp_bundle "$entry/" "$dest_dir"; then echo "   - Seeded ${domain}/${base}"; else log_error "Failed to seed ${domain}/${base}"; seed_failed=$((seed_failed + 1)); fi
         fi
-        continue
-      fi
-      if [ -f "$dest" ]; then echo "   ⏭ Skipping workflow $rel_path (already exists)"; continue; fi
-      if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-        echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"; continue
-      fi
-      if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
-        echo "   - Seeded workflow $rel_path"
       else
-        log_error "Failed to seed workflow $rel_path"
-        workflows_failed=$((workflows_failed + 1))
-      fi
-    done < <(find "$workflows_builtin" -name '*.json' -type f)
-    if [ "$workflows_failed" -gt 0 ]; then
-      log_warn "workflow seed: $workflows_failed file(s) failed to seed; check stderr for details"
-    fi
-  fi
-
-  # --- Integrations (directory bundles) ---
-  local integrations_dir="${data_dir}/default/integrations"
-  local integrations_builtin="/app/builtin/integrations"
-  mkdir -p "$integrations_dir"
-  if [ -d "$integrations_builtin" ] && [ "$(ls -A "$integrations_builtin" 2>/dev/null)" ]; then
-    for src_dir in "$integrations_builtin"/*/; do
-      [ -d "$src_dir" ] || continue
-      local name="$(basename "$src_dir")"
-      local dest_dir="$integrations_dir/$name"
-      if [ "$FORCE_SEED" = "true" ]; then
-        # atomic_cp_bundle stages + renames so an interruption can't leave
-        # a half-populated bundle that the next-run dest-existence probe
-        # would skip permanently.
-        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded integration $name (forced)"; continue
-      fi
-      if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping integration $name (already exists)"; continue; fi
-      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded integration $name"
-    done
-  fi
-
-  # --- Skills (directory bundles: SKILL.md + scripts/ + references/ + assets/) ---
-  local skills_dir="${data_dir}/default/skills"
-  local skills_builtin="/app/builtin/skills"
-  mkdir -p "$skills_dir"
-  if [ -d "$skills_builtin" ] && [ "$(ls -A "$skills_builtin" 2>/dev/null)" ]; then
-    for src_dir in "$skills_builtin"/*/; do
-      [ -d "$src_dir" ] || continue
-      local name="$(basename "$src_dir")"
-      local dest_dir="$skills_dir/$name"
-      if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded skill $name (forced)"; continue
-      fi
-      if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping skill $name (already exists)"; continue; fi
-      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded skill $name"
-    done
-  fi
-
-  # --- Providers (skip encrypted .secrets.json) ---
-  local providers_dir="${data_dir}/default/providers"
-  local providers_builtin="/app/builtin/providers"
-  mkdir -p "$providers_dir"
-  if [ -d "$providers_builtin" ] && [ "$(ls -A "$providers_builtin" 2>/dev/null)" ]; then
-    for src in "$providers_builtin"/*.json; do
-      [ -f "$src" ] || continue
-      local name="$(basename "$src")"
-      [[ "$name" == *.secrets.json ]] && continue
-      local slug="$(basename "$src" .json)"
-      local dest="$providers_dir/$name"
-      local history_dir="$providers_dir/.history/$slug"
-      if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp "$src" "$dest"; echo "   - Seeded provider $name (forced)"
-      elif [ -f "$dest" ]; then
-        echo "   ⏭ Skipping provider $name (already exists)"
-      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-        echo "   ⏭ Skipping provider $name (user has modifications in .history)"
-      else
-        atomic_cp "$src" "$dest"; echo "   - Seeded provider $name"
+        slug="${base%.*}"
+        dest="${dest_domain}/${base}"
+        history_dir="${dest_domain}/.history/${slug}"
+        if [ "$FORCE_SEED" = "true" ]; then
+          if atomic_cp "$entry" "$dest"; then echo "   - Seeded ${domain}/${base} (forced)"; else log_error "Failed to seed ${domain}/${base}"; seed_failed=$((seed_failed + 1)); fi
+        elif [ -f "$dest" ]; then
+          echo "   ⏭ Skipping ${domain}/${base} (already exists)"
+        elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+          echo "   ⏭ Skipping ${domain}/${base} (user has modifications in .history)"
+        else
+          if atomic_cp "$entry" "$dest"; then echo "   - Seeded ${domain}/${base}"; else log_error "Failed to seed ${domain}/${base}"; seed_failed=$((seed_failed + 1)); fi
+        fi
       fi
     done
-  fi
+  done
 
-  # --- Branding (single file at default/branding/branding.json) ---
-  # Closes a long-standing gap: previously branding was only seeded by the
-  # Convex scaffold action for new orgs, never on the default-org bootstrap
-  # path. With org-first the default org needs the same treatment as any
-  # other org for consistency (uniform model).
-  local branding_dir="${data_dir}/default/branding"
-  local branding_src="/app/builtin/branding/branding.json"
-  mkdir -p "$branding_dir"
-  if [ -f "$branding_src" ]; then
-    local dest="$branding_dir/branding.json"
-    local history_dir="$branding_dir/.history/branding"
-    if [ "$FORCE_SEED" = "true" ]; then
-      atomic_cp "$branding_src" "$dest"; echo "   - Seeded branding (forced)"
-    elif [ -f "$dest" ]; then
-      echo "   ⏭ Skipping branding (already exists)"
-    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-      echo "   ⏭ Skipping branding (user has modifications in .history)"
-    else
-      atomic_cp "$branding_src" "$dest"; echo "   - Seeded branding"
-    fi
-  fi
-
-  # --- Governance (flat; skip encrypted .secrets.json) ---
-  # The full governance domain — policies (login/password/2FA/model-access/...)
-  # PLUS the retention.json bounds catalog — all live under <org>/governance/.
-  # Mirrors the Convex scaffold's flat-domain copy. The `sso/` subdir and
-  # `*.secrets.json` sidecars are intentionally not seeded here (matching
-  # scaffold.ts flat-mode, which skips subdirs/secrets).
-  local governance_dir="${data_dir}/default/governance"
-  local governance_builtin="/app/builtin/governance"
-  mkdir -p "$governance_dir"
-  if [ -d "$governance_builtin" ] && [ "$(ls -A "$governance_builtin" 2>/dev/null)" ]; then
-    for src in "$governance_builtin"/*.json; do
-      [ -f "$src" ] || continue
-      local name="$(basename "$src")"
-      [[ "$name" == *.secrets.json ]] && continue
-      local slug="$(basename "$src" .json)"
-      local dest="$governance_dir/$name"
-      local history_dir="$governance_dir/.history/$slug"
-      if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp "$src" "$dest"; echo "   - Seeded governance $name (forced)"
-      elif [ -f "$dest" ]; then
-        echo "   ⏭ Skipping governance $name (already exists)"
-      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-        echo "   ⏭ Skipping governance $name (user has modifications in .history)"
-      else
-        atomic_cp "$src" "$dest"; echo "   - Seeded governance $name"
-      fi
-    done
-  fi
-
-  # --- Apps (directory bundles: app.json + views/ + messages/ + scripts/ +
-  # the app's own app-scoped agents/ + workflows/) ---
-  # Apps are a first-class seeded config domain (uniform with skills/integrations):
-  # the bundle is the install SOURCE; the DB `appInstallations` row is what marks
-  # an app installed. Mirrors the Convex scaffold's bundle-domain copy.
-  local apps_dir="${data_dir}/default/apps"
-  local apps_builtin="/app/builtin/apps"
-  mkdir -p "$apps_dir"
-  if [ -d "$apps_builtin" ] && [ "$(ls -A "$apps_builtin" 2>/dev/null)" ]; then
-    for src_dir in "$apps_builtin"/*/; do
-      [ -d "$src_dir" ] || continue
-      local name="$(basename "$src_dir")"
-      local dest_dir="$apps_dir/$name"
-      if [ "$FORCE_SEED" = "true" ]; then
-        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded app $name (forced)"; continue
-      fi
-      if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping app $name (already exists)"; continue; fi
-      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   - Seeded app $name"
-    done
+  if [ "$seed_failed" -gt 0 ]; then
+    log_warn "builtin seed: $seed_failed item(s) failed to seed; check stderr for details"
   fi
 
   touch "$seed_marker"
