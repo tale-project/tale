@@ -1907,6 +1907,75 @@ tables:
       ft:
         type: string
       optional: false
+  knowledgeEntries:
+    content:
+      ft:
+        type: string
+      optional: false
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    createdBy:
+      ft:
+        type: string
+      optional: false
+    deletedAt:
+      ft:
+        type: number
+      optional: true
+    documentId:
+      ft:
+        tableName: documents
+        type: id
+      optional: true
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    source:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: chat
+          - type: literal
+            value: manual
+      optional: false
+    sourceMessageId:
+      ft:
+        type: string
+      optional: true
+    sourceThreadId:
+      ft:
+        type: string
+      optional: true
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: active
+          - type: literal
+            value: superseded
+      optional: false
+    supersededAt:
+      ft:
+        type: number
+      optional: true
+    supersededBy:
+      ft:
+        tableName: knowledgeEntries
+        type: id
+      optional: true
+    topic:
+      ft:
+        type: string
+      optional: false
+    topicKey:
+      ft:
+        type: string
+      optional: false
   legalHoldReleaseRequests:
     approvedAt:
       ft:
@@ -5491,6 +5560,10 @@ tables:
       ft:
         type: number
       optional: false
+    isShared:
+      ft:
+        type: boolean
+      optional: true
     kind:
       ft:
         type: union
@@ -5504,6 +5577,18 @@ tables:
       ft:
         type: string
       optional: false
+    sharedAt:
+      ft:
+        type: number
+      optional: true
+    sharedBy:
+      ft:
+        type: string
+      optional: true
+    shareToken:
+      ft:
+        type: string
+      optional: true
     title:
       ft:
         type: string
@@ -6346,6 +6431,11 @@ tables:
       ft:
         type: any
       optional: true
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: true
     startedAt:
       ft:
         type: number
@@ -6404,6 +6494,11 @@ tables:
       ft:
         type: string
       optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: true
     testsPassed:
       ft:
         type: boolean
