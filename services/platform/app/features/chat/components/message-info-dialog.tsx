@@ -234,7 +234,7 @@ function DirectTtftProbe({
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Replays this turn's user message (editable)"
           rows={2}
-          className="bg-muted w-full rounded px-2 py-1 text-sm"
+          className="bg-muted w-full rounded px-2 py-1 text-base md:text-sm"
         />
         <label className="flex items-center gap-2 text-sm">
           <input

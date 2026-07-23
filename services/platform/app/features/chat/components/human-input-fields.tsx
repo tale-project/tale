@@ -71,7 +71,7 @@ function HumanInputFieldsComponent({
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
               updateField(field.label, e.target.value)
             }
-            className="min-h-[80px] text-sm"
+            className="min-h-[80px] text-base md:text-sm"
             disabled={disabled}
           />
         );

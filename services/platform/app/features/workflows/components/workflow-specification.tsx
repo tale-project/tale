@@ -367,7 +367,7 @@ export function WorkflowSpecification({
         className={cn(
           'border-input bg-background text-foreground placeholder:text-muted-foreground',
           'focus-visible:ring-ring min-h-64 w-full flex-1 resize-none rounded-lg border',
-          'p-4 pb-16 font-mono text-sm leading-relaxed focus-visible:ring-2 focus-visible:outline-none',
+          'p-4 pb-16 font-mono text-base leading-relaxed focus-visible:ring-2 focus-visible:outline-none md:text-sm',
           !specificationValidation.isValid &&
             'border-destructive focus-visible:ring-destructive',
         )}

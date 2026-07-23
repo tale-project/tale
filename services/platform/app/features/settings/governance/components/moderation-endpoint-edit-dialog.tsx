@@ -165,7 +165,7 @@ export function EndpointEditDialog({
           <Textarea
             value={draft.requestTemplate}
             rows={6}
-            className="font-mono text-xs"
+            className="font-mono text-base md:text-xs"
             onChange={(e) =>
               setDraft({ ...draft, requestTemplate: e.target.value })
             }

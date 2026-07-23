@@ -118,7 +118,7 @@ export function PiiConfigPreview({
           onChange={(e) => setInput(e.target.value)}
           rows={4}
           aria-label={tPiiConfigPanel('inputTitle')}
-          className="w-full rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-base)] p-3 font-sans text-sm leading-relaxed text-[color:var(--color-fg-base)] focus:ring-2 focus:ring-[color:var(--color-accent-base)]/30 focus:outline-none"
+          className="w-full rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-base)] p-3 font-sans text-base leading-relaxed text-[color:var(--color-fg-base)] focus:ring-2 focus:ring-[color:var(--color-accent-base)]/30 focus:outline-none md:text-sm"
         />
       </Stage>
 
@@ -282,7 +282,7 @@ function TokenizeStages({
           onChange={(e) => setAiResponseOverride(e.target.value)}
           rows={5}
           aria-label={tPiiConfigPanel('aiTitle')}
-          className="w-full rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-base)] p-3 font-mono text-sm leading-relaxed text-[color:var(--color-fg-base)] focus:ring-2 focus:ring-[color:var(--color-accent-base)]/30 focus:outline-none"
+          className="w-full rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-base)] p-3 font-mono text-base leading-relaxed text-[color:var(--color-fg-base)] focus:ring-2 focus:ring-[color:var(--color-accent-base)]/30 focus:outline-none md:text-sm"
         />
       </Stage>
 

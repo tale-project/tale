@@ -428,7 +428,7 @@ export function SkillDetailPanel({
                       onChange={(e) => setEditBody(e.target.value)}
                       rows={18}
                       disabled={isSaving}
-                      className="font-mono text-sm"
+                      className="font-mono text-base md:text-sm"
                     />
                   </Stack>
                 </Stack>

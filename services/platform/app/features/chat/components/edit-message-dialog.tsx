@@ -109,7 +109,7 @@ function EditMessageDialogContent({
         }}
         onKeyDown={handleKeyDown}
         disabled={isSubmitting}
-        className="border-border bg-background text-foreground max-h-[50vh] min-h-[4rem] w-full resize-none rounded-lg border p-3 text-sm leading-6 focus:outline-none disabled:opacity-50"
+        className="border-border bg-background text-foreground max-h-[50vh] min-h-[4rem] w-full resize-none rounded-lg border p-3 text-base leading-6 focus:outline-none disabled:opacity-50 md:text-sm"
         rows={3}
       />
     </Dialog>

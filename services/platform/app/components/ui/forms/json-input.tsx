@@ -171,7 +171,6 @@ interface JsonTextEditorProps {
   textValue: string;
   disabled: boolean;
   rows: number;
-  fontSize: number;
   inputId: string;
   describedBy: string | undefined;
   placeholder: string;
@@ -183,7 +182,6 @@ function JsonTextEditor({
   textValue,
   disabled,
   rows,
-  fontSize,
   inputId,
   describedBy,
   placeholder,
@@ -204,7 +202,9 @@ function JsonTextEditor({
       id={inputId}
       aria-describedby={describedBy}
       className={cn(
-        'w-full resize-none border-0 bg-transparent p-3 text-xs focus:outline-none focus:ring-0 min-h-[12.5rem] overflow-y-auto',
+        // text-base (≥16px) on mobile prevents iOS focus-zoom; md:text-xs keeps
+        // the dense monospace editor on desktop.
+        'w-full resize-none border-0 bg-transparent p-3 text-base focus:outline-none focus:ring-0 min-h-[12.5rem] overflow-y-auto md:text-xs',
         'font-mono leading-relaxed',
         'placeholder:text-muted-foreground',
         theme === 'dark'
@@ -214,7 +214,6 @@ function JsonTextEditor({
       style={{
         fontFamily:
           'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-        fontSize: `${fontSize}px`,
         lineHeight: '1.4',
       }}
       placeholder={placeholder}
@@ -299,7 +298,7 @@ function JsonInputBase({
   required,
   className,
   rows = 4,
-  fontSize = 12,
+  fontSize = 16,
   id,
   placeholder = JSON.stringify({ key: 'value' }, null, 2),
 }: JsonInputProps) {
@@ -499,7 +498,6 @@ function JsonInputBase({
             textValue={textValue}
             disabled={disabled}
             rows={rows}
-            fontSize={fontSize}
             inputId={resolvedId}
             describedBy={describedBy}
             placeholder={placeholder}

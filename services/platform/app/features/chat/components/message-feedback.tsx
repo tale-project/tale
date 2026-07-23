@@ -173,7 +173,7 @@ export function MessageFeedback({
             onChange={(e) => setComment(e.target.value)}
             onKeyDown={handleCommentKeyDown}
             placeholder={t('feedback.commentPlaceholder')}
-            className="border-border bg-muted text-foreground placeholder:text-muted-foreground min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:ring-offset-0 focus:outline-none"
+            className="border-border bg-muted text-foreground placeholder:text-muted-foreground min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-base focus:ring-1 focus:ring-offset-0 focus:outline-none md:text-sm"
             aria-label={t('feedback.commentPlaceholder')}
           />
           <Row gap={2} align="stretch">

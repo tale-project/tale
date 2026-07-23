@@ -305,7 +305,7 @@ function IntegrationApprovalCardComponent({
                   setFeedbackText(e.target.value)
                 }
                 placeholder={t('feedbackPlaceholder')}
-                className="min-h-[60px] text-sm"
+                className="min-h-[60px] text-base md:text-sm"
                 disabled={isProcessing}
                 autoFocus
               />

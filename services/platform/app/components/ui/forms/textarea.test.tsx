@@ -12,6 +12,14 @@ describe('Textarea', () => {
       expect(screen.getByPlaceholderText('Enter text')).toBeInTheDocument();
     });
 
+    it('uses text-base so mobile browsers do not zoom on focus', () => {
+      render(<Textarea placeholder="Enter text" />);
+      // iOS Safari zooms focused textareas under 16px; text-base is 1rem (16px).
+      expect(screen.getByPlaceholderText('Enter text').className).toContain(
+        'text-base',
+      );
+    });
+
     it('renders with label', () => {
       render(<Textarea label="Description" />);
       expect(

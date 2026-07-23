@@ -374,7 +374,7 @@ function PromptFormDialogContent({
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={t('form.contentPlaceholder')}
-          className="min-h-[120px] font-mono text-sm"
+          className="min-h-[120px] font-mono text-base md:text-sm"
           required
           aria-required
           aria-label={t('form.contentLabel')}

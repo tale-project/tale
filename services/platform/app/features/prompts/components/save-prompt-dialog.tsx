@@ -207,7 +207,7 @@ function SavePromptDialogContent({
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          className="min-h-[120px] text-sm"
+          className="min-h-[120px] text-base md:text-sm"
           required
           aria-required
           aria-label={t('form.contentLabel')}

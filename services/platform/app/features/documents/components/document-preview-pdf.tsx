@@ -559,7 +559,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             max={Math.max(1, state.totalPages)}
             value={state.pageNum}
             onChange={onPageInputChange}
-            className="bg-background w-10 appearance-none rounded-md py-1 text-center text-sm ring-1 ring-white/20 focus:ring-white/40 focus:outline-none"
+            className="bg-background w-12 appearance-none rounded-md py-1 text-center text-base ring-1 ring-white/20 focus:ring-white/40 focus:outline-none md:w-10 md:text-sm"
           />
           <div>/</div>
           <div className="w-4 text-center text-sm tabular-nums">

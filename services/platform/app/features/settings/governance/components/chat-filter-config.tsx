@@ -618,7 +618,7 @@ function CategoryEditForm({
               <Textarea
                 value={wordsText}
                 rows={14}
-                className="font-mono text-xs"
+                className="font-mono text-base md:text-xs"
                 onChange={(e) => setWordsText(e.target.value)}
                 placeholder={t('contentSafety.wordsPlaceholder')}
               />

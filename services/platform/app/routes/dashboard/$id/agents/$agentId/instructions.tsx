@@ -564,7 +564,7 @@ function InstructionsTab() {
             onChange={(e) => writeOverride(e.target.value)}
             required
             rows={8}
-            className="font-mono text-sm"
+            className="font-mono text-base md:text-sm"
             errorMessage={fieldErrors.systemInstructions}
           />
         </Stack>

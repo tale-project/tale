@@ -131,7 +131,7 @@ export function CustomJsonPathSection({
             {t('moderationProvider.pathStepDescription')}
           </p>
           <Input
-            className="mt-1.5 font-mono text-sm"
+            className="mt-1.5 font-mono text-base md:text-sm"
             value={draft.customCategoriesPath}
             onChange={(e) => onChange({ customCategoriesPath: e.target.value })}
             placeholder={sample.categoriesPath}
@@ -172,7 +172,7 @@ export function CustomJsonPathSection({
               {t('moderationProvider.flaggedPathDescription')}
             </p>
             <Input
-              className="mt-1.5 font-mono text-sm"
+              className="mt-1.5 font-mono text-base md:text-sm"
               value={draft.customFlaggedPath}
               onChange={(e) => onChange({ customFlaggedPath: e.target.value })}
               placeholder="$.results[0].flagged"

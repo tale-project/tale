@@ -13,6 +13,14 @@ describe('Input', () => {
       expect(screen.getByPlaceholderText('Enter text')).toBeInTheDocument();
     });
 
+    it('uses text-base so mobile browsers do not zoom on focus', () => {
+      render(<Input placeholder="Enter text" />);
+      // iOS Safari zooms focused inputs under 16px; text-base is 1rem (16px).
+      expect(screen.getByPlaceholderText('Enter text').className).toContain(
+        'text-base',
+      );
+    });
+
     it('renders with label', () => {
       render(<Input label="Email" />);
       expect(
