@@ -99,6 +99,7 @@ trivy-reports/
 # `.tale/`: the CLI project dir (orgs/, reference/) and the local-dev writable
 # config root (config/ — the TALE_CONFIG_DIR default, seeded from builtin-configs/).
 .tale/
+.tale-config/
 
 # ---------------------------------------------------------------------------
 # Claude / agent tooling
