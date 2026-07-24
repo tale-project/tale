@@ -328,6 +328,7 @@ export interface IntegrationDispatchContext {
   portableHost?: PortableHostCall;
 }
 
+/** The dispatcher's public call signature. @public */
 export interface ExecuteIntegrationActionArgs {
   connector: string;
   action: string;
@@ -338,6 +339,7 @@ export interface ExecuteIntegrationActionArgs {
   ctx: IntegrationDispatchContext;
 }
 
+/** The dispatcher's public result union. @public */
 export type IntegrationDispatchResult =
   | {
       status: 'ok';

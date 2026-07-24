@@ -42,7 +42,7 @@ const REPO_SYSTEM_ROOT = ['configs', 'platform', 'system'] as const;
 const MAX_CONNECTOR_BYTES = 1024 * 1024;
 
 /** The scheme a bearer token is sent under when the connector names none. */
-export const DEFAULT_BEARER_SCHEME = 'Bearer';
+const DEFAULT_BEARER_SCHEME = 'Bearer';
 
 export interface LoadConnectorCatalogOptions {
   /** Absolute path of the `system/` config directory (the one containing

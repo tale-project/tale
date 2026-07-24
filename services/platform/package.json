@@ -20,7 +20,6 @@
     "migrations:snapshot": "bun scripts/check-schema-snapshot.ts --write && bun scripts/check-config-snapshot.ts --write",
     "migrations:sync": "bun scripts/migrations-codegen.ts --write",
     "configs:validate": "bun scripts/validate-builtin-configs.ts",
-    "admin:generate-password": "bun scripts/generate-admin-password.ts",
     "test": "bunx vitest --run --project server --project pii",
     "test:watch": "bunx vitest --project server --project pii",
     "test:coverage": "bunx vitest --coverage --project server --project pii",

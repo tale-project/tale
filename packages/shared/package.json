@@ -17,8 +17,7 @@
     "./process": "./src/process/index.ts",
     "./errors": "./src/errors.ts",
     "./utils/hashing": "./src/utils/hashing.ts",
-    "./utils/model-list": "./src/utils/model-list.ts",
-    "./utils/sops": "./src/utils/sops.ts"
+    "./utils/model-list": "./src/utils/model-list.ts"
   },
   "scripts": {
     "lint": "bunx oxlint --type-aware",

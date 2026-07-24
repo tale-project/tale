@@ -88,6 +88,7 @@ const GOLDEN_BRIDGE_URL = 'http://platform.internal/bridge';
 const GOLDEN_EXEC_ID = 'exec-golden-42';
 const GOLDEN_VISION_MODEL = 'golden-vision-model';
 
+/** One golden fixture — the harness-glue test contract. @public */
 export interface GoldenCase {
   readonly name: string;
   readonly mode: 'managed' | 'byo';

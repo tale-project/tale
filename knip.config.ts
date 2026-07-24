@@ -5,8 +5,8 @@ export default {
   ignoreBinaries: ['uvx'],
   ignore: [
     // The e2e fixtures' `default/integrations` is a symlink to the shipped
-    // `builtin-configs/integrations` catalog (sucrase-transpiled runtime
-    // connectors, never imported) — ignore like builtin-configs/.
+    // integrations catalog (sucrase-transpiled runtime connectors, never
+    // imported) — ignore like the config tree itself.
     'services/platform/tests/e2e/fixtures/config/**',
     'tools/plop/templates/**',
     // Maintenance script run by hand (`bun tools/opengrep/vendor-rules.ts`) to
@@ -81,6 +81,54 @@ export default {
         'tests/docs-screenshots/readme-assets.ts',
       ],
       project: ['**/*.{ts,tsx}'],
+      // ----------------------------------------------------------------
+      // AI-BACKEND REWRITE PARKING (PR #2857). These subsystems were rebuilt
+      // with their consumers not yet wired (the agent runtime, automations
+      // engine, knowledge/PII pipelines, native connector backends, the
+      // parked chat capability surface). Their exports read as dead until
+      // each consumer lands — parking them keeps the sweep loud for NEW dead
+      // code everywhere else. Every entry is a debt line: delete it when its
+      // subsystem is wired (or truly retired) and let knip re-audit it.
+      // ----------------------------------------------------------------
+      ignore: [
+        'lib/agents/**',
+        'lib/automations/**',
+        'lib/automations_builder/**',
+        'lib/chat/**',
+        'lib/engine/**',
+        'lib/knowledge/**',
+        'lib/pii/**',
+        'lib/skills/**',
+        'lib/integrations/natives/**',
+        // Shared contract layer: types declared for the parked consumers
+        // above (schemas, platform run/render vocabulary, provider catalog
+        // shapes). Same debt, same exit.
+        'lib/shared/chat-errors.ts',
+        'lib/shared/constants/agents.ts',
+        'lib/shared/constants/usage.ts',
+        'lib/shared/schemas/skills.ts',
+        'lib/shared/config/registry.ts',
+        'lib/shared/constants/system-message-tags.ts',
+        'lib/shared/file-types.ts',
+        'lib/shared/metrics-window.ts',
+        'lib/shared/platform/**',
+        'lib/shared/providers/attribution.ts',
+        'lib/shared/providers/catalog_normalize.ts',
+        'lib/shared/sandbox-workdir.ts',
+        'lib/shared/schemas/agents.ts',
+        'lib/shared/schemas/approvals.ts',
+        'lib/shared/schemas/enterprise_sso.ts',
+        'lib/shared/schemas/governance.ts',
+        'lib/shared/schemas/integrations.ts',
+        'lib/shared/schemas/pii.ts',
+        'lib/shared/schemas/providers.ts',
+        'lib/shared/text-matching/**',
+        'lib/shared/video-link-markdown.ts',
+        // E2E helpers for the parked chat/automations specs.
+        'tests/e2e/helpers/automations.ts',
+        'tests/e2e/helpers/chat.ts',
+        'tests/e2e/helpers/seed.ts',
+      ],
       ignoreDependencies: [
         // Listed in `optimizeDeps.include` in vite.config.ts as string literals so vite prebundles them;
         // consumed transitively via @tale/ui markdown source, never imported by name from platform code.
@@ -93,6 +141,43 @@ export default {
         // which is NOT part of CI. Available transitively via @vitest/browser's
         // playwright driver, so it never needs to be a declared dependency.
         'playwright',
+        // ------------------------------------------------------------
+        // AI-BACKEND REWRITE PARKING (PR #2857) — dependencies of the parked
+        // subsystems ignored above. Same debt ledger, same exit: delete a
+        // line when its consumer wires up, or drop the dependency with it.
+        // ------------------------------------------------------------
+        '@ai-sdk/provider',
+        '@measured/puck',
+        '@modelcontextprotocol/sdk',
+        '@novnc/novnc',
+        '@tanstack/react-virtual',
+        '@types/mailparser',
+        '@types/mssql',
+        '@types/mustache',
+        '@types/seedrandom',
+        '@types/turndown',
+        'bcryptjs',
+        'chokidar',
+        'cron-parser',
+        'diff',
+        'hast-util-to-html',
+        'json-diff-kit',
+        'linkedom',
+        'mailparser',
+        'mdast-util-from-markdown',
+        'mdast-util-gfm',
+        'mdast-util-to-hast',
+        'mermaid',
+        'micromark-extension-gfm',
+        'mssql',
+        'mustache',
+        'parse5',
+        'rehype-raw',
+        'rehype-sanitize',
+        'seedrandom',
+        'sucrase',
+        'turndown',
+        'undici',
       ],
     },
     'services/web': {
@@ -123,6 +208,18 @@ export default {
       // sweep for unit-only helpers.
       entry: ['src/**/*.test.ts'],
       project: ['src/**/*.ts'],
+    },
+    'configs/platform/custom/skills/visual-aspect-analyzer': {
+      // Self-contained Bun/TS skill bundle: a library with a public embed API
+      // (src/bundle.ts + src/driver.ts), CLI entrypoints (src/analyze-cli.ts,
+      // src/cli.ts), and an e2e runner (src/e2e.ts) — all run or embedded
+      // externally (by the agent / the sandbox-runtime image), not reached
+      // through the monorepo import graph, with co-located tests. Its source is
+      // the public surface, so it anchors the dead-code sweep directly. (The
+      // root-level `configs/platform/**` ignore covers the root workspace's
+      // scan; this workspace declares its own files, so it stays swept.)
+      entry: ['src/**/*.ts'],
+      project: ['**/*.ts'],
     },
     'services/docs': {
       vite: { config: ['vite.config.ts'] },

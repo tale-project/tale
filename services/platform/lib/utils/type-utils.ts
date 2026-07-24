@@ -51,29 +51,6 @@ export function getBoolean(
   return typeof val === 'boolean' ? val : undefined;
 }
 
-/** Safely extract an array from a record. Returns `undefined` when missing or wrong type. */
-export function getArray(
-  obj: Record<string, unknown>,
-  key: string,
-): unknown[] | undefined {
-  const val = obj[key];
-  return Array.isArray(val) ? val : undefined;
-}
-
-/**
- * Narrows an unknown value to a loop state with `currentIndex` and `totalItems`.
- * Used for safely extracting loop progress without type casts.
- */
-export function isLoopProgress(
-  val: unknown,
-): val is { currentIndex: number; totalItems: number } {
-  return (
-    isRecord(val) &&
-    typeof val.currentIndex === 'number' &&
-    typeof val.totalItems === 'number'
-  );
-}
-
 /**
  * Display string for a primitive value: the string itself, or `String()` on a
  * number/boolean/bigint. Returns `undefined` for objects, arrays, `null`, and

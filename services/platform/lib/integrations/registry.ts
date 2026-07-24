@@ -104,12 +104,3 @@ export function loadConnectors(systemRoot: string): {
   );
   return { connectors, nodeTypes };
 }
-
-/** Parse and validate one connector file, pinning its declared identity to
- * the directory it lives in. */
-export function loadConnectorFile(
-  file: string,
-  slug: string,
-): IntegrationConnector {
-  return parseConnectorFile(file, slug);
-}

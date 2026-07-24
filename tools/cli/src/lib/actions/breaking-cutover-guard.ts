@@ -18,6 +18,7 @@ import { getPreviousVersion } from '../state/get-previous-version';
  */
 export const BREAKING_BASELINE = '0.4.0';
 
+/** The guard's public option shape. @public */
 export interface BreakingCutoverOptions {
   /** The workspace/deploy directory (state files live here). */
   deployDir: string;

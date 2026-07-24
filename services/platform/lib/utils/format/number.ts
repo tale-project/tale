@@ -132,24 +132,6 @@ export function formatPercentShare(
 }
 
 /**
- * Format a duration in milliseconds
- *
- * @param ms - Duration in milliseconds
- * @param locale - The locale to use (defaults to app default locale)
- * @returns Formatted duration string with "ms" suffix
- *
- * @example
- * formatDuration(1234) // "1,234 ms" (en)
- * formatDuration(1234, 'de') // "1.234 ms"
- */
-export function formatDuration(
-  ms: number,
-  locale: string = defaultLocale,
-): string {
-  return `${formatNumber(ms, locale)} ms`;
-}
-
-/**
  * Format bytes to human-readable size
  *
  * @param bytes - Number of bytes

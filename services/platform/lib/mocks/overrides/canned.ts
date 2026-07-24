@@ -53,7 +53,7 @@ export const CANNED_REASONING_ANSWER =
  * `[[NEXT_STEPS]]` marker. The frontend marker parser renders each item line as
  * a clickable follow-up button. Each item must be alone on its own line.
  */
-export const CANNED_NEXT_STEPS_ITEMS = [
+const CANNED_NEXT_STEPS_ITEMS = [
   'Review the quarterly budget',
   'Compare it with last quarter',
 ] as const;

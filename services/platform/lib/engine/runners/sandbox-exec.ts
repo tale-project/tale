@@ -77,6 +77,7 @@ export type SandboxExecTransport = (
   request: SandboxExecRequest,
 ) => Promise<SandboxExecResult>;
 
+/** Runner construction options — the backend's public shape. @public */
 export interface SandboxExecRunnerOptions {
   /**
    * Reject a scope whose serialized form exceeds this many bytes BEFORE it

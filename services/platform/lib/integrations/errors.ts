@@ -51,6 +51,7 @@ export const INTEGRATION_CODES = {
 
 export type IntegrationErrorCode = keyof typeof INTEGRATION_CODES;
 
+/** The refusal metadata an IntegrationError carries. @public */
 export interface IntegrationErrorExtras {
   connector?: string;
   action?: string;
