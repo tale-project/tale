@@ -5,6 +5,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -57,6 +58,7 @@ export function TwoFactorPolicyEditor({
 
   const initializedRef = useRef(false);
   const [enforced, setEnforced] = useState(false);
+  const [confirmEnforceOpen, setConfirmEnforceOpen] = useState(false);
   const [gracePeriodDays, setGracePeriodDays] = useState('');
   const [exemptSsoUsers, setExemptSsoUsers] = useState(true);
 
@@ -90,7 +92,7 @@ export function TwoFactorPolicyEditor({
     [organizationId, upsertMutation, toast, t],
   );
 
-  const handleEnforcedChange = useCallback(
+  const persistEnforced = useCallback(
     async (next: boolean) => {
       setEnforced(next);
       const ok = await persist({
@@ -101,6 +103,21 @@ export function TwoFactorPolicyEditor({
       if (!ok) setEnforced(!next);
     },
     [persist, savedConfig.gracePeriodDays, savedConfig.exemptSsoUsers],
+  );
+
+  // Enabling enforcement redirects every non-exempt member into 2FA
+  // enrollment — far too heavy for a single header-switch click (one stray
+  // QA click enforced a whole org). Confirm first; switching OFF stays
+  // instant since it only relaxes.
+  const handleEnforcedChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        setConfirmEnforceOpen(true);
+        return;
+      }
+      void persistEnforced(false);
+    },
+    [persistEnforced],
   );
 
   const handleExemptSsoChange = useCallback(
@@ -158,13 +175,11 @@ export function TwoFactorPolicyEditor({
   return (
     <Skeletonize loading={loading} label={t('twoFactorPolicy.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('twoFactorPolicy.title')}
         description={t('twoFactorPolicy.description')}
         action={
           <Switch
-            label={t('twoFactorPolicy.enforced')}
-            hideLabelOnMobile
+            aria-label={t('twoFactorPolicy.enforced')}
             checked={enforced}
             onCheckedChange={handleEnforcedChange}
             disabled={!canEdit || isSaving}
@@ -216,6 +231,18 @@ export function TwoFactorPolicyEditor({
             </Stack>
           </div>
         </Stack>
+
+        <ConfirmDialog
+          open={confirmEnforceOpen}
+          onOpenChange={setConfirmEnforceOpen}
+          title={t('twoFactorPolicy.confirmEnforceTitle')}
+          description={t('twoFactorPolicy.confirmEnforceDescription')}
+          confirmText={t('twoFactorPolicy.confirmEnforceCta')}
+          onConfirm={() => {
+            setConfirmEnforceOpen(false);
+            void persistEnforced(true);
+          }}
+        />
       </SettingsSection>
     </Skeletonize>
   );
