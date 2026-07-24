@@ -5,10 +5,16 @@
  * connectors the picked agent is equipped with.
  *
  * Offered for third-party coding agents — their capabilities are provisioned
- * into the sandbox session (skills staged as files, connectors bridged), so
- * no model tool-loop is involved. The menu only ASSEMBLES; what a selection
- * does is decided by the lane that runs the agent. Empty groups say so
- * plainly instead of hiding, so "nothing to equip" is a visible fact.
+ * into the sandbox session (skills staged as files), so no model tool-loop is
+ * involved. The menu only ASSEMBLES; what a selection does is decided by the
+ * lane that runs the agent.
+ *
+ * A capability GROUP appears only when that capability can actually reach the
+ * agent turn. Skills stage into the session today, so their group always shows
+ * (an org with none sees "nothing to equip"). Connectors are not bridged into a
+ * coding turn yet, so the backend lists none and the group is hidden entirely —
+ * the plan forbids offering a capability the turn can't reach. It returns with
+ * the sandbox capability bridge.
  */
 
 import { Button } from '@tale/ui/button';
@@ -70,27 +76,23 @@ export function ComposerCapabilityMenu({
           }))),
     ];
 
+    // Connectors are only shown once they can reach the turn (the backend lists
+    // none until the bridge lands). No empty-group placeholder: an un-bridged
+    // capability is hidden, not advertised as "none available".
+    if (connectors.length === 0) return [skillGroup];
+
     const connectorGroup: DropdownMenuGroup = [
       { type: 'label', content: t('capabilities.sectionConnectors') },
-      ...(connectors.length === 0
-        ? [
-            {
-              type: 'item' as const,
-              label: t('capabilities.emptyConnectors'),
-              disabled: true,
-              onClick: () => undefined,
-            },
-          ]
-        : connectors.map((connector) => ({
-            type: 'checkbox' as const,
-            label: connector.label,
-            checked: selection.connectors.includes(connector.slug),
-            onCheckedChange: (next: boolean) =>
-              onSelectionChange({
-                ...selection,
-                connectors: toggle(selection.connectors, connector.slug, next),
-              }),
-          }))),
+      ...connectors.map((connector) => ({
+        type: 'checkbox' as const,
+        label: connector.label,
+        checked: selection.connectors.includes(connector.slug),
+        onCheckedChange: (next: boolean) =>
+          onSelectionChange({
+            ...selection,
+            connectors: toggle(selection.connectors, connector.slug, next),
+          }),
+      })),
     ];
 
     return [skillGroup, connectorGroup];

@@ -36,6 +36,7 @@ import {
   drainCodingWindow,
   ensureAgentSession,
   finalizeCodingTurn,
+  isManagedHarness,
   newExecId,
   openCodingOp,
   provisionTurnGatewayToken,
@@ -94,6 +95,18 @@ export const startCodingTurn = action({
     );
     if (thread === null) {
       return { status: 'refused', reason: 'This conversation does not exist.' };
+    }
+
+    // The managed lane can only run a managed-capable harness — refuse a
+    // byo-only one (e.g. Cursor) up front rather than build an inert exec that
+    // hangs to the turn deadline. Defensive: the composer already filters these
+    // out of its picker, but a stale thread pin or a direct API call could still
+    // name one.
+    if (!isManagedHarness(args.harness)) {
+      return {
+        status: 'refused',
+        reason: `The coding agent "${args.harness}" can't run here yet — it needs its own credentials, which this chat lane does not support.`,
+      };
     }
 
     // At most one turn per thread. Refuse a concurrent send BEFORE appending

@@ -324,6 +324,17 @@ export async function heartbeatCodingOp(
   });
 }
 
+/** Whether a harness can run in the MANAGED coding lane (V1's only path): it
+ * must be a known slug AND declare `credentialPolicy.managed`. A byo-only
+ * harness (e.g. Cursor) can't route through the session gateway, so a managed
+ * turn on it would build an inert exec that hangs to the deadline — refuse it
+ * up front instead. */
+export function isManagedHarness(harness: string): boolean {
+  if (!isHarnessSlug(harness)) return false;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  return def?.credentialPolicy.managed === true;
+}
+
 /** Build the harness exec for a managed coding turn. */
 export function buildCodingExec(args: {
   harness: string;
