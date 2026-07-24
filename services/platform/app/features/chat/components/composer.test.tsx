@@ -7,12 +7,12 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type {
-  ChatAgentOption,
   ComposerModelOption,
   ComposerSandboxAgentOption,
   ComposerSelection,
 } from '../types';
 import { Composer } from './composer';
+import { resolveSelectionSandbox } from './composer-model-picker';
 
 const API_KEY_MODEL: ComposerModelOption = {
   id: 'anthropic/claude-fable-5',
@@ -31,29 +31,27 @@ const SUBSCRIPTION_MODEL: ComposerModelOption = {
   },
 };
 
-const SANDBOX_AGENTS: ComposerSandboxAgentOption[] = [
+const CODING_AGENTS: ComposerSandboxAgentOption[] = [
   { harness: 'claude-code', label: 'Claude Code' },
   { harness: 'codex', label: 'Codex' },
 ];
 
-const AGENTS: ChatAgentOption[] = [
-  { slug: 'assistant', label: 'Assistant' },
-  { slug: 'researcher', label: 'Researcher' },
-];
+const PLATFORM: ComposerSelection = {
+  agentKind: 'platform',
+  voiceOutput: false,
+};
 
 /** Renders the composer with real selection state so picks stick. */
 function renderComposer({
   models = [API_KEY_MODEL],
-  sandboxAgents = SANDBOX_AGENTS,
-  agents = AGENTS,
-  initial = { sandbox: false, voiceOutput: false } as ComposerSelection,
+  sandboxAgents = CODING_AGENTS,
+  initial = PLATFORM,
   onSend = vi.fn(),
   generating = false,
   sendDisabled = false,
 }: {
   models?: ComposerModelOption[];
   sandboxAgents?: ComposerSandboxAgentOption[];
-  agents?: ChatAgentOption[];
   initial?: ComposerSelection;
   onSend?: (text: string) => void;
   generating?: boolean;
@@ -68,7 +66,6 @@ function renderComposer({
       <Composer
         models={models}
         sandboxAgents={sandboxAgents}
-        agents={agents}
         selection={selection}
         onSelectionChange={setSelection}
         onSend={onSend}
@@ -81,81 +78,89 @@ function renderComposer({
   return { ...render(<Harness />), selection: () => seen[seen.length - 1] };
 }
 
-describe('Composer model picker', () => {
-  it('groups the menu into Models and Sandbox agents, with no automatic entry', async () => {
+describe('Composer agent picker', () => {
+  it('groups the menu into the platform agent and third-party agents', async () => {
     const { user } = renderComposer();
 
-    await user.click(screen.getByRole('button', { name: 'Select model' }));
+    await user.click(screen.getByRole('button', { name: 'Select agent' }));
 
-    expect(screen.getByText('Models')).toBeInTheDocument();
-    expect(screen.getByText('Sandbox agents')).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /^auto$/i })).toBeNull();
-  });
-
-  it('lists the sandbox agents under their own group', async () => {
-    const { user } = renderComposer();
-
-    await user.click(screen.getByRole('button', { name: 'Select model' }));
-
+    expect(screen.getByText('Platform agent')).toBeInTheDocument();
+    expect(
+      screen.getByText('Third-party agents · run in a sandbox'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'Assistant' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: 'Claude Code' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Codex' })).toBeInTheDocument();
   });
 
-  it('picking a sandbox agent runs the turn in a sandbox', async () => {
-    const { user, selection } = renderComposer();
+  it('picking a coding agent switches the kind and keeps the platform model for the way back', async () => {
+    const { user, selection } = renderComposer({
+      initial: { ...PLATFORM, modelId: API_KEY_MODEL.id },
+    });
 
-    await user.click(screen.getByRole('button', { name: 'Select model' }));
+    await user.click(screen.getByRole('button', { name: 'Select agent' }));
     await user.click(screen.getByRole('menuitem', { name: 'Codex' }));
 
-    expect(selection()).toMatchObject({ harness: 'codex', sandbox: true });
-  });
-});
-
-describe('Composer sandbox toggle', () => {
-  it('leaves the toggle free for a model the platform holds a key for', async () => {
-    const { user, selection } = renderComposer({
-      initial: {
-        modelId: API_KEY_MODEL.id,
-        sandbox: false,
-        voiceOutput: false,
-      },
+    expect(selection()).toMatchObject({
+      agentKind: 'coding',
+      harness: 'codex',
+      // Held, not dropped: returning to the platform agent returns to it.
+      modelId: API_KEY_MODEL.id,
     });
-
-    const toggle = screen.getByRole('switch', { name: 'Sandbox' });
-    expect(toggle).toBeEnabled();
-
-    await user.click(toggle);
-    expect(selection().sandbox).toBe(true);
   });
 
-  it('locks the toggle on and names the harness when the credential forces it', () => {
+  it('shows no model picker for a coding agent, but a plain-word hint', () => {
     renderComposer({
-      models: [SUBSCRIPTION_MODEL],
-      initial: {
-        modelId: SUBSCRIPTION_MODEL.id,
-        sandbox: true,
-        voiceOutput: false,
-      },
+      initial: { agentKind: 'coding', harness: 'codex', voiceOutput: false },
     });
 
-    const toggle = screen.getByRole('switch', { name: 'Sandbox' });
-    expect(toggle).toBeChecked();
-    expect(toggle).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull();
     expect(
-      screen.getByText(/only runs in a sandbox, on claude-code/i),
+      screen.getByText("This coding agent isn't wired to chat yet."),
     ).toBeInTheDocument();
   });
 
-  it('takes the toggle with it when a forced model is picked', async () => {
+  it('returns to the platform agent and its model picker', async () => {
+    const { user, selection } = renderComposer({
+      initial: { agentKind: 'coding', harness: 'codex', voiceOutput: false },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Select agent' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Assistant' }));
+
+    expect(selection()).toMatchObject({ agentKind: 'platform' });
+    expect(selection().harness).toBeUndefined();
+    expect(
+      screen.getByRole('button', { name: 'Select model' }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('Composer model picker', () => {
+  it('lists only models — no harness entries and no automatic entry', async () => {
+    const { user } = renderComposer({
+      models: [API_KEY_MODEL, SUBSCRIPTION_MODEL],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Select model' }));
+
+    expect(
+      screen.getByRole('menuitem', { name: API_KEY_MODEL.label }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Claude Code' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^auto$/i })).toBeNull();
+  });
+
+  it('picking a model keeps the platform kind', async () => {
     const { user, selection } = renderComposer({
       models: [API_KEY_MODEL, SUBSCRIPTION_MODEL],
-      initial: {
-        modelId: API_KEY_MODEL.id,
-        sandbox: false,
-        voiceOutput: false,
-      },
     });
 
     await user.click(screen.getByRole('button', { name: 'Select model' }));
@@ -163,13 +168,41 @@ describe('Composer sandbox toggle', () => {
       screen.getByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
     );
 
-    expect(selection().sandbox).toBe(true);
+    expect(selection()).toMatchObject({
+      agentKind: 'platform',
+      modelId: SUBSCRIPTION_MODEL.id,
+    });
+  });
+});
+
+describe('resolveSelectionSandbox', () => {
+  it('runs a coding agent in a sandbox, always', () => {
+    expect(
+      resolveSelectionSandbox(
+        { agentKind: 'coding', harness: 'codex', voiceOutput: false },
+        [API_KEY_MODEL],
+      ),
+    ).toBe(true);
   });
 
-  it('offers no toggle for a sandbox agent — it is already the sandbox', () => {
-    renderComposer({
-      initial: { harness: 'codex', sandbox: true, voiceOutput: false },
-    });
+  it('runs a platform key-served model directly', () => {
+    expect(
+      resolveSelectionSandbox({ ...PLATFORM, modelId: API_KEY_MODEL.id }, [
+        API_KEY_MODEL,
+      ]),
+    ).toBe(false);
+  });
+
+  it('sends a subscription-bound model to its sandbox', () => {
+    expect(
+      resolveSelectionSandbox({ ...PLATFORM, modelId: SUBSCRIPTION_MODEL.id }, [
+        SUBSCRIPTION_MODEL,
+      ]),
+    ).toBe(true);
+  });
+
+  it('renders no sandbox switch — where a turn runs is the agent kind', () => {
+    renderComposer();
 
     expect(screen.queryByRole('switch', { name: 'Sandbox' })).toBeNull();
   });
@@ -261,7 +294,7 @@ describe('Composer accessibility', () => {
   });
 
   it('claims no models only when the menu is truly empty', () => {
-    renderComposer({ models: [], sandboxAgents: [] });
+    renderComposer({ models: [] });
 
     expect(
       screen.getByRole('button', { name: 'Select model' }),

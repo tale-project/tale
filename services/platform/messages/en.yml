@@ -895,6 +895,9 @@ chat:
     automationSearch: Automation search
   agentSelector:
     label: Select agent
+    sectionPlatform: Platform agent
+    sectionThirdParty: Third-party agents · run in a sandbox
+    codingUnavailable: This coding agent isn't wired to chat yet.
     auto: Auto
     autoDescription: Let Tale pick the best agent for each message based on what you ask.
     viewDetails: View agent details
@@ -910,8 +913,6 @@ chat:
     sectionAgents: Agents
     sectionImageAgents: Image agents
   modelSelector:
-    sectionModels: Models
-    sectionSandboxAgents: Sandbox agents
     label: Select model
     searchPlaceholder: Search models…
     noResults: No models found
@@ -1516,10 +1517,6 @@ chat:
     humanInputPending: Your answer is needed
     humanInputAnswered: Answered
     blocked: 'Stopped by a guardrail: {reason}'
-  composerSandbox:
-    label: Sandbox
-    description: Run this turn on a sandbox computer.
-    lockedByCredential: This model's credential only runs in a sandbox, on {harness}.
   branchNavigator:
     previous: Previous branch
     next: Next branch

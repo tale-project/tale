@@ -2,8 +2,13 @@
 
 /**
  * The composer: the message field and the controls that decide how the
- * message is sent — the `+` mode menu, the agent picker, the model picker
- * with its sandbox toggle, and send/stop.
+ * message is sent — the `+` mode menu, the agent picker, and (for the platform
+ * agent) the model picker, plus send/stop.
+ *
+ * Which agent runs the turn also decides WHERE it runs, so there is no sandbox
+ * toggle: the platform agent runs a model directly and shows a model picker; a
+ * third-party coding agent runs in a sandbox and brings its own model, so it
+ * shows a hint instead of a model picker.
  *
  * Send and stop are the same slot, because a thread is either taking input
  * or producing output: while a turn is in flight the button stops it, and
@@ -11,27 +16,27 @@
  */
 
 import { Button } from '@tale/ui/button';
-import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Row, Stack } from '@tale/ui/layout';
-import { Bot, ChevronDown, Send, Square } from 'lucide-react';
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { Text } from '@tale/ui/text';
+import { Send, Square } from 'lucide-react';
+import { useState, type KeyboardEvent } from 'react';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
 
 import type {
-  ChatAgentOption,
   ComposerModelOption,
   ComposerSandboxAgentOption,
   ComposerSelection,
 } from '../types';
+import { ComposerAgentPicker } from './composer-agent-picker';
 import { ComposerModeMenu } from './composer-mode-menu';
 import { ComposerModelPicker } from './composer-model-picker';
 
 interface ComposerProps {
   models: readonly ComposerModelOption[];
+  /** Third-party coding agents (sandbox harnesses). */
   sandboxAgents: readonly ComposerSandboxAgentOption[];
-  agents: readonly ChatAgentOption[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   onSend: (text: string) => void;
@@ -50,7 +55,6 @@ interface ComposerProps {
 export function Composer({
   models,
   sandboxAgents,
-  agents,
   selection,
   onSelectionChange,
   onSend,
@@ -77,28 +81,6 @@ export function Composer({
     event.preventDefault();
     submit();
   };
-
-  const agentItems = useMemo<DropdownMenuGroup[]>(() => {
-    if (agents.length === 0) return [];
-    return [
-      agents.map((agent) => ({
-        type: 'item' as const,
-        label: agent.label,
-        icon: Bot,
-        selected: agent.slug === selection.agentSlug,
-        onClick: () =>
-          onSelectionChange({
-            ...selection,
-            agentSlug:
-              agent.slug === selection.agentSlug ? undefined : agent.slug,
-          }),
-      })),
-    ];
-  }, [agents, selection, onSelectionChange]);
-
-  const selectedAgent = agents.find(
-    (agent) => agent.slug === selection.agentSlug,
-  );
 
   return (
     <Stack
@@ -132,34 +114,26 @@ export function Composer({
             }
             disabled={disabled}
           />
-          {agentItems.length > 0 && (
-            <DropdownMenu
-              align="start"
-              disabled={disabled}
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={t('agentSelector.label')}
-                  aria-haspopup="menu"
-                  className="min-w-0"
-                >
-                  <span className="truncate">
-                    {selectedAgent?.label ?? t('agentSelector.defaultAgent')}
-                  </span>
-                  <ChevronDown aria-hidden className="size-3.5 shrink-0" />
-                </Button>
-              }
-              items={agentItems}
-            />
-          )}
-          <ComposerModelPicker
-            models={models}
-            sandboxAgents={sandboxAgents}
+          <ComposerAgentPicker
+            codingAgents={sandboxAgents}
             selection={selection}
             onSelectionChange={onSelectionChange}
             disabled={disabled}
           />
+          {selection.agentKind === 'platform' ? (
+            <ComposerModelPicker
+              models={models}
+              selection={selection}
+              onSelectionChange={onSelectionChange}
+              disabled={disabled}
+            />
+          ) : (
+            // A coding agent runs in a sandbox and brings its own model; that
+            // lane is not wired yet, so say so where the model picker would be.
+            <Text variant="muted" className="truncate text-sm">
+              {t('agentSelector.codingUnavailable')}
+            </Text>
+          )}
         </Row>
 
         {generating ? (

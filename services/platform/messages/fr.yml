@@ -938,6 +938,9 @@ chat:
     automationSearch: Recherche d'automatisations
   agentSelector:
     label: Sélectionner un agent
+    sectionPlatform: Agent plateforme
+    sectionThirdParty: Agents tiers · s’exécutent dans une sandbox
+    codingUnavailable: Cet agent de codage n’est pas encore relié au chat.
     auto: Auto
     autoDescription:
       Tale choisit le meilleur agent pour chaque message en fonction
@@ -955,8 +958,6 @@ chat:
     sectionAgents: Agents
     sectionImageAgents: Image
   modelSelector:
-    sectionModels: Modèles
-    sectionSandboxAgents: Agents sandbox
     label: Sélectionner un modèle
     searchPlaceholder: Rechercher des modèles…
     noResults: Aucun modèle trouvé
@@ -1572,10 +1573,6 @@ chat:
     humanInputPending: Ta réponse est nécessaire
     humanInputAnswered: Répondu
     blocked: 'Bloqué par une règle de sécurité : {reason}'
-  composerSandbox:
-    label: Sandbox
-    description: Exécuter cette requête sur un ordinateur sandbox.
-    lockedByCredential: L’identifiant de ce modèle ne fonctionne qu’en sandbox, sur {harness}.
   branchNavigator:
     previous: Branche précédente
     next: Branche suivante

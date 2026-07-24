@@ -936,6 +936,9 @@ chat:
     automationSearch: Automatisierungssuche
   agentSelector:
     label: Agent auswählen
+    sectionPlatform: Plattform-Agent
+    sectionThirdParty: Drittanbieter-Agenten · laufen in einer Sandbox
+    codingUnavailable: Dieser Coding-Agent ist noch nicht mit dem Chat verbunden.
     auto: Auto
     autoDescription:
       Tale wählt für jede Nachricht den passenden Agent basierend auf
@@ -952,8 +955,6 @@ chat:
     sectionAgents: Agenten
     sectionImageAgents: Bild
   modelSelector:
-    sectionModels: Modelle
-    sectionSandboxAgents: Sandbox-Agenten
     label: Modell auswählen
     searchPlaceholder: Modelle suchen…
     noResults: Keine Modelle gefunden
@@ -1559,10 +1560,6 @@ chat:
     humanInputPending: Deine Antwort wird gebraucht
     humanInputAnswered: Beantwortet
     blocked: 'Von einer Schutzregel gestoppt: {reason}'
-  composerSandbox:
-    label: Sandbox
-    description: Diese Anfrage auf einem Sandbox-Computer ausführen.
-    lockedByCredential: Der Zugang dieses Modells läuft nur in einer Sandbox, auf {harness}.
   branchNavigator:
     previous: Vorheriger Zweig
     next: Nächster Zweig

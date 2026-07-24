@@ -30,10 +30,15 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
       available: false,
       start: () => Promise.reject(new Error('unavailable')),
     })),
+    useChatModelPreference: vi.fn(() => ({
+      preference: { status: 'unavailable' as const },
+      save: vi.fn(),
+    })),
   };
 });
 
 import {
+  useChatModelPreference,
   useChatSend,
   useChatThreads,
   useComposerModels,
@@ -51,6 +56,10 @@ afterEach(() => {
   vi.mocked(useChatSend).mockImplementation(() => ({
     available: false,
     start: () => Promise.reject(new Error('unavailable')),
+  }));
+  vi.mocked(useChatModelPreference).mockImplementation(() => ({
+    preference: { status: 'unavailable' as const },
+    save: vi.fn(),
   }));
 });
 
@@ -151,6 +160,13 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     credential: { authMethod: 'api-key' as const },
   };
 
+  const SECOND_MODEL = {
+    id: 'deepseek-reasoner',
+    label: 'deepseek-reasoner',
+    providerSlug: 'deepseek',
+    credential: { authMethod: 'api-key' as const },
+  };
+
   const start = vi.fn();
 
   beforeEach(() => {
@@ -183,6 +199,47 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(
       screen.getByRole('button', { name: 'Select model' }),
     ).toHaveTextContent('deepseek-chat');
+  });
+
+  it("seeds the user's sticky pick over the listing default", () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: { models: [MODEL, SECOND_MODEL], sandboxAgents: [] },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: SECOND_MODEL.id },
+      save: vi.fn(),
+    });
+
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Select model' }),
+    ).toHaveTextContent('deepseek-reasoner');
+  });
+
+  it('saves an explicit model pick, and only an explicit one', async () => {
+    const save = vi.fn();
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: { models: [MODEL, SECOND_MODEL], sandboxAgents: [] },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: undefined },
+      save,
+    });
+
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    // Seeding picked MODEL by default — that must not have been saved.
+    expect(save).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Select model' }));
+    await user.click(
+      screen.getByRole('menuitem', { name: 'deepseek-reasoner' }),
+    );
+
+    expect(save).toHaveBeenCalledWith('deepseek-reasoner');
   });
 
   it('starts the turn and navigates into the thread it created', async () => {

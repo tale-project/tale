@@ -267,6 +267,44 @@ export function useChatAgents(
   return state;
 }
 
+/**
+ * The user's sticky model pick for this org — a live read plus the save that
+ * makes a pick sticky. The read is `undefined` data while the user has never
+ * picked; `save` fires and forgets (a lost write costs one re-pick, never a
+ * blocked send). Only EXPLICIT picks are saved; default seeding never writes.
+ */
+export function useChatModelPreference(organizationId: string): {
+  readonly preference: ChatQuery<string | undefined>;
+  readonly save: (modelId: string) => void;
+} {
+  const convex = useConvex();
+  const row = useChatQuery(api.user_preferences.queries.getMyPreferences, {
+    organizationId,
+  });
+
+  const save = useCallback(
+    (modelId: string) => {
+      if (!convex) return;
+      convex
+        .mutation(api.user_preferences.mutations.setChatModel, {
+          organizationId,
+          modelId,
+        })
+        .catch((error: unknown) => {
+          console.warn('[chat] could not save the model pick', error);
+        });
+    },
+    [convex, organizationId],
+  );
+
+  const preference: ChatQuery<string | undefined> =
+    row.status === 'ready'
+      ? { status: 'ready', data: row.data?.chatModelId ?? undefined }
+      : row;
+
+  return { preference, save };
+}
+
 /** What a turn needs from the composer. Omitting `threadId` means "start a
  * new thread for this turn" — the handle carries the id that was created. */
 export interface ChatTurnRequest {

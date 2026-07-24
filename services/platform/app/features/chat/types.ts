@@ -74,7 +74,11 @@ export interface ComposerModelOption {
   readonly credential: CredentialAuth;
 }
 
-/** A harness the composer can pick, under the "Sandbox agents" group. */
+/**
+ * A third-party coding agent the composer can pick — an external harness
+ * (Claude Code, Codex) that runs the turn in a sandbox and brings its own
+ * model. (The field is still named for the harness it maps to.)
+ */
 export interface ComposerSandboxAgentOption {
   readonly harness: string;
   readonly label: string;
@@ -87,13 +91,21 @@ export interface ChatAgentOption {
   readonly description?: string;
 }
 
+/**
+ * Which kind of agent answers the turn. `platform` is the first-party
+ * assistant that runs a model directly; `coding` is a third-party harness that
+ * runs in a sandbox. The kind — not a separate switch — decides where the turn
+ * runs, so there is no sandbox toggle in the selection.
+ */
+export type ComposerAgentKind = 'platform' | 'coding';
+
 /** What the composer sends. */
 export interface ComposerSelection {
-  /** The picked model, or the picked sandbox agent's harness. */
+  readonly agentKind: ComposerAgentKind;
+  /** The platform agent's chosen model. */
   readonly modelId?: string;
+  /** The third-party coding agent's harness. */
   readonly harness?: string;
-  readonly sandbox: boolean;
-  readonly agentSlug?: string;
   /** Read replies aloud — a composer mode, not a stored preference. */
   readonly voiceOutput: boolean;
 }

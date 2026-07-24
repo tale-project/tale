@@ -33,21 +33,29 @@ import { useT } from '@/lib/i18n/client';
 
 import {
   useCanvasSources,
-  useChatAgents,
   useChatGeneration,
   useChatMessages,
+  useChatModelPreference,
   useChatSend,
   useChatThreads,
   useComposerModels,
 } from '../data/chat-backend';
-import type { ComposerSelection } from '../types';
+import type { ComposerModelOption, ComposerSelection } from '../types';
 import { CanvasPanel } from './canvas/canvas-panel';
 import { Composer } from './composer';
-import { withDefaultModel } from './composer-model-picker';
+import {
+  resolveSelectionSandbox,
+  withDefaultModel,
+} from './composer-model-picker';
 import { MessageThread } from './message-thread';
 import { ThreadList } from './thread-list';
 
-const NO_SELECTION: ComposerSelection = { sandbox: false, voiceOutput: false };
+const NO_SELECTION: ComposerSelection = {
+  agentKind: 'platform',
+  voiceOutput: false,
+};
+
+const NO_MODELS: readonly ComposerModelOption[] = [];
 
 interface ChatSurfaceProps {
   organizationId: string;
@@ -64,20 +72,36 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
   const messages = useChatMessages(organizationId, threadId);
   const generation = useChatGeneration(organizationId, threadId);
   const composerOptions = useComposerModels(organizationId);
-  const agents = useChatAgents(organizationId);
   const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
+  const modelPreference = useChatModelPreference(organizationId);
 
   const [selection, setSelection] = useState(NO_SELECTION);
 
-  // Seed the default model the moment the listing answers, so sending never
-  // requires a menu visit. A pick the user already made is left alone.
+  const models =
+    composerOptions.status === 'ready'
+      ? composerOptions.data.models
+      : NO_MODELS;
+
+  // Seed the default model once BOTH the listing and the user's sticky pick
+  // have answered, so the seed lands once — never "first model, then the
+  // saved one a beat later". A pick made in this session is left alone.
+  const preference = modelPreference.preference;
   useEffect(() => {
-    if (composerOptions.status !== 'ready') return;
-    const models = composerOptions.data.models;
-    if (models.length === 0) return;
-    setSelection((previous) => withDefaultModel(previous, models));
-  }, [composerOptions]);
+    if (models.length === 0 || preference.status === 'loading') return;
+    const preferredId =
+      preference.status === 'ready' ? preference.data : undefined;
+    setSelection((previous) => withDefaultModel(previous, models, preferredId));
+  }, [models, preference]);
+
+  // An explicit model pick becomes the user's sticky default; the seeding
+  // effect above writes nothing, so only real choices persist.
+  const handleSelectionChange = (next: ComposerSelection) => {
+    if (next.modelId !== undefined && next.modelId !== selection.modelId) {
+      modelPreference.save(next.modelId);
+    }
+    setSelection(next);
+  };
 
   const threadsAvailable = threads.status === 'ready';
   const messagesAvailable = messages.status === 'ready';
@@ -104,17 +128,16 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
 
   const handleSend = (text: string) => {
     const modelId = selection.modelId;
-    if (modelId === undefined) return;
+    // Only the platform agent's direct lane sends today; a coding agent's
+    // sandbox lane is a separate subsystem, and send is disabled for it.
+    if (selection.agentKind !== 'platform' || modelId === undefined) return;
     void (async () => {
       try {
         const turn = await chatSend.start({
           ...(threadId !== undefined ? { threadId } : {}),
           text,
           modelId,
-          sandbox: selection.sandbox,
-          ...(selection.agentSlug !== undefined
-            ? { agentSlug: selection.agentSlug }
-            : {}),
+          sandbox: resolveSelectionSandbox(selection, models),
         });
         // Surface a refusal or a failure; success streams in by itself.
         turn.outcome.then(
@@ -204,24 +227,24 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
 
         <div className="shrink-0 px-4 pb-4">
           <Composer
-            models={
-              composerOptions.status === 'ready'
-                ? composerOptions.data.models
-                : []
-            }
+            models={models}
             sandboxAgents={
               composerOptions.status === 'ready'
                 ? composerOptions.data.sandboxAgents
                 : []
             }
-            agents={agents.status === 'ready' ? agents.data : []}
             selection={selection}
-            onSelectionChange={setSelection}
+            onSelectionChange={handleSelectionChange}
             onSend={handleSend}
             disabled={composerDisabled}
-            // Send waits for a model pick and for the running turn to settle;
-            // typing and the pickers stay usable through both.
-            sendDisabled={selection.modelId === undefined || generationInFlight}
+            // Send waits for the direct lane (a coding agent's sandbox lane is
+            // not wired yet), a model pick, and the running turn to settle;
+            // typing and the pickers stay usable through all three.
+            sendDisabled={
+              selection.agentKind !== 'platform' ||
+              selection.modelId === undefined ||
+              generationInFlight
+            }
           />
         </div>
       </Stack>
