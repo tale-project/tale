@@ -502,6 +502,19 @@ export async function drainCodingWindow(
     }
   }
 
+  // The kick's first window is about to START the exec — flip the generation
+  // out of 'queued' NOW. The only other flip is the cursor advance at this
+  // window's END, up to DRAIN_WINDOW_MS away, and until then the UI would
+  // show "waiting to start" for a turn that is already running in the
+  // sandbox. Setup (session ensure, key mint, staging) is over, so 'queued'
+  // has told its truth.
+  if (args.start !== undefined) {
+    await ctx.runMutation(internal.chat.generations.heartbeatInternal, {
+      organizationId: args.scope.organizationId,
+      threadId: args.scope.threadId,
+    });
+  }
+
   const windowSignal = AbortSignal.timeout(DRAIN_WINDOW_MS);
   let exited = false;
   let execResult: SessionExecResult | undefined;
