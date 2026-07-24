@@ -42,6 +42,8 @@ const threadSummaryValidator = v.object({
   agentSlug: v.optional(v.string()),
   /** The coding agent pinned to a sandbox thread (absent on direct threads). */
   harness: v.optional(v.string()),
+  /** The project the thread is filed under (absent = the loose Chats list). */
+  projectId: v.optional(v.id('projects')),
   archived: v.boolean(),
   isShared: v.optional(v.boolean()),
   updatedAt: v.number(),
@@ -161,6 +163,7 @@ export const listThreads = query({
       kind: thread.kind,
       agentSlug: thread.agentSlug,
       harness: thread.harness,
+      projectId: thread.projectId,
       archived: thread.archived,
       isShared: thread.isShared,
       updatedAt: thread.updatedAt,
@@ -192,6 +195,7 @@ export const getThread = query({
       kind: thread.kind,
       agentSlug: thread.agentSlug,
       harness: thread.harness,
+      projectId: thread.projectId,
       archived: thread.archived,
       isShared: thread.isShared,
       updatedAt: thread.updatedAt,
@@ -322,6 +326,61 @@ export const createThread = mutation({
       createdAt: now,
       updatedAt: now,
     });
+  },
+});
+
+/**
+ * File a thread under a project, or take it back out (`projectId: null`).
+ * The project link is access-checked with the same gate `createThread` uses —
+ * filing must never smuggle a caller into a project they cannot read. Filing
+ * is a metadata edit, not chat activity, so `updatedAt` stays untouched and
+ * the list keeps its recency order. Returns false when the thread is not the
+ * caller's, so a client can distinguish a no-op from a success.
+ */
+export const moveThreadToProject = mutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    projectId: v.union(v.string(), v.null()),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return false;
+
+    if (args.projectId === null) {
+      await ctx.db.patch(thread._id, { projectId: undefined });
+      return true;
+    }
+
+    const normalized = ctx.db.normalizeId('projects', args.projectId);
+    if (normalized === null) {
+      throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+    }
+    const access = await ctx.runQuery(
+      internal.projects.internal_queries.assertProjectAccessForChat,
+      {
+        projectId: normalized,
+        organizationId: args.organizationId,
+        userId,
+      },
+    );
+    if (!access.allowed) {
+      throw new ConvexError({
+        code:
+          access.reason === 'not_found'
+            ? 'PROJECT_NOT_FOUND'
+            : 'PROJECT_FORBIDDEN',
+      });
+    }
+    await ctx.db.patch(thread._id, { projectId: normalized });
+    return true;
   },
 });
 

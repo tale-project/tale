@@ -29,6 +29,16 @@ export function useSidebar() {
   return context;
 }
 
+/**
+ * The sidebar context, or null outside a SidebarProvider. For affordances
+ * that merely HOOK INTO sidebar surfaces (the chat panel's search button
+ * opening the ⌘K palette) and should disappear — not crash — in a render
+ * without the provider, like a component test.
+ */
+export function useOptionalSidebar() {
+  return useContext(SidebarContext);
+}
+
 interface SidebarProviderProps {
   children: ReactNode;
 }

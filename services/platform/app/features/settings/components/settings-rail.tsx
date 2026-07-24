@@ -1,12 +1,18 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
-import { Link, useRouterState } from '@tanstack/react-router';
+import { useRouterState } from '@tanstack/react-router';
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { SubPanel } from '@/app/components/layout/sub-panel';
+import {
+  SUB_PANEL_ROW_CLASS,
+  SubPanelDisclosureBody,
+  SubPanelRowLink,
+  SubPanelSectionHeader,
+  useSubPanelRowTreatment,
+} from '@/app/components/layout/sub-panel-list';
 import { useAbility } from '@/app/hooks/use-ability';
 import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
@@ -216,12 +222,10 @@ export function SettingsRail({
 
           return (
             <Stack key={section.key} gap={1}>
-              <div className="px-2">
-                <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
-                  {tSettings(`menu.railSections.${section.labelKey}`)}
-                </span>
-              </div>
-              <ul className="flex flex-col gap-0.5 pt-2">
+              <SubPanelSectionHeader
+                label={tSettings(`menu.railSections.${section.labelKey}`)}
+              />
+              <ul className="flex flex-col gap-0.5">
                 {visible.map((item) =>
                   item.kind === 'leaf' ? (
                     <RailRow
@@ -250,12 +254,6 @@ export function SettingsRail({
   );
 }
 
-// Mirrors the unified app sidebar's row anatomy (h-8, rounded-md, 13px text,
-// muted hover fill, inset focus ring) so the two panels read as siblings on
-// settings routes.
-const ROW_BASE =
-  'flex h-8 items-center rounded-md px-2 text-[13px] transition-colors focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none';
-
 function RailRow({
   href,
   label,
@@ -267,32 +265,11 @@ function RailRow({
   active: boolean;
   className?: string;
 }) {
-  // Same accent treatment as the unified app sidebar's active tile: branded
-  // orgs tint the active row with the org accent; unbranded ones keep the
-  // muted-gray fallback.
-  const { accentColor } = useBrandingContext();
-  const activeStyle =
-    active && accentColor
-      ? { backgroundColor: `${accentColor}26`, color: accentColor }
-      : undefined;
   return (
     <li>
-      <Link
-        to={href}
-        aria-current={active ? 'page' : undefined}
-        className={cn(
-          ROW_BASE,
-          active
-            ? accentColor
-              ? 'font-medium'
-              : 'bg-muted text-foreground font-medium'
-            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-          className,
-        )}
-        style={activeStyle}
-      >
+      <SubPanelRowLink to={href} active={active} className={className}>
         {label}
-      </Link>
+      </SubPanelRowLink>
     </li>
   );
 }
@@ -329,11 +306,7 @@ function RailExpandableGroup({
   // Highlight the collapsed parent when the current page lives inside it, so
   // the active location stays visible; expanded, the child row carries it.
   const parentActive = active && !open;
-  const { accentColor } = useBrandingContext();
-  const parentActiveStyle =
-    parentActive && accentColor
-      ? { backgroundColor: `${accentColor}26`, color: accentColor }
-      : undefined;
+  const parentTreatment = useSubPanelRowTreatment(parentActive);
 
   return (
     <li>
@@ -342,15 +315,13 @@ function RailExpandableGroup({
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         className={cn(
-          ROW_BASE,
+          SUB_PANEL_ROW_CLASS,
           'w-full cursor-pointer justify-between text-left',
-          parentActive
-            ? accentColor
-              ? 'font-medium'
-              : 'bg-muted text-foreground font-medium'
-            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+          parentTreatment.className,
         )}
-        style={parentActiveStyle}
+        {...(parentTreatment.style !== undefined
+          ? { style: parentTreatment.style }
+          : {})}
       >
         <span>{label}</span>
         <ChevronRight
@@ -361,38 +332,26 @@ function RailExpandableGroup({
           )}
         />
       </button>
-      {/* Same animated disclosure as the chat sidebar's sections — the grid
-          row trick animates to content height without JS measurement. */}
-      <div
-        className={cn(
-          'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
-          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+      <SubPanelDisclosureBody open={open}>
+        {childrenItems.length > 0 && (
+          <ul className="mt-0.5 flex flex-col gap-0.5 pb-0.5">
+            {childrenItems.map((child) => {
+              const childHref = `${href}/${child.slug}`;
+              const childActive =
+                pathname === childHref || pathname.startsWith(`${childHref}/`);
+              return (
+                <RailRow
+                  key={child.slug}
+                  href={childHref}
+                  label={child.label}
+                  active={childActive}
+                  className="pl-5"
+                />
+              );
+            })}
+          </ul>
         )}
-        aria-hidden={!open}
-        inert={!open}
-      >
-        <div className="min-h-0 overflow-hidden">
-          {childrenItems.length > 0 && (
-            <ul className="mt-0.5 flex flex-col gap-0.5 pb-0.5">
-              {childrenItems.map((child) => {
-                const childHref = `${href}/${child.slug}`;
-                const childActive =
-                  pathname === childHref ||
-                  pathname.startsWith(`${childHref}/`);
-                return (
-                  <RailRow
-                    key={child.slug}
-                    href={childHref}
-                    label={child.label}
-                    active={childActive}
-                    className="pl-5"
-                  />
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </div>
+      </SubPanelDisclosureBody>
     </li>
   );
 }

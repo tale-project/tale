@@ -440,3 +440,114 @@ describe('chat threads — branching', () => {
     ]);
   });
 });
+
+describe('chat threads — project filing', () => {
+  async function seedProject(t: T, organizationId: string): Promise<string> {
+    return await t.run(async (ctx) =>
+      ctx.db.insert('projects', {
+        organizationId,
+        name: 'Roadmap',
+        createdBy: ALICE,
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+  }
+
+  it('files a thread into a project and takes it back out', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const projectId = await seedProject(t, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+
+    const filed = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.moveThreadToProject, {
+        organizationId: ORG_A,
+        threadId,
+        projectId,
+      });
+    expect(filed).toBe(true);
+
+    const listed = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(listed[0]?.projectId).toBe(projectId);
+
+    const unfiled = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.moveThreadToProject, {
+        organizationId: ORG_A,
+        threadId,
+        projectId: null,
+      });
+    expect(unfiled).toBe(true);
+
+    const relisted = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(relisted[0]?.projectId).toBeUndefined();
+  });
+
+  it('refuses to file a thread the caller does not own', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    await seedMember(t, BOB, ORG_A);
+    const projectId = await seedProject(t, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+
+    const moved = await t
+      .withIdentity({ subject: BOB })
+      .mutation(api.chat.threads.moveThreadToProject, {
+        organizationId: ORG_A,
+        threadId,
+        projectId,
+      });
+    expect(moved).toBe(false);
+
+    const listed = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(listed[0]?.projectId).toBeUndefined();
+  });
+
+  it('refuses a project from another organization', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const foreignProjectId = await seedProject(t, ORG_B);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+
+    await expect(
+      t
+        .withIdentity({ subject: ALICE })
+        .mutation(api.chat.threads.moveThreadToProject, {
+          organizationId: ORG_A,
+          threadId,
+          projectId: foreignProjectId,
+        }),
+    ).rejects.toThrow();
+
+    const listed = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(listed[0]?.projectId).toBeUndefined();
+  });
+});

@@ -7,12 +7,22 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 const navigateMock = vi.hoisted(() => vi.fn());
+// Whether the rendered viewer could open Settings → AI providers; the
+// provider-setup guidance branches on it.
+const canManageProvidersMock = vi.hoisted(() => ({ value: false }));
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
   useNavigate: () => navigateMock,
+}));
+
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({
+    can: () => canManageProvidersMock.value,
+    cannot: () => !canManageProvidersMock.value,
+  }),
 }));
 
 // The seam states these tests steer — threads, the model listing, and the
@@ -55,6 +65,7 @@ import { ChatSurface } from './chat-surface';
 
 afterEach(() => {
   navigateMock.mockReset();
+  canManageProvidersMock.value = false;
   vi.mocked(useComposerModels).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
@@ -130,11 +141,17 @@ describe('ChatSurface when the model listing answers and is empty', () => {
     });
   });
 
-  it('guides to provider settings instead of claiming a connection problem', () => {
+  it('guides an admin to provider settings instead of claiming a connection problem', () => {
+    canManageProvidersMock.value = true;
     render(<ChatSurface organizationId="org-1" />);
 
     expect(
       screen.getByRole('heading', { name: 'No AI provider connected yet' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Connect a provider under Settings → AI providers to start chatting.',
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: "Chat isn't connected yet" }),
@@ -142,6 +159,20 @@ describe('ChatSurface when the model listing answers and is empty', () => {
     expect(
       screen.getByRole('link', { name: 'Open AI providers' }),
     ).toHaveAttribute('href', '/dashboard/$id/settings/providers');
+  });
+
+  it('tells a member to ask their admin, without a settings link they could not open', () => {
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(
+      screen.getByRole('heading', { name: 'No AI provider connected yet' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Ask your workspace admin to connect an AI provider.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Open AI providers' }),
+    ).toBeNull();
   });
 
   it('keeps the connection message on an open thread — a missing conversation is not a catalog gap', () => {

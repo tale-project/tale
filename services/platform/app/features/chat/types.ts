@@ -23,12 +23,24 @@ export interface ChatThreadSummary {
   readonly agentSlug?: string;
   /** The coding agent pinned to a sandbox thread (absent on direct threads). */
   readonly harness?: string;
+  /** The project the thread is filed under (absent = the loose Chats list). */
+  readonly projectId?: string;
   readonly archived: boolean;
   /** True while the thread is published as an org-internal snapshot link. */
   readonly isShared?: boolean;
   readonly updatedAt: number;
   /** True while a generation row exists for the thread. */
   readonly generating: boolean;
+}
+
+/** One project folder of the chat sub-panel, reduced to what a folder row
+ * renders. */
+export interface ChatProjectSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly icon?: string;
+  readonly color?: string;
+  readonly pinnedAt?: number;
 }
 
 export type ChatMessageRole = 'user' | 'assistant' | 'tool' | 'system';

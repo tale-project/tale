@@ -41,12 +41,14 @@ import {
 } from 'react';
 
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 
 import type {
   CanvasSources,
   ChatAgentOption,
   ChatGenerationView,
   ChatMessageView,
+  ChatProjectSummary,
   ChatThreadSummary,
   ComposerCapabilityOption,
   ComposerModelOption,
@@ -140,6 +142,60 @@ export function useChatThreads(
   return useChatQuery(api.chat.threads.listThreads, { organizationId });
 }
 
+/**
+ * The project folders the chat sub-panel files threads under. The projects
+ * feature owns the table; this read reduces its rows to what a folder row
+ * renders, through the same degrade-to-unavailable seam as every chat read.
+ */
+export function useChatProjects(
+  organizationId: string,
+): ChatQuery<readonly ChatProjectSummary[]> {
+  const projects = useChatQuery(api.projects.queries.listProjects, {
+    organizationId,
+  });
+  return useMemo(() => {
+    if (projects.status !== 'ready') return projects;
+    return {
+      status: 'ready',
+      data: projects.data.map((project) => ({
+        id: project._id,
+        name: project.name,
+        ...(project.icon !== undefined ? { icon: project.icon } : {}),
+        ...(project.color !== undefined ? { color: project.color } : {}),
+        ...(project.pinnedAt !== undefined
+          ? { pinnedAt: project.pinnedAt }
+          : {}),
+      })),
+    };
+  }, [projects]);
+}
+
+/**
+ * Pin or unpin a project folder in the sub-panel. Routed through the seam —
+ * not the projects feature's react-query hooks — so a provider-less render
+ * degrades to `available: false` instead of throwing.
+ */
+export function useProjectPin(): {
+  readonly available: boolean;
+  readonly setPinned: (projectId: string, pinned: boolean) => Promise<void>;
+} {
+  const convex = useConvex();
+
+  const setPinned = useCallback(
+    async (projectId: string, pinned: boolean): Promise<void> => {
+      if (!convex) throw new Error('The chat backend is not reachable.');
+      await convex.mutation(api.projects.mutations.setProjectPinned, {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the id round-trips through the seam's string view model; its origin is the projects table
+        projectId: projectId as Id<'projects'>,
+        pinned,
+      });
+    },
+    [convex],
+  );
+
+  return { available: convex !== undefined, setPinned };
+}
+
 /** One thread's messages, in `sequence` order. */
 export function useChatMessages(
   organizationId: string,
@@ -181,6 +237,19 @@ export function useHarnessHealth(organizationId: string): ChatQuery<
   });
 }
 
+interface ComposerCatalog {
+  readonly models: readonly ComposerModelOption[];
+  readonly sandboxAgents: readonly ComposerSandboxAgentOption[];
+}
+
+/**
+ * The last catalog each org answered with, kept for the session. A remount
+ * starts from this answer and refreshes in the background instead of dropping
+ * back to `loading` — the loading gap is what flipped the chat index between
+ * its welcome and the provider-setup notice on every navigation.
+ */
+const composerCatalogCache = new Map<string, ComposerCatalog>();
+
 /**
  * What the composer's model picker offers. The model catalog and sandbox
  * harnesses are file-backed config the providers domain owns, so — like the
@@ -188,40 +257,46 @@ export function useHarnessHealth(organizationId: string): ChatQuery<
  * org's models the same way a turn does (the connectors it has an active
  * credential for) plus the shipped harnesses, loading once per org and again
  * per mount. Failures degrade to `unavailable`, so the picker says "not
- * connected" rather than offering a model no configured credential could serve.
+ * connected" rather than offering a model no configured credential could
+ * serve — unless a previous answer exists, which then keeps serving (a
+ * transient refresh failure must not blank a working composer).
  */
-export function useComposerModels(organizationId: string): ChatQuery<{
-  readonly models: readonly ComposerModelOption[];
-  readonly sandboxAgents: readonly ComposerSandboxAgentOption[];
-}> {
+export function useComposerModels(
+  organizationId: string,
+): ChatQuery<ComposerCatalog> {
   const convex = useConvex();
-  const [state, setState] = useState<
-    ChatQuery<{
-      readonly models: readonly ComposerModelOption[];
-      readonly sandboxAgents: readonly ComposerSandboxAgentOption[];
-    }>
-  >({ status: 'loading' });
+  const [state, setState] = useState<ChatQuery<ComposerCatalog>>(() => {
+    const cached = composerCatalogCache.get(organizationId);
+    return cached ? { status: 'ready', data: cached } : { status: 'loading' };
+  });
 
   useEffect(() => {
     if (!convex || !organizationId) return () => {};
     let cancelled = false;
-    setState({ status: 'loading' });
+    const cached = composerCatalogCache.get(organizationId);
+    setState(
+      cached ? { status: 'ready', data: cached } : { status: 'loading' },
+    );
     convex
       .action(api.chat.composer.listComposerModels, { organizationId })
       .then(
         (data) => {
           if (cancelled) return;
+          composerCatalogCache.set(organizationId, data);
           setState({ status: 'ready', data });
         },
         (error: unknown) => {
           if (cancelled) return;
-          // Pre-auth or backend failure: report honestly; the picker renders its
-          // unavailable state instead of an empty model list.
+          // Pre-auth or backend failure: report honestly; the picker renders
+          // its unavailable state instead of an empty model list. A stale
+          // answer, when one exists, beats flipping a working surface.
           console.warn(
             '[chat] could not list composer models for the picker',
             error,
           );
-          setState(UNAVAILABLE);
+          if (!composerCatalogCache.has(organizationId)) {
+            setState(UNAVAILABLE);
+          }
         },
       );
     return () => {
@@ -487,6 +562,35 @@ export function useChatSend(organizationId: string): {
   );
 
   return { available: convex !== undefined, start, stop };
+}
+
+/**
+ * File a thread under a project (or take it back out with `null`) — the write
+ * behind the sub-panel's drag-and-drop. Resolves `false` for a thread that is
+ * not the caller's; `available` mirrors the reads for a provider-less render.
+ */
+export function useThreadProjectMove(organizationId: string): {
+  readonly available: boolean;
+  readonly move: (
+    threadId: string,
+    projectId: string | null,
+  ) => Promise<boolean>;
+} {
+  const convex = useConvex();
+
+  const move = useCallback(
+    async (threadId: string, projectId: string | null): Promise<boolean> => {
+      if (!convex) throw new Error('The chat backend is not reachable.');
+      return await convex.mutation(api.chat.threads.moveThreadToProject, {
+        organizationId,
+        threadId,
+        projectId,
+      });
+    },
+    [convex, organizationId],
+  );
+
+  return { available: convex !== undefined, move };
 }
 
 /**

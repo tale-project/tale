@@ -23,11 +23,13 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
+import { Spinner } from '@tale/ui/spinner';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Cpu, PlugZap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -79,6 +81,10 @@ export function ChatSurface({
   const { t } = useT('chat');
   const { toast } = useToast();
   const navigate = useNavigate();
+  const ability = useAbility();
+  // Mirrors the settings rail's gate for the AI-providers page: whoever can
+  // open that page gets pointed at it; everyone else is told to ask an admin.
+  const canManageProviders = ability.can('read', 'developerSettings');
 
   const threads = useChatThreads(organizationId);
   const messages = useChatMessages(organizationId, threadId);
@@ -279,29 +285,57 @@ export function ChatSurface({
               generation.status === 'ready' ? generation.data : undefined
             }
           />
+        ) : threadId !== undefined ? (
+          messages.status === 'unavailable' ? (
+            <EmptyState
+              icon={PlugZap}
+              title={t('backendUnavailable.title')}
+              description={t('backendUnavailable.description')}
+              headingLevel={2}
+              className="min-h-0 flex-1"
+            />
+          ) : (
+            // The open thread's messages are on their way — a quiet spinner,
+            // never an outage notice for an answer that is merely in flight.
+            <Stack
+              align="center"
+              justify="center"
+              className="min-h-0 flex-1"
+              gap={0}
+            >
+              <Spinner size="lg" label={t('loadingConversation')} />
+            </Stack>
+          )
         ) : needsProviderSetup ? (
           <EmptyState
             icon={Cpu}
             title={t('providerSetup.title')}
-            description={t('providerSetup.description')}
+            description={t(
+              canManageProviders
+                ? 'providerSetup.descriptionAdmin'
+                : 'providerSetup.descriptionMember',
+            )}
             headingLevel={2}
             className="min-h-0 flex-1"
-            action={
-              <Button asChild>
-                <Link
-                  to="/dashboard/$id/settings/providers"
-                  params={{ id: organizationId }}
-                >
-                  {t('providerSetup.action')}
-                </Link>
-              </Button>
-            }
+            // Only whoever can actually open the providers page gets the
+            // shortcut; pointing everyone else at a page they cannot read
+            // is a dead end.
+            {...(canManageProviders
+              ? {
+                  action: (
+                    <Button asChild>
+                      <Link
+                        to="/dashboard/$id/settings/providers"
+                        params={{ id: organizationId }}
+                      >
+                        {t('providerSetup.action')}
+                      </Link>
+                    </Button>
+                  ),
+                }
+              : {})}
           />
-        ) : threadId === undefined && threadsAvailable ? (
-          // The index IS a conversation about to start: the same welcome an
-          // open thread shows before its first message, not an outage notice.
-          <MessageThread messages={[]} />
-        ) : (
+        ) : threads.status === 'unavailable' ? (
           <EmptyState
             icon={PlugZap}
             title={t('backendUnavailable.title')}
@@ -309,6 +343,12 @@ export function ChatSurface({
             headingLevel={2}
             className="min-h-0 flex-1"
           />
+        ) : (
+          // The index IS a conversation about to start: the same welcome an
+          // open thread shows before its first message. It also holds while
+          // the model listing is still answering, so the surface never flips
+          // welcome → provider-setup → welcome across navigations.
+          <MessageThread messages={[]} />
         )}
 
         <div className="shrink-0 px-4 pb-4">
