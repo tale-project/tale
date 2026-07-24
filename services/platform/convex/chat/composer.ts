@@ -21,6 +21,7 @@
 
 import { v, type Infer } from 'convex/values';
 
+import { loadIntegrationConnectors } from '../../lib/integrations/catalog';
 import type { CredentialAuth } from '../../lib/shared/providers/resolve_execution';
 import type { ProviderConnector } from '../../lib/shared/schemas/providers';
 import { api } from '../_generated/api';
@@ -188,5 +189,75 @@ export const listComposerModels = action({
       .sort((a, b) => a.label.localeCompare(b.label));
 
     return { models, sandboxAgents };
+  },
+});
+
+const composerCapabilityValidator = v.object({
+  slug: v.string(),
+  label: v.string(),
+  description: v.optional(v.string()),
+});
+
+type ComposerCapability = Infer<typeof composerCapabilityValidator>;
+
+interface ComposerCapabilityListing {
+  skills: ComposerCapability[];
+  connectors: ComposerCapability[];
+}
+
+/**
+ * What a conversation can equip an agent with: the organization's skills and
+ * its ENABLED connectors — a connector counts as enabled when the org holds
+ * an active credential for it, the same credential-gated rule the model
+ * listing follows. Listing is non-secret capability metadata, open to any
+ * member; what a selection DOES is decided where it is consumed (a coding
+ * agent's session provisioning), never here.
+ *
+ * The handler's return type is annotated explicitly — it calls back through
+ * the generated `api`, and an unannotated return would flow that cycle into
+ * the API surface and degrade its types (same rule as `startTurn`).
+ */
+export const listComposerCapabilities = action({
+  args: { organizationId: v.string() },
+  returns: v.object({
+    skills: v.array(composerCapabilityValidator),
+    connectors: v.array(composerCapabilityValidator),
+  }),
+  handler: async (ctx, args): Promise<ComposerCapabilityListing> => {
+    await requireOrgMembershipById(ctx, args.organizationId);
+
+    const skillListing = await ctx.runAction(api.skills.actions.listSkills, {
+      organizationId: args.organizationId,
+    });
+    const skills = skillListing.skills
+      .map((skill) => {
+        const option: ComposerCapability = {
+          slug: skill.slug,
+          label: skill.slug,
+        };
+        if (skill.description !== '') option.description = skill.description;
+        return option;
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const credentials = await ctx.runQuery(
+      api.integration_credentials.queries.listCredentials,
+      { organizationId: args.organizationId },
+    );
+    const enabledSlugs = new Set(
+      credentials
+        .filter((credential) => credential.status === 'active')
+        .map((credential) => credential.connectorSlug),
+    );
+    const connectors = loadIntegrationConnectors()
+      .filter((connector) => enabledSlugs.has(connector.name))
+      .map((connector) => ({
+        slug: connector.name,
+        label: connector.displayName,
+        description: connector.description,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return { skills, connectors };
   },
 });

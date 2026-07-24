@@ -7,6 +7,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type {
+  ComposerCapabilityOption,
   ComposerModelOption,
   ComposerSandboxAgentOption,
   ComposerSelection,
@@ -38,13 +39,33 @@ const CODING_AGENTS: ComposerSandboxAgentOption[] = [
 
 const PLATFORM: ComposerSelection = {
   agentKind: 'platform',
+  skills: [],
+  connectors: [],
   voiceOutput: false,
 };
+
+const CODING: ComposerSelection = {
+  agentKind: 'coding',
+  harness: 'codex',
+  skills: [],
+  connectors: [],
+  voiceOutput: false,
+};
+
+const SKILLS: ComposerCapabilityOption[] = [
+  { slug: 'visual-aspect-analyzer', label: 'visual-aspect-analyzer' },
+];
+
+const CONNECTORS: ComposerCapabilityOption[] = [
+  { slug: 'slack', label: 'Slack' },
+];
 
 /** Renders the composer with real selection state so picks stick. */
 function renderComposer({
   models = [API_KEY_MODEL],
   sandboxAgents = CODING_AGENTS,
+  skills = SKILLS,
+  connectors = CONNECTORS,
   initial = PLATFORM,
   onSend = vi.fn(),
   generating = false,
@@ -52,6 +73,8 @@ function renderComposer({
 }: {
   models?: ComposerModelOption[];
   sandboxAgents?: ComposerSandboxAgentOption[];
+  skills?: ComposerCapabilityOption[];
+  connectors?: ComposerCapabilityOption[];
   initial?: ComposerSelection;
   onSend?: (text: string) => void;
   generating?: boolean;
@@ -66,6 +89,8 @@ function renderComposer({
       <Composer
         models={models}
         sandboxAgents={sandboxAgents}
+        skills={skills}
+        connectors={connectors}
         selection={selection}
         onSelectionChange={setSelection}
         onSend={onSend}
@@ -84,7 +109,7 @@ describe('Composer agent picker', () => {
 
     await user.click(screen.getByRole('button', { name: 'Select agent' }));
 
-    expect(screen.getByText('Platform agent')).toBeInTheDocument();
+    expect(screen.getByText('Chat')).toBeInTheDocument();
     expect(
       screen.getByText('Third-party agents · run in a sandbox'),
     ).toBeInTheDocument();
@@ -113,21 +138,17 @@ describe('Composer agent picker', () => {
     });
   });
 
-  it('shows no model picker for a coding agent, but a plain-word hint', () => {
-    renderComposer({
-      initial: { agentKind: 'coding', harness: 'codex', voiceOutput: false },
-    });
+  it('shows the capability assembly instead of a model picker for a coding agent', () => {
+    renderComposer({ initial: CODING });
 
     expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull();
     expect(
-      screen.getByText("This coding agent isn't wired to chat yet."),
+      screen.getByRole('button', { name: 'Capabilities' }),
     ).toBeInTheDocument();
   });
 
   it('returns to the platform agent and its model picker', async () => {
-    const { user, selection } = renderComposer({
-      initial: { agentKind: 'coding', harness: 'codex', voiceOutput: false },
-    });
+    const { user, selection } = renderComposer({ initial: CODING });
 
     await user.click(screen.getByRole('button', { name: 'Select agent' }));
     await user.click(screen.getByRole('menuitem', { name: 'Assistant' }));
@@ -137,6 +158,67 @@ describe('Composer agent picker', () => {
     expect(
       screen.getByRole('button', { name: 'Select model' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('Composer capability assembly', () => {
+  it('offers skills and connectors to a coding agent, and toggles stick', async () => {
+    const { user, selection } = renderComposer({ initial: CODING });
+
+    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
+
+    expect(screen.getByText('Skills')).toBeInTheDocument();
+    expect(screen.getByText('Connectors')).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'visual-aspect-analyzer' }),
+    );
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Slack' }));
+
+    expect(selection().skills).toEqual(['visual-aspect-analyzer']);
+    expect(selection().connectors).toEqual(['slack']);
+
+    // Unchecking removes; the other pick is untouched.
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'visual-aspect-analyzer' }),
+    );
+    expect(selection().skills).toEqual([]);
+    expect(selection().connectors).toEqual(['slack']);
+  });
+
+  it('counts the assembly on the trigger', async () => {
+    const { user } = renderComposer({
+      initial: { ...CODING, skills: ['visual-aspect-analyzer'] },
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Capabilities' }),
+    ).toHaveTextContent('Capabilities (1)');
+    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'visual-aspect-analyzer' }),
+    ).toBeChecked();
+  });
+
+  it('says plainly when there is nothing to equip', async () => {
+    const { user } = renderComposer({
+      initial: CODING,
+      skills: [],
+      connectors: [],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
+
+    expect(
+      screen.getByText('No skills in this organization yet.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/No connectors enabled yet/)).toBeInTheDocument();
+  });
+
+  it('offers no capability menu to the platform agent — that lane comes with the tool loop', () => {
+    renderComposer();
+
+    expect(screen.queryByRole('button', { name: 'Capabilities' })).toBeNull();
   });
 });
 
@@ -177,12 +259,7 @@ describe('Composer model picker', () => {
 
 describe('resolveSelectionSandbox', () => {
   it('runs a coding agent in a sandbox, always', () => {
-    expect(
-      resolveSelectionSandbox(
-        { agentKind: 'coding', harness: 'codex', voiceOutput: false },
-        [API_KEY_MODEL],
-      ),
-    ).toBe(true);
+    expect(resolveSelectionSandbox(CODING, [API_KEY_MODEL])).toBe(true);
   });
 
   it('runs a platform key-served model directly', () => {

@@ -8,7 +8,7 @@
  * Which agent runs the turn also decides WHERE it runs, so there is no sandbox
  * toggle: the platform agent runs a model directly and shows a model picker; a
  * third-party coding agent runs in a sandbox and brings its own model, so it
- * shows a hint instead of a model picker.
+ * shows the conversation's capability assembly instead of a model picker.
  *
  * Send and stop are the same slot, because a thread is either taking input
  * or producing output: while a turn is in flight the button stops it, and
@@ -17,7 +17,6 @@
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { Send, Square } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
 
@@ -25,11 +24,13 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
 
 import type {
+  ComposerCapabilityOption,
   ComposerModelOption,
   ComposerSandboxAgentOption,
   ComposerSelection,
 } from '../types';
 import { ComposerAgentPicker } from './composer-agent-picker';
+import { ComposerCapabilityMenu } from './composer-capability-menu';
 import { ComposerModeMenu } from './composer-mode-menu';
 import { ComposerModelPicker } from './composer-model-picker';
 
@@ -37,6 +38,9 @@ interface ComposerProps {
   models: readonly ComposerModelOption[];
   /** Third-party coding agents (sandbox harnesses). */
   sandboxAgents: readonly ComposerSandboxAgentOption[];
+  /** What a conversation can equip a coding agent with. */
+  skills: readonly ComposerCapabilityOption[];
+  connectors: readonly ComposerCapabilityOption[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   onSend: (text: string) => void;
@@ -50,11 +54,16 @@ interface ComposerProps {
    * instead of facing a fully locked composer.
    */
   sendDisabled?: boolean;
+  /** The thread's agent is fixed — lock the agent picker but leave the model
+   * / capability controls usable within that agent. */
+  lockAgent?: boolean;
 }
 
 export function Composer({
   models,
   sandboxAgents,
+  skills,
+  connectors,
   selection,
   onSelectionChange,
   onSend,
@@ -62,6 +71,7 @@ export function Composer({
   generating = false,
   disabled = false,
   sendDisabled = false,
+  lockAgent = false,
 }: ComposerProps) {
   const { t } = useT('chat');
   const [text, setText] = useState('');
@@ -118,7 +128,7 @@ export function Composer({
             codingAgents={sandboxAgents}
             selection={selection}
             onSelectionChange={onSelectionChange}
-            disabled={disabled}
+            disabled={disabled || lockAgent}
           />
           {selection.agentKind === 'platform' ? (
             <ComposerModelPicker
@@ -128,11 +138,15 @@ export function Composer({
               disabled={disabled}
             />
           ) : (
-            // A coding agent runs in a sandbox and brings its own model; that
-            // lane is not wired yet, so say so where the model picker would be.
-            <Text variant="muted" className="truncate text-sm">
-              {t('agentSelector.codingUnavailable')}
-            </Text>
+            // A coding agent is equipped per conversation: org skills and
+            // enabled connectors, provisioned into its sandbox session.
+            <ComposerCapabilityMenu
+              skills={skills}
+              connectors={connectors}
+              selection={selection}
+              onSelectionChange={onSelectionChange}
+              disabled={disabled}
+            />
           )}
         </Row>
 

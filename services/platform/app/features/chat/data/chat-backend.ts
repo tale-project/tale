@@ -48,6 +48,7 @@ import type {
   ChatGenerationView,
   ChatMessageView,
   ChatThreadSummary,
+  ComposerCapabilityOption,
   ComposerModelOption,
   ComposerSandboxAgentOption,
 } from '../types';
@@ -268,6 +269,53 @@ export function useChatAgents(
 }
 
 /**
+ * What a conversation can equip an agent with: the org's skills and its
+ * enabled connectors. File- and credential-backed like the model listing, so
+ * — same style — an aggregator ACTION resolved on mount, degrading to
+ * `unavailable` instead of offering picks nothing could serve.
+ */
+export function useComposerCapabilities(organizationId: string): ChatQuery<{
+  readonly skills: readonly ComposerCapabilityOption[];
+  readonly connectors: readonly ComposerCapabilityOption[];
+}> {
+  const convex = useConvex();
+  const [state, setState] = useState<
+    ChatQuery<{
+      readonly skills: readonly ComposerCapabilityOption[];
+      readonly connectors: readonly ComposerCapabilityOption[];
+    }>
+  >({ status: 'loading' });
+
+  useEffect(() => {
+    if (!convex || !organizationId) return () => {};
+    let cancelled = false;
+    setState({ status: 'loading' });
+    convex
+      .action(api.chat.composer.listComposerCapabilities, { organizationId })
+      .then(
+        (data) => {
+          if (cancelled) return;
+          setState({ status: 'ready', data });
+        },
+        (error: unknown) => {
+          if (cancelled) return;
+          console.warn(
+            '[chat] could not list capabilities for the composer',
+            error,
+          );
+          setState(UNAVAILABLE);
+        },
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [convex, organizationId]);
+
+  if (!convex) return UNAVAILABLE;
+  return state;
+}
+
+/**
  * The user's sticky model pick for this org — a live read plus the save that
  * makes a pick sticky. The read is `undefined` data while the user has never
  * picked; `save` fires and forgets (a lost write costs one re-pick, never a
@@ -306,13 +354,22 @@ export function useChatModelPreference(organizationId: string): {
 }
 
 /** What a turn needs from the composer. Omitting `threadId` means "start a
- * new thread for this turn" — the handle carries the id that was created. */
+ * new thread for this turn" — the handle carries the id that was created.
+ * `platform` turns run the direct model lane and need `modelId`; `coding`
+ * turns run the harness lane and need `harness`. */
 export interface ChatTurnRequest {
   readonly threadId?: string;
   readonly text: string;
-  readonly modelId: string;
-  readonly sandbox: boolean;
+  readonly agentKind: 'platform' | 'coding';
+  readonly modelId?: string;
+  readonly harness?: string;
+  readonly sandbox?: boolean;
   readonly agentSlug?: string;
+  /** The conversation's capability assembly, stored on a NEW thread. */
+  readonly capabilities?: {
+    readonly skills: readonly string[];
+    readonly connectors: readonly string[];
+  };
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
@@ -346,17 +403,46 @@ export function useChatSend(organizationId: string): {
         request.threadId ??
         (await convex.mutation(api.chat.threads.createThread, {
           organizationId,
-          kind: 'direct',
+          kind: request.agentKind === 'coding' ? 'sandbox' : 'direct',
           ...(request.agentSlug !== undefined
             ? { agentSlug: request.agentSlug }
             : {}),
+          ...(request.harness !== undefined
+            ? { harness: request.harness }
+            : {}),
+          ...(request.capabilities !== undefined
+            ? {
+                capabilities: {
+                  skills: [...request.capabilities.skills],
+                  connectors: [...request.capabilities.connectors],
+                },
+              }
+            : {}),
         }));
+      if (request.agentKind === 'coding') {
+        if (request.harness === undefined) {
+          throw new Error('A coding turn needs its agent.');
+        }
+        const outcome = convex.action(
+          api.chat.coding_turn_action.startCodingTurn,
+          {
+            organizationId,
+            threadId,
+            userText: request.text,
+            harness: request.harness,
+          },
+        );
+        return { threadId, outcome };
+      }
+      if (request.modelId === undefined) {
+        throw new Error('A platform turn needs its model.');
+      }
       const outcome = convex.action(api.chat.turn_action.startTurn, {
         organizationId,
         threadId,
         userText: request.text,
         modelId: request.modelId,
-        sandbox: request.sandbox,
+        sandbox: request.sandbox ?? false,
         ...(request.agentSlug !== undefined
           ? { agentSlug: request.agentSlug }
           : {}),

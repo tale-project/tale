@@ -38,6 +38,7 @@ import {
   useChatModelPreference,
   useChatSend,
   useChatThreads,
+  useComposerCapabilities,
   useComposerModels,
 } from '../data/chat-backend';
 import type { ComposerModelOption, ComposerSelection } from '../types';
@@ -52,6 +53,8 @@ import { ThreadList } from './thread-list';
 
 const NO_SELECTION: ComposerSelection = {
   agentKind: 'platform',
+  skills: [],
+  connectors: [],
   voiceOutput: false,
 };
 
@@ -72,6 +75,7 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
   const messages = useChatMessages(organizationId, threadId);
   const generation = useChatGeneration(organizationId, threadId);
   const composerOptions = useComposerModels(organizationId);
+  const capabilityCatalog = useComposerCapabilities(organizationId);
   const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
   const modelPreference = useChatModelPreference(organizationId);
@@ -83,16 +87,45 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
       ? composerOptions.data.models
       : NO_MODELS;
 
+  // The thread being viewed, once the list has answered. A thread FIXES its
+  // agent for its whole life — a sandbox thread keeps its coding agent, a
+  // direct thread stays platform — so the composer follows the open thread
+  // rather than resetting to the platform default when the surface remounts
+  // on navigation (which silently sent the next turn to the wrong lane).
+  const activeThread =
+    threadId !== undefined && threads.status === 'ready'
+      ? threads.data.find((thread) => thread.id === threadId)
+      : undefined;
+  const threadPinsCodingAgent =
+    activeThread?.kind === 'sandbox' && activeThread.harness !== undefined;
+
+  // Align the selection with the open thread the moment it loads: a sandbox
+  // thread pins its coding agent; a fresh sandbox thread the surface just
+  // created (harness known, list not yet refetched) keeps the harness the
+  // user picked. This runs once per (thread, harness) — a pick the user then
+  // makes in-session is left alone by the model-seed effect below.
+  useEffect(() => {
+    if (!threadPinsCodingAgent || activeThread?.harness === undefined) return;
+    const harness = activeThread.harness;
+    setSelection((previous) =>
+      previous.agentKind === 'coding' && previous.harness === harness
+        ? previous
+        : { ...previous, agentKind: 'coding', harness },
+    );
+  }, [threadPinsCodingAgent, activeThread?.harness]);
+
   // Seed the default model once BOTH the listing and the user's sticky pick
   // have answered, so the seed lands once — never "first model, then the
-  // saved one a beat later". A pick made in this session is left alone.
+  // saved one a beat later". Only the platform agent runs a model, so a
+  // coding thread is left alone. A pick made in this session is left alone.
   const preference = modelPreference.preference;
   useEffect(() => {
+    if (threadPinsCodingAgent) return;
     if (models.length === 0 || preference.status === 'loading') return;
     const preferredId =
       preference.status === 'ready' ? preference.data : undefined;
     setSelection((previous) => withDefaultModel(previous, models, preferredId));
-  }, [models, preference]);
+  }, [threadPinsCodingAgent, models, preference]);
 
   // An explicit model pick becomes the user's sticky default; the seeding
   // effect above writes nothing, so only real choices persist.
@@ -127,17 +160,34 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
     needsProviderSetup;
 
   const handleSend = (text: string) => {
-    const modelId = selection.modelId;
-    // Only the platform agent's direct lane sends today; a coding agent's
-    // sandbox lane is a separate subsystem, and send is disabled for it.
-    if (selection.agentKind !== 'platform' || modelId === undefined) return;
+    // Each kind has one prerequisite: a model for the platform agent, a
+    // harness for a coding agent. `sendDisabled` already gates these; the
+    // guard here keeps a race from slipping through.
+    if (selection.agentKind === 'platform' && selection.modelId === undefined)
+      return;
+    if (selection.agentKind === 'coding' && selection.harness === undefined)
+      return;
     void (async () => {
       try {
         const turn = await chatSend.start({
           ...(threadId !== undefined ? { threadId } : {}),
           text,
-          modelId,
+          agentKind: selection.agentKind,
+          ...(selection.modelId !== undefined
+            ? { modelId: selection.modelId }
+            : {}),
+          ...(selection.harness !== undefined
+            ? { harness: selection.harness }
+            : {}),
           sandbox: resolveSelectionSandbox(selection, models),
+          ...(selection.skills.length > 0 || selection.connectors.length > 0
+            ? {
+                capabilities: {
+                  skills: selection.skills,
+                  connectors: selection.connectors,
+                },
+              }
+            : {}),
         });
         // Surface a refusal or a failure; success streams in by itself.
         turn.outcome.then(
@@ -233,17 +283,30 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
                 ? composerOptions.data.sandboxAgents
                 : []
             }
+            skills={
+              capabilityCatalog.status === 'ready'
+                ? capabilityCatalog.data.skills
+                : []
+            }
+            connectors={
+              capabilityCatalog.status === 'ready'
+                ? capabilityCatalog.data.connectors
+                : []
+            }
             selection={selection}
             onSelectionChange={handleSelectionChange}
             onSend={handleSend}
             disabled={composerDisabled}
-            // Send waits for the direct lane (a coding agent's sandbox lane is
-            // not wired yet), a model pick, and the running turn to settle;
-            // typing and the pickers stay usable through all three.
+            // An open thread's agent is fixed for its life — switching agents
+            // is a new chat — so the agent picker locks once a thread exists.
+            lockAgent={activeThread !== undefined}
+            // Send waits for the kind's one prerequisite (model or harness)
+            // and for the running turn to settle; typing and the pickers stay
+            // usable through both.
             sendDisabled={
-              selection.agentKind !== 'platform' ||
-              selection.modelId === undefined ||
-              generationInFlight
+              (selection.agentKind === 'platform'
+                ? selection.modelId === undefined
+                : selection.harness === undefined) || generationInFlight
             }
           />
         </div>

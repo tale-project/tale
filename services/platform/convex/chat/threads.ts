@@ -22,7 +22,13 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
-import { mutation, query, type QueryCtx } from '../_generated/server';
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+  type QueryCtx,
+} from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { chatKindValidator } from './schema';
@@ -33,6 +39,8 @@ const threadSummaryValidator = v.object({
   title: v.optional(v.string()),
   kind: chatKindValidator,
   agentSlug: v.optional(v.string()),
+  /** The coding agent pinned to a sandbox thread (absent on direct threads). */
+  harness: v.optional(v.string()),
   archived: v.boolean(),
   isShared: v.optional(v.boolean()),
   updatedAt: v.number(),
@@ -151,6 +159,7 @@ export const listThreads = query({
       title: thread.title,
       kind: thread.kind,
       agentSlug: thread.agentSlug,
+      harness: thread.harness,
       archived: thread.archived,
       isShared: thread.isShared,
       updatedAt: thread.updatedAt,
@@ -181,11 +190,70 @@ export const getThread = query({
       title: thread.title,
       kind: thread.kind,
       agentSlug: thread.agentSlug,
+      harness: thread.harness,
       archived: thread.archived,
       isShared: thread.isShared,
       updatedAt: thread.updatedAt,
       generating: generation !== null,
     };
+  },
+});
+
+/** The thread facts a coding turn reads, scoped like every other read —
+ * the (org, user) pair must own the thread. */
+export const getOwnedThreadInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      kind: chatKindValidator,
+      capabilities: v.optional(
+        v.object({
+          skills: v.array(v.string()),
+          connectors: v.array(v.string()),
+        }),
+      ),
+      codingResume: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      args.userId,
+      args.threadId,
+    );
+    if (!thread) return null;
+    return {
+      kind: thread.kind,
+      capabilities: thread.capabilities,
+      codingResume: thread.codingResume,
+    };
+  },
+});
+
+/** Remember the harness conversation handle a coding turn ended with. */
+export const setCodingResumeInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    codingResume: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const threadId = ctx.db.normalizeId('threads', args.threadId);
+    if (!threadId) return null;
+    const thread = await ctx.db.get(threadId);
+    if (!thread || thread.organizationId !== args.organizationId) return null;
+    await ctx.db.patch(threadId, {
+      codingResume: args.codingResume,
+      updatedAt: Date.now(),
+    });
+    return null;
   },
 });
 
@@ -196,6 +264,13 @@ export const createThread = mutation({
     kind: chatKindValidator,
     title: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
+    harness: v.optional(v.string()),
+    capabilities: v.optional(
+      v.object({
+        skills: v.array(v.string()),
+        connectors: v.array(v.string()),
+      }),
+    ),
   },
   returns: v.id('threads'),
   handler: async (ctx, args) => {
@@ -207,6 +282,8 @@ export const createThread = mutation({
       kind: args.kind,
       title: args.title,
       agentSlug: args.agentSlug,
+      harness: args.harness,
+      capabilities: args.capabilities,
       archived: false,
       createdAt: now,
       updatedAt: now,

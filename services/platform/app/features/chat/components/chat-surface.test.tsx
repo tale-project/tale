@@ -25,7 +25,11 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
   return {
     ...original,
     useComposerModels: vi.fn(() => ({ status: 'unavailable' as const })),
+    useComposerCapabilities: vi.fn(() => ({
+      status: 'unavailable' as const,
+    })),
     useChatThreads: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatMessages: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatSend: vi.fn(() => ({
       available: false,
       start: () => Promise.reject(new Error('unavailable')),
@@ -38,6 +42,7 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
 });
 
 import {
+  useChatMessages,
   useChatModelPreference,
   useChatSend,
   useChatThreads,
@@ -51,6 +56,9 @@ afterEach(() => {
     status: 'unavailable' as const,
   }));
   vi.mocked(useChatThreads).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
+  vi.mocked(useChatMessages).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
   vi.mocked(useChatSend).mockImplementation(() => ({
@@ -258,6 +266,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await waitFor(() => {
       expect(start).toHaveBeenCalledWith({
         text: 'Hello there',
+        agentKind: 'platform',
         modelId: 'deepseek-chat',
         sandbox: false,
       });
@@ -271,5 +280,67 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
     await waitFor(() => checkAccessibility(container));
+  });
+});
+
+/**
+ * A sandbox thread keeps its coding agent for life. Opening one must show
+ * that agent — not reset to the platform default — or the next turn would
+ * silently run on the wrong lane. The agent picker locks; switching is a new
+ * chat.
+ */
+describe('ChatSurface on an open sandbox thread', () => {
+  const MODEL = {
+    id: 'deepseek-chat',
+    label: 'deepseek-chat',
+    providerSlug: 'deepseek',
+    credential: { authMethod: 'api-key' as const },
+  };
+
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 't-sbx',
+          kind: 'sandbox',
+          harness: 'claude-code',
+          archived: false,
+          updatedAt: 1,
+          generating: false,
+        },
+      ],
+    });
+    vi.mocked(useChatMessages).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL],
+        sandboxAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({ available: true, start: vi.fn() });
+  });
+
+  it('follows the thread onto its coding agent instead of the platform default', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="t-sbx" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Select agent' }),
+      ).toHaveTextContent('Claude Code');
+    });
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull();
+  });
+
+  it('locks the agent picker — the thread cannot change agents', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="t-sbx" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Select agent' }),
+      ).toHaveTextContent('Claude Code');
+    });
+    expect(screen.getByRole('button', { name: 'Select agent' })).toBeDisabled();
   });
 });

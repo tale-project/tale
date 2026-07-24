@@ -938,9 +938,8 @@ chat:
     automationSearch: Recherche d'automatisations
   agentSelector:
     label: Sélectionner un agent
-    sectionPlatform: Agent plateforme
+    sectionPlatform: Chat
     sectionThirdParty: Agents tiers · s’exécutent dans une sandbox
-    codingUnavailable: Cet agent de codage n’est pas encore relié au chat.
     auto: Auto
     autoDescription:
       Tale choisit le meilleur agent pour chaque message en fonction
@@ -1551,6 +1550,14 @@ chat:
       Connectes-en un dans Paramètres → Fournisseurs d’IA, ou demande à ton
       administrateur d’espace de travail d’en configurer un.
     action: Ouvrir les fournisseurs d’IA
+  capabilities:
+    label: Capacités
+    labelWithCount: Capacités ({count})
+    sectionSkills: Skills
+    sectionConnectors: Connecteurs
+    emptySkills: Aucun skill dans cette organisation pour l’instant.
+    emptyConnectors: Aucun connecteur activé pour l’instant — ajoutes-en un
+      dans Paramètres → Intégrations.
   roles:
     user: Toi
     assistant: Assistant

@@ -33,6 +33,26 @@ export const threadsTable = defineTable({
   title: v.optional(v.string()),
   /** The agent configuration this thread talks to, by slug. */
   agentSlug: v.optional(v.string()),
+  /**
+   * What the conversation equips its agent with, picked in the composer:
+   * org skill slugs and enabled-connector slugs. Stored on the thread so the
+   * whole conversation runs with one assembly; CONSUMED by the lane that runs
+   * the agent (a coding agent's session provisioning stages the skills and
+   * bridges the connectors) — never interpreted here.
+   */
+  capabilities: v.optional(
+    v.object({
+      skills: v.array(v.string()),
+      connectors: v.array(v.string()),
+    }),
+  ),
+  /** The third-party coding agent pinned to a sandbox thread. A sandbox
+   * thread keeps its agent for its whole life — switching means a new chat —
+   * so the composer reads this to stay on it across turns and reloads. */
+  harness: v.optional(v.string()),
+  /** The coding harness's own conversation handle from the last turn, so the
+   * next turn resumes it (its state lives in the preserved workspace). */
+  codingResume: v.optional(v.string()),
   /** Branching: the message this thread was forked from, if any. Threads are
    * the unit of branching so a fork never mutates the conversation it came
    * from. */

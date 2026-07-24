@@ -936,9 +936,8 @@ chat:
     automationSearch: Automatisierungssuche
   agentSelector:
     label: Agent auswählen
-    sectionPlatform: Plattform-Agent
+    sectionPlatform: Chat
     sectionThirdParty: Drittanbieter-Agenten · laufen in einer Sandbox
-    codingUnavailable: Dieser Coding-Agent ist noch nicht mit dem Chat verbunden.
     auto: Auto
     autoDescription:
       Tale wählt für jede Nachricht den passenden Agent basierend auf
@@ -1538,6 +1537,14 @@ chat:
       einen unter Einstellungen → KI-Anbieter oder bitte deinen Workspace-Admin
       darum.
     action: KI-Anbieter öffnen
+  capabilities:
+    label: Fähigkeiten
+    labelWithCount: Fähigkeiten ({count})
+    sectionSkills: Skills
+    sectionConnectors: Connectors
+    emptySkills: Noch keine Skills in dieser Organisation.
+    emptyConnectors: Noch keine Connectors aktiviert — füge einen unter
+      Einstellungen → Integrationen hinzu.
   roles:
     user: Du
     assistant: Assistent

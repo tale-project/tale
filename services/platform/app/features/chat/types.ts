@@ -21,6 +21,8 @@ export interface ChatThreadSummary {
   readonly title?: string;
   readonly kind: ChatThreadKind;
   readonly agentSlug?: string;
+  /** The coding agent pinned to a sandbox thread (absent on direct threads). */
+  readonly harness?: string;
   readonly archived: boolean;
   /** True while the thread is published as an org-internal snapshot link. */
   readonly isShared?: boolean;
@@ -99,6 +101,13 @@ export interface ChatAgentOption {
  */
 export type ComposerAgentKind = 'platform' | 'coding';
 
+/** A skill or connector a conversation can equip its agent with. */
+export interface ComposerCapabilityOption {
+  readonly slug: string;
+  readonly label: string;
+  readonly description?: string;
+}
+
 /** What the composer sends. */
 export interface ComposerSelection {
   readonly agentKind: ComposerAgentKind;
@@ -106,6 +115,10 @@ export interface ComposerSelection {
   readonly modelId?: string;
   /** The third-party coding agent's harness. */
   readonly harness?: string;
+  /** Org skill slugs the conversation equips its agent with. */
+  readonly skills: readonly string[];
+  /** Enabled-connector slugs the conversation equips its agent with. */
+  readonly connectors: readonly string[];
   /** Read replies aloud — a composer mode, not a stored preference. */
   readonly voiceOutput: boolean;
 }
