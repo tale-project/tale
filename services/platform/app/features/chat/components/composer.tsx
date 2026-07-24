@@ -117,7 +117,10 @@ export function Composer({
         placeholder={t('typeMessageHere')}
         disabled={disabled}
         rows={2}
-        className="resize-none border-0 shadow-none focus-visible:ring-0"
+        // Chromeless inside the composer's own frame: the field must not draw
+        // its own border or focus ring — ring-0 alone still paints the ring
+        // OFFSET shadow as a faint outline, so the offset goes to 0 with it.
+        className="resize-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
       />
 
       <Row gap={2} justify="between" align="center" className="min-w-0">
