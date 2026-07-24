@@ -98,6 +98,9 @@ export interface TurnStore {
     providerSlug?: string;
     usage?: TurnUsage;
     blockedReason?: string;
+    /** A hard failure (provider error, stream timeout) — distinct from a
+     * guardrail block; rendered as an error and counted as one. */
+    error?: string;
   }): Promise<{ id: string; sequence: number }>;
   beginGeneration(generation: {
     organizationId: string;
@@ -484,6 +487,24 @@ export async function runTurn(
       context,
       execution,
     };
+  } catch (err) {
+    // The stream threw — a provider error mid-reply, or the stream timeout.
+    // Persist an assistant message carrying the failure so the thread is never
+    // left with a question and no answer, and the failure is a countable error
+    // (not a silent lost turn or a guardrail block). The `finally` still settles
+    // the generation; returning `refused` surfaces the reason on the seam.
+    const reason =
+      err instanceof Error ? err.message : 'The model response failed.';
+    await deps.store.appendMessage({
+      organizationId: request.organizationId,
+      threadId: request.threadId,
+      role: 'assistant',
+      parts: [],
+      model: request.model.id,
+      providerSlug: request.model.provider,
+      error: reason,
+    });
+    return { status: 'refused', steps, step: 'stream', reason };
   } finally {
     await deps.store.endGeneration({
       organizationId: request.organizationId,

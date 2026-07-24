@@ -145,20 +145,23 @@ describe('chat turn — end to end against a fake model', () => {
     expect(ledger[0]?.outputTokens).toBe(3);
   });
 
-  it('settles the generation row even when the model throws mid-stream', async () => {
+  it('persists an error reply and settles when the model throws mid-stream', async () => {
     const t = convexTest(schema, modules);
     const threadId = await seedThread(t);
 
-    await expect(
-      t.action(async (ctx) =>
-        runTurn(turnRequest(threadId), {
-          harnesses: new Map(),
-          model: explodingModel,
-          store: createConvexTurnStore(ctx),
-          usage: { record: async () => undefined },
-        }),
-      ),
-    ).rejects.toThrow(/exploded/);
+    // The turn no longer throws out of the action — a mid-stream failure is
+    // caught and turned into a visible error reply so the thread is never left
+    // with a question and no answer.
+    const outcome = await t.action(async (ctx) =>
+      runTurn(turnRequest(threadId), {
+        harnesses: new Map(),
+        model: explodingModel,
+        store: createConvexTurnStore(ctx),
+        usage: { record: async () => undefined },
+      }),
+    );
+    expect(outcome.status).toBe('refused');
+    expect(outcome.status === 'refused' && outcome.reason).toMatch(/exploded/);
 
     // No stale generation row: it was deleted in the turn's finally.
     const generations = await t.run(async (ctx) =>
@@ -169,13 +172,17 @@ describe('chat turn — end to end against a fake model', () => {
     );
     expect(generations).toHaveLength(0);
 
-    // The user turn was recorded; no assistant reply was written.
+    // The assistant reply carries the failure in `error` (a countable error,
+    // not a silent lost turn nor a guardrail block).
     const messages = await t.run(async (ctx) =>
       ctx.db
         .query('messages')
         .withIndex('by_thread_sequence', (q) => q.eq('threadId', threadId))
         .collect(),
     );
-    expect(messages.some((m) => m.role === 'assistant')).toBe(false);
+    const assistant = messages.find((m) => m.role === 'assistant');
+    expect(assistant).toBeDefined();
+    expect(assistant?.error).toMatch(/exploded/);
+    expect(assistant?.blockedReason).toBeUndefined();
   });
 });

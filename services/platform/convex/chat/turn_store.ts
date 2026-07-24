@@ -32,6 +32,7 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
         providerSlug: message.providerSlug,
         usage: message.usage,
         blockedReason: message.blockedReason,
+        error: message.error,
       });
     },
     async beginGeneration(generation) {

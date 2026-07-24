@@ -388,6 +388,10 @@ export const appendMessageInternal = internalMutation({
     providerSlug: v.optional(v.string()),
     usage: v.optional(v.any()),
     blockedReason: v.optional(v.string()),
+    /** A hard failure (provider error, timeout) — distinct from a guardrail
+     * `blockedReason`. Rendered as an error state and counted as an error (not
+     * a block) by the chat-health metrics. */
+    error: v.optional(v.string()),
   },
   returns: v.object({ id: v.id('messages'), sequence: v.number() }),
   handler: async (ctx, args) => {
@@ -423,6 +427,7 @@ export const appendMessageInternal = internalMutation({
       providerSlug: args.providerSlug,
       usage: args.usage,
       blockedReason: args.blockedReason,
+      error: args.error,
       createdAt: Date.now(),
     });
 
