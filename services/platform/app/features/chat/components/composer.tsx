@@ -39,6 +39,12 @@ interface ComposerProps {
   /** A turn is in flight — the send button becomes stop. */
   generating?: boolean;
   disabled?: boolean;
+  /**
+   * Sending alone is blocked — no model picked yet, a turn already running —
+   * while typing and the pickers stay usable, so the user can fix the reason
+   * instead of facing a fully locked composer.
+   */
+  sendDisabled?: boolean;
 }
 
 export function Composer({
@@ -51,11 +57,12 @@ export function Composer({
   onStop,
   generating = false,
   disabled = false,
+  sendDisabled = false,
 }: ComposerProps) {
   const { t } = useT('chat');
   const [text, setText] = useState('');
 
-  const canSend = text.trim().length > 0 && !disabled;
+  const canSend = text.trim().length > 0 && !disabled && !sendDisabled;
 
   const submit = () => {
     if (!canSend) return;

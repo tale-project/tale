@@ -1544,6 +1544,12 @@ chat:
   backendUnavailable:
     title: Le chat n’est pas encore connecté
     description: Le service de chat ne répond pas, aucune conversation ne peut donc être chargée. Rien de ce que tu as écrit n’est perdu.
+  providerSetup:
+    title: Aucun fournisseur d’IA n’est encore connecté
+    description: Le chat a besoin d’un modèle provenant d’un fournisseur d’IA.
+      Connectes-en un dans Paramètres → Fournisseurs d’IA, ou demande à ton
+      administrateur d’espace de travail d’en configurer un.
+    action: Ouvrir les fournisseurs d’IA
   roles:
     user: Toi
     assistant: Assistant

@@ -5,8 +5,9 @@
  *
  * The menu carries two groups. "Models" lists the models a turn can call
  * directly; "Sandbox agents" lists the harnesses a turn can run inside. There
- * is no automatic entry — the model is always chosen explicitly, so nothing
- * here picks one on the user's behalf.
+ * is no "auto" MENU ENTRY — every option names a concrete model — but the
+ * surface seeds the selection with a default via `withDefaultModel`, so
+ * sending works without a menu visit.
  *
  * The toggle beside the picker asks whether a model turn runs in a sandbox.
  * For most credentials that is a free choice. A subscription-flavored
@@ -53,6 +54,31 @@ function asCatalogEntry(option: ComposerModelOption): ModelCatalogEntry {
     supportsTools: true,
     supportsVision: false,
     contextWindow: 1,
+  };
+}
+
+/**
+ * Seed the selection with a default model once the listing arrives: the first
+ * model whose credential leaves execution free, or failing that the first
+ * model at all (taking its forced sandbox with it). A selection the user
+ * already made — model or sandbox agent — is returned untouched.
+ */
+export function withDefaultModel(
+  selection: ComposerSelection,
+  models: readonly ComposerModelOption[],
+): ComposerSelection {
+  if (selection.modelId !== undefined || selection.harness !== undefined) {
+    return selection;
+  }
+  const affordanceOf = (model: ComposerModelOption) =>
+    resolveSandboxAffordance(asCatalogEntry(model), model.credential);
+  const chosen =
+    models.find((model) => !affordanceOf(model).locked) ?? models[0];
+  if (chosen === undefined) return selection;
+  return {
+    ...selection,
+    modelId: chosen.id,
+    sandbox: affordanceOf(chosen).locked || selection.sandbox,
   };
 }
 
@@ -131,10 +157,15 @@ export function ComposerModelPicker({
     return groups;
   }, [models, sandboxAgents, selection, onSelectionChange, t]);
 
+  // Nothing selected is not the same as nothing to select: with options on
+  // offer the trigger invites a pick; "no models" is reserved for a truly
+  // empty menu, so the label never claims an absence that isn't there.
   const triggerLabel =
     selectedModel?.label ??
     selectedAgent?.label ??
-    t('modelSelector.noModelsAvailable');
+    (items.length > 0
+      ? t('modelSelector.label')
+      : t('modelSelector.noModelsAvailable'));
 
   // A sandbox agent has no toggle: it is already the sandbox. A model shows
   // one, locked when its credential leaves no choice.

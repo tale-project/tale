@@ -49,6 +49,7 @@ function renderComposer({
   initial = { sandbox: false, voiceOutput: false } as ComposerSelection,
   onSend = vi.fn(),
   generating = false,
+  sendDisabled = false,
 }: {
   models?: ComposerModelOption[];
   sandboxAgents?: ComposerSandboxAgentOption[];
@@ -56,6 +57,7 @@ function renderComposer({
   initial?: ComposerSelection;
   onSend?: (text: string) => void;
   generating?: boolean;
+  sendDisabled?: boolean;
 } = {}) {
   const seen: ComposerSelection[] = [];
 
@@ -71,6 +73,7 @@ function renderComposer({
         onSelectionChange={setSelection}
         onSend={onSend}
         generating={generating}
+        sendDisabled={sendDisabled}
       />
     );
   }
@@ -247,5 +250,36 @@ describe('Composer accessibility', () => {
     expect(
       screen.getByRole('textbox', { name: 'Message input' }),
     ).toBeInTheDocument();
+  });
+
+  it('invites a pick when options exist and nothing is selected', () => {
+    renderComposer();
+
+    expect(
+      screen.getByRole('button', { name: 'Select model' }),
+    ).toHaveTextContent('Select model');
+  });
+
+  it('claims no models only when the menu is truly empty', () => {
+    renderComposer({ models: [], sandboxAgents: [] });
+
+    expect(
+      screen.getByRole('button', { name: 'Select model' }),
+    ).toHaveTextContent('No models available');
+  });
+
+  it('blocks only the send button under sendDisabled, keeping the rest usable', async () => {
+    const { user } = renderComposer({ sendDisabled: true });
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'Hi',
+    );
+
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeEnabled();
+    expect(
+      screen.getByRole('textbox', { name: 'Message input' }),
+    ).toBeEnabled();
   });
 });

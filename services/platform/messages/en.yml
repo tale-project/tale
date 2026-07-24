@@ -1489,6 +1489,11 @@ chat:
   backendUnavailable:
     title: Chat isn't connected yet
     description: The chat service isn't answering, so no conversation can be loaded. Nothing you wrote was lost.
+  providerSetup:
+    title: No AI provider connected yet
+    description: Chat needs a model from an AI provider. Connect one under
+      Settings → AI providers, or ask your workspace admin to set one up.
+    action: Open AI providers
   roles:
     user: You
     assistant: Assistant

@@ -9,9 +9,10 @@
  * config reads — the composer's models and the agent picker — go through their
  * domain's aggregator ACTION (models, harnesses, and agents live in the config
  * tree, which only a `'use node'` action may read) and resolve on mount. The
- * one read whose backend is not built yet, the Canvas, reports `unavailable`
- * rather than inventing rows, so a component renders an honest "not connected"
- * state instead of a session that does not exist.
+ * one WRITE the surface performs, sending a turn, lives here too
+ * (`useChatSend`). The one read whose backend is not built yet, the Canvas,
+ * reports `unavailable` rather than inventing rows, so a component renders an
+ * honest "not connected" state instead of a session that does not exist.
  *
  * Subscriptions go through the Convex client directly (`useConvex` +
  * `useSyncExternalStore`) rather than the app's `useConvexQuery` wrapper. The
@@ -264,6 +265,70 @@ export function useChatAgents(
 
   if (!convex) return UNAVAILABLE;
   return state;
+}
+
+/** What a turn needs from the composer. Omitting `threadId` means "start a
+ * new thread for this turn" — the handle carries the id that was created. */
+export interface ChatTurnRequest {
+  readonly threadId?: string;
+  readonly text: string;
+  readonly modelId: string;
+  readonly sandbox: boolean;
+  readonly agentSlug?: string;
+}
+
+/** A started turn: the thread it runs in (existing or just created), and an
+ * outcome that settles when the turn does — a refusal carries its reason. */
+export interface ChatTurnHandle {
+  readonly threadId: string;
+  readonly outcome: Promise<{
+    status: 'completed' | 'refused';
+    reason?: string;
+  }>;
+}
+
+/**
+ * THE WRITE SEAM: start a turn. Creates the thread first when the composer
+ * sends from the index, then fires `chat.turn_action.startTurn` WITHOUT
+ * awaiting it — the conversation itself streams into the `messages` and
+ * `generations` subscriptions above, so the caller only needs the thread id
+ * (to navigate) and the outcome promise (to surface a refusal).
+ * `available` is false in a provider-less render, mirroring the reads.
+ */
+export function useChatSend(organizationId: string): {
+  readonly available: boolean;
+  readonly start: (request: ChatTurnRequest) => Promise<ChatTurnHandle>;
+} {
+  const convex = useConvex();
+
+  const start = useCallback(
+    async (request: ChatTurnRequest): Promise<ChatTurnHandle> => {
+      if (!convex) throw new Error('The chat backend is not reachable.');
+      const threadId =
+        request.threadId ??
+        (await convex.mutation(api.chat.threads.createThread, {
+          organizationId,
+          kind: 'direct',
+          ...(request.agentSlug !== undefined
+            ? { agentSlug: request.agentSlug }
+            : {}),
+        }));
+      const outcome = convex.action(api.chat.turn_action.startTurn, {
+        organizationId,
+        threadId,
+        userText: request.text,
+        modelId: request.modelId,
+        sandbox: request.sandbox,
+        ...(request.agentSlug !== undefined
+          ? { agentSlug: request.agentSlug }
+          : {}),
+      });
+      return { threadId, outcome };
+    },
+    [convex, organizationId],
+  );
+
+  return { available: convex !== undefined, start };
 }
 
 /**
