@@ -8,7 +8,7 @@ import { t } from '../helpers/i18n';
  * Settings → Metrics render-smoke across all four tabs (usage, feedback,
  * automations, projects) on a fresh org: every tab paints its translated
  * header, toolbar, and empty states. Guards the #2414 regression class where
- * a namespace rework dropped the `automations.metrics.*` subtree from every
+ * a namespace rework dropped the metrics subtree from every
  * catalog and the Automations tab rendered raw i18n keys — the per-tab
  * anchors resolve through the catalog, and an explicit leak check asserts no
  * dotted key path is ever visible as text. Read-only — only navigates and
@@ -80,25 +80,26 @@ test('automations tab renders translated KPIs, charts, and table', async ({
   await page.goto(`${metricsBase(org.organizationId)}/automations`);
 
   // The #2414 regression surface: title, KPI card labels, chart titles, and
-  // the top-workflows table all read `automations.metrics.*`.
+  // the top-automations table all read `analytics.automations.*` (the subtree
+  // moved out of `automations.metrics.*` with the settings-rework sweep).
   await expect(
     page.getByRole('heading', {
-      name: t('automations.metrics.title'),
+      name: t('analytics.automations.title'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await expect(
-    page.getByText(t('automations.metrics.cards.totalRuns')),
+    page.getByText(t('analytics.automations.cards.totalRuns')),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
     page.getByRole('heading', {
-      name: t('automations.metrics.chart.trendTitle'),
+      name: t('analytics.automations.chart.trendTitle'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
     page.getByRole('heading', {
-      name: t('automations.metrics.table.title'),
+      name: t('analytics.automations.table.title'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
