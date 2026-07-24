@@ -21,6 +21,7 @@
 
 import { v, type Infer } from 'convex/values';
 
+import { loadIntegrationConnectors } from '../../lib/integrations/catalog';
 import type { CredentialAuth } from '../../lib/shared/providers/resolve_execution';
 import type { ProviderConnector } from '../../lib/shared/schemas/providers';
 import { api } from '../_generated/api';
@@ -245,13 +246,28 @@ export const listComposerCapabilities = action({
       })
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    // Connectors are NOT offered yet: a coding turn does not mount the
-    // connector MCP bridge (Phase 3), so a picked connector would be stored on
-    // the thread and silently do nothing. The plan forbids showing a capability
-    // the agent turn can't actually reach — so the picker lists none until the
-    // sandbox capability bridge lands. (Skills DO stage into the session, so
-    // they stay.) The credential-gated enumeration returns with the bridge.
-    const connectors: ComposerCapability[] = [];
+    // A connector is offered when the org holds an ACTIVE credential for it —
+    // the same credential-gated rule the model listing follows. An equipped
+    // connector now reaches the turn for real: it becomes the session token's
+    // integration grant and mounts the in-sandbox `tale-integrations-mcp`
+    // bridge (read-only in V1), so the picker no longer hides them.
+    const credentials = await ctx.runQuery(
+      api.integration_credentials.queries.listCredentials,
+      { organizationId: args.organizationId },
+    );
+    const enabledSlugs = new Set(
+      credentials
+        .filter((credential) => credential.status === 'active')
+        .map((credential) => credential.connectorSlug),
+    );
+    const connectors = loadIntegrationConnectors()
+      .filter((connector) => enabledSlugs.has(connector.name))
+      .map((connector) => ({
+        slug: connector.name,
+        label: connector.displayName,
+        description: connector.description,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
 
     return { skills, connectors };
   },
