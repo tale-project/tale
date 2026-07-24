@@ -2596,10 +2596,8 @@ onboarding:
     subtitle: "Here's what you can do next:"
     providerItem: Connect an AI provider to power agents and chat.
     providerConnected: AI provider connected.
-    agentItem: Create your first agent.
     inviteItem: Invite teammates to collaborate.
     providerCta: Connect a provider
-    agentCta: Create an agent
     inviteCta: Invite teammates
     goToDashboard: Go to dashboard
 provisioning:
@@ -7576,7 +7574,6 @@ tasks:
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'
-    viewAgents: Manage agents
   agentRuns:
     working: Agent is working…
     totalCost: '{amount} total'

@@ -22,10 +22,6 @@ export type NotificationTarget =
       params: { id: string; threadId: string };
     }
   | {
-      to: '/dashboard/$id/agents/$agentId';
-      params: { id: string; agentId: string };
-    }
-  | {
       to: '/dashboard/$id/conversations/$status';
       params: { id: string; status: string };
       search: { conversation: string };
@@ -172,10 +168,10 @@ export function orgNotificationTarget(
   }
   switch (link.kind) {
     case 'agent':
-      return {
-        to: '/dashboard/$id/agents/$agentId',
-        params: { id, agentId: link.agentSlug },
-      };
+      // The agents management page was removed; an agent-scoped alert has no
+      // dedicated page to open, so it lands on the org home rather than a dead
+      // link. (The `agent` link kind is kept — producers still stamp it.)
+      return { to: '/dashboard/$id', params: { id } };
     case 'audit-logs':
       return link.logId
         ? {

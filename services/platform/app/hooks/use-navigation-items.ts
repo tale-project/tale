@@ -4,7 +4,6 @@ import {
   MessageCircle,
   BrainIcon,
   Workflow,
-  Bot,
   Folder,
   Inbox,
   Settings as SettingsIcon,
@@ -122,14 +121,6 @@ export function useNavigationItems(businessId: string): NavigationItems {
               href: `/dashboard/${businessId}/contacts`,
             },
           ],
-        },
-        {
-          label: tNav('agents'),
-          to: '/dashboard/$id/agents',
-          params: { id: businessId },
-          href: `/dashboard/${businessId}/agents`,
-          icon: Bot,
-          can: ['write', 'agents'],
         },
         {
           label: tNav('automations'),

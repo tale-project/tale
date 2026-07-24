@@ -78,8 +78,8 @@ vi.mock('../hooks/use-actor-directory', () => ({
             kind: 'agent',
             name: 'Assistant',
             description: 'General-purpose helper',
-            viewTo: '/dashboard/$id/agents/$agentId',
-            viewParams: { id: 'org_1', agentId: 'assistant' },
+            viewTo: '/dashboard/$id',
+            viewParams: { id: 'org_1' },
           }
         : null,
   }),

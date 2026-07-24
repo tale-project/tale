@@ -113,9 +113,6 @@ export function OnboardingWizard({
             params,
           });
           return;
-        case 'agents':
-          void navigate({ to: '/dashboard/$id/agents', params });
-          return;
         case 'members':
           // Members live on Organization now; `/settings/people` redirects to
           // Teams (legacy split), which is the wrong place for "Invite teammates".

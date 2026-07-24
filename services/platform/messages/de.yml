@@ -2714,10 +2714,8 @@ onboarding:
     subtitle: 'Das kannst du als Nächstes tun:'
     providerItem: Verbinde einen KI-Anbieter für Agenten und Chat.
     providerConnected: KI-Anbieter verbunden.
-    agentItem: Erstelle deinen ersten Agenten.
     inviteItem: Lade Teammitglieder zur Zusammenarbeit ein.
     providerCta: Anbieter verbinden
-    agentCta: Agent erstellen
     inviteCta: Teammitglieder einladen
     goToDashboard: Zum Dashboard
 provisioning:
@@ -7566,7 +7564,6 @@ tasks:
     title: Agent konnte nicht starten
     description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe
       bleibt unverändert.'
-    viewAgents: Agenten verwalten
   agentRuns:
     working: Agent arbeitet…
     totalCost: '{amount} gesamt'

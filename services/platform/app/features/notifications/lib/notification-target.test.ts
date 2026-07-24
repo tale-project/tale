@@ -149,7 +149,7 @@ describe('orgNotificationTarget', () => {
     });
   });
 
-  it('maps an agent link to the agent detail route', () => {
+  it('maps an agent link to the org home (agents page removed)', () => {
     expect(
       orgNotificationTarget(
         ORG,
@@ -157,8 +157,8 @@ describe('orgNotificationTarget', () => {
         'system',
       ),
     ).toEqual({
-      to: '/dashboard/$id/agents/$agentId',
-      params: { id: ORG, agentId: 'researcher' },
+      to: '/dashboard/$id',
+      params: { id: ORG },
     });
   });
 

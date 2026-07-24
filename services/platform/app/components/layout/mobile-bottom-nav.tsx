@@ -3,7 +3,6 @@
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
-  Bot,
   BrainIcon,
   Folder,
   Inbox,
@@ -104,14 +103,6 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         to: `/dashboard/${organizationId}/conversations`,
         activePrefix: `/dashboard/${organizationId}/conversations`,
         gate: () => hasInboxAutomation,
-      },
-      {
-        key: 'agents',
-        label: tNav('agents'),
-        icon: Bot,
-        to: `/dashboard/${organizationId}/agents`,
-        activePrefix: `/dashboard/${organizationId}/agents`,
-        gate: () => ability.can('write', 'agents'),
       },
     ],
     [

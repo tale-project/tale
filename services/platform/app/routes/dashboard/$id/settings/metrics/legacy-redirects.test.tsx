@@ -68,17 +68,6 @@ describe('legacy metrics redirects (#2382)', () => {
     });
   });
 
-  it('redirects the legacy /agents/metrics to the metrics section', async () => {
-    await runLoader(() => import('../../agents/metrics'), {
-      params: { id: 'org-4' },
-      location: { search: {} },
-    });
-    expect(mockRedirect).toHaveBeenCalledWith({
-      to: '/dashboard/$id/settings/metrics/usage',
-      params: { id: 'org-4' },
-    });
-  });
-
   it('redirects the /settings/metrics index to the usage tab', async () => {
     await runLoader(() => import('./index'), {
       params: { id: 'org-5' },

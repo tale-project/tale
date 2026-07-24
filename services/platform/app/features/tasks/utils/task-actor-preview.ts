@@ -42,7 +42,9 @@ function resolveWorkflowName(args: {
 }
 
 export type TaskActorPreviewRoute =
-  | '/dashboard/$id/agents/$agentId'
+  // The agents management page was removed, so an agent actor's "view" lands
+  // on the org home rather than a dead link.
+  | '/dashboard/$id'
   | '/dashboard/$id/automations/$automationSlug'
   | '/dashboard/$id/automations';
 
@@ -134,8 +136,8 @@ export function buildTaskActorPreview(args: {
     kind: 'agent',
     name: agent?.name ?? args.actorId,
     description: agent?.description,
-    viewTo: '/dashboard/$id/agents/$agentId',
-    viewParams: { id: args.organizationId, agentId: args.actorId },
+    viewTo: '/dashboard/$id',
+    viewParams: { id: args.organizationId },
   };
 }
 
@@ -158,11 +160,10 @@ export function buildAgentRunPreview(args: {
     kind: 'agent',
     name: agent?.name ?? args.agentSlug,
     description: agent?.description ?? wf?.description,
-    viewTo: '/dashboard/$id/agents/$agentId',
-    viewParams: { id: args.organizationId, agentId: args.agentSlug },
-    viewSearch: args.wfExecutionId
-      ? { execution: args.wfExecutionId }
-      : undefined,
+    // Agents management page removed → org home; the run's execution is no
+    // longer deep-linkable from an agent view.
+    viewTo: '/dashboard/$id',
+    viewParams: { id: args.organizationId },
   };
 }
 

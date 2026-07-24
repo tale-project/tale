@@ -2743,10 +2743,8 @@ onboarding:
     subtitle: 'Voici ce que tu peux faire ensuite :'
     providerItem: Connecte un fournisseur d'IA pour alimenter les agents et le chat.
     providerConnected: Fournisseur d'IA connecté.
-    agentItem: Crée ton premier agent.
     inviteItem: Invite des coéquipiers à collaborer.
     providerCta: Connecter un fournisseur
-    agentCta: Créer un agent
     inviteCta: Inviter des coéquipiers
     goToDashboard: Aller au tableau de bord
 provisioning:
@@ -7682,7 +7680,6 @@ tasks:
     title: L'agent n'a pas pu démarrer
     description: "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche
       reste inchangé."
-    viewAgents: Gérer les agents
   agentRuns:
     working: L'agent travaille…
     totalCost: '{amount} au total'
