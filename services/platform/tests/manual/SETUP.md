@@ -205,10 +205,10 @@ contract.
   user icon, `auth.userButton.manageAccount`), NOT Settings → Personalization —
   System/Light/Dark tabs plus a **Language** submenu (`auth.userButton.language`)
   with EN 🇺🇸 / DE 🇩🇪 / FR 🇫🇷 radio options. If visible labels don't match
-  `en.json`, open that menu and pick **English**, or match the active-locale
+  `en.yml`, open that menu and pick **English**, or match the active-locale
   value of the cited key.
 - **Labels**: every control referenced in a guide names its i18n key
-  (`namespace.key`) resolvable from `services/platform/messages/en.json`. Locate
+  (`namespace.key`) resolvable from `services/platform/messages/en.yml`. Locate
   by role + visible name, never by CSS.
 - **Persisted writes**: verify by reloading and reading the field back, not by
   the transient success toast.

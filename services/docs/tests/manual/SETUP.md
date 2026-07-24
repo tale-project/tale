@@ -28,8 +28,8 @@ German at `{base}/de/platform/chat/basics`.
 - **`{base}`** in the guides = `https://tale.dev/docs` (mode A) or
   `http://localhost:3002` (mode B).
 - **Labels**: controls name their i18n key from
-  [`services/docs/messages/en.json`](../../messages/en.json) (shared-UI
-  controls from `packages/ui/src/i18n/messages/en.json`). A few controls are
+  [`services/docs/messages/en.yml`](../../messages/en.yml) (shared-UI
+  controls from `packages/ui/src/i18n/messages/en.yml`). A few controls are
   hard-coded English (noted inline in the guides) — treat untranslated output
   on `/de`/`/fr` for those as a **candidate finding**, not a locale bug in
   your run.

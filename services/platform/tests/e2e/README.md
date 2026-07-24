@@ -22,7 +22,7 @@ CI shards the suite across four runners (`--shard=i/4`); each shard boots its ow
 | [`helpers/forms.ts`](helpers/forms.ts)       | `reloadAndSettle` — reload then wait for a stable anchor before asserting the persisted field (never the transient toast).                                                                                              |
 | [`helpers/totp.ts`](helpers/totp.ts)         | Dependency-free RFC-6238 TOTP for the full 2FA flow.                                                                                                                                                                    |
 | [`helpers/seed.ts`](helpers/seed.ts)         | Seeded fixture names (agent / prompt / workflow).                                                                                                                                                                       |
-| [`helpers/i18n.ts`](helpers/i18n.ts)         | `t('namespace.key')` — every visible label resolves from `messages/en.json`; specs never hardcode UI strings.                                                                                                           |
+| [`helpers/i18n.ts`](helpers/i18n.ts)         | `t('namespace.key')` — every visible label resolves from `messages/en.yml`; specs never hardcode UI strings.                                                                                                            |
 
 ## What runs
 
@@ -105,7 +105,7 @@ State hygiene: each worker signs up a fresh `e2e-*@tale.test` user and creates a
 - Chat turns wait on the authoritative Send⇄Stop toggle (`waitForReplyComplete`), not a 120s text-visibility race; thread cleanup is by id (`deleteThreadById`), never positional.
 - Save → reload → assert keys off the persisted **field value** (`reloadAndSettle`), never the transient success toast; settings/governance toggles restore unconditionally.
 - `retries: 2` in CI, `trace: 'on-first-retry'`, `screenshot: 'only-on-failure'`. Debug a CI failure with `bunx playwright show-trace` on the per-shard artifact.
-- Labels resolve from `messages/en.json` via [`helpers/i18n.ts`](helpers/i18n.ts) — never hardcode UI strings.
+- Labels resolve from `messages/en.yml` via [`helpers/i18n.ts`](helpers/i18n.ts) — never hardcode UI strings.
 
 ## Adding a flow
 
