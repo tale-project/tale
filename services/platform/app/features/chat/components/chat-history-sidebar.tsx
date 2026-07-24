@@ -1036,7 +1036,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
           }}
           onBlur={() => ctx.onInputBlur(chat._id, draft)}
           aria-label={t('history.renameChat')}
-          className="ring-primary focus-visible:ring-primary min-w-0 flex-1 rounded-sm bg-transparent px-1 text-[13px] leading-snug ring-1 outline-none focus-visible:ring-2"
+          className="ring-primary focus-visible:ring-primary min-w-0 flex-1 rounded-sm bg-transparent px-1 text-base leading-snug ring-1 outline-none focus-visible:ring-2 md:text-[13px]"
         />
       ) : (
         <>

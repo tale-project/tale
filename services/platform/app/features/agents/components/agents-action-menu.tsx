@@ -1,7 +1,6 @@
 'use client';
 
-import { useNavigate } from '@tanstack/react-router';
-import { LayoutTemplate, Plus, Upload } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -40,7 +39,6 @@ export function AgentsActionMenu({
   const setCreateOpen = onCreateOpenChange ?? setInternalCreateOpen;
   const [uploadOpen, setUploadOpen] = useState(false);
   const { t } = useT('settings');
-  const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
   const { mutateAsync: installAgent } = useInstallCatalogAgent();
   const { agents } = useListAgents(organizationId);
@@ -57,26 +55,13 @@ export function AgentsActionMenu({
         onClick: () => setCreateOpen(true),
       },
       {
-        // The standalone agent-template catalog was retired — agents are
-        // installed by automations now — so this item now browses the
-        // Automations catalog instead (same retarget as the chat agent
-        // selector's footer button).
-        label: t('agents.createMenu.fromTemplate'),
-        icon: LayoutTemplate,
-        onClick: () =>
-          void navigate({
-            to: '/dashboard/$id/automations',
-            params: { id: organizationId },
-          }),
-      },
-      {
         label: t('agents.uploadDialog.menuItem'),
         icon: Upload,
         onClick: () => setUploadOpen(true),
       },
       ...(extraMenuItems ?? []),
     ],
-    [t, setCreateOpen, navigate, organizationId, extraMenuItems],
+    [t, setCreateOpen, extraMenuItems],
   );
 
   return (

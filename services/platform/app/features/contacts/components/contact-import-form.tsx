@@ -79,7 +79,7 @@ export function ContactImportForm({ hideTabs, mode }: ContactImportFormProps) {
             placeholder={
               'contact@example.com,John Doe\ncontact2@example.com,Jane Smith,en\ncontact3@example.com,,zh'
             }
-            className="min-h-[200px] font-mono text-sm"
+            className="min-h-[200px] font-mono text-base md:text-sm"
             errorMessage={
               typeof errors.contacts?.message === 'string'
                 ? errors.contacts.message

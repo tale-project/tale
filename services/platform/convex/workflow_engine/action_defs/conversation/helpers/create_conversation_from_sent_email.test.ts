@@ -10,9 +10,9 @@ const ORG = 'org_activ';
 function makeSentEmail(overrides: Partial<EmailType> = {}): EmailType {
   return {
     uid: 1,
-    messageId: '<4abab424-9cfd-f43a-64c4-c5fd36788a4f@support.activ.ng>',
-    from: [{ address: 'billing@support.activ.ng' }],
-    to: [{ address: 'israeliyanda5@gmail.com' }],
+    messageId: '<4abab424-9cfd-f43a-64c4-c5fd36788a4f@support.example.com>',
+    from: [{ address: 'billing@support.example.com' }],
+    to: [{ address: 'johndoe@example.com' }],
     subject: 'Re: Test',
     date: '2026-07-07T18:11:00.000Z',
     text: 'Hello Israel',
@@ -54,7 +54,7 @@ describe('createConversationFromSentEmail', () => {
     const result = await createConversationFromSentEmail(ctx, {
       organizationId: ORG,
       emails: [makeSentEmail()],
-      accountEmail: 'hello@support.activ.ng',
+      accountEmail: 'hello@support.example.com',
       integrationName: 'imap_smtp',
     });
 
@@ -75,7 +75,7 @@ describe('createConversationFromSentEmail', () => {
           to: [],
         }),
       ],
-      accountEmail: 'hello@support.activ.ng',
+      accountEmail: 'hello@support.example.com',
     });
 
     expect(result.created).toBe(false);

@@ -66,7 +66,7 @@ describe('useContactsTableConfig', () => {
   // over the next one. `block` makes the span honour the cell width and
   // `truncate` clips the overflow with an ellipsis instead of spilling.
   it('truncates the Name, Email and Phone cells so long values cannot bleed across columns', () => {
-    const longEmail = 'mustophaadesinamyd@gmail.com';
+    const longEmail = 'johnmichealdoe@gmail.com';
     const cases: Array<[string, string]> = [
       ['name', longEmail],
       ['email', longEmail],

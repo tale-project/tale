@@ -5863,8 +5863,7 @@
       "tableCaption": "Installed agents",
       "createAgent": "Create agent",
       "createMenu": {
-        "blank": "Blank",
-        "fromTemplate": "From template"
+        "blank": "Blank"
       },
       "searchAgent": "Search agents",
       "columns": {

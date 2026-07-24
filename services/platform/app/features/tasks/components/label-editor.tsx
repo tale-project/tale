@@ -191,7 +191,7 @@ export function LabelEditor({
                     setHighlighted(0);
                   }}
                   onKeyDown={onSearchKeyDown}
-                  className="placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
+                  className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none md:text-sm"
                 />
               </Row>
               <div

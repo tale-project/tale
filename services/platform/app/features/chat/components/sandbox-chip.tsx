@@ -355,7 +355,7 @@ export function SandboxChip({
                       setError(null);
                     }}
                     placeholder={t('workdir.placeholder')}
-                    className="h-8 font-mono text-xs"
+                    className="h-8 font-mono text-base md:text-xs"
                     autoComplete="off"
                     spellCheck={false}
                   />

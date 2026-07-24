@@ -5564,8 +5564,7 @@
       "tableCaption": "Agents installés",
       "createAgent": "Créer un agent",
       "createMenu": {
-        "blank": "Vierge",
-        "fromTemplate": "À partir d'un modèle"
+        "blank": "Vierge"
       },
       "searchAgent": "Rechercher des agents",
       "columns": {

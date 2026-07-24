@@ -15,7 +15,7 @@ const searchSchema = z.object({
 // The agent roster — the org's list of installed agents. Agents are now
 // installed exclusively through automations or the create/upload menu below
 // (the standalone Catalog tab was folded in here — "Update from catalog"
-// lives in the same action menu as Blank / From template / Upload).
+// lives in the same action menu as Blank / Upload).
 export const Route = createFileRoute('/dashboard/$id/agents/')({
   head: () => ({
     meta: seo('agents'),
