@@ -459,15 +459,29 @@ export class SessionRoutes {
     // destroy of the same id sees an empty cache and can't double-call
     // destroySession. The backend destroy then runs exactly once; its return
     // value (false = nothing existed) covers the adopted-but-unregistered case.
-    const had = this.registry.has(sessionId);
+    const entry = this.registry.get(sessionId);
+    const had = entry !== undefined;
     if (had) this.registry.delete(sessionId);
-    const backendExisted = await this.backend
-      .destroySession(sessionId)
-      .catch((err) => {
-        console.warn('[sandbox.session] destroy backend failed:', err);
-        return false;
-      });
-    return jsonResponse({ destroyed: had || backendExisted, busy: false }, 200);
+    try {
+      const backendExisted = await this.backend.destroySession(sessionId);
+      return jsonResponse(
+        { destroyed: had || backendExisted, busy: false },
+        200,
+      );
+    } catch (err) {
+      // The backend destroy FAILED (a wedged dockerd, an apiserver blip). Do
+      // NOT report success: the container/workspace may survive, and laundering
+      // it to a 200 would flip the platform's session row `destroyed` while the
+      // user's data lives on — the "success toast, workspace survives" defect.
+      // Restore the registry entry so the session isn't lost, and surface the
+      // failure so the caller retries.
+      console.error('[sandbox.session] destroy backend failed:', err);
+      if (entry !== undefined) this.registry.set(entry);
+      return jsonResponse(
+        { destroyed: false, busy: false, error: 'backend destroy failed' },
+        502,
+      );
+    }
   }
 
   /**

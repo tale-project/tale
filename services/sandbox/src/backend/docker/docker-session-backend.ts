@@ -522,6 +522,17 @@ export class DockerSessionBackend implements SessionBackend {
     // (used by resolveWorkspaceDir) only works while the container still exists.
     const workspaceHostDir = await this.resolveWorkspaceDir(sessionId);
     const existed = await this.removeContainer(sessionId);
+    // CONFIRM the container is gone before deleting the workspace. A wedged
+    // dockerd that ignored the rm would otherwise leave a gutted-but-running
+    // container (a hybrid neither stop nor destroy defines). sessionExists
+    // returns false only on a definitive "gone"; an unknown/daemon-hiccup THROWS
+    // — which we let propagate so the caller retries rather than risk deleting
+    // the workspace out from under a live container.
+    if (await this.sessionExists(sessionId)) {
+      throw new Error(
+        `destroy ${sessionId}: container still present after removal — workspace left intact`,
+      );
+    }
     if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
     await rm(workspaceHostDir, {
       recursive: true,

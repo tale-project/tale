@@ -215,6 +215,9 @@ afterAll(() => fakeServer.stop(true));
 // "unknown", never as "gone".
 const backendGone = new Set<string>();
 let backendCheckThrows = false;
+// Sessions whose backend destroy fails (a wedged dockerd) — destroySession
+// throws for these so the route's honesty path (no laundered success) is tested.
+const backendDestroyThrows = new Set<string>();
 
 const fakeBackend: SessionBackend = {
   kind: 'docker',
@@ -227,6 +230,9 @@ const fakeBackend: SessionBackend = {
     return sessionId.startsWith('dead-') ? 'http://127.0.0.1:9' : fakeBaseUrl;
   },
   async destroySession(sessionId: string) {
+    if (backendDestroyThrows.has(sessionId)) {
+      throw new Error('backend destroy failed (wedged dockerd)');
+    }
     const had = created.has(sessionId);
     destroyed.add(sessionId);
     return had;
@@ -284,6 +290,7 @@ beforeEach(() => {
   execRequests.length = 0;
   backendGone.clear();
   backendCheckThrows = false;
+  backendDestroyThrows.clear();
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
   fakeHealth.activeScreencasts = 0;
@@ -702,6 +709,28 @@ describe('SessionRoutes (fake runnerd)', () => {
       const res = await routes.handleDestroy('dead-cond4', { ifIdle: true });
       expect(await res.json()).toEqual({ destroyed: true, busy: false });
       expect(destroyed.has('dead-cond4')).toBe(true);
+    });
+
+    test('backend destroy failure is surfaced, not laundered into success', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'wedge1', organizationId: 'org_wedge' }),
+      );
+      backendDestroyThrows.add('wedge1');
+
+      const res = await routes.handleDestroy('wedge1');
+      // No 200 destroyed:true — the platform must not flip its row while the
+      // container/workspace may survive (the "success toast, workspace lives" bug).
+      expect(res.status).toBe(502);
+      expect(await res.json()).toMatchObject({ destroyed: false });
+      // The registry entry is restored so the session isn't lost to the caller.
+      expect((await routes.handleGet('wedge1')).status).toBe(200);
+
+      // A retry once the daemon recovers succeeds cleanly.
+      backendDestroyThrows.delete('wedge1');
+      const retry = await routes.handleDestroy('wedge1');
+      expect(retry.status).toBe(200);
+      expect(await retry.json()).toEqual({ destroyed: true, busy: false });
     });
   });
 
