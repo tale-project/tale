@@ -921,8 +921,6 @@ chat:
     websiteWrite: Website bearbeiten
     conversationRead: Konversation lesen
     conversationWrite: Konversation beantworten
-    discussionRead: Diskussion lesen
-    discussionWrite: In Diskussion schreiben
     agentRead: Agenten ansehen
     agentWrite: Agenten verwalten
     metricsRead: Kennzahlen lesen
@@ -976,7 +974,7 @@ chat:
     sectionImageAgents: Bild
   modelSelector:
     label: Modell auswählen
-    searchPlaceholder: Modelle suchen…
+    searchPlaceholder: Modelle suchen
     noResults: Keine Modelle gefunden
     addModel: Modell hinzufügen
     auto: Auto
@@ -2262,8 +2260,8 @@ contacts:
   editContact: Kontakt bearbeiten
   deleteContact: Kontakt löschen
   importMenu:
-    importContacts: Kontakte importieren
-    fromDevice: Von deinem Gerät
+    addManually: Manuell hinzufügen
+    fromDevice: Von deinem Gerät importieren
     pasteContacts: Kontakte einfügen
   create:
     title: Kontakt hinzufügen
@@ -2792,16 +2790,11 @@ governance:
     title: System-Prompt
     description: Leg einen verbindlichen System-Prompt fest, der auf alle Agents
       angewendet wird und nicht von Benutzern überschrieben werden kann.
-    prefixLabel: Verbindliches Präfix
-    prefixDescription:
-      Dieser Text wird vor die Anweisungen jedes Agents gestellt
-      und kann nicht überschrieben werden.
-    prefixPlaceholder: Verbindliches Prompt-Präfix eingeben...
-    suffixLabel: Verbindliches Suffix
-    suffixDescription:
-      Dieser Text wird nach die Anweisungen jedes Agents angehängt
-      und kann nicht überschrieben werden.
-    suffixPlaceholder: Verbindliches Prompt-Suffix eingeben...
+    instructionsLabel: Benutzerdefinierte Anweisungen
+    instructionsDescription:
+      Dieser Text wird jedem Agent vor die eigenen Anweisungen gestellt und
+      kann von Benutzern nicht überschrieben werden.
+    instructionsPlaceholder: Verbindliche Anweisungen eingeben...
     charCount: '{count} / {max} Zeichen'
     charLimitExceeded: Zeichenlimit überschritten
     saved: System-Prompt wurde aktualisiert
@@ -3150,6 +3143,14 @@ governance:
       Benutzer, deren einziges Konto eine föderierte Identität ist
       (z. B. Microsoft Entra ID), verlassen sich auf MFA im vorgelagerten IdP.
     invalidGrace: Die Übergangsfrist muss eine ganze Zahl zwischen 0 und 30 sein.
+    confirmEnforceTitle: Zwei-Faktor-Authentifizierung verlangen?
+    confirmEnforceDescription:
+      Jedes Mitglied, das sich mit Passwort anmeldet, wird zur
+      Zwei-Faktor-Einrichtung weitergeleitet (Nur-SSO-Benutzer bleiben
+      ausgenommen, solange die Ausnahme aktiv ist). Nach Ablauf der
+      Übergangsfrist werden Mitglieder abgemeldet, bis sie die Einrichtung
+      abschließen.
+    confirmEnforceCta: Zwei-Faktor verlangen
     saved: Zwei-Faktor-Richtlinie wurde aktualisiert
     saveFailed: Speichern der Zwei-Faktor-Richtlinie fehlgeschlagen
   loginPolicy:
@@ -4476,73 +4477,6 @@ locationRequest:
   errorNotSupported: Geolokalisierung wird von deinem Browser nicht unterstützt.
   errorAcquireFailed: Standort konnte nicht ermittelt werden. Bitte versuche es erneut.
   defaultReason: Der Assistent benötigt deinen Standort, um dir bei deiner Anfrage zu helfen.
-mcpServers:
-  description: Verbinde interne Datenquellen und Tools via Model Context Protocol.
-  addServer: MCP-Server hinzufügen
-  editServer: MCP-Server bearbeiten
-  deleteServer: MCP-Server löschen
-  deleteConfirmation: Bist du sicher, dass du diese MCP-Server-Verbindung löschen möchtest?
-  testConnection: Verbindung testen
-  testing: Verbindung wird getestet...
-  connectionTestFailed: Verbindungstest fehlgeschlagen
-  connected: Verbunden
-  disconnected: Getrennt
-  error: Fehler
-  emptyTitle: Keine MCP-Server konfiguriert
-  emptyDescription:
-    Füge einen MCP-Server hinzu, um externe Tools und Datenquellen
-    mit deinen Agents zu verbinden.
-  activate: Aktivieren
-  deactivate: Deaktivieren
-  form:
-    name: Name
-    displayName: Anzeigename
-    description: Beschreibung
-    transportType: Transporttyp
-    transportStreamableHttp: Streamable HTTP
-    transportSse: SSE
-    transportStdio: stdio
-    url: URL
-    command: Befehl
-    args: Argumente
-    authType: Methode
-    authNone: Keine
-    apiKey: API-Key
-    oauth2: OAuth 2.0
-    grantClientCredentials: Client Credentials
-    grantAuthorizationCode: Authorization Code
-    save: Server speichern
-    saving: Speichern...
-    cancel: Abbrechen
-    connectionSection: Verbindung
-    authSection: Authentifizierung
-    invalidUrl: Gib eine gültige HTTP- oder HTTPS-URL ein
-    validation:
-      nameRequired: Name ist erforderlich
-      nameTooLong: Darf höchstens {max} Zeichen lang sein
-      nameInvalid: Nur Kleinbuchstaben, Ziffern und Bindestriche erlaubt
-      displayNameRequired: Anzeigename ist erforderlich
-      urlRequired: URL ist erforderlich
-      commandRequired: Befehl ist erforderlich
-      apiKeyRequired: API-Key ist erforderlich
-      tokenUrlRequired: Token-URL ist erforderlich
-      clientIdRequired: Client-ID ist erforderlich
-      clientSecretRequired: Client-Geheimnis ist erforderlich
-      authorizationUrlRequired: Autorisierungs-URL ist erforderlich
-  oauth2:
-    tokenUrl: Token-URL
-    authorizationUrl: Autorisierungs-URL
-    clientId: Client-ID
-    clientSecret: Client-Geheimnis
-    scopes: Bereiche
-    grantType: Berechtigungstyp
-  tools:
-    title: Erkannte Tools
-    noTools: Keine Tools erkannt. Teste zuerst die Verbindung.
-    requiresApproval: Genehmigung erforderlich
-    count: '{count, plural, one {# Tool} other {# Tools}}'
-  saved: MCP-Server gespeichert
-  deleted: MCP-Server gelöscht
 metadata:
   suffix: Tale
   default:
@@ -4632,9 +4566,6 @@ metadata:
   integrations:
     title: Integrationen
     description: Drittanbieter-Dienste verbinden.
-  mcpServers:
-    title: MCP-Server
-    description: Externe Tools via Model Context Protocol verbinden.
   providers:
     title: KI-Anbieter
     description: Anbieter-Connectoren, Zugangsdaten und Modellkataloge.
@@ -4741,7 +4672,6 @@ navigation:
   organization: Organisation
   teams: Teams
   integrations: Integrationen
-  mcp: MCP
   providers: KI-Anbieter
   apiKeys: API-Schlüssel
   api: API
@@ -5182,7 +5112,7 @@ prompts:
   library:
     title: Prompt-Bibliothek
     description: Prompt-Vorlagen durchsuchen, speichern und teilen.
-    searchPlaceholder: Prompts suchen…
+    searchPlaceholder: Prompts suchen
     loading: Prompts werden geladen...
     loadMore: Mehr laden
     loadingMore: Lädt...
@@ -5373,8 +5303,6 @@ settings:
       description: Logo, Farben und der Name, den deine Nutzer sehen.
     integrations:
       description: Verbinde externe Apps mit deinem Workspace.
-    mcp:
-      description: Verbinde MCP-Server für Tools und Daten.
     providers:
       description: Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen.
     skills:
@@ -5384,7 +5312,7 @@ settings:
     apiKeys:
       description: Programmatische Zugriffstoken für die Tale-API.
     api:
-      description: Programmatischer Zugriff – REST-Schlüssel, MCP und WebDAV.
+      description: Programmatischer Zugriff – REST-Schlüssel und WebDAV.
     governance:
       description: Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung.
     metrics:
@@ -5399,6 +5327,7 @@ settings:
       description: Wo die Daten dieser Organisation liegen und welche
         Deployment-Speicher dahinterstehen.
   mcpEndpoint:
+    title: MCP-Endpunkt
     description:
       Verbinde einen MCP-Client mit diesem Deployment, um Automatisierungen
       zu erstellen, zu testen und auszuführen — mit denselben Tools wie der
@@ -5972,7 +5901,7 @@ settings:
         Die Websuche durchsucht nur Inhalte von Websites, die deiner
         Organisation hinzugefügt wurden.
       webSearchHintLink: Websites verwalten
-      searchPlaceholder: Tools durchsuchen…
+      searchPlaceholder: Tools durchsuchen
       enabledCount: '{enabled}/{total}'
       enabledCountLabel: '{enabled} von {total, plural, one {# Tool} other {# Tools}} aktiviert'
       categories:
@@ -6025,8 +5954,6 @@ settings:
         product_write: Produkte anlegen und aktualisieren
         website_read: Websites der Organisation lesen
         website_write: Websites hinzufügen und aktualisieren
-        discussion_read: Interne Diskussionen lesen
-        discussion_write: In internen Diskussionen schreiben
         agent_read: Konfigurationen anderer Agenten einsehen
         agent_write: Agenten erstellen und konfigurieren
         metrics_read: Kennzahlen und Analysen der Organisation lesen
@@ -6093,7 +6020,7 @@ settings:
   skills:
     entityLabel: Skills
     uploadSkill: Skill hochladen
-    searchPlaceholder: Skills suchen…
+    searchPlaceholder: Skills suchen
     deleteSkill: Skill löschen
     notFound: Skill nicht gefunden
     backToList: Zurück zu Skills
@@ -7168,7 +7095,7 @@ settings:
         video_link_job: Video-Link-Job
   branding:
     logo: Logo
-    logoDescription: Lade dein Organisationslogo hoch
+    logoDescription: Lade dein Organisationslogo hoch (am besten SVG; Rastergrafiken mit mindestens 64×64 Pixeln)
     favicon: Favicon
     faviconDescription: Wird aus deinem Logo erzeugt, wenn leer. 64 x 64 Pixel.
     light: Hell
@@ -7742,6 +7669,7 @@ toast:
       title: Branding konnte nicht aktualisiert werden
       description: Etwas ist schiefgelaufen. Bitte versuche es erneut.
     imageUploadFailed: Bild konnte nicht hochgeladen werden
+    logoTooSmall: Das Logo muss mindestens {min}×{min} Pixel groß sein.
     imageTooLarge: Bild ist zu groß. Maximale Größe ist 2 MB.
     imageMimeUnsupported: Nicht unterstütztes Bildformat. Verwende PNG, SVG, JPG, WebP oder ICO.
     imageTypeInvalid: Ungültiger Bildtyp
@@ -8054,7 +7982,7 @@ projects:
     emptyDescription: Lege ein Projekt an, um Dateien, Anweisungen und Chats mit
       deinem Team zu teilen.
     emptyCta: Erstes Projekt erstellen
-    searchPlaceholder: Projekte suchen…
+    searchPlaceholder: Projekte suchen
     showArchived: Archivierte anzeigen
     columnName: Name
     columnSharing: Freigabe
@@ -8299,7 +8227,7 @@ projects:
     moveError: Chat konnte nicht verschoben werden
   picker:
     title: In Projekt verschieben
-    searchPlaceholder: Projekte suchen…
+    searchPlaceholder: Projekte suchen
     createNew: Neues Projekt erstellen…
     removeFromProject: Aus Projekt entfernen
     empty: Noch keine Projekte. Lege eines an, um zu starten.
@@ -8409,56 +8337,6 @@ webdav:
       aktive Lock-Tokens werden freigegeben.
     confirm: Widerrufen
     cancel: Abbrechen
-discussions:
-  categories:
-    general: Allgemein
-    qa: Fragen & Antworten
-    ideas: Ideen
-    decisions: Entscheidungen
-    announcements: Ankündigungen
-    show-and-tell: Zeigen & Erzählen
-    polls: Umfragen
-  title: Diskussionen
-  subtitle: Stell Fragen, entscheide gemeinsam und hole Agents per @ dazu.
-  new: Neue Diskussion
-  empty: Noch keine Diskussionen. Starte eine.
-  untitled: Diskussion ohne Titel
-  backToList: Zurück zu den Diskussionen
-  resolve: Lösen
-  reopen: Wieder öffnen
-  lock: Sperren
-  unlock: Entsperren
-  status:
-    open: Offen
-    resolved: Gelöst
-    locked: Gesperrt
-    failed: Diskussionsstatus konnte nicht aktualisiert werden
-  spawnTask:
-    cta: Aufgabe erstellen
-    success: Aufgabe aus Diskussion erstellt
-    failed: Aufgabe konnte nicht erstellt werden
-    converted: In Aufgabe umgewandelt
-    viewTask: Aufgabe ansehen
-    alreadyConverted: Diese Diskussion ist bereits eine Aufgabe
-  reply:
-    placeholder: Antworten… mit @ ein Teammitglied oder einen Agenten erwähnen
-    lockedPlaceholder: Diese Diskussion ist gesperrt
-    hint: Erwähne einen Agenten mit @, damit er antwortet.
-    send: Antworten
-    failed: Antwort konnte nicht gesendet werden
-  create:
-    title: Neue Diskussion
-    titleLabel: Titel
-    titlePlaceholder: Worum geht es in dieser Diskussion?
-    titleRequired: Zuerst einen Titel hinzufügen
-    category: Kategorie
-    bodyPlaceholder: Diskussion beginnen… mit @ ein Teammitglied oder einen Agenten erwähnen
-    hint: Zum Öffnen der Diskussion senden. Erwähne einen Agenten mit @, um ihn
-      einzubeziehen.
-    cancel: Abbrechen
-    failed: Diskussion konnte nicht erstellt werden
-  aria:
-    transcript: Diskussionsnachrichten
 catalogSync:
   button:
     agents: Mitgelieferte Agenten aktualisieren
@@ -8493,7 +8371,7 @@ agentCatalog:
     title: Keine passenden Agenten
     description: Keine Agenten passen zu deiner Suche. Versuch einen anderen Begriff.
   title: Agentenkatalog
-  searchPlaceholder: Agenten suchen…
+  searchPlaceholder: Agenten suchen
   categoryFilter:
     title: Kategorie
     all: Alle

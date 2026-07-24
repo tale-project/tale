@@ -879,8 +879,6 @@ chat:
     websiteWrite: Update website
     conversationRead: Read conversation
     conversationWrite: Reply to conversation
-    discussionRead: Read discussion
-    discussionWrite: Post to discussion
     agentRead: Read agents
     agentWrite: Manage agents
     metricsRead: Read metrics
@@ -933,7 +931,7 @@ chat:
     sectionImageAgents: Image agents
   modelSelector:
     label: Select model
-    searchPlaceholder: Search models…
+    searchPlaceholder: Search models
     noResults: No models found
     addModel: Add model
     auto: Auto
@@ -2157,8 +2155,8 @@ contacts:
   editContact: Edit contact
   deleteContact: Delete contact
   importMenu:
-    importContacts: Import contacts
-    fromDevice: From your device
+    addManually: Add manually
+    fromDevice: Import from your device
     pasteContacts: Paste contacts
   create:
     title: Add contact
@@ -2670,16 +2668,11 @@ governance:
     title: System Prompt
     description: Set a mandatory system prompt that is applied to all agents and
       cannot be overridden by users.
-    prefixLabel: Mandatory prefix
-    prefixDescription:
-      This text is prepended before every agent's instructions and
-      cannot be overridden.
-    prefixPlaceholder: Enter the mandatory prompt prefix...
-    suffixLabel: Mandatory suffix
-    suffixDescription:
-      This text is appended after every agent's instructions and
-      cannot be overridden.
-    suffixPlaceholder: Enter the mandatory prompt suffix...
+    instructionsLabel: Custom instructions
+    instructionsDescription:
+      This text is injected ahead of every agent's instructions and
+      cannot be overridden by users.
+    instructionsPlaceholder: Enter the mandatory instructions...
     charCount: '{count} / {max} characters'
     charLimitExceeded: Character limit exceeded
     saved: System prompt has been updated
@@ -3016,6 +3009,12 @@ governance:
     exemptSsoUsersHint: Users whose only account is a federated identity (e.g.
       Microsoft Entra ID) rely on the upstream IdP for MFA.
     invalidGrace: Grace period must be an integer between 0 and 30.
+    confirmEnforceTitle: Require two-factor authentication?
+    confirmEnforceDescription:
+      Every member signing in with a password will be redirected to
+      two-factor enrollment (SSO users stay exempt while the exemption is
+      on). Members past the grace period are signed out until they enroll.
+    confirmEnforceCta: Require two-factor
     saved: Two-factor policy has been updated
     saveFailed: Failed to save two-factor policy
   loginPolicy:
@@ -4288,71 +4287,6 @@ locationRequest:
   errorNotSupported: Geolocation is not supported by your browser.
   errorAcquireFailed: Failed to acquire location. Please try again.
   defaultReason: The assistant needs your location to help with your request.
-mcpServers:
-  description: Connect to internal data sources and tools via the Model Context Protocol.
-  addServer: Add MCP server
-  editServer: Edit MCP server
-  deleteServer: Delete MCP server
-  deleteConfirmation: Are you sure you want to delete this MCP server connection?
-  testConnection: Test connection
-  testing: Testing connection...
-  connectionTestFailed: Connection test failed
-  connected: Connected
-  disconnected: Disconnected
-  error: Error
-  emptyTitle: No MCP servers configured
-  emptyDescription: Add an MCP server to connect external tools and data sources to your agents.
-  activate: Activate
-  deactivate: Deactivate
-  form:
-    name: Name
-    displayName: Display name
-    description: Description
-    transportType: Transport type
-    transportStreamableHttp: Streamable HTTP
-    transportSse: SSE
-    transportStdio: stdio
-    url: URL
-    command: Command
-    args: Arguments
-    authType: Method
-    authNone: None
-    apiKey: API Key
-    oauth2: OAuth 2.0
-    grantClientCredentials: Client credentials
-    grantAuthorizationCode: Authorization code
-    save: Save server
-    saving: Saving...
-    cancel: Cancel
-    connectionSection: Connection
-    authSection: Authentication
-    invalidUrl: Enter a valid HTTP or HTTPS URL
-    validation:
-      nameRequired: Name is required
-      nameTooLong: Must be at most {max} characters
-      nameInvalid: Must be lowercase alphanumeric with hyphens
-      displayNameRequired: Display name is required
-      urlRequired: URL is required
-      commandRequired: Command is required
-      apiKeyRequired: API Key is required
-      tokenUrlRequired: Token URL is required
-      clientIdRequired: Client ID is required
-      clientSecretRequired: Client secret is required
-      authorizationUrlRequired: Authorization URL is required
-  oauth2:
-    tokenUrl: Token URL
-    authorizationUrl: Authorization URL
-    clientId: Client ID
-    clientSecret: Client secret
-    scopes: Scopes
-    grantType: Grant type
-  tools:
-    title: Discovered Tools
-    noTools: No tools discovered. Test the connection first.
-    requiresApproval: Requires approval
-    count: '{count, plural, one {# tool} other {# tools}}'
-  saved: MCP server saved
-  deleted: MCP server deleted
 metadata:
   suffix: Tale
   default:
@@ -4440,9 +4374,6 @@ metadata:
   integrations:
     title: Integrations
     description: Connect third-party services.
-  mcpServers:
-    title: MCP servers
-    description: Connect external tools via Model Context Protocol.
   providers:
     title: AI providers
     description: Provider connectors, credentials, and model catalogs.
@@ -4547,7 +4478,6 @@ navigation:
   organization: Organization
   teams: Teams
   integrations: Integrations
-  mcp: MCP
   providers: AI providers
   apiKeys: API keys
   api: API
@@ -4977,7 +4907,7 @@ prompts:
   library:
     title: Prompt library
     description: Browse, save, and share prompt templates.
-    searchPlaceholder: Search prompts…
+    searchPlaceholder: Search prompts
     loading: Loading prompts...
     loadMore: Load more
     loadingMore: Loading...
@@ -5152,7 +5082,7 @@ projects:
     emptyTitle: No projects yet
     emptyDescription: Create one to share files, instructions, and chats
     emptyCta: Create your first project
-    searchPlaceholder: Search projects…
+    searchPlaceholder: Search projects
     showArchived: Show archived
     columnName: Name
     columnSharing: Sharing
@@ -5384,7 +5314,7 @@ projects:
     moveError: Couldn't move chat
   picker:
     title: Move to project
-    searchPlaceholder: Search projects…
+    searchPlaceholder: Search projects
     createNew: Create new project…
     removeFromProject: Remove from project
     empty: No projects yet. Create one to get started.
@@ -5467,8 +5397,6 @@ settings:
       description: Logo, colors, and the name shown to your users.
     integrations:
       description: Connect external apps to your workspace.
-    mcp:
-      description: Connect MCP servers for tools and data.
     providers:
       description: Bring your own API keys for OpenAI, Anthropic, and others.
     skills:
@@ -5476,7 +5404,7 @@ settings:
     apiKeys:
       description: Programmatic access tokens for the Tale API.
     api:
-      description: Programmatic access — REST keys, MCP, and WebDAV.
+      description: Programmatic access — REST keys and WebDAV.
     governance:
       description: Policies, security, audit logs, and data retention.
     metrics:
@@ -5490,6 +5418,7 @@ settings:
         Where this organization's data lives, and the deployment-level stores
         behind it.
   mcpEndpoint:
+    title: MCP endpoint
     description:
       Point any MCP client at this deployment to author, test, and run
       automations — the same tools the in-platform builder uses.
@@ -6044,7 +5973,7 @@ settings:
         Web search only searches content from websites added to your
         organization.
       webSearchHintLink: Manage websites
-      searchPlaceholder: Search tools…
+      searchPlaceholder: Search tools
       enabledCount: '{enabled}/{total}'
       enabledCountLabel: '{enabled} of {total, plural, one {# tool} other {# tools}} enabled'
       categories:
@@ -6097,8 +6026,6 @@ settings:
         product_write: Create and update products
         website_read: Read the organization's websites
         website_write: Add and update websites
-        discussion_read: Read internal discussions
-        discussion_write: Post to internal discussions
         agent_read: View other agents' configurations
         agent_write: Create and configure agents
         metrics_read: Read organization metrics and analytics
@@ -6159,7 +6086,7 @@ settings:
   skills:
     entityLabel: skills
     uploadSkill: Upload skill
-    searchPlaceholder: Search skills…
+    searchPlaceholder: Search skills
     deleteSkill: Delete skill
     notFound: Skill not found
     backToList: Back to skills
@@ -7198,7 +7125,7 @@ settings:
         video_link_job: Video link job
   branding:
     logo: Logo
-    logoDescription: Upload your organization logo
+    logoDescription: Upload your organization logo (SVG preferred; raster images at least 64×64 pixels)
     favicon: Favicon
     faviconDescription: Generated from your logo if left empty. 64 x 64 pixels.
     light: Light
@@ -7750,6 +7677,7 @@ toast:
       title: Couldn't update branding
       description: Something went wrong. Please try again.
     imageUploadFailed: Failed to upload image
+    logoTooSmall: The logo must be at least {min}×{min} pixels.
     imageTooLarge: Image is too large. Maximum size is 2 MB.
     imageMimeUnsupported: Unsupported image format. Use PNG, SVG, JPG, WebP, or ICO.
     imageTypeInvalid: Invalid image type
@@ -8069,55 +7997,6 @@ webdav:
       locks released.
     confirm: Revoke
     cancel: Cancel
-discussions:
-  categories:
-    general: General
-    qa: Q&A
-    ideas: Ideas
-    decisions: Decisions
-    announcements: Announcements
-    show-and-tell: Show and tell
-    polls: Polls
-  title: Discussions
-  subtitle: Ask questions, decide together, and @mention agents.
-  new: New discussion
-  empty: No discussions yet. Start one.
-  untitled: Untitled discussion
-  backToList: Back to discussions
-  resolve: Resolve
-  reopen: Reopen
-  lock: Lock
-  unlock: Unlock
-  status:
-    open: Open
-    resolved: Resolved
-    locked: Locked
-    failed: Could not update the discussion status
-  spawnTask:
-    cta: Create task
-    success: Task created from discussion
-    failed: Could not create the task
-    converted: Converted to task
-    viewTask: View task
-    alreadyConverted: This discussion is already a task
-  reply:
-    placeholder: Reply… use @ to mention a teammate or agent
-    lockedPlaceholder: This discussion is locked
-    hint: '@mention an agent to ask it to respond.'
-    send: Reply
-    failed: Could not post your reply
-  create:
-    title: New discussion
-    titleLabel: Title
-    titlePlaceholder: What's this discussion about?
-    titleRequired: Add a title first
-    category: Category
-    bodyPlaceholder: Start the discussion… use @ to mention a teammate or agent
-    hint: Press send to open the discussion. @mention an agent to involve it.
-    cancel: Cancel
-    failed: Could not create the discussion
-  aria:
-    transcript: Discussion messages
 catalogSync:
   button:
     agents: Update built-in agents
@@ -8152,7 +8031,7 @@ agentCatalog:
     title: No matching agents
     description: No agents match your search. Try a different term.
   title: Agent catalog
-  searchPlaceholder: Search agents…
+  searchPlaceholder: Search agents
   categoryFilter:
     title: Category
     all: All

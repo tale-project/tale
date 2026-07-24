@@ -923,8 +923,6 @@ chat:
     websiteWrite: Modifier le site
     conversationRead: Lire la conversation
     conversationWrite: Répondre à la conversation
-    discussionRead: Lire la discussion
-    discussionWrite: Publier dans la discussion
     agentRead: Voir les agents
     agentWrite: Gérer les agents
     metricsRead: Lire les métriques
@@ -979,7 +977,7 @@ chat:
     sectionImageAgents: Image
   modelSelector:
     label: Sélectionner un modèle
-    searchPlaceholder: Rechercher des modèles…
+    searchPlaceholder: Rechercher des modèles
     noResults: Aucun modèle trouvé
     addModel: Ajouter un modèle
     auto: Auto
@@ -2274,8 +2272,8 @@ contacts:
   editContact: Modifier le contact
   deleteContact: Supprimer le contact
   importMenu:
-    importContacts: Importer des contacts
-    fromDevice: Depuis ton appareil
+    addManually: Ajouter manuellement
+    fromDevice: Importer depuis ton appareil
     pasteContacts: Coller des contacts
   create:
     title: Ajouter un contact
@@ -2821,16 +2819,11 @@ governance:
     description:
       Définis un prompt système obligatoire appliqué à tous les agents et
       qui ne peut pas être remplacé par les utilisateurs.
-    prefixLabel: Préfixe obligatoire
-    prefixDescription:
-      Ce texte est ajouté avant les instructions de chaque agent et
-      ne peut pas être remplacé.
-    prefixPlaceholder: Saisir le préfixe obligatoire du prompt...
-    suffixLabel: Suffixe obligatoire
-    suffixDescription:
-      Ce texte est ajouté après les instructions de chaque agent et
-      ne peut pas être remplacé.
-    suffixPlaceholder: Saisir le suffixe obligatoire du prompt...
+    instructionsLabel: Instructions personnalisées
+    instructionsDescription:
+      Ce texte est injecté avant les instructions de chaque agent et ne peut
+      pas être remplacé par les utilisateurs.
+    instructionsPlaceholder: Saisir les instructions obligatoires...
     charCount: '{count} / {max} caractères'
     charLimitExceeded: Limite de caractères dépassée
     saved: Le prompt système a été mis à jour
@@ -3202,6 +3195,13 @@ governance:
       fédérée (p. ex. Microsoft Entra ID) s'appuient sur le MFA du fournisseur
       d'identité.
     invalidGrace: La période de grâce doit être un entier compris entre 0 et 30.
+    confirmEnforceTitle: Exiger l'authentification à double facteur ?
+    confirmEnforceDescription:
+      Chaque membre qui se connecte par mot de passe sera redirigé vers
+      l'inscription au double facteur (les utilisateurs SSO restent exemptés
+      tant que l'exemption est active). Passé la période de grâce, les
+      membres sont déconnectés jusqu'à ce qu'ils terminent l'inscription.
+    confirmEnforceCta: Exiger le double facteur
     saved: La politique de double facteur a été mise à jour
     saveFailed: Échec de l'enregistrement de la politique de double facteur
   loginPolicy:
@@ -4531,74 +4531,6 @@ locationRequest:
   errorNotSupported: La géolocalisation n'est pas prise en charge par ton navigateur.
   errorAcquireFailed: Impossible d'obtenir la localisation. Merci de réessayer.
   defaultReason: L'assistant a besoin de ta localisation pour répondre à ta demande.
-mcpServers:
-  description: Connecte-toi à des sources de données et outils internes via le
-    Model Context Protocol.
-  addServer: Ajouter un serveur MCP
-  editServer: Modifier le serveur MCP
-  deleteServer: Supprimer le serveur MCP
-  deleteConfirmation: Es-tu sûr de vouloir supprimer cette connexion au serveur MCP ?
-  testConnection: Tester la connexion
-  testing: Test de la connexion...
-  connectionTestFailed: Échec du test de connexion
-  connected: Connecté
-  disconnected: Déconnecté
-  error: Erreur
-  emptyTitle: Aucun serveur MCP configuré
-  emptyDescription:
-    Ajoute un serveur MCP pour connecter des outils et sources de
-    données externes à tes agents.
-  activate: Activer
-  deactivate: Désactiver
-  form:
-    name: Nom
-    displayName: Nom d'affichage
-    description: Description
-    transportType: Type de transport
-    transportStreamableHttp: HTTP en continu (streamable)
-    transportSse: SSE
-    transportStdio: stdio
-    url: URL
-    command: Commande
-    args: Arguments
-    authType: Méthode
-    authNone: Aucune
-    apiKey: Clé API
-    oauth2: OAuth 2.0
-    grantClientCredentials: Identifiants client (client credentials)
-    grantAuthorizationCode: Code d’autorisation
-    save: Enregistrer le serveur
-    saving: Enregistrement...
-    cancel: Annuler
-    connectionSection: Connexion
-    authSection: Authentification
-    invalidUrl: Saisis une URL HTTP ou HTTPS valide
-    validation:
-      nameRequired: Le nom est requis
-      nameTooLong: Doit comporter au maximum {max} caractères
-      nameInvalid: Uniquement des minuscules, des chiffres et des traits d'union
-      displayNameRequired: Le nom d'affichage est requis
-      urlRequired: L'URL est requise
-      commandRequired: La commande est requise
-      apiKeyRequired: La clé API est requise
-      tokenUrlRequired: L'URL du jeton est requise
-      clientIdRequired: L'ID client est requis
-      clientSecretRequired: Le secret client est requis
-      authorizationUrlRequired: L'URL d'autorisation est requise
-  oauth2:
-    tokenUrl: URL du jeton
-    authorizationUrl: URL d'autorisation
-    clientId: ID client
-    clientSecret: Secret client
-    scopes: Portées
-    grantType: Type d'autorisation
-  tools:
-    title: Outils découverts
-    noTools: Aucun outil découvert. Teste d'abord la connexion.
-    requiresApproval: Nécessite une approbation
-    count: '{count, plural, one {# outil} other {# outils}}'
-  saved: Serveur MCP enregistré
-  deleted: Serveur MCP supprimé
 metadata:
   suffix: Tale
   default:
@@ -4689,9 +4621,6 @@ metadata:
   integrations:
     title: Intégrations
     description: Connecte des services tiers.
-  mcpServers:
-    title: Serveurs MCP
-    description: Connecte des outils externes via le Model Context Protocol.
   providers:
     title: Fournisseurs IA
     description: Connecteurs de fournisseurs, identifiants et catalogues de modèles.
@@ -4797,7 +4726,6 @@ navigation:
   organization: Organisation
   teams: Équipes
   integrations: Intégrations
-  mcp: MCP
   providers: Fournisseurs IA
   apiKeys: Clés API
   api: API
@@ -5250,7 +5178,7 @@ prompts:
   library:
     title: Bibliothèque de prompts
     description: Parcours, enregistre et partage des modèles de prompts.
-    searchPlaceholder: Rechercher des prompts…
+    searchPlaceholder: Rechercher des prompts
     loading: Chargement des prompts...
     loadMore: Charger plus
     loadingMore: Chargement...
@@ -5441,8 +5369,6 @@ settings:
       description: Logo, couleurs et nom affiché à tes utilisateurs.
     integrations:
       description: Connecte des applications externes à ton espace de travail.
-    mcp:
-      description: Connecte des serveurs MCP pour les outils et les données.
     providers:
       description: Utilise tes propres clés API pour OpenAI, Anthropic et d'autres.
     skills:
@@ -5451,7 +5377,7 @@ settings:
     apiKeys:
       description: Jetons d'accès programmatique à l'API Tale.
     api:
-      description: Accès programmatique — clés REST, MCP et WebDAV.
+      description: Accès programmatique — clés REST et WebDAV.
     governance:
       description: Politiques, sécurité, journaux d'audit et conservation des données.
     metrics:
@@ -5466,6 +5392,7 @@ settings:
         Où vivent les données de cette organisation, et les stockages de
         déploiement qui les sous-tendent.
   mcpEndpoint:
+    title: Endpoint MCP
     description:
       Branche n'importe quel client MCP sur ce déploiement pour créer,
       tester et exécuter des automatisations — avec les mêmes outils que le
@@ -6061,7 +5988,7 @@ settings:
       webSearchHint: La recherche web ne recherche que le contenu des sites web
         ajoutés à ton organisation.
       webSearchHintLink: Gérer les sites web
-      searchPlaceholder: Rechercher des outils…
+      searchPlaceholder: Rechercher des outils
       enabledCount: '{enabled}/{total}'
       enabledCountLabel:
         'Outils activés : {enabled} sur {total, plural, one {# outil}
@@ -6118,8 +6045,6 @@ settings:
         product_write: Créer et mettre à jour les produits
         website_read: Lire les sites web de l'organisation
         website_write: Ajouter et mettre à jour les sites web
-        discussion_read: Lire les discussions internes
-        discussion_write: Publier dans les discussions internes
         agent_read: Consulter la configuration des autres agents
         agent_write: Créer et configurer des agents
         metrics_read: Lire les métriques et analyses de l'organisation
@@ -6184,7 +6109,7 @@ settings:
   skills:
     entityLabel: skills
     uploadSkill: Téléverser un skill
-    searchPlaceholder: Rechercher des skills…
+    searchPlaceholder: Rechercher des skills
     deleteSkill: Supprimer le skill
     notFound: Skill introuvable
     backToList: Retour aux skills
@@ -7276,7 +7201,7 @@ settings:
         video_link_job: Tâche de lien vidéo
   branding:
     logo: Logo
-    logoDescription: Téléverse le logo de ton organisation
+    logoDescription: Téléverse le logo de ton organisation (SVG de préférence ; images matricielles d'au moins 64×64 pixels)
     favicon: Favicon
     faviconDescription: Généré à partir de ton logo si laissé vide. 64 x 64 pixels.
     light: Clair
@@ -7861,6 +7786,7 @@ toast:
       title: Impossible de mettre à jour l'image de marque
       description: Une erreur s'est produite. Merci de réessayer.
     imageUploadFailed: Échec du téléversement de l'image
+    logoTooSmall: Le logo doit faire au moins {min}×{min} pixels.
     imageTooLarge: L'image est trop volumineuse. La taille maximale est de 2 Mo.
     imageMimeUnsupported: Format d'image non pris en charge. Utilise PNG, SVG, JPG, WebP ou ICO.
     imageTypeInvalid: Type d'image invalide
@@ -8016,7 +7942,7 @@ twoFactor:
 websites:
   title: Sites web
   entityLabelOne: site web
-  searchPlaceholder: Rechercher des sites web…
+  searchPlaceholder: Rechercher des sites web
   addButton: Ajouter un site web
   addWebsite: Ajouter un site web
   editWebsite: Modifier le site web
@@ -8172,7 +8098,7 @@ projects:
       Crée un projet pour partager fichiers, instructions et chats
       avec ton équipe.
     emptyCta: Crée ton premier projet
-    searchPlaceholder: Rechercher des projets…
+    searchPlaceholder: Rechercher des projets
     showArchived: Afficher les archivés
     columnName: Nom
     columnSharing: Partage
@@ -8418,7 +8344,7 @@ projects:
     moveError: Impossible de déplacer le chat
   picker:
     title: Déplacer vers un projet
-    searchPlaceholder: Rechercher des projets…
+    searchPlaceholder: Rechercher des projets
     createNew: Créer un nouveau projet…
     removeFromProject: Retirer du projet
     empty: Aucun projet pour l'instant. Crées-en un pour commencer.
@@ -8522,56 +8448,6 @@ webdav:
       actifs seront libérés.
     confirm: Révoquer
     cancel: Annuler
-discussions:
-  categories:
-    general: Général
-    qa: Questions-réponses
-    ideas: Idées
-    decisions: Décisions
-    announcements: Annonces
-    show-and-tell: Démos
-    polls: Sondages
-  title: Discussions
-  subtitle: Pose des questions, décide ensemble et @mentionne des agents.
-  new: Nouvelle discussion
-  empty: Aucune discussion pour l'instant. Lance-en une.
-  untitled: Discussion sans titre
-  backToList: Retour aux discussions
-  resolve: Résoudre
-  reopen: Rouvrir
-  lock: Verrouiller
-  unlock: Déverrouiller
-  status:
-    open: Ouverte
-    resolved: Résolue
-    locked: Verrouillée
-    failed: Impossible de mettre à jour le statut de la discussion
-  spawnTask:
-    cta: Créer une tâche
-    success: Tâche créée depuis la discussion
-    failed: Impossible de créer la tâche
-    converted: Convertie en tâche
-    viewTask: Voir la tâche
-    alreadyConverted: Cette discussion est déjà une tâche
-  reply:
-    placeholder: Répondre… utilise @ pour mentionner un coéquipier ou un agent
-    lockedPlaceholder: Cette discussion est verrouillée
-    hint: '@mentionne un agent pour lui demander de répondre.'
-    send: Répondre
-    failed: Impossible de publier ta réponse
-  create:
-    title: Nouvelle discussion
-    titleLabel: Titre
-    titlePlaceholder: De quoi s'agit-il dans cette discussion ?
-    titleRequired: Ajoute d'abord un titre
-    category: Catégorie
-    bodyPlaceholder: Lance la discussion… utilise @ pour mentionner un coéquipier ou un agent
-    hint: Appuie sur envoyer pour ouvrir la discussion. @mentionne un agent pour
-      l'impliquer.
-    cancel: Annuler
-    failed: Impossible de créer la discussion
-  aria:
-    transcript: Messages de la discussion
 catalogSync:
   button:
     agents: Mettre à jour les agents livrés
@@ -8607,7 +8483,7 @@ agentCatalog:
     title: Aucun agent correspondant
     description: Aucun agent ne correspond à ta recherche. Essaie un autre terme.
   title: Catalogue d'agents
-  searchPlaceholder: Rechercher des agents…
+  searchPlaceholder: Rechercher des agents
   categoryFilter:
     title: Catégorie
     all: Tous
