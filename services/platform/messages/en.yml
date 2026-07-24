@@ -5122,7 +5122,7 @@ projects:
     files: Knowledge
     instructions: Instructions
     threads: Chats
-    agents: Agents & models
+    agents: Agents
     settings: Settings
   list:
     title: Projects
@@ -5251,9 +5251,9 @@ projects:
     modelsHeading: Models
     integrationsHeading: Integrations
     sectionDescription:
-      Curate which agents and models appear in this project. The
-      list below is the order members see them; the mode below picks whether the
-      rest stay available or not.
+      Equip each agent with the skills and connectors it runs with in this
+      project. Everyone here sees the agent pre-equipped with what you pick.
+    noCodingAgents: No coding agents are available yet.
     modeRecommended: Recommended
     modeRecommendedDescription: Pin the items below to the top. Others remain available.
     modeRestricted: Restricted

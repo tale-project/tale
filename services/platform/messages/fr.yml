@@ -8139,7 +8139,7 @@ projects:
     files: Connaissances
     instructions: Instructions
     threads: Chats
-    agents: Agents et modèles
+    agents: Agents
     settings: Paramètres
   list:
     title: Projets
@@ -8276,9 +8276,10 @@ projects:
     modelsHeading: Modèles
     integrationsHeading: Intégrations
     sectionDescription:
-      Choisis quels agents et modèles apparaissent dans ce projet.
-      La liste ci-dessous fixe l'ordre que les membres voient ; le mode plus bas
-      choisit si le reste reste accessible ou non.
+      Équipe chaque agent des compétences et connecteurs avec lesquels il
+      travaille dans ce projet. Tout le monde ici voit l'agent pré-équipé de ce
+      que tu choisis.
+    noCodingAgents: Aucun agent de code n'est encore disponible.
     modeRecommended: Recommandés
     modeRecommendedDescription: Épingle les éléments ci-dessous en haut. Les autres restent disponibles.
     modeRestricted: Restreints

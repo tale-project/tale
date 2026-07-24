@@ -78,6 +78,26 @@ export const projectsTable = defineTable({
   recommendedAgentSlugs: v.optional(v.array(v.string())),
   allowedAgentSlugs: v.optional(v.array(v.string())),
 
+  /**
+   * Per-project, per-agent capability binding. For each fixed agent (the
+   * platform assistant slug or a third-party harness slug), the skills and
+   * connectors the user equipped it with IN THIS PROJECT — the persistent,
+   * project-scoped analog of a chat thread's `capabilities`. An agent runs in
+   * this project with exactly the skills/connectors bound here; an agent with
+   * no entry falls back to its default. Keyed by agent id (a record, like
+   * `taskLabelColors`); skills are org skill slugs, connectors are
+   * enabled-connector slugs. Consumed by the run lane, never interpreted here.
+   */
+  agentCapabilities: v.optional(
+    v.record(
+      v.string(),
+      v.object({
+        skills: v.array(v.string()),
+        connectors: v.array(v.string()),
+      }),
+    ),
+  ),
+
   // Model restriction
   modelMode: v.optional(projectModeValidator),
   recommendedModels: v.optional(v.array(v.string())),

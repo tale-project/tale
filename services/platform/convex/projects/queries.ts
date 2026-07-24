@@ -68,6 +68,15 @@ const projectRowValidator = v.object({
   agentMode: v.optional(projectModeValidator),
   recommendedAgentSlugs: v.optional(v.array(v.string())),
   allowedAgentSlugs: v.optional(v.array(v.string())),
+  agentCapabilities: v.optional(
+    v.record(
+      v.string(),
+      v.object({
+        skills: v.array(v.string()),
+        connectors: v.array(v.string()),
+      }),
+    ),
+  ),
   modelMode: v.optional(projectModeValidator),
   recommendedModels: v.optional(v.array(v.string())),
   allowedModels: v.optional(v.array(v.string())),

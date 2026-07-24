@@ -737,6 +737,97 @@ export const updateProjectAgentSettings = mutation({
   },
 });
 
+/** A project may equip an agent with at most this many skills / connectors —
+ * mirrors the per-persona `MAX_AGENT_SKILL_BINDINGS`; a generous ceiling, not a
+ * curation limit. */
+const MAX_PROJECT_AGENT_SKILLS = 25;
+const MAX_PROJECT_AGENT_CONNECTORS = 25;
+
+/**
+ * Bind the skills + connectors one agent may use IN THIS PROJECT — the
+ * persistent, project-scoped analog of a chat thread's `capabilities`. Sets
+ * the whole per-agent entry at once; an entry that ends up empty
+ * ({skills:[], connectors:[]}) is removed so the agent falls back to its
+ * default rather than being pinned to "nothing".
+ */
+export const setProjectAgentCapabilities = mutation({
+  args: {
+    projectId: v.id('projects'),
+    agentId: v.string(),
+    skills: v.array(v.string()),
+    connectors: v.array(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    if (args.agentId.length === 0 || args.agentId.length > 128) {
+      throw new ConvexError({
+        code: 'invalid_agent',
+        message: 'An agent id is a short identifier.',
+      });
+    }
+    if (
+      args.skills.length > MAX_PROJECT_AGENT_SKILLS ||
+      args.connectors.length > MAX_PROJECT_AGENT_CONNECTORS
+    ) {
+      throw new ConvexError({
+        code: 'too_many_bindings',
+        message: `An agent may be equipped with at most ${MAX_PROJECT_AGENT_SKILLS} skills and ${MAX_PROJECT_AGENT_CONNECTORS} connectors.`,
+      });
+    }
+    // Dedupe, drop empties — the binding is a set, not an ordered list.
+    const skills = [...new Set(args.skills.filter((s) => s.length > 0))];
+    const connectors = [
+      ...new Set(args.connectors.filter((c) => c.length > 0)),
+    ];
+
+    const current = project.agentCapabilities ?? {};
+    const previousEntry = current[args.agentId] ?? {
+      skills: [],
+      connectors: [],
+    };
+    const next: Record<string, { skills: string[]; connectors: string[] }> = {
+      ...current,
+    };
+    if (skills.length === 0 && connectors.length === 0) {
+      delete next[args.agentId];
+    } else {
+      next[args.agentId] = { skills, connectors };
+    }
+
+    await ctx.db.patch(args.projectId, {
+      agentCapabilities: Object.keys(next).length > 0 ? next : undefined,
+      updatedAt: Date.now(),
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.agentsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      previousState: previousEntry,
+      newState: { skills, connectors },
+      changedFields: diff(previousEntry, { skills, connectors }),
+      metadata: {
+        agentId: args.agentId,
+        skillsDiff: arrayDiff(previousEntry.skills, skills),
+        connectorsDiff: arrayDiff(previousEntry.connectors, connectors),
+      },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Model settings
 // ---------------------------------------------------------------------------

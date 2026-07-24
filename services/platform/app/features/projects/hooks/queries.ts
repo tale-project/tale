@@ -1,10 +1,32 @@
 import { useMemo } from 'react';
 
+import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+
+/**
+ * The fixed third-party coding agents (sandbox harnesses) a project can equip.
+ * Reuses the composer's org-scoped listing — the same fixed set chat offers.
+ */
+export function useProjectCodingAgents(organizationId: string) {
+  return useActionQuery(
+    ['projects', 'coding-agents', organizationId],
+    api.chat.composer.listComposerModels,
+    { organizationId },
+  );
+}
+
+/** The org's skills + enabled connectors a project can bind to an agent. */
+export function useProjectCapabilityCatalog(organizationId: string) {
+  return useActionQuery(
+    ['projects', 'capability-catalog', organizationId],
+    api.chat.composer.listComposerCapabilities,
+    { organizationId },
+  );
+}
 
 export type ProjectListItem = ConvexItemOf<
   typeof api.projects.queries.listProjects

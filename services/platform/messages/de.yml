@@ -8022,7 +8022,7 @@ projects:
     files: Wissen
     instructions: Anweisungen
     threads: Chats
-    agents: Agenten & Modelle
+    agents: Agenten
     settings: Einstellungen
   list:
     title: Projekte
@@ -8155,10 +8155,10 @@ projects:
     agentsHeading: Agenten
     modelsHeading: Modelle
     integrationsHeading: Integrationen
-    sectionDescription: Lege fest, welche Agenten und Modelle in diesem Projekt
-      auftauchen. Die Liste unten bestimmt die Reihenfolge, die Mitglieder
-      sehen; der Modus darunter entscheidet, ob der Rest verfügbar bleibt oder
-      nicht.
+    sectionDescription: Rüste jeden Agenten mit den Skills und Konnektoren aus,
+      mit denen er in diesem Projekt arbeitet. Alle hier sehen den Agenten
+      vorausgerüstet mit dem, was du auswählst.
+    noCodingAgents: Es sind noch keine Coding-Agenten verfügbar.
     modeRecommended: Empfohlen
     modeRecommendedDescription: Pinne die Einträge unten oben an. Der Rest bleibt verfügbar.
     modeRestricted: Eingeschränkt

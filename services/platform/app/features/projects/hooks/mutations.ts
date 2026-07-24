@@ -35,6 +35,10 @@ export function useUpdateProjectIntegrationSettings() {
   );
 }
 
+export function useSetProjectAgentCapabilities() {
+  return useConvexMutation(api.projects.mutations.setProjectAgentCapabilities);
+}
+
 export function useDetachDocumentFromProject() {
   return useConvexMutation(api.projects.mutations.detachDocumentFromProject);
 }
