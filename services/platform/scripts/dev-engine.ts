@@ -305,6 +305,31 @@ function loadEnvFiles() {
     Object.assign(mergedEnv, vars);
   }
 
+  // Container-only config paths must not reach a HOST run's process env. The
+  // repo-root `.env` doubles as docker compose's env_file, so it carries
+  // container paths (`TALE_CONFIG_DIR=/app/data`); Bun also auto-loads that
+  // file, making the value look like an explicit shell override. Drop such a
+  // value from process.env BEFORE the gap-fill below (so a real platform
+  // `.env` override can land), and never fill one from the merged files
+  // (envNormalizeCommon's host default then applies). Inside a container
+  // `/app` exists and everything passes through untouched.
+  const containerOnly = (value: string | undefined): boolean =>
+    !existsSync('/app') &&
+    value !== undefined &&
+    (value === '/app' || value.startsWith('/app/'));
+  for (const key of ['TALE_CONFIG_DIR', 'TALE_CONFIG_BUILTIN_DIR']) {
+    if (containerOnly(process.env[key])) {
+      warnLine(
+        `${key}=${process.env[key]} is a container path (repo-root .env ` +
+          `serves docker compose) — ignoring it for this host run.`,
+      );
+      delete process.env[key];
+    }
+    if (containerOnly(mergedEnv[key])) {
+      delete mergedEnv[key];
+    }
+  }
+
   // Pre-existing process.env wins over .env files — only fill the gaps.
   let loadedCount = 0;
   let skippedCount = 0;
