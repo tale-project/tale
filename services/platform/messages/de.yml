@@ -2746,10 +2746,6 @@ emptyStates:
   knowledgeEntries:
     title: Noch keine Wissenseinträge
     description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können.
-  agents:
-    title: Noch keine Agents
-    description: Erstelle deinen ersten Agent, um KI-Verhalten für dein Team zu
-      spezialisieren
   skills:
     title: Noch keine Skills
     description:

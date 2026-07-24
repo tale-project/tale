@@ -412,8 +412,6 @@ entries:
   - 'discussions.spawnTask.success'
   - 'discussions.spawnTask.viewTask'
   - 'discussions.unlock'
-  - 'emptyStates.agents.description'
-  - 'emptyStates.agents.title'
   - 'emptyStates.knowledgeEntries.description'
   - 'emptyStates.knowledgeEntries.title'
   - 'emptyStates.providers.description'

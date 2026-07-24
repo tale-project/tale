@@ -2776,10 +2776,6 @@ emptyStates:
   knowledgeEntries:
     title: Aucune entrée de connaissances pour l'instant
     description: Enregistre des faits depuis le chat ou ajoute des entrées que les agents peuvent réutiliser.
-  agents:
-    title: Aucun agent pour l'instant
-    description: Crée ton premier agent pour spécialiser le comportement de l'IA
-      pour ton équipe
   skills:
     title: Aucun skill pour l'instant
     description:

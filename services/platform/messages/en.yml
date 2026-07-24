@@ -2627,9 +2627,6 @@ emptyStates:
   knowledgeEntries:
     title: No knowledge entries yet
     description: Save facts from chat or add entries agents can reuse.
-  agents:
-    title: No agents yet
-    description: Create your first agent to specialize AI behavior for your team
   skills:
     title: No skills yet
     description:
