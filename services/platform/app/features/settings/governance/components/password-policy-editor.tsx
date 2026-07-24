@@ -1,12 +1,15 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -143,6 +146,10 @@ export function PasswordPolicyEditor({
 
   const cannotManage = ability.cannot('write', 'orgSettings');
   const canEdit = !cannotManage;
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers stay unregistered so the cluster never renders for a
+  // section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canEdit });
 
   const {
     register,
@@ -176,7 +183,6 @@ export function PasswordPolicyEditor({
   return (
     <Skeletonize loading={isLoading} label={t('passwordPolicy.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('passwordPolicy.title')}
         description={t('passwordPolicy.description')}
       >
@@ -185,9 +191,7 @@ export function PasswordPolicyEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Full section width (not max-w-2xl): Discard/Save share the
-                section right edge with sibling Security & Monitoring actions.
-                Short numeric fields stay max-w-xs so they don't stretch. */}
+            {/* Short numeric fields stay max-w-xs so they don't stretch. */}
             <Stack gap={6}>
               <Stack gap={4}>
                 <div>
@@ -263,16 +267,6 @@ export function PasswordPolicyEditor({
                   </div>
                 )}
               </Stack>
-
-              <HStack justify="end">
-                <EditorActions
-                  controller={editor}
-                  formId={FORM_ID}
-                  canEdit={canEdit}
-                  entityKind="governance_password_policy"
-                  suppressServerErrorToast
-                />
-              </HStack>
             </Stack>
           </fieldset>
         </form>

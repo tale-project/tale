@@ -1,11 +1,14 @@
 'use client';
 
-import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -199,13 +202,17 @@ export function UploadPolicyEditor({
     schema,
     save,
   });
+  const canManage = !cannotManage;
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers and disabled policies stay unregistered so the cluster
+  // never renders for a section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canManage && enabled });
 
   const {
     getValues,
     register,
     formState: { errors },
   } = editor.form;
-  const canManage = !cannotManage;
   const switchDisabled = cannotManage || upsertMutation.isPending;
 
   const handleToggleEnabled = useCallback(
@@ -233,13 +240,11 @@ export function UploadPolicyEditor({
   return (
     <Skeletonize loading={isLoading} label={t('uploadPolicy.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('uploadPolicy.title')}
         description={t('uploadPolicy.description')}
         action={
           <Switch
-            label={t('uploadPolicy.enabled')}
-            hideLabelOnMobile
+            aria-label={t('uploadPolicy.enabled')}
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={switchDisabled}
@@ -252,62 +257,48 @@ export function UploadPolicyEditor({
               disabled={!canManage || editor.isLoading}
               className="contents"
             >
-              {/* Full section width (not max-w-2xl): Discard/Save must share
-                  the right edge with the section action toggle and sibling
-                  sections (e.g. Retention Edit) on Policies & limits. */}
               <Stack gap={6}>
+                {/* One field per row — the settings-form convention (side-
+                    by-side fields read as one control and hide their
+                    pairing). Short numeric fields stay max-w-xs. */}
                 <Stack gap={4}>
-                  <Grid md={2}>
-                    <Input
-                      label={t('uploadPolicy.allowedExtensions')}
-                      placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      errorMessage={errors.allowedExtensions?.message}
-                      {...register('allowedExtensions')}
-                    />
-                    <Input
-                      label={t('uploadPolicy.blockedExtensions')}
-                      placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      errorMessage={errors.blockedExtensions?.message}
-                      {...register('blockedExtensions')}
-                    />
-                  </Grid>
-
+                  <Input
+                    label={t('uploadPolicy.allowedExtensions')}
+                    placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    errorMessage={errors.allowedExtensions?.message}
+                    {...register('allowedExtensions')}
+                  />
+                  <Input
+                    label={t('uploadPolicy.blockedExtensions')}
+                    placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    errorMessage={errors.blockedExtensions?.message}
+                    {...register('blockedExtensions')}
+                  />
                   <Input
                     label={t('uploadPolicy.allowedMimeTypes')}
                     placeholder={t('uploadPolicy.mimeTypePlaceholder')}
                     errorMessage={errors.allowedMimeTypes?.message}
                     {...register('allowedMimeTypes')}
                   />
-
-                  <Grid md={2}>
-                    <Input
-                      label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
-                      type="number"
-                      min={0}
-                      step={1}
-                      errorMessage={errors.maxFileSizeMB?.message}
-                      {...register('maxFileSizeMB')}
-                    />
-                    <Input
-                      label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      errorMessage={errors.maxVolumeGB?.message}
-                      {...register('maxVolumeGB')}
-                    />
-                  </Grid>
-                </Stack>
-
-                <HStack justify="end">
-                  <EditorActions
-                    controller={editor}
-                    formId={FORM_ID}
-                    canEdit={canManage}
-                    entityKind="governance_upload_policy"
-                    suppressServerErrorToast
+                  <Input
+                    label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                    type="number"
+                    min={0}
+                    step={1}
+                    wrapperClassName="max-w-xs"
+                    errorMessage={errors.maxFileSizeMB?.message}
+                    {...register('maxFileSizeMB')}
                   />
-                </HStack>
+                  <Input
+                    label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    wrapperClassName="max-w-xs"
+                    errorMessage={errors.maxVolumeGB?.message}
+                    {...register('maxVolumeGB')}
+                  />
+                </Stack>
               </Stack>
             </fieldset>
           </form>

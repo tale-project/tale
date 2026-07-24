@@ -1,12 +1,15 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -190,12 +193,16 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     schema,
     save,
   });
+  const canEdit = !cannotManage;
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers and disabled policies stay unregistered so the cluster
+  // never renders for a section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canEdit && enabled });
 
   const {
     register,
     formState: { errors },
   } = editor.form;
-  const canEdit = !cannotManage;
 
   return (
     <Skeletonize loading={isLoading} label={t('loginPolicy.title')}>
@@ -204,8 +211,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
         description={t('loginPolicy.description')}
         action={
           <Switch
-            label={t('loginPolicy.enabled')}
-            hideLabelOnMobile
+            aria-label={t('loginPolicy.enabled')}
             checked={enabled}
             onCheckedChange={onToggle}
             disabled={!canEdit || isToggling || editor.isSaving}
@@ -217,9 +223,6 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Full section width (not max-w-2xl): Discard/Save and fields
-                share the right edge with section header toggles on Security
-                & Monitoring. */}
             <Stack gap={6}>
               {enabled && (
                 <Stack gap={4}>
@@ -263,18 +266,6 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
                     </Text>
                   </div>
                 </Stack>
-              )}
-
-              {enabled && (
-                <HStack justify="end">
-                  <EditorActions
-                    controller={editor}
-                    formId={FORM_ID}
-                    canEdit={canEdit}
-                    entityKind="governance_login_policy"
-                    suppressServerErrorToast
-                  />
-                </HStack>
               )}
             </Stack>
           </fieldset>

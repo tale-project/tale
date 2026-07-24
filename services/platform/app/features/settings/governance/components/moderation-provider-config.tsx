@@ -478,13 +478,11 @@ export function ModerationProviderConfigView({
     <Skeletonize loading={isLoading} label={t('moderationProvider.title')}>
       <SettingsSection
         id="guardrails-moderation"
-        className="border-border border-t pt-8"
         title={t('moderationProvider.title')}
         description={t('moderationProvider.description')}
         action={
           <Switch
-            label={t('moderationProvider.enableLabel')}
-            hideLabelOnMobile
+            aria-label={t('moderationProvider.enableLabel')}
             checked={enabled}
             disabled={cannotManage}
             onCheckedChange={handleToggleEnabled}

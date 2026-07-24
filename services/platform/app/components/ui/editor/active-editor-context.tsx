@@ -51,6 +51,17 @@ export function useActiveEditor(): EditorController | null {
 }
 
 /**
+ * Raw access to the stable setter for registration helpers that need to
+ * decide at runtime whether to register (e.g. `useRegisterGroupedEditor`'s
+ * no-group fallback). Prefer `useRegisterActiveEditor` everywhere else.
+ */
+export function useActiveEditorSetter(): Dispatch<
+  SetStateAction<EditorController | null>
+> | null {
+  return useContext(SetterContext);
+}
+
+/**
  * Registers the calling component's controller as "active" for as long as
  * it stays mounted. Re-registers only when controller STATE (isDirty,
  * isSaving, isValid, isLoading) actually changes — not on every render —

@@ -293,14 +293,12 @@ export function ChatFilterConfigView({
     <Skeletonize loading={isLoading} label={t('contentSafety.title')}>
       <SettingsSection
         id="guardrails-content-safety"
-        className="border-border border-t pt-8"
         title={t('contentSafety.title')}
         description={t('contentSafety.description')}
         action={
           <Switch
             id="chat-filter-enabled"
-            label={t('contentSafety.enableLabel')}
-            hideLabelOnMobile
+            aria-label={t('contentSafety.enableLabel')}
             checked={enabled}
             disabled={cannotManage}
             onCheckedChange={handleEnabledChange}

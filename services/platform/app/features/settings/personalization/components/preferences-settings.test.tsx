@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { act } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ActiveEditorProvider,
+  useActiveEditor,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -126,15 +132,29 @@ describe('PreferencesSettings', () => {
     });
   });
 
-  it('saves the custom instructions the user typed', async () => {
+  it('saves the custom instructions the user typed through the global save bar', async () => {
     preferences = { customInstructionsEnabled: true, customInstructions: '' };
-    const { user } = renderPage();
+    const capture = { current: null as EditorController | null };
+    function ActiveProbe() {
+      capture.current = useActiveEditor();
+      return null;
+    }
+    const { user } = render(
+      <ActiveEditorProvider>
+        <ActiveProbe />
+        <PreferencesSettings organizationId="org-1" />
+      </ActiveEditorProvider>,
+    );
 
     await user.type(
       screen.getByRole('textbox', { name: 'Custom instructions' }),
       'Reply in French.',
     );
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(capture.current?.isDirty).toBe(true);
+    await act(async () => {
+      await capture.current?.save();
+    });
 
     expect(upsert).toHaveBeenCalledWith({
       organizationId: 'org-1',

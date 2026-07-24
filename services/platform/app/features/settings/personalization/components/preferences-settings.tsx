@@ -4,23 +4,28 @@
  * User preferences — the two personalization features, each as one section
  * that owns both its switch and its fields.
  *
- * The switch lives in the section header and the fields live in the section
- * body: turning a feature on reveals what it needs right there, so a user
- * never flips a toggle and then has to find a second place to fill it in.
- * Turning it off leaves the fields visible but inert, so the stored value
- * stays readable instead of vanishing.
+ * The switch lives in the section header (unlabelled — the section title
+ * names the feature; the switch carries an aria-label) and the fields live in
+ * the section body. Turning a feature off leaves the fields visible but
+ * inert, so the stored value stays readable instead of vanishing. The
+ * custom-instructions text saves through the settings header's global
+ * Save/Discard cluster; only the enable switches save instantly.
  *
  * Reading replies aloud is NOT here. It is a property of the message being
  * sent, so it lives in the composer's mode menu; duplicating it as a stored
  * preference would give the same behaviour two sources of truth.
  */
 
-import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useState, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
+import { z } from 'zod';
 
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useChatMemories } from '@/app/features/chat/data/chat-backend';
@@ -104,6 +109,7 @@ export function PreferencesSettings({
         <CustomInstructionsSection
           organizationId={organizationId}
           gate={instructionsGate}
+          loading={prefsLoading}
           savedInstructions={prefs?.customInstructions ?? ''}
         />
         <MemoriesSection organizationId={organizationId} gate={memoriesGate} />
@@ -128,26 +134,72 @@ function useGateHint(gate: FeatureGate, base: string): ReactNode {
   );
 }
 
+interface CustomInstructionsForm {
+  customInstructions: string;
+}
+
 function CustomInstructionsSection({
   organizationId,
   gate,
+  loading,
   savedInstructions,
 }: {
   organizationId: string;
   gate: FeatureGate;
+  loading: boolean;
   savedInstructions: string;
 }) {
   const { t } = useT('personalization');
   const { toast } = useToast();
   const { mutateAsync: setEnabled, isPending: togglePending } =
     useSetCustomInstructionsEnabled();
-  const { mutateAsync: upsert, isPending: savePending } =
-    useUpsertMyPreferences();
+  const { mutateAsync: upsert } = useUpsertMyPreferences();
 
-  const [draft, setDraft] = useState<string>();
-  const value = draft ?? savedInstructions;
-  const tooLong = value.length > CUSTOM_INSTRUCTIONS_MAX_CHARS;
-  const dirty = draft !== undefined && draft !== savedInstructions;
+  const schema = useMemo(
+    () =>
+      z.object({
+        customInstructions: z
+          .string()
+          .max(
+            CUSTOM_INSTRUCTIONS_MAX_CHARS,
+            t('errors.tooLong', { max: CUSTOM_INSTRUCTIONS_MAX_CHARS }),
+          ),
+      }),
+    [t],
+  );
+
+  const data = useMemo<CustomInstructionsForm | undefined>(() => {
+    if (loading) return undefined;
+    return { customInstructions: savedInstructions };
+  }, [loading, savedInstructions]);
+
+  const save = useCallback(
+    async (values: CustomInstructionsForm) => {
+      try {
+        await upsert({
+          organizationId,
+          customInstructions: values.customInstructions,
+        });
+        toast({ title: t('toasts.saved') });
+      } catch (err) {
+        toast({ title: t('errors.saveFailed'), variant: 'destructive' });
+        throw err;
+      }
+    },
+    [organizationId, t, toast, upsert],
+  );
+
+  const editor = useFormEditor<CustomInstructionsForm>({ data, schema, save });
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // while the feature is off the field is inert, so nothing registers.
+  useRegisterGroupedEditor(editor, { enabled: gate.effective });
+
+  const {
+    register,
+    watch,
+    formState: { errors },
+  } = editor.form;
+  const value = watch('customInstructions') ?? '';
 
   const description = useGateHint(
     gate,
@@ -160,8 +212,7 @@ function CustomInstructionsSection({
       description={description}
       action={
         <Switch
-          label={t('page.customInstructionsToggle.label')}
-          hideLabelOnMobile
+          aria-label={t('page.customInstructionsToggle.label')}
           checked={gate.effective}
           disabled={togglePending}
           onCheckedChange={async (next) => {
@@ -178,47 +229,21 @@ function CustomInstructionsSection({
         />
       }
     >
-      <Stack gap={2}>
-        <Textarea
-          aria-label={t('page.customInstructions.title')}
-          placeholder={t('page.customInstructions.placeholder')}
-          rows={5}
-          value={value}
-          disabled={!gate.effective || savePending}
-          errorMessage={
-            tooLong
-              ? t('errors.tooLong', {
-                  max: CUSTOM_INSTRUCTIONS_MAX_CHARS,
-                })
-              : undefined
-          }
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <div className="flex items-center justify-between gap-3">
+      <form onSubmit={editor.submit}>
+        <Stack gap={2}>
+          <Textarea
+            aria-label={t('page.customInstructions.title')}
+            placeholder={t('page.customInstructions.placeholder')}
+            rows={5}
+            disabled={!gate.effective || editor.isSaving}
+            errorMessage={errors.customInstructions?.message}
+            {...register('customInstructions')}
+          />
           <Text variant="muted" className="text-xs">
             {t('page.customInstructions.counter', { count: value.length })}
           </Text>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!gate.effective || !dirty || tooLong || savePending}
-            onClick={async () => {
-              try {
-                await upsert({ organizationId, customInstructions: value });
-                setDraft(undefined);
-                toast({ title: t('toasts.saved') });
-              } catch {
-                toast({
-                  title: t('errors.saveFailed'),
-                  variant: 'destructive',
-                });
-              }
-            }}
-          >
-            {t('card.save')}
-          </Button>
-        </div>
-      </Stack>
+        </Stack>
+      </form>
     </SettingsSection>
   );
 }
@@ -239,13 +264,11 @@ function MemoriesSection({
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
-      title={t('page.memories.title')}
+      title={t('page.memoriesToggle.label')}
       description={description}
       action={
         <Switch
-          label={t('page.memoriesToggle.label')}
-          hideLabelOnMobile
+          aria-label={t('page.memoriesToggle.label')}
           checked={gate.effective}
           disabled={isPending}
           onCheckedChange={async (next) => {
@@ -283,11 +306,11 @@ function MemoriesSection({
 }
 
 /**
- * One memory list. `entries` is `undefined` while the memories backend has
- * not answered — the list says nothing has loaded rather than claiming the
- * user has no memories. The lists are read-only until the memory mutations
- * exist behind the same seam that feeds them; a review control that silently
- * did nothing would be worse than none.
+ * One memory list under a plain label. `entries` is `undefined` while the
+ * memories backend has not answered — the list says nothing has loaded rather
+ * than claiming the user has no memories. The lists are read-only until the
+ * memory mutations exist behind the same seam that feeds them; a review
+ * control that silently did nothing would be worse than none.
  */
 function MemoryList({
   title,
@@ -302,9 +325,7 @@ function MemoryList({
 
   return (
     <Stack gap={2}>
-      <Text variant="muted" className="text-xs font-medium uppercase">
-        {title}
-      </Text>
+      <Text className="text-sm font-medium">{title}</Text>
       {entries === undefined ? (
         <Text variant="muted" className="text-sm">
           {tChat('backendUnavailable.title')}

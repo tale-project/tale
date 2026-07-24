@@ -82,13 +82,11 @@ export function VoiceOutputPolicyEditor({
   return (
     <Skeletonize loading={isLoading} label={t('voiceOutput.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('voiceOutput.title')}
         description={t('voiceOutput.description')}
         action={
           <Switch
-            label={t('voiceOutput.enabledLabel')}
-            hideLabelOnMobile
+            aria-label={t('voiceOutput.enabledLabel')}
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={cannotManage || upsertMutation.isPending}

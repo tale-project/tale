@@ -5,6 +5,7 @@ export {
   useRegisterActiveEditor,
 } from './active-editor-context';
 export { useComposedEditor } from './compose-editors';
+export { EditorGroup, useRegisterGroupedEditor } from './editor-group';
 export {
   DirtyBlockerProvider,
   useDirtyBlockerControl,

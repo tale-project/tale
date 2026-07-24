@@ -8,10 +8,14 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -36,7 +40,9 @@ interface SkillFormState {
  * merges over the on-disk file, so frontmatter the editor doesn't know
  * (license, icon, recommended-packages, custom keys) survives untouched.
  * Read-only for viewers without edit rights (owner, or org-admin for org
- * skills — `canEdit` is computed server-side).
+ * skills — `canEdit` is computed server-side). Saving runs through the
+ * settings header's global Save/Discard cluster; Delete stays local as a
+ * dialog-confirmed destructive action.
  */
 export function SkillEditor({
   organizationId,
@@ -55,23 +61,50 @@ export function SkillEditor({
   const saveSkill = useSaveSkill();
   const deleteSkill = useDeleteSkill();
 
-  const [form, setForm] = useState<SkillFormState | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const skill = skillQuery.data;
 
-  // Seed the form once per loaded document; a reactive refetch must not
-  // clobber in-progress edits, so only a null form adopts server state.
-  useEffect(() => {
-    if (skill && form === null) {
-      setForm({
-        description: skill.description,
-        body: skill.body,
-        visibility: skill.visibility,
-        labels: (skill.labels ?? []).join(', '),
-      });
-    }
-  }, [skill, form]);
+  const data = useMemo<SkillFormState | undefined>(() => {
+    if (!skill) return undefined;
+    return {
+      description: skill.description,
+      body: skill.body,
+      visibility: skill.visibility,
+      labels: (skill.labels ?? []).join(', '),
+    };
+  }, [skill]);
+
+  const save = useCallback(
+    async (values: SkillFormState) => {
+      const labels = values.labels
+        .split(',')
+        .map((label) => label.trim())
+        .filter(Boolean);
+      try {
+        await saveSkill.mutateAsync({
+          organizationId,
+          slug,
+          description: values.description.trim(),
+          body: values.body,
+          visibility: values.visibility,
+          labels,
+        });
+        toast({ title: t('skills.editor.saveSuccess'), variant: 'success' });
+      } catch (error) {
+        console.error('Failed to save skill', error);
+        toast({ title: t('skills.editor.saveFailed'), variant: 'destructive' });
+        throw error;
+      }
+    },
+    [organizationId, saveSkill, slug, t],
+  );
+
+  const editor = useFormEditor<SkillFormState>({ data, save });
+  useRegisterGroupedEditor(editor, {
+    enabled: skill != null && skill.canEdit,
+  });
+  const { register, watch, setValue } = editor.form;
 
   if (skillQuery.isPending) {
     return (
@@ -99,28 +132,6 @@ export function SkillEditor({
 
   const readOnly = !skill.canEdit;
 
-  const submit = async () => {
-    if (!form || readOnly) return;
-    const labels = form.labels
-      .split(',')
-      .map((label) => label.trim())
-      .filter(Boolean);
-    try {
-      await saveSkill.mutateAsync({
-        organizationId,
-        slug,
-        description: form.description.trim(),
-        body: form.body,
-        visibility: form.visibility,
-        labels,
-      });
-      toast({ title: t('skills.editor.saveSuccess'), variant: 'success' });
-    } catch (error) {
-      console.error('Failed to save skill', error);
-      toast({ title: t('skills.editor.saveFailed'), variant: 'destructive' });
-    }
-  };
-
   const confirmDelete = async () => {
     try {
       await deleteSkill.mutateAsync({ organizationId, slug });
@@ -147,116 +158,97 @@ export function SkillEditor({
           )}
         </HStack>
         {!readOnly && (
-          <HStack gap={2}>
-            <Button variant="secondary" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="text-destructive mr-1 size-4" />
-              {tCommon('actions.delete')}
-            </Button>
-            <Button
-              disabled={saveSkill.isPending || !form}
-              onClick={() => void submit()}
-            >
-              {saveSkill.isPending
-                ? tCommon('actions.saving')
-                : tCommon('actions.save')}
-            </Button>
-          </HStack>
+          <Button variant="secondary" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="text-destructive mr-1 size-4" />
+            {tCommon('actions.delete')}
+          </Button>
         )}
       </Row>
 
       {readOnly && <Alert description={t('skills.readOnly')} />}
 
-      <Stack gap={4}>
-        <Stack gap={1}>
-          <label htmlFor="skill-description" className="text-sm font-medium">
-            {t('skills.form.description')}
-          </label>
-          <Input
-            id="skill-description"
-            value={form?.description ?? ''}
-            onChange={(e) =>
-              setForm((f) => (f ? { ...f, description: e.target.value } : f))
-            }
-            disabled={readOnly}
-            aria-describedby="skill-description-help"
-          />
-          <p
-            id="skill-description-help"
-            className="text-muted-foreground text-xs"
-          >
-            {t('skills.editor.descriptionHelp')}
-          </p>
-        </Stack>
+      <form onSubmit={editor.submit}>
+        <Stack gap={4}>
+          <Stack gap={1}>
+            <label htmlFor="skill-description" className="text-sm font-medium">
+              {t('skills.form.description')}
+            </label>
+            <Input
+              id="skill-description"
+              disabled={readOnly}
+              aria-describedby="skill-description-help"
+              {...register('description')}
+            />
+            <p
+              id="skill-description-help"
+              className="text-muted-foreground text-xs"
+            >
+              {t('skills.editor.descriptionHelp')}
+            </p>
+          </Stack>
 
-        <Stack gap={1}>
-          <span className="text-sm font-medium">
-            {t('skills.visibility.label')}
-          </span>
-          <RadioGroup
-            aria-label={t('skills.visibility.label')}
-            value={form?.visibility ?? 'org'}
-            onValueChange={(visibility) =>
-              setForm((f) =>
-                f && (visibility === 'private' || visibility === 'org')
-                  ? { ...f, visibility }
-                  : f,
-              )
-            }
-            options={[
-              {
-                value: 'org',
-                label: t('skills.visibility.org'),
-                description: t('skills.visibility.orgHelp'),
-              },
-              {
-                value: 'private',
-                label: t('skills.visibility.private'),
-                description: t('skills.visibility.privateHelp'),
-              },
-            ]}
-            disabled={readOnly}
-          />
-        </Stack>
+          <Stack gap={1}>
+            <span className="text-sm font-medium">
+              {t('skills.visibility.label')}
+            </span>
+            <RadioGroup
+              aria-label={t('skills.visibility.label')}
+              value={watch('visibility') ?? 'org'}
+              onValueChange={(visibility) => {
+                if (visibility === 'private' || visibility === 'org') {
+                  setValue('visibility', visibility, { shouldDirty: true });
+                }
+              }}
+              options={[
+                {
+                  value: 'org',
+                  label: t('skills.visibility.org'),
+                  description: t('skills.visibility.orgHelp'),
+                },
+                {
+                  value: 'private',
+                  label: t('skills.visibility.private'),
+                  description: t('skills.visibility.privateHelp'),
+                },
+              ]}
+              disabled={readOnly}
+            />
+          </Stack>
 
-        <Stack gap={1}>
-          <label htmlFor="skill-labels" className="text-sm font-medium">
-            {t('skills.editor.labels')}
-          </label>
-          <Input
-            id="skill-labels"
-            value={form?.labels ?? ''}
-            onChange={(e) =>
-              setForm((f) => (f ? { ...f, labels: e.target.value } : f))
-            }
-            disabled={readOnly}
-            placeholder={t('skills.editor.labelsPlaceholder')}
-            aria-describedby="skill-labels-help"
-          />
-          <p id="skill-labels-help" className="text-muted-foreground text-xs">
-            {t('skills.editor.labelsHelp')}
-          </p>
-        </Stack>
+          <Stack gap={1}>
+            <label htmlFor="skill-labels" className="text-sm font-medium">
+              {t('skills.editor.labels')}
+            </label>
+            <Input
+              id="skill-labels"
+              disabled={readOnly}
+              placeholder={t('skills.editor.labelsPlaceholder')}
+              aria-describedby="skill-labels-help"
+              {...register('labels')}
+            />
+            <p id="skill-labels-help" className="text-muted-foreground text-xs">
+              {t('skills.editor.labelsHelp')}
+            </p>
+          </Stack>
 
-        <Stack gap={1}>
-          <label htmlFor="skill-body" className="text-sm font-medium">
-            {t('skills.section.body')}
-          </label>
-          <Textarea
-            id="skill-body"
-            value={form?.body ?? ''}
-            onChange={(e) =>
-              setForm((f) => (f ? { ...f, body: e.target.value } : f))
-            }
-            disabled={readOnly}
-            rows={18}
-            className="font-mono text-sm"
-            aria-describedby="skill-body-help"
-          />
-          <p id="skill-body-help" className="text-muted-foreground text-xs">
-            {t('skills.editor.bodyHelp')}
-          </p>
+          <Stack gap={1}>
+            <label htmlFor="skill-body" className="text-sm font-medium">
+              {t('skills.section.body')}
+            </label>
+            <Textarea
+              id="skill-body"
+              disabled={readOnly}
+              rows={18}
+              className="font-mono text-sm"
+              aria-describedby="skill-body-help"
+              {...register('body')}
+            />
+            <p id="skill-body-help" className="text-muted-foreground text-xs">
+              {t('skills.editor.bodyHelp')}
+            </p>
+          </Stack>
         </Stack>
-      </Stack>
+      </form>
 
       <DeleteDialog
         open={deleteOpen}

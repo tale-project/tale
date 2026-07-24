@@ -1,5 +1,11 @@
+import { act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  ActiveEditorProvider,
+  useActiveEditor,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { render, screen } from '@/tests/utils/render';
 
 import { LoginPolicyEditor } from './login-policy-editor';
@@ -122,14 +128,28 @@ describe('LoginPolicyEditor', () => {
       };
       saveMutateAsync.mockClear();
 
-      const { user } = render(<LoginPolicyEditor organizationId="org-1" />);
+      // The editor saves through the controller it registers with the global
+      // settings save bar — capture it and drive the save like the bar would.
+      const capture = { current: null as EditorController | null };
+      function ActiveProbe() {
+        capture.current = useActiveEditor();
+        return null;
+      }
+      const { user } = render(
+        <ActiveEditorProvider>
+          <ActiveProbe />
+          <LoginPolicyEditor organizationId="org-1" />
+        </ActiveEditorProvider>,
+      );
 
       const maxAttempts = screen.getByRole('spinbutton');
       await user.clear(maxAttempts);
       await user.type(maxAttempts, '7');
 
-      const saveButton = screen.getByRole('button', { name: /save/i });
-      await user.click(saveButton);
+      expect(capture.current?.isDirty).toBe(true);
+      await act(async () => {
+        await capture.current?.save();
+      });
 
       expect(saveMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({

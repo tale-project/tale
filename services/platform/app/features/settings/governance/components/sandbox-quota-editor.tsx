@@ -1,12 +1,15 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -112,6 +115,10 @@ export function SandboxQuotaEditor({
   );
 
   const editor = useFormEditor<SandboxQuotaForm>({ data, schema, save });
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers stay unregistered so the cluster never renders for a
+  // section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canEdit });
 
   const {
     register,
@@ -121,7 +128,6 @@ export function SandboxQuotaEditor({
   return (
     <Skeletonize loading={isLoading} label={t('sandboxQuota.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('sandboxQuota.title')}
         description={t('sandboxQuota.description')}
       >
@@ -130,8 +136,6 @@ export function SandboxQuotaEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Full section width (not max-w-2xl): Discard/Save must share
-                the section right edge with sibling Policies & limits actions. */}
             <Stack gap={6}>
               <div>
                 <Input
@@ -148,16 +152,6 @@ export function SandboxQuotaEditor({
                   {t('sandboxQuota.maxSessionsHint')}
                 </Text>
               </div>
-
-              <HStack justify="end">
-                <EditorActions
-                  controller={editor}
-                  formId={FORM_ID}
-                  canEdit={canEdit}
-                  entityKind="governance_sandbox_quota"
-                  suppressServerErrorToast
-                />
-              </HStack>
             </Stack>
           </fieldset>
         </form>

@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  ActiveEditorProvider,
+  useActiveEditor,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { render, screen } from '@/tests/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -39,19 +45,34 @@ vi.mock('../hooks/mutations', () => ({
 
 import { SkillEditor } from './skill-editor';
 
+/** Captures the controller the editor registers with the global save bar. */
+function ActiveProbe({
+  capture,
+}: {
+  capture: { current: EditorController | null };
+}) {
+  capture.current = useActiveEditor();
+  return null;
+}
+
 function renderEditor() {
-  return render(
-    <SkillEditor
-      organizationId="org-1"
-      slug="visual-aspect-analyzer"
-      onBack={vi.fn()}
-      onDeleted={vi.fn()}
-    />,
+  const capture = { current: null as EditorController | null };
+  const utils = render(
+    <ActiveEditorProvider>
+      <ActiveProbe capture={capture} />
+      <SkillEditor
+        organizationId="org-1"
+        slug="visual-aspect-analyzer"
+        onBack={vi.fn()}
+        onDeleted={vi.fn()}
+      />
+    </ActiveEditorProvider>,
   );
+  return { ...utils, capture };
 }
 
 describe('SkillEditor', () => {
-  it('seeds the form from the loaded document and saves the edited fields', async () => {
+  it('seeds the form from the loaded document and saves the edited fields through the global controller', async () => {
     skillData = {
       slug: 'visual-aspect-analyzer',
       description: 'Analyze visual aspects.',
@@ -60,7 +81,7 @@ describe('SkillEditor', () => {
       labels: ['vision', 'pdf'],
       canEdit: true,
     };
-    const { user } = renderEditor();
+    const { user, capture } = renderEditor();
 
     const description = screen.getByLabelText(
       'settings.skills.form.description',
@@ -75,9 +96,11 @@ describe('SkillEditor', () => {
 
     await user.clear(description);
     await user.type(description, 'Sharper description.');
-    await user.click(
-      screen.getByRole('button', { name: 'common.actions.save' }),
-    );
+
+    expect(capture.current?.isDirty).toBe(true);
+    await act(async () => {
+      await capture.current?.save();
+    });
 
     expect(saveSkill).toHaveBeenCalledWith({
       organizationId: 'org-1',
@@ -89,7 +112,7 @@ describe('SkillEditor', () => {
     });
   });
 
-  it('renders read-only (no save/delete) when the viewer cannot edit', () => {
+  it('renders read-only (no delete, no registered editor) when the viewer cannot edit', () => {
     skillData = {
       slug: 'visual-aspect-analyzer',
       description: 'Analyze visual aspects.',
@@ -97,15 +120,17 @@ describe('SkillEditor', () => {
       body: '',
       canEdit: false,
     };
-    renderEditor();
+    const { capture } = renderEditor();
 
     expect(screen.getByText('settings.skills.readOnly')).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'common.actions.save' }),
+      screen.queryByRole('button', { name: /common.actions.delete/ }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByLabelText('settings.skills.form.description'),
     ).toBeDisabled();
+    // Read-only viewers never get Save/Discard in the settings header.
+    expect(capture.current).toBeNull();
   });
 
   it('shows not-found for a missing slug', () => {

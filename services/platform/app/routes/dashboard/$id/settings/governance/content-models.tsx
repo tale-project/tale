@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { DefaultModelEditor } from '@/app/features/settings/governance/components/default-model-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
@@ -32,9 +33,11 @@ function ContentModelsRoute() {
   // would otherwise let one editor pop in alone.
   return (
     <SettingsPage>
-      <SystemPromptEditor organizationId={organizationId} />
-      <DefaultModelEditor organizationId={organizationId} />
-      <ModelAccessEditor organizationId={organizationId} />
+      <EditorGroup>
+        <SystemPromptEditor organizationId={organizationId} />
+        <DefaultModelEditor organizationId={organizationId} />
+        <ModelAccessEditor organizationId={organizationId} />
+      </EditorGroup>
     </SettingsPage>
   );
 }
