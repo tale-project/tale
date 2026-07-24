@@ -24,10 +24,7 @@ import type {
   IntegrationAction,
   IntegrationConnector,
 } from '../shared/schemas/integrations';
-import {
-  loadConnectorFile as parseConnectorFile,
-  loadIntegrationConnectors,
-} from './catalog';
+import { loadIntegrationConnectors } from './catalog';
 
 /** Mock bodies are pure data reshaping; a generous ceiling still bounds a
  * runaway loop without failing a legitimately large fixture. */

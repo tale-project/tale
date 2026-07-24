@@ -26,11 +26,18 @@ import { createLiveHost } from '../../lib/integrations/live-host';
 import { internalAction } from '../_generated/server';
 import { resolveIntegrationCredential } from '../integration_credentials/resolve_credential';
 
-const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
-type HostcallMethod = (typeof HTTP_METHODS)[number];
+/** Uppercase wire verb → the live host's method, closed by construction. */
+const HTTP_VERBS = {
+  GET: 'get',
+  POST: 'post',
+  PUT: 'put',
+  PATCH: 'patch',
+  DELETE: 'delete',
+} as const;
+type HostcallMethod = keyof typeof HTTP_VERBS;
 
 function isHostcallMethod(value: string): value is HostcallMethod {
-  return (HTTP_METHODS as readonly string[]).includes(value);
+  return value in HTTP_VERBS;
 }
 
 interface HostcallOutcome {
@@ -95,7 +102,7 @@ export const performIntegrationHostCall = internalAction({
           authHeader: credential.authHeader,
         }),
       });
-      const verb = args.method.toLowerCase() as Lowercase<HostcallMethod>;
+      const verb = HTTP_VERBS[args.method];
       const response = await host.http[verb](args.url, {
         ...(args.req?.headers !== undefined && { headers: args.req.headers }),
         ...(args.req?.body !== undefined && { body: args.req.body }),

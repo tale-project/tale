@@ -551,15 +551,15 @@ export const getCodingTurnMetrics = query({
       durationP95Ms: percentile(durations, 95),
       spentCents,
       byHarness: [...byHarness.entries()]
-        .map(([harness, stats]) => ({
-          harness,
-          ...stats,
-          successRate:
-            stats.completed + stats.failed + stats.timeout === 0
-              ? null
-              : stats.completed /
-                (stats.completed + stats.failed + stats.timeout),
-        }))
+        .map(([harness, stats]) =>
+          Object.assign({ harness }, stats, {
+            successRate:
+              stats.completed + stats.failed + stats.timeout === 0
+                ? null
+                : stats.completed /
+                  (stats.completed + stats.failed + stats.timeout),
+          }),
+        )
         .sort((a, b) => b.total - a.total),
     };
   },
