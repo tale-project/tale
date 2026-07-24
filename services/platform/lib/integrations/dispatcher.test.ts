@@ -66,6 +66,10 @@ function liveCapableRunner(): CodeRunner {
       ) as (input: unknown, ctx: unknown) => Promise<unknown>;
       return body(scope.input, scope.ctx);
     },
+    // Identify as what it is: the dispatcher refuses live yaml-js on the
+    // data-only 'node-vm' backend, and this double is exactly the
+    // host-capable runner that rule waits for.
+    kind: () => 'live-capable-test',
   };
 }
 
@@ -392,6 +396,29 @@ describe('mock mode', () => {
 });
 
 describe('live yaml-js backend', () => {
+  it('refuses live on the data-only node-vm runner, before any host work', async () => {
+    // The bundled in-process runner cannot carry `ctx.secrets.get` or the
+    // HTTP host across its JSON boundary — the dispatcher must say so up
+    // front rather than let the body die inside vendor code.
+    setCodeRunner(nodeVmRunner());
+    try {
+      const credentials = resolver();
+      await expect(
+        executeIntegrationAction({
+          connector: 'demo',
+          action: 'echo',
+          input: { message: 'hello' },
+          credentialRef: 'primary',
+          caller: { kind: 'user', userId: 'u1' },
+          ctx: { organizationId: ORG, mode: 'live', credentials },
+        }),
+      ).rejects.toMatchObject({ code: 'LIVE_RUNNER_UNAVAILABLE' });
+      expect(fetchStub).not.toHaveBeenCalled();
+    } finally {
+      setCodeRunner(liveCapableRunner());
+    }
+  });
+
   it('runs the live body against the mediated host', async () => {
     const credentials = resolver();
     const result = await executeIntegrationAction({

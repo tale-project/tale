@@ -22,6 +22,8 @@ export const INTEGRATION_CODES = {
   NO_LIVE_BACKEND: 'a mock-only action cannot run live',
   NATIVE_IMPL_UNAVAILABLE:
     'a native backend must be registered before it can run',
+  LIVE_RUNNER_UNAVAILABLE:
+    'a live yaml-js body needs a host-capable code runner, never the data-only one',
   MOCK_BODY_FAILED: 'a deterministic mock body must produce its output',
   LIVE_BODY_FAILED:
     'a live connector body reached the outside world and failed',

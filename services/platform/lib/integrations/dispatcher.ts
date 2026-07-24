@@ -594,6 +594,22 @@ export async function executeIntegrationAction(
     );
   }
 
+  // A yaml-js LIVE body needs a runner that can proxy host capabilities
+  // (`ctx.secrets.get`, the HTTP host). The bundled node-vm backend is
+  // data-only — functions never cross its JSON boundary — so running the body
+  // there would die inside vendor code with a bare TypeError. Refuse up front
+  // with the real reason instead of pretending.
+  if (backend.kind === 'yaml-js' && codeRunner().kind() === 'node-vm') {
+    throw new IntegrationError(
+      'LIVE_RUNNER_UNAVAILABLE',
+      `${nodeType} has a live body, but this deployment's code runner is the data-only in-process one, which cannot reach credentials or the network`,
+      {
+        ...where,
+        hint: 'live yaml-js execution needs the out-of-process sandbox runner, which is not wired up yet — run the action in mock mode until it lands',
+      },
+    );
+  }
+
   if (policy.gateApprovals && action.effects === 'write') {
     if (!ctx.approvals) {
       throw new IntegrationError(
