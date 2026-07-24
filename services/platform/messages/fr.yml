@@ -8642,6 +8642,12 @@ sandboxes:
     Sandboxes d’agent distant toujours actives pour votre organisation.
     Chaque membre dispose d’une sandbox persistante par organisation ;
     épinglez-en une pour la garder toujours prête.
+  quota:
+    budgets:
+      user: Sessions d’agent
+      thread: Sessions run-code
+      workflow: Sessions de workflow
+      render: Sessions de rendu
   columns:
     owner: Propriétaire
     agent: Agent

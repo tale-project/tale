@@ -8527,6 +8527,12 @@ sandboxes:
   description: Always-on Remote-Agent-Sandboxes für Ihre Organisation. Jedes
     Mitglied erhält eine dauerhafte Sandbox pro Organisation; pinnen Sie eine
     an, damit sie immer bereit ist.
+  quota:
+    budgets:
+      user: Agent-Sitzungen
+      thread: Run-Code-Sitzungen
+      workflow: Workflow-Sitzungen
+      render: Render-Sitzungen
   columns:
     owner: Eigentümer
     agent: Agent

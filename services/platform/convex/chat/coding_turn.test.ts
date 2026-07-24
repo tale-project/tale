@@ -184,6 +184,68 @@ describe('recordTurnEvent + getCodingTurnMetrics — the turn SLO', () => {
   });
 });
 
+describe('getSandboxQuotaUsage — session usage vs cap', () => {
+  const ADMIN2 = 'user_admin2';
+
+  async function insertSession(
+    t: T,
+    ownerType: string,
+    status: 'creating' | 'active' | 'stopped',
+    ownerId: string,
+  ) {
+    await t.run((ctx) =>
+      ctx.db.insert('sandboxSessions', {
+        organizationId: ORG,
+        sessionId: `sid-${ownerId}`,
+        profile: 'agent',
+        status,
+        ownerType,
+        ownerId,
+        createdBy: 'u',
+        createdAt: 0,
+        expiresAt: 1,
+      }),
+    );
+  }
+
+  it('counts creating+active per budget (not stopped) and flags at/near limit', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ADMIN2, ORG, 'admin');
+    // Default user cap is 2. Two active user sessions → at limit.
+    await insertSession(t, 'user', 'active', 'u1');
+    await insertSession(t, 'user', 'creating', 'u2');
+    // A stopped session freed its slot — must NOT count.
+    await insertSession(t, 'user', 'stopped', 'u3');
+    // One thread session (cap 8) → well under.
+    await insertSession(t, 'thread', 'active', 't1');
+
+    const usage = await t
+      .withIdentity({ subject: ADMIN2 })
+      .query(api.sandbox.session_queries_public.getSandboxQuotaUsage, {
+        organizationId: ORG,
+      });
+    expect(usage).not.toBeNull();
+    if (usage === null) throw new Error('unreachable');
+    const user = usage.find((b) => b.budget === 'user');
+    const thread = usage.find((b) => b.budget === 'thread');
+    expect(user?.used).toBe(2);
+    expect(user?.atLimit).toBe(true);
+    expect(thread?.used).toBe(1);
+    expect(thread?.atLimit).toBe(false);
+  });
+
+  it('denies a non-developer member', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'plain_member', ORG, 'member');
+    const denied = await t
+      .withIdentity({ subject: 'plain_member' })
+      .query(api.sandbox.session_queries_public.getSandboxQuotaUsage, {
+        organizationId: ORG,
+      });
+    expect(denied).toBeNull();
+  });
+});
+
 describe('getHarnessHealth — the circuit breaker signal', () => {
   const MEMBER = 'user_member';
 

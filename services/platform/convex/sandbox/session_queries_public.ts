@@ -17,6 +17,12 @@ import type {
   BetterAuthUser,
 } from '../members/types';
 import {
+  readSandboxQuotaPolicy,
+  sessionBudgetForOwnerType,
+  sessionCapFor,
+  type SessionBudget,
+} from './quota_policy';
+import {
   sessionIdForWorkflowExecution,
   sessionIdForWorkflowRun,
   userOwnerId,
@@ -620,5 +626,71 @@ export const getHarnessHealth = query({
         stats.total >= HARNESS_HEALTH_MIN_SAMPLE &&
         stats.failures / stats.total >= HARNESS_HEALTH_FAIL_THRESHOLD,
     }));
+  },
+});
+
+/** Warn when in-flight usage reaches this fraction of a budget's cap, so the
+ * page flags pressure BEFORE a hard refusal. */
+const QUOTA_WARN_FRACTION = 0.8;
+
+/**
+ * Per-budget sandbox session usage vs cap for the org — the "配额打满有预警"
+ * surface. A session holds a slot while `creating`/`active` (a `stopped` one
+ * freed it), so those are what count against the cap, split by the same budget
+ * mapping the reserve uses (user / thread / workflow / render). Each budget
+ * reports `used`, `cap`, `atLimit` (a new session of that kind would be
+ * refused), and `nearLimit` (≥80% — the soft warning). Admin-gated
+ * (developerSettings) like the Sandboxes page; null on access-denied.
+ */
+export const getSandboxQuotaUsage = query({
+  args: { organizationId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    try {
+      const member = await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+      if (defineAbilityFor(member.role).cannot('read', 'developerSettings')) {
+        return null;
+      }
+    } catch (err) {
+      if (err instanceof UnauthorizedError) return null;
+      throw err;
+    }
+
+    const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
+    const used: Record<SessionBudget, number> = {
+      user: 0,
+      thread: 0,
+      workflow: 0,
+      render: 0,
+    };
+    // Only creating|active hold a slot (stopped freed it) — the exact set the
+    // reserve counts against the cap.
+    for (const status of ['creating', 'active'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        used[sessionBudgetForOwnerType(row.ownerType)] += 1;
+      }
+    }
+
+    const budgets: SessionBudget[] = ['user', 'thread', 'workflow', 'render'];
+    return budgets.map((budget) => {
+      const cap = sessionCapFor(budget, quota);
+      const u = used[budget];
+      return {
+        budget,
+        used: u,
+        cap,
+        atLimit: u >= cap,
+        nearLimit: cap > 0 && u / cap >= QUOTA_WARN_FRACTION,
+      };
+    });
   },
 });

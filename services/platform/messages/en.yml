@@ -8187,6 +8187,12 @@ sandboxes:
     Always-on remote agent sandboxes for your organization. Each member
     gets one persistent sandbox per organization; pin one to keep it always
     ready.
+  quota:
+    budgets:
+      user: Agent sessions
+      thread: Run-code sessions
+      workflow: Workflow sessions
+      render: Render sessions
   columns:
     owner: Owner
     agent: Agent
