@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
+import { useTheme } from '@tale/ui/theme';
 import {
   useCallback,
   useEffect,
@@ -22,12 +23,14 @@ import {
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
+import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   brandingFormSchema,
   type BrandingFormData,
 } from '@/lib/shared/schemas/branding';
+import { adjustColorForTheme } from '@/lib/utils/color';
 import {
   deriveFaviconPngBase64,
   shouldDeriveFavicon,
@@ -90,22 +93,47 @@ export function BrandingForm({
   const snapshotHistory = useSnapshotBrandingHistory();
   const deleteImage = useDeleteImage();
   const saveImage = useSaveImage();
+  const { resolvedTheme } = useTheme();
+
+  // The stored accent is ALWAYS the light-mode color; dark mode derives its
+  // variant at render time. The picker therefore works in the CURRENT
+  // theme's terms: in dark mode the field shows (and the user picks) the
+  // dark-rendered color, and a changed pick is converted back to its
+  // light-mode equivalent before storing. An untouched field round-trips the
+  // stored value verbatim — the lightness walk is lossy, so converting an
+  // unchanged display value would drift the stored color on every save.
+  const storedAccent = branding?.accentColor ?? '';
+  const displayAccent = useMemo(() => {
+    if (!storedAccent) return '';
+    return resolvedTheme === 'dark'
+      ? adjustColorForTheme(storedAccent, 'dark')
+      : storedAccent;
+  }, [storedAccent, resolvedTheme]);
 
   const data = useMemo<BrandingFormData>(
     () => ({
-      accentColor: branding?.accentColor ?? '',
+      accentColor: displayAccent,
       logoFilename: branding?.logoFilename ?? '',
       faviconLightFilename: branding?.faviconLightFilename ?? '',
       faviconDarkFilename: branding?.faviconDarkFilename ?? '',
     }),
-    [branding],
+    [branding, displayAccent],
   );
 
   const save = useCallback(
     async (values: BrandingFormData) => {
       try {
+        const pickedAccent = values.accentColor || undefined;
+        const accentToStore =
+          pickedAccent === undefined
+            ? undefined
+            : pickedAccent === displayAccent
+              ? storedAccent || pickedAccent
+              : resolvedTheme === 'dark'
+                ? adjustColorForTheme(pickedAccent, 'light')
+                : pickedAccent;
         const config = {
-          accentColor: values.accentColor || undefined,
+          accentColor: accentToStore,
           logoFilename: values.logoFilename || undefined,
           faviconLightFilename: values.faviconLightFilename || undefined,
           faviconDarkFilename: values.faviconDarkFilename || undefined,
@@ -133,11 +161,14 @@ export function BrandingForm({
       }
     },
     [
+      displayAccent,
       organizationId,
       onSaved,
       refetchBranding,
+      resolvedTheme,
       saveBranding,
       snapshotHistory,
+      storedAccent,
       toast,
       tToast,
     ],
@@ -149,7 +180,27 @@ export function BrandingForm({
     save,
   });
 
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const hasAnyBranding =
+    !!branding?.accentColor ||
+    !!branding?.logoUrl ||
+    !!branding?.faviconLightUrl ||
+    !!branding?.faviconDarkUrl;
+
   useRegisterActiveEditor(editor);
+
+  // Reset lives in the settings header next to Save/Discard (the shared
+  // top-bar slot) rather than as a local button at the form's foot. The
+  // action count must stay stable across renders, so it registers always
+  // and disables when there is nothing to reset.
+  useRegisterSettingsSecondaryAction([
+    {
+      label: tCommon('actions.reset'),
+      variant: 'secondary',
+      disabled: !hasAnyBranding,
+      onClick: () => setConfirmClearOpen(true),
+    },
+  ]);
 
   const {
     form: { watch, setValue, getValues, control },
@@ -227,8 +278,6 @@ export function BrandingForm({
     ],
   );
 
-  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
-
   // Clear branding wipes the form fields AND deletes the uploaded image
   // blobs. Distinct from the per-row Discard which only reverts unsaved
   // edits — clearing is a destructive, server-mutating action.
@@ -249,12 +298,6 @@ export function BrandingForm({
       console.warn('[branding] failed to delete image blobs on clear', err);
     });
   }, [organizationId, setValue, deleteImage]);
-
-  const hasAnyBranding =
-    !!branding?.accentColor ||
-    !!branding?.logoUrl ||
-    !!branding?.faviconLightUrl ||
-    !!branding?.faviconDarkUrl;
 
   return (
     <Form
@@ -351,18 +394,6 @@ export function BrandingForm({
             )}
           />
         </FormSection>
-
-        {hasAnyBranding && (
-          <HStack justify="start" className="mt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setConfirmClearOpen(true)}
-            >
-              {tCommon('actions.reset')}
-            </Button>
-          </HStack>
-        )}
       </Stack>
 
       {/* Clearing is destructive (deletes the uploaded logo + favicon blobs

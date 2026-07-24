@@ -5,6 +5,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { SubPanel } from '@/app/components/layout/sub-panel';
 import { useAbility } from '@/app/hooks/use-ability';
 import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
@@ -266,6 +267,14 @@ function RailRow({
   active: boolean;
   className?: string;
 }) {
+  // Same accent treatment as the unified app sidebar's active tile: branded
+  // orgs tint the active row with the org accent; unbranded ones keep the
+  // muted-gray fallback.
+  const { accentColor } = useBrandingContext();
+  const activeStyle =
+    active && accentColor
+      ? { backgroundColor: `${accentColor}26`, color: accentColor }
+      : undefined;
   return (
     <li>
       <Link
@@ -274,10 +283,13 @@ function RailRow({
         className={cn(
           ROW_BASE,
           active
-            ? 'bg-muted text-foreground font-medium'
+            ? accentColor
+              ? 'font-medium'
+              : 'bg-muted text-foreground font-medium'
             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
           className,
         )}
+        style={activeStyle}
       >
         {label}
       </Link>
@@ -317,6 +329,11 @@ function RailExpandableGroup({
   // Highlight the collapsed parent when the current page lives inside it, so
   // the active location stays visible; expanded, the child row carries it.
   const parentActive = active && !open;
+  const { accentColor } = useBrandingContext();
+  const parentActiveStyle =
+    parentActive && accentColor
+      ? { backgroundColor: `${accentColor}26`, color: accentColor }
+      : undefined;
 
   return (
     <li>
@@ -328,9 +345,12 @@ function RailExpandableGroup({
           ROW_BASE,
           'w-full cursor-pointer justify-between text-left',
           parentActive
-            ? 'bg-muted text-foreground font-medium'
+            ? accentColor
+              ? 'font-medium'
+              : 'bg-muted text-foreground font-medium'
             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
         )}
+        style={parentActiveStyle}
       >
         <span>{label}</span>
         <ChevronRight

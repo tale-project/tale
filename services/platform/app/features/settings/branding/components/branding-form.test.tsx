@@ -6,7 +6,9 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   ActiveEditorProvider,
   useActiveEditor,
+  type EditorController,
 } from '@/app/components/ui/editor';
+import { adjustColorForTheme } from '@/lib/utils/color';
 import { render, screen } from '@/tests/utils/render';
 
 // Mock next-intl
@@ -43,6 +45,17 @@ vi.mock('@/lib/utils/image/derive-favicon', () => ({
 vi.mock('@/app/components/branding/branding-provider', () => ({
   useBrandingContext: () => ({ refetch: vi.fn() }),
 }));
+
+// Controllable theme — the accent picker converts dark-mode picks to their
+// light-mode equivalent before storing.
+const mockTheme = { resolvedTheme: 'light' as 'light' | 'dark' };
+vi.mock('@tale/ui/theme', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@tale/ui/theme')>();
+  return {
+    ...original,
+    useTheme: () => ({ resolvedTheme: mockTheme.resolvedTheme }),
+  };
+});
 
 // Mock Image component
 vi.mock('@/app/components/ui/data-display/image', () => ({
@@ -202,6 +215,70 @@ describe('BrandingForm', () => {
 
     fireEvent.change(hexInput, { target: { value: 'FF0000' } });
     expect(screen.getByTestId('dirty')).toHaveTextContent('no');
+  });
+
+  describe('mode-aware accent storage (only the light color is stored)', () => {
+    it('stores a dark-mode pick converted to its light-mode equivalent', async () => {
+      mockTheme.resolvedTheme = 'dark';
+      const capture = { current: null as EditorController | null };
+      function ActiveCapture() {
+        capture.current = useActiveEditor();
+        return null;
+      }
+      render(
+        <ActiveEditorProvider>
+          <BrandingForm {...defaultProps} />
+          <ActiveCapture />
+        </ActiveEditorProvider>,
+      );
+
+      const hexInput = screen.getByLabelText('Accent color hex value');
+      // A near-white pick reads fine on the dark page but must not be stored
+      // as-is — light mode would render it invisible on white.
+      fireEvent.change(hexInput, { target: { value: 'F5F5F5' } });
+      await waitFor(() => expect(capture.current?.isDirty ?? false).toBe(true));
+      await capture.current?.save();
+
+      const expected = adjustColorForTheme('#F5F5F5', 'light');
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ accentColor: expected }),
+        }),
+      );
+      expect(expected).not.toBe('#F5F5F5');
+      mockTheme.resolvedTheme = 'light';
+    });
+
+    it('round-trips an untouched stored color verbatim in dark mode', async () => {
+      mockTheme.resolvedTheme = 'dark';
+      const capture = { current: null as EditorController | null };
+      function ActiveCapture() {
+        capture.current = useActiveEditor();
+        return null;
+      }
+      render(
+        <ActiveEditorProvider>
+          <BrandingForm
+            {...defaultProps}
+            branding={{ accentColor: '#1B3A6B', logoFilename: 'a.png' }}
+          />
+          <ActiveCapture />
+        </ActiveEditorProvider>,
+      );
+
+      // Dirty the form via an unrelated field so save() runs, leaving the
+      // accent untouched — the lossy display conversion must not drift it.
+      fireEvent.click(screen.getByTestId('upload-logo'));
+      await waitFor(() => expect(capture.current?.isDirty ?? false).toBe(true));
+      await capture.current?.save();
+
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ accentColor: '#1B3A6B' }),
+        }),
+      );
+      mockTheme.resolvedTheme = 'light';
+    });
   });
 
   describe('accessibility', () => {
