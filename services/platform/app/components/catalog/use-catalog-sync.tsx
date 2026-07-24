@@ -79,7 +79,7 @@ export function useCatalogSync({
   )
     ? {
         // Named after what it touches ("Update built-in agents"), not the
-        // mechanism — "catalog" means nothing next to Blank / From template.
+        // mechanism — "catalog" means nothing next to Blank / Upload.
         label: t(`button.${domain}`),
         icon: RefreshCw,
         onClick: () => setConfirmOpen(true),
