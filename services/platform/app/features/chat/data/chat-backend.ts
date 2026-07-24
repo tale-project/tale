@@ -166,6 +166,21 @@ export function useChatGeneration(
   );
 }
 
+/** Per-harness health for the composer's circuit-breaker hint. Reactive, so a
+ * harness that starts failing (or recovers) updates the picker live. */
+export function useHarnessHealth(organizationId: string): ChatQuery<
+  ReadonlyArray<{
+    harness: string;
+    recentTotal: number;
+    recentFailures: number;
+    degraded: boolean;
+  }>
+> {
+  return useChatQuery(api.sandbox.session_queries_public.getHarnessHealth, {
+    organizationId,
+  });
+}
+
 /**
  * What the composer's model picker offers. The model catalog and sandbox
  * harnesses are file-backed config the providers domain owns, so — like the

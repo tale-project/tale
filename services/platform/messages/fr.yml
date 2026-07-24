@@ -960,6 +960,7 @@ chat:
     label: Sélectionner un agent
     sectionPlatform: Chat
     sectionThirdParty: Agents tiers · s’exécutent dans une sandbox
+    degraded: en échec récemment
     auto: Auto
     autoDescription:
       Tale choisit le meilleur agent pour chaque message en fonction

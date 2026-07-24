@@ -38,6 +38,8 @@ interface ComposerProps {
   models: readonly ComposerModelOption[];
   /** Third-party coding agents (sandbox harnesses). */
   sandboxAgents: readonly ComposerSandboxAgentOption[];
+  /** Harness slugs the circuit breaker flags as recently failing. */
+  degradedHarnesses?: ReadonlySet<string>;
   /** What a conversation can equip a coding agent with. */
   skills: readonly ComposerCapabilityOption[];
   connectors: readonly ComposerCapabilityOption[];
@@ -62,6 +64,7 @@ interface ComposerProps {
 export function Composer({
   models,
   sandboxAgents,
+  degradedHarnesses,
   skills,
   connectors,
   selection,
@@ -129,6 +132,7 @@ export function Composer({
             selection={selection}
             onSelectionChange={onSelectionChange}
             disabled={disabled || lockAgent}
+            {...(degradedHarnesses !== undefined ? { degradedHarnesses } : {})}
           />
           {selection.agentKind === 'platform' ? (
             <ComposerModelPicker

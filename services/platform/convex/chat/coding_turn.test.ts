@@ -184,6 +184,66 @@ describe('recordTurnEvent + getCodingTurnMetrics — the turn SLO', () => {
   });
 });
 
+describe('getHarnessHealth — the circuit breaker signal', () => {
+  const MEMBER = 'user_member';
+
+  async function record(
+    t: T,
+    harness: string,
+    outcome: 'completed' | 'failed' | 'cancelled' | 'timeout',
+  ) {
+    await t.mutation(internal.sandbox.session_mutations.recordTurnEvent, {
+      organizationId: ORG,
+      threadId: 'thread_1',
+      userId: 'user_1',
+      harness,
+      outcome,
+      durationMs: 100,
+    });
+  }
+
+  it('flags a harness degraded when recent failures dominate; healthy otherwise', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, MEMBER, ORG, 'member');
+    // claude-code: 3 failed of 4 → degraded. codex: 3 completed of 3 → healthy.
+    await record(t, 'claude-code', 'failed');
+    await record(t, 'claude-code', 'failed');
+    await record(t, 'claude-code', 'timeout');
+    await record(t, 'claude-code', 'completed');
+    await record(t, 'codex', 'completed');
+    await record(t, 'codex', 'completed');
+    await record(t, 'codex', 'completed');
+    // A user Stop must not count against health.
+    await record(t, 'codex', 'cancelled');
+
+    const health = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.sandbox.session_queries_public.getHarnessHealth, {
+        organizationId: ORG,
+      });
+    const cc = health.find((h) => h.harness === 'claude-code');
+    const cx = health.find((h) => h.harness === 'codex');
+    expect(cc?.degraded).toBe(true);
+    expect(cx?.degraded).toBe(false);
+    // The cancelled turn was excluded from codex's sample (3, not 4).
+    expect(cx?.recentTotal).toBe(3);
+  });
+
+  it('does not trip below the minimum sample', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, MEMBER, ORG, 'member');
+    await record(t, 'claude-code', 'failed'); // 1 failure only
+    const health = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.sandbox.session_queries_public.getHarnessHealth, {
+        organizationId: ORG,
+      });
+    expect(health.find((h) => h.harness === 'claude-code')?.degraded).toBe(
+      false,
+    );
+  });
+});
+
 describe('getCodingOpForFinalize', () => {
   it('returns the op row mintedKeyId — the VK the finalize revokes', async () => {
     const t = convexTest(schema, modules);

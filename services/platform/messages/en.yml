@@ -916,6 +916,7 @@ chat:
     label: Select agent
     sectionPlatform: Chat
     sectionThirdParty: Third-party agents · run in a sandbox
+    degraded: recently failing
     auto: Auto
     autoDescription: Let Tale pick the best agent for each message based on what you ask.
     viewDetails: View agent details

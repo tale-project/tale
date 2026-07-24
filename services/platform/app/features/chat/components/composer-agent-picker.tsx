@@ -13,7 +13,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { Bot, ChevronDown, Sparkles } from 'lucide-react';
+import { AlertTriangle, Bot, ChevronDown, Sparkles } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -26,6 +26,9 @@ interface ComposerAgentPickerProps {
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   disabled?: boolean;
+  /** Harness slugs the circuit breaker flags as recently failing — the picker
+   * marks them so the user knows before spending a turn on one. */
+  degradedHarnesses?: ReadonlySet<string>;
 }
 
 export function ComposerAgentPicker({
@@ -33,6 +36,7 @@ export function ComposerAgentPicker({
   selection,
   onSelectionChange,
   disabled,
+  degradedHarnesses,
 }: ComposerAgentPickerProps) {
   const { t } = useT('chat');
 
@@ -62,28 +66,35 @@ export function ComposerAgentPicker({
     if (codingAgents.length > 0) {
       groups.push([
         { type: 'label', content: t('agentSelector.sectionThirdParty') },
-        ...codingAgents.map((agent) => ({
-          type: 'item' as const,
-          label: agent.label,
-          icon: Bot,
-          selected:
-            selection.agentKind === 'coding' &&
-            agent.harness === selection.harness,
-          // The platform model stays in the selection — a harness turn never
-          // reads it, and keeping it means returning to the platform agent
-          // returns to the model the user already had.
-          onClick: () =>
-            onSelectionChange({
-              ...selection,
-              agentKind: 'coding',
-              harness: agent.harness,
-            }),
-        })),
+        ...codingAgents.map((agent) => {
+          const degraded = degradedHarnesses?.has(agent.harness) === true;
+          return {
+            type: 'item' as const,
+            // A degraded harness keeps its name but gains a "recently failing"
+            // suffix + warning icon, so the choice is informed, not blocked.
+            label: degraded
+              ? `${agent.label} · ${t('agentSelector.degraded')}`
+              : agent.label,
+            icon: degraded ? AlertTriangle : Bot,
+            selected:
+              selection.agentKind === 'coding' &&
+              agent.harness === selection.harness,
+            // The platform model stays in the selection — a harness turn never
+            // reads it, and keeping it means returning to the platform agent
+            // returns to the model the user already had.
+            onClick: () =>
+              onSelectionChange({
+                ...selection,
+                agentKind: 'coding',
+                harness: agent.harness,
+              }),
+          };
+        }),
       ]);
     }
 
     return groups;
-  }, [codingAgents, selection, onSelectionChange, t]);
+  }, [codingAgents, selection, onSelectionChange, degradedHarnesses, t]);
 
   const triggerLabel =
     selection.agentKind === 'coding'

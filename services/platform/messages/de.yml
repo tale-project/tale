@@ -958,6 +958,7 @@ chat:
     label: Agent auswählen
     sectionPlatform: Chat
     sectionThirdParty: Drittanbieter-Agenten · laufen in einer Sandbox
+    degraded: zuletzt fehlerhaft
     auto: Auto
     autoDescription:
       Tale wählt für jede Nachricht den passenden Agent basierend auf

@@ -40,6 +40,7 @@ import {
   useChatThreads,
   useComposerCapabilities,
   useComposerModels,
+  useHarnessHealth,
 } from '../data/chat-backend';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { CanvasPanel } from './canvas/canvas-panel';
@@ -76,8 +77,17 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
   const generation = useChatGeneration(organizationId, threadId);
   const composerOptions = useComposerModels(organizationId);
   const capabilityCatalog = useComposerCapabilities(organizationId);
+  const harnessHealth = useHarnessHealth(organizationId);
   const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
+
+  // The circuit-breaker set: harnesses the health signal flags as recently
+  // failing, so the agent picker can mark them.
+  const degradedHarnesses = new Set(
+    harnessHealth.status === 'ready'
+      ? harnessHealth.data.filter((h) => h.degraded).map((h) => h.harness)
+      : [],
+  );
   const modelPreference = useChatModelPreference(organizationId);
 
   const [selection, setSelection] = useState(NO_SELECTION);
@@ -307,6 +317,7 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
                 : []
             }
             selection={selection}
+            degradedHarnesses={degradedHarnesses}
             onSelectionChange={handleSelectionChange}
             onSend={handleSend}
             onStop={handleStop}

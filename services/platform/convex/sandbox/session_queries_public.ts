@@ -558,3 +558,67 @@ export const getCodingTurnMetrics = query({
     };
   },
 });
+
+/** Recent window that defines a harness's CURRENT health — short, so a harness
+ * that just started failing is flagged fast and a harness that recovered clears
+ * fast. */
+const HARNESS_HEALTH_WINDOW_MS = 30 * 60 * 1000;
+/** Below this many recent turns, a harness is "unknown" (not degraded) — a
+ * single failure shouldn't trip the breaker. */
+const HARNESS_HEALTH_MIN_SAMPLE = 3;
+/** Recent failure fraction at/above which the composer shows a degradation hint. */
+const HARNESS_HEALTH_FAIL_THRESHOLD = 0.5;
+/** Scan cap so the reactive query stays bounded on a busy org. */
+const HARNESS_HEALTH_MAX_EVENTS = 2000;
+
+/**
+ * Per-harness health for the composer's circuit breaker — the "某 harness 连续
+ * 失败时 composer 降级提示" signal. Reads the recent `sandboxTurnEvents` window
+ * and flags a harness `degraded` when enough recent turns failed/timed out.
+ * Any org member may read it (the picker needs it); a user Stop is NOT a
+ * failure. Returns `[]` for a non-member (the composer just shows no hint).
+ */
+export const getHarnessHealth = query({
+  args: { organizationId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch (err) {
+      if (err instanceof UnauthorizedError) return [];
+      throw err;
+    }
+
+    const since = Date.now() - HARNESS_HEALTH_WINDOW_MS;
+    const byHarness = new Map<string, { total: number; failures: number }>();
+    let scanned = 0;
+    for await (const ev of ctx.db
+      .query('sandboxTurnEvents')
+      .withIndex('by_org_createdAt', (q) =>
+        q.eq('organizationId', args.organizationId).gte('createdAt', since),
+      )) {
+      // A user Stop is not a harness failure — exclude it from the ratio.
+      if (ev.outcome === 'cancelled') continue;
+      const h = byHarness.get(ev.harness) ?? { total: 0, failures: 0 };
+      h.total += 1;
+      if (ev.outcome === 'failed' || ev.outcome === 'timeout') h.failures += 1;
+      byHarness.set(ev.harness, h);
+      scanned += 1;
+      if (scanned >= HARNESS_HEALTH_MAX_EVENTS) break;
+    }
+
+    return [...byHarness.entries()].map(([harness, stats]) => ({
+      harness,
+      recentTotal: stats.total,
+      recentFailures: stats.failures,
+      degraded:
+        stats.total >= HARNESS_HEALTH_MIN_SAMPLE &&
+        stats.failures / stats.total >= HARNESS_HEALTH_FAIL_THRESHOLD,
+    }));
+  },
+});
