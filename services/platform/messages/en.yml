@@ -2722,7 +2722,7 @@ governance:
     invalidMaxRequests: Request limit must be greater than zero.
     invalidWarningThreshold: Warning threshold must be between 0 and 100.
   defaultModels:
-    title: Default Models
+    title: Default models
     description: Set default models for specific user groups or roles.
     saved: Default model configuration has been updated
     saveFailed: Failed to save default model configuration

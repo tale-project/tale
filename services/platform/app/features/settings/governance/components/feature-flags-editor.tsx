@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Stack, Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -44,6 +44,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
 interface FeatureFlagsEditorProps {
@@ -389,14 +390,26 @@ export function FeatureFlagsEditor({
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
+  // The section's toggle. Rules survive it being switched off, so turning the
+  // feature back on restores them; enforcement short-circuits on
+  // `!enabled || rules.length === 0` server-side either way.
+  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+    organizationId,
+    policyType: 'feature_flags',
+    savedEnabled: savedConfig.enabled,
+    isLoading: loading,
+    buildConfig: (next) => ({ enabled: next, rules: savedConfig.rules }),
+    failureTitle: t('toastSaveFailedTitle'),
+    failureDescription: t('featureFlags.saveFailed'),
+  });
+
   const saveConfig = useCallback(
     async (nextRules: FeatureFlagRule[]) => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'feature_flags',
-          // `enabled` is always true from the UI — rules presence drives
-          // enforcement (server short-circuits on `!enabled || rules.length === 0`).
+          // A rule edit is only reachable while the section is on.
           config: { enabled: true, rules: nextRules },
         });
         toast({
@@ -502,141 +515,163 @@ export function FeatureFlagsEditor({
         title={t('featureFlags.title')}
         description={t('featureFlags.description')}
         action={
-          <Button variant="primary" onClick={onAddRule} disabled={cannotManage}>
-            <Plus className="mr-1.5 size-4" />
-            {t('featureFlags.addRule')}
-          </Button>
+          <Row gap={2} align="center">
+            {/* Adding a rule is only offered while the section is on — there is
+                nothing to add to an inactive policy. */}
+            {enabled && (
+              <Button
+                variant="primary"
+                onClick={onAddRule}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('featureFlags.addRule')}
+              </Button>
+            )}
+            <Switch
+              aria-label={t('featureFlags.title')}
+              checked={enabled}
+              onCheckedChange={onToggle}
+              disabled={cannotManage || isToggling}
+            />
+          </Row>
         }
       >
-        <Card padding="none" className="overflow-hidden">
-          <Table aria-label={t('featureFlags.title')}>
-            <TableCaption className="sr-only">
-              {t('featureFlags.title')}
-            </TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('featureFlags.scope')}</TableHead>
-                <TableHead>{t('featureFlags.target')}</TableHead>
-                <TableHead className="text-center">
-                  {t('featureFlags.webSearch')}
-                </TableHead>
-                <TableHead className="text-center">
-                  {t('featureFlags.codeExecution')}
-                </TableHead>
-                <TableHead className="text-center">
-                  {t('featureFlags.fileUpload')}
-                </TableHead>
-                <TableHead className="text-right">
-                  {t('featureFlags.maxContextTokens')}
-                </TableHead>
-                <TableHead className="text-right">
-                  {t('featureFlags.actions')}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
-                  <TableRow key={`placeholder-${i}`}>
-                    <TableCell>
-                      <SkeletonBox>
-                        <div className="h-3.5 w-16" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell>
-                      <SkeletonBox>
-                        <div className="h-3.5 w-24" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell>
-                      <SkeletonBox fullWidth>
-                        <div className="mx-auto size-4 rounded-sm" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell>
-                      <SkeletonBox fullWidth>
-                        <div className="mx-auto size-4 rounded-sm" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell>
-                      <SkeletonBox fullWidth>
-                        <div className="mx-auto size-4 rounded-sm" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell>
-                      <SkeletonBox fullWidth>
-                        <div className="ml-auto h-3.5 w-14" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell>
-                      <HStack gap={1} justify="end">
-                        <SkeletonBox>
-                          <div className="size-8 rounded-md" />
-                        </SkeletonBox>
-                        <SkeletonBox>
-                          <div className="size-8 rounded-md" />
-                        </SkeletonBox>
-                      </HStack>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rules.length > 0 ? (
-                rules.map((rule, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="capitalize">{rule.scope}</TableCell>
-                    <TableCell>{resolveTarget(rule)}</TableCell>
-                    <TableCell className="text-center">
-                      {rule.webSearch === false ? '✘' : '✔'}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {rule.codeExecution === false ? '✘' : '✔'}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {rule.fileUpload === false ? '✘' : '✔'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {rule.maxContextTokens != null
-                        ? formatNumber(rule.maxContextTokens)
-                        : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <HStack gap={1} justify="end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEditRule(index)}
-                          disabled={cannotManage}
-                          title={`${t('featureFlags.editRule')} ${index + 1}`}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onRemoveRule(index)}
-                          disabled={cannotManage}
-                          title={`${t('featureFlags.deleteRule')} ${index + 1}`}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </HStack>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow data-no-hover>
-                  <TableCell colSpan={COLUMN_COUNT} className="p-0">
-                    <RulesTableEmptyState
-                      icon={SlidersHorizontal}
-                      title={t('featureFlags.noRulesTitle')}
-                      description={t('featureFlags.noRulesDescription')}
-                    />
-                  </TableCell>
+        {/* The rules table exists only while the section is on — a toggle hides
+            its content rather than showing rules nothing enforces. It stays
+            mounted (masked) while loading so the skeleton keeps the real
+            shape; `enabled` is only known once the read settles. */}
+        {(loading || enabled) && (
+          <Card padding="none" className="overflow-hidden">
+            <Table aria-label={t('featureFlags.title')}>
+              <TableCaption className="sr-only">
+                {t('featureFlags.title')}
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('featureFlags.scope')}</TableHead>
+                  <TableHead>{t('featureFlags.target')}</TableHead>
+                  <TableHead className="text-center">
+                    {t('featureFlags.webSearch')}
+                  </TableHead>
+                  <TableHead className="text-center">
+                    {t('featureFlags.codeExecution')}
+                  </TableHead>
+                  <TableHead className="text-center">
+                    {t('featureFlags.fileUpload')}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {t('featureFlags.maxContextTokens')}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {t('featureFlags.actions')}
+                  </TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Card>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
+                    <TableRow key={`placeholder-${i}`}>
+                      <TableCell>
+                        <SkeletonBox>
+                          <div className="h-3.5 w-16" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox>
+                          <div className="h-3.5 w-24" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox fullWidth>
+                          <div className="mx-auto size-4 rounded-sm" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox fullWidth>
+                          <div className="mx-auto size-4 rounded-sm" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox fullWidth>
+                          <div className="mx-auto size-4 rounded-sm" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <SkeletonBox fullWidth>
+                          <div className="ml-auto h-3.5 w-14" />
+                        </SkeletonBox>
+                      </TableCell>
+                      <TableCell>
+                        <HStack gap={1} justify="end">
+                          <SkeletonBox>
+                            <div className="size-8 rounded-md" />
+                          </SkeletonBox>
+                          <SkeletonBox>
+                            <div className="size-8 rounded-md" />
+                          </SkeletonBox>
+                        </HStack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : rules.length > 0 ? (
+                  rules.map((rule, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="capitalize">{rule.scope}</TableCell>
+                      <TableCell>{resolveTarget(rule)}</TableCell>
+                      <TableCell className="text-center">
+                        {rule.webSearch === false ? '✘' : '✔'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {rule.codeExecution === false ? '✘' : '✔'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {rule.fileUpload === false ? '✘' : '✔'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {rule.maxContextTokens != null
+                          ? formatNumber(rule.maxContextTokens)
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <HStack gap={1} justify="end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEditRule(index)}
+                            disabled={cannotManage}
+                            title={`${t('featureFlags.editRule')} ${index + 1}`}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onRemoveRule(index)}
+                            disabled={cannotManage}
+                            title={`${t('featureFlags.deleteRule')} ${index + 1}`}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </HStack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow data-no-hover>
+                    <TableCell colSpan={COLUMN_COUNT} className="p-0">
+                      <RulesTableEmptyState
+                        icon={SlidersHorizontal}
+                        title={t('featureFlags.noRulesTitle')}
+                        description={t('featureFlags.noRulesDescription')}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
 
         <RuleDialog
           open={dialogOpen}
