@@ -436,3 +436,125 @@ export const listSandboxesForOrg = query({
     return sessions;
   },
 });
+
+/** ms in a day — the turn-metrics window unit. */
+const TURN_METRICS_DAY_MS = 24 * 60 * 60 * 1000;
+/** Cap the reactive aggregation scan so a busy org can't make this query
+ * unbounded; a wider history is a batch/export concern, not a live dashboard. */
+const TURN_METRICS_MAX_EVENTS = 5000;
+
+function percentile(sortedAsc: readonly number[], p: number): number {
+  if (sortedAsc.length === 0) return 0;
+  const rank = Math.ceil((p / 100) * sortedAsc.length) - 1;
+  const idx = Math.min(Math.max(rank, 0), sortedAsc.length - 1);
+  return sortedAsc[idx] ?? 0;
+}
+
+/**
+ * Coding-turn SLO for the org over the last `periodDays` — the numbers the
+ * plan's release gate tracks: success rate (excluding user cancels), duration
+ * p50/p95, timeout rate, and a per-harness breakdown, plus recovered-turn count
+ * and in-turn spend. Aggregated from the durable `sandboxTurnEvents` sidecar
+ * (survives session teardown). Admin-gated (developerSettings) like the
+ * Sandboxes page; returns null on access-denied so the page renders that state.
+ */
+export const getCodingTurnMetrics = query({
+  args: {
+    organizationId: v.string(),
+    periodDays: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    let member;
+    try {
+      member = await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch (err) {
+      if (err instanceof UnauthorizedError) return null;
+      throw err;
+    }
+    if (defineAbilityFor(member.role).cannot('read', 'developerSettings')) {
+      return null;
+    }
+
+    const periodDays = args.periodDays ?? 7;
+    const since = Date.now() - periodDays * TURN_METRICS_DAY_MS;
+
+    let total = 0;
+    let completed = 0;
+    let failed = 0;
+    let cancelled = 0;
+    let timeout = 0;
+    let recovered = 0;
+    let spentCents = 0;
+    const durations: number[] = [];
+    const byHarness = new Map<
+      string,
+      { total: number; completed: number; failed: number; timeout: number }
+    >();
+
+    for await (const ev of ctx.db
+      .query('sandboxTurnEvents')
+      .withIndex('by_org_createdAt', (q) =>
+        q.eq('organizationId', args.organizationId).gte('createdAt', since),
+      )) {
+      total += 1;
+      durations.push(ev.durationMs);
+      if (ev.spentCents !== undefined) spentCents += ev.spentCents;
+      if (ev.recovered === true) recovered += 1;
+      if (ev.outcome === 'completed') completed += 1;
+      else if (ev.outcome === 'failed') failed += 1;
+      else if (ev.outcome === 'cancelled') cancelled += 1;
+      else timeout += 1;
+
+      const h = byHarness.get(ev.harness) ?? {
+        total: 0,
+        completed: 0,
+        failed: 0,
+        timeout: 0,
+      };
+      h.total += 1;
+      if (ev.outcome === 'completed') h.completed += 1;
+      else if (ev.outcome === 'failed') h.failed += 1;
+      else if (ev.outcome === 'timeout') h.timeout += 1;
+      byHarness.set(ev.harness, h);
+
+      if (total >= TURN_METRICS_MAX_EVENTS) break;
+    }
+
+    // Success rate excludes user cancels ("非用户取消") — a Stop is not a failure.
+    const ratedTotal = completed + failed + timeout;
+    durations.sort((a, b) => a - b);
+
+    return {
+      periodDays,
+      capped: total >= TURN_METRICS_MAX_EVENTS,
+      total,
+      completed,
+      failed,
+      cancelled,
+      timeout,
+      recovered,
+      successRate: ratedTotal === 0 ? null : completed / ratedTotal,
+      timeoutRate: ratedTotal === 0 ? null : timeout / ratedTotal,
+      durationP50Ms: percentile(durations, 50),
+      durationP95Ms: percentile(durations, 95),
+      spentCents,
+      byHarness: [...byHarness.entries()]
+        .map(([harness, stats]) => ({
+          harness,
+          ...stats,
+          successRate:
+            stats.completed + stats.failed + stats.timeout === 0
+              ? null
+              : stats.completed /
+                (stats.completed + stats.failed + stats.timeout),
+        }))
+        .sort((a, b) => b.total - a.total),
+    };
+  },
+});

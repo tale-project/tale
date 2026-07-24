@@ -109,6 +109,7 @@ export const recoverAbandonedCodingTurns = internalAction({
           gatewayModel: state.coding.gatewayModel,
           fallbackText: op.progressText ?? '',
           errored: true,
+          harness: state.coding.harness,
           reason:
             liveness.state === 'gone'
               ? 'The sandbox session ended before the turn finished.'

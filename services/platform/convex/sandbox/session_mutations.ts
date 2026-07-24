@@ -1063,6 +1063,46 @@ export const recordSessionOpSpend = internalMutation({
 });
 
 /**
+ * Record ONE durable turn-SLO event when a coding turn settles (the finalize
+ * winner). Outlives the session (op rows are purged on teardown), so the turn
+ * dashboard keeps history. Never carries a prompt/reply — only the turn shape.
+ */
+export const recordTurnEvent = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    userId: v.string(),
+    harness: v.string(),
+    modelRef: v.optional(v.string()),
+    outcome: v.union(
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('cancelled'),
+      v.literal('timeout'),
+    ),
+    durationMs: v.number(),
+    spentCents: v.optional(v.number()),
+    recovered: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('sandboxTurnEvents', {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      userId: args.userId,
+      harness: args.harness,
+      ...(args.modelRef !== undefined ? { modelRef: args.modelRef } : {}),
+      outcome: args.outcome,
+      durationMs: args.durationMs,
+      ...(args.spentCents !== undefined ? { spentCents: args.spentCents } : {}),
+      ...(args.recovered !== undefined ? { recovered: args.recovered } : {}),
+      createdAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
  * @deprecated Kept callable for the deploy window only: in-flight pre-deploy
  * drains still poll this per flush. New drains derive steer-pending from the
  * delivered queue rows and trip the seam at the OBSERVED injection instead

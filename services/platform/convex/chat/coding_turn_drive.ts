@@ -65,6 +65,8 @@ export const driveCodingTurn = internalAction({
         gatewayModel: coding.gatewayModel,
         fallbackText: '',
         errored: true,
+        timedOut: true,
+        harness: coding.harness,
         reason: 'The coding agent ran past its time limit and was stopped.',
       });
       return null;
@@ -96,6 +98,7 @@ export const driveCodingTurn = internalAction({
         gatewayModel: coding.gatewayModel,
         fallbackText: '',
         errored: true,
+        harness: coding.harness,
         reason: 'The coding agent stopped unexpectedly.',
       });
       return null;
@@ -122,6 +125,7 @@ export const driveCodingTurn = internalAction({
         gatewayModel: coding.gatewayModel,
         fallbackText: '',
         errored: true,
+        harness: coding.harness,
         reason: 'The sandbox session ended before the turn finished.',
       });
     }

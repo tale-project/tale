@@ -118,6 +118,7 @@ import {
   sandboxSessionTokensTable,
   sandboxIntegrationCallsTable,
   sandboxToolCallsTable,
+  sandboxTurnEventsTable,
   sandboxUserEnvTable,
 } from './sandbox/sessions_schema';
 import {
@@ -287,6 +288,7 @@ export default defineSchema({
   sandboxCredentialAccess: sandboxCredentialAccessTable,
   sandboxIntegrationCalls: sandboxIntegrationCallsTable,
   sandboxToolCalls: sandboxToolCallsTable,
+  sandboxTurnEvents: sandboxTurnEventsTable,
   sandboxUserEnv: sandboxUserEnvTable,
   videoLinkJobs: videoLinkJobsTable,
   browserSessions: browserSessionsTable,

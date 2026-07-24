@@ -561,6 +561,7 @@ export async function drainCodingWindow(
     usageTotals: ended?.usageTotals,
     resume: ended?.sessionId,
     errored,
+    harness: args.harness,
     ...(crashReason !== undefined ? { reason: crashReason } : {}),
     ...(execResult?.exitCode != null ? { exitCode: execResult.exitCode } : {}),
     ...(ended?.status !== undefined ? { agentResultStatus: ended.status } : {}),
@@ -613,6 +614,12 @@ export async function finalizeCodingTurn(
      * stamped on the op row for the fleet page + the recovery watchdog. */
     exitCode?: number;
     agentResultStatus?: string;
+    /** The harness that ran the turn — the per-harness key on the turn-SLO
+     * event. Every live call site has it; absent only on the degraded edge. */
+    harness?: string;
+    /** The turn hit its wall-clock deadline (distinct from a generic failure) —
+     * recorded as the `timeout` outcome. */
+    timedOut?: boolean;
   },
 ): Promise<void> {
   // Elect the single finalizer. `won` is true only when an op row exists, was
@@ -623,6 +630,8 @@ export async function finalizeCodingTurn(
   // teardown revoke is the backstop).
   let won = true;
   let mintedKeyId: string | undefined;
+  let opStartedAt: number | undefined;
+  let recovered = false;
   if (args.sessionId !== undefined && args.execId !== undefined) {
     won = await ctx.runMutation(
       internal.sandbox.session_mutations.claimSessionOpFinalize,
@@ -642,6 +651,8 @@ export async function finalizeCodingTurn(
       return;
     }
     mintedKeyId = op?.mintedKeyId;
+    opStartedAt = op?.startedAt;
+    recovered = op?.resumedBy === 'watchdog';
   }
 
   const haveText =
@@ -694,13 +705,17 @@ export async function finalizeCodingTurn(
   // Revoke the turn's gateway VK — the close of the per-turn credential leak.
   // Read the authoritative spend first (revoke deletes the key), record it on
   // the op row for the fleet page, then delete the key and mark its token row.
+  let turnSpentCents: number | undefined;
   if (won && mintedKeyId !== undefined && args.sessionId !== undefined) {
     const spent = await getVirtualKeySpendCents(mintedKeyId);
-    if (spent !== null && args.execId !== undefined) {
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.recordSessionOpSpend,
-        { sessionId: args.sessionId, execId: args.execId, spentCents: spent },
-      );
+    if (spent !== null) {
+      turnSpentCents = spent;
+      if (args.execId !== undefined) {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.recordSessionOpSpend,
+          { sessionId: args.sessionId, execId: args.execId, spentCents: spent },
+        );
+      }
     }
     await revokeVirtualKey(mintedKeyId).catch((err) =>
       console.warn(`[coding-turn] revoke VK ${mintedKeyId} failed:`, err),
@@ -729,6 +744,31 @@ export async function finalizeCodingTurn(
       ...(args.agentResultStatus !== undefined
         ? { agentResultStatus: args.agentResultStatus }
         : {}),
+    });
+  }
+
+  // Record the durable turn-SLO event (survives session teardown, unlike the op
+  // row). Winner-only, so each turn counts once. The outcome axis drives the
+  // dashboard's success rate; a user Stop is `cancelled`, excluded from it.
+  if (won && args.harness !== undefined) {
+    const outcome = args.cancelled
+      ? 'cancelled'
+      : args.timedOut
+        ? 'timeout'
+        : args.errored
+          ? 'failed'
+          : 'completed';
+    await ctx.runMutation(internal.sandbox.session_mutations.recordTurnEvent, {
+      organizationId: args.scope.organizationId,
+      threadId: args.scope.threadId,
+      userId: args.scope.userId,
+      harness: args.harness,
+      modelRef: `${args.providerSlug}/${args.gatewayModel}`,
+      outcome,
+      durationMs:
+        opStartedAt !== undefined ? Math.max(0, Date.now() - opStartedAt) : 0,
+      ...(turnSpentCents !== undefined ? { spentCents: turnSpentCents } : {}),
+      ...(recovered ? { recovered: true } : {}),
     });
   }
 

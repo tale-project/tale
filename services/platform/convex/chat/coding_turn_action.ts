@@ -249,6 +249,7 @@ export const startCodingTurn = action({
           gatewayModel: routing.gatewayModel,
           fallbackText: '',
           errored: true,
+          harness: args.harness,
           reason: 'The sandbox session ended before the turn could run.',
         });
         return {
@@ -281,6 +282,7 @@ export const startCodingTurn = action({
         gatewayModel: routing.gatewayModel,
         fallbackText: '',
         errored: true,
+        harness: args.harness,
         reason: `The coding agent could not run: ${reason}`,
       });
       // The finalize wrote the reason under the message; surface it on the seam
@@ -347,6 +349,7 @@ export const stopCodingTurn = action({
       fallbackText: '',
       errored: false,
       cancelled: true,
+      harness: coding.harness,
       reason: 'You stopped this response.',
     });
     return { stopped: true };

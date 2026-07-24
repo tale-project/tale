@@ -104,6 +104,12 @@ export const getCodingOpForFinalize = internalQuery({
     v.object({
       mintedKeyId: v.optional(v.string()),
       finalizedAt: v.optional(v.number()),
+      /** Turn start — the finalize computes durationMs = now - startedAt for the
+       * turn-SLO event. */
+      startedAt: v.optional(v.number()),
+      /** 'watchdog' when a crash-recovery sweep re-attached this turn — recorded
+       * as `recovered` on the turn event. */
+      resumedBy: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -118,6 +124,8 @@ export const getCodingOpForFinalize = internalQuery({
     return {
       ...(row.mintedKeyId !== undefined && { mintedKeyId: row.mintedKeyId }),
       ...(row.finalizedAt !== undefined && { finalizedAt: row.finalizedAt }),
+      startedAt: row.startedAt,
+      ...(row.resumedBy !== undefined && { resumedBy: row.resumedBy }),
     };
   },
 });

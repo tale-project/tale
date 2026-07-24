@@ -8,7 +8,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import schema from '../schema';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'chat';
@@ -53,6 +53,136 @@ async function openOp(
       : {}),
   });
 }
+
+async function seedMember(
+  t: T,
+  userId: string,
+  organizationId: string,
+  role = 'member',
+): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('memberMirror', {
+      memberId: `m_${userId}_${organizationId}`,
+      userId,
+      organizationId,
+      role,
+      createdAt: 0,
+    });
+  });
+}
+
+describe('recordTurnEvent + getCodingTurnMetrics — the turn SLO', () => {
+  const ADMIN = 'user_admin';
+
+  async function record(
+    t: T,
+    ev: {
+      harness: string;
+      outcome: 'completed' | 'failed' | 'cancelled' | 'timeout';
+      durationMs: number;
+      spentCents?: number;
+      recovered?: boolean;
+    },
+  ) {
+    await t.mutation(internal.sandbox.session_mutations.recordTurnEvent, {
+      organizationId: ORG,
+      threadId: 'thread_1',
+      userId: 'user_1',
+      harness: ev.harness,
+      modelRef: 'anthropic/claude',
+      outcome: ev.outcome,
+      durationMs: ev.durationMs,
+      ...(ev.spentCents !== undefined ? { spentCents: ev.spentCents } : {}),
+      ...(ev.recovered !== undefined ? { recovered: ev.recovered } : {}),
+    });
+  }
+
+  it('computes success rate excluding cancels, per-harness, p50/p95, spend', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ADMIN, ORG, 'admin');
+    // 3 completed, 1 failed, 1 timeout, 1 cancelled across two harnesses.
+    await record(t, {
+      harness: 'claude-code',
+      outcome: 'completed',
+      durationMs: 1000,
+      spentCents: 10,
+    });
+    await record(t, {
+      harness: 'claude-code',
+      outcome: 'completed',
+      durationMs: 2000,
+      spentCents: 20,
+    });
+    await record(t, {
+      harness: 'claude-code',
+      outcome: 'failed',
+      durationMs: 3000,
+    });
+    await record(t, {
+      harness: 'codex',
+      outcome: 'completed',
+      durationMs: 4000,
+      spentCents: 5,
+    });
+    await record(t, { harness: 'codex', outcome: 'timeout', durationMs: 5000 });
+    await record(t, {
+      harness: 'codex',
+      outcome: 'cancelled',
+      durationMs: 6000,
+    });
+
+    const m = await t
+      .withIdentity({ subject: ADMIN })
+      .query(api.sandbox.session_queries_public.getCodingTurnMetrics, {
+        organizationId: ORG,
+      });
+    expect(m).not.toBeNull();
+    if (m === null) throw new Error('unreachable');
+    expect(m.total).toBe(6);
+    expect(m.completed).toBe(3);
+    expect(m.failed).toBe(1);
+    expect(m.timeout).toBe(1);
+    expect(m.cancelled).toBe(1);
+    // Success rate excludes the user cancel: 3 completed / (3+1+1) rated = 0.6.
+    expect(m.successRate).toBeCloseTo(3 / 5, 5);
+    expect(m.timeoutRate).toBeCloseTo(1 / 5, 5);
+    expect(m.spentCents).toBe(35);
+    // p50/p95 over [1000,2000,3000,4000,5000,6000].
+    expect(m.durationP95Ms).toBe(6000);
+    const cc = m.byHarness.find((h) => h.harness === 'claude-code');
+    expect(cc?.total).toBe(3);
+    expect(cc?.completed).toBe(2);
+    expect(cc?.successRate).toBeCloseTo(2 / 3, 5);
+  });
+
+  it('counts recovered turns and denies non-developers', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ADMIN, ORG, 'admin');
+    await record(t, {
+      harness: 'claude-code',
+      outcome: 'failed',
+      durationMs: 100,
+      recovered: true,
+    });
+
+    const m = await t
+      .withIdentity({ subject: ADMIN })
+      .query(api.sandbox.session_queries_public.getCodingTurnMetrics, {
+        organizationId: ORG,
+      });
+    expect(m?.recovered).toBe(1);
+
+    // A plain member lacks developerSettings → the query returns null.
+    const MEMBER = 'user_member';
+    await seedMember(t, MEMBER, ORG, 'member');
+    const denied = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.sandbox.session_queries_public.getCodingTurnMetrics, {
+        organizationId: ORG,
+      });
+    expect(denied).toBeNull();
+  });
+});
 
 describe('getCodingOpForFinalize', () => {
   it('returns the op row mintedKeyId — the VK the finalize revokes', async () => {
