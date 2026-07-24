@@ -28,11 +28,13 @@ If the upgrade crosses a major version (1.x → 2.x), read the migration notes e
 
 `tale update` updates the CLI binary and then syncs your project files to that version's templates. It does **not** touch the running containers — that is `tale deploy`'s job. If the file sync fails, the CLI rolls its own binary back to the version your workspace was on, so the binary and `tale.json` never drift apart.
 
+Run bare, the command targets the newest release **in your current x.y release line** — a 0.3.x instance moves to the newest 0.3.x. Releases on a newer line can be breaking, so `tale update` never crosses that boundary on its own: when a newer line exists it says so and stays put. Moving lines is a deliberate step — read the release notes for the new line first, then pin it with `--version`.
+
 ```bash
-# Move the CLI + project files to the latest release
+# Move the CLI + project files to the newest release in the current x.y line
 tale update
 
-# Pin a specific version (allows downgrades — see Rolling back)
+# Pin a specific version — the only way to change lines; allows downgrades (see Rolling back)
 tale update --version 0.10.2
 
 # Preview the version change and file sync without touching anything

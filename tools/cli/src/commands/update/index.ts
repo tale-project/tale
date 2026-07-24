@@ -7,11 +7,11 @@ export function createUpdateCommand(): Command {
   return (
     new Command('update')
       .description(
-        'Update this Tale instance: move the CLI to a new version and sync project files (run `tale deploy` afterwards to roll the containers)',
+        'Update this Tale instance: move the CLI to a new version within its current x.y release line and sync project files (run `tale deploy` afterwards to roll the containers)',
       )
       .option(
         '-v, --version <version>',
-        'update to this exact version (e.g. 0.9.0) instead of the latest release; allows downgrades',
+        'update to this exact version (e.g. 0.9.0) instead of the latest release in the current x.y line; required to change release lines; allows downgrades',
       )
       .option(
         '-f, --force',

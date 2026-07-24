@@ -28,11 +28,13 @@ Si la montée de version traverse une version majeure (1.x → 2.x), lis les not
 
 `tale update` met à jour le binaire CLI, puis synchronise tes fichiers projet sur les templates de cette version. Il ne **touche pas** aux conteneurs en marche — c'est le boulot de `tale deploy`. Si la synchro des fichiers échoue, la CLI fait reculer son propre binaire à la version sur laquelle ton workspace était, pour que le binaire et `tale.json` ne dérivent jamais l'un de l'autre.
 
+Lancée sans argument, la commande vise la release la plus récente **de ta ligne x.y actuelle** — une instance 0.3.x bouge vers la 0.3.x la plus récente. Les releases d'une ligne plus récente peuvent porter des changements breaking, donc la commande ne franchit jamais cette frontière d'elle-même : quand une ligne plus récente existe, elle le dit et reste en place. Changer de ligne est un pas délibéré — lis d'abord les notes de version de la nouvelle ligne, puis fixe la version cible avec `--version`.
+
 ```bash
-# Bouge la CLI et les fichiers projet à la dernière release
+# Bouge la CLI et les fichiers projet à la release la plus récente de la ligne x.y actuelle
 tale update
 
-# Fixe une version précise (autorise les downgrades — voir Rollback)
+# Fixe une version précise — le seul moyen de changer de ligne (autorise les downgrades — voir Rollback)
 tale update --version 0.10.2
 
 # Aperçu du changement de version et de la synchro des fichiers sans rien toucher

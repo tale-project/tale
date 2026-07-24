@@ -28,11 +28,13 @@ Zwei Dinge sind es wert, zuerst zu bestätigen:
 
 `tale update` aktualisiert das CLI-Binary und synct dann deine Projektdateien auf die Templates dieser Version. Es fasst die laufenden Container **nicht** an — das ist der Job von `tale deploy`. Scheitert der Datei-Sync, rollt das CLI sein eigenes Binary auf die Version zurück, auf der dein Workspace war, sodass Binary und `tale.json` nie auseinanderdriften.
 
+Ohne Argumente zielt das Kommando auf das neueste Release **innerhalb deiner aktuellen x.y-Release-Linie** — eine 0.3.x-Instanz bewegt sich auf das neueste 0.3.x. Releases auf einer neueren Linie können breaking Changes tragen, deshalb überquert `tale update` diese Grenze nie von selbst: Existiert eine neuere Linie, sagt es das und bleibt stehen. Der Linienwechsel ist ein bewusster Schritt — lies zuerst die Release-Notes der neuen Linie und nagle die Zielversion dann mit `--version` fest.
+
 ```bash
-# Bewege das CLI und die Projektdateien auf das letzte Release
+# Bewege das CLI und die Projektdateien auf das neueste Release der aktuellen x.y-Linie
 tale update
 
-# Eine bestimmte Version festnageln (erlaubt Downgrades — siehe Zurückrollen)
+# Eine bestimmte Version festnageln — der einzige Weg, die Linie zu wechseln (erlaubt Downgrades — siehe Zurückrollen)
 tale update --version 0.10.2
 
 # Versions-Wechsel und Datei-Sync vorab ansehen, ohne etwas anzufassen
