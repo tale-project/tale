@@ -24,10 +24,11 @@
  */
 
 import { useConvex } from 'convex/react';
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
+import {
+  getFunctionName,
+  type FunctionArgs,
+  type FunctionReference,
+  type FunctionReturnType,
 } from 'convex/server';
 import {
   useCallback,
@@ -78,17 +79,22 @@ function useChatQuery<Ref extends FunctionReference<'query'>>(
 ): ChatQuery<FunctionReturnType<Ref>> {
   const convex = useConvex();
   const skip = args === 'skip';
-  // Key the subscription by the JSON of its args so a structurally-equal args
-  // object does not tear down and rebuild the watch every render.
+  // Key the subscription by the function's NAME and the JSON of its args —
+  // never by object identity. `api.x.y.z` builds a fresh FunctionReference on
+  // every property access and callers build args inline, so identity-keyed
+  // deps would tear down and rebuild the watch on every render. A fresh watch
+  // answers `undefined` until its first result lands, so identity keying
+  // oscillates the surface between loading and ready many times a second — a
+  // self-sustaining, visible flicker.
+  const fnKey = getFunctionName(fnRef);
   const argsKey = skip ? 'skip' : JSON.stringify(args);
 
   const watch = useMemo(
     () => (convex && !skip ? convex.watchQuery(fnRef, args) : undefined),
-    // `args` is intentionally tracked by its JSON key (`argsKey`) so a
-    // structurally-equal object does not tear down and rebuild the subscription
-    // on every render.
+    // `fnRef` and `args` are intentionally tracked by their stable keys
+    // (`fnKey`, `argsKey`) — see above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [convex, fnRef, argsKey, skip],
+    [convex, fnKey, argsKey, skip],
   );
 
   const subscribe = useCallback(
