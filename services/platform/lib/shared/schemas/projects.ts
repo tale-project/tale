@@ -90,7 +90,7 @@ export const projectKnowledgeModeSchema = z.enum([
  */
 export const PROJECT_NAME_MAX = 80;
 export const PROJECT_DESCRIPTION_MAX = 500;
-export const PROJECT_INSTRUCTIONS_MAX_CHARS = 6000;
+export const PROJECT_INSTRUCTIONS_MAX_CHARS = 20_000;
 export const PROJECT_SHARED_TEAMS_MAX = 20;
 export const PROJECT_RECOMMENDED_AGENTS_MAX = 20;
 const PROJECT_ALLOWED_AGENTS_MAX = 50;

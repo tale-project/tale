@@ -82,7 +82,7 @@ describe('PreferencesSettings', () => {
     expect(field).toBeEnabled();
   });
 
-  it('keeps the field visible but inert while the feature is off', () => {
+  it('hides the field while the feature is off — a section toggle removes its content', () => {
     preferences = {
       customInstructionsEnabled: false,
       customInstructions: 'Be terse.',
@@ -90,8 +90,13 @@ describe('PreferencesSettings', () => {
     renderPage();
 
     expect(
-      screen.getByRole('textbox', { name: 'Custom instructions' }),
-    ).toBeDisabled();
+      screen.queryByRole('textbox', { name: 'Custom instructions' }),
+    ).toBeNull();
+    // The switch still says what the stored state is, so turning the feature
+    // back on brings the saved text with it.
+    expect(
+      screen.getByRole('switch', { name: 'Custom instructions' }),
+    ).not.toBeChecked();
   });
 
   it('follows the org default when the user has made no choice', () => {

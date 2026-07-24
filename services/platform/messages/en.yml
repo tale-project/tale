@@ -1301,6 +1301,7 @@ chat:
     input: Input
     output: Output
   loadOlderMessages: Load older messages
+  loadingConversation: Loading conversation…
   history:
     loading: Loading chats...
     empty: No conversations yet
@@ -1322,6 +1323,7 @@ chat:
       placedAtLabel: Placed
     toast:
       renameFailed: Failed to rename chat
+      moveFailed: Failed to move chat
   aria:
     messageHistory: Message history
     scrollToBottom: Scroll to bottom
@@ -1509,8 +1511,8 @@ chat:
     description: The chat service isn't answering, so no conversation can be loaded. Nothing you wrote was lost.
   providerSetup:
     title: No AI provider connected yet
-    description: Chat needs a model from an AI provider. Connect one under
-      Settings → AI providers, or ask your workspace admin to set one up.
+    descriptionAdmin: Connect a provider under Settings → AI providers to start chatting.
+    descriptionMember: Ask your workspace admin to connect an AI provider.
     action: Open AI providers
   capabilities:
     label: Capabilities
@@ -2155,9 +2157,8 @@ contacts:
   editContact: Edit contact
   deleteContact: Delete contact
   importMenu:
-    addManually: Add manually
-    fromDevice: Import from your device
-    pasteContacts: Paste contacts
+    fromDevice: From your device
+    manualEntry: Manual entry
   create:
     title: Add contact
     success: Contact created successfully
@@ -2174,7 +2175,6 @@ contacts:
   localePlaceholder: e.g., en-US
   phone: Phone
   import:
-    selectDataSource: Please select a data source
     provideData: Please provide data
     noValidData: No valid contact data found
     success: Import successful
@@ -2183,7 +2183,6 @@ contacts:
       {} other {, {failed} failed}}
     noneImported: No contacts were imported
     error: Import error
-    pasteContacts: Paste contacts
     uploadContacts: Upload contacts
     import: Import
     errorCodes:
@@ -2618,17 +2617,6 @@ onboarding:
     providerCta: Connect a provider
     inviteCta: Invite teammates
     goToDashboard: Go to dashboard
-provisioning:
-  banner:
-    title: This workspace didn't finish setting up
-    body:
-      Part of its built-in configuration is missing, so agents and chat may not
-      work yet.
-    retry: Retry setup
-    retrying: Retrying setup…
-  toast:
-    retrySucceeded: Workspace setup finished.
-    retryFailed: Setup failed again. Check the server logs, then retry.
 emptyStates:
   providers:
     title: No providers configured
@@ -2673,7 +2661,7 @@ governance:
       This text is injected ahead of every agent's instructions and
       cannot be overridden by users.
     instructionsPlaceholder: Enter the mandatory instructions...
-    charCount: '{count} / {max} characters'
+    charCount: '{count} / {max}'
     charLimitExceeded: Character limit exceeded
     saved: System prompt has been updated
     saveFailed: Failed to save system prompt
@@ -4636,9 +4624,9 @@ personalization:
       title: Custom instructions
       description:
         Things you want the assistant to keep in mind in every reply. Max
-        4000 characters.
+        5000 characters.
       placeholder: e.g. Reply concisely. Default to TypeScript when discussing code.
-      counter: '{count} / 4000'
+      counter: '{count} / {max}'
     memories:
       title: Saved memories
       empty: Memories appear here after the assistant proposes them and you save.
@@ -5071,7 +5059,6 @@ projects:
     list: All projects
     overview: General
     files: Knowledge
-    instructions: Instructions
     threads: Chats
     agents: Agents
     settings: Settings
@@ -5121,9 +5108,6 @@ projects:
       The project's name and description appear in the projects
       list and on the chat sidebar.
     sharingHeading: Sharing
-    recentChats: Recent chats in this project
-    recentChatsEmpty: No chats yet. Start one to see it here.
-    recentChatsViewAll: View all
     lastActivity: Last activity {when}
     lastActivityNever: No activity yet
     getStartedHeading: Get started
@@ -5136,7 +5120,7 @@ projects:
   instructions:
     label: Instructions
     placeholder: Write context that should apply to every chat in this project…
-    tokenCountSuffix: characters used
+    charCount: '{count} / {max}'
     tokenCapWarning: Approaching the {cap}-character limit
     tokenCapError: Exceeds the {cap}-character limit
     savedIndicator: Saved

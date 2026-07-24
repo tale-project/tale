@@ -26,7 +26,7 @@ function estimateTokens(text: string): number {
 // customInstructions; callers must normalize CRLF / lone CR → LF before
 // testing (lone CR is still rejected by the \x00-\x09 / \x0b-\x1f range).
 const CUSTOM_INSTRUCTIONS_ILLEGAL_RE = /[<>`\x00-\x09\x0b-\x1f\x7f]/;
-const CUSTOM_INSTRUCTIONS_MAX_CHARS = 4000;
+const CUSTOM_INSTRUCTIONS_MAX_CHARS = 5000;
 const CUSTOM_INSTRUCTIONS_MAX_TOKENS = 800;
 
 export const upsertMyPreferences = mutation({

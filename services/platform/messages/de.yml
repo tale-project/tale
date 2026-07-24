@@ -1339,6 +1339,7 @@ chat:
     input: Eingabe
     output: Ausgabe
   loadOlderMessages: Ältere Nachrichten laden
+  loadingConversation: Lädt die Unterhaltung…
   history:
     loading: Chats werden geladen...
     empty: Noch keine Gespräche
@@ -1362,6 +1363,7 @@ chat:
       placedAtLabel: Gesetzt am
     toast:
       renameFailed: Chat konnte nicht umbenannt werden
+      moveFailed: Chat konnte nicht verschoben werden
   aria:
     messageHistory: Nachrichtenverlauf
     scrollToBottom: Nach unten scrollen
@@ -1552,9 +1554,9 @@ chat:
     description: Der Chat-Dienst antwortet nicht, deshalb lässt sich keine Unterhaltung laden. Nichts von dem, was du geschrieben hast, ist verloren.
   providerSetup:
     title: Noch kein KI-Anbieter verbunden
-    description: Der Chat braucht ein Modell von einem KI-Anbieter. Verbinde
-      einen unter Einstellungen → KI-Anbieter oder bitte deinen Workspace-Admin
-      darum.
+    descriptionAdmin: Verbinde einen Anbieter unter Einstellungen → KI-Anbieter,
+      dann kann der Chat losgehen.
+    descriptionMember: Bitte deinen Workspace-Admin, einen KI-Anbieter zu verbinden.
     action: KI-Anbieter öffnen
   capabilities:
     label: Fähigkeiten
@@ -2260,9 +2262,8 @@ contacts:
   editContact: Kontakt bearbeiten
   deleteContact: Kontakt löschen
   importMenu:
-    addManually: Manuell hinzufügen
-    fromDevice: Von deinem Gerät importieren
-    pasteContacts: Kontakte einfügen
+    fromDevice: Von deinem Gerät
+    manualEntry: Manuelle Eingabe
   create:
     title: Kontakt hinzufügen
     success: Kontakt erstellt
@@ -2279,7 +2280,6 @@ contacts:
   localePlaceholder: z. B. en-US
   phone: Telefon
   import:
-    selectDataSource: Bitte wähle eine Datenquelle
     provideData: Bitte gib Daten ein
     noValidData: Keine gültigen Kontaktdaten gefunden
     success: Import
@@ -2288,7 +2288,6 @@ contacts:
       {failed} fehlgeschlagen}}'
     noneImported: Es wurden keine Kontakte importiert
     error: Importfehler
-    pasteContacts: Kontakte einfügen
     uploadContacts: Kontakte hochladen
     import: Importieren
     errorCodes:
@@ -2737,18 +2736,6 @@ onboarding:
     providerCta: Anbieter verbinden
     inviteCta: Teammitglieder einladen
     goToDashboard: Zum Dashboard
-provisioning:
-  banner:
-    title: Die Einrichtung dieses Arbeitsbereichs ist unvollständig
-    body: Ein Teil der mitgelieferten Konfiguration fehlt, deshalb funktionieren
-      Agenten und Chat womöglich noch nicht.
-    retry: Einrichtung wiederholen
-    retrying: Einrichtung läuft…
-  toast:
-    retrySucceeded: Einrichtung des Arbeitsbereichs abgeschlossen.
-    retryFailed:
-      Die Einrichtung ist erneut fehlgeschlagen. Sieh in den Server-Logs
-      nach und versuche es dann noch einmal.
 emptyStates:
   providers:
     title: Keine Anbieter konfiguriert
@@ -2795,7 +2782,7 @@ governance:
       Dieser Text wird jedem Agent vor die eigenen Anweisungen gestellt und
       kann von Benutzern nicht überschrieben werden.
     instructionsPlaceholder: Verbindliche Anweisungen eingeben...
-    charCount: '{count} / {max} Zeichen'
+    charCount: '{count} / {max}'
     charLimitExceeded: Zeichenlimit überschritten
     saved: System-Prompt wurde aktualisiert
     saveFailed: System-Prompt konnte nicht gespeichert werden
@@ -4831,9 +4818,9 @@ personalization:
         chat-übergreifend speichern und wiederverwenden.
     customInstructions:
       title: Benutzerdefinierte Anweisungen
-      description: Was der Assistent in jeder Antwort beachten soll. Maximal 4000 Zeichen.
+      description: Was der Assistent in jeder Antwort beachten soll. Maximal 5000 Zeichen.
       placeholder: z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.
-      counter: '{count} / 4000'
+      counter: '{count} / {max}'
     memories:
       title: Gespeicherte Erinnerungen
       empty:
@@ -7970,7 +7957,6 @@ projects:
     list: Alle Projekte
     overview: Allgemein
     files: Wissen
-    instructions: Anweisungen
     threads: Chats
     agents: Agenten
     settings: Einstellungen
@@ -8022,9 +8008,6 @@ projects:
     identityDescription: Name und Beschreibung des Projekts erscheinen in der
       Projektliste und in der Chat-Seitenleiste.
     sharingHeading: Freigabe
-    recentChats: Aktuelle Chats in diesem Projekt
-    recentChatsEmpty: Noch keine Chats. Starte einen, dann erscheint er hier.
-    recentChatsViewAll: Alle anzeigen
     lastActivity: Letzte Aktivität {when}
     lastActivityNever: Noch keine Aktivität
     getStartedHeading: Loslegen
@@ -8037,7 +8020,7 @@ projects:
   instructions:
     label: Anweisungen
     placeholder: Schreibe Kontext, der für jeden Chat in diesem Projekt gilt…
-    tokenCountSuffix: Zeichen verwendet
+    charCount: '{count} / {max}'
     tokenCapWarning: Nähert sich dem Limit von {cap} Zeichen
     tokenCapError: Überschreitet das Limit von {cap} Zeichen
     savedIndicator: Gespeichert

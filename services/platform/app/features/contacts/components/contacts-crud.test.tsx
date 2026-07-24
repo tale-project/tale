@@ -12,10 +12,12 @@ import { ContactsActionMenu } from './contacts-action-menu';
  * Component-level mirror of the knowledge.spec.ts e2e
  * "creates, edits and deletes a contacts entity".
  *
- * Covers the contact dialog UI the e2e drives — the CSV manual-entry create
- * dialog, the row-actions → edit dialog, and the row-actions → delete
- * confirmation — with the mutations mocked, so we assert the same observable
- * behaviour (the right mutation fires with the right payload) without a backend.
+ * Covers the contact dialog UI the e2e drives — the Add-contact menu and its
+ * file-upload import dialog, the row-actions → edit dialog, and the
+ * row-actions → delete confirmation — with the mutations mocked, so we assert
+ * the same observable behaviour (the right mutation fires with the right
+ * payload) without a backend. The CSV/spreadsheet parsing itself is covered by
+ * use-file-import.test.ts.
  */
 
 const mockBulkCreate = vi.fn();
@@ -67,44 +69,35 @@ describe('contacts CRUD (e2e migration)', () => {
     mockDelete.mockResolvedValue(undefined);
   });
 
-  // --- Create: Add contact menu → Paste contacts → CSV line → Import
-  it('creates a contact via the CSV paste-contacts dialog', async () => {
+  // --- Create: Add contact menu → the two ways in
+  it('offers exactly manual entry and a file import', async () => {
     const { user } = render(<ContactsActionMenu organizationId="org-1" />);
 
     // One combined "Add contact" button (mirroring products): manual entry
-    // and both bulk-import paths live in its menu. The structured
-    // single-contact dialog is covered by contact-create-dialog.test.tsx.
+    // and the file import live in its menu. The structured single-contact
+    // dialog is covered by contact-create-dialog.test.tsx.
+    await user.click(screen.getByRole('button', { name: 'Add contact' }));
+
+    const items = await screen.findAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Manual entry',
+      'From your device',
+    ]);
+  });
+
+  it('opens the file-upload import dialog from the menu', async () => {
+    const { user } = render(<ContactsActionMenu organizationId="org-1" />);
+
     await user.click(screen.getByRole('button', { name: 'Add contact' }));
     await user.click(
-      await screen.findByRole('menuitem', { name: 'Paste contacts' }),
+      await screen.findByRole('menuitem', { name: 'From your device' }),
     );
 
-    // The CSV paste dialog opens.
     const dialog = await screen.findByRole('dialog', {
-      name: 'Paste contacts',
+      name: 'Upload contacts',
     });
-
-    // Header-less positional CSV: one `email,name` line creates exactly one
-    // manual_import row. Contacts carry no status column.
-    const textbox = within(dialog).getByRole('textbox');
-    await user.type(textbox, 'e2e-contact@example.test,E2E contacts create');
-
-    await user.click(within(dialog).getByRole('button', { name: /^Import$/ }));
-
-    await waitFor(() => {
-      expect(mockBulkCreate).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        contacts: [
-          {
-            // No locale column in the CSV line — stored unset, not
-            // fabricated as 'en' (#2642).
-            email: 'e2e-contact@example.test',
-            name: 'E2E contacts create',
-            source: 'manual_import',
-          },
-        ],
-      });
-    });
+    // The file picker is the only data source — there is no CSV textbox.
+    expect(within(dialog).queryByRole('textbox')).toBeNull();
   });
 
   // --- Edit: row actions → Edit → prefilled name → rename → Save ------------
@@ -175,9 +168,9 @@ describe('contacts CRUD (e2e migration)', () => {
       );
       await user.click(screen.getByRole('button', { name: 'Add contact' }));
       await user.click(
-        await screen.findByRole('menuitem', { name: 'Paste contacts' }),
+        await screen.findByRole('menuitem', { name: 'From your device' }),
       );
-      await screen.findByRole('dialog', { name: 'Paste contacts' });
+      await screen.findByRole('dialog', { name: 'Upload contacts' });
       await checkAccessibility(container);
     });
   });

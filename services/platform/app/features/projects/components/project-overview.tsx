@@ -11,8 +11,9 @@ import { z } from 'zod/v4';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import {
+  EditorGroup,
   useFormEditor,
-  useRegisterActiveEditor,
+  useRegisterGroupedEditor,
 } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
@@ -32,6 +33,7 @@ import {
   useProjectThreads,
 } from '../hooks/queries';
 import { ProjectArchivedBadge } from './project-archived-badge';
+import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSharingSection } from './project-sharing-section';
 
@@ -47,7 +49,21 @@ type IdentityForm = {
 
 const PROJECT_OVERVIEW_FORM_ID = 'project-overview-identity-form';
 
-export function ProjectOverview({
+/**
+ * The project's general page. Two independently-editable sections live here —
+ * identity and the standing instructions — so the page owns an `EditorGroup`
+ * that composes both into the single Save/Discard cluster the project layout's
+ * tab strip renders.
+ */
+export function ProjectOverview(props: ProjectOverviewProps) {
+  return (
+    <EditorGroup>
+      <ProjectOverviewContent {...props} />
+    </EditorGroup>
+  );
+}
+
+function ProjectOverviewContent({
   organizationId,
   projectId,
 }: ProjectOverviewProps) {
@@ -130,10 +146,10 @@ export function ProjectOverview({
     save,
   });
 
-  // Hand this controller to the project layout's tab-strip Save/Discard
-  // cluster so identity edits are saved from the single page-level action
-  // location, not a per-section save button.
-  useRegisterActiveEditor(editor);
+  // Hand this controller to the page's editor group, which composes it with
+  // the instructions section below into the ONE Save/Discard cluster the
+  // project layout's tab strip shows — not a per-section save button.
+  useRegisterGroupedEditor(editor);
 
   const {
     form: {
@@ -141,17 +157,6 @@ export function ProjectOverview({
       formState: { errors },
     },
   } = editor;
-
-  const recentThreads = useMemo(
-    () =>
-      threads
-        .slice()
-        .sort(
-          (a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt),
-        )
-        .slice(0, 5),
-    [threads],
-  );
 
   const teamCount = project
     ? (project.teamId ? 1 : 0) + (project.sharedWithTeamIds?.length ?? 0)
@@ -161,12 +166,11 @@ export function ProjectOverview({
   // page header. Computed before the project null-guard so the hook order
   // stays stable; the empty-stats fallback returns undefined.
   //
-  // The chat count is read off the same `threads` list the Recent-chats
-  // section below renders from (`listProjectThreads`, visible member-facing
-  // chats only) rather than `stats.threadCount` (`getProjectStats`, an
-  // unfiltered count of every threadMetadata row for the project — including
-  // hidden task-comment threads and other members' unshared chats) —
-  // otherwise the two disagree on the same page (#2648).
+  // The chat count reads the visible member-facing list (`listProjectThreads`)
+  // rather than `stats.threadCount` (`getProjectStats`, an unfiltered count of
+  // every threadMetadata row for the project — including hidden task-comment
+  // threads and other members' unshared chats), so the header never claims
+  // chats a member cannot see (#2648).
   const statsLine = useMemo(() => {
     if (!stats) return undefined;
     const parts: string[] = [];
@@ -203,8 +207,8 @@ export function ProjectOverview({
 
       {/* Sticky header — project name + archived badge as title, inline
           stats + sharing summary as description, "New chat" as the only
-          action. Save/Discard for the identity form live in the project
-          layout's tab strip (registered via useRegisterActiveEditor). */}
+          action. Save/Discard for this page's sections live in the project
+          layout's tab strip (composed by the EditorGroup above). */}
       <StickySectionHeader
         title={
           <span className="inline-flex items-center gap-2">
@@ -257,6 +261,10 @@ export function ProjectOverview({
           <Text variant="muted">{project.description}</Text>
         </PageSection>
       ) : null}
+
+      {/* The project's standing instructions — a property of the project, so
+          they sit with identity here instead of on a tab of their own. */}
+      <ProjectInstructionsEditor projectId={projectId} />
 
       {/* Empty-project nudge — locales shipped these keys unused. Show only
           while files and chats are both still empty so it doesn't linger. */}
@@ -337,53 +345,6 @@ export function ProjectOverview({
           sharedWithTeamIds={project.sharedWithTeamIds ?? []}
           canAdminister={canAdminister}
         />
-      </PageSection>
-
-      <PageSection
-        title={t('overview.recentChats')}
-        action={
-          threads.length > 5 ? (
-            <Link
-              to="/dashboard/$id/projects/$projectId/threads"
-              params={{
-                id: organizationId,
-                projectId: String(projectId),
-              }}
-              className="text-primary text-sm hover:underline"
-            >
-              {t('overview.recentChatsViewAll')}
-            </Link>
-          ) : undefined
-        }
-        gap={3}
-        className="mt-8 border-t pt-8"
-      >
-        {recentThreads.length === 0 ? (
-          <Text variant="muted">{t('overview.recentChatsEmpty')}</Text>
-        ) : (
-          <div className="divide-y rounded-lg border">
-            {recentThreads.map((thread) => (
-              <Link
-                key={thread._id}
-                to="/dashboard/$id/chat/$threadId"
-                params={{
-                  id: organizationId,
-                  threadId: thread.threadId,
-                }}
-                className="hover:bg-muted/50 flex items-center gap-2 px-4 py-3 text-sm transition-colors"
-              >
-                <span className="min-w-0 flex-1 truncate">
-                  {thread.title ?? thread.threadId}
-                </span>
-                {thread.sharedWithProject ? (
-                  <span className="bg-muted rounded px-2 py-0.5 text-xs">
-                    {t('threads.sharedWithProject')}
-                  </span>
-                ) : null}
-              </Link>
-            ))}
-          </div>
-        )}
       </PageSection>
     </ContentArea>
   );

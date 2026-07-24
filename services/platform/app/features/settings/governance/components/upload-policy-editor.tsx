@@ -1,6 +1,5 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
@@ -11,6 +10,10 @@ import {
 } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -257,49 +260,69 @@ export function UploadPolicyEditor({
               disabled={!canManage || editor.isLoading}
               className="contents"
             >
-              <Stack gap={6}>
-                {/* One field per row — the settings-form convention (side-
-                    by-side fields read as one control and hide their
-                    pairing). Short numeric fields stay max-w-xs. */}
-                <Stack gap={4}>
+              {/* Same structure as the Organization details section: one
+                  divided list of rows, each with its label on the left and its
+                  control pinned right — one field per row, so side-by-side
+                  fields can never read as a single control. */}
+              <SettingsFieldList>
+                <SettingsFieldRow label={t('uploadPolicy.allowedExtensions')}>
                   <Input
-                    label={t('uploadPolicy.allowedExtensions')}
+                    aria-label={t('uploadPolicy.allowedExtensions')}
                     placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    wrapperClassName="w-full"
                     errorMessage={errors.allowedExtensions?.message}
                     {...register('allowedExtensions')}
                   />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow label={t('uploadPolicy.blockedExtensions')}>
                   <Input
-                    label={t('uploadPolicy.blockedExtensions')}
+                    aria-label={t('uploadPolicy.blockedExtensions')}
                     placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    wrapperClassName="w-full"
                     errorMessage={errors.blockedExtensions?.message}
                     {...register('blockedExtensions')}
                   />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow label={t('uploadPolicy.allowedMimeTypes')}>
                   <Input
-                    label={t('uploadPolicy.allowedMimeTypes')}
+                    aria-label={t('uploadPolicy.allowedMimeTypes')}
                     placeholder={t('uploadPolicy.mimeTypePlaceholder')}
+                    wrapperClassName="w-full"
                     errorMessage={errors.allowedMimeTypes?.message}
                     {...register('allowedMimeTypes')}
                   />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow
+                  label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                >
                   <Input
-                    label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                    aria-label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
                     type="number"
                     min={0}
                     step={1}
-                    wrapperClassName="max-w-xs"
+                    wrapperClassName="w-full"
                     errorMessage={errors.maxFileSizeMB?.message}
                     {...register('maxFileSizeMB')}
                   />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow
+                  label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                >
                   <Input
-                    label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                    aria-label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
                     type="number"
                     min={0}
                     step={0.1}
-                    wrapperClassName="max-w-xs"
+                    wrapperClassName="w-full"
                     errorMessage={errors.maxVolumeGB?.message}
                     {...register('maxVolumeGB')}
                   />
-                </Stack>
-              </Stack>
+                </SettingsFieldRow>
+              </SettingsFieldList>
             </fieldset>
           </form>
         )}

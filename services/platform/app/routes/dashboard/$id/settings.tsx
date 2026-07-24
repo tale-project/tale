@@ -123,16 +123,30 @@ function SettingsEditorActionsSlot() {
   if (isMobile) return null;
   if (!controller && actions.length === 0) return null;
 
+  const { leading, trailing } = splitByPlacement(actions);
+
   return (
     <div className="ml-auto flex items-center gap-2">
+      {leading.map((action) => (
+        <HeaderActionButton key={action.label} action={action} />
+      ))}
       {controller && (
         <EditorActions controller={controller} entityKind="settings" />
       )}
-      {actions.map((action) => (
+      {trailing.map((action) => (
         <HeaderActionButton key={action.label} action={action} />
       ))}
     </div>
   );
+}
+
+/** Page actions render on the side of the Discard/Save cluster they declare;
+ * `trailing` is the default, so an action that says nothing keeps its place. */
+function splitByPlacement(actions: SettingsHeaderAction[]) {
+  return {
+    leading: actions.filter((action) => action.placement === 'leading'),
+    trailing: actions.filter((action) => action.placement !== 'leading'),
+  };
 }
 
 /**
@@ -147,12 +161,17 @@ function SettingsMobileActionBar() {
   if (!isMobile) return null;
   if (!controller && actions.length === 0) return null;
 
+  const { leading, trailing } = splitByPlacement(actions);
+
   return (
     <MobileFloatingActions>
+      {leading.map((action) => (
+        <HeaderActionButton key={action.label} action={action} />
+      ))}
       {controller && (
         <EditorActions controller={controller} entityKind="settings" />
       )}
-      {actions.map((action) => (
+      {trailing.map((action) => (
         <HeaderActionButton key={action.label} action={action} />
       ))}
     </MobileFloatingActions>

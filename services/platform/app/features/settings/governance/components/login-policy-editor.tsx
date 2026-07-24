@@ -1,8 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
@@ -12,6 +10,10 @@ import {
 } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -218,58 +220,62 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
           />
         }
       >
-        <form id={FORM_ID} onSubmit={editor.submit}>
-          <fieldset
-            disabled={!canEdit || editor.isLoading}
-            className="contents"
-          >
-            <Stack gap={6}>
-              {enabled && (
-                <Stack gap={4}>
-                  <div>
-                    <Input
-                      label={t('loginPolicy.maxAttempts')}
-                      type="number"
-                      min={1}
-                      max={50}
-                      step={1}
-                      wrapperClassName="max-w-xs"
-                      errorMessage={errors.maxAttempts?.message}
-                      {...register('maxAttempts', { valueAsNumber: true })}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('loginPolicy.maxAttemptsHint')}
-                    </Text>
-                  </div>
+        {/* Same structure as the Organization details section: one divided
+            list of rows, each with its label + hint on the left and its
+            control pinned right. The rows exist only while the policy is
+            enabled — the section toggle hides its content. */}
+        {enabled && (
+          <form id={FORM_ID} onSubmit={editor.submit}>
+            <fieldset
+              disabled={!canEdit || editor.isLoading}
+              className="contents"
+            >
+              <SettingsFieldList>
+                <SettingsFieldRow
+                  label={t('loginPolicy.maxAttempts')}
+                  description={t('loginPolicy.maxAttemptsHint')}
+                >
+                  <Input
+                    aria-label={t('loginPolicy.maxAttempts')}
+                    type="number"
+                    min={1}
+                    max={50}
+                    step={1}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.maxAttempts?.message}
+                    {...register('maxAttempts', { valueAsNumber: true })}
+                  />
+                </SettingsFieldRow>
 
-                  <div>
-                    <Input
-                      label={t('loginPolicy.backoffSchedule')}
-                      placeholder="1, 10, 60, 600"
-                      errorMessage={errors.scheduleSeconds?.message}
-                      {...register('scheduleSeconds')}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('loginPolicy.backoffScheduleHint')}
-                    </Text>
-                  </div>
+                <SettingsFieldRow
+                  label={t('loginPolicy.backoffSchedule')}
+                  description={t('loginPolicy.backoffScheduleHint')}
+                >
+                  <Input
+                    aria-label={t('loginPolicy.backoffSchedule')}
+                    placeholder="1, 10, 60, 600"
+                    wrapperClassName="w-full"
+                    errorMessage={errors.scheduleSeconds?.message}
+                    {...register('scheduleSeconds')}
+                  />
+                </SettingsFieldRow>
 
-                  <div>
-                    <Input
-                      label={t('loginPolicy.trustedProxies')}
-                      placeholder="loopback, uniquelocal, 10.0.0.0/8"
-                      errorMessage={errors.trustedProxies?.message}
-                      {...register('trustedProxies')}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('loginPolicy.trustedProxiesHint')}
-                    </Text>
-                  </div>
-                </Stack>
-              )}
-            </Stack>
-          </fieldset>
-        </form>
+                <SettingsFieldRow
+                  label={t('loginPolicy.trustedProxies')}
+                  description={t('loginPolicy.trustedProxiesHint')}
+                >
+                  <Input
+                    aria-label={t('loginPolicy.trustedProxies')}
+                    placeholder="loopback, uniquelocal, 10.0.0.0/8"
+                    wrapperClassName="w-full"
+                    errorMessage={errors.trustedProxies?.message}
+                    {...register('trustedProxies')}
+                  />
+                </SettingsFieldRow>
+              </SettingsFieldList>
+            </fieldset>
+          </form>
+        )}
       </SettingsSection>
     </Skeletonize>
   );

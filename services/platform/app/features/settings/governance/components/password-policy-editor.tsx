@@ -1,8 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
@@ -13,6 +11,10 @@ import {
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -191,83 +193,99 @@ export function PasswordPolicyEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Short numeric fields stay max-w-xs so they don't stretch. */}
-            <Stack gap={6}>
-              <Stack gap={4}>
-                <div>
-                  <Input
-                    label={t('passwordPolicy.minLength')}
-                    type="number"
-                    min={6}
-                    max={128}
-                    step={1}
-                    wrapperClassName="max-w-xs"
-                    errorMessage={errors.minLength?.message}
-                    {...register('minLength', { valueAsNumber: true })}
-                  />
-                  <Text variant="muted" className="mt-1 text-xs">
-                    {t('passwordPolicy.minLengthHint')}
-                  </Text>
-                </div>
+            {/* Same structure as the Organization details section: one divided
+                list of rows, each with its label + hint on the left and its
+                control pinned right. Each control carries `aria-label` with
+                the row's label so it keeps an accessible name of its own now
+                that the visible label lives on the row. */}
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={t('passwordPolicy.minLength')}
+                description={t('passwordPolicy.minLengthHint')}
+              >
+                <Input
+                  aria-label={t('passwordPolicy.minLength')}
+                  type="number"
+                  min={6}
+                  max={128}
+                  step={1}
+                  wrapperClassName="w-full"
+                  errorMessage={errors.minLength?.message}
+                  {...register('minLength', { valueAsNumber: true })}
+                />
+              </SettingsFieldRow>
 
+              <SettingsFieldRow label={t('passwordPolicy.requireUpper')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireUpper')}
+                  aria-label={t('passwordPolicy.requireUpper')}
                   checked={watch('requireUpper') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireUpper', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
+
+              <SettingsFieldRow label={t('passwordPolicy.requireLower')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireLower')}
+                  aria-label={t('passwordPolicy.requireLower')}
                   checked={watch('requireLower') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireLower', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
+
+              <SettingsFieldRow label={t('passwordPolicy.requireDigit')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireDigit')}
+                  aria-label={t('passwordPolicy.requireDigit')}
                   checked={watch('requireDigit') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireDigit', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
+
+              <SettingsFieldRow label={t('passwordPolicy.requireSpecial')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireSpecial')}
+                  aria-label={t('passwordPolicy.requireSpecial')}
                   checked={watch('requireSpecial') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireSpecial', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
 
+              <SettingsFieldRow label={t('passwordPolicy.rotationEnabled')}>
                 <Switch
-                  label={t('passwordPolicy.rotationEnabled')}
+                  aria-label={t('passwordPolicy.rotationEnabled')}
                   checked={rotationEnabled}
                   onCheckedChange={(v) => persistToggle('rotationEnabled', v)}
                   disabled={!canEdit || editor.isSaving}
                 />
-                {rotationEnabled && (
-                  <div>
-                    <Input
-                      label={t('passwordPolicy.rotationDays')}
-                      type="number"
-                      min={1}
-                      max={3650}
-                      step={1}
-                      wrapperClassName="max-w-xs"
-                      errorMessage={errors.rotationDays?.message}
-                      {...register('rotationDays', { valueAsNumber: true })}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('passwordPolicy.rotationDaysHint')}
-                    </Text>
-                  </div>
-                )}
-              </Stack>
-            </Stack>
+              </SettingsFieldRow>
+
+              {rotationEnabled && (
+                <SettingsFieldRow
+                  label={t('passwordPolicy.rotationDays')}
+                  description={t('passwordPolicy.rotationDaysHint')}
+                >
+                  <Input
+                    aria-label={t('passwordPolicy.rotationDays')}
+                    type="number"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.rotationDays?.message}
+                    {...register('rotationDays', { valueAsNumber: true })}
+                  />
+                </SettingsFieldRow>
+              )}
+            </SettingsFieldList>
           </fieldset>
         </form>
       </SettingsSection>

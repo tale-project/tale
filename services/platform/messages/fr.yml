@@ -1349,6 +1349,7 @@ chat:
     input: Entrée
     output: Sortie
   loadOlderMessages: Charger les messages plus anciens
+  loadingConversation: Chargement de la conversation…
   history:
     loading: Chargement des chats...
     empty: Aucune conversation pour l'instant
@@ -1370,6 +1371,7 @@ chat:
       placedAtLabel: Placé le
     toast:
       renameFailed: Échec du renommage du chat
+      moveFailed: Échec du déplacement du chat
   aria:
     messageHistory: Historique des messages
     scrollToBottom: Défiler vers le bas
@@ -1565,9 +1567,10 @@ chat:
     description: Le service de chat ne répond pas, aucune conversation ne peut donc être chargée. Rien de ce que tu as écrit n’est perdu.
   providerSetup:
     title: Aucun fournisseur d’IA n’est encore connecté
-    description: Le chat a besoin d’un modèle provenant d’un fournisseur d’IA.
-      Connectes-en un dans Paramètres → Fournisseurs d’IA, ou demande à ton
-      administrateur d’espace de travail d’en configurer un.
+    descriptionAdmin: Connecte un fournisseur dans Paramètres → Fournisseurs IA
+      pour commencer à discuter.
+    descriptionMember: Demande à ton administrateur d'espace de travail de
+      connecter un fournisseur IA.
     action: Ouvrir les fournisseurs d’IA
   capabilities:
     label: Capacités
@@ -2272,9 +2275,8 @@ contacts:
   editContact: Modifier le contact
   deleteContact: Supprimer le contact
   importMenu:
-    addManually: Ajouter manuellement
-    fromDevice: Importer depuis ton appareil
-    pasteContacts: Coller des contacts
+    fromDevice: Depuis ton appareil
+    manualEntry: Saisie manuelle
   create:
     title: Ajouter un contact
     success: Contact créé avec succès
@@ -2291,7 +2293,6 @@ contacts:
   localePlaceholder: ex. en-US
   phone: Téléphone
   import:
-    selectDataSource: Sélectionne une source de données
     provideData: Fournis des données
     noValidData: Aucune donnée de contact valide trouvée
     success: Importation réussie
@@ -2300,7 +2301,6 @@ contacts:
       {} other {, {failed} échoué(s)}}
     noneImported: Aucun contact n'a été importé
     error: Erreur d'importation
-    pasteContacts: Coller des contacts
     uploadContacts: Téléverser des contacts
     import: Importer
     errorCodes:
@@ -2766,19 +2766,6 @@ onboarding:
     providerCta: Connecter un fournisseur
     inviteCta: Inviter des coéquipiers
     goToDashboard: Aller au tableau de bord
-provisioning:
-  banner:
-    title: La configuration de cet espace de travail n'est pas terminée
-    body:
-      Une partie de la configuration intégrée manque, donc les agents et le chat
-      risquent de ne pas fonctionner.
-    retry: Relancer la configuration
-    retrying: Configuration en cours…
-  toast:
-    retrySucceeded: Configuration de l'espace de travail terminée.
-    retryFailed:
-      La configuration a de nouveau échoué. Consulte les logs du serveur,
-      puis réessaie.
 emptyStates:
   providers:
     title: Aucun fournisseur configuré
@@ -2824,7 +2811,7 @@ governance:
       Ce texte est injecté avant les instructions de chaque agent et ne peut
       pas être remplacé par les utilisateurs.
     instructionsPlaceholder: Saisir les instructions obligatoires...
-    charCount: '{count} / {max} caractères'
+    charCount: '{count} / {max}'
     charLimitExceeded: Limite de caractères dépassée
     saved: Le prompt système a été mis à jour
     saveFailed: Échec de l'enregistrement du prompt système
@@ -4896,12 +4883,12 @@ personalization:
     customInstructions:
       title: Instructions personnalisées
       description:
-        Ce que l'assistant doit garder à l'esprit dans chaque réponse. 4000
+        Ce que l'assistant doit garder à l'esprit dans chaque réponse. 5000
         caractères maximum.
       placeholder:
         p. ex. Réponds de manière concise. Utilise TypeScript par défaut
         pour le code.
-      counter: '{count} / 4000'
+      counter: '{count} / {max}'
     memories:
       title: Souvenirs enregistrés
       empty:
@@ -8085,7 +8072,6 @@ projects:
     list: Tous les projets
     overview: Général
     files: Connaissances
-    instructions: Instructions
     threads: Chats
     agents: Agents
     settings: Paramètres
@@ -8138,9 +8124,6 @@ projects:
     identityDescription: Le nom et la description du projet apparaissent dans la
       liste des projets et dans la barre latérale du chat.
     sharingHeading: Partage
-    recentChats: Chats récents dans ce projet
-    recentChatsEmpty: Aucun chat pour l'instant. Démarres-en un et il apparaîtra ici.
-    recentChatsViewAll: Voir tout
     lastActivity: Dernière activité {when}
     lastActivityNever: Aucune activité pour l'instant
     getStartedHeading: Démarrer
@@ -8155,7 +8138,7 @@ projects:
   instructions:
     label: Instructions
     placeholder: Écris le contexte qui s'applique à chaque chat de ce projet…
-    tokenCountSuffix: caractères utilisés
+    charCount: '{count} / {max}'
     tokenCapWarning: Proche de la limite de {cap} caractères
     tokenCapError: Dépasse la limite de {cap} caractères
     savedIndicator: Enregistré

@@ -122,11 +122,6 @@ function ProjectDetailLayout() {
         ],
       },
       {
-        label: t('navigation.instructions'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/instructions`,
-        matchMode: 'exact',
-      },
-      {
         label: t('navigation.files'),
         href: `/dashboard/${organizationId}/projects/${projectId}/files`,
         matchMode: 'exact',

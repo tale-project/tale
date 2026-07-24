@@ -189,13 +189,15 @@ export function BrandingForm({
   useRegisterActiveEditor(editor);
 
   // Reset lives in the settings header next to Save/Discard (the shared
-  // top-bar slot) rather than as a local button at the form's foot. The
-  // action count must stay stable across renders, so it registers always
-  // and disables when there is nothing to reset.
+  // top-bar slot) rather than as a local button at the form's foot — to the
+  // LEFT of Discard, so Save stays the rightmost button. The action count
+  // must stay stable across renders, so it registers always and disables
+  // when there is nothing to reset.
   useRegisterSettingsSecondaryAction([
     {
       label: tCommon('actions.reset'),
       variant: 'secondary',
+      placement: 'leading',
       disabled: !hasAnyBranding,
       onClick: () => setConfirmClearOpen(true),
     },

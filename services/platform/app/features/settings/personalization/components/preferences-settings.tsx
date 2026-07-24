@@ -6,10 +6,11 @@
  *
  * The switch lives in the section header (unlabelled — the section title
  * names the feature; the switch carries an aria-label) and the fields live in
- * the section body. Turning a feature off leaves the fields visible but
- * inert, so the stored value stays readable instead of vanishing. The
- * custom-instructions text saves through the settings header's global
- * Save/Discard cluster; only the enable switches save instantly.
+ * the section body. Turning a feature off HIDES that section's body — a
+ * disabled field reads as broken, and the stored value is still there when the
+ * feature comes back on. The custom-instructions text saves through the
+ * settings header's global Save/Discard cluster; only the enable switches save
+ * instantly.
  *
  * Reading replies aloud is NOT here. It is a property of the message being
  * sent, so it lives in the composer's mode menu; duplicating it as a stored
@@ -45,7 +46,7 @@ import {
 } from '../hooks/mutations';
 
 /** Backend cap, mirrored so the counter and the field agree with the writer. */
-const CUSTOM_INSTRUCTIONS_MAX_CHARS = 4000;
+const CUSTOM_INSTRUCTIONS_MAX_CHARS = 5000;
 
 /**
  * A feature is on when the user said so, and follows the org's default when
@@ -229,21 +230,29 @@ function CustomInstructionsSection({
         />
       }
     >
-      <form onSubmit={editor.submit}>
-        <Stack gap={2}>
-          <Textarea
-            aria-label={t('page.customInstructions.title')}
-            placeholder={t('page.customInstructions.placeholder')}
-            rows={5}
-            disabled={!gate.effective || editor.isSaving}
-            errorMessage={errors.customInstructions?.message}
-            {...register('customInstructions')}
-          />
-          <Text variant="muted" className="text-xs">
-            {t('page.customInstructions.counter', { count: value.length })}
-          </Text>
-        </Stack>
-      </form>
+      {/* The instructions field exists only while the feature is on — the
+          toggle hides it rather than showing a field nothing would read. The
+          grouped save bar is gated on the same flag (above). */}
+      {gate.effective && (
+        <form onSubmit={editor.submit}>
+          <Stack gap={2}>
+            <Textarea
+              aria-label={t('page.customInstructions.title')}
+              placeholder={t('page.customInstructions.placeholder')}
+              rows={5}
+              disabled={editor.isSaving}
+              errorMessage={errors.customInstructions?.message}
+              {...register('customInstructions')}
+            />
+            <Text variant="muted" className="text-xs">
+              {t('page.customInstructions.counter', {
+                count: value.length,
+                max: CUSTOM_INSTRUCTIONS_MAX_CHARS,
+              })}
+            </Text>
+          </Stack>
+        </form>
+      )}
     </SettingsSection>
   );
 }
@@ -285,22 +294,26 @@ function MemoriesSection({
         />
       }
     >
-      <Stack gap={6}>
-        <MemoryList
-          title={t('page.pending.title')}
-          empty={t('page.pending.empty')}
-          entries={
-            memories.status === 'ready' ? memories.data.pending : undefined
-          }
-        />
-        <MemoryList
-          title={t('page.memories.title')}
-          empty={t('page.memories.empty')}
-          entries={
-            memories.status === 'ready' ? memories.data.approved : undefined
-          }
-        />
-      </Stack>
+      {/* Same rule as every other section toggle: off means the section's
+          content is gone, not shown-but-inert. */}
+      {gate.effective && (
+        <Stack gap={6}>
+          <MemoryList
+            title={t('page.pending.title')}
+            empty={t('page.pending.empty')}
+            entries={
+              memories.status === 'ready' ? memories.data.pending : undefined
+            }
+          />
+          <MemoryList
+            title={t('page.memories.title')}
+            empty={t('page.memories.empty')}
+            entries={
+              memories.status === 'ready' ? memories.data.approved : undefined
+            }
+          />
+        </Stack>
+      )}
     </SettingsSection>
   );
 }

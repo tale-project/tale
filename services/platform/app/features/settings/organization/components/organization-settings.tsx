@@ -21,8 +21,11 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useDeleteOrganization } from '@/app/features/organization/hooks/use-delete-organization';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { MembersSettings } from '@/app/features/settings/organization/components/members-settings';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
@@ -128,12 +131,12 @@ export function OrganizationSettingsView({
 
   return (
     <SettingsPage>
-      {/* Settings-row layout: each field is a horizontal row with its
-          label + helper text on the left and the control pinned right, with
-          a divider between rows. The form (name + locale) and the read-only
-          Organization ID share one divided list so they read as one
-          continuous block; Save/Discard live in the settings header via the
-          registered editor. */}
+      {/* Shared settings-field list: each field is a row with its label +
+          helper text on the left and the control pinned right, divided from
+          its neighbours. The form (name + locale) and the read-only
+          Organization ID share one list so they read as one continuous block;
+          Save/Discard live in the settings header via the registered
+          editor. */}
       <SettingsSection
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}
@@ -142,17 +145,16 @@ export function OrganizationSettingsView({
           id="organization-form"
           onSubmit={handleSubmit((values) => onSave(values))}
         >
-          <fieldset disabled={isLoading} className="divide-border divide-y">
-            <SettingsRow
-              className="py-5"
-              label={tSettings('organization.title')}
-              description={tSettings('organization.nameDescription')}
-              required
-            >
-              {/* Fixed-width control column, full-width on mobile where the row
-                stacks. `wrapperClassName="w-full"` lets the bare Input fill it
-                so its skeleton mask matches the loaded width. */}
-              <div className="w-full sm:w-80">
+          <fieldset disabled={isLoading} className="contents">
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={tSettings('organization.title')}
+                description={tSettings('organization.nameDescription')}
+                required
+              >
+                {/* `wrapperClassName="w-full"` lets the bare Input fill the
+                    row's control column so its skeleton mask matches the
+                    loaded width. */}
                 <Input
                   id="org-name"
                   aria-label={tSettings('organization.title')}
@@ -161,19 +163,17 @@ export function OrganizationSettingsView({
                   {...register('name')}
                   wrapperClassName="w-full"
                 />
-              </div>
-            </SettingsRow>
+              </SettingsFieldRow>
 
-            <SettingsRow
-              className="py-5"
-              label={tSettings('organization.defaultLocale')}
-              description={tSettings('organization.localeDescription')}
-            >
-              <div className="w-full sm:w-80">
-                {/* Controlled via RHF `Controller`: the field registers itself so
-                  dirty tracking is automatic (no `setValue(..., { shouldDirty })`
-                  to forget). `field.value ?? ''` keeps Radix controlled from the
-                  first render before the form resets to server data. */}
+              <SettingsFieldRow
+                label={tSettings('organization.defaultLocale')}
+                description={tSettings('organization.localeDescription')}
+              >
+                {/* Controlled via RHF `Controller`: the field registers itself
+                    so dirty tracking is automatic (no `setValue(...,
+                    { shouldDirty })` to forget). `field.value ?? ''` keeps
+                    Radix controlled from the first render before the form
+                    resets to server data. */}
                 <Controller
                   control={control}
                   name="defaultLocale"
@@ -195,21 +195,20 @@ export function OrganizationSettingsView({
                     />
                   )}
                 />
-              </div>
-            </SettingsRow>
+              </SettingsFieldRow>
 
-            <SettingsRow
-              className="py-5"
-              label={tSettings('organization.organizationId')}
-              description={tSettings('organization.organizationIdDescription')}
-            >
-              <div className="w-full sm:w-80">
+              <SettingsFieldRow
+                label={tSettings('organization.organizationId')}
+                description={tSettings(
+                  'organization.organizationIdDescription',
+                )}
+              >
                 <CopyableField
                   value={organization?._id ?? ''}
                   copyAriaLabel={tSettings('organization.copyOrganizationId')}
                 />
-              </div>
-            </SettingsRow>
+              </SettingsFieldRow>
+            </SettingsFieldList>
           </fieldset>
         </Form>
       </SettingsSection>

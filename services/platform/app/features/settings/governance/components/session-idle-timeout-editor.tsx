@@ -1,8 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
@@ -12,6 +10,10 @@ import {
 } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -169,26 +171,29 @@ export function SessionIdleTimeoutEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Minutes field stays max-w-xs. */}
-            <Stack gap={6}>
-              {enabled && (
-                <div>
+            {/* Same structure as the Organization details section: one divided
+                list of rows, each with its label + hint on the left and its
+                control pinned right. The row exists only while the policy is
+                enabled — the section toggle hides its content. */}
+            {enabled && (
+              <SettingsFieldList>
+                <SettingsFieldRow
+                  label={t('sessionIdleTimeout.minutes')}
+                  description={t('sessionIdleTimeout.minutesHint')}
+                >
                   <Input
-                    label={t('sessionIdleTimeout.minutes')}
+                    aria-label={t('sessionIdleTimeout.minutes')}
                     type="number"
                     min={SESSION_IDLE_TIMEOUT_MIN_MINUTES}
                     max={SESSION_IDLE_TIMEOUT_MAX_MINUTES}
                     step={1}
-                    wrapperClassName="max-w-xs"
+                    wrapperClassName="w-full"
                     errorMessage={errors.idleTimeoutMinutes?.message}
                     {...register('idleTimeoutMinutes', { valueAsNumber: true })}
                   />
-                  <Text variant="muted" className="mt-1 text-xs">
-                    {t('sessionIdleTimeout.minutesHint')}
-                  </Text>
-                </div>
-              )}
-            </Stack>
+                </SettingsFieldRow>
+              </SettingsFieldList>
+            )}
           </fieldset>
         </form>
       </SettingsSection>
