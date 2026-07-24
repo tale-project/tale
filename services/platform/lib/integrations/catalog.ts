@@ -122,11 +122,9 @@ function stampConnectorDir(dir: string): { slugs: string[]; stamps: string } {
   return { slugs, stamps };
 }
 
-/** Parse and validate one `connector.yml`, pinning its declared identity. */
-export function loadConnectorFile(
-  file: string,
-  slug: string,
-): IntegrationConnector {
+/** Parse and validate one `connector.yml`, pinning its declared identity.
+ * Module-private — `loadIntegrationConnectors` is the public entry. */
+function loadConnectorFile(file: string, slug: string): IntegrationConnector {
   const parsed = integrationConnectorSchema.safeParse(
     parseYamlOrThrow(readFileSync(file, 'utf8'), {
       maxBytes: MAX_CONNECTOR_BYTES,
