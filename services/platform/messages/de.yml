@@ -150,6 +150,26 @@ analytics:
     empty:
       title: Keine Läufe
       description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
+  codingTurns:
+    title: Coding-Runden
+    description: Zuverlässigkeit der Coding-Agenten von Drittanbietern in der
+      Sandbox.
+    cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
+      angezeigt. Ältere Runden fließen nicht in diese Summen ein.
+    cards:
+      total: Runden gesamt
+      successRate: Erfolgsquote
+      timeoutRate: Timeout-Quote
+      durationP95: Dauer p95
+      cancelled: Von Nutzer gestoppt
+      recovered: Wiederhergestellt
+    byHarness:
+      title: Nach Coding-Agent
+      harness: Coding-Agent
+      turns: Runden
+      successRate: Erfolgsquote
+      timeouts: Timeouts
+      empty: Im gewählten Zeitraum ist keine Coding-Runde gelaufen.
   usage:
     title: Nutzungs-Metriken
     description: Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.
@@ -4305,6 +4325,7 @@ metrics:
     usage: Nutzung
     feedback: Feedback
     chat-health: Chat-Zustand
+    coding-turns: Coding-Runden
     automations: Automatisierungen
     projects: Projekte
   period:

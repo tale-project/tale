@@ -152,6 +152,26 @@ analytics:
     empty:
       title: Aucune exécution
       description: Aucune automatisation n'a tourné sur la période choisie.
+  codingTurns:
+    title: Tours de codage
+    description: Fiabilité des agents de codage tiers exécutés dans le bac à
+      sable.
+    cappedNotice: Affichage des 5 000 tours les plus récents de cette période.
+      Les tours plus anciens ne sont pas inclus dans ces totaux.
+    cards:
+      total: Tours au total
+      successRate: Taux de réussite
+      timeoutRate: Taux d'expiration
+      durationP95: Durée p95
+      cancelled: Arrêtés par l'utilisateur
+      recovered: Récupérés
+    byHarness:
+      title: Par agent de codage
+      harness: Agent de codage
+      turns: Tours
+      successRate: Taux de réussite
+      timeouts: Expirations
+      empty: Aucun tour de codage n'a tourné sur la période choisie.
   usage:
     title: Métriques d'utilisation
     description: Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.
@@ -4359,6 +4379,7 @@ metrics:
     usage: Utilisation
     feedback: Retours
     chat-health: Santé de l'assistant
+    coding-turns: Tours de codage
     automations: Automatisations
     projects: Projets
   period:
