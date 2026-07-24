@@ -19,6 +19,7 @@ import {
 } from '../hooks/queries';
 import { mapIntegrationError } from '../integration-errors';
 import { ConnectorSection } from './connector-section';
+import { McpEndpointSection } from './mcp-endpoint-section';
 
 /** Placeholder sections shown while the catalog action resolves. */
 function ConnectorsLoading() {
@@ -124,13 +125,14 @@ export function IntegrationsSettings({
         connectors.map((connector) => (
           <ConnectorSection
             key={connector.slug}
-            className="border-border border-t pt-8"
             organizationId={organizationId}
             connector={connector}
             credentials={credentialsByConnector.get(connector.slug) ?? []}
           />
         ))
       )}
+
+      <McpEndpointSection organizationId={organizationId} />
     </SettingsPage>
   );
 }
