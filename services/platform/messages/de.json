@@ -5561,8 +5561,7 @@
       "tableCaption": "Installierte Agents",
       "createAgent": "Agent erstellen",
       "createMenu": {
-        "blank": "Leer",
-        "fromTemplate": "Aus Vorlage"
+        "blank": "Leer"
       },
       "searchAgent": "Agents suchen",
       "columns": {
