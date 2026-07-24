@@ -120,10 +120,11 @@ export function ImageUploadField({
       // Gate the logo on a minimum raster size BEFORE any preview state so a
       // rejected file never flashes into the preview or the live form.
       if (imageType === 'logo' && !isSvg(file)) {
-        const size = await imagePixelSize(file);
+        const pixelSize = await imagePixelSize(file);
         if (
-          size &&
-          (size.width < MIN_LOGO_PIXELS || size.height < MIN_LOGO_PIXELS)
+          pixelSize &&
+          (pixelSize.width < MIN_LOGO_PIXELS ||
+            pixelSize.height < MIN_LOGO_PIXELS)
         ) {
           toast({
             title: tToast('error.logoTooSmall', { min: MIN_LOGO_PIXELS }),

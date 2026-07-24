@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
