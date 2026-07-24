@@ -3,8 +3,16 @@
 // under the workspace root (no traversal, no symlink escape) — the same
 // boundary the exec cwd check enforces.
 
-import { readdir, readFile, realpath, rm, stat } from 'node:fs/promises';
-import { join, normalize } from 'node:path';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { dirname, join, normalize } from 'node:path';
 
 import { WORKSPACE_ROOT } from './protocol.ts';
 
@@ -120,7 +128,10 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
         skipped.push({ path: item.path, reason: 'no_source' });
         continue;
       }
-      await Bun.write(abs, buf);
+      // node target — the daemon bundles with --target=node, so no Bun
+      // globals. Bun.write created parent dirs; mkdir -p keeps that contract.
+      await mkdir(dirname(abs), { recursive: true });
+      await writeFile(abs, buf);
       staged.push({ path: item.path, bytes: buf.byteLength });
     } catch (err) {
       skipped.push({

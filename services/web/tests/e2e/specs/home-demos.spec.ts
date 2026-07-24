@@ -8,7 +8,7 @@ import { createI18n } from '@tale/e2e/i18n';
  * animation timing. This is also the state prerendered HTML ships.
  */
 
-const { t } = createI18n(new URL('../../../messages/en.json', import.meta.url));
+const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 

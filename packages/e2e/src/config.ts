@@ -5,7 +5,7 @@ import type { PlaywrightTestConfig } from '@playwright/test';
  * House defaults for every Tale frontend service's Playwright suite, so each
  * service's `playwright.config.ts` stays a thin, declarative call. Encodes the
  * settings the platform suite established (issue #179): `en-US`/UTC pinned so
- * i18n-derived locators resolve against `messages/en.json`, budgets generous
+ * i18n-derived locators resolve against `messages/en.yml`, budgets generous
  * enough for cold Vite first-navigation compiles, `list` + non-opening `html`
  * reporters, and CI-aware `retries`/`forbidOnly`.
  */
