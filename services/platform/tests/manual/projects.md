@@ -1,7 +1,7 @@
 # Projects & tasks — Manual Test Plan
 
 > **Purpose**: Exercise projects (identity edit, sharing/visibility), their tabs
-> (files, threads, agents, instructions, secrets, metrics, discussions, automations),
+> (files, threads, agents, instructions, secrets, metrics, automations),
 > and the task board/list (backlog is the leftmost lane) with the task detail sheet and the
 > cascade-delete confirmation. Mock-LLM stack; no real provider needed for
 > these flows.
@@ -21,7 +21,6 @@ errors, no error boundary) against a seeded org on 2026-06-23.
 | Instructions    | `/dashboard/{org}/projects/{projectId}/instructions`                                                                      |
 | Secrets         | `/dashboard/{org}/projects/{projectId}/secrets`                                                                           |
 | Metrics         | `/dashboard/{org}/projects/{projectId}/metrics`                                                                           |
-| Discussions     | `/dashboard/{org}/projects/{projectId}/discussions`                                                                       |
 | Automations     | `/dashboard/{org}/projects/{projectId}/automations/{automationSlug}` (and `…/automations/{automationSlug}/runs/{execId}`) |
 | Tasks (board)   | `/dashboard/{org}/projects/{projectId}/tasks` → redirects to `…/tasks/board`                                              |
 | Tasks (list)    | `/dashboard/{org}/projects/{projectId}/tasks/list`                                                                        |

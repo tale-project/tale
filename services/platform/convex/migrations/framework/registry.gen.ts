@@ -7,10 +7,24 @@
 // V8-safe: node/reference migrations contribute inline meta literals only —
 // their handler modules ('use node' / test-only) are never imported here.
 
+import { composeDb } from './compose';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
+import { migration as m0_4_1_01 } from '../versions/v0_4_1/01_purge_project_discussions/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
 export const ALL_META: readonly MigrationMeta[] = [
+  {
+    id: "0.4.1/01_purge_project_discussions",
+    semver: "0.4.1",
+    numericId: 1,
+    slug: "purge_project_discussions",
+    title: "Purge retired project-discussion threads",
+    description: "up snapshots and deletes every threadMetadata row with kind 'project_discussion' (the retired Discussions surface); down is the generic snapshot restore, rebuilding those rows byte-for-byte.",
+    kind: 'db',
+    reversible: true,
+    destructive: true,
+    snapshot: 'table-rows',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -26,6 +40,7 @@ export function requireMeta(id: string): MigrationMeta {
 
 /** Runnable `db` migrations, keyed by meta.id. */
 export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
+  "0.4.1/01_purge_project_discussions": composeDb(requireMeta("0.4.1/01_purge_project_discussions"), m0_4_1_01),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

@@ -798,8 +798,8 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                 // The default-agent auto-install re-schedules
                 // here when the chat rebuild lands its slim-agent provisioner.
                 // Seed example content (a "Getting started" project + a few
-                // tasks + one discussion) after the agents are installed, so
-                // the @mentioned assistant exists. Idempotent + best-effort.
+                // tasks) after the agents are installed. Idempotent +
+                // best-effort.
                 await runCtx.scheduler.runAfter(
                   15_000,
                   internal.provisioning.seed_starter.seedStarterContent,

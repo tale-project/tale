@@ -17,9 +17,6 @@ import type { ActionCtx, MutationCtx } from '../_generated/server';
  * Extend deliberately; never rename.
  */
 export const EVENT_TYPES = [
-  'discussion.created',
-  'discussion.reply',
-  'discussion.mentioned',
   'contact.created',
   'contact.updated',
   'contact.deleted',

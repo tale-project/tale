@@ -25,11 +25,7 @@ const STRUCTURAL_TYPES = new Set(['start', 'trigger', 'output']);
  * plumbing. Without this carve-out an unannotated `respond` step (the pack
  * mention/assignment reaction) collapses out and the run view shows nothing
  * while the agent works. */
-const AGENT_RUN_OPERATIONS = new Set([
-  'run_on_task',
-  'run_on_discussion',
-  'decompose_task',
-]);
+const AGENT_RUN_OPERATIONS = new Set(['run_on_task', 'decompose_task']);
 
 interface StepDisplayInput {
   stepType: string;

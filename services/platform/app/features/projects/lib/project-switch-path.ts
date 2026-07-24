@@ -9,7 +9,6 @@
 
 const PORTABLE_PROJECT_SEGMENTS = new Set([
   'threads',
-  'discussions',
   'tasks',
   'metrics',
   'instructions',

@@ -37,7 +37,7 @@ describe('personalNotificationTarget', () => {
     });
   });
 
-  it('builds a discussion deep-link when threadId + projectId are present', () => {
+  it('falls back to the project for a legacy discussion-mention row (threadId + projectId)', () => {
     const target = personalNotificationTarget({
       organizationId: ORG,
       taskId: undefined,
@@ -48,9 +48,8 @@ describe('personalNotificationTarget', () => {
       },
     });
     expect(target).toEqual({
-      to: '/dashboard/$id/projects/$projectId/discussions',
+      to: '/dashboard/$id/projects/$projectId',
       params: { id: ORG, projectId: 'proj_xyz' },
-      search: { thread: 'thread_abc' },
     });
   });
 

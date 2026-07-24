@@ -241,8 +241,8 @@ export default defineSchema({
   notifications: notificationsTable,
   objectStorageBackfillRuns: objectStorageBackfillRunsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
-  // The discussion-thread container (task/project/automation discussions);
-  // predates the chat rewrite but is live — see discussions/schema.ts.
+  // The thread container (task-comment and automation threads); predates
+  // the chat rewrite but is live — see discussions/schema.ts.
   threadMetadata: threadMetadataTable,
   twoFactorAttempts: twoFactorAttemptsTable,
   userNotificationState: userNotificationStateTable,

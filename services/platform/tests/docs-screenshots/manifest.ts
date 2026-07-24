@@ -22,9 +22,7 @@ import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_API_KEYS,
   DEMO_CHAT_PROMPTS,
-  DEMO_DISCUSSIONS,
   DEMO_KNOWLEDGE_ENTRIES,
-  DEMO_MCP_DIALOG_EXAMPLE,
   DEMO_ORG_NAME,
   DEMO_PROJECT_FILES,
   DEMO_PROJECTS,
@@ -193,18 +191,6 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByText(t('projects.agents.modeRecommendedDescription')).first(),
-  },
-  {
-    // The Discussions tab with the seeded open discussions.
-    name: 'project-discussions-list',
-    section: 'platform',
-    route: '/dashboard/:orgId/projects',
-    prepare: async (page, ctx) => {
-      await page.goto(projectRoute(ctx, '/discussions'), {
-        waitUntil: 'domcontentloaded',
-      });
-    },
-    readyWhen: (page) => page.getByText(DEMO_DISCUSSIONS[0].title).first(),
   },
   {
     // Knowledge > Knowledge entries with the seeded manual facts.
@@ -675,37 +661,13 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText('Tavily', { exact: true }).first(),
   },
   {
-    // Settings > API > MCP with the Add MCP server dialog open — transport
-    // and authentication are the whole form. Filled in (never submitted): a
-    // dialog of empty grey placeholders shows the reader nothing.
-    name: 'settings-mcp-add-dialog',
+    // The MCP endpoint section at the bottom of Settings > Integrations —
+    // outbound MCP-server management is retired, so the endpoint (plus the
+    // engine method list) is the whole MCP surface.
+    name: 'settings-mcp-endpoint',
     section: 'platform',
-    route: '/dashboard/:orgId/settings/api/mcp',
-    prepare: async (page) => {
-      await page
-        .getByRole('button', { name: t('mcpServers.addServer') })
-        .first()
-        .click();
-      const sheet = page.getByRole('dialog', {
-        name: t('mcpServers.addServer'),
-      });
-      // Required inputs announce as "Namerequired", and "Name" prefixes
-      // "Display name" — anchor the label (see labelStart).
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.name')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.name);
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.displayName')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.displayName);
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.description')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.description);
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.url')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.url);
-    },
-    readyWhen: (page) =>
-      page.getByText(t('mcpServers.form.transportType')).first(),
+    route: '/dashboard/:orgId/settings/integrations',
+    readyWhen: (page) => page.getByText('/api/v1/mcp').first(),
   },
   {
     // Settings > API > WebDAV — connection details and the app-password

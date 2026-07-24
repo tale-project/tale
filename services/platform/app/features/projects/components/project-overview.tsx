@@ -165,7 +165,7 @@ export function ProjectOverview({
   // section below renders from (`listProjectThreads`, visible member-facing
   // chats only) rather than `stats.threadCount` (`getProjectStats`, an
   // unfiltered count of every threadMetadata row for the project — including
-  // hidden discussion-backing threads and other members' unshared chats) —
+  // hidden task-comment threads and other members' unshared chats) —
   // otherwise the two disagree on the same page (#2648).
   const statsLine = useMemo(() => {
     if (!stats) return undefined;

@@ -170,10 +170,6 @@ import type * as deployment_file_actions from "../deployment/file_actions.js";
 import type * as deployment_file_utils from "../deployment/file_utils.js";
 import type * as deployment_secret_io from "../deployment/secret_io.js";
 import type * as deployment_test_datastore_connection from "../deployment/test_datastore_connection.js";
-import type * as discussions_internal_mutations from "../discussions/internal_mutations.js";
-import type * as discussions_internal_queries from "../discussions/internal_queries.js";
-import type * as discussions_mutations from "../discussions/mutations.js";
-import type * as discussions_queries from "../discussions/queries.js";
 import type * as discussions_thread_cascade from "../discussions/thread_cascade.js";
 import type * as documents__helpers from "../documents/_helpers.js";
 import type * as documents_access from "../documents/access.js";
@@ -551,6 +547,7 @@ import type * as migrations_framework_snapshot_store from "../migrations/framewo
 import type * as migrations_framework_test_helpers from "../migrations/framework/test_helpers.js";
 import type * as migrations_framework_types from "../migrations/framework/types.js";
 import type * as migrations_testing_support from "../migrations/testing/support.js";
+import type * as migrations_versions_v0_4_1_01_purge_project_discussions_migration from "../migrations/versions/v0_4_1/01_purge_project_discussions/migration.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
 import type * as node_only_sandbox_engine_exec_runner from "../node_only/sandbox/engine_exec_runner.js";
@@ -1004,10 +1001,6 @@ declare const fullApi: ApiFromModules<{
   "deployment/file_utils": typeof deployment_file_utils;
   "deployment/secret_io": typeof deployment_secret_io;
   "deployment/test_datastore_connection": typeof deployment_test_datastore_connection;
-  "discussions/internal_mutations": typeof discussions_internal_mutations;
-  "discussions/internal_queries": typeof discussions_internal_queries;
-  "discussions/mutations": typeof discussions_mutations;
-  "discussions/queries": typeof discussions_queries;
   "discussions/thread_cascade": typeof discussions_thread_cascade;
   "documents/_helpers": typeof documents__helpers;
   "documents/access": typeof documents_access;
@@ -1385,6 +1378,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/framework/test_helpers": typeof migrations_framework_test_helpers;
   "migrations/framework/types": typeof migrations_framework_types;
   "migrations/testing/support": typeof migrations_testing_support;
+  "migrations/versions/v0_4_1/01_purge_project_discussions/migration": typeof migrations_versions_v0_4_1_01_purge_project_discussions_migration;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
   "node_only/sandbox/engine_exec_runner": typeof node_only_sandbox_engine_exec_runner;

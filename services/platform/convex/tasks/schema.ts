@@ -176,8 +176,9 @@ export const tasksTable = defineTable({
   // `sourceDiscussionThreadId` (the createTaskFromDiscussion spawn backlink).
   discussionThreadId: v.optional(v.string()),
 
-  // Discussion this task was spawned from (createTaskFromDiscussion); the
-  // reverse link lives on threadMetadata.linkedTaskId.
+  // Historical: the retired project-discussions surface could spawn a task
+  // from a discussion; rows created back then keep the backlink even though
+  // the source threads are purged. Never written anymore.
   sourceDiscussionThreadId: v.optional(v.string()),
 
   // Authorship + lifecycle

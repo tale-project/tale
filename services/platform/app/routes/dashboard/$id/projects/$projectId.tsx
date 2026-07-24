@@ -74,7 +74,6 @@ function ProjectDetailLayout() {
   const { t: tCommon } = useT('common');
   const { t: tTasks } = useT('tasks');
   const { t: tSecrets } = useT('projectSecrets');
-  const { t: tDiscussions } = useT('discussions');
 
   // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
   // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
@@ -108,11 +107,6 @@ function ProjectDetailLayout() {
       {
         label: t('navigation.threads'),
         href: `/dashboard/${organizationId}/projects/${projectId}/threads`,
-        matchMode: 'exact',
-      },
-      {
-        label: tDiscussions('title'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/discussions`,
         matchMode: 'exact',
       },
       {
@@ -172,7 +166,6 @@ function ProjectDetailLayout() {
       t,
       tTasks,
       tSecrets,
-      tDiscussions,
       organizationId,
       projectId,
       project?.canAdminister,
@@ -253,11 +246,11 @@ function ProjectDetailLayout() {
           </>
         }
       >
-        {/* Fill the layout's content height so full-height tabs (the
-            Discussions thread view's sticky-bottom composer, like the main
-            chat) anchor correctly instead of collapsing to content height.
-            Auto-height tabs (ContentArea-based) are unaffected — they size to
-            content and top-align as before. */}
+        {/* Fill the layout's content height so full-height tabs (thread
+            views with a sticky-bottom composer, like the main chat) anchor
+            correctly instead of collapsing to content height. Auto-height
+            tabs (ContentArea-based) are unaffected — they size to content
+            and top-align as before. */}
         <Skeletonize
           loading={isLoading}
           label={t('title')}

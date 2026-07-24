@@ -8,9 +8,9 @@ import { v } from 'convex/values';
  * through its lifecycle (open → closed), with escalation, SLA tracking and a
  * comment thread. Cases are ORG-SCOPED, not project-scoped: support staff see
  * every case in their organization (`support_cases/helpers.ts`), in contrast to
- * the project-member-scoped {@link tasksTable}/discussions. This is the new
- * surface the issue calls out as missing — the existing internal `tasks` board
- * and `threadMetadata` discussions stay project-internal.
+ * the project-member-scoped {@link tasksTable}. This is the new surface the
+ * issue calls out as missing — the existing internal `tasks` board stays
+ * project-internal.
  *
  * Polymorphic single assignee mirrors `tasks`: a case is assigned to exactly
  * one actor that is EITHER a human user OR an AI agent (e.g. the builtin

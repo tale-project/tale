@@ -1,9 +1,9 @@
 ---
 title: Projects
-description: A project is a shared workspace that bundles chats, files, instructions, tasks, and discussions around one piece of work. This overview maps the project tabs and points to the page that goes deeper on each.
+description: A project is a shared workspace that bundles chats, files, instructions, and tasks around one piece of work. This overview maps the project tabs and points to the page that goes deeper on each.
 ---
 
-A project is a shared workspace that bundles everything one piece of work needs — the chats, the reference files, the instructions, the task board, and the discussions — so the context follows the work instead of being re-pasted into every chat. Where a single chat answers one question, a project is where a team keeps a contact, a launch, or a long-running investigation moving.
+A project is a shared workspace that bundles everything one piece of work needs — the chats, the reference files, the instructions, and the task board — so the context follows the work instead of being re-pasted into every chat. Where a single chat answers one question, a project is where a team keeps a contact, a launch, or a long-running investigation moving.
 
 Prefer to watch first? Episode 6 walks a live project in two and a half minutes — including a task an agent picks up on camera.
 
@@ -19,7 +19,7 @@ Prefer to watch first? Episode 6 walks a live project in two and a half minutes 
 
 ## The parts of a project
 
-Every project opens on the same tab strip: **General** (name, description, sharing, and recent chats), **Chats** (your chats in the project plus the ones shared with it), **Discussions** (threaded topics for the whole team), **Tasks** (the board, with a **Metrics** view), **Instructions** (context that applies to every chat in the project), **Knowledge** (the project's files, in a folder tree), **Agents & models** (which agents and models members see here), and **Secrets**. Apps installed into the project add their own tabs after these.
+Every project opens on the same tab strip: **General** (name, description, sharing, and recent chats), **Chats** (your chats in the project plus the ones shared with it), **Tasks** (the board, with a **Metrics** view), **Instructions** (context that applies to every chat in the project), **Knowledge** (the project's files, in a folder tree), **Agents & models** (which agents and models members see here), and **Secrets**. Apps installed into the project add their own tabs after these.
 
 ## Pages in this section
 
@@ -40,12 +40,6 @@ The Knowledge tab — uploading files into folders, index status, and how projec
 <Card title="Agents and models" icon="bot" href="/platform/projects/project-agents">
 
 Curating which agents and models appear in a project — Recommended versus Restricted.
-
-</Card>
-
-<Card title="Discussions" icon="messages-square" href="/platform/projects/discussions">
-
-Threaded team conversations with categories, lifecycle, and agents one @mention away.
 
 </Card>
 

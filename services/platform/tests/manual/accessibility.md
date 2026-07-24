@@ -107,7 +107,6 @@ Tick the checks that apply per surface (— = N/A for that surface).
 | Dialog          | —   | —   |     |     |     | —   | —   |     |     | A5 focus return + A12 title                                            |
 | Mobile shell    |     |     |     |     | —   | —   |     |     |     | A14 touch targets ≥ 44 px                                              |
 | Workspace panel |     | —   |     |     | —   | —   | —   | —   | —   | canvas/live-browser panes; depth in [workspace.md](workspace.md) A1–A5 |
-| Discussions     | —   | —   |     |     | —   | —   | —   | —   |     | mention listbox; depth in [discussions.md](discussions.md) A2          |
 
 ## Issues Found
 

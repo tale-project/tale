@@ -548,8 +548,8 @@ export const getTask = query({
       canEdit: v.boolean(),
       canClaim: v.boolean(),
       // Whether the caller may post/comment on the task's discussion. Commenting
-      // is a READ-level action (any org member who can read the task, mirroring
-      // a project discussion reply — see `addTaskComment`), so it's true for
+      // is a READ-level action (any org member who can read the task — see
+      // `addTaskComment`), so it's true for
       // read-only members who cannot otherwise edit the task (#2339). The modal
       // gates the comment composer off this rather than `canEdit`.
       canComment: v.boolean(),

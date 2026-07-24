@@ -1,4 +1,8 @@
 0.4.0:
-  dbSchema: 6976c5057d84eecfd8f87b3c
+  dbSchema: e333bccbb83d990334b4dee6
   configSchema: f50ad972baa5460a2cc4e3fb
-  scaffold: 28f0f884eea2b683985f66b7
+  scaffold: 0c90d700fbd629826dd09b7c
+0.4.1:
+  dbSchema: e333bccbb83d990334b4dee6
+  configSchema: f50ad972baa5460a2cc4e3fb
+  scaffold: 0c90d700fbd629826dd09b7c

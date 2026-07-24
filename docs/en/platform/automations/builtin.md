@@ -54,7 +54,7 @@ Eight more automations sit in the catalog for the moments you need them. Each is
 
 ## The pre-installed packs
 
-The plumbing that runs every organization's boards ships as automations too — installed automatically at creation, hidden from the catalog, and visible on the **Installed** tab like anything else. The **task pack** runs an assigned agent the moment a task lands on it, triages unassigned work, reacts to @-mentions, routes finished work through review, sweeps stale runs, enforces SLAs, and keeps dependent tasks, subtasks, and archives moving; its siblings answer discussion mentions and keep OneDrive files synced. Each is a normal automation — open one to read its document on the canvas, follow what it did in its [run list](/platform/automations/execution-logs), or switch off a [trigger](/platform/automations/triggers) to stop it firing; an uninstall sticks and is never re-installed behind your back.
+The plumbing that runs every organization's boards ships as automations too — installed automatically at creation, hidden from the catalog, and visible on the **Installed** tab like anything else. The **task pack** runs an assigned agent the moment a task lands on it, triages unassigned work, reacts to @-mentions, routes finished work through review, sweeps stale runs, enforces SLAs, and keeps dependent tasks, subtasks, and archives moving; its sibling keeps OneDrive files synced. Each is a normal automation — open one to read its document on the canvas, follow what it did in its [run list](/platform/automations/execution-logs), or switch off a [trigger](/platform/automations/triggers) to stop it firing; an uninstall sticks and is never re-installed behind your back.
 
 ## Where this fits
 

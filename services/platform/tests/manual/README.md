@@ -45,7 +45,6 @@ Playwright MCP — proving behaviour by observing the real outcome, per the
 | [agents.md](agents.md)               | agent list + editor tabs, catalog, metrics                                           |
 | [automations.md](automations.md)     | automations marketplace: catalog/empty, upload, install, run, per-project config     |
 | [projects.md](projects.md)           | projects, tasks (attachments, comments), files, secrets, instructions, threads       |
-| [discussions.md](discussions.md)     | project discussions: multi-party thread, author attribution, @-mentions              |
 | [knowledge.md](knowledge.md)         | documents, knowledge entries, products, contacts, websites                           |
 | [conversations.md](conversations.md) | inbox: statuses, priority, search                                                    |
 | [workflows.md](workflows.md)         | editor, configuration, triggers, executions, per-node run status                     |
@@ -72,7 +71,6 @@ _Automated coverage_ table is case-by-case.
 | agents        | ✅ strong      | `agents`, `agent-editor`                                                                                                                                                               |
 | automations   | ⛔ manual-only | — (no spec; the whole automations surface is untested in e2e)                                                                                                                          |
 | projects      | ✅ strong      | `projects`, `projects-depth`                                                                                                                                                           |
-| discussions   | 🔶 partial     | unit `resolve-author` + component `message-bubble` (alignment/label); no e2e                                                                                                           |
 | knowledge     | ✅ strong      | `knowledge`                                                                                                                                                                            |
 | conversations | 🔶 partial     | `conversations` (read-only / empty-state only; status transitions, bulk actions, search uncovered — and transitions currently FAIL, crit audit-log RLS defect, see the guide's Issues) |
 | workflows     | ✅ strong      | `workflow-editor`                                                                                                                                                                      |

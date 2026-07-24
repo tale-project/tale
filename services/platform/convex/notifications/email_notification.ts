@@ -45,11 +45,14 @@ export function buildPersonalNotificationUrl(args: {
         : 'open';
     return `${base}/dashboard/${args.organizationId}/conversations/${encodeURIComponent(status)}?conversation=${encodeURIComponent(conversationId)}`;
   }
-  if (typeof threadId === 'string' && typeof projectId === 'string') {
-    return `${base}/dashboard/${args.organizationId}/projects/${projectId}/discussions?thread=${encodeURIComponent(threadId)}`;
-  }
   if (args.taskId && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks?task=${args.taskId}`;
+  }
+  // Legacy discussion-mention rows (threadId + projectId): their route is
+  // gone, so the email lands on the project overview — parity with
+  // `personalNotificationTarget`.
+  if (typeof threadId === 'string' && typeof projectId === 'string') {
+    return `${base}/dashboard/${args.organizationId}/projects/${projectId}`;
   }
   return null;
 }

@@ -101,14 +101,12 @@ import { Route as DashboardIdSettingsGovernanceAuditLogsRouteImport } from './ro
 import { Route as DashboardIdSettingsApiWebdavRouteImport } from './routes/dashboard/$id/settings/api/webdav';
 import { Route as DashboardIdSettingsApiRuntimesRouteImport } from './routes/dashboard/$id/settings/api/runtimes';
 import { Route as DashboardIdSettingsApiRestRouteImport } from './routes/dashboard/$id/settings/api/rest';
-import { Route as DashboardIdSettingsApiMcpRouteImport } from './routes/dashboard/$id/settings/api/mcp';
 import { Route as DashboardIdProjectsProjectIdThreadsRouteImport } from './routes/dashboard/$id/projects/$projectId/threads';
 import { Route as DashboardIdProjectsProjectIdSettingsRouteImport } from './routes/dashboard/$id/projects/$projectId/settings';
 import { Route as DashboardIdProjectsProjectIdSecretsRouteImport } from './routes/dashboard/$id/projects/$projectId/secrets';
 import { Route as DashboardIdProjectsProjectIdMetricsRouteImport } from './routes/dashboard/$id/projects/$projectId/metrics';
 import { Route as DashboardIdProjectsProjectIdInstructionsRouteImport } from './routes/dashboard/$id/projects/$projectId/instructions';
 import { Route as DashboardIdProjectsProjectIdFilesRouteImport } from './routes/dashboard/$id/projects/$projectId/files';
-import { Route as DashboardIdProjectsProjectIdDiscussionsRouteImport } from './routes/dashboard/$id/projects/$projectId/discussions';
 import { Route as DashboardIdProjectsProjectIdAgentsRouteImport } from './routes/dashboard/$id/projects/$projectId/agents';
 import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken';
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route';
@@ -648,12 +646,6 @@ const DashboardIdSettingsApiRestRoute =
     path: '/rest',
     getParentRoute: () => DashboardIdSettingsApiRouteRoute,
   } as any);
-const DashboardIdSettingsApiMcpRoute =
-  DashboardIdSettingsApiMcpRouteImport.update({
-    id: '/mcp',
-    path: '/mcp',
-    getParentRoute: () => DashboardIdSettingsApiRouteRoute,
-  } as any);
 const DashboardIdProjectsProjectIdThreadsRoute =
   DashboardIdProjectsProjectIdThreadsRouteImport.update({
     id: '/threads',
@@ -688,12 +680,6 @@ const DashboardIdProjectsProjectIdFilesRoute =
   DashboardIdProjectsProjectIdFilesRouteImport.update({
     id: '/files',
     path: '/files',
-    getParentRoute: () => DashboardIdProjectsProjectIdRoute,
-  } as any);
-const DashboardIdProjectsProjectIdDiscussionsRoute =
-  DashboardIdProjectsProjectIdDiscussionsRouteImport.update({
-    id: '/discussions',
-    path: '/discussions',
     getParentRoute: () => DashboardIdProjectsProjectIdRoute,
   } as any);
 const DashboardIdProjectsProjectIdAgentsRoute =
@@ -846,14 +832,12 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
-  '/dashboard/$id/projects/$projectId/discussions': typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
   '/dashboard/$id/projects/$projectId/instructions': typeof DashboardIdProjectsProjectIdInstructionsRoute;
   '/dashboard/$id/projects/$projectId/metrics': typeof DashboardIdProjectsProjectIdMetricsRoute;
   '/dashboard/$id/projects/$projectId/secrets': typeof DashboardIdProjectsProjectIdSecretsRoute;
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
-  '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
@@ -947,14 +931,12 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
-  '/dashboard/$id/projects/$projectId/discussions': typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
   '/dashboard/$id/projects/$projectId/instructions': typeof DashboardIdProjectsProjectIdInstructionsRoute;
   '/dashboard/$id/projects/$projectId/metrics': typeof DashboardIdProjectsProjectIdMetricsRoute;
   '/dashboard/$id/projects/$projectId/secrets': typeof DashboardIdProjectsProjectIdSecretsRoute;
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
-  '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
@@ -1062,14 +1044,12 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
-  '/dashboard/$id/projects/$projectId/discussions': typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
   '/dashboard/$id/projects/$projectId/instructions': typeof DashboardIdProjectsProjectIdInstructionsRoute;
   '/dashboard/$id/projects/$projectId/metrics': typeof DashboardIdProjectsProjectIdMetricsRoute;
   '/dashboard/$id/projects/$projectId/secrets': typeof DashboardIdProjectsProjectIdSecretsRoute;
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
-  '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
@@ -1177,14 +1157,12 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
-    | '/dashboard/$id/projects/$projectId/discussions'
     | '/dashboard/$id/projects/$projectId/files'
     | '/dashboard/$id/projects/$projectId/instructions'
     | '/dashboard/$id/projects/$projectId/metrics'
     | '/dashboard/$id/projects/$projectId/secrets'
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
-    | '/dashboard/$id/settings/api/mcp'
     | '/dashboard/$id/settings/api/rest'
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
@@ -1278,14 +1256,12 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
-    | '/dashboard/$id/projects/$projectId/discussions'
     | '/dashboard/$id/projects/$projectId/files'
     | '/dashboard/$id/projects/$projectId/instructions'
     | '/dashboard/$id/projects/$projectId/metrics'
     | '/dashboard/$id/projects/$projectId/secrets'
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
-    | '/dashboard/$id/settings/api/mcp'
     | '/dashboard/$id/settings/api/rest'
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
@@ -1392,14 +1368,12 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
-    | '/dashboard/$id/projects/$projectId/discussions'
     | '/dashboard/$id/projects/$projectId/files'
     | '/dashboard/$id/projects/$projectId/instructions'
     | '/dashboard/$id/projects/$projectId/metrics'
     | '/dashboard/$id/projects/$projectId/secrets'
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
-    | '/dashboard/$id/settings/api/mcp'
     | '/dashboard/$id/settings/api/rest'
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
@@ -2097,13 +2071,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsApiRestRouteImport;
       parentRoute: typeof DashboardIdSettingsApiRouteRoute;
     };
-    '/dashboard/$id/settings/api/mcp': {
-      id: '/dashboard/$id/settings/api/mcp';
-      path: '/mcp';
-      fullPath: '/dashboard/$id/settings/api/mcp';
-      preLoaderRoute: typeof DashboardIdSettingsApiMcpRouteImport;
-      parentRoute: typeof DashboardIdSettingsApiRouteRoute;
-    };
     '/dashboard/$id/projects/$projectId/threads': {
       id: '/dashboard/$id/projects/$projectId/threads';
       path: '/threads';
@@ -2144,13 +2111,6 @@ declare module '@tanstack/react-router' {
       path: '/files';
       fullPath: '/dashboard/$id/projects/$projectId/files';
       preLoaderRoute: typeof DashboardIdProjectsProjectIdFilesRouteImport;
-      parentRoute: typeof DashboardIdProjectsProjectIdRoute;
-    };
-    '/dashboard/$id/projects/$projectId/discussions': {
-      id: '/dashboard/$id/projects/$projectId/discussions';
-      path: '/discussions';
-      fullPath: '/dashboard/$id/projects/$projectId/discussions';
-      preLoaderRoute: typeof DashboardIdProjectsProjectIdDiscussionsRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdRoute;
     };
     '/dashboard/$id/projects/$projectId/agents': {
@@ -2353,7 +2313,6 @@ const DashboardIdConversationsRouteWithChildren =
   );
 
 interface DashboardIdSettingsApiRouteRouteChildren {
-  DashboardIdSettingsApiMcpRoute: typeof DashboardIdSettingsApiMcpRoute;
   DashboardIdSettingsApiRestRoute: typeof DashboardIdSettingsApiRestRoute;
   DashboardIdSettingsApiRuntimesRoute: typeof DashboardIdSettingsApiRuntimesRoute;
   DashboardIdSettingsApiWebdavRoute: typeof DashboardIdSettingsApiWebdavRoute;
@@ -2362,7 +2321,6 @@ interface DashboardIdSettingsApiRouteRouteChildren {
 
 const DashboardIdSettingsApiRouteRouteChildren: DashboardIdSettingsApiRouteRouteChildren =
   {
-    DashboardIdSettingsApiMcpRoute: DashboardIdSettingsApiMcpRoute,
     DashboardIdSettingsApiRestRoute: DashboardIdSettingsApiRestRoute,
     DashboardIdSettingsApiRuntimesRoute: DashboardIdSettingsApiRuntimesRoute,
     DashboardIdSettingsApiWebdavRoute: DashboardIdSettingsApiWebdavRoute,
@@ -2587,7 +2545,6 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteWithChildren =
 
 interface DashboardIdProjectsProjectIdRouteChildren {
   DashboardIdProjectsProjectIdAgentsRoute: typeof DashboardIdProjectsProjectIdAgentsRoute;
-  DashboardIdProjectsProjectIdDiscussionsRoute: typeof DashboardIdProjectsProjectIdDiscussionsRoute;
   DashboardIdProjectsProjectIdFilesRoute: typeof DashboardIdProjectsProjectIdFilesRoute;
   DashboardIdProjectsProjectIdInstructionsRoute: typeof DashboardIdProjectsProjectIdInstructionsRoute;
   DashboardIdProjectsProjectIdMetricsRoute: typeof DashboardIdProjectsProjectIdMetricsRoute;
@@ -2607,8 +2564,6 @@ const DashboardIdProjectsProjectIdRouteChildren: DashboardIdProjectsProjectIdRou
   {
     DashboardIdProjectsProjectIdAgentsRoute:
       DashboardIdProjectsProjectIdAgentsRoute,
-    DashboardIdProjectsProjectIdDiscussionsRoute:
-      DashboardIdProjectsProjectIdDiscussionsRoute,
     DashboardIdProjectsProjectIdFilesRoute:
       DashboardIdProjectsProjectIdFilesRoute,
     DashboardIdProjectsProjectIdInstructionsRoute:

@@ -10,12 +10,11 @@
 
 /**
  * `threadMetadata.kind` values that are NOT part of the user-facing chat
- * history. Project/task discussions reuse `chatType: 'general'` but live under
- * Projects, so they must be excluded from the chat sidebar, archive list,
- * command palette, "my chats" count, and bulk sweeps.
+ * history. Task comments and automation threads reuse `chatType: 'general'`
+ * but live under their own surfaces, so they must be excluded from the chat
+ * sidebar, archive list, command palette, "my chats" count, and bulk sweeps.
  */
 const NON_CHAT_HISTORY_KINDS = [
-  'project_discussion',
   'task_discussion',
   'automation_discussion',
 ] as const;

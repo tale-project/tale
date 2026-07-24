@@ -17,9 +17,8 @@ import type { AuthenticatedUser } from '../lib/rls/types';
  */
 
 /**
- * Length caps for free-text inputs, mirroring the sibling `tasks`
- * (`TASK_TITLE_MAX`/`TASK_DESCRIPTION_MAX`/`TASK_COMMENT_MAX`) and `discussions`
- * (`DISCUSSION_TITLE_MAX`/`DISCUSSION_MESSAGE_MAX`) modules. Cases can capture
+ * Length caps for free-text inputs, mirroring the sibling `tasks` module
+ * (`TASK_TITLE_MAX`/`TASK_DESCRIPTION_MAX`/`TASK_COMMENT_MAX`). Cases can capture
  * customer-originated content (`requesterEmail`/`requesterName`, inbound
  * subject/body), so bounding every write keeps storage and the query budget off
  * the unbounded-string cliff the sibling modules already guard against.
@@ -96,8 +95,7 @@ export function validateOptionalText(
 /**
  * Authorize a READ against the support portal. Returns the authenticated user
  * on success, or `null` when the caller is unauthenticated or not an org member
- * — read handlers translate `null` into an empty result rather than throwing,
- * mirroring `discussions/queries.ts`.
+ * — read handlers translate `null` into an empty result rather than throwing.
  */
 export async function authorizeSupportRead(
   ctx: QueryCtx | MutationCtx,
@@ -116,7 +114,7 @@ export async function authorizeSupportRead(
 /**
  * Authorize a WRITE against the support portal: the caller must be an
  * authenticated, active member of the organization. Throws `ConvexError` with a
- * stable `code` (mirroring the discussions/tasks write paths) on failure.
+ * stable `code` (mirroring the tasks write paths) on failure.
  */
 export async function authorizeSupportWrite(
   ctx: MutationCtx,

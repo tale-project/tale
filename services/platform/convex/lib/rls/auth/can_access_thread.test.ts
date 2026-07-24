@@ -27,11 +27,7 @@ interface MockMetadata {
   organizationId?: string;
   isShared?: boolean;
   status?: string;
-  kind?:
-    | 'chat'
-    | 'project_discussion'
-    | 'task_discussion'
-    | 'automation_discussion';
+  kind?: 'chat' | 'task_discussion' | 'automation_discussion';
 }
 
 interface BetterAuthMember {
@@ -364,15 +360,16 @@ describe('canAccessThread — discussion branch', () => {
     vi.clearAllMocks();
   });
 
-  it('grants a non-owner org member access to a project_discussion', async () => {
-    // Discussions are a shared surface: unlike a private `chat` thread, any
-    // member of the thread's org may read/reply even though it isn't `isShared`.
+  it('grants a non-owner org member access to a task_discussion', async () => {
+    // Comment threads are a shared surface: unlike a private `chat` thread,
+    // any member of the thread's org may read/reply even though it isn't
+    // `isShared`.
     const meta: MockMetadata = {
       _id: 'tm_disc',
       threadId: 't_disc',
       userId: 'user_owner',
       organizationId: 'org_disc',
-      kind: 'project_discussion',
+      kind: 'task_discussion',
     };
     const ctx = createMockCtx({
       metadata: meta,
@@ -513,7 +510,7 @@ describe('canAccessThread — discussion branch', () => {
       threadId: 't_disc',
       userId: 'user_owner',
       organizationId: 'org_disc',
-      kind: 'project_discussion',
+      kind: 'task_discussion',
     };
     const ctx = createMockCtx({ metadata: meta, members: [] });
 

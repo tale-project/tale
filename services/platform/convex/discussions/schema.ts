@@ -1,10 +1,9 @@
 /**
- * The discussion-thread container. `threadMetadata` predates the chat rewrite
- * (the new chat world lives in `threads`/`messages`, see `chat/schema.ts`) but
- * it is NOT legacy: task/project/automation discussions actively create and
- * work these rows (`discussions/mutations.ts`, `tasks/internal_mutations.ts`),
- * with the actual comment bodies stored as agent-component messages and
- * cascaded by `thread_cascade.ts`.
+ * The thread container. `threadMetadata` predates the chat rewrite (the new
+ * chat world lives in `threads`/`messages`, see `chat/schema.ts`) but it is
+ * NOT legacy: task-comment and automation threads actively create and work
+ * these rows (`tasks/internal_mutations.ts`), with the actual comment bodies
+ * stored as agent-component messages and cascaded by `thread_cascade.ts`.
  *
  * The validator still admits the retired chat-era fields (arena, sharing,
  * canvas, reasoning state…) — they are dead weight on 0.4 fresh deploys and
@@ -178,7 +177,15 @@ export const threadMetadataTable = defineTable({
   externalAgentMode: v.optional(v.union(v.literal('plan'), v.literal('act'))),
   /** External-agent working directory, relative to the sandbox workspace root. */
   sandboxWorkdir: v.optional(v.string()),
-  /** Discussions reuse this thread/message store; `kind` distinguishes them. */
+  /**
+   * Task comments and automation threads reuse this store; `kind`
+   * distinguishes them. `'project_discussion'` is RETIRED (the Discussions
+   * surface is gone): nothing writes it anymore, and the
+   * `0.4.1/01_purge_project_discussions` migration deletes the rows — the
+   * literal stays admitted only so pre-purge rows validate until the purge
+   * has run. Drop it (with the three retired fields below) in the release
+   * AFTER the purge ships.
+   */
   kind: v.optional(
     v.union(
       v.literal('chat'),
@@ -198,12 +205,13 @@ export const threadMetadataTable = defineTable({
     v.union(v.literal('open'), v.literal('resolved'), v.literal('locked')),
   ),
   discussionCategory: v.optional(v.string()),
-  acceptedAnswerMessageId: v.optional(v.string()),
-  /** A task spawned from this discussion. */
-  linkedTaskId: v.optional(v.id('tasks')),
-  /** Agent-to-agent reply-chain depth for the discussion loop guard. */
+  /** Agent-to-agent reply-chain depth for the comment-thread loop guard. */
   agentReplyDepth: v.optional(v.number()),
-  /** Capability-group ids the model unlocked via `request_capabilities`. */
+  /** RETIRED (project discussions): admitted only until the purge runs. */
+  acceptedAnswerMessageId: v.optional(v.string()),
+  /** RETIRED (project discussions): admitted only until the purge runs. */
+  linkedTaskId: v.optional(v.id('tasks')),
+  /** RETIRED (project discussions): admitted only until the purge runs. */
   unlockedToolGroups: v.optional(v.array(v.string())),
 })
   .index('by_threadId', ['threadId'])
@@ -226,7 +234,6 @@ export const threadMetadataTable = defineTable({
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId_and_projectId', ['organizationId', 'projectId'])
   .index('by_projectId_and_userId', ['projectId', 'userId'])
-  .index('by_kind_projectId', ['kind', 'projectId'])
   .index('by_kind_taskId', ['kind', 'taskId'])
   .index('by_org_automation_subject', [
     'organizationId',

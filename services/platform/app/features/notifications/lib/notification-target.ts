@@ -13,11 +13,6 @@ export type NotificationTarget =
       search: { task: string };
     }
   | {
-      to: '/dashboard/$id/projects/$projectId/discussions';
-      params: { id: string; projectId: string };
-      search: { thread: string };
-    }
-  | {
       to: '/dashboard/$id/chat/$threadId';
       params: { id: string; threadId: string };
     }
@@ -81,10 +76,11 @@ export type OrgNotificationLink =
 
 /**
  * Deep-link target for a PERSONAL notification (`userNotifications`). Task-bound
- * types route to the task inside its project; chat and discussion mentions route
- * to their thread; a row that names a project but no task opens the project;
- * anything else falls back to the org home. Always returns a target — a personal
- * row is never a dead, unclickable line (#2377).
+ * types route to the task inside its project; chat mentions route to their
+ * thread; a row that names a project but no task opens the project (including
+ * legacy discussion-mention rows — their route is gone); anything else falls
+ * back to the org home. Always returns a target — a personal row is never a
+ * dead, unclickable line (#2377).
  */
 export function personalNotificationTarget(args: {
   organizationId: string;
@@ -123,13 +119,6 @@ export function personalNotificationTarget(args: {
     return {
       to: '/dashboard/$id/chat/$threadId',
       params: { id, threadId },
-    };
-  }
-  if (threadId && projectId && !args.taskId) {
-    return {
-      to: '/dashboard/$id/projects/$projectId/discussions',
-      params: { id, projectId },
-      search: { thread: threadId },
     };
   }
   if (args.taskId && projectId) {

@@ -159,27 +159,6 @@ export const DEMO_PROJECT_FILES: readonly DemoDocument[] = [
   },
 ] as const;
 
-interface DemoDiscussion {
-  readonly title: string;
-  /** Category key — `discussions.categories.<key>` in messages/en.yml. */
-  readonly category: string;
-  readonly body: string;
-}
-
-/** Discussions opened in the "Website relaunch" project. */
-export const DEMO_DISCUSSIONS: readonly DemoDiscussion[] = [
-  {
-    title: 'Keep the legacy blog URLs after relaunch?',
-    category: 'decisions',
-    body: 'The redirect map covers 340 of 380 legacy URLs. The remaining 40 are old blog posts with almost no traffic — redirect them to the blog index, or keep the pages live?',
-  },
-  {
-    title: 'What counts as launch-blocking in the accessibility sweep?',
-    category: 'qa',
-    body: 'The staging sweep found 12 issues. Which severity levels block the launch, and which can land in the first week after go-live?',
-  },
-] as const;
-
 export interface DemoKnowledgeEntry {
   readonly topic: string;
   readonly content: string;
@@ -348,18 +327,6 @@ export const DEMO_PROJECT_AGENTS: readonly string[] = ['Assistant'] as const;
 export const DEMO_PROJECT_MODELS: readonly string[] = [
   'Claude Sonnet 4.6',
 ] as const;
-
-/**
- * Values typed into forms that are screenshotted OPEN but never submitted — an
- * empty dialog of grey placeholders teaches nothing. A second, distinct server
- * (the seeded one already exists) so the form is not a duplicate name.
- */
-export const DEMO_MCP_DIALOG_EXAMPLE = {
-  name: 'support-tickets',
-  displayName: 'Support Tickets',
-  description: 'Look up ticket history and SLA state for a customer.',
-  url: 'https://mcp.northlight.example/support',
-} as const;
 
 /** Enterprise SSO form values (filled, never saved — saving would gate sign-in). */
 export const DEMO_SSO_EXAMPLE = {

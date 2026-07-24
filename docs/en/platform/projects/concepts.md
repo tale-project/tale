@@ -1,6 +1,6 @@
 ---
 title: Project concepts
-description: A project bundles chats, files, instructions, tasks, and discussions into one shared workspace. This page hands you the mental model for when to reach for a project over a stand-alone chat.
+description: A project bundles chats, files, instructions, and tasks into one shared workspace. This page hands you the mental model for when to reach for a project over a stand-alone chat.
 ---
 
 A project is the unit Tale reaches for when a body of work needs the same files, the same instructions, and the same working surfaces across many chats and many people. This page hands you the mental model — read it before you create your first project, and come back when you are deciding whether a growing chat should be promoted into one.
@@ -19,7 +19,7 @@ A project is the unit Tale reaches for when a body of work needs the same files,
 
 **Files** on the **Knowledge** tab are reference material every chat in the project can draw on, held in a folder tree you upload into once rather than re-attaching per chat. They stay scoped to this project — they never surface in the org-wide library or in `@` pickers outside it — see [Manage files](/platform/projects/manage-files).
 
-**Tasks and Discussions** make the project a place to run work, not just talk about it: a board with statuses and [automation](/platform/projects/task-automation), and [threaded discussions](/platform/projects/discussions) for decisions.
+**Tasks** make the project a place to run work, not just talk about it: a board with statuses and [automation](/platform/projects/task-automation), with comment threads on every task for the decisions around it.
 
 **Agents & models** is a curation surface: which agents and models members see first — or see at all — inside this project ([Agents and models](/platform/projects/project-agents)).
 
@@ -45,4 +45,4 @@ A stand-alone chat is the right shape for exploring an answer once. The moment t
 
 ## Where this fits
 
-Projects are the seam where chats, knowledge, and task automation meet. The natural next read is [Use projects](/tutorials/member/use-projects), which walks a fresh project end to end; the per-tab pages in this section go deeper on [files](/platform/projects/manage-files), [agents and models](/platform/projects/project-agents), and [discussions](/platform/projects/discussions).
+Projects are the seam where chats, knowledge, and task automation meet. The natural next read is [Use projects](/tutorials/member/use-projects), which walks a fresh project end to end; the per-tab pages in this section go deeper on [files](/platform/projects/manage-files) and [agents and models](/platform/projects/project-agents).
