@@ -30,7 +30,11 @@ export function RulesTableEmptyState({
       {Icon && <Icon className="text-muted-foreground mb-4 size-8" />}
       <p className="text-foreground text-sm font-medium">{title}</p>
       {description && (
-        <p className="text-muted-foreground mt-1 text-sm">{description}</p>
+        // `min-h-10` reserves two text-sm lines, matching the shared
+        // `EmptyState` so short and long descriptions align in height.
+        <p className="text-muted-foreground mt-1 min-h-10 text-sm">
+          {description}
+        </p>
       )}
     </div>
   );

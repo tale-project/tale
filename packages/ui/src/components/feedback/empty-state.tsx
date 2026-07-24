@@ -50,7 +50,9 @@ export function EmptyState({
       {description && (
         // `as="div"` (not the default `<p>`): descriptions may carry rich block
         // content (links, doc CTAs), and a `<div>` inside a `<p>` is invalid.
-        <Text as="div" variant="muted" className="mt-1 max-w-80">
+        // `min-h-10` reserves two text-sm lines (2 × 1.25rem) so one-line and
+        // two-line descriptions produce equal-height empty states.
+        <Text as="div" variant="muted" className="mt-1 min-h-10 max-w-80">
           {description}
         </Text>
       )}

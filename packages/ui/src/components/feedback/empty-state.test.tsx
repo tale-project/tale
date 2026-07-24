@@ -39,6 +39,11 @@ describe('EmptyState', () => {
       ).toBeInTheDocument();
     });
 
+    it('reserves two text lines for the description so empty states align in height', () => {
+      render(<EmptyState title="No results" description="Short description" />);
+      expect(screen.getByText('Short description')).toHaveClass('min-h-10');
+    });
+
     it('does not render description when omitted', () => {
       render(<EmptyState title="No results" />);
       expect(screen.queryByText(/try/i)).not.toBeInTheDocument();
