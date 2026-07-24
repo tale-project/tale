@@ -61,20 +61,33 @@ async function getQuery(): Promise<{ handler: Handler }> {
 function createCtx(opts: {
   meta: Record<string, unknown> | null;
   project?: Record<string, unknown> | null;
+  /** A rebuilt chat `threads` row: `normalizeId('threads', …)` resolves and
+   * `db.get(threadId)` returns this row. Absent = a legacy string thread id
+   * (normalizeId → null), which is every pre-existing case below. */
+  chatThread?: Record<string, unknown> | null;
 }) {
-  const get = vi.fn().mockResolvedValue(opts.project ?? null);
+  const get = vi.fn((id: string) =>
+    Promise.resolve(
+      id === 'thread_1' ? (opts.chatThread ?? null) : (opts.project ?? null),
+    ),
+  );
+  const query = vi.fn(() => ({
+    withIndex: vi.fn(() => ({
+      first: vi.fn().mockResolvedValue(opts.meta),
+    })),
+  }));
   return {
     ctx: {
       db: {
-        query: vi.fn(() => ({
-          withIndex: vi.fn(() => ({
-            first: vi.fn().mockResolvedValue(opts.meta),
-          })),
-        })),
+        normalizeId: vi.fn((_table: string, id: string) =>
+          opts.chatThread !== undefined ? id : null,
+        ),
+        query,
         get,
       },
     },
     get,
+    query,
   };
 }
 
@@ -155,5 +168,41 @@ describe('getProjectAgentCapabilitiesForThread', () => {
     await expect(
       handler(ctx, { threadId: 'thread_1', agentId: 'claude-code' }),
     ).resolves.toEqual(EMPTY);
+  });
+
+  it('resolves a rebuilt chat thread via threads.projectId, no metadata read', async () => {
+    const { ctx, query } = createCtx({
+      meta: null,
+      chatThread: { projectId: 'project_1' },
+      project: {
+        agentCapabilities: {
+          'claude-code': { skills: ['review'], connectors: ['tavily'] },
+        },
+      },
+    });
+    const { handler } = await getQuery();
+
+    await expect(
+      handler(ctx, { threadId: 'thread_1', agentId: 'claude-code' }),
+    ).resolves.toEqual({ skills: ['review'], connectors: ['tavily'] });
+    // The threads row answered — the legacy metadata table is never queried.
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('falls back to threadMetadata when the chat thread has no link', async () => {
+    const { ctx } = createCtx({
+      meta: { projectId: 'project_1' },
+      chatThread: { title: 'no link here' },
+      project: {
+        agentCapabilities: {
+          'claude-code': { skills: [], connectors: ['github'] },
+        },
+      },
+    });
+    const { handler } = await getQuery();
+
+    await expect(
+      handler(ctx, { threadId: 'thread_1', agentId: 'claude-code' }),
+    ).resolves.toEqual({ skills: [], connectors: ['github'] });
   });
 });

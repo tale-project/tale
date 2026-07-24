@@ -19,8 +19,9 @@
  * turns that follow. Other organizations still see nothing.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import {
   internalMutation,
@@ -271,10 +272,42 @@ export const createThread = mutation({
         connectors: v.array(v.string()),
       }),
     ),
+    /** Start the conversation inside a project (the project's "New chat"
+     * flow). A string because it arrives from a URL param; validated here. */
+    projectId: v.optional(v.string()),
   },
   returns: v.id('threads'),
   handler: async (ctx, args) => {
     const userId = await requireOrgUser(ctx, args.organizationId);
+
+    // A project link is access-checked at creation with the same gate the
+    // chat send path uses — a thread must never smuggle a caller into a
+    // project they cannot read.
+    let projectId: Doc<'projects'>['_id'] | undefined;
+    if (args.projectId !== undefined) {
+      const normalized = ctx.db.normalizeId('projects', args.projectId);
+      if (normalized === null) {
+        throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+      }
+      const access = await ctx.runQuery(
+        internal.projects.internal_queries.assertProjectAccessForChat,
+        {
+          projectId: normalized,
+          organizationId: args.organizationId,
+          userId,
+        },
+      );
+      if (!access.allowed) {
+        throw new ConvexError({
+          code:
+            access.reason === 'not_found'
+              ? 'PROJECT_NOT_FOUND'
+              : 'PROJECT_FORBIDDEN',
+        });
+      }
+      projectId = normalized;
+    }
+
     const now = Date.now();
     return await ctx.db.insert('threads', {
       organizationId: args.organizationId,
@@ -284,6 +317,7 @@ export const createThread = mutation({
       agentSlug: args.agentSlug,
       harness: args.harness,
       capabilities: args.capabilities,
+      ...(projectId !== undefined ? { projectId } : {}),
       archived: false,
       createdAt: now,
       updatedAt: now,

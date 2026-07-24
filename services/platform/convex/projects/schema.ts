@@ -32,7 +32,10 @@ export const projectIntegrationsModeValidator = v.union(
  * agent instructions and user personalization (see
  * `lib/agent_response/build_project_instructions.ts`).
  *
- * Files are linked via `documents.projectId`; threads via `threadMetadata.projectId`.
+ * Files are linked via `documents.projectId`. Threads: a rebuilt chat thread
+ * carries `threads.projectId` (set at creation); discussion/task threads
+ * carry `threadMetadata.projectId`. Resolvers in `internal_queries.ts` check
+ * both.
  */
 export const projectsTable = defineTable({
   organizationId: v.string(),

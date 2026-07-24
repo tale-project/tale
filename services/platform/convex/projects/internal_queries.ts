@@ -10,7 +10,8 @@
 
 import { v } from 'convex/values';
 
-import { internalQuery } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { hasProjectAccess } from './access';
@@ -65,6 +66,28 @@ export const getProjectAllowedAgentSlugs = internalQuery({
 });
 
 /**
+ * A thread's project link, wherever it lives: a rebuilt chat thread carries
+ * `threads.projectId` (set at creation from the project's "New chat" flow);
+ * a discussion/task thread carries `threadMetadata.projectId`. ONE resolver
+ * so no caller ever picks a side.
+ */
+async function projectIdForThread(
+  ctx: QueryCtx,
+  threadId: string,
+): Promise<Id<'projects'> | null> {
+  const chatThreadId = ctx.db.normalizeId('threads', threadId);
+  if (chatThreadId !== null) {
+    const thread = await ctx.db.get(chatThreadId);
+    if (thread?.projectId) return thread.projectId;
+  }
+  const meta = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+  return meta?.projectId ?? null;
+}
+
+/**
  * Load the projectId for a thread, if any. Used by chat runtime to
  * resolve the project context from a thread that already has it
  * persisted (e.g., follow-up message in an existing project thread).
@@ -73,11 +96,7 @@ export const getProjectIdForThread = internalQuery({
   args: { threadId: v.string() },
   returns: v.union(v.id('projects'), v.null()),
   handler: async (ctx, args) => {
-    const thread = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-    return thread?.projectId ?? null;
+    return await projectIdForThread(ctx, args.threadId);
   },
 });
 
@@ -97,12 +116,9 @@ export const getProjectAgentCapabilitiesForThread = internalQuery({
     connectors: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
-    const meta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-    if (!meta?.projectId) return { skills: [], connectors: [] };
-    const project = await ctx.db.get(meta.projectId);
+    const projectId = await projectIdForThread(ctx, args.threadId);
+    if (projectId === null) return { skills: [], connectors: [] };
+    const project = await ctx.db.get(projectId);
     const binding = project?.agentCapabilities?.[args.agentId];
     if (!binding) return { skills: [], connectors: [] };
     return { skills: binding.skills, connectors: binding.connectors };

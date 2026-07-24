@@ -50,6 +50,12 @@ export const threadsTable = defineTable({
    * thread keeps its agent for its whole life — switching means a new chat —
    * so the composer reads this to stay on it across turns and reloads. */
   harness: v.optional(v.string()),
+  /** The project this conversation was started in, set at creation from the
+   * project's "New chat" flow. The turn reads it to run the agent
+   * pre-equipped with the project's per-agent binding and to inject project
+   * context. (Discussion/task threads carry their link on `threadMetadata`
+   * instead — resolvers check both.) */
+  projectId: v.optional(v.id('projects')),
   /** The coding harness's own conversation handle from the last turn, so the
    * next turn resumes it (its state lives in the preserved workspace). */
   codingResume: v.optional(v.string()),

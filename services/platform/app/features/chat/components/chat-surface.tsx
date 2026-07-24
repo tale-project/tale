@@ -65,9 +65,17 @@ interface ChatSurfaceProps {
   organizationId: string;
   /** The open thread, or none on the chat index. */
   threadId?: string;
+  /** Start new conversations inside this project (the project's "New chat"
+   * flow) — the thread is project-linked at creation, so its agent runs
+   * pre-equipped with the project's per-agent binding. */
+  projectId?: string;
 }
 
-export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
+export function ChatSurface({
+  organizationId,
+  threadId,
+  projectId,
+}: ChatSurfaceProps) {
   const { t } = useT('chat');
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -210,6 +218,11 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
                   connectors: selection.connectors,
                 },
               }
+            : {}),
+          // Only a NEW conversation can be project-linked; an existing thread
+          // keeps the link it was created with.
+          ...(threadId === undefined && projectId !== undefined
+            ? { projectId }
             : {}),
         });
         // Surface a refusal or a failure; success streams in by itself.

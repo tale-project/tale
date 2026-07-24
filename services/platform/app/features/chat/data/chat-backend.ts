@@ -385,6 +385,8 @@ export interface ChatTurnRequest {
     readonly skills: readonly string[];
     readonly connectors: readonly string[];
   };
+  /** The project a NEW thread starts in (the project's "New chat" flow). */
+  readonly projectId?: string;
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
@@ -446,6 +448,9 @@ export function useChatSend(organizationId: string): {
                   connectors: [...request.capabilities.connectors],
                 },
               }
+            : {}),
+          ...(request.projectId !== undefined
+            ? { projectId: request.projectId }
             : {}),
         }));
       if (request.agentKind === 'coding') {
