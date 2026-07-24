@@ -146,7 +146,7 @@ export async function runUpdate(
   const projectDir = deps.requireProject();
   const prev = await deps.readWorkspaceVersion(projectDir);
 
-  const { release, skipped } = await deps.resolveRelease({
+  const { release, skipped, newerLine } = await deps.resolveRelease({
     version: opts.version,
   });
   const target = release.version;
@@ -170,6 +170,14 @@ export async function runUpdate(
     logger.warn(
       `Skipping ${skipped.map((t) => t.replace(/^v/, '')).join(', ')} — ` +
         `binary not yet uploaded. Re-run 'tale update' later to pick them up.`,
+    );
+  }
+  if (!opts.version && newerLine !== null) {
+    logger.warn(
+      `A newer release line is available: v${newerLine}. 'tale update' stays ` +
+        `within your current line, and line upgrades can be breaking — review ` +
+        `the release notes and the upgrade docs, then run ` +
+        `'tale update --version ${newerLine}' to move explicitly.`,
     );
   }
   if (opts.version && !isDev && comparison < 0) {

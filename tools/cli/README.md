@@ -118,16 +118,19 @@ binary first, then syncs the project files to that version's templates. It does
 **not** roll the containers — run `tale deploy` afterwards for that. If the file
 sync fails, the CLI is rolled back to the workspace's previous version so the
 binary and `tale.json` never drift apart. With no `--version`, targets the
-latest release.
+latest release **in the current x.y release line** (a 0.3.x CLI moves to the
+newest 0.3.x). Line upgrades (e.g. 0.3.x → 0.4.0) can be breaking, so they
+never happen implicitly: when a newer line exists the command says so and
+stays put; move lines deliberately with `--version`.
 
 The CLI also self-aligns to the instance version on every command, so you rarely
 run `tale update` except to deliberately move versions.
 
-| Option                | Description                                                       |
-| --------------------- | ----------------------------------------------------------------- |
-| `-v, --version <ver>` | Update to this exact version instead of latest (allows downgrade) |
-| `-f, --force`         | Force re-sync of locally modified project files                   |
-| `--dry-run`           | Preview the version change and file sync without modifying        |
+| Option                | Description                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `-v, --version <ver>` | Update to this exact version instead of the in-line latest (allows downgrade and line changes) |
+| `-f, --force`         | Force re-sync of locally modified project files                                                |
+| `--dry-run`           | Preview the version change and file sync without modifying                                     |
 
 ### `tale status`
 

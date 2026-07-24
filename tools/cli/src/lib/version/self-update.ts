@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
-import { compareVersions, extractVersion } from '../../utils/compare-versions';
+import {
+  compareVersions,
+  extractVersion,
+  sameMinor,
+} from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
 
 /**
@@ -38,11 +42,21 @@ export interface ReleaseInfo {
 export interface ResolvedRelease {
   release: ReleaseInfo;
   /**
-   * Tags newer than `release` that lack the binary for this platform — i.e.
-   * a newer version exists but its binary hasn't been uploaded yet. Empty
-   * when a specific version was requested. Newest-first.
+   * Tags newer than `release` within the same release line that lack the
+   * binary for this platform — i.e. a newer version exists but its binary
+   * hasn't been uploaded yet. Empty when a specific version was requested.
+   * Newest-first.
    */
   skipped: string[];
+  /**
+   * Highest released version on a line above the current one (different
+   * `major.minor`) when the lookup was line-pinned and one exists. Line
+   * upgrades can be breaking, so `tale update` never targets this
+   * automatically — it is surfaced so the operator can move explicitly with
+   * `--version`. Null when a specific version was requested, on dev builds,
+   * or when the current line is the newest.
+   */
+  newerLine: string | null;
 }
 
 /**
@@ -85,10 +99,14 @@ function parseRelease(data: Record<string, unknown>): ReleaseInfo | null {
   return { tag, version, assetNames };
 }
 
-async function fetchLatestReadyRelease(
-  asset: string,
-): Promise<ResolvedRelease> {
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=15`;
+const RELEASES_PAGE_SIZE = 100;
+/** Upper bound on paging through /releases — 300 releases ≈ years of history. */
+const RELEASES_MAX_PAGES = 3;
+
+async function fetchReleasesPage(
+  page: number,
+): Promise<Record<string, unknown>[]> {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=${RELEASES_PAGE_SIZE}&page=${page}`;
   const response = await fetch(url, {
     headers: {
       ...getAuthHeaders(),
@@ -115,44 +133,69 @@ async function fetchLatestReadyRelease(
   }
 
   const entries = (await response.json()) as Record<string, unknown>[];
-  if (!Array.isArray(entries) || entries.length === 0) {
-    throw new Error(
-      'No releases found. If this is a private repo, set GITHUB_TOKEN.',
-    );
-  }
+  return Array.isArray(entries) ? entries : [];
+}
 
-  // Parse all non-draft, non-prerelease releases (cap at 10)
-  const candidates: ReleaseInfo[] = [];
-  for (const entry of entries) {
-    if (entry.draft || entry.prerelease) continue;
-    const release = parseRelease(entry);
-    if (release) candidates.push(release);
-    if (candidates.length >= 10) break;
-  }
+/** Human label for `anchor`'s release line: `0.3.11` → `0.3.x`. */
+function lineLabel(anchor: string): string {
+  const version = extractVersion(anchor);
+  if (!version) return anchor;
+  const [major, minor] = version.split('-')[0].split('.');
+  return `${major}.${minor}.x`;
+}
 
-  // Find the highest-versioned release that has the required binary asset
+/**
+ * Pick the release to install from the fetched list: the highest-versioned
+ * candidate that carries this platform's binary, restricted to `lineAnchor`'s
+ * release line (same `major.minor`) unless the anchor is null.
+ *
+ * `skipped` lists same-line versions above the pick whose binary is missing,
+ * newest first. `newerLine` reports the highest version on a line above the
+ * anchor's, if any — informational, never targeted.
+ *
+ * Exported for tests; production goes through {@link resolveRelease}.
+ */
+export function selectRelease(
+  candidates: ReleaseInfo[],
+  asset: string,
+  lineAnchor: string | null,
+): {
+  best: ReleaseInfo | null;
+  skipped: string[];
+  newerLine: string | null;
+} {
+  const inLine = (version: string) =>
+    lineAnchor === null || sameMinor(version, lineAnchor);
+
   let best: ReleaseInfo | null = null;
-  const skipped: string[] = [];
+  let newerLine: string | null = null;
 
   for (const candidate of candidates) {
-    if (candidate.assetNames.includes(asset)) {
-      if (!best || compareVersions(candidate.version, best.version) > 0) {
-        best = candidate;
+    if (!inLine(candidate.version)) {
+      if (
+        lineAnchor !== null &&
+        compareVersions(candidate.version, lineAnchor) > 0 &&
+        (newerLine === null ||
+          compareVersions(candidate.version, newerLine) > 0)
+      ) {
+        newerLine = candidate.version;
       }
+      continue;
+    }
+    if (!candidate.assetNames.includes(asset)) continue;
+    if (!best || compareVersions(candidate.version, best.version) > 0) {
+      best = candidate;
     }
   }
 
-  if (!best) {
-    throw new Error(
-      `No recent release includes the ${asset} binary. ` +
-        `Check https://github.com/${GITHUB_REPO}/releases for details.`,
-    );
-  }
-
-  // Collect versions newer than the best ready release but lacking the binary
-  for (const candidate of candidates) {
-    if (compareVersions(candidate.version, best.version) > 0) {
-      skipped.push(candidate.tag);
+  // Collect same-line versions newer than the pick but lacking the binary
+  const skipped: string[] = [];
+  if (best) {
+    for (const candidate of candidates) {
+      if (!inLine(candidate.version)) continue;
+      if (compareVersions(candidate.version, best.version) > 0) {
+        skipped.push(candidate.tag);
+      }
     }
   }
 
@@ -163,7 +206,73 @@ async function fetchLatestReadyRelease(
     return compareVersions(vb, va);
   });
 
-  return { release: best, skipped };
+  return { best, skipped, newerLine };
+}
+
+async function fetchLatestReadyRelease(
+  asset: string,
+  lineAnchor: string | null,
+): Promise<ResolvedRelease> {
+  const candidates: ReleaseInfo[] = [];
+  let sawAnyRelease = false;
+
+  // Page until the pinned line yields an installable release — once newer
+  // lines accumulate releases, the current line's latest falls off the
+  // first page.
+  for (let page = 1; page <= RELEASES_MAX_PAGES; page++) {
+    let entries: Record<string, unknown>[];
+    try {
+      entries = await fetchReleasesPage(page);
+    } catch (err) {
+      if (page === 1) throw err;
+      // Later pages are best-effort: select from what already loaded.
+      logger.debug(
+        `stopping release pagination at page ${page}: ${String(err)}`,
+      );
+      break;
+    }
+    if (entries.length > 0) sawAnyRelease = true;
+
+    for (const entry of entries) {
+      if (entry.draft || entry.prerelease) continue;
+      const release = parseRelease(entry);
+      if (release) candidates.push(release);
+    }
+
+    const { best } = selectRelease(candidates, asset, lineAnchor);
+    if (best || entries.length < RELEASES_PAGE_SIZE) break;
+  }
+
+  if (!sawAnyRelease) {
+    throw new Error(
+      'No releases found. If this is a private repo, set GITHUB_TOKEN.',
+    );
+  }
+
+  const { best, skipped, newerLine } = selectRelease(
+    candidates,
+    asset,
+    lineAnchor,
+  );
+
+  if (!best) {
+    const base =
+      lineAnchor === null
+        ? `No recent release includes the ${asset} binary.`
+        : `No ${lineLabel(lineAnchor)} release includes the ${asset} binary.`;
+    const lineHint =
+      lineAnchor !== null && newerLine !== null
+        ? ` A newer release line exists (v${newerLine}) — 'tale update' stays ` +
+          `within ${lineLabel(lineAnchor)}; move lines explicitly with ` +
+          `'tale update --version ${newerLine}'.`
+        : '';
+    throw new Error(
+      `${base}${lineHint} ` +
+        `Check https://github.com/${GITHUB_REPO}/releases for details.`,
+    );
+  }
+
+  return { release: best, skipped, newerLine };
 }
 
 async function fetchReleaseByTag(
@@ -228,7 +337,13 @@ export function getBinaryPath(): string {
 
 /**
  * Resolve the release to install: a specific version when `version` is set,
- * otherwise the latest release whose platform binary is uploaded.
+ * otherwise the latest release — within the running binary's release line
+ * (same `major.minor`) — whose platform binary is uploaded.
+ *
+ * Line upgrades (e.g. 0.3.x → 0.4.0) can be breaking, so they never happen
+ * implicitly: moving lines requires an explicit `version`. Dev builds carry
+ * a placeholder version with no released line and keep resolving the
+ * absolute latest.
  */
 export async function resolveRelease(opts: {
   version?: string;
@@ -236,9 +351,10 @@ export async function resolveRelease(opts: {
   const asset = getAssetName();
   if (opts.version) {
     const release = await fetchReleaseByTag(asset, normalizeTag(opts.version));
-    return { release, skipped: [] };
+    return { release, skipped: [], newerLine: null };
   }
-  return fetchLatestReadyRelease(asset);
+  const lineAnchor = isDevBuild() ? null : pkg.version;
+  return fetchLatestReadyRelease(asset, lineAnchor);
 }
 
 function formatBytes(bytes: number): string {

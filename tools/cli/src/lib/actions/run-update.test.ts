@@ -12,6 +12,7 @@ function resolved(version: string): ResolvedRelease {
   return {
     release: { tag: `v${version}`, version, assetNames: ['tale_macos'] },
     skipped: [],
+    newerLine: null,
   };
 }
 
@@ -106,5 +107,18 @@ describe('runUpdate', () => {
 
     expect(resolveRelease).toHaveBeenCalledWith({ version: '0.7.0' });
     expect(deps.installBinary).toHaveBeenCalledTimes(1);
+  });
+
+  test('newer release line available: still targets the in-line release', async () => {
+    const resolveRelease = mock(async () => ({
+      ...resolved('0.8.1'),
+      newerLine: '0.9.0',
+    }));
+    const deps = makeDeps({ resolveRelease });
+    await runUpdate({}, deps);
+
+    expect(deps.installBinary).toHaveBeenCalledWith(
+      expect.objectContaining({ version: '0.8.1' }),
+    );
   });
 });
