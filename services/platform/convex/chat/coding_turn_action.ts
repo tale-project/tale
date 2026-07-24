@@ -31,6 +31,7 @@ import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sessionCancelExec } from '../node_only/sandbox/helpers/session_client';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
+import { WORKSPACE_READ_TOOLS } from '../node_only/sandbox/workspace_tools_bridge';
 import { sessionIdForUser } from '../sandbox/session_naming';
 import {
   buildCodingExec,
@@ -199,6 +200,11 @@ export const startCodingTurn = action({
           ...(thread.capabilities?.connectors ?? []),
         ]),
       ];
+      // First-party workspace reads (knowledge + Documents hub) are granted to
+      // every managed coding turn: they read only the org's OWN data, run as
+      // the turn's user, org-scoped and audited — so a default read grant is
+      // honest without a per-agent picker. Writes are not in this set.
+      const toolGrants = [...WORKSPACE_READ_TOOLS];
       const { token, keyId } = await provisionTurnGatewayToken(
         ctx,
         scope,
@@ -209,6 +215,7 @@ export const startCodingTurn = action({
           gatewayModel: routing.gatewayModel,
           expiresAt: deadlineAt,
           integrationGrants: connectorSlugs,
+          toolGrants,
         },
       );
       // Open the turn's op row now that the VK id exists: it is the single
@@ -236,9 +243,12 @@ export const startCodingTurn = action({
         ...(thread.codingResume !== undefined
           ? { resume: thread.codingResume }
           : {}),
-        // Mount the integrations MCP bridge only when the agent is actually
-        // equipped with connectors — an unequipped turn carries no bridge.
-        ...(connectorSlugs.length > 0
+        // Mount the MCP bridge when the agent can reach EITHER surface —
+        // connectors (integrations) or workspace tools. One bridge serves both
+        // (`…/api/integrations` + the derived `…/api/tools`), so one URL covers
+        // them. With workspace reads granted by default, this is effectively
+        // every managed turn; a turn with neither carries no bridge.
+        ...(connectorSlugs.length > 0 || toolGrants.length > 0
           ? { bridgeUrl: integrationsBridgeUrlForSessions() }
           : {}),
         execId,

@@ -1146,3 +1146,32 @@ export const recordCredentialAccess = internalMutation({
     return null;
   },
 });
+
+/** Forensic row for one in-sandbox workspace-tool dispatch (the /api/tools
+ * bridge). Records who/what/when/outcome and a sorted param-KEY fingerprint —
+ * never values — so a call is traceable without logging its contents. */
+export const recordToolCall = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    tool: v.string(),
+    userId: v.optional(v.string()),
+    outcome: v.string(),
+    paramsFingerprint: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('sandboxToolCalls', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      tool: args.tool,
+      ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      outcome: args.outcome,
+      ...(args.paramsFingerprint !== undefined
+        ? { paramsFingerprint: args.paramsFingerprint }
+        : {}),
+      calledAt: Date.now(),
+    });
+    return null;
+  },
+});

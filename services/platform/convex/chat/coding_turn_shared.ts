@@ -254,6 +254,9 @@ export async function provisionTurnGatewayToken(
     /** Integration slugs this turn's agent is equipped with — the bridge's
      * grant set, read back from the token row on every dispatch. */
     integrationGrants?: readonly string[];
+    /** Workspace-tool names this turn may call (knowledge/documents reads) —
+     * the /api/tools grant set, read back from the token row on dispatch. */
+    toolGrants?: readonly string[];
   },
 ): Promise<{ token: string; keyId: string }> {
   const key = await provisionSessionGatewayKey(ctx, {
@@ -271,7 +274,7 @@ export async function provisionTurnGatewayToken(
       agentKind: meta.harness,
       allowedModels: [meta.gatewayModel],
       integrationGrants: [...(meta.integrationGrants ?? [])],
-      toolGrants: [],
+      toolGrants: [...(meta.toolGrants ?? [])],
       budgetCents: TURN_BUDGET_CENTS,
       threadId: scope.threadId,
       userId: scope.userId,

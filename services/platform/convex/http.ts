@@ -60,6 +60,7 @@ import {
   integrationsExecuteHandler,
   integrationsStatusHandler,
 } from './sandbox/integrations_http';
+import { toolsExecuteHandler, toolsStatusHandler } from './sandbox/tools_http';
 import {
   scimGroupResourceHandler,
   scimGroupsHandler,
@@ -707,9 +708,7 @@ http.route({
 
 // The in-sandbox integrations bridge: the platform end of the baked
 // `tale-integrations-mcp` MCP server, VK-bearer-authed against the session
-// token row (org + grants come from the row, never the body). Read-only in
-// V1; the /api/tools/{execute,status} pair (workspace tools) is not
-// registered yet — the shipped bridge 404s on it gracefully.
+// token row (org + grants come from the row, never the body). Read-only in V1.
 http.route({
   path: '/api/integrations/execute',
   method: 'POST',
@@ -719,6 +718,22 @@ http.route({
   path: '/api/integrations/status',
   method: 'POST',
   handler: integrationsStatusHandler,
+});
+
+// The workspace-tool half of the same bridge (the shim's
+// `workspace_tool`/`workspace_status` face, reached at the derived
+// `…/api/tools` base): first-party ORG reads — knowledge search + the
+// Documents hub — run as the turn's user, org-scoped, read-only. Same
+// VK-bearer auth; grants (`toolGrants`) come from the token row.
+http.route({
+  path: '/api/tools/execute',
+  method: 'POST',
+  handler: toolsExecuteHandler,
+});
+http.route({
+  path: '/api/tools/status',
+  method: 'POST',
+  handler: toolsStatusHandler,
 });
 
 // /api/chat-stream (GET+OPTIONS) re-registers with the chat
