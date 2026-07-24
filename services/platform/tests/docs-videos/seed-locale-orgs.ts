@@ -96,18 +96,14 @@ async function createAdditionalOrg(
     await page.waitForTimeout(700);
   }
   await nextButton.click();
-  const skipButton = page.getByRole('button', {
-    name: t('common.actions.skip'),
+  // Two-step wizard (workspace then finish) — the old provider/Skip step is
+  // gone; wait generously for org-create before the finish step paints.
+  const finishButton = page.getByRole('button', {
+    name: t('onboarding.finish.goToDashboard'),
     exact: true,
   });
-  await skipButton.waitFor({ state: 'visible', timeout: TIMEOUT.EXECUTION });
-  await skipButton.click();
-  await page
-    .getByRole('button', {
-      name: t('onboarding.finish.goToDashboard'),
-      exact: true,
-    })
-    .click();
+  await finishButton.waitFor({ state: 'visible', timeout: TIMEOUT.EXECUTION });
+  await finishButton.click();
   await page.waitForURL(/\/dashboard\/[a-z0-9]{20,}/, {
     timeout: TIMEOUT.NAV,
   });

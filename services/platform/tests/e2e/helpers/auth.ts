@@ -138,7 +138,9 @@ export async function createOrgViaWizard(
         .getByLabel(t('settings.organization.organizationName'))
         .fill(orgName);
 
-      // Step 1 → Next creates the org and advances to the provider step.
+      // Step 1 → Next creates the org and advances to the finish step. (The
+      // rewritten wizard is two steps — workspace then finish; the old
+      // optional provider/Skip step is gone.)
       const nextButton = page.getByRole('button', {
         name: t('common.actions.next'),
         exact: true,
@@ -146,18 +148,16 @@ export async function createOrgViaWizard(
       await expect(nextButton).toBeEnabled({ timeout: TIMEOUT.FIRST_PAINT });
       await nextButton.click();
 
-      // Skip the optional provider step, then Finish to the dashboard. Next
-      // creates the org (org.create + default-workflow init), which on a cold or
-      // loaded backend can take well past the default expect timeout before the
-      // provider step (and its Skip button) renders — so wait generously.
-      const skipButton = page.getByRole('button', {
-        name: t('common.actions.skip'),
+      // Finish to the dashboard. Next creates the org (org.create +
+      // default-workflow init), which on a cold or loaded backend can take
+      // well past the default expect timeout before the finish step (and its
+      // "Go to dashboard" button) renders — so wait generously.
+      const finishButton = page.getByRole('button', {
+        name: t('onboarding.finish.goToDashboard'),
         exact: true,
       });
       try {
-        // Org create + default-workflow init can exceed FIRST_PAINT on a loaded
-        // CI shard before the provider step renders — use EXECUTION here.
-        await expect(skipButton).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+        await expect(finishButton).toBeVisible({ timeout: TIMEOUT.EXECUTION });
       } catch (err) {
         if (authFailure.last) {
           throw new Error(
@@ -169,14 +169,7 @@ export async function createOrgViaWizard(
         }
         throw err;
       }
-      await skipButton.click();
-
-      await page
-        .getByRole('button', {
-          name: t('onboarding.finish.goToDashboard'),
-          exact: true,
-        })
-        .click();
+      await finishButton.click();
     }
 
     await page.waitForURL(ORG_ID_URL, { timeout: TIMEOUT.FIRST_PAINT });

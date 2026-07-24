@@ -52,14 +52,8 @@ async function createAdditionalOrgViaWizard(page: Page): Promise<string> {
   await expect(nextButton).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await nextButton.click();
 
-  // Skip the optional provider step, then Finish to the dashboard.
-  const skipButton = page.getByRole('button', {
-    name: t('common.actions.skip'),
-    exact: true,
-  });
-  await expect(skipButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await skipButton.click();
-
+  // Finish to the dashboard. The rewritten wizard is two steps (workspace
+  // then finish); the old optional provider/Skip step is gone.
   await page
     .getByRole('button', {
       name: t('onboarding.finish.goToDashboard'),
