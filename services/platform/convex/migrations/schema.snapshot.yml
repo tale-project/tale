@@ -1700,6 +1700,31 @@ tables:
         type: number
       optional: true
   generations:
+    coding:
+      ft:
+        type: object
+        value:
+          execId:
+            fieldType:
+              type: string
+            optional: false
+          gatewayModel:
+            fieldType:
+              type: string
+            optional: false
+          harness:
+            fieldType:
+              type: string
+            optional: false
+          lastSeq:
+            fieldType:
+              type: number
+            optional: false
+          providerSlug:
+            fieldType:
+              type: string
+            optional: false
+      optional: true
     heartbeatAt:
       ft:
         type: number
@@ -3010,6 +3035,29 @@ tables:
               optional: true
       optional: true
   projects:
+    agentCapabilities:
+      ft:
+        keys:
+          type: string
+        type: record
+        values:
+          fieldType:
+            type: object
+            value:
+              connectors:
+                fieldType:
+                  type: array
+                  value:
+                    type: string
+                optional: false
+              skills:
+                fieldType:
+                  type: array
+                  value:
+                    type: string
+                optional: false
+          optional: false
+      optional: true
     agentMode:
       ft:
         type: union
@@ -4143,6 +4191,56 @@ tables:
       ft:
         type: string
       optional: true
+  sandboxTurnEvents:
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    durationMs:
+      ft:
+        type: number
+      optional: false
+    harness:
+      ft:
+        type: string
+      optional: false
+    modelRef:
+      ft:
+        type: string
+      optional: true
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    outcome:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: completed
+          - type: literal
+            value: failed
+          - type: literal
+            value: cancelled
+          - type: literal
+            value: timeout
+      optional: false
+    recovered:
+      ft:
+        type: boolean
+      optional: true
+    spentCents:
+      ft:
+        type: number
+      optional: true
+    threadId:
+      ft:
+        type: string
+      optional: false
+    userId:
+      ft:
+        type: string
+      optional: false
   sandboxUserEnv:
     encryptedValue:
       ft:
@@ -5556,10 +5654,35 @@ tables:
       ft:
         type: string
       optional: true
+    capabilities:
+      ft:
+        type: object
+        value:
+          connectors:
+            fieldType:
+              type: array
+              value:
+                type: string
+            optional: false
+          skills:
+            fieldType:
+              type: array
+              value:
+                type: string
+            optional: false
+      optional: true
+    codingResume:
+      ft:
+        type: string
+      optional: true
     createdAt:
       ft:
         type: number
       optional: false
+    harness:
+      ft:
+        type: string
+      optional: true
     isShared:
       ft:
         type: boolean
@@ -5577,6 +5700,11 @@ tables:
       ft:
         type: string
       optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: true
     sharedAt:
       ft:
         type: number
@@ -5862,6 +5990,10 @@ tables:
         type: string
       optional: false
   userPreferences:
+    chatModelId:
+      ft:
+        type: string
+      optional: true
     customInstructions:
       ft:
         type: string

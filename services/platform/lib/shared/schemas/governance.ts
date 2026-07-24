@@ -188,6 +188,13 @@ export const voiceOutputConfigSchema = z.object({
  * cleanly.
  */
 const systemPromptConfigSchema = z.object({
+  /**
+   * Whether the org's instructions are injected at all — the section's
+   * toggle. Absent means "decide from the text": an org that configured
+   * instructions before this flag existed keeps them, a fresh org (no text)
+   * reads as off. Only an explicit `false` silences configured text.
+   */
+  enabled: z.boolean().optional(),
   mandatoryInstructions: z.string().max(20_000).optional(),
   mandatoryPrefixPrompt: z.string().max(20_000).optional(),
   mandatorySuffixPrompt: z.string().max(20_000).optional(),
@@ -206,6 +213,9 @@ export type SystemPromptConfig = z.infer<typeof systemPromptConfigSchema>;
 export function effectiveMandatoryInstructions(
   config: SystemPromptConfig,
 ): string | undefined {
+  // An explicitly disabled section injects nothing, however much text it
+  // still holds — turning the section off must not lose the draft.
+  if (config.enabled === false) return undefined;
   const unified = config.mandatoryInstructions?.trim();
   if (unified) return unified;
   const parts = [config.mandatoryPrefixPrompt, config.mandatorySuffixPrompt]

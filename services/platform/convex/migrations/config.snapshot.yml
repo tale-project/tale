@@ -3015,7 +3015,7 @@ schemas:
     additionalProperties: false
     properties:
       instructions:
-        maxLength: 6000
+        maxLength: 20000
         type: string
     required:
       - instructions
