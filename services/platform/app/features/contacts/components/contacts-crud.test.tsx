@@ -67,14 +67,14 @@ describe('contacts CRUD (e2e migration)', () => {
     mockDelete.mockResolvedValue(undefined);
   });
 
-  // --- Create: action menu → Import contacts → Paste contacts → CSV line → Import
+  // --- Create: Add contact menu → Paste contacts → CSV line → Import
   it('creates a contact via the CSV paste-contacts dialog', async () => {
     const { user } = render(<ContactsActionMenu organizationId="org-1" />);
 
-    // Bulk import stays under "Import contacts" (a writer always sees it);
-    // the structured single-contact "Add contact" affordance sits next to it
-    // (#2639) and is covered by contact-create-dialog.test.tsx.
-    await user.click(screen.getByRole('button', { name: 'Import contacts' }));
+    // One combined "Add contact" button (mirroring products): manual entry
+    // and both bulk-import paths live in its menu. The structured
+    // single-contact dialog is covered by contact-create-dialog.test.tsx.
+    await user.click(screen.getByRole('button', { name: 'Add contact' }));
     await user.click(
       await screen.findByRole('menuitem', { name: 'Paste contacts' }),
     );
@@ -173,7 +173,7 @@ describe('contacts CRUD (e2e migration)', () => {
       const { user, container } = render(
         <ContactsActionMenu organizationId="org-1" />,
       );
-      await user.click(screen.getByRole('button', { name: 'Import contacts' }));
+      await user.click(screen.getByRole('button', { name: 'Add contact' }));
       await user.click(
         await screen.findByRole('menuitem', { name: 'Paste contacts' }),
       );

@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import {
@@ -6,7 +7,7 @@ import {
   useNavigate,
   useSearch,
 } from '@tanstack/react-router';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Info } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { z } from 'zod';
 
@@ -392,12 +393,12 @@ export function LogInPage() {
     return (
       <AuthFormLayout title={t('login.loginTitle')}>
         <Stack gap={6}>
-          <p
-            role="status"
-            className="bg-muted/50 text-muted-foreground rounded-lg border p-3 text-sm"
-          >
-            {tCommon('sessionIdle.signedOutNotice')}
-          </p>
+          <Alert
+            variant="info"
+            icon={Info}
+            live="polite"
+            description={tCommon('sessionIdle.signedOutNotice')}
+          />
           <Button onClick={redirectToTrustedHeadersAuth} fullWidth>
             {tCommon('sessionIdle.continueToSignIn')}
           </Button>
@@ -436,12 +437,12 @@ export function LogInPage() {
     <AuthFormLayout title={t('login.loginTitle')}>
       <Stack gap={6}>
         {signedOutForIdle && (
-          <p
-            role="status"
-            className="bg-muted/50 text-muted-foreground rounded-lg border p-3 text-sm"
-          >
-            {tCommon('sessionIdle.signedOutNotice')}
-          </p>
+          <Alert
+            variant="info"
+            icon={Info}
+            live="polite"
+            description={tCommon('sessionIdle.signedOutNotice')}
+          />
         )}
         {/* A failed SSO sign-in surfaces the REAL reason the IdP reported
             (routed here by the authorize/callback handlers) instead of a blank

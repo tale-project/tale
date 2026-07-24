@@ -1,6 +1,6 @@
 'use client';
 
-import { ClipboardList, HardDrive, Plus } from 'lucide-react';
+import { ClipboardList, HardDrive, Plus, UserPlus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
@@ -52,32 +52,29 @@ export function ContactsActionMenu({
 
   return (
     <>
-      {/* One flex child for the DataTable toolbar (`justify-between`): a bare
-          fragment would promote Add + Import into sibling flex items and park
-          them at opposite ends of the row. */}
-      <div className="flex shrink-0 items-center gap-2">
-        <DataTableActionMenu
-          label={tContacts('addButton')}
-          icon={Plus}
-          onClick={handleAddClick}
-        />
-        <DataTableActionMenu
-          label={tContacts('importMenu.importContacts')}
-          variant="secondary"
-          menuItems={[
-            {
-              label: tContacts('importMenu.fromDevice'),
-              icon: HardDrive,
-              onClick: handleUploadClick,
-            },
-            {
-              label: tContacts('importMenu.pasteContacts'),
-              icon: ClipboardList,
-              onClick: handlePasteClick,
-            },
-          ]}
-        />
-      </div>
+      {/* One combined button, mirroring the products action menu: the split
+          Add + Import pair collapsed into a single Add menu. */}
+      <DataTableActionMenu
+        label={tContacts('addButton')}
+        icon={Plus}
+        menuItems={[
+          {
+            label: tContacts('importMenu.addManually'),
+            icon: UserPlus,
+            onClick: handleAddClick,
+          },
+          {
+            label: tContacts('importMenu.fromDevice'),
+            icon: HardDrive,
+            onClick: handleUploadClick,
+          },
+          {
+            label: tContacts('importMenu.pasteContacts'),
+            icon: ClipboardList,
+            onClick: handlePasteClick,
+          },
+        ]}
+      />
       <ContactCreateDialog
         isOpen={isCreateDialogOpen}
         onClose={() => setIsCreateDialogOpen(false)}
