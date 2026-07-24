@@ -37,15 +37,20 @@ async function getActions(): Promise<{
 function createCtx(overrides: {
   runAction?: ReturnType<typeof vi.fn>;
   runQuery?: ReturnType<typeof vi.fn>;
+  runMutation?: ReturnType<typeof vi.fn>;
 }) {
   return {
     runAction: overrides.runAction ?? vi.fn(),
     runQuery: overrides.runQuery ?? vi.fn(),
+    // The dispatch audits every call (recordIntegrationCall); the mock must
+    // return a thenable since the handler `.catch()`es it.
+    runMutation: overrides.runMutation ?? vi.fn(() => Promise.resolve(null)),
   };
 }
 
 const BASE = {
   organizationId: 'org_1',
+  sessionId: 'session_1',
   userId: 'user_1',
 };
 
@@ -128,6 +133,33 @@ describe('dispatchBridgeIntegration', () => {
       }),
     );
     expect(result).toEqual({ status: 'ok', output: { results: [1] } });
+  });
+
+  it('writes a forensic audit row (slug/operation/outcome, no values)', async () => {
+    const runAction = vi.fn().mockResolvedValue({ status: 'ok', output: {} });
+    const runMutation = vi.fn(() => Promise.resolve(null));
+    const ctx = createCtx({ runAction, runMutation });
+    const { dispatch } = await getActions();
+
+    await dispatch(ctx, {
+      ...BASE,
+      slug: 'tavily',
+      operation: 'search',
+      callArgs: { query: 'secret query text' },
+    });
+
+    expect(runMutation).toHaveBeenCalledTimes(1);
+    const audit = (runMutation.mock.calls[0] as unknown[])[1] as Record<
+      string,
+      unknown
+    >;
+    expect(audit.slug).toBe('tavily');
+    expect(audit.operation).toBe('search');
+    expect(audit.outcome).toBe('ok');
+    expect(audit.sessionId).toBe('session_1');
+    // The fingerprint is param KEYS only — never the values.
+    expect(audit.paramsFingerprint).toBe('query');
+    expect(JSON.stringify(audit)).not.toContain('secret query text');
   });
 
   it('maps approval-required to requires_approval', async () => {

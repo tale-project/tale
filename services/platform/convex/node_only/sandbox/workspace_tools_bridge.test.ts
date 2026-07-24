@@ -139,6 +139,29 @@ describe('dispatchWorkspaceTool', () => {
     expect(qArgs.organizationId).toBe('org_1');
     expect(qArgs.userId).toBe('user_1');
   });
+
+  it.each([
+    ['contact_find', { searchTerm: 'acme' }],
+    ['product_find', {}],
+    ['website_find', {}],
+  ])(
+    '%s reads org-scoped data (never a body-supplied org)',
+    async (tool, callArgs) => {
+      const runQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve({ page: [], isDone: true }),
+      );
+      const { dispatch } = await getActions();
+      const result = await dispatch(createCtx({ runQuery }), {
+        ...BASE,
+        tool,
+        // Try to smuggle another org — must be ignored (org comes from the token).
+        callArgs: { ...callArgs, organizationId: 'org_EVIL' },
+      });
+      expect(result.status).toBe('ok');
+      const qArgs = runQuery.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(qArgs.organizationId).toBe('org_1');
+    },
+  );
 });
 
 describe('workspaceToolStatus', () => {

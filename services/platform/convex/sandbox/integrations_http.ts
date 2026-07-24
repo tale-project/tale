@@ -89,6 +89,7 @@ export const integrationsExecuteHandler = httpAction(async (ctx, request) => {
     internal.node_only.sandbox.integrations_bridge.dispatchBridgeIntegration,
     {
       organizationId: auth.organizationId,
+      sessionId: auth.sessionId,
       userId: auth.userId,
       slug,
       operation,

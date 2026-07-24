@@ -1147,6 +1147,41 @@ export const recordCredentialAccess = internalMutation({
   },
 });
 
+/** Forensic row for one in-sandbox INTEGRATION dispatch (the /api/integrations
+ * bridge). Same trail as recordToolCall for the connector surface:
+ * who/what/when/outcome + a sorted param-KEY fingerprint, never values. */
+export const recordIntegrationCall = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    slug: v.string(),
+    operation: v.string(),
+    operationType: v.optional(v.string()),
+    userId: v.optional(v.string()),
+    outcome: v.string(),
+    paramsFingerprint: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('sandboxIntegrationCalls', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      slug: args.slug,
+      operation: args.operation,
+      ...(args.operationType !== undefined
+        ? { operationType: args.operationType }
+        : {}),
+      ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      outcome: args.outcome,
+      ...(args.paramsFingerprint !== undefined
+        ? { paramsFingerprint: args.paramsFingerprint }
+        : {}),
+      calledAt: Date.now(),
+    });
+    return null;
+  },
+});
+
 /** Forensic row for one in-sandbox workspace-tool dispatch (the /api/tools
  * bridge). Records who/what/when/outcome and a sorted param-KEY fingerprint —
  * never values — so a call is traceable without logging its contents. */

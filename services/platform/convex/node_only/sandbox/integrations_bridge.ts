@@ -26,7 +26,7 @@ import {
   loadIntegrationConnectors,
 } from '../../../lib/integrations/catalog';
 import { internal } from '../../_generated/api';
-import { internalAction } from '../../_generated/server';
+import { internalAction, type ActionCtx } from '../../_generated/server';
 
 /** One reason an integration (or call) cannot run, with guidance the agent
  * relays to the user verbatim. */
@@ -65,6 +65,7 @@ function readOperations(connectorSlug: string): string[] {
 export const dispatchBridgeIntegration = internalAction({
   args: {
     organizationId: v.string(),
+    sessionId: v.string(),
     userId: v.string(),
     slug: v.string(),
     operation: v.string(),
@@ -72,93 +73,123 @@ export const dispatchBridgeIntegration = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<BridgeExecuteResult> => {
-    const connector = findIntegrationConnector(args.slug);
-    if (!connector) {
-      return {
-        status: 'unavailable',
-        blockers: [
-          {
-            code: 'unknown_integration',
-            guidance: `No integration named "${args.slug}" ships on this deployment. Call integration_status to see what is available.`,
-          },
-        ],
-      };
-    }
-
-    const actionDef = connector.actions.find(
-      (action) => action.name === args.operation,
-    );
-    if (!actionDef) {
-      const operations = readOperations(args.slug);
-      return {
-        status: 'invalid_args',
-        message:
-          `"${args.slug}" has no operation named "${args.operation}". ` +
-          (operations.length > 0
-            ? `Available operations: ${operations.join(', ')}.`
-            : 'It currently offers no operations to this agent.'),
-      };
-    }
-    if (actionDef.effects !== 'read') {
-      return {
-        status: 'unavailable',
-        blockers: [
-          {
-            code: 'write_not_supported',
-            guidance:
-              `"${args.operation}" changes the outside world, and write actions are not available from the coding agent yet. ` +
-              'Ask the user to run it themselves (for example from chat, where approvals work).',
-          },
-        ],
-      };
-    }
-
-    try {
-      const result: unknown = await ctx.runAction(
-        internal.integrations.execute_action.runIntegrationAction,
-        {
-          organizationId: args.organizationId,
-          connector: args.slug,
-          action: args.operation,
-          input: args.callArgs ?? {},
-          mode: 'live',
-          caller: { kind: 'user', userId: args.userId },
-        },
+    const result = await runBridgeIntegration(ctx, args);
+    // Forensic trail (the sandboxIntegrationCalls table the schema promised):
+    // who/what/when/outcome + a sorted param-KEY fingerprint, never values. A
+    // logging failure must not fail the call.
+    await ctx
+      .runMutation(internal.sandbox.session_mutations.recordIntegrationCall, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        slug: args.slug,
+        operation: args.operation,
+        userId: args.userId,
+        outcome: result.status,
+        paramsFingerprint: isRecord(args.callArgs)
+          ? Object.keys(args.callArgs).sort().join(',')
+          : '',
+      })
+      .catch((err: unknown) =>
+        console.warn('[integrations-bridge] audit write failed:', err),
       );
-      if (isRecord(result) && result.status === 'approval-required') {
-        const message =
-          typeof result.message === 'string'
-            ? result.message
-            : 'This action requires approval.';
-        return { status: 'requires_approval', message };
-      }
-      const output =
-        isRecord(result) && 'output' in result ? result.output : result;
-      return { status: 'ok', output };
-    } catch (error) {
-      // The dispatcher refuses with a coded ConvexError (no credential,
-      // schema mismatch, vendor failure) — surface its message and hint so
-      // the agent can relay something actionable.
-      if (error instanceof ConvexError) {
-        const data: unknown = error.data;
-        const message =
-          isRecord(data) && typeof data.message === 'string'
-            ? data.message
-            : 'The integration call failed.';
-        const hint =
-          isRecord(data) && typeof data.hint === 'string'
-            ? ` ${data.hint}`
-            : '';
-        return { status: 'error', message: `${message}${hint}` };
-      }
-      console.error('[integrations-bridge] dispatch failed', error);
-      return {
-        status: 'error',
-        message: 'The integration call failed unexpectedly.',
-      };
-    }
+    return result;
   },
 });
+
+async function runBridgeIntegration(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    userId: string;
+    slug: string;
+    operation: string;
+    callArgs: unknown;
+  },
+): Promise<BridgeExecuteResult> {
+  const connector = findIntegrationConnector(args.slug);
+  if (!connector) {
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'unknown_integration',
+          guidance: `No integration named "${args.slug}" ships on this deployment. Call integration_status to see what is available.`,
+        },
+      ],
+    };
+  }
+
+  const actionDef = connector.actions.find(
+    (action) => action.name === args.operation,
+  );
+  if (!actionDef) {
+    const operations = readOperations(args.slug);
+    return {
+      status: 'invalid_args',
+      message:
+        `"${args.slug}" has no operation named "${args.operation}". ` +
+        (operations.length > 0
+          ? `Available operations: ${operations.join(', ')}.`
+          : 'It currently offers no operations to this agent.'),
+    };
+  }
+  if (actionDef.effects !== 'read') {
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'write_not_supported',
+          guidance:
+            `"${args.operation}" changes the outside world, and write actions are not available from the coding agent yet. ` +
+            'Ask the user to run it themselves (for example from chat, where approvals work).',
+        },
+      ],
+    };
+  }
+
+  try {
+    const result: unknown = await ctx.runAction(
+      internal.integrations.execute_action.runIntegrationAction,
+      {
+        organizationId: args.organizationId,
+        connector: args.slug,
+        action: args.operation,
+        input: args.callArgs ?? {},
+        mode: 'live',
+        caller: { kind: 'user', userId: args.userId },
+      },
+    );
+    if (isRecord(result) && result.status === 'approval-required') {
+      const message =
+        typeof result.message === 'string'
+          ? result.message
+          : 'This action requires approval.';
+      return { status: 'requires_approval', message };
+    }
+    const output =
+      isRecord(result) && 'output' in result ? result.output : result;
+    return { status: 'ok', output };
+  } catch (error) {
+    // The dispatcher refuses with a coded ConvexError (no credential,
+    // schema mismatch, vendor failure) — surface its message and hint so
+    // the agent can relay something actionable.
+    if (error instanceof ConvexError) {
+      const data: unknown = error.data;
+      const message =
+        isRecord(data) && typeof data.message === 'string'
+          ? data.message
+          : 'The integration call failed.';
+      const hint =
+        isRecord(data) && typeof data.hint === 'string' ? ` ${data.hint}` : '';
+      return { status: 'error', message: `${message}${hint}` };
+    }
+    console.error('[integrations-bridge] dispatch failed', error);
+    return {
+      status: 'error',
+      message: 'The integration call failed unexpectedly.',
+    };
+  }
+}
 
 /**
  * What the granted integrations can do RIGHT NOW: per slug, its read

@@ -34,7 +34,13 @@ import { orgSlugFromId } from '../../lib/helpers/org_slug';
  * shipped `tale-integrations-mcp` shim, so the model's tool guidance is
  * accurate. A write tool is deliberately absent in V1.
  */
-export const WORKSPACE_READ_TOOLS = ['rag_search', 'document_find'] as const;
+export const WORKSPACE_READ_TOOLS = [
+  'rag_search',
+  'document_find',
+  'contact_find',
+  'product_find',
+  'website_find',
+] as const;
 
 /** Human-facing one-liners the status listing relays to the model. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -44,6 +50,14 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   document_find:
     'List/browse documents in the organization Documents hub this user can ' +
     'access. Args: {fileName?: string, extension?: string, limit?: number}.',
+  contact_find:
+    "Search/list the organization's contacts (CRM). " +
+    'Args: {searchTerm?: string, limit?: number}.',
+  product_find:
+    "List the organization's products/catalog. Args: {limit?: number}.",
+  website_find:
+    "List the organization's connected websites (domain, title, page count). " +
+    'Args: {} — no parameters.',
 };
 
 interface BridgeBlocker {
@@ -171,12 +185,60 @@ async function runWorkspaceTool(
     return { status: 'ok', output: page };
   }
 
+  // The org data domains — all org-scoped internal reads (never a per-user or
+  // cross-org leak), paginated where the underlying query is.
+  if (args.tool === 'contact_find') {
+    const page = await ctx.runQuery(
+      internal.contacts.internal_queries.queryContacts,
+      {
+        organizationId: args.organizationId,
+        ...(typeof callArgs.searchTerm === 'string'
+          ? { searchTerm: callArgs.searchTerm }
+          : {}),
+        paginationOpts: {
+          numItems: readLimit(callArgs.limit, 50),
+          cursor: null,
+        },
+      },
+    );
+    return { status: 'ok', output: page };
+  }
+
+  if (args.tool === 'product_find') {
+    const page = await ctx.runQuery(
+      internal.products.internal_queries.listByOrganization,
+      {
+        organizationId: args.organizationId,
+        paginationOpts: {
+          numItems: readLimit(callArgs.limit, 50),
+          cursor: null,
+        },
+      },
+    );
+    return { status: 'ok', output: page };
+  }
+
+  if (args.tool === 'website_find') {
+    const websites = await ctx.runQuery(
+      internal.websites.internal_queries.listWebsiteSummaries,
+      { organizationId: args.organizationId },
+    );
+    return { status: 'ok', output: { websites } };
+  }
+
   return {
     status: 'invalid_args',
     message:
       `Unknown workspace tool "${args.tool}". ` +
       `Available: ${WORKSPACE_READ_TOOLS.join(', ')}. Call workspace_status to see what is granted.`,
   };
+}
+
+/** A caller-supplied `limit`, floored to a positive int and capped. */
+function readLimit(raw: unknown, cap: number): number {
+  return typeof raw === 'number' && raw > 0
+    ? Math.min(Math.floor(raw), cap)
+    : Math.min(20, cap);
 }
 
 /**
