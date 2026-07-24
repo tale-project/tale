@@ -37,6 +37,14 @@ export const userPreferencesTable = defineTable({
    */
   voiceOutput: v.optional(v.boolean()),
   /**
+   * The chat composer's sticky model pick for the platform agent — set on an
+   * explicit pick, read to seed new conversations. `undefined` (or row
+   * missing) → the composer seeds its own default from the model listing.
+   * Deliberately per-user, not per-thread (a per-thread override may come
+   * later).
+   */
+  chatModelId: v.optional(v.string()),
+  /**
    * Whether this user has finished the onboarding wizard for this org.
    * `undefined` / row missing → not yet completed. Drives the "what's next"
    * checklist and avoids re-nagging; we never force re-entry into the wizard.

@@ -223,3 +223,64 @@ describe('upsertMyPreferences — customInstructions newline handling', () => {
     ).rejects.toMatchObject({ data: { code: 'too_long' } });
   });
 });
+
+describe('setChatModel — the composer sticky model pick', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function getSetChatModel() {
+    const mod = await import('./mutations');
+    type WithHandler = { handler: (...args: unknown[]) => Promise<unknown> };
+    return (mod.setChatModel as unknown as WithHandler).handler;
+  }
+
+  it('inserts a row carrying the pick when the user has none', async () => {
+    const setChatModel = await getSetChatModel();
+    const { ctx, inserted } = createMockCtx();
+
+    await setChatModel(ctx, { organizationId: ORG, modelId: 'deepseek-chat' });
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({
+      userId: 'u_1',
+      organizationId: ORG,
+      chatModelId: 'deepseek-chat',
+    });
+  });
+
+  it('patches the pick on an existing row', async () => {
+    const setChatModel = await getSetChatModel();
+    const { ctx, patches } = createMockCtx({
+      row: {
+        _id: 'prefs_1',
+        userId: 'u_1',
+        organizationId: ORG,
+        customInstructions: '',
+        updatedAt: 1,
+      },
+    });
+
+    await setChatModel(ctx, {
+      organizationId: ORG,
+      modelId: 'anthropic/claude-fable-5',
+    });
+
+    expect(patches).toHaveLength(1);
+    expect(patches[0]?.payload).toMatchObject({
+      chatModelId: 'anthropic/claude-fable-5',
+    });
+  });
+
+  it('rejects a model id that is not a short printable identifier', async () => {
+    const setChatModel = await getSetChatModel();
+    const { ctx } = createMockCtx();
+
+    await expect(
+      setChatModel(ctx, { organizationId: ORG, modelId: 'bad id\nwith prose' }),
+    ).rejects.toMatchObject({ data: { code: 'invalid_model_id' } });
+    await expect(
+      setChatModel(ctx, { organizationId: ORG, modelId: 'x'.repeat(201) }),
+    ).rejects.toMatchObject({ data: { code: 'invalid_model_id' } });
+  });
+});

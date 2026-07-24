@@ -104,7 +104,7 @@ export const upsertMyPreferences = mutation({
   },
 });
 
-async function setFeatureEnabled(
+async function patchMyPreferences(
   ctx: MutationCtx,
   authUserId: string,
   organizationId: string,
@@ -112,6 +112,7 @@ async function setFeatureEnabled(
     customInstructionsEnabled?: boolean;
     memoriesEnabled?: boolean;
     onboardingCompleted?: boolean;
+    chatModelId?: string;
   },
 ) {
   const now = Date.now();
@@ -147,7 +148,7 @@ export const setCustomInstructionsEnabled = mutation({
       authUser.userId,
       args.organizationId,
     );
-    return setFeatureEnabled(ctx, authUser.userId, args.organizationId, {
+    return patchMyPreferences(ctx, authUser.userId, args.organizationId, {
       customInstructionsEnabled: args.enabled,
     });
   },
@@ -166,7 +167,7 @@ export const setMemoriesEnabled = mutation({
       authUser.userId,
       args.organizationId,
     );
-    return setFeatureEnabled(ctx, authUser.userId, args.organizationId, {
+    return patchMyPreferences(ctx, authUser.userId, args.organizationId, {
       memoriesEnabled: args.enabled,
     });
   },
@@ -185,8 +186,42 @@ export const setOnboardingCompleted = mutation({
       authUser.userId,
       args.organizationId,
     );
-    return setFeatureEnabled(ctx, authUser.userId, args.organizationId, {
+    return patchMyPreferences(ctx, authUser.userId, args.organizationId, {
       onboardingCompleted: args.completed,
+    });
+  },
+});
+
+/** A model id is provider-namespaced ("deepseek-chat",
+ * "anthropic/claude-fable-5"); bound and printable, never free prose. */
+const CHAT_MODEL_ID_RE = /^[\x21-\x7e]{1,200}$/;
+
+/**
+ * Remember the composer's model pick for this user and org. Set on an
+ * EXPLICIT pick only — the composer's own default seeding never writes, so
+ * the row always reflects a choice the user actually made.
+ */
+export const setChatModel = mutation({
+  args: {
+    organizationId: v.string(),
+    modelId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await requireAuthenticatedUser(ctx);
+    await assertSelfAndOrgMember(
+      ctx,
+      authUser,
+      authUser.userId,
+      args.organizationId,
+    );
+    if (!CHAT_MODEL_ID_RE.test(args.modelId)) {
+      throw new ConvexError({
+        code: 'invalid_model_id',
+        message: 'Model ids are short printable identifiers.',
+      });
+    }
+    return patchMyPreferences(ctx, authUser.userId, args.organizationId, {
+      chatModelId: args.modelId,
     });
   },
 });
