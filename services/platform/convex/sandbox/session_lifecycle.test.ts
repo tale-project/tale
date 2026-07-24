@@ -461,6 +461,71 @@ describe('recoverStuckSessions', () => {
   });
 });
 
+describe('listSessionsToReconcile', () => {
+  it('returns active+degraded across orgs (incl. pinned), skips creating/stopped', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'active',
+      sessionId: 'a-active',
+      ownerId: 'u1',
+    });
+    await insertSession(t, {
+      status: 'degraded',
+      sessionId: 'b-degraded',
+      organizationId: OTHER_ORG,
+      ownerId: 'u2',
+    });
+    await insertSession(t, {
+      status: 'active',
+      sessionId: 'c-pinned',
+      pinned: true,
+      ownerId: 'u3',
+    });
+    // Excluded: creating (mid-spin-up) and stopped (already reconciled).
+    await insertSession(t, {
+      status: 'creating',
+      sessionId: 'd-creating',
+      ownerId: 'u4',
+    });
+    await insertSession(t, {
+      status: 'stopped',
+      sessionId: 'e-stopped',
+      ownerId: 'u5',
+    });
+
+    const rows = await t.query(
+      internal.sandbox.session_queries.listSessionsToReconcile,
+      { limit: 100 },
+    );
+    const ids = rows.map((r) => r.sessionId).sort();
+    expect(ids).toEqual(['a-active', 'b-degraded', 'c-pinned']);
+    // Pinned flag + profile ride along so the cron decides re-push vs recreate.
+    expect(rows.find((r) => r.sessionId === 'c-pinned')?.pinned).toBe(true);
+    expect(rows.find((r) => r.sessionId === 'a-active')?.pinned).toBe(false);
+    expect(rows.every((r) => r.profile === 'agent')).toBe(true);
+    // Cross-org: the other org's row is included (the cron is deployment-wide).
+    expect(rows.find((r) => r.sessionId === 'b-degraded')?.organizationId).toBe(
+      OTHER_ORG,
+    );
+  });
+
+  it('honours the limit', async () => {
+    const t = convexTest(schema, modules);
+    for (let i = 0; i < 5; i += 1) {
+      await insertSession(t, {
+        status: 'active',
+        sessionId: `s-${i}`,
+        ownerId: `u-${i}`,
+      });
+    }
+    const rows = await t.query(
+      internal.sandbox.session_queries.listSessionsToReconcile,
+      { limit: 3 },
+    );
+    expect(rows).toHaveLength(3);
+  });
+});
+
 describe('revokeTokensForSession', () => {
   async function insertToken(
     t: T,

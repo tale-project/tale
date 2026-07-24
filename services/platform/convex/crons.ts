@@ -152,6 +152,19 @@ cron(
   {},
 );
 
+// Sandbox SESSION drift reconcile — the MAIN path (not the opportunistic
+// page-mount reconcile) that keeps platform rows honest against the pull-only
+// spawner across all orgs: hibernate a released container's row, re-assert a
+// pin the spawner drops on restart (before the idle reaper stops the always-on
+// box), and recreate a missing pinned container. Unresolved drift on a pinned
+// session logs to GlitchTip rather than lingering as a row that lies "active".
+cron(
+  'reconcile sandbox session drift (every 5 min)',
+  '*/5 * * * *',
+  internal.node_only.sandbox.session_admin_actions.reconcileSandboxSessions,
+  {},
+);
+
 // Sandbox ADMISSION ticket reaper — park-on-capacity FIFO tickets whose owner's
 // poll-chain died (a cancelled/crashed workflow step or chat turn that stopped
 // re-stamping `lastSeenAt`) would wedge the org's queue head forever. Under

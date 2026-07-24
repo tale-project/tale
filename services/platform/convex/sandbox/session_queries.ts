@@ -5,6 +5,7 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { getUserById } from '../betterAuth/trusted_headers/get_user_by_id';
 import { isLiveSessionStatus } from './sessions_schema';
+import { sandboxSessionProfileValidator } from './wire';
 
 /**
  * Resolve a minted session token by its sha256 hash (see `hashVirtualKey`).
@@ -392,6 +393,50 @@ export const listReconcilableSessionsForOrg = internalQuery({
         )) {
         if (row.pinned === true) continue;
         out.push({ sessionId: row.sessionId });
+      }
+    }
+    return out;
+  },
+});
+
+/**
+ * All `active`/`degraded` session rows across EVERY org — the drift-reconcile
+ * cron's candidates. Unlike the per-org page-mount reconcile, this INCLUDES
+ * pinned rows: the cron re-asserts a pin the spawner drops on restart (its
+ * registry rebuilds without it), and recreates a pinned container that went
+ * missing, so "always-on" survives a control-plane bounce. Carries `pinned` +
+ * `profile` so the action decides re-push vs recreate vs hibernate without a
+ * second read. Bounded by `limit`; scans `by_status` (global) like
+ * `recoverStuckSessions`. Excludes `creating` (mid-spin-up) and `stopped`
+ * (already reconciled / deliberately hibernated). */
+export const listSessionsToReconcile = internalQuery({
+  args: { limit: v.number() },
+  returns: v.array(
+    v.object({
+      organizationId: v.string(),
+      sessionId: v.string(),
+      pinned: v.boolean(),
+      profile: sandboxSessionProfileValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const out: Array<{
+      organizationId: string;
+      sessionId: string;
+      pinned: boolean;
+      profile: 'default' | 'agent';
+    }> = [];
+    for (const status of ['active', 'degraded'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_status', (q) => q.eq('status', status))) {
+        out.push({
+          organizationId: row.organizationId,
+          sessionId: row.sessionId,
+          pinned: row.pinned === true,
+          profile: row.profile,
+        });
+        if (out.length >= args.limit) return out;
       }
     }
     return out;
