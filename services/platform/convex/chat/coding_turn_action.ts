@@ -96,6 +96,20 @@ export const startCodingTurn = action({
       return { status: 'refused', reason: 'This conversation does not exist.' };
     }
 
+    // At most one turn per thread. Refuse a concurrent send BEFORE appending
+    // anything, so a second send can't overwrite the running turn's generation
+    // and orphan its exec (and double-charge on finalize).
+    const busy = await ctx.runQuery(
+      internal.chat.generations.hasLiveGenerationInternal,
+      { organizationId: args.organizationId, threadId: args.threadId },
+    );
+    if (busy) {
+      return {
+        status: 'refused',
+        reason: 'This conversation is already generating a response.',
+      };
+    }
+
     await ctx.runMutation(internal.chat.messages.appendMessageInternal, {
       organizationId: args.organizationId,
       threadId: args.threadId,
@@ -284,7 +298,7 @@ export const stopCodingTurn = action({
     );
     if (thread === null) return { stopped: false };
 
-    const state = await ctx.runMutation(
+    const state = await ctx.runQuery(
       internal.chat.generations.getCodingStateInternal,
       { organizationId: args.organizationId, threadId: args.threadId },
     );

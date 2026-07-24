@@ -95,7 +95,7 @@ export const recoverAbandonedCodingTurns = internalAction({
       // Exec exited or gone → settle the wedged turn. The generation row is
       // still present (finalize deletes it last), so it carries the model +
       // message the finalize needs.
-      const state = await ctx.runMutation(
+      const state = await ctx.runQuery(
         internal.chat.generations.getCodingStateInternal,
         { organizationId: op.organizationId, threadId: op.threadId },
       );

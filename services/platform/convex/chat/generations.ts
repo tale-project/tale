@@ -19,8 +19,9 @@ import { v } from 'convex/values';
 
 import {
   internalMutation,
+  internalQuery,
   query,
-  type MutationCtx,
+  type QueryCtx,
 } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -81,9 +82,33 @@ export const getGeneration = query({
   },
 });
 
-/** Load the generation row for a thread within a trusted write, if any. */
+/**
+ * Whether a thread already has a live turn — the server-side at-most-one gate.
+ * The start actions check this before appending anything, so a concurrent
+ * second send (two tabs, a double-click, a direct API call) is refused instead
+ * of overwriting the running turn's generation and orphaning its exec. The
+ * client's send-disable is UX only; this is the authority.
+ */
+export const hasLiveGenerationInternal = internalQuery({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const normalized = ctx.db.normalizeId('threads', args.threadId);
+    if (!normalized) return false;
+    const generation = await ctx.db
+      .query('generations')
+      .withIndex('by_thread', (q) => q.eq('threadId', normalized))
+      .first();
+    return (
+      generation !== null && generation.organizationId === args.organizationId
+    );
+  },
+});
+
+/** Load the generation row for a thread, if any. Read-only, so it takes a
+ * query OR mutation ctx (a mutation ctx satisfies the read-capable shape). */
 async function currentGeneration(
-  ctx: MutationCtx,
+  ctx: QueryCtx,
   organizationId: string,
   threadId: string,
 ) {
@@ -188,7 +213,7 @@ export const advanceCodingCursorInternal = internalMutation({
  * is normalized to an id (null when the turn has no streamable message or has
  * already settled) so the drainer can hand it straight to the message
  * mutations. */
-export const getCodingStateInternal = internalMutation({
+export const getCodingStateInternal = internalQuery({
   args: { organizationId: v.string(), threadId: v.string() },
   returns: v.union(
     v.null(),

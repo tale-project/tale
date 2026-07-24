@@ -184,6 +184,73 @@ describe('markSessionTokenRevokedByKeyId — the leak close', () => {
   });
 });
 
+describe('hasLiveGenerationInternal — the at-most-one-turn gate', () => {
+  async function insertThread(t: T) {
+    return t.run((ctx) =>
+      ctx.db.insert('threads', {
+        organizationId: ORG,
+        userId: 'user_1',
+        kind: 'sandbox',
+        title: 'T',
+        archived: false,
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+  }
+
+  it('reports a thread busy while a generation row is live', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await insertThread(t);
+    await t.run((ctx) =>
+      ctx.db.insert('generations', {
+        organizationId: ORG,
+        threadId,
+        status: 'streaming',
+        streamId: 's1',
+        startedAt: 0,
+        heartbeatAt: Date.now(),
+      }),
+    );
+
+    const busy = await t.query(
+      internal.chat.generations.hasLiveGenerationInternal,
+      { organizationId: ORG, threadId },
+    );
+    expect(busy).toBe(true);
+  });
+
+  it('reports idle with no generation, and never crosses orgs', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await insertThread(t);
+
+    expect(
+      await t.query(internal.chat.generations.hasLiveGenerationInternal, {
+        organizationId: ORG,
+        threadId,
+      }),
+    ).toBe(false);
+
+    // A live row under a DIFFERENT org must not mark this thread busy.
+    await t.run((ctx) =>
+      ctx.db.insert('generations', {
+        organizationId: 'org_other',
+        threadId,
+        status: 'streaming',
+        streamId: 's1',
+        startedAt: 0,
+        heartbeatAt: Date.now(),
+      }),
+    );
+    expect(
+      await t.query(internal.chat.generations.hasLiveGenerationInternal, {
+        organizationId: ORG,
+        threadId,
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('recoverStaleDirectGenerations — unwedge a crashed direct turn', () => {
   async function insertGeneration(
     t: T,

@@ -34,6 +34,7 @@ import { loadHarnesses } from '../lib/providers/load_system_config';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   drainSessionExecResilient,
+  SessionDuplicateError,
   SessionNotFoundError,
   sessionCancelExec,
   sessionCreate,
@@ -113,11 +114,22 @@ export async function ensureAgentSession(
   );
   if (existing !== null) {
     if (await sessionIsAlive(sessionId)) return sessionId;
-    await sessionCreate({
-      sessionId,
-      organizationId: scope.organizationId,
-      profile: 'agent',
-    });
+    // A 409 here means the spawner still holds this id's container — an orphan
+    // the aliveness probe raced. It is bound to the SAME deterministic
+    // workspace, so adopt it instead of failing the turn (reaping via destroy
+    // would delete the user's preserved workspace).
+    try {
+      await sessionCreate({
+        sessionId,
+        organizationId: scope.organizationId,
+        profile: 'agent',
+      });
+    } catch (err) {
+      if (!(err instanceof SessionDuplicateError)) throw err;
+      console.warn(
+        `[coding-turn] adopting orphan sandbox container for ${sessionId} (spawner had it; platform row was stale)`,
+      );
+    }
     await ctx.runMutation(
       internal.sandbox.session_mutations.resumeStoppedSession,
       { organizationId: scope.organizationId, sessionId },
@@ -142,6 +154,19 @@ export async function ensureAgentSession(
       profile: 'agent',
     });
   } catch (err) {
+    // Same adopt-the-orphan self-heal: the container exists spawner-side under
+    // this deterministic id, so keep the reserved row and use it rather than
+    // failing the turn with a 409.
+    if (err instanceof SessionDuplicateError) {
+      console.warn(
+        `[coding-turn] adopting orphan sandbox container for ${sessionId} (no platform row; spawner had it)`,
+      );
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.setSessionStatus,
+        { rowId, status: 'active' },
+      );
+      return sessionId;
+    }
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
       rowId,
       status: 'failed',

@@ -48,7 +48,7 @@ import type {
   ModelCatalogEntry,
   ProviderConnector,
 } from '../../lib/shared/schemas/providers';
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -443,6 +443,34 @@ export const startTurn = action({
     args,
   ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    // A thread is user-private: only its owner may run turns into it. Without
+    // this, org membership alone let any member write user+assistant messages
+    // into another member's thread (listMessages returns [] for a foreign
+    // thread, but the append path only checked org). The coding lane already
+    // gates on the same owned-thread query.
+    const owned = await ctx.runQuery(
+      internal.chat.threads.getOwnedThreadInternal,
+      {
+        organizationId: args.organizationId,
+        userId: auth.userId,
+        threadId: args.threadId,
+      },
+    );
+    if (owned === null) {
+      return { status: 'refused', reason: 'This conversation does not exist.' };
+    }
+    // At most one turn per thread — refuse a concurrent send rather than let two
+    // turns interleave and delete each other's generation row mid-stream.
+    const busy = await ctx.runQuery(
+      internal.chat.generations.hasLiveGenerationInternal,
+      { organizationId: args.organizationId, threadId: args.threadId },
+    );
+    if (busy) {
+      return {
+        status: 'refused',
+        reason: 'This conversation is already generating a response.',
+      };
+    }
     const outcome = await executeTurn(ctx, {
       organizationId: args.organizationId,
       userId: auth.userId,

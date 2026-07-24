@@ -34,7 +34,7 @@ export const driveCodingTurn = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const state = await ctx.runMutation(
+    const state = await ctx.runQuery(
       internal.chat.generations.getCodingStateInternal,
       { organizationId: args.organizationId, threadId: args.threadId },
     );
