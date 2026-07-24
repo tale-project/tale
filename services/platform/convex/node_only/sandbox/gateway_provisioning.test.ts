@@ -167,6 +167,35 @@ describe('provisionSessionGatewayKey', () => {
     expect(result.keyHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it('provisions a custom provider under its per-model record so the mint can bind', async () => {
+    // deepseek is NOT a standard gateway provider, so it routes per model
+    // (`deepseek__deepseek-chat`). The provision record must carry that exact
+    // name, or the mint's key lookup 404s and fails closed.
+    mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
+    // Only `id` is read by buildProviderProvision; the rest of the catalog
+    // shape is irrelevant here.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      { id: 'deepseek-chat' },
+      { id: 'deepseek-reasoner' },
+    ] as unknown as Awaited<ReturnType<typeof getConnectorCatalog>>);
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-ds',
+      allowedModels: [{ providerSlug: 'deepseek', modelId: 'deepseek-chat' }],
+      budgetCents: 500,
+    });
+    // One credential resolve for the connector, one per-model gateway record.
+    expect(mockedResolve).toHaveBeenCalledTimes(1);
+    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
+      expect.objectContaining({
+        name: 'deepseek__deepseek-chat',
+        models: ['deepseek-chat'],
+        apiKey: 'sk-ds',
+      }),
+    ]);
+  });
+
   it('continues past a provider whose provision fails (mint fails closed later)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedResolve.mockRejectedValueOnce(new Error('no default credential'));

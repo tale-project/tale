@@ -37,8 +37,10 @@ import { resolveProviderCredential } from '../../provider_credentials/resolve_cr
 import {
   applyGatewayConfig,
   hashVirtualKey,
+  isStandardGatewayProvider,
   mintVirtualKey,
   provisionProviders,
+  resolveGatewayRouting,
   type AllowedModelRef,
   type ProviderProvision,
 } from './llm_gateway_admin';
@@ -157,25 +159,50 @@ export async function provisionSessionGatewayKey(
   ctx: ActionCtx,
   args: SessionGatewayArgs,
 ): Promise<SessionGatewayKey> {
-  const providerSlugs = [
-    ...new Set(args.allowedModels.map((ref) => ref.providerSlug)),
-  ];
-
-  const provisions: ProviderProvision[] = [];
-  for (const providerSlug of providerSlugs) {
+  // One provision-build per unique connector (one credential resolve each),
+  // then expand into the EXACT gateway records the mint will bind to. A
+  // standard gateway provider routes to one shared record (`<slug>/<model>`),
+  // so its raw-slug provision matches as-is. A CUSTOM connector routes per
+  // model (`<slug>__<model>/<model>`, resolveGatewayRouting), so each of its
+  // models needs its own record carrying that name and just that model —
+  // otherwise the record the key lands under (`deepseek`) and the one the
+  // mint looks up (`deepseek__deepseek-chat`) disagree and the mint fails
+  // closed.
+  const baseBySlug = new Map<string, ProviderProvision>();
+  for (const providerSlug of new Set(
+    args.allowedModels.map((ref) => ref.providerSlug),
+  )) {
     try {
-      const provision = await buildProviderProvision(ctx, {
+      const base = await buildProviderProvision(ctx, {
         organizationId: args.organizationId,
         providerSlug,
         credentialId: args.credentialIds?.[providerSlug],
       });
-      if (provision) provisions.push(provision);
+      if (base) baseBySlug.set(providerSlug, base);
     } catch (err) {
       console.warn(
         `[gateway-provisioning] building provision for '${providerSlug}' failed (continuing; mint fails closed if this provider has no key):`,
         err,
       );
     }
+  }
+
+  const provisions: ProviderProvision[] = [];
+  const provisionedNames = new Set<string>();
+  for (const ref of args.allowedModels) {
+    const base = baseBySlug.get(ref.providerSlug);
+    if (!base) continue;
+    const provision = isStandardGatewayProvider(ref.providerSlug)
+      ? base
+      : {
+          ...base,
+          name: resolveGatewayRouting(ref.providerSlug, ref.modelId)
+            .gatewayProvider,
+          models: [ref.modelId],
+        };
+    if (provisionedNames.has(provision.name)) continue;
+    provisionedNames.add(provision.name);
+    provisions.push(provision);
   }
   await provisionProviders(args.organizationId, provisions);
 
