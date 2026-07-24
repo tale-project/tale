@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -8,6 +9,32 @@ import { render, screen } from '@/tests/utils/render';
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,
+  }),
+}));
+
+interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  to?: string;
+  params?: Record<string, string>;
+  preload?: string;
+}
+
+vi.mock('@tanstack/react-router', () => ({
+  // A real <Link> needs a mounted RouterProvider; these tests only assert the
+  // resolved targets, so the mock interpolates `params` into the `to`
+  // template and renders a plain anchor (sidebar-nav.test.tsx's pattern).
+  Link: React.forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
+    { to, params, preload: _preload, children, ...rest },
+    ref,
+  ) {
+    const href = Object.entries(params ?? {}).reduce(
+      (path, [key, value]) => path.replace(`$${key}`, value),
+      to ?? '',
+    );
+    return (
+      <a ref={ref} href={href} {...rest}>
+        {children}
+      </a>
+    );
   }),
 }));
 

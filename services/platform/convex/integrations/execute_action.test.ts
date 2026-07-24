@@ -22,6 +22,9 @@ import type { Id } from '../_generated/dataModel';
 
 vi.mock('../_generated/server', () => ({
   internalAction: vi.fn((config: unknown) => config),
+  // connector_catalog (imported for the shipped-catalog loader) declares its
+  // public `listConnectors` action at module top level.
+  action: vi.fn((config: unknown) => config),
 }));
 
 vi.mock('../_generated/api', () => ({
@@ -71,6 +74,10 @@ function liveCapableRunner(): CodeRunner {
       ) as (input: unknown, ctx: unknown) => Promise<unknown>;
       return body(scope.input, scope.ctx);
     },
+    // Identify as what it is: the dispatcher refuses live yaml-js on the
+    // data-only 'node-vm' backend, and this double is exactly the
+    // host-capable runner that rule waits for.
+    kind: () => 'live-capable-test',
   };
 }
 

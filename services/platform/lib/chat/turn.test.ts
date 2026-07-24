@@ -231,9 +231,13 @@ describe('runTurn — the happy path', () => {
     };
     const d = deps({ model: failing });
 
-    await expect(runTurn(request(), d.deps)).rejects.toThrow(
-      'provider exploded',
-    );
+    // A stream failure settles as a REFUSED outcome (surfaced to the user as
+    // an error reply), never as an unhandled rejection out of the turn.
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'refused',
+      step: 'stream',
+      reason: 'provider exploded',
+    });
     expect(d.store.generations).toEqual(['begin', 'end']);
   });
 

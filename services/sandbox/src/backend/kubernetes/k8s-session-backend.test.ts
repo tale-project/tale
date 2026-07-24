@@ -94,6 +94,7 @@ function stub(createSecret: () => Promise<unknown>): {
     deleteNamespacedPod: () => Promise.resolve({}),
     deleteNamespacedSecret: () => Promise.resolve({}),
   } as unknown as CoreV1Api;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
   const networking = {} as unknown as NetworkingV1Api;
   return { client: { core, networking, namespace: 'tale-sandbox' }, calls };
 }
@@ -150,6 +151,7 @@ function resumeStub(podPhase: 'Failed' | 'Succeeded' | 'Running' | 'Pending'): {
       return Promise.reject(Object.assign(new Error('halt'), { code: 400 }));
     },
   } as unknown as CoreV1Api;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
   const networking = {} as unknown as NetworkingV1Api;
   return { client: { core, networking, namespace: 'tale-sandbox' }, log };
 }
