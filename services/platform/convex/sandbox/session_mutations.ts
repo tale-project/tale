@@ -268,6 +268,9 @@ export const recoverStuckSessions = internalMutation({
     if (isE2ECronSuppressed()) return [];
     const now = Date.now();
     const expired: Id<'sandboxSessions'>[] = [];
+    // Spawner-side ids of the rows this sweep expired — their gateway VKs are
+    // revoked out-of-band (a mutation can't call the gateway).
+    const expiredSessionIds: string[] = [];
     // Distinct orgs that had a session slot freed by this sweep — wake each once
     // at the end (deduped so expiring many rows can't fan out into many wakes).
     const freedOrgs = new Set<string>();
@@ -301,6 +304,7 @@ export const recoverStuckSessions = internalMutation({
             destroyedAt: now,
           });
           expired.push(row._id);
+          expiredSessionIds.push(row.sessionId);
           if (row.organizationId) freedOrgs.add(row.organizationId);
           if (expired.length >= limit) break;
         }
@@ -312,6 +316,16 @@ export const recoverStuckSessions = internalMutation({
     // destroy/stop controls), not just on the next reconciler tick.
     for (const organizationId of freedOrgs) {
       await scheduleSessionCapacityWake(ctx, organizationId);
+    }
+    // Revoke the expired sessions' gateway VKs out-of-band — the row flip alone
+    // leaves a spendable credential live (the leak this closes). Workspace +
+    // container are left to the spawner's idle reaper (expiry preserves state).
+    if (expiredSessionIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.node_only.sandbox.session_teardown.teardownExpiredSessions,
+        { sessionIds: expiredSessionIds },
+      );
     }
     return expired;
   },

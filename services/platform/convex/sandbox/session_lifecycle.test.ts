@@ -438,6 +438,27 @@ describe('recoverStuckSessions', () => {
       'expired',
     );
   });
+
+  it('schedules VK teardown for the sessions it expires', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, { status: 'active', createdAt: 0 });
+
+    await t.mutation(
+      internal.sandbox.session_mutations.recoverStuckSessions,
+      {},
+    );
+
+    // The row flip alone would leave a live gateway VK — expiry must schedule
+    // the out-of-band revoke for the expired session id.
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    const teardown = scheduled.find((s) =>
+      s.name.includes('teardownExpiredSessions'),
+    );
+    expect(teardown).toBeDefined();
+    expect(teardown?.args?.[0]?.sessionIds).toContain(SID);
+  });
 });
 
 describe('revokeTokensForSession', () => {

@@ -59,6 +59,48 @@ export const teardownThreadSessionAtTurnEnd = internalAction({
   },
 });
 
+/**
+ * Reclaim the CREDENTIALS of hard-TTL-expired sessions (the row-flip half is
+ * `recoverStuckSessions`, which schedules this). Revokes each session's gateway
+ * VKs so an expired row can never leave a spendable credential live on the
+ * gateway — the gap that let coding-turn keys accumulate past a session's life.
+ *
+ * Deliberately does NOT destroy the workspace: expiry is a lifetime cap, not an
+ * explicit user Destroy, and "never destroy state without explicit permission"
+ * is a hard boundary. The container is left to the spawner's idle reaper (which
+ * stops, preserving the workspace); a later turn re-attaches the preserved dir
+ * via the deterministic id, or starts fresh. Idempotent — an already-revoked
+ * token is a no-op.
+ */
+export const teardownExpiredSessions = internalAction({
+  args: { sessionIds: v.array(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const sessionId of args.sessionIds) {
+      try {
+        const { llmGatewayKeyIds } = await ctx.runMutation(
+          internal.sandbox.session_mutations.revokeTokensForSession,
+          { sessionId },
+        );
+        for (const keyId of llmGatewayKeyIds) {
+          await revokeVirtualKey(keyId).catch((err) =>
+            console.warn(
+              `[teardownExpiredSessions] revoke VK ${keyId} failed:`,
+              err,
+            ),
+          );
+        }
+      } catch (err) {
+        console.warn(
+          `[teardownExpiredSessions] revoke tokens ${sessionId} failed:`,
+          err,
+        );
+      }
+    }
+    return null;
+  },
+});
+
 export const teardownThreadSessions = internalAction({
   args: { sessionIds: v.array(v.string()) },
   returns: v.null(),
