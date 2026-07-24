@@ -201,12 +201,21 @@ export const startCodingTurn = action({
         deadlineMs: deadlineAt,
         mintedKeyId: keyId,
       });
-      const instructions = await stageSkills(
-        ctx,
-        scope,
-        sessionId,
-        thread.capabilities?.skills ?? [],
+      // A project thread runs its agent pre-equipped with the project's
+      // per-agent binding (the persistent baseline), unioned with the picks
+      // this conversation made in the composer — selecting one must never drop
+      // the other. The binding is keyed by harness slug.
+      const projectBinding = await ctx.runQuery(
+        internal.projects.internal_queries.getProjectAgentCapabilitiesForThread,
+        { threadId: args.threadId, agentId: args.harness },
       );
+      const skillSlugs = [
+        ...new Set([
+          ...projectBinding.skills,
+          ...(thread.capabilities?.skills ?? []),
+        ]),
+      ];
+      const instructions = await stageSkills(ctx, scope, sessionId, skillSlugs);
       const exec = buildCodingExec({
         harness: args.harness,
         gatewayModel: routing.gatewayModel,

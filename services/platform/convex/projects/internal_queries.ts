@@ -82,6 +82,34 @@ export const getProjectIdForThread = internalQuery({
 });
 
 /**
+ * The skills + connectors a project has bound to one agent, resolved from a
+ * thread. Phase B consumption: a coding turn in a project thread runs its agent
+ * PRE-EQUIPPED with this binding — the persistent project baseline, which the
+ * turn unions with the conversation's own composer picks. Returns empty lists
+ * when the thread is not in a project, the project is gone, or the agent has no
+ * binding — all of which mean "nothing bound; use only the conversation's
+ * picks". `agentId` is the agent's harness slug (the binding's key).
+ */
+export const getProjectAgentCapabilitiesForThread = internalQuery({
+  args: { threadId: v.string(), agentId: v.string() },
+  returns: v.object({
+    skills: v.array(v.string()),
+    connectors: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const meta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    if (!meta?.projectId) return { skills: [], connectors: [] };
+    const project = await ctx.db.get(meta.projectId);
+    const binding = project?.agentCapabilities?.[args.agentId];
+    if (!binding) return { skills: [], connectors: [] };
+    return { skills: binding.skills, connectors: binding.connectors };
+  },
+});
+
+/**
  * Server-side defense-in-depth for the chat send path. The composer UI
  * already enforces `hasProjectAccess`, but a direct API call must not
  * bypass it. Returns a structured allow/deny shape so the caller can
