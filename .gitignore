@@ -96,6 +96,8 @@ yarn-error.log*
 # ---------------------------------------------------------------------------
 compose.override.yml
 trivy-reports/
+# `.tale/`: the CLI project dir (orgs/, reference/) and the local-dev writable
+# config root (config/ — the TALE_CONFIG_DIR default, seeded from builtin-configs/).
 .tale/
 
 # ---------------------------------------------------------------------------
@@ -124,10 +126,6 @@ builtin-configs/**/.history/
 # SOPS-encrypted secrets are per-developer (encrypted with each user's local age
 # key) — generated on demand by `tale init` / provider UI, not useful to share
 builtin-configs/**/*.secrets.json
-
-# Local dev writable config root (TALE_CONFIG_DIR default for a fresh checkout;
-# per-org files seeded from builtin-configs/ at org-create). Never committed.
-.tale-config/
 
 # ---------------------------------------------------------------------------
 # Misc generated reports

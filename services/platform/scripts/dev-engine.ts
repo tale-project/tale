@@ -193,7 +193,7 @@ function envNormalizeCommon() {
   // (that is `configs/platform/custom/`, which is not org-shaped). An explicit env wins
   // (the user's .env or the E2E fixture point this at their own writable root).
   if (!process.env.TALE_CONFIG_DIR) {
-    process.env.TALE_CONFIG_DIR = join(repoRoot, '.tale-config');
+    process.env.TALE_CONFIG_DIR = join(repoRoot, '.tale', 'config');
   }
 
   // Built-in config catalog: the single GENERIC template every org is seeded
