@@ -7,7 +7,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import type { CoreV1Api } from '@kubernetes/client-node';
+import type { CoreV1Api, NetworkingV1Api } from '@kubernetes/client-node';
 
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
@@ -94,7 +94,8 @@ function stub(createSecret: () => Promise<unknown>): {
     deleteNamespacedPod: () => Promise.resolve({}),
     deleteNamespacedSecret: () => Promise.resolve({}),
   } as unknown as CoreV1Api;
-  return { client: { core, namespace: 'tale-sandbox' }, calls };
+  const networking = {} as unknown as NetworkingV1Api;
+  return { client: { core, networking, namespace: 'tale-sandbox' }, calls };
 }
 
 /**
@@ -149,7 +150,8 @@ function resumeStub(podPhase: 'Failed' | 'Succeeded' | 'Running' | 'Pending'): {
       return Promise.reject(Object.assign(new Error('halt'), { code: 400 }));
     },
   } as unknown as CoreV1Api;
-  return { client: { core, namespace: 'tale-sandbox' }, log };
+  const networking = {} as unknown as NetworkingV1Api;
+  return { client: { core, networking, namespace: 'tale-sandbox' }, log };
 }
 
 describe('KubernetesSessionBackend.createSession — reap a terminal Pod on resume', () => {

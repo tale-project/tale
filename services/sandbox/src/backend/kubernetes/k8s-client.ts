@@ -39,11 +39,14 @@ import {
   type ConfigurationOptions,
   CoreV1Api,
   KubeConfig,
+  NetworkingV1Api,
   Observable,
 } from '@kubernetes/client-node';
 
 export interface K8sClient {
   core: CoreV1Api;
+  /** NetworkingV1Api — session-pod egress NetworkPolicy (the k8s egress fence). */
+  networking: NetworkingV1Api;
   namespace: string;
 }
 
@@ -128,6 +131,7 @@ export function makeK8sClient(namespace: string): K8sClient {
   }
   return {
     core: kc.makeApiClient(CoreV1Api),
+    networking: kc.makeApiClient(NetworkingV1Api),
     namespace,
   };
 }
