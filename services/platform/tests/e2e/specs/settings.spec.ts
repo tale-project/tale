@@ -114,7 +114,11 @@ test.describe('core settings', () => {
       name: SHIPPED_PROVIDER_DISPLAY_NAME,
       level: 2,
     });
-    await expect(connectorHeading).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // The whole connector list waits on ONE action that fetches the live
+    // catalogs (OpenRouter, the Vercel gateway) before it resolves, and the
+    // page shows skeletons until then. With no egress those fetches have to
+    // time out first, so this needs the execution budget, not the element one.
+    await expect(connectorHeading).toBeVisible({ timeout: TIMEOUT.EXECUTION });
 
     // Each connector section offers "Add credential"; open the dialog for the
     // anchor connector (scoped to its section — the button label repeats per

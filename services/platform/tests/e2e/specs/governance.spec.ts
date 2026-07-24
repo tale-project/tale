@@ -15,6 +15,20 @@ import { t } from '../helpers/i18n';
 const governanceBase = (organizationId: string) =>
   `/dashboard/${organizationId}/settings/governance`;
 
+/**
+ * The settings shell's single Save button. Every form-backed governance editor
+ * registers with the page-level editor group and is committed from this one
+ * control (there are no per-section Save buttons any more). It renders twice —
+ * a desktop `hidden md:flex` slot and a `md:hidden` mobile bar — so filter to
+ * the copy visible on the Desktop Chrome viewport. Autosaving toggles
+ * (voice-output, content-safety) never involve it.
+ */
+function globalSaveButton(page: Page): Locator {
+  return page
+    .getByRole('button', { name: t('common.actions.save'), exact: true })
+    .filter({ visible: true });
+}
+
 /** Radix `Switch` exposes its checked state via `aria-checked`. */
 function isChecked(locator: Locator): Promise<boolean> {
   return locator.getAttribute('aria-checked').then((value) => value === 'true');
@@ -78,29 +92,22 @@ test('voice-output policy: toggles, persists, and restores', async ({
 // =============================================================================
 
 /**
- * The content-models page mounts three editors (system-prompt / default-model /
- * model-access), each with its own "Save"; scope to THIS form so the locator is
- * unambiguous and only the system-prompt save is driven.
+ * The mandatory-instructions field is a `<textarea aria-label="Custom
+ * instructions">` (the pre-cutover mandatory prefix/suffix pair merged into
+ * this single field). Its `FormSection` wrapper is a `role="group"` whose
+ * `aria-labelledby` carries the SAME text, so `getByLabel(...)` matches BOTH
+ * the group and the textarea (strict-mode violation). Scope to the `textbox`
+ * role — the group is not a textbox — so the locator resolves to exactly the
+ * textarea.
  */
-function systemPromptSaveButton(page: Page): Locator {
-  return page.locator('button[form="governance-system-prompt-form"]');
-}
-
-/**
- * The mandatory-prefix field is a `<textarea aria-label="Mandatory prefix">`.
- * Its `FormSection` wrapper is a `role="group"` whose `aria-labelledby` carries
- * the SAME "Mandatory prefix" text, so `getByLabel(...)` matches BOTH the group
- * and the textarea (strict-mode violation). Scope to the `textbox` role — the
- * group is not a textbox — so the locator resolves to exactly the textarea.
- */
-function systemPromptPrefixField(page: Page): Locator {
+function systemPromptInstructionsField(page: Page): Locator {
   return page.getByRole('textbox', {
-    name: t('governance.systemPrompt.prefixLabel'),
+    name: t('governance.systemPrompt.instructionsLabel'),
   });
 }
 
 async function saveSystemPrompt(page: Page): Promise<void> {
-  const save = systemPromptSaveButton(page);
+  const save = globalSaveButton(page);
   await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await save.click();
   await expect(
@@ -112,27 +119,27 @@ test('system prompt: edits, persists, and restores', async ({ page, org }) => {
   const { organizationId } = org;
   await page.goto(`${governanceBase(organizationId)}/content-models`);
 
-  const prefixField = systemPromptPrefixField(page);
+  const prefixField = systemPromptInstructionsField(page);
   await expect(prefixField).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await expect(prefixField).toBeEnabled();
 
   const original = await prefixField.inputValue();
-  const marker = `E2E governance prefix ${Date.now().toString(36)}`;
+  const marker = `E2E governance instructions ${Date.now().toString(36)}`;
   expect(marker).not.toBe(original);
 
   // Editing makes the form dirty, which enables the EditorActions Save button.
   await prefixField.fill(marker);
   await saveSystemPrompt(page);
 
-  await reloadAndSettle(page, systemPromptPrefixField(page));
-  await expect(systemPromptPrefixField(page)).toHaveValue(marker, {
+  await reloadAndSettle(page, systemPromptInstructionsField(page));
+  await expect(systemPromptInstructionsField(page)).toHaveValue(marker, {
     timeout: TIMEOUT.PERSIST,
   });
 
   // Restore unconditionally.
-  await systemPromptPrefixField(page).fill(original);
+  await systemPromptInstructionsField(page).fill(original);
   await saveSystemPrompt(page);
-  await expect(systemPromptPrefixField(page)).toHaveValue(original);
+  await expect(systemPromptInstructionsField(page)).toHaveValue(original);
 });
 
 // =============================================================================
@@ -156,10 +163,7 @@ function allowlistRadio(page: Page): Locator {
 }
 
 async function saveRunCodePolicy(page: Page): Promise<void> {
-  const save = page.getByRole('button', {
-    name: t('governance.runCodePolicy.save'),
-    exact: true,
-  });
+  const save = globalSaveButton(page);
   await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await save.click();
   await expect(

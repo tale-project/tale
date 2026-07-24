@@ -15,22 +15,21 @@ export default createPlaywrightConfig({
   testDir: fileURLToPath(new URL('./tests/e2e', import.meta.url)),
   port: PORT,
   webServer: {
-    // TEMPORARY (revert once the CI-only startup stall is identified): the dev
-    // server never reaches `listen` on GitHub runners — no banner, no error,
-    // just the 120s webServer timeout — while the same command, lockfile, cold
-    // cache and CI=true boot in ~1s locally (and the docs job's Vite prints its
-    // banner on the same runner). Round 1 narrowed it: config resolves in ~5s,
-    // then 119s of total silence — no vite:deps, no vite:resolve, no banner. So
-    // widen to every namespace to name the subsystem that stalls after
-    // resolveConfig.
-    command: 'DEBUG=vite:* bun run dev',
+    command: 'bun run dev',
     url: `http://localhost:${PORT}`,
     // Locally reuse an already-running `bun run dev`; in CI boot fresh.
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',
     stderr: 'pipe',
-    // Matches docs, whose config already records that "CI runners can stall
-    // post-index" on a cold Vite start.
+    // 240s, matching docs — its config records the same "CI runners can stall
+    // on a cold Vite start" experience. This suite spent two days red on that
+    // stall: on every run the dev server resolved its config in ~5s and then
+    // went silent past the old 120s ceiling, with no banner and no error (Vite
+    // awaits the deps optimizer before it listens, and the optimizer crawls the
+    // i18n catalogs this branch moved to YAML). The mechanism was never pinned
+    // down — it stopped reproducing after `messages/*.yml` was edited again —
+    // so the budget stays generous. If it returns, serve a production build via
+    // `vite preview` here, the way the platform suite already does in CI.
     timeout: 240_000,
   },
 });

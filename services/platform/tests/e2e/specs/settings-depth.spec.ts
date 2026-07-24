@@ -239,11 +239,13 @@ test.describe('settings depth — personalization', () => {
     const { organizationId } = org;
     await page.goto(settingsUrl(organizationId, 'personalization'));
 
-    // Section heading (the page's first content); the personalization page
-    // titles itself via its `personalization` namespace.
+    // The Custom-instructions section heading is the page's settled anchor.
+    // (`personalization.page.title` is no longer rendered as a heading — the
+    // settings rework left it as the skeleton label only.) The toggle below
+    // shares this text as its accessible name, so scope to the heading role.
     await expect(
       page.getByRole('heading', {
-        name: t('personalization.page.title'),
+        name: t('personalization.page.customInstructions.title'),
         level: 2,
       }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
