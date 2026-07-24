@@ -2653,18 +2653,16 @@ governance:
   toastSavedTitle: Changes saved successfully
   toastSaveFailedTitle: Failed to save changes
   systemPrompt:
-    title: System Prompt
-    description: Set a mandatory system prompt that is applied to all agents and
-      cannot be overridden by users.
-    instructionsLabel: Custom instructions
-    instructionsDescription:
-      This text is injected ahead of every agent's instructions and
-      cannot be overridden by users.
+    title: Custom instructions
+    description:
+      Text injected ahead of every agent's instructions in this workspace.
+      Users cannot override it.
+    enabled: Custom instructions
     instructionsPlaceholder: Enter the mandatory instructions...
     charCount: '{count} / {max}'
     charLimitExceeded: Character limit exceeded
-    saved: System prompt has been updated
-    saveFailed: Failed to save system prompt
+    saved: Custom instructions have been updated
+    saveFailed: Failed to save the custom instructions
   budgets:
     title: Budget rules
     description: Set token, cost, and request limits per scope and billing period.

@@ -2802,19 +2802,16 @@ governance:
   toastSavedTitle: Modifications enregistrées
   toastSaveFailedTitle: Échec de l'enregistrement des modifications
   systemPrompt:
-    title: Prompt système
+    title: Instructions personnalisées
     description:
-      Définis un prompt système obligatoire appliqué à tous les agents et
-      qui ne peut pas être remplacé par les utilisateurs.
-    instructionsLabel: Instructions personnalisées
-    instructionsDescription:
-      Ce texte est injecté avant les instructions de chaque agent et ne peut
-      pas être remplacé par les utilisateurs.
+      Ce texte arrive avant les instructions de chaque agent dans cet espace de
+      travail. Les utilisateurs ne peuvent pas le remplacer.
+    enabled: Instructions personnalisées
     instructionsPlaceholder: Saisir les instructions obligatoires...
     charCount: '{count} / {max}'
     charLimitExceeded: Limite de caractères dépassée
-    saved: Le prompt système a été mis à jour
-    saveFailed: Échec de l'enregistrement du prompt système
+    saved: Instructions personnalisées mises à jour
+    saveFailed: Échec de l'enregistrement des instructions personnalisées
   budgets:
     title: Règles de budget
     description:

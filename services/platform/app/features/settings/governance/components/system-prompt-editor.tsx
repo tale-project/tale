@@ -11,16 +11,20 @@ import {
   useFormEditor,
   useRegisterGroupedEditor,
 } from '@/app/components/ui/editor';
-import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { effectiveMandatoryInstructions } from '@/lib/shared/schemas/governance';
+import {
+  effectiveMandatoryInstructions,
+  type SystemPromptConfig,
+} from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 
 interface SystemPromptEditorProps {
   organizationId: string;
@@ -35,13 +39,49 @@ interface SystemPromptForm {
 // server-side parse would reject.
 const MAX_CHARS = 20_000;
 
+interface SavedInstructions {
+  /** The stored flag, or `undefined` when the policy predates it. */
+  storedEnabled: boolean | undefined;
+  /** The stored text, resolved across the legacy prefix/suffix pair. */
+  text: string;
+}
+
+/**
+ * Read the stored text and flag out of a raw `system_prompt` config.
+ *
+ * The text is resolved with the flag stripped: `effectiveMandatoryInstructions`
+ * answers "what gets injected", which is nothing while the section is off — but
+ * the editor must still show (and preserve) the draft an admin turned off.
+ */
+function readSavedInstructions(rawConfig: unknown): SavedInstructions {
+  const config = isRecord(rawConfig) ? rawConfig : {};
+  const str = (value: unknown) =>
+    typeof value === 'string' ? value : undefined;
+  const text =
+    effectiveMandatoryInstructions({
+      mandatoryInstructions: str(config.mandatoryInstructions),
+      mandatoryPrefixPrompt: str(config.mandatoryPrefixPrompt),
+      mandatorySuffixPrompt: str(config.mandatorySuffixPrompt),
+    }) ?? '';
+  return {
+    storedEnabled:
+      typeof config.enabled === 'boolean' ? config.enabled : undefined,
+    text,
+  };
+}
+
 // =============================================================================
-// Single editor — owns data fetching, the form controller, save/toast wiring,
-// and the loading state. Renders the REAL layout once, always, wrapped in
-// `<Skeletonize>`. The skeleton-aware `<Textarea>` masks itself to its exact
-// `rows={4}` height while loading. Route loaders warm `system_prompt` so warm
-// navigations skip the skeleton entirely. Saving goes through the settings
-// header's global Save/Discard cluster (registered via the editor group).
+// Single editor — owns data fetching, the form controller, the instant-save
+// section toggle, save/toast wiring, and the loading state. Renders the REAL
+// layout once, always, wrapped in `<Skeletonize>`. The skeleton-aware
+// `<Textarea>` masks itself to its exact `rows={4}` height while loading. Route
+// loaders warm `system_prompt` so warm navigations skip the skeleton entirely.
+// Saving the text goes through the settings header's global Save/Discard cluster
+// (registered via the editor group); the toggle saves instantly.
+//
+// The field carries no label or description of its own: the section header names
+// the feature and explains it, so a second label would say the same thing twice.
+// The textarea keeps an `aria-label` so the bare control is still named.
 // =============================================================================
 export function SystemPromptEditor({
   organizationId,
@@ -69,25 +109,35 @@ export function SystemPromptEditor({
   // the unified field; resolve whichever shape is on disk into the one
   // editable value. Saving writes only the unified field — the whole config
   // is replaced on save, which retires the legacy pair for that org.
+  const saved = useMemo(
+    () => readSavedInstructions(policy?.config),
+    [policy?.config],
+  );
+
+  // Absent flag means "decide from the text": an org that configured
+  // instructions before the toggle existed keeps them on, a fresh org (no text)
+  // reads off. Only an explicit `false` silences configured text.
+  const savedEnabled = saved.storedEnabled ?? saved.text.trim().length > 0;
+
+  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+    organizationId,
+    policyType: 'system_prompt',
+    savedEnabled,
+    isLoading,
+    // Turning the section off must not lose the draft — the stored text is
+    // written back alongside the flag.
+    buildConfig: (next): SystemPromptConfig => ({
+      enabled: next,
+      mandatoryInstructions: saved.text,
+    }),
+    failureTitle: t('toastSaveFailedTitle'),
+    failureDescription: t('systemPrompt.saveFailed'),
+  });
+
   const data = useMemo<SystemPromptForm | undefined>(() => {
     if (isLoading) return undefined;
-    const config = isRecord(policy?.config) ? policy.config : {};
-    const resolved = effectiveMandatoryInstructions({
-      mandatoryInstructions:
-        typeof config.mandatoryInstructions === 'string'
-          ? config.mandatoryInstructions
-          : undefined,
-      mandatoryPrefixPrompt:
-        typeof config.mandatoryPrefixPrompt === 'string'
-          ? config.mandatoryPrefixPrompt
-          : undefined,
-      mandatorySuffixPrompt:
-        typeof config.mandatorySuffixPrompt === 'string'
-          ? config.mandatorySuffixPrompt
-          : undefined,
-    });
-    return { mandatoryInstructions: resolved ?? '' };
-  }, [isLoading, policy]);
+    return { mandatoryInstructions: saved.text };
+  }, [isLoading, saved.text]);
 
   const save = useCallback(
     async (values: SystemPromptForm) => {
@@ -95,9 +145,12 @@ export function SystemPromptEditor({
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'system_prompt',
+          // The form exists only while the section is on, so a batched save
+          // always means on.
           config: {
+            enabled: true,
             mandatoryInstructions: values.mandatoryInstructions.trim(),
-          },
+          } satisfies SystemPromptConfig,
         });
         toast({
           title: t('toastSavedTitle'),
@@ -121,7 +174,9 @@ export function SystemPromptEditor({
     schema,
     save,
   });
-  useRegisterGroupedEditor(editor);
+  // Saving runs through the settings header's global Save/Discard cluster; a
+  // section that is off has no field to save, so nothing registers.
+  useRegisterGroupedEditor(editor, { enabled });
 
   const {
     register,
@@ -135,18 +190,27 @@ export function SystemPromptEditor({
       <SettingsSection
         title={t('systemPrompt.title')}
         description={t('systemPrompt.description')}
+        action={
+          <Switch
+            aria-label={t('systemPrompt.enabled')}
+            checked={enabled}
+            onCheckedChange={onToggle}
+            disabled={isToggling || editor.isSaving}
+          />
+        }
       >
-        <form onSubmit={editor.submit}>
-          <fieldset disabled={editor.isLoading} className="contents">
-            <Stack gap={6}>
-              <FormSection
-                label={t('systemPrompt.instructionsLabel')}
-                description={t('systemPrompt.instructionsDescription')}
-              >
+        {/* The field exists only while the section is on — the toggle hides it
+            rather than showing a textarea nothing would read. It stays mounted
+            (masked) while loading so the skeleton keeps the section's real
+            shape; `enabled` is only known once the read settles. */}
+        {(isLoading || enabled) && (
+          <form onSubmit={editor.submit}>
+            <fieldset disabled={editor.isLoading} className="contents">
+              <Stack gap={2}>
                 <Textarea
                   placeholder={t('systemPrompt.instructionsPlaceholder')}
                   rows={4}
-                  aria-label={t('systemPrompt.instructionsLabel')}
+                  aria-label={t('systemPrompt.title')}
                   errorMessage={errors.mandatoryInstructions?.message}
                   {...register('mandatoryInstructions')}
                 />
@@ -158,10 +222,10 @@ export function SystemPromptEditor({
                     })}
                   </SkeletonBox>
                 </Text>
-              </FormSection>
-            </Stack>
-          </fieldset>
-        </form>
+              </Stack>
+            </fieldset>
+          </form>
+        )}
       </SettingsSection>
     </Skeletonize>
   );

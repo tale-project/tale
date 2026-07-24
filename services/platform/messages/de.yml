@@ -2774,18 +2774,16 @@ governance:
   toastSavedTitle: Änderungen gespeichert
   toastSaveFailedTitle: Änderungen konnten nicht gespeichert werden
   systemPrompt:
-    title: System-Prompt
-    description: Leg einen verbindlichen System-Prompt fest, der auf alle Agents
-      angewendet wird und nicht von Benutzern überschrieben werden kann.
-    instructionsLabel: Benutzerdefinierte Anweisungen
-    instructionsDescription:
-      Dieser Text wird jedem Agent vor die eigenen Anweisungen gestellt und
-      kann von Benutzern nicht überschrieben werden.
+    title: Benutzerdefinierte Anweisungen
+    description:
+      Dieser Text steht in diesem Workspace vor den Anweisungen jedes Agents.
+      Nutzer können ihn nicht überschreiben.
+    enabled: Benutzerdefinierte Anweisungen
     instructionsPlaceholder: Verbindliche Anweisungen eingeben...
     charCount: '{count} / {max}'
     charLimitExceeded: Zeichenlimit überschritten
-    saved: System-Prompt wurde aktualisiert
-    saveFailed: System-Prompt konnte nicht gespeichert werden
+    saved: Benutzerdefinierte Anweisungen aktualisiert
+    saveFailed: Benutzerdefinierte Anweisungen konnten nicht gespeichert werden
   budgets:
     title: Budgetregeln
     description: Token-, Kosten- und Anfragelimits pro Bereich und

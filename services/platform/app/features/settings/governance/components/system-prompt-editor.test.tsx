@@ -12,12 +12,15 @@ import { SystemPromptEditor } from './system-prompt-editor';
 
 vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
+  toast: vi.fn(),
 }));
 
 const { state, mutateAsync } = vi.hoisted(() => ({
   state: {
     isLoading: false,
-    config: { mandatoryInstructions: '' } as Record<string, string> | undefined,
+    config: { enabled: true, mandatoryInstructions: '' } as
+      | Record<string, unknown>
+      | undefined,
   },
   mutateAsync: vi.fn(async () => {}),
 }));
@@ -34,7 +37,10 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 function setLoaded(
-  config: Record<string, string> = { mandatoryInstructions: '' },
+  config: Record<string, unknown> = {
+    enabled: true,
+    mandatoryInstructions: '',
+  },
 ) {
   state.isLoading = false;
   state.config = config;
@@ -55,19 +61,18 @@ function ActiveProbe({
 }
 
 describe('SystemPromptEditor', () => {
-  describe('loaded state', () => {
+  describe('while the section is on', () => {
     it('renders a single custom-instructions textarea', () => {
       setLoaded();
       render(<SystemPromptEditor organizationId="org-1" />);
       expect(screen.getAllByRole('textbox')).toHaveLength(1);
     });
 
-    it('renders the section headings (static text, always real)', () => {
+    it('renders the section heading (static text, always real)', () => {
       setLoaded();
       render(<SystemPromptEditor organizationId="org-1" />);
-      // PageSection title renders as a heading regardless of state.
       expect(
-        screen.getByRole('heading', { name: /system prompt/i }),
+        screen.getByRole('heading', { name: /custom instructions/i }),
       ).toBeInTheDocument();
     });
 
@@ -77,18 +82,7 @@ describe('SystemPromptEditor', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('resolves a legacy prefix/suffix policy into the single field', () => {
-      setLoaded({
-        mandatoryPrefixPrompt: 'Prefix rules.',
-        mandatorySuffixPrompt: 'Suffix rules.',
-      });
-      render(<SystemPromptEditor organizationId="org-1" />);
-      expect(screen.getByRole('textbox')).toHaveValue(
-        'Prefix rules.\n\nSuffix rules.',
-      );
-    });
-
-    it('saves through the globally registered controller with the unified field', async () => {
+    it('saves the flag together with the unified field', async () => {
       setLoaded();
       const capture = { current: null as EditorController | null };
       render(
@@ -109,7 +103,71 @@ describe('SystemPromptEditor', () => {
       expect(mutateAsync).toHaveBeenCalledWith({
         organizationId: 'org-1',
         policyType: 'system_prompt',
-        config: { mandatoryInstructions: 'Always cite sources.' },
+        config: {
+          enabled: true,
+          mandatoryInstructions: 'Always cite sources.',
+        },
+      });
+    });
+  });
+
+  /**
+   * The flag is optional, so an org that configured instructions before it
+   * existed must keep them: the section reads its state from the text when the
+   * flag is absent. A fresh org — no flag, no text — reads off.
+   */
+  describe('when the stored policy carries no flag', () => {
+    it('reads on, and shows the text, when instructions exist', () => {
+      setLoaded({
+        mandatoryPrefixPrompt: 'Prefix rules.',
+        mandatorySuffixPrompt: 'Suffix rules.',
+      });
+      render(<SystemPromptEditor organizationId="org-1" />);
+
+      expect(
+        screen.getByRole('switch', { name: /custom instructions/i }),
+      ).toBeChecked();
+      expect(screen.getByRole('textbox')).toHaveValue(
+        'Prefix rules.\n\nSuffix rules.',
+      );
+    });
+
+    it('reads off, and hides the field, on a fresh policy', () => {
+      setLoaded({});
+      render(<SystemPromptEditor organizationId="org-1" />);
+
+      expect(
+        screen.getByRole('switch', { name: /custom instructions/i }),
+      ).not.toBeChecked();
+      expect(screen.queryByRole('textbox')).toBeNull();
+    });
+  });
+
+  describe('while the section is off', () => {
+    it('hides the field rather than showing one nothing would read', () => {
+      setLoaded({ enabled: false, mandatoryInstructions: 'Kept draft.' });
+      render(<SystemPromptEditor organizationId="org-1" />);
+
+      expect(screen.queryByRole('textbox')).toBeNull();
+      // The heading and its toggle stay, so turning the section back on is
+      // one click — and the stored draft is still there.
+      expect(
+        screen.getByRole('switch', { name: /custom instructions/i }),
+      ).not.toBeChecked();
+    });
+
+    it('keeps the stored text when the toggle is flipped off', async () => {
+      setLoaded({ enabled: true, mandatoryInstructions: 'Kept draft.' });
+      const { user } = render(<SystemPromptEditor organizationId="org-1" />);
+
+      await user.click(
+        screen.getByRole('switch', { name: /custom instructions/i }),
+      );
+
+      expect(mutateAsync).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        policyType: 'system_prompt',
+        config: { enabled: false, mandatoryInstructions: 'Kept draft.' },
       });
     });
   });
@@ -128,30 +186,28 @@ describe('SystemPromptEditor', () => {
       expect(screen.queryAllByRole('textbox')).toHaveLength(0);
     });
 
-    it('keeps the real section headings while loading (no gray bars)', () => {
+    it('keeps the real section heading while loading (no gray bars)', () => {
       setLoading();
       render(<SystemPromptEditor organizationId="org-1" />);
       expect(
-        screen.getByRole('heading', { name: /system prompt/i }),
+        screen.getByRole('heading', { name: /custom instructions/i }),
       ).toBeInTheDocument();
     });
   });
 
   describe('structural parity (skeleton matches content)', () => {
-    it('renders the same number of FormSection groups in both states', () => {
+    it('holds the field slot in both states, so the reveal is a mask swap', () => {
       setLoaded();
       const loaded = render(<SystemPromptEditor organizationId="org-1" />);
-      const loadedGroups =
-        loaded.container.querySelectorAll('[role="group"]').length;
+      const loadedForms = loaded.container.querySelectorAll('form').length;
       loaded.unmount();
 
       setLoading();
       const loading = render(<SystemPromptEditor organizationId="org-1" />);
-      const loadingGroups =
-        loading.container.querySelectorAll('[role="group"]').length;
+      const loadingForms = loading.container.querySelectorAll('form').length;
 
-      expect(loadingGroups).toBe(loadedGroups);
-      expect(loadedGroups).toBeGreaterThan(0);
+      expect(loadedForms).toBe(1);
+      expect(loadingForms).toBe(loadedForms);
     });
   });
 });
