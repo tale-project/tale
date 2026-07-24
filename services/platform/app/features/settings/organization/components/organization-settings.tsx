@@ -222,7 +222,6 @@ export function OrganizationSettingsView({
         title={tSettings('organization.membersSectionTitle')}
         description={tSettings('organization.membersDescription')}
         gap={5}
-        className="border-border border-t pt-8"
       >
         <MembersSettings
           organizationId={organizationId}
@@ -262,7 +261,6 @@ function DangerZoneSection({
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={tSettings('organization.dangerZoneTitle')}
       description={tSettings('organization.dangerZoneDescription')}
     >

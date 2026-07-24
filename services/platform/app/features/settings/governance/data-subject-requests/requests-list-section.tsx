@@ -181,7 +181,6 @@ export function RequestsListSection({
   return (
     <>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('dataSubjectRequests.title')}
         description={t('dataSubjectRequests.description')}
         action={

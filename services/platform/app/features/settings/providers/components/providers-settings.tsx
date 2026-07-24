@@ -181,7 +181,6 @@ export function ProvidersSettings({
         connectors.map((connector) => (
           <ConnectorSection
             key={connector.name}
-            className="border-border border-t pt-8"
             organizationId={organizationId}
             connector={connector}
             credentials={credentialsByProvider.get(connector.name) ?? []}

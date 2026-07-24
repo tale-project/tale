@@ -193,7 +193,6 @@ export function ReleaseRequestsSection({
   return (
     <>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('legalHold.sections.releaseRequests.title')}
         description={t('legalHold.sections.releaseRequests.description')}
       >

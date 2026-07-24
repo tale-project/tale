@@ -18,7 +18,6 @@ export function ChatsSection() {
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={t('account.chats.title')}
       description={t('account.chats.description')}
       action={

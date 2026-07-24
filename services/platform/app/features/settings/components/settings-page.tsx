@@ -49,6 +49,12 @@ export function SettingsPage({
     <div
       className={cn(
         'flex w-full flex-col gap-8',
+        // Every section after the first gets the same divider, owned HERE so
+        // no page can forget it on one sibling and render an inconsistent
+        // rhythm. Applies to direct children (sections or their Skeletonize
+        // wrappers); pages that nest sections inside one child (e.g. a
+        // single <Form>) draw their own internal dividers.
+        '[&>*+*]:border-border [&>*+*]:border-t [&>*+*]:pt-8',
         !fullWidth && 'mx-auto max-w-3xl',
         // Bottom breathing room. ContentArea's `py-6` lives on a `flex-1`
         // child of the scroll container, so its padding-bottom is clipped

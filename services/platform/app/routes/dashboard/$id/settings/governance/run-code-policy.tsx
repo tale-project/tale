@@ -305,7 +305,6 @@ function RunCodePolicyRoute() {
         </SettingsSection>
 
         <SettingsSection
-          className="border-border border-t pt-8"
           title={t('runCodePolicy.pythonSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
@@ -332,7 +331,6 @@ function RunCodePolicyRoute() {
         </SettingsSection>
 
         <SettingsSection
-          className="border-border border-t pt-8"
           title={t('runCodePolicy.nodeSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
@@ -359,7 +357,6 @@ function RunCodePolicyRoute() {
         </SettingsSection>
 
         <SettingsSection
-          className="border-border border-t pt-8"
           title={t('runCodePolicy.testerTitle')}
           description={t('runCodePolicy.testerDescription')}
         >

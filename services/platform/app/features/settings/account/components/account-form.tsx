@@ -242,7 +242,6 @@ function PasswordSection({ hasCredential }: PasswordSectionProps) {
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={tSettings('account.security.title')}
       description={tSettings('account.security.description')}
       action={

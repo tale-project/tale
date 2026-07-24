@@ -76,7 +76,6 @@ export function WebdavSettings(props: WebdavSettingsProps) {
       </SettingsSection>
 
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('list.title')}
         description={t('create.description')}
         action={

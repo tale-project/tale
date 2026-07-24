@@ -165,7 +165,6 @@ export function ReleaseHistorySection({
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={t('legalHold.sections.history.title')}
       description={t('legalHold.sections.history.description')}
     >

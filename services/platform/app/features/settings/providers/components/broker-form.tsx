@@ -189,7 +189,7 @@ export function BrokerFormFields({
         disabled={disabled}
         required
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-4">
         <Select
           label={t('providers.broker.httpMethod')}
           value={value.httpMethod}
@@ -249,7 +249,7 @@ export function BrokerFormFields({
           />
         </>
       )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-4">
         <Input
           label={t('providers.broker.tokensPath')}
           placeholder="$.tokens"
@@ -267,7 +267,7 @@ export function BrokerFormFields({
           required
         />
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-4">
         <Input
           label={t('providers.broker.targetEnvVar')}
           placeholder="CLAUDE_CODE_OAUTH_TOKEN"
@@ -299,7 +299,7 @@ export function BrokerFormFields({
       </div>
       <CollapsibleDetails summary={t('providers.broker.advanced')}>
         <Stack gap={4} className="pt-3 pl-5">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-4">
             <Input
               label={t('providers.broker.statusField')}
               placeholder="status"

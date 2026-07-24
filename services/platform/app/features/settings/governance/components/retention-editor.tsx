@@ -74,7 +74,6 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
       label={t('retentionPolicy.title', 'Retention policy')}
     >
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('retentionPolicy.title', 'Retention policy')}
         description={t(
           'retentionPolicy.description',

@@ -499,7 +499,6 @@ export function FeatureFlagsEditor({
   return (
     <Skeletonize loading={loading} label={t('featureFlags.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('featureFlags.title')}
         description={t('featureFlags.description')}
         action={
