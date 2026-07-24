@@ -432,3 +432,89 @@ export const appendMessageInternal = internalMutation({
     return { id, sequence };
   },
 });
+
+/** The assistant message's accumulated text, read for an append. Kept tiny so
+ * the read-modify-write a streaming window does stays cheap. */
+function assistantTextOf(parts: unknown): string {
+  if (!Array.isArray(parts)) return '';
+  let out = '';
+  for (const part of parts) {
+    if (
+      part !== null &&
+      typeof part === 'object' &&
+      'type' in part &&
+      part.type === 'text' &&
+      'text' in part &&
+      typeof part.text === 'string'
+    ) {
+      out += part.text;
+    }
+  }
+  return out;
+}
+
+/**
+ * Set the coding turn's assistant message to the text parsed so far. Each
+ * drainer window runs as its OWN Convex action with fresh memory and re-reads
+ * the harness output from the START of the ring buffer, so it holds the FULL
+ * text-so-far, not a delta — it REPLACES the message text rather than
+ * appending, keeping the live reply correct no matter how many windows a turn
+ * spans. (Re-parsing from the start also sidesteps a JSONL line split across a
+ * window boundary, where a per-delta cursor would strand the tail.)
+ */
+export const setAssistantTextInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    messageId: v.id('messages'),
+    text: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.text === '') return null;
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.organizationId !== args.organizationId) return null;
+    if (assistantTextOf(message.parts) === args.text) return null;
+    await ctx.db.patch(args.messageId, {
+      parts: [{ type: 'text', text: args.text }],
+    });
+    return null;
+  },
+});
+
+/**
+ * Settle the coding turn's assistant message: replace its text with the
+ * authoritative final text when the harness gave one (`turn-ended.finalText`),
+ * else keep what streamed in, and stamp model / usage / a refusal reason.
+ */
+export const finalizeAssistantMessageInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    messageId: v.id('messages'),
+    finalText: v.optional(v.string()),
+    model: v.optional(v.string()),
+    providerSlug: v.optional(v.string()),
+    usage: v.optional(v.any()),
+    blockedReason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.organizationId !== args.organizationId) return null;
+    const text =
+      args.finalText !== undefined && args.finalText !== ''
+        ? args.finalText
+        : assistantTextOf(message.parts);
+    await ctx.db.patch(args.messageId, {
+      parts: [{ type: 'text', text }],
+      ...(args.model !== undefined ? { model: args.model } : {}),
+      ...(args.providerSlug !== undefined
+        ? { providerSlug: args.providerSlug }
+        : {}),
+      ...(args.usage !== undefined ? { usage: args.usage } : {}),
+      ...(args.blockedReason !== undefined
+        ? { blockedReason: args.blockedReason }
+        : {}),
+    });
+    return null;
+  },
+});

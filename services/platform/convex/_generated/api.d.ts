@@ -66,6 +66,8 @@ import type * as changelog_actions from "../changelog/actions.js";
 import type * as changelog_internal_actions from "../changelog/internal_actions.js";
 import type * as chat_capabilities_action from "../chat/capabilities_action.js";
 import type * as chat_coding_turn_action from "../chat/coding_turn_action.js";
+import type * as chat_coding_turn_drive from "../chat/coding_turn_drive.js";
+import type * as chat_coding_turn_shared from "../chat/coding_turn_shared.js";
 import type * as chat_composer from "../chat/composer.js";
 import type * as chat_generations from "../chat/generations.js";
 import type * as chat_memories from "../chat/memories.js";
@@ -889,6 +891,8 @@ declare const fullApi: ApiFromModules<{
   "changelog/internal_actions": typeof changelog_internal_actions;
   "chat/capabilities_action": typeof chat_capabilities_action;
   "chat/coding_turn_action": typeof chat_coding_turn_action;
+  "chat/coding_turn_drive": typeof chat_coding_turn_drive;
+  "chat/coding_turn_shared": typeof chat_coding_turn_shared;
   "chat/composer": typeof chat_composer;
   "chat/generations": typeof chat_generations;
   "chat/memories": typeof chat_memories;

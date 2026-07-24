@@ -137,6 +137,25 @@ export const generationsTable = defineTable({
   messageId: v.optional(v.string()),
   /** What the turn is blocked on, when waiting. */
   waitingOn: v.optional(v.string()),
+  /**
+   * A third-party coding turn runs its harness in the sandbox, INDEPENDENT of
+   * any single Convex action: the exec is kicked once, then drained in short
+   * self-chaining windows (a Convex action can't be held open for a long
+   * turn). This carries the state a drainer window needs to re-attach — the
+   * running exec's id and the reconnect cursor (highest runnerd seq consumed)
+   * — plus the metadata the settled message is stamped with. No secret is
+   * stored: the gateway token lives only in the kick that started the exec;
+   * re-attach needs none.
+   */
+  coding: v.optional(
+    v.object({
+      execId: v.string(),
+      lastSeq: v.number(),
+      harness: v.string(),
+      providerSlug: v.string(),
+      gatewayModel: v.string(),
+    }),
+  ),
   startedAt: v.number(),
   heartbeatAt: v.number(),
 })

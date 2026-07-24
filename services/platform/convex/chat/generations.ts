@@ -102,11 +102,24 @@ async function currentGeneration(
  * turn that never settled), it is reset rather than duplicated, so the
  * one-row-per-thread invariant holds.
  */
+const codingStateValidator = v.object({
+  execId: v.string(),
+  lastSeq: v.number(),
+  harness: v.string(),
+  providerSlug: v.string(),
+  gatewayModel: v.string(),
+});
+
 export const beginGenerationInternal = internalMutation({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
     streamId: v.string(),
+    /** The assistant message the turn streams into, when created up front (the
+     * coding lane writes a placeholder so a drainer window can append to it). */
+    messageId: v.optional(v.string()),
+    /** Present for a third-party coding turn — the drainer's re-attach state. */
+    coding: v.optional(codingStateValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -120,7 +133,8 @@ export const beginGenerationInternal = internalMutation({
       await ctx.db.patch(existing._id, {
         status: 'queued',
         streamId: args.streamId,
-        messageId: undefined,
+        messageId: args.messageId,
+        coding: args.coding,
         waitingOn: undefined,
         startedAt: now,
         heartbeatAt: now,
@@ -132,10 +146,68 @@ export const beginGenerationInternal = internalMutation({
       threadId: args.threadId,
       status: 'queued',
       streamId: args.streamId,
+      ...(args.messageId !== undefined ? { messageId: args.messageId } : {}),
+      ...(args.coding !== undefined ? { coding: args.coding } : {}),
       startedAt: now,
       heartbeatAt: now,
     });
     return null;
+  },
+});
+
+/**
+ * Advance a coding turn's reconnect cursor after a drain window, so the next
+ * window re-attaches from exactly where this one stopped (no missed or
+ * replayed output). Also bumps the heartbeat — a window that drained is proof
+ * of life. A no-op if the turn already settled.
+ */
+export const advanceCodingCursorInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    lastSeq: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await currentGeneration(
+      ctx,
+      args.organizationId,
+      args.threadId,
+    );
+    if (!existing || existing.coding === undefined) return null;
+    await ctx.db.patch(existing._id, {
+      status: 'streaming',
+      heartbeatAt: Date.now(),
+      coding: { ...existing.coding, lastSeq: args.lastSeq },
+    });
+    return null;
+  },
+});
+
+/** Read a thread's live coding-turn state for a drainer window. `messageId`
+ * is normalized to an id (null when the turn has no streamable message or has
+ * already settled) so the drainer can hand it straight to the message
+ * mutations. */
+export const getCodingStateInternal = internalMutation({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      messageId: v.id('messages'),
+      coding: codingStateValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const existing = await currentGeneration(
+      ctx,
+      args.organizationId,
+      args.threadId,
+    );
+    if (!existing || existing.coding === undefined) return null;
+    if (existing.messageId === undefined) return null;
+    const messageId = ctx.db.normalizeId('messages', existing.messageId);
+    if (messageId === null) return null;
+    return { messageId, coding: existing.coding };
   },
 });
 
