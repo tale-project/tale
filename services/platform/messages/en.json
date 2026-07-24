@@ -995,6 +995,9 @@
       "folderDeleted": "This quarter’s folder was deleted. Recreate it in Knowledge, or remove this return."
     },
     "switcher": {
+      "title": "Switch automation",
+      "searchPlaceholder": "Search automations",
+      "empty": "No automations match",
       "ariaLabel": "Switch automation, current: {name}"
     }
   },
@@ -5584,6 +5587,9 @@
       "statusBroken": "Needs repair"
     },
     "switcher": {
+      "title": "Switch project",
+      "searchPlaceholder": "Search projects",
+      "empty": "No projects match",
       "ariaLabel": "Switch project, current: {name}"
     }
   },
@@ -5880,6 +5886,9 @@
       "agentSaved": "Agent saved",
       "agentSaveFailed": "Failed to save agent",
       "switcher": {
+        "title": "Switch agent",
+        "searchPlaceholder": "Search agents",
+        "empty": "No agents match",
         "ariaLabel": "Switch agent, current: {name}"
       },
       "validation": {

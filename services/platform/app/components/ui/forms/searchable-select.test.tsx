@@ -100,12 +100,39 @@ describe('SearchableSelect', () => {
       expect(screen.getByText('No results')).toBeInTheDocument();
     });
 
+    it('uses text-base on the search input so mobile browsers do not zoom on focus', async () => {
+      const { user } = renderSelect();
+      await user.click(screen.getByText('Open select'));
+      const input = screen.getByRole('combobox');
+      // iOS Safari zooms focused inputs under 16px; text-base is 1rem (16px).
+      expect(input.className).toContain('text-base');
+    });
+
     it('renders footer when provided', async () => {
       const { user } = renderSelect({
         footer: <button type="button">Add item</button>,
       });
       await user.click(screen.getByText('Open select'));
       expect(screen.getByText('Add item')).toBeInTheDocument();
+    });
+
+    it('renders a title above the search field when provided', async () => {
+      const { user } = renderSelect({ title: 'Switch fruit' });
+      await user.click(screen.getByText('Open select'));
+      expect(screen.getByText('Switch fruit')).toBeInTheDocument();
+    });
+
+    it('marks the selected option with a leading accent in switcher variant', async () => {
+      const { user } = renderSelect({
+        value: 'apple',
+        variant: 'switcher',
+        title: 'Switch fruit',
+      });
+      await user.click(screen.getByText('Open select'));
+      const appleOption = screen.getByRole('option', { name: /Apple/i });
+      expect(appleOption.getAttribute('aria-selected')).toBe('true');
+      expect(appleOption.className).toContain('bg-muted/60');
+      expect(appleOption.querySelector('span.bg-blue-600')).toBeInTheDocument();
     });
   });
 

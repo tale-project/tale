@@ -121,6 +121,22 @@ export interface SearchableSelectProps {
    * @default false
    */
   modal?: boolean;
+  /**
+   * Optional heading above the search field (e.g. "Switch agent"). Used by
+   * breadcrumb entity switchers; ignored when empty.
+   */
+  title?: ReactNode;
+  /**
+   * Visual packing for the popover.
+   *   - `'default'`: catalog picker (agents, models) — search strip, trailing
+   *     check, rounded option rows.
+   *   - `'switcher'`: breadcrumb entity switcher — titled panel, bordered
+   *     search, limited list height, selected row with leading check + left
+   *     accent bar.
+   *
+   * @default 'default'
+   */
+  variant?: 'default' | 'switcher';
 }
 
 // Radix Popover — unlike Radix Select — does NOT auto-size its content to the
@@ -193,7 +209,10 @@ function SearchableSelectBase({
   tooltip,
   tooltipSide = 'top',
   modal = false,
+  title,
+  variant = 'default',
 }: SearchableSelectProps) {
+  const isSwitcher = variant === 'switcher';
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
   const optionId = (index: number) => `${instanceId}-option-${index}`;
@@ -410,37 +429,77 @@ function SearchableSelectBase({
           align={align}
           side={side}
           sideOffset={sideOffset}
-          className={cn(CONTENT_CLASSES, contentClassName)}
+          className={cn(
+            CONTENT_CLASSES,
+            isSwitcher && 'overflow-hidden',
+            contentClassName,
+          )}
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             searchRef.current?.focus();
             initializeHighlight();
           }}
         >
-          <div className="border-border flex items-center gap-2 border-b p-3">
-            <Search
-              className="text-muted-foreground size-3.5 shrink-0"
-              aria-hidden="true"
-            />
-            <input
-              ref={searchRef}
-              type="text"
-              role="combobox"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={searchPlaceholder}
-              className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none"
-              aria-expanded={isOpen}
-              aria-controls={listboxId}
-              aria-activedescendant={
-                filteredOptions.length > 0
-                  ? optionId(highlightedIndex)
-                  : undefined
-              }
-              aria-autocomplete="list"
-              aria-label={searchPlaceholder}
-            />
+          <div
+            className={cn(
+              isSwitcher
+                ? 'border-border flex flex-col border-b'
+                : 'border-border flex items-center gap-2 border-b p-3',
+            )}
+          >
+            {title != null && title !== '' && (
+              <div
+                className={cn(
+                  'text-foreground text-sm font-semibold',
+                  // More inset from the panel edge than the search row below.
+                  isSwitcher && 'px-4 pt-3 pb-2',
+                )}
+              >
+                {title}
+              </div>
+            )}
+            <div
+              className={cn(
+                // Tighter inset from the panel edge than the title above.
+                isSwitcher && 'px-2 pb-2',
+                isSwitcher && (title == null || title === '') && 'pt-2',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex items-center gap-2',
+                  isSwitcher
+                    ? 'border-border bg-[color:var(--color-bg-base)] focus-within:border-[color:var(--color-accent-base)] focus-within:ring-[color:var(--color-accent-base)]/30 rounded-md border px-2.5 py-1.5 focus-within:ring-2'
+                    : undefined,
+                )}
+              >
+                <Search
+                  className="text-muted-foreground size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  role="combobox"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={searchPlaceholder}
+                  // text-base (≥16px) prevents iOS focus-zoom; md:text-sm keeps
+                  // the compact desktop density.
+                  className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none md:text-sm"
+                  aria-expanded={isOpen}
+                  aria-controls={listboxId}
+                  aria-activedescendant={
+                    filteredOptions.length > 0
+                      ? optionId(highlightedIndex)
+                      : undefined
+                  }
+                  aria-autocomplete="list"
+                  aria-label={searchPlaceholder}
+                />
+              </div>
+            </div>
           </div>
 
           <div
@@ -448,7 +507,12 @@ function SearchableSelectBase({
             id={listboxId}
             role="listbox"
             aria-label={ariaLabel}
-            className="max-h-[20rem] overflow-y-auto p-1"
+            className={cn(
+              'overflow-y-auto',
+              // Switcher stays compact so a long sibling list doesn't fill the
+              // viewport; catalog pickers keep the taller default.
+              isSwitcher ? 'max-h-60' : 'max-h-[20rem] p-1',
+            )}
           >
             {filteredOptions.map((option, index) => (
               <SearchableSelectOptionItem
@@ -463,6 +527,7 @@ function SearchableSelectBase({
                 showRadio={showRadio}
                 descriptionMode={descriptionMode}
                 action={optionAction?.(option)}
+                variant={variant}
               />
             ))}
 
@@ -533,6 +598,7 @@ function SearchableSelectOptionItem({
   showRadio,
   descriptionMode = 'inline',
   action,
+  variant = 'default',
 }: {
   option: SearchableSelectOption;
   index: number;
@@ -544,7 +610,10 @@ function SearchableSelectOptionItem({
   showRadio?: boolean;
   descriptionMode?: 'inline' | 'tooltip';
   action?: ReactNode;
+  variant?: 'default' | 'switcher';
 }) {
+  const isSwitcher = variant === 'switcher';
+
   if (option.isSectionHeader) {
     return (
       <div
@@ -571,6 +640,9 @@ function SearchableSelectOptionItem({
       ? option.description
       : null;
 
+  const leadingCheck = isSwitcher && !showRadio;
+  const trailingCheck = !isSwitcher && !showRadio && isSelected;
+
   const row = (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard handled via aria-activedescendant
     <div
@@ -583,12 +655,22 @@ function SearchableSelectOptionItem({
       onClick={() => !option.disabled && onSelect(option.value)}
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
-        'group/option flex w-full cursor-default gap-2 rounded-md p-2 text-left text-sm transition-colors',
+        'group/option relative flex w-full cursor-default gap-2 text-left text-sm transition-colors',
+        isSwitcher
+          ? 'border-border rounded-none border-b px-3 py-2 last:border-b-0'
+          : 'rounded-md p-2',
         showInlineDescription ? 'items-start' : 'items-center',
-        isHighlighted && 'bg-accent',
+        isSwitcher && isSelected && 'bg-muted/60',
+        isHighlighted && !(isSwitcher && isSelected) && 'bg-accent',
         option.disabled && 'pointer-events-none opacity-50',
       )}
     >
+      {isSwitcher && isSelected && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-0 left-0 w-0.5 bg-blue-600"
+        />
+      )}
       {showRadio && (
         // Outer wrapper matches the first label-row height (~24px, driven by
         // the optional badge's line-height + py) and centers the 16px radio
@@ -614,6 +696,18 @@ function SearchableSelectOptionItem({
           </span>
         </span>
       )}
+      {leadingCheck && (
+        <span
+          aria-hidden="true"
+          className="flex size-4 shrink-0 items-center justify-center"
+        >
+          {isSelected ? (
+            <Check className="size-4 text-blue-600" />
+          ) : (
+            <span className="size-4" />
+          )}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <Text as="span" variant="label">
@@ -632,7 +726,7 @@ function SearchableSelectOptionItem({
           </Text>
         )}
       </div>
-      {!showRadio && isSelected && (
+      {trailingCheck && (
         <Check className="text-primary size-4 shrink-0" aria-hidden="true" />
       )}
       {action}

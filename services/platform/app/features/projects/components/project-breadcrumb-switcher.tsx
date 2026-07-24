@@ -1,10 +1,13 @@
 'use client';
 
-import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import { useMemo } from 'react';
 
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -14,9 +17,9 @@ import { projectSwitchPathname } from '../lib/project-switch-path';
 
 /**
  * Breadcrumb leaf for a project detail page: the current project name opens a
- * dropdown of sibling projects so the operator can jump between them without
- * returning to the Projects list. Portable tabs (files, tasks, …) stay put;
- * bound-view / nested-automation paths reset to the overview.
+ * searchable switcher of sibling projects so the operator can jump between them
+ * without returning to the Projects list. Portable tabs (files, tasks, …) stay
+ * put; bound-view / nested-automation paths reset to the overview.
  */
 export function ProjectBreadcrumbSwitcher({
   organizationId,
@@ -32,44 +35,42 @@ export function ProjectBreadcrumbSwitcher({
   const location = useLocation();
   const { projects } = useProjects(organizationId);
 
-  const items = useMemo<DropdownMenuGroup[]>(
-    () => [
+  const options = useMemo<SearchableSelectOption[]>(
+    () =>
       projects.map((project) => ({
-        type: 'item' as const,
+        value: project._id,
         label: project.name,
-        selected: project._id === projectId,
-        onClick: () => {
-          if (project._id === projectId) return;
-          const to = projectSwitchPathname(
-            location.pathname,
-            organizationId,
-            projectId,
-            project._id,
-          );
-          void navigate({ to, search: location.search });
-        },
       })),
-    ],
-    [
-      projects,
-      projectId,
-      organizationId,
-      navigate,
-      location.pathname,
-      location.search,
-    ],
+    [projects],
   );
 
   // Nothing to switch to yet (list still empty / loading) — keep the plain
   // name so the h1 leaf stays readable without a dead chevron.
-  if (projects.length === 0) {
+  if (options.length === 0) {
     return <>{projectName}</>;
   }
 
   return (
-    <DropdownMenu
+    <SearchableSelect
+      variant="switcher"
       align="start"
-      items={items}
+      contentClassName="min-w-64"
+      value={projectId}
+      options={options}
+      title={t('switcher.title')}
+      searchPlaceholder={t('switcher.searchPlaceholder')}
+      emptyText={t('switcher.empty')}
+      aria-label={t('switcher.ariaLabel', { name: projectName })}
+      onValueChange={(nextId) => {
+        if (nextId === projectId) return;
+        const to = projectSwitchPathname(
+          location.pathname,
+          organizationId,
+          projectId,
+          nextId,
+        );
+        void navigate({ to, search: location.search });
+      }}
       trigger={
         <button
           type="button"

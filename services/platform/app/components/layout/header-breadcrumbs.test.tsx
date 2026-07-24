@@ -34,6 +34,53 @@ describe('HeaderBreadcrumbs', () => {
     expect(back).not.toHaveTextContent('github');
   });
 
+  it('keeps all ancestor crumbs desktop-only by default', () => {
+    render(
+      <HeaderBreadcrumbs
+        ariaLabel="Breadcrumb"
+        crumbs={[
+          { key: 'agents', content: <a href="/agents">Agents</a> },
+          {
+            key: 'folder',
+            content: <a href="/agents?folder=github">github</a>,
+          },
+        ]}
+        leaf="Reviewer"
+      />,
+    );
+
+    for (const name of ['Agents', 'github'] as const) {
+      const trailLink = screen.getByRole('link', { name });
+      expect(trailLink.closest('li')).toHaveClass('hidden', 'md:flex');
+    }
+  });
+
+  it('shows the immediate parent in the trail on mobile when opted in', () => {
+    render(
+      <HeaderBreadcrumbs
+        ariaLabel="Breadcrumb"
+        showImmediateParentOnMobile
+        crumbs={[
+          { key: 'agents', content: <a href="/agents">Agents</a> },
+          {
+            key: 'folder',
+            content: <a href="/agents?folder=github">github</a>,
+          },
+        ]}
+        leaf="Reviewer"
+      />,
+    );
+
+    // Agent file-based detail: mobile title is `[parent] / [leaf]`. Only the
+    // last ancestor stays visible below `md`; earlier crumbs stay desktop-only.
+    const parentLink = screen.getByRole('link', { name: 'github' });
+    expect(parentLink.closest('li')).toHaveClass('flex');
+    expect(parentLink.closest('li')).not.toHaveClass('hidden');
+
+    const agentsLink = screen.getByRole('link', { name: 'Agents' });
+    expect(agentsLink.closest('li')).toHaveClass('hidden', 'md:flex');
+  });
+
   it('keeps the full ancestor trail as text links on desktop', () => {
     render(
       <HeaderBreadcrumbs

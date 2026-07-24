@@ -29,15 +29,17 @@ export interface HeaderBreadcrumbCrumb {
  * up; below `md` it collapses to a single icon-only back button to the
  * IMMEDIATE parent so a detail page always has a way back on a phone — the
  * full trail is too wide there, and the parent's label eats scarce header
- * width. Every gap is the same `gap-2`, so the trail reads identically on
- * agents, automations, workflows, and projects. The separator trails each
- * ancestor `li`, so the leaf needs none of its own.
+ * width (unless {@link showImmediateParentOnMobile} opts in to
+ * `[parent] / [leaf]`). Every gap is the same `gap-2`, so the trail reads
+ * identically on agents, automations, workflows, and projects. The separator
+ * trails each ancestor `li`, so the leaf needs none of its own.
  */
 export function HeaderBreadcrumbs({
   ariaLabel,
   crumbs,
   leaf,
   className,
+  showImmediateParentOnMobile = false,
 }: {
   ariaLabel: string;
   crumbs: readonly HeaderBreadcrumbCrumb[];
@@ -45,6 +47,12 @@ export function HeaderBreadcrumbs({
    *  loading names in `Skeletonize` at the call site. */
   leaf: ReactNode;
   className?: string;
+  /**
+   * When true, keep the last ancestor visible below `md` so the title reads
+   * `[parent] / [leaf]` (agent file-based detail pages). Default keeps all
+   * ancestor crumbs desktop-only.
+   */
+  showImmediateParentOnMobile?: boolean;
 }) {
   const { t } = useT('common');
   // Below `md` the full trail is hidden (too wide for a phone header), so a
@@ -54,7 +62,9 @@ export function HeaderBreadcrumbs({
   // arrow — so the destination and the router stay the caller's, and the
   // control is a compact icon rather than a width-hungry label. The desktop
   // trail below renders the same ancestor node; one copy is `display:none`
-  // per breakpoint, so exactly one parent link stays in the a11y tree.
+  // per breakpoint, so exactly one parent link stays in the a11y tree —
+  // unless `showImmediateParentOnMobile`, which keeps the last trail crumb
+  // visible alongside the back control (same destination, different names).
   const parentContent = crumbs.at(-1)?.content;
   return (
     <nav
@@ -73,17 +83,24 @@ export function HeaderBreadcrumbs({
         />
       )}
       <ol className="flex min-w-0 items-center gap-2 text-base font-semibold">
-        {crumbs.map((crumb) => (
-          <li
-            key={crumb.key}
-            className="hidden shrink-0 items-center gap-2 md:flex"
-          >
-            {crumb.content}
-            <span className="text-muted-foreground" aria-hidden="true">
-              /
-            </span>
-          </li>
-        ))}
+        {crumbs.map((crumb, i) => {
+          const isImmediateParent = i === crumbs.length - 1;
+          const showOnMobile = showImmediateParentOnMobile && isImmediateParent;
+          return (
+            <li
+              key={crumb.key}
+              className={cn(
+                'shrink-0 items-center gap-2',
+                showOnMobile ? 'flex' : 'hidden md:flex',
+              )}
+            >
+              {crumb.content}
+              <span className="text-muted-foreground" aria-hidden="true">
+                /
+              </span>
+            </li>
+          );
+        })}
         <li className="flex min-w-0 items-center">
           <Heading level={1} size="base" truncate aria-current="page">
             {leaf}

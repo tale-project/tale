@@ -133,6 +133,7 @@ function AgentDetailLayout() {
     <AdaptiveHeaderRoot standalone={false} className="gap-2">
       <HeaderBreadcrumbs
         ariaLabel={tCommon('aria.breadcrumb')}
+        showImmediateParentOnMobile
         crumbs={[
           {
             key: 'agents',

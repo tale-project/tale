@@ -995,6 +995,9 @@
       "folderDeleted": "Le dossier de ce trimestre a été supprimé. Recréez-le dans Connaissances ou supprimez ce décompte."
     },
     "switcher": {
+      "title": "Changer d'automatisation",
+      "searchPlaceholder": "Rechercher des automatisations",
+      "empty": "Aucune automatisation ne correspond",
       "ariaLabel": "Changer d'automatisation, actuelle : {name}"
     }
   },
@@ -5584,6 +5587,9 @@
       "agentSaved": "Agent enregistré",
       "agentSaveFailed": "Échec de l'enregistrement de l'agent",
       "switcher": {
+        "title": "Changer d'agent",
+        "searchPlaceholder": "Rechercher des agents",
+        "empty": "Aucun agent ne correspond",
         "ariaLabel": "Changer d'agent, actuel : {name}"
       },
       "validation": {
@@ -8301,6 +8307,9 @@
       "statusBroken": "À réparer"
     },
     "switcher": {
+      "title": "Changer de projet",
+      "searchPlaceholder": "Rechercher des projets",
+      "empty": "Aucun projet ne correspond",
       "ariaLabel": "Changer de projet, actuel : {name}"
     }
   },

@@ -995,6 +995,9 @@
       "folderDeleted": "Der Ordner dieses Quartals wurde gelöscht. Legen Sie ihn in Wissen neu an oder entfernen Sie diese Abrechnung."
     },
     "switcher": {
+      "title": "Automatisierung wechseln",
+      "searchPlaceholder": "Automatisierungen suchen",
+      "empty": "Keine Automatisierung gefunden",
       "ariaLabel": "Automatisierung wechseln, aktuell: {name}"
     }
   },
@@ -5584,6 +5587,9 @@
       "agentSaved": "Agent gespeichert",
       "agentSaveFailed": "Agent konnte nicht gespeichert werden",
       "switcher": {
+        "title": "Agent wechseln",
+        "searchPlaceholder": "Agenten suchen",
+        "empty": "Kein Agent gefunden",
         "ariaLabel": "Agent wechseln, aktuell: {name}"
       },
       "validation": {
@@ -8301,6 +8307,9 @@
       "statusBroken": "Reparatur nötig"
     },
     "switcher": {
+      "title": "Projekt wechseln",
+      "searchPlaceholder": "Projekte suchen",
+      "empty": "Kein Projekt gefunden",
       "ariaLabel": "Projekt wechseln, aktuell: {name}"
     }
   },
