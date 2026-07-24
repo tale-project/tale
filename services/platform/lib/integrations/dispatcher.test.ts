@@ -1,3 +1,5 @@
+import { spawn as nodeSpawn } from 'node:child_process';
+import { createServer as nodeCreateServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -14,6 +16,10 @@ import {
 
 import { setCodeRunner, type CodeRunner } from '../engine/core/runner';
 import { nodeVmRunner } from '../engine/runners/node-vm';
+import {
+  createSandboxExecRunner,
+  createSessionTransport,
+} from '../engine/runners/sandbox-exec';
 import {
   integrationConnectorSchema,
   type IntegrationConnector,
@@ -392,6 +398,120 @@ describe('mock mode', () => {
     });
     expect(result.status).toBe('ok');
     expect(fetchStub).not.toHaveBeenCalled();
+  });
+});
+
+describe('live yaml-js under the sandbox-exec runner (portable convention)', () => {
+  /** The production shape: the composed program runs in a real `node -e`
+   * child, and its `ctx.http` round-trips to a local server standing in for
+   * the host-call endpoint. */
+  const nodeProgramRunner = (program: string, timeoutMs: number) =>
+    new Promise<{
+      stdout: string;
+      stderr: string;
+      exitCode: number | null;
+      timedOut: boolean;
+    }>((resolve) => {
+      const child = nodeSpawn(process.execPath, ['-e', program], {
+        stdio: ['ignore', 'pipe', 'pipe'] as const,
+      });
+      let stdout = '';
+      let stderr = '';
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, timeoutMs);
+      child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+      child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        resolve({ stdout, stderr, exitCode: code, timedOut });
+      });
+    });
+
+  it('runs the body out of process; ctx.http round-trips to the host-call endpoint', async () => {
+    const hostcalls: unknown[] = [];
+    const server = nodeCreateServer((req, res) => {
+      let raw = '';
+      req.on('data', (chunk: Buffer) => (raw += chunk.toString()));
+      req.on('end', () => {
+        hostcalls.push({
+          auth: req.headers.authorization,
+          body: JSON.parse(raw),
+        });
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            status: 200,
+            headers: {},
+            bodyText: JSON.stringify({ echoed: 'from the endpoint' }),
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const credentials = resolver();
+      const result = await executeIntegrationAction({
+        connector: 'demo',
+        action: 'echo',
+        input: { message: 'hello' },
+        credentialRef: 'primary',
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials,
+          codeRunner: createSandboxExecRunner(
+            createSessionTransport(nodeProgramRunner),
+          ),
+          portableHost: {
+            url: `http://127.0.0.1:${port}/hostcall`,
+            token: 'one-run-token',
+          },
+        },
+      });
+      expect(result).toMatchObject({ status: 'ok', backend: 'yaml-js' });
+      expect(result.status === 'ok' && result.output).toMatchObject({
+        echoed: 'from the endpoint',
+        status: 200,
+        // Secrets crossed as data and the façade served them to the body.
+        token: 'sekrit',
+      });
+      // The vendor was reached ONLY through the host-call endpoint, as the
+      // one-run token — never via the in-process fetch.
+      expect(hostcalls).toHaveLength(1);
+      expect(hostcalls[0]).toMatchObject({
+        auth: 'Bearer one-run-token',
+        body: { kind: 'http', method: 'GET' },
+      });
+      expect(fetchStub).not.toHaveBeenCalled();
+    } finally {
+      server.close();
+    }
+  });
+
+  it('refuses a sandbox-exec run with no host-call endpoint supplied', async () => {
+    const credentials = resolver();
+    await expect(
+      executeIntegrationAction({
+        connector: 'demo',
+        action: 'echo',
+        input: { message: 'hello' },
+        credentialRef: 'primary',
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials,
+          codeRunner: createSandboxExecRunner(
+            createSessionTransport(nodeProgramRunner),
+          ),
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'LIVE_RUNNER_UNAVAILABLE' });
   });
 });
 

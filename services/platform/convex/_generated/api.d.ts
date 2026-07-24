@@ -376,6 +376,9 @@ import type * as integration_credentials_mutations from "../integration_credenti
 import type * as integration_credentials_queries from "../integration_credentials/queries.js";
 import type * as integration_credentials_resolve_credential from "../integration_credentials/resolve_credential.js";
 import type * as integrations_execute_action from "../integrations/execute_action.js";
+import type * as integrations_hostcall_action from "../integrations/hostcall_action.js";
+import type * as integrations_hostcall_http from "../integrations/hostcall_http.js";
+import type * as integrations_hostcall_token from "../integrations/hostcall_token.js";
 import type * as knowledge_connection from "../knowledge/connection.js";
 import type * as knowledge_corpus from "../knowledge/corpus.js";
 import type * as knowledge_ddl from "../knowledge/ddl.js";
@@ -550,6 +553,7 @@ import type * as migrations_framework_types from "../migrations/framework/types.
 import type * as migrations_testing_support from "../migrations/testing/support.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
+import type * as node_only_sandbox_engine_exec_runner from "../node_only/sandbox/engine_exec_runner.js";
 import type * as node_only_sandbox_gateway_provisioning from "../node_only/sandbox/gateway_provisioning.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_stage_url from "../node_only/sandbox/helpers/stage_url.js";
@@ -1206,6 +1210,9 @@ declare const fullApi: ApiFromModules<{
   "integration_credentials/queries": typeof integration_credentials_queries;
   "integration_credentials/resolve_credential": typeof integration_credentials_resolve_credential;
   "integrations/execute_action": typeof integrations_execute_action;
+  "integrations/hostcall_action": typeof integrations_hostcall_action;
+  "integrations/hostcall_http": typeof integrations_hostcall_http;
+  "integrations/hostcall_token": typeof integrations_hostcall_token;
   "knowledge/connection": typeof knowledge_connection;
   "knowledge/corpus": typeof knowledge_corpus;
   "knowledge/ddl": typeof knowledge_ddl;
@@ -1380,6 +1387,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/testing/support": typeof migrations_testing_support;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
+  "node_only/sandbox/engine_exec_runner": typeof node_only_sandbox_engine_exec_runner;
   "node_only/sandbox/gateway_provisioning": typeof node_only_sandbox_gateway_provisioning;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/stage_url": typeof node_only_sandbox_helpers_stage_url;

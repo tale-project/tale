@@ -34,7 +34,7 @@
 import { Ajv, type ValidateFunction } from 'ajv';
 
 import { stableStringify } from '../engine/api/tests';
-import { codeRunner } from '../engine/core/runner';
+import { codeRunner, type CodeRunner } from '../engine/core/runner';
 import type { IntegrationContext } from '../engine/core/slots';
 import { closestName } from '../engine/core/validate/similar';
 import type {
@@ -48,6 +48,11 @@ import {
   type IntegrationBlobSink,
   type LiveHostOptions,
 } from './live-host';
+import {
+  buildPortableLiveCode,
+  type PortableHostCall,
+  type PortableLiveCtxData,
+} from './portable-live';
 import { loadConnectors, nodeTypeFor } from './registry';
 
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -306,6 +311,21 @@ export interface IntegrationDispatchContext {
   /** Ceiling for one live body, including the vendor calls it chains. */
   timeoutMs?: number;
   hostFactory?: IntegrationHostFactory;
+  /**
+   * Per-invocation CodeRunner override for the LIVE yaml-js path. A caller
+   * with a sandbox session hands in the session-bound out-of-process runner
+   * here — never through the process-global `setCodeRunner` slot, which two
+   * concurrent orgs share. Mock bodies always run on the global runner (pure,
+   * data-only, no host).
+   */
+  codeRunner?: CodeRunner;
+  /**
+   * Where the PORTABLE live convention's in-sandbox façade calls back to, and
+   * as whom (a one-run capability token). Required when `codeRunner` is the
+   * sandbox-exec backend: the body runs out of process and its `ctx.http`
+   * round-trips here so the mediation layer stays server-side.
+   */
+  portableHost?: PortableHostCall;
 }
 
 export interface ExecuteIntegrationActionArgs {
@@ -594,12 +614,27 @@ export async function executeIntegrationAction(
     );
   }
 
-  // A yaml-js LIVE body needs a runner that can proxy host capabilities
-  // (`ctx.secrets.get`, the HTTP host). The bundled node-vm backend is
-  // data-only — functions never cross its JSON boundary — so running the body
-  // there would die inside vendor code with a bare TypeError. Refuse up front
-  // with the real reason instead of pretending.
-  if (backend.kind === 'yaml-js' && codeRunner().kind() === 'node-vm') {
+  // A yaml-js LIVE body needs a runner that can carry host capabilities
+  // (`ctx.secrets.get`, the HTTP host). The caller-injected sandbox-exec
+  // runner does it via the PORTABLE convention (data ctx + host-call façade,
+  // and it needs the host-call endpoint to point at); the bundled node-vm
+  // backend is data-only — functions never cross its JSON boundary — so
+  // running the body there would die inside vendor code with a bare
+  // TypeError. Refuse up front with the real reason instead of pretending.
+  const liveRunner = ctx.codeRunner ?? codeRunner();
+  const runsPortable =
+    backend.kind === 'yaml-js' && liveRunner.kind() === 'sandbox-exec';
+  if (runsPortable && ctx.portableHost === undefined) {
+    throw new IntegrationError(
+      'LIVE_RUNNER_UNAVAILABLE',
+      `${nodeType} would run out of process, but no host-call endpoint was supplied for its ctx.http to reach back through`,
+      {
+        ...where,
+        hint: 'pass ctx.portableHost (url + one-run token) alongside the sandbox-exec runner',
+      },
+    );
+  }
+  if (backend.kind === 'yaml-js' && liveRunner.kind() === 'node-vm') {
     throw new IntegrationError(
       'LIVE_RUNNER_UNAVAILABLE',
       `${nodeType} has a live body, but this deployment's code runner is the data-only in-process one, which cannot reach credentials or the network`,
@@ -684,42 +719,67 @@ export async function executeIntegrationAction(
 
   let output: unknown;
   try {
-    // Building the host is itself policed — a credential pointing outside the
-    // connector's allowlist is refused here — so it shares the block whose
-    // failures are recorded.
-    const host = buildHost({
-      connector,
-      action: action.name,
-      ...(credential.endpoint !== undefined && {
-        endpoint: credential.endpoint,
-      }),
-      ...(credential.config !== undefined && { config: credential.config }),
-      ...(credential.authHeader !== undefined && {
-        authHeader: credential.authHeader,
-      }),
-      ...(ctx.blobs !== undefined && { blobs: ctx.blobs }),
-    });
-
-    const integrationCtx: IntegrationContext = {
-      secrets: { get: (name: string) => credential.secrets[name] ?? '' },
-      idempotencyKey,
-      ...host,
-    };
-
-    if (nativeImpl) {
-      output = await nativeImpl(input, {
-        ...integrationCtx,
-        organizationId: ctx.organizationId,
-        credentialId: credential.credentialId,
-        authMethod: credential.authMethod,
-      });
-    } else if (backend.kind === 'yaml-js') {
-      output = await codeRunner().runBody(
-        backend.live,
-        { input, ctx: integrationCtx },
+    if (runsPortable && backend.kind === 'yaml-js') {
+      // PORTABLE path: the body runs out of process, so `ctx` crosses as
+      // data and the prelude rebuilds the façade in the sandbox. No host is
+      // built here — every `ctx.http` call round-trips to the host-call
+      // endpoint, where the ONE live-host implementation mediates it.
+      const portableCtx: PortableLiveCtxData = {
+        secrets: credential.secrets,
+        config: credential.config ?? {},
+        ...(credential.endpoint !== undefined && {
+          endpoint: credential.endpoint,
+        }),
+        idempotencyKey,
+        // Checked non-undefined by the LIVE_RUNNER_UNAVAILABLE gate above.
+        // oxlint-disable-next-line typescript/no-non-null-assertion
+        hostCall: ctx.portableHost!,
+      };
+      output = await liveRunner.runBody(
+        buildPortableLiveCode(backend.live),
+        { input, ctx: portableCtx },
         { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
         { async: true },
       );
+    } else {
+      // IN-PROCESS path (native backends always; yaml-js under a
+      // host-capable in-process runner). Building the host is itself
+      // policed — a credential pointing outside the connector's allowlist is
+      // refused here — so it shares the block whose failures are recorded.
+      const host = buildHost({
+        connector,
+        action: action.name,
+        ...(credential.endpoint !== undefined && {
+          endpoint: credential.endpoint,
+        }),
+        ...(credential.config !== undefined && { config: credential.config }),
+        ...(credential.authHeader !== undefined && {
+          authHeader: credential.authHeader,
+        }),
+        ...(ctx.blobs !== undefined && { blobs: ctx.blobs }),
+      });
+
+      const integrationCtx: IntegrationContext = {
+        secrets: { get: (name: string) => credential.secrets[name] ?? '' },
+        idempotencyKey,
+        ...host,
+      };
+
+      if (nativeImpl) {
+        output = await nativeImpl(input, {
+          ...integrationCtx,
+          organizationId: ctx.organizationId,
+          credentialId: credential.credentialId,
+          authMethod: credential.authMethod,
+        });
+      } else if (backend.kind === 'yaml-js') {
+        output = await liveRunner.runBody(
+          backend.live,
+          { input, ctx: integrationCtx },
+          { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
+          { async: true },
+        );
+      }
     }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
@@ -739,7 +799,7 @@ export async function executeIntegrationAction(
         hint: /ctx\.\w+ is not a function|Cannot read propert(?:y|ies) '\w+' of undefined/.test(
           message,
         )
-          ? `the installed CodeRunner backend (${codeRunner().kind()}) may not be able to pass host capabilities into a live body — a live-capable sandbox backend is required`
+          ? `the CodeRunner backend for this run (${liveRunner.kind()}) may not be able to pass host capabilities into a live body — a live-capable sandbox backend is required`
           : undefined,
       },
     );

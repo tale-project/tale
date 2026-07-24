@@ -31,7 +31,11 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner';
+import {
+  hasCodeRunner,
+  setCodeRunner,
+  type CodeRunner,
+} from '../../lib/engine/core/runner';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
 import {
   executeIntegrationAction,
@@ -49,6 +53,7 @@ import {
   type WebdavFileBytes,
   type WebdavStore,
 } from '../../lib/integrations/natives';
+import type { PortableHostCall } from '../../lib/integrations/portable-live';
 import { registerConnector } from '../../lib/integrations/registry';
 import { convexErrorCode } from '../../lib/utils/convex-error';
 import { lockKeyFromParsed } from '../../lib/webdav/paths';
@@ -58,6 +63,8 @@ import { internalAction } from '../_generated/server';
 import { loadIntegrationConnectors } from '../integration_credentials/connector_catalog';
 import { resolveIntegrationCredential } from '../integration_credentials/resolve_credential';
 import { fetchBlobArrayBuffer } from '../lib/storage/blob_read_any';
+import { codeRunnerForSession } from '../node_only/sandbox/engine_exec_runner';
+import { signHostcallToken } from './hostcall_token';
 
 /**
  * Install the seams one invocation needs. Cheap and idempotent — the catalog
@@ -79,6 +86,16 @@ function assembleIntegrationHost(ctx: ActionCtx): void {
   installConnectorCatalog(connectors);
   for (const connector of connectors) registerConnector(connector);
   registerNativeIntegrations({ webdav: webdavStore(ctx) });
+}
+
+/** The host-call endpoint as a sandbox session's CONTAINER reaches it — the
+ * platform HTTP-actions origin over the sandbox network alias (the same
+ * contract as the staging callback and the integrations bridge). */
+function integrationsHostcallUrlForSessions(): string {
+  const origin = (
+    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://convex:3211'
+  ).replace(/\/$/, '');
+  return `${origin}/api/integrations/hostcall`;
 }
 
 // ------------------------------------------------- the org's document store
@@ -462,11 +479,45 @@ export const runIntegrationAction = internalAction({
     caller: callerValidator,
     /** Stable across retries of the same logical attempt. */
     idempotencyKey: v.optional(v.string()),
+    /** A live sandbox session to run the yaml-js body IN (out of process).
+     * Supplied by callers that own one (the coding-turn bridge); without it a
+     * live yaml-js body refuses on the data-only in-process runner. */
+    execSessionId: v.optional(v.string()),
   },
   returns: resultValidator,
   handler: async (ctx, args) => {
     assembleIntegrationHost(ctx);
     const caller: IntegrationCaller = args.caller;
+
+    // Out-of-process live execution: a session-bound sandbox-exec runner plus
+    // the host-call capability its in-sandbox façade phones back with. Minted
+    // PER CALL and passed through the dispatch context — never the process-
+    // global runner slot, which concurrent orgs share. Falls back to the
+    // in-process refusal when the deployment cannot sign capability tokens.
+    let portableRunner:
+      | { codeRunner: CodeRunner; portableHost: PortableHostCall }
+      | undefined;
+    if (args.execSessionId !== undefined && args.mode === 'live') {
+      const token = await signHostcallToken({
+        org: args.organizationId,
+        connector: args.connector,
+        action: args.action,
+        ...(args.credentialRef !== undefined && {
+          credentialRef: args.credentialRef,
+        }),
+      });
+      if (token !== null) {
+        portableRunner = {
+          codeRunner: codeRunnerForSession(args.execSessionId),
+          portableHost: { url: integrationsHostcallUrlForSessions(), token },
+        };
+      } else {
+        console.warn(
+          '[integrations] no HMAC root configured — live sandbox execution unavailable, falling back to the in-process refusal',
+        );
+      }
+    }
+
     try {
       return await executeIntegrationAction({
         connector: args.connector,
@@ -485,6 +536,7 @@ export const runIntegrationAction = internalAction({
           ...(args.idempotencyKey !== undefined && {
             idempotencyKey: args.idempotencyKey,
           }),
+          ...(portableRunner !== undefined && portableRunner),
         },
       });
     } catch (error) {

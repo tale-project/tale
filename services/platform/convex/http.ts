@@ -41,6 +41,7 @@ import {
   integrationsOauth2StartHandler,
   integrationsSlackEventsHandler,
 } from './http_integrations/http_actions';
+import { integrationsHostcallHandler } from './integrations/hostcall_http';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
@@ -718,6 +719,16 @@ http.route({
   path: '/api/integrations/status',
   method: 'POST',
   handler: integrationsStatusHandler,
+});
+
+// The host-call end of a live connector body running out of process: the
+// in-sandbox portable façade round-trips each `ctx.http.*` here, authed by a
+// one-run HMAC capability token minted at dispatch. See
+// integrations/hostcall_http.ts.
+http.route({
+  path: '/api/integrations/hostcall',
+  method: 'POST',
+  handler: integrationsHostcallHandler,
 });
 
 // The workspace-tool half of the same bridge (the shim's

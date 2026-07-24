@@ -100,6 +100,7 @@ async function runBridgeIntegration(
   ctx: ActionCtx,
   args: {
     organizationId: string;
+    sessionId: string;
     userId: string;
     slug: string;
     operation: string;
@@ -157,6 +158,9 @@ async function runBridgeIntegration(
         input: args.callArgs ?? {},
         mode: 'live',
         caller: { kind: 'user', userId: args.userId },
+        // The turn's own session doubles as the out-of-process runner for the
+        // connector's live body (the portable sandbox-exec convention).
+        execSessionId: args.sessionId,
       },
     );
     if (isRecord(result) && result.status === 'approval-required') {
