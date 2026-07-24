@@ -2030,8 +2030,7 @@ platformProjects:
       demande au même endroit — et y met les agents au travail.
     items:
       - title: Un contexte qui suit le travail
-        body:
-          Chats, fichiers, instructions et discussions vivent dans les onglets du
+        body: Chats, fichiers, instructions et tâches vivent dans les onglets du
           projet — personne ne recolle le contexte dans un composer vide.
         docsLabel: Vue d’ensemble des projets
       - title: Un tableau d’où les agents travaillent
@@ -2058,10 +2057,9 @@ platformProjects:
     heading: FAQ Projets
     items:
       - q: Qu’est-ce qu’un projet dans Tale ?
-        a:
-          Un espace de travail partagé qui réunit chats, fichiers, instructions, tâches
-          et discussions autour d’un même travail — un contact, un lancement,
-          une enquête — pour que le contexte reste avec le travail.
+        a: Un espace de travail partagé qui réunit chats, fichiers, instructions
+          et tâches autour d’un même travail — un contact, un lancement, une
+          enquête — pour que le contexte reste avec le travail.
       - q: Comment les agents traitent-ils les tâches d’un projet ?
         a:
           'Assigner une tâche du tableau à un agent lance la boucle task-ops : l’agent

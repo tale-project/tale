@@ -1994,8 +1994,7 @@ platformProjects:
       Arbeit.
     items:
       - title: Kontext, der bei der Arbeit bleibt
-        body:
-          Chats, Dateien, Anweisungen und Diskussionen liegen auf den Tabs des
+        body: Chats, Dateien, Anweisungen und Aufgaben liegen auf den Tabs des
           Projekts — niemand kopiert Hintergrund in einen frischen Composer.
         docsLabel: Projekt-Überblick
       - title: Ein Board, von dem Agents arbeiten
@@ -2021,9 +2020,8 @@ platformProjects:
     heading: Projekte-FAQ
     items:
       - q: Was ist ein Projekt in Tale?
-        a:
-          Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und
-          Diskussionen zu einem Vorhaben bündelt — ein Kontakt, ein Launch, eine
+        a: Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und
+          Aufgaben zu einem Vorhaben bündelt — ein Kontakt, ein Launch, eine
           Recherche — damit der Kontext bei der Arbeit bleibt.
       - q: Wie arbeiten Agents an Projektaufgaben?
         a:

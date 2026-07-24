@@ -1,9 +1,9 @@
 ---
 title: Projets
-description: Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions, tâches et discussions autour d’un même travail. Cet aperçu cartographie les onglets du projet et pointe vers la page qui approfondit chacun.
+description: Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions et tâches autour d’un même travail. Cet aperçu cartographie les onglets du projet et pointe vers la page qui approfondit chacun.
 ---
 
-Un projet est un espace de travail partagé qui regroupe tout ce dont un travail a besoin — les chats, les fichiers de référence, les instructions, le tableau des tâches et les discussions — pour que le contexte suive le travail au lieu d’être recollé dans chaque chat. Là où un chat isolé répond à une question, un projet est l’endroit où une équipe fait avancer un contact, un lancement ou une enquête au long cours.
+Un projet est un espace de travail partagé qui regroupe tout ce dont un travail a besoin — les chats, les fichiers de référence, les instructions et le tableau des tâches — pour que le contexte suive le travail au lieu d’être recollé dans chaque chat. Là où un chat isolé répond à une question, un projet est l’endroit où une équipe fait avancer un contact, un lancement ou une enquête au long cours.
 
 Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deux minutes et demie — avec une tâche qu’un agent prend à l’écran.
 
@@ -19,7 +19,7 @@ Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deu
 
 ## Les pièces d’un projet
 
-Chaque projet s’ouvre sur la même barre d’onglets : **Général** (nom, description, partage et chats récents), **Chats** (tes chats dans le projet plus ceux qui lui sont partagés), **Discussions** (des fils par sujet pour toute l’équipe), **Tâches** (le tableau, avec sa vue **Métriques des tâches**), **Instructions** (du contexte qui s’applique à chaque chat du projet), **Connaissances** (les fichiers du projet, dans une arborescence de dossiers), **Agents et modèles** (les agents et modèles que les membres voient ici) et **Secrets**. Les apps installées dans le projet ajoutent leurs propres onglets à la suite.
+Chaque projet s’ouvre sur la même barre d’onglets : **Général** (nom, description, partage et chats récents), **Chats** (tes chats dans le projet plus ceux qui lui sont partagés), **Tâches** (le tableau, avec sa vue **Métriques des tâches**), **Instructions** (du contexte qui s’applique à chaque chat du projet), **Connaissances** (les fichiers du projet, dans une arborescence de dossiers), **Agents et modèles** (les agents et modèles que les membres voient ici) et **Secrets**. Les apps installées dans le projet ajoutent leurs propres onglets à la suite.
 
 ## Pages dans cette section
 
@@ -40,12 +40,6 @@ L’onglet Connaissances — téléverser des fichiers dans des dossiers, le sta
 <Card title="Agents et modèles" icon="bot" href="/fr/platform/projects/project-agents">
 
 Choisir quels agents et modèles apparaissent dans un projet — Recommandés contre Restreints.
-
-</Card>
-
-<Card title="Discussions" icon="messages-square" href="/fr/platform/projects/discussions">
-
-Des conversations d’équipe en fils, avec catégories, cycle de vie et des agents à une @mention.
 
 </Card>
 

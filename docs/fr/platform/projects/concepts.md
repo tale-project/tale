@@ -1,6 +1,6 @@
 ---
 title: Concepts de projet
-description: Un projet regroupe chats, fichiers, instructions, tâches et discussions dans un même espace de travail partagé. Cette page te donne le modèle mental pour savoir quand préférer un projet à un chat isolé.
+description: Un projet regroupe chats, fichiers, instructions et tâches dans un même espace de travail partagé. Cette page te donne le modèle mental pour savoir quand préférer un projet à un chat isolé.
 ---
 
 Un projet est l’unité que Tale sort quand un chantier a besoin des mêmes fichiers, des mêmes instructions et des mêmes surfaces de travail à travers beaucoup de chats et beaucoup de personnes. Cette page te donne le modèle mental — lis-la avant de créer ton premier projet, et reviens-y au moment de décider si un chat qui grossit mérite d’être promu en projet.
@@ -19,7 +19,7 @@ Les **instructions** sont du contexte qui s’applique à chaque chat du projet 
 
 Les **fichiers** de l’onglet **Connaissances** sont le matériel de référence où chaque chat du projet peut puiser, rangés dans une arborescence de dossiers que tu remplis une fois plutôt que de les rattacher chat par chat. Ils restent scopés à ce projet — ils n’apparaissent jamais dans la bibliothèque de l’organisation ni dans les sélecteurs `@` hors du projet — voir [Gérer les fichiers](/fr/platform/projects/manage-files).
 
-Les **tâches et les discussions** font du projet un endroit où mener le travail, pas seulement en parler : un tableau avec des statuts et de l’[automatisation](/fr/platform/projects/task-automation), et des [discussions en fils](/fr/platform/projects/discussions) pour les décisions.
+Les **tâches** font du projet un endroit où mener le travail, pas seulement en parler : un tableau avec des statuts et de l’[automatisation](/fr/platform/projects/task-automation), et des fils de commentaires sur chaque tâche pour les décisions qui l’entourent.
 
 **Agents et modèles** est une surface de curation : quels agents et modèles les membres voient en premier — ou voient tout court — dans ce projet ([Agents et modèles](/fr/platform/projects/project-agents)).
 
@@ -45,4 +45,4 @@ Un chat isolé est la bonne forme pour explorer une réponse une fois. Dès que 
 
 ## Où cela s’inscrit
 
-Les projets sont la couture où se rejoignent les chats, les connaissances et l’automatisation des tâches. La lecture suivante naturelle est [Utiliser les projets](/fr/tutorials/member/use-projects), qui déroule un projet neuf de bout en bout ; les pages par onglet de cette section approfondissent les [fichiers](/fr/platform/projects/manage-files), les [agents et modèles](/fr/platform/projects/project-agents) et les [discussions](/fr/platform/projects/discussions).
+Les projets sont la couture où se rejoignent les chats, les connaissances et l’automatisation des tâches. La lecture suivante naturelle est [Utiliser les projets](/fr/tutorials/member/use-projects), qui déroule un projet neuf de bout en bout ; les pages par onglet de cette section approfondissent les [fichiers](/fr/platform/projects/manage-files) et les [agents et modèles](/fr/platform/projects/project-agents).

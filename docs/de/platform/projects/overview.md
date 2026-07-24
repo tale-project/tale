@@ -1,9 +1,9 @@
 ---
 title: Projekte
-description: Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und Diskussionen rund um ein Stück Arbeit bündelt. Diese Übersicht führt durch die Projekt-Tabs und verweist auf die Seite, die den jeweiligen Tab vertieft.
+description: Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben rund um ein Stück Arbeit bündelt. Diese Übersicht führt durch die Projekt-Tabs und verweist auf die Seite, die den jeweiligen Tab vertieft.
 ---
 
-Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück Arbeit braucht — die Chats, die Referenzdateien, die Anweisungen, das Aufgaben-Board und die Diskussionen —, damit der Kontext der Arbeit folgt, statt in jeden Chat neu kopiert zu werden. Wo ein einzelner Chat eine Frage beantwortet, ist ein Projekt der Ort, an dem ein Team einen Kontakt, einen Launch oder eine länger laufende Untersuchung in Bewegung hält.
+Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück Arbeit braucht — die Chats, die Referenzdateien, die Anweisungen und das Aufgaben-Board —, damit der Kontext der Arbeit folgt, statt in jeden Chat neu kopiert zu werden. Wo ein einzelner Chat eine Frage beantwortet, ist ein Projekt der Ort, an dem ein Team einen Kontakt, einen Launch oder eine länger laufende Untersuchung in Bewegung hält.
 
 Lieber erst zusehen? Episode 6 geht in knapp drei Minuten durch ein echtes Projekt — samt einer Aufgabe, die ein Agent vor der Kamera übernimmt.
 
@@ -19,7 +19,7 @@ Lieber erst zusehen? Episode 6 geht in knapp drei Minuten durch ein echtes Proje
 
 ## Die Teile eines Projekts
 
-Jedes Projekt öffnet auf derselben Tab-Leiste: **Allgemein** (Name, Beschreibung, Freigabe und die letzten Chats), **Chats** (deine Chats im Projekt plus die mit ihm geteilten), **Diskussionen** (Themen-Threads für das ganze Team), **Aufgaben** (das Board, mit der Ansicht **Aufgaben-Metriken**), **Anweisungen** (Kontext, der für jeden Chat im Projekt gilt), **Wissen** (die Dateien des Projekts, in einem Ordnerbaum), **Agenten & Modelle** (welche Agenten und Modelle Mitglieder hier sehen) und **Secrets**. In das Projekt installierte Apps hängen ihre eigenen Tabs dahinter an.
+Jedes Projekt öffnet auf derselben Tab-Leiste: **Allgemein** (Name, Beschreibung, Freigabe und die letzten Chats), **Chats** (deine Chats im Projekt plus die mit ihm geteilten), **Aufgaben** (das Board, mit der Ansicht **Aufgaben-Metriken**), **Anweisungen** (Kontext, der für jeden Chat im Projekt gilt), **Wissen** (die Dateien des Projekts, in einem Ordnerbaum), **Agenten & Modelle** (welche Agenten und Modelle Mitglieder hier sehen) und **Secrets**. In das Projekt installierte Apps hängen ihre eigenen Tabs dahinter an.
 
 ## Seiten in diesem Bereich
 
@@ -40,12 +40,6 @@ Der Wissen-Tab — Dateien in Ordner hochladen, der Index-Status und wie Projekt
 <Card title="Agenten und Modelle" icon="bot" href="/de/platform/projects/project-agents">
 
 Kuratieren, welche Agenten und Modelle in einem Projekt erscheinen — Empfohlen gegenüber Eingeschränkt.
-
-</Card>
-
-<Card title="Diskussionen" icon="messages-square" href="/de/platform/projects/discussions">
-
-Team-Gespräche in Threads, mit Kategorien, Lebenszyklus und Agenten, die eine @-Erwähnung entfernt sind.
 
 </Card>
 

@@ -265,18 +265,6 @@
       "height": 1800
     },
     {
-      "file": "images/platform/project-discussions-list.webp",
-      "shot": "project-discussions-list",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/platform/project-general-tab.webp",
       "shot": "project-general-tab",
       "route": "/dashboard/:orgId/projects",

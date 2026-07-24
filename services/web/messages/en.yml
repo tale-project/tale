@@ -1774,7 +1774,7 @@ platformProjects:
     items:
       - title: Context that follows the work
         body:
-          Chats, files, instructions, and discussions live on the project's tabs, so
+          Chats, files, instructions, and tasks live on the project's tabs, so
           nobody re-pastes background into a fresh composer.
         docsLabel: Projects overview
       - title: A board agents work from
@@ -1800,10 +1800,9 @@ platformProjects:
     heading: Projects FAQ
     items:
       - q: What is a project in Tale?
-        a:
-          A shared workspace that bundles chats, files, instructions, tasks, and
-          discussions around one piece of work — a contact, a launch, an
-          investigation — so the context stays with the work.
+        a: A shared workspace that bundles chats, files, instructions, and tasks
+          around one piece of work — a contact, a launch, an investigation — so
+          the context stays with the work.
       - q: How do agents work on project tasks?
         a:
           'Assigning a board task to an agent starts the task-ops loop: the agent
