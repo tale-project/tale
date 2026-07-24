@@ -184,6 +184,66 @@ describe('markSessionTokenRevokedByKeyId — the leak close', () => {
   });
 });
 
+describe('recoverStaleDirectGenerations — unwedge a crashed direct turn', () => {
+  async function insertGeneration(
+    t: T,
+    overrides: { heartbeatAt: number; coding?: boolean; threadId?: string },
+  ) {
+    return t.run((ctx) =>
+      ctx.db.insert('generations', {
+        organizationId: ORG,
+        threadId: overrides.threadId ?? 'thread_direct',
+        status: 'streaming',
+        streamId: 'stream_1',
+        startedAt: 0,
+        heartbeatAt: overrides.heartbeatAt,
+        ...(overrides.coding === true
+          ? {
+              coding: {
+                execId: EXEC,
+                lastSeq: 0,
+                harness: 'claude-code',
+                providerSlug: 'anthropic',
+                gatewayModel: 'claude',
+              },
+            }
+          : {}),
+      }),
+    );
+  }
+
+  it('clears a stale direct row but spares a fresh one and a coding row', async () => {
+    const t = convexTest(schema, modules);
+    const stale = 100; // far below any realistic now - stale window
+    const fresh = Date.now();
+    const staleDirect = await insertGeneration(t, {
+      heartbeatAt: stale,
+      threadId: 'thread_stale',
+    });
+    const freshDirect = await insertGeneration(t, {
+      heartbeatAt: fresh,
+      threadId: 'thread_fresh',
+    });
+    const staleCoding = await insertGeneration(t, {
+      heartbeatAt: stale,
+      coding: true,
+      threadId: 'thread_coding',
+    });
+
+    const cleared = await t.mutation(
+      internal.chat.generations.recoverStaleDirectGenerations,
+      {},
+    );
+    expect(cleared).toBe(1);
+
+    const rows = await t.run((ctx) => ctx.db.query('generations').collect());
+    const ids = rows.map((r) => r._id);
+    expect(ids).not.toContain(staleDirect);
+    expect(ids).toContain(freshDirect); // fresh heartbeat → live turn, kept
+    expect(ids).toContain(staleCoding); // coding lane → op-row recovery, kept
+  });
+});
+
 describe('upsertSessionOp terminal state — harness crash is not a silent success', () => {
   it('stamps the agent status + exit code and marks the op terminal', async () => {
     const t = convexTest(schema, modules);

@@ -166,9 +166,29 @@ cron(
   {},
 );
 
-// Sandbox-turn and chat-turn crash-recovery sweeps
-// re-register with the chat rebuild (keep: heartbeat-based, exactly-once finalize,
-// own cron entry per sweep so one throw can't disable a sibling watchdog).
+// Coding-turn crash-recovery sweep — a lost driveCodingTurn reschedule (deploy
+// / restart / action-ceiling kill) would strand a turn's op + generation rows
+// `running` forever with no drainer. This heartbeat-based sweep probes each
+// abandoned exec and resumes it (still alive) or finalizes it (exited/gone),
+// exactly-once, revoking the turn's gateway VK on every terminal path. Own cron
+// entry (not folded into a sibling) so one throw can't disable another watchdog.
+cron(
+  'recover abandoned coding turns (every 2 min)',
+  '*/2 * * * *',
+  internal.chat.coding_turn_recovery.recoverAbandonedCodingTurns,
+  {},
+);
+
+// Direct (platform-chat) crash-recovery sweep — a hard-killed direct turn
+// strands its generation row `running`, wedging the thread. This clears stale
+// non-coding generations so the composer unlocks (coding rows are the sweep
+// above's job — deleting one here could strand a live sandbox exec).
+cron(
+  'recover stale direct chat generations (every 2 min)',
+  '*/2 * * * *',
+  internal.chat.generations.recoverStaleDirectGenerations,
+  {},
+);
 
 // GDPR erasure watchdog (round-2 V5 P0-14) - the same shape as the
 // transcription watchdog above. Convex actions hard-stop at 30 min;

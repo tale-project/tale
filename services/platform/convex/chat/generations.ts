@@ -257,3 +257,39 @@ export const endGenerationInternal = internalMutation({
     return null;
   },
 });
+
+/** A DIRECT-lane generation is dead once its per-chunk heartbeat goes stale
+ * this long. Well past the lane's total-stream cap (180s), so a live turn is
+ * never swept. */
+const DIRECT_GENERATION_STALE_MS = 5 * 60_000;
+/** Rows cleared per sweep — bounds the mutation. */
+const DIRECT_GENERATION_SWEEP_LIMIT = 50;
+
+/**
+ * Crash-recovery sweep for the DIRECT (platform-chat) lane. A direct turn runs
+ * in a single action that heartbeats per streamed chunk; a hard kill (deploy,
+ * action ceiling) strands its generation row `running`, leaving the thread
+ * looking like it is generating forever with no drainer to settle it. This
+ * deletes those stale rows so the composer unlocks.
+ *
+ * Coding-turn generations are SKIPPED (coding !== undefined): they are settled
+ * by the op-row recovery sweep, which probes the still-running exec before
+ * touching the row — deleting one here could strand a live sandbox exec.
+ */
+export const recoverStaleDirectGenerations = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const staleBefore = Date.now() - DIRECT_GENERATION_STALE_MS;
+    let cleared = 0;
+    for await (const row of ctx.db
+      .query('generations')
+      .withIndex('by_heartbeat', (q) => q.lt('heartbeatAt', staleBefore))) {
+      if (row.coding !== undefined) continue; // coding lane → op-row recovery
+      await ctx.db.delete(row._id);
+      cleared += 1;
+      if (cleared >= DIRECT_GENERATION_SWEEP_LIMIT) break;
+    }
+    return cleared;
+  },
+});

@@ -291,6 +291,9 @@ export const listAbandonedAgentOps = internalQuery({
       progressText: v.optional(v.string()),
       exitCode: v.optional(v.number()),
       heartbeatAt: v.optional(v.number()),
+      // The turn's original wall-clock cutoff — a resumed drainer honours it
+      // rather than restarting the clock on recovery.
+      deadlineMs: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -346,6 +349,7 @@ export const listAbandonedAgentOps = internalQuery({
         }),
         ...(row.exitCode !== undefined && { exitCode: row.exitCode }),
         ...(row.heartbeatAt !== undefined && { heartbeatAt: row.heartbeatAt }),
+        ...(row.deadlineMs !== undefined && { deadlineMs: row.deadlineMs }),
       });
       if (out.length >= args.limit) break;
     }

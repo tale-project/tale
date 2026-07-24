@@ -70,15 +70,36 @@ export const driveCodingTurn = internalAction({
       return null;
     }
 
-    const outcome = await drainCodingWindow(ctx, {
-      scope,
-      sessionId,
-      execId: coding.execId,
-      messageId,
-      harness: coding.harness,
-      providerSlug: coding.providerSlug,
-      gatewayModel: coding.gatewayModel,
-    });
+    let outcome;
+    try {
+      outcome = await drainCodingWindow(ctx, {
+        scope,
+        sessionId,
+        execId: coding.execId,
+        messageId,
+        harness: coding.harness,
+        providerSlug: coding.providerSlug,
+        gatewayModel: coding.gatewayModel,
+      });
+    } catch (err) {
+      // A window that THREW (staging failure, exhausted reconnects, a Convex
+      // hiccup) must not silently end the chain and strand the thread — route
+      // it to the same unified failure exit. finalize's exactly-once claim
+      // keeps this from racing the crash-recovery sweep.
+      console.error('[coding-turn] drive window threw:', err);
+      await finalizeCodingTurn(ctx, {
+        scope,
+        sessionId,
+        execId: coding.execId,
+        messageId,
+        providerSlug: coding.providerSlug,
+        gatewayModel: coding.gatewayModel,
+        fallbackText: '',
+        errored: true,
+        reason: 'The coding agent stopped unexpectedly.',
+      });
+      return null;
+    }
 
     if (outcome.kind === 'continue') {
       await ctx.scheduler.runAfter(
