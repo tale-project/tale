@@ -103,7 +103,7 @@ export function ColorPickerInput({
           onChange={handleTextChange}
           maxLength={8}
           placeholder="6366F1"
-          className="text-foreground placeholder:text-muted-foreground w-[4.5rem] border-none bg-transparent text-sm leading-5 font-normal outline-none"
+          className="text-foreground placeholder:text-muted-foreground w-[4.5rem] border-none bg-transparent text-base leading-5 font-normal outline-none md:text-sm"
           aria-label={t('branding.hexValueAria', { label })}
         />
       </Row>

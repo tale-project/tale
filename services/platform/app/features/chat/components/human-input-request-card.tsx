@@ -577,7 +577,7 @@ function HumanInputRequestCardComponent({
                   }
                   placeholder={t('pushbackPlaceholder')}
                   aria-label={t('pushback')}
-                  className="min-h-[80px] text-sm"
+                  className="min-h-[80px] text-base md:text-sm"
                   disabled={isSubmitting}
                   autoFocus
                 />

@@ -435,7 +435,7 @@ function ProviderOptionsEditorSheet({
               disabled={inFlight}
               placeholder={PROVIDER_OPTIONS_PLACEHOLDER}
               errorMessage={validation.ok ? undefined : validation.error}
-              className="font-mono text-xs"
+              className="font-mono text-base md:text-xs"
             />
             <Text className="text-muted-foreground text-[12px]">
               {exampleLabel}
@@ -512,7 +512,6 @@ export function ModelProviderOptionsField({
         onChange={onChange}
         schema={providerOptionsClientSchema}
         rows={6}
-        fontSize={12}
       />
       <CollapsibleGuide label={copy.guideLabel} content={copy.helpText} />
     </Stack>
@@ -541,7 +540,6 @@ export function ModelRequestBodyMapField({
         schema={requestBodyMapClientSchema}
         placeholder={REQUEST_BODY_MAP_PLACEHOLDER}
         rows={5}
-        fontSize={12}
       />
       <CollapsibleGuide label={copy.guideLabel} content={copy.helpText} />
     </Stack>
