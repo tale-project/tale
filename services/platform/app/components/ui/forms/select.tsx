@@ -11,6 +11,7 @@ import { forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 const selectContentVariants = cva(
@@ -219,17 +220,34 @@ const SelectBase = forwardRef<
     }
 
     return (
-      <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
-        {label && (
-          <Label id={labelId} htmlFor={id} required={required} error={error}>
-            {label}
-          </Label>
-        )}
+      <FieldShell
+        {...(label
+          ? {
+              label: (
+                <Label
+                  id={labelId}
+                  htmlFor={id}
+                  required={required}
+                  error={error}
+                >
+                  {label}
+                </Label>
+              ),
+            }
+          : {})}
+        {...(description
+          ? {
+              description: (
+                <Description id={descriptionId}>{description}</Description>
+              ),
+            }
+          : {})}
+        {...(wrapperClassName !== undefined
+          ? { className: wrapperClassName }
+          : {})}
+      >
         {trigger}
-        {description && (
-          <Description id={descriptionId}>{description}</Description>
-        )}
-      </div>
+      </FieldShell>
     );
   },
 );

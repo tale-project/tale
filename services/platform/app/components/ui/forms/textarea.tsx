@@ -8,6 +8,7 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
@@ -52,12 +53,42 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     }, [hasError, errorMessage]);
 
     return (
-      <div className="flex flex-col gap-1.5">
-        {label && (
-          <Label htmlFor={id} required={required} error={hasError}>
-            {label}
-          </Label>
-        )}
+      <FieldShell
+        // A textarea is a writing surface, not a one-line value: it keeps the
+        // full width of the control column even in label-left layouts.
+        wideControl
+        {...(label !== undefined
+          ? {
+              label: (
+                <Label htmlFor={id} required={required} error={hasError}>
+                  {label}
+                </Label>
+              ),
+            }
+          : {})}
+        {...(description !== undefined
+          ? {
+              description: (
+                <Description id={descriptionId}>{description}</Description>
+              ),
+            }
+          : {})}
+        {...(errorMessage !== undefined
+          ? {
+              error: (
+                <p
+                  id={errorId}
+                  role="alert"
+                  aria-live="polite"
+                  className="text-destructive flex items-center gap-1.5 text-sm"
+                >
+                  <Info className="size-4" aria-hidden="true" />
+                  {errorMessage}
+                </p>
+              ),
+            }
+          : {})}
+      >
         <textarea
           id={id}
           className={cn(
@@ -73,21 +104,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           aria-errormessage={hasError ? errorId : undefined}
           {...props}
         />
-        {errorMessage && (
-          <p
-            id={errorId}
-            role="alert"
-            aria-live="polite"
-            className="text-destructive flex items-center gap-1.5 text-sm"
-          >
-            <Info className="size-4" aria-hidden="true" />
-            {errorMessage}
-          </p>
-        )}
-        {description && (
-          <Description id={descriptionId}>{description}</Description>
-        )}
-      </div>
+      </FieldShell>
     );
   },
 );

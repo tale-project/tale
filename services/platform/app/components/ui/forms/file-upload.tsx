@@ -19,6 +19,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 interface FileUploadContextValue {
@@ -93,29 +94,46 @@ function Root({
   }
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      {label && (
-        <Label htmlFor={id} required={required} error={hasError}>
-          {label}
-        </Label>
-      )}
+    <FieldShell
+      // A drop zone is a surface to aim at, not a one-line value: it keeps the
+      // full width of the control column even in label-left layouts.
+      wideControl
+      {...(label
+        ? {
+            label: (
+              <Label htmlFor={id} required={required} error={hasError}>
+                {label}
+              </Label>
+            ),
+          }
+        : {})}
+      {...(description
+        ? {
+            description: (
+              <Description id={descriptionId}>{description}</Description>
+            ),
+          }
+        : {})}
+      {...(errorMessage
+        ? {
+            error: (
+              <Text
+                id={errorId}
+                role="alert"
+                aria-live="polite"
+                variant="error"
+                className="flex items-center gap-1.5"
+              >
+                <Info className="size-4" aria-hidden="true" />
+                {errorMessage}
+              </Text>
+            ),
+          }
+        : {})}
+      {...(className !== undefined ? { className } : {})}
+    >
       <div className={cn(showShake && 'animate-shake')}>{content}</div>
-      {errorMessage && (
-        <Text
-          id={errorId}
-          role="alert"
-          aria-live="polite"
-          variant="error"
-          className="flex items-center gap-1.5"
-        >
-          <Info className="size-4" aria-hidden="true" />
-          {errorMessage}
-        </Text>
-      )}
-      {description && (
-        <Description id={descriptionId}>{description}</Description>
-      )}
-    </div>
+    </FieldShell>
   );
 }
 

@@ -41,6 +41,11 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
         ref={ref}
         aria-labelledby={headingId}
         aria-describedby={descId}
+        // The marker `SettingsPage` draws its section dividers from. Keying on
+        // real sections — not on "every child" — is what keeps a divider from
+        // appearing under the last section of a page whose next sibling is a
+        // dialog, a portal, or any other element that renders nothing.
+        data-settings-section=""
         className={cn(sectionVariants({ gap }), className)}
         {...props}
       >

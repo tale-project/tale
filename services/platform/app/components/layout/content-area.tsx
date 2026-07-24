@@ -3,6 +3,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, type HTMLAttributes } from 'react';
 
+import { FIELD_LAYOUT_ROW } from '@/app/components/ui/forms/field-shell';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -21,7 +22,11 @@ const contentAreaVariants = cva(
     variants: {
       variant: {
         page: 'px-4 pt-6 [--content-area-pb:1.5rem]',
-        narrow: 'mx-auto max-w-[544px] px-4 pt-4 [--content-area-pb:1rem]',
+        // `max-w-3xl` is the settings measure (`SettingsPage`, #2567): every
+        // configuration surface — org settings, project tabs, automation
+        // settings — shares one content width so switching between them
+        // doesn't reflow the reading column.
+        narrow: 'mx-auto max-w-3xl px-4 pt-4 [--content-area-pb:1rem]',
         panel: 'px-6 pt-4 [--content-area-pb:1rem]',
       },
       gap: {
@@ -48,6 +53,10 @@ export const ContentArea = forwardRef<HTMLDivElement, ContentAreaProps>(
   ({ variant, gap, className, ...props }, ref) => (
     <div
       ref={ref}
+      // `narrow` is the configuration measure (project tabs, and anything else
+      // that shares the settings width), so it also declares the settings field
+      // layout: label left, control right from `sm` up — see `FieldShell`.
+      {...(variant === 'narrow' ? FIELD_LAYOUT_ROW : {})}
       className={cn(
         contentAreaVariants({ variant, gap }),
         className,

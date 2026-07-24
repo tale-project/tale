@@ -21,6 +21,7 @@ import {
 
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 import { selectTriggerClasses } from './select';
 
@@ -66,6 +67,8 @@ export interface SearchableSelectProps {
   id?: string;
   /** Additional className merged onto the default trigger. */
   triggerClassName?: string;
+  /** Additional className for the outer label+trigger+description frame. */
+  wrapperClassName?: string;
   /** Placeholder text for the search input */
   searchPlaceholder?: string;
   /** Text to display when no options match the search */
@@ -231,6 +234,7 @@ function SearchableSelectBase({
   disabled,
   id: providedId,
   triggerClassName,
+  wrapperClassName,
   searchPlaceholder,
   emptyText,
   footer,
@@ -593,17 +597,29 @@ function SearchableSelectBase({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {label && (
-        <Label htmlFor={triggerId} required={required} error={error}>
-          {label}
-        </Label>
-      )}
+    <FieldShell
+      {...(label
+        ? {
+            label: (
+              <Label htmlFor={triggerId} required={required} error={error}>
+                {label}
+              </Label>
+            ),
+          }
+        : {})}
+      {...(description
+        ? {
+            description: (
+              <Description id={descriptionId}>{description}</Description>
+            ),
+          }
+        : {})}
+      {...(wrapperClassName !== undefined
+        ? { className: wrapperClassName }
+        : {})}
+    >
       {popover}
-      {description && (
-        <Description id={descriptionId}>{description}</Description>
-      )}
-    </div>
+    </FieldShell>
   );
 }
 

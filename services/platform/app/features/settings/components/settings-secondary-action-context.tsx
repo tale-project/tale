@@ -18,6 +18,14 @@ export interface SettingsHeaderAction {
   loading?: boolean;
   title?: string;
   variant?: 'primary' | 'secondary';
+  /**
+   * Which side of the Discard/Save cluster the button sits on. `trailing`
+   * (the default) continues the cluster — for an action that follows saving,
+   * like "Apply & restart". `leading` puts it BEFORE Discard, which is where
+   * a destructive-ish page action such as branding's Reset belongs: the
+   * primary action stays rightmost.
+   */
+  placement?: 'leading' | 'trailing';
 }
 
 /**
