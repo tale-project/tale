@@ -1,5 +1,11 @@
+import { act, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  ActiveEditorProvider,
+  useActiveEditor,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { render, screen } from '@/tests/utils/render';
 
 import { SystemPromptEditor } from './system-prompt-editor';
@@ -8,19 +14,16 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}));
-
-// Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
-// imports). Toggling `state` flips the editor between loading and loaded.
-const { state } = vi.hoisted(() => ({
+const { state, mutateAsync } = vi.hoisted(() => ({
   state: {
     isLoading: false,
-    config: { mandatoryPrefixPrompt: '', mandatorySuffixPrompt: '' } as
-      | Record<string, string>
-      | undefined,
+    config: { mandatoryInstructions: '' } as Record<string, string> | undefined,
   },
+  mutateAsync: vi.fn(async () => {}),
+}));
+
+vi.mock('../hooks/mutations', () => ({
+  useUpsertGovernancePolicy: () => ({ mutateAsync, isPending: false }),
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -30,21 +33,33 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
-function setLoaded() {
+function setLoaded(
+  config: Record<string, string> = { mandatoryInstructions: '' },
+) {
   state.isLoading = false;
-  state.config = { mandatoryPrefixPrompt: '', mandatorySuffixPrompt: '' };
+  state.config = config;
 }
 function setLoading() {
   state.isLoading = true;
   state.config = undefined;
 }
 
+/** Captures the controller the editor registers with the global save bar. */
+function ActiveProbe({
+  capture,
+}: {
+  capture: { current: EditorController | null };
+}) {
+  capture.current = useActiveEditor();
+  return null;
+}
+
 describe('SystemPromptEditor', () => {
   describe('loaded state', () => {
-    it('renders the real textareas (in the a11y tree)', () => {
+    it('renders a single custom-instructions textarea', () => {
       setLoaded();
       render(<SystemPromptEditor organizationId="org-1" />);
-      expect(screen.getAllByRole('textbox')).toHaveLength(2);
+      expect(screen.getAllByRole('textbox')).toHaveLength(1);
     });
 
     it('renders the section headings (static text, always real)', () => {
@@ -62,25 +77,40 @@ describe('SystemPromptEditor', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('spans the full settings section so Discard/Save share the Add-rule edge', () => {
-      // Regression: a max-w-2xl wrap left the textareas and action cluster
-      // narrower than Default Models (+ Add rule) on the same Content & models
-      // page, so the right edges didn't line up.
-      setLoaded();
-      const { container } = render(
-        <SystemPromptEditor organizationId="org-1" />,
+    it('resolves a legacy prefix/suffix policy into the single field', () => {
+      setLoaded({
+        mandatoryPrefixPrompt: 'Prefix rules.',
+        mandatorySuffixPrompt: 'Suffix rules.',
+      });
+      render(<SystemPromptEditor organizationId="org-1" />);
+      expect(screen.getByRole('textbox')).toHaveValue(
+        'Prefix rules.\n\nSuffix rules.',
       );
-      const form = container.querySelector('form');
-      expect(form).not.toBeNull();
-      expect(form?.querySelector('.max-w-2xl')).toBeNull();
-      // The cluster is right-aligned by its `HStack justify="end"` wrapper
-      // (EditorActions no longer carries its own `ml-auto`), so Save/Discard
-      // still sit at the section's right edge — level with Add rule.
-      expect(
-        screen
-          .getByRole('button', { name: /discard/i })
-          .closest('.justify-end'),
-      ).not.toBeNull();
+    });
+
+    it('saves through the globally registered controller with the unified field', async () => {
+      setLoaded();
+      const capture = { current: null as EditorController | null };
+      render(
+        <ActiveEditorProvider>
+          <ActiveProbe capture={capture} />
+          <SystemPromptEditor organizationId="org-1" />
+        </ActiveEditorProvider>,
+      );
+
+      fireEvent.change(screen.getByRole('textbox'), {
+        target: { value: 'Always cite sources.' },
+      });
+      expect(capture.current?.isDirty).toBe(true);
+
+      await act(async () => {
+        await capture.current?.save();
+      });
+      expect(mutateAsync).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        policyType: 'system_prompt',
+        config: { mandatoryInstructions: 'Always cite sources.' },
+      });
     });
   });
 
