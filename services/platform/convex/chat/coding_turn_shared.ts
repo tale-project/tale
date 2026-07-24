@@ -566,6 +566,9 @@ export async function finalizeCodingTurn(
     };
     resume?: string;
     errored: boolean;
+    /** The user stopped the turn — a clean terminal, distinct from an error.
+     * Keeps whatever streamed so far and stamps the op row `cancelled`. */
+    cancelled?: boolean;
     /** An explicit failure reason (deadline, session gone, crash) — shown under
      * the message. Falls back to a generic note when the turn errored with no
      * text. */
@@ -681,7 +684,11 @@ export async function finalizeCodingTurn(
       threadId: args.scope.threadId,
       execId: args.execId,
       kind: 'agent-run',
-      status: args.errored ? 'failed' : 'completed',
+      status: args.cancelled
+        ? 'cancelled'
+        : args.errored
+          ? 'failed'
+          : 'completed',
       ...(args.exitCode !== undefined ? { exitCode: args.exitCode } : {}),
       ...(args.agentResultStatus !== undefined
         ? { agentResultStatus: args.agentResultStatus }

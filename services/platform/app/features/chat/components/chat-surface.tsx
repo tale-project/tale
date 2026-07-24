@@ -159,6 +159,19 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
     (threadId !== undefined && !messagesAvailable) ||
     needsProviderSetup;
 
+  // Stop is wired for coding turns only — the harness runs independently in the
+  // sandbox, so it can be cancelled mid-flight; the direct lane's single-action
+  // turn has no cancel yet. The composer shows the stop button accordingly.
+  const codingTurnInFlight =
+    generationInFlight && selection.agentKind === 'coding';
+  const handleStop = () => {
+    if (threadId === undefined) return;
+    void chatSend.stop(threadId).catch((error: unknown) => {
+      console.error('[chat] could not stop the turn', error);
+      toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+    });
+  };
+
   const handleSend = (text: string) => {
     // Each kind has one prerequisite: a model for the platform agent, a
     // harness for a coding agent. `sendDisabled` already gates these; the
@@ -296,6 +309,8 @@ export function ChatSurface({ organizationId, threadId }: ChatSurfaceProps) {
             selection={selection}
             onSelectionChange={handleSelectionChange}
             onSend={handleSend}
+            onStop={handleStop}
+            generating={codingTurnInFlight}
             disabled={composerDisabled}
             // An open thread's agent is fixed for its life — switching agents
             // is a new chat — so the agent picker locks once a thread exists.

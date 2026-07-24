@@ -27,7 +27,9 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { sessionCancelExec } from '../node_only/sandbox/helpers/session_client';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
+import { sessionIdForUser } from '../sandbox/session_naming';
 import {
   buildCodingExec,
   CODING_TURN_DEADLINE_MS,
@@ -252,5 +254,65 @@ export const startCodingTurn = action({
         reason: `The coding agent could not run: ${reason}`,
       };
     }
+  },
+});
+
+/**
+ * Stop the caller's in-flight coding turn on a thread. Cancels the harness exec
+ * in the sandbox (SIGTERM→SIGKILL via runnerd) and settles the turn through the
+ * shared finalize: the exactly-once claim revokes the turn's gateway VK, stamps
+ * the op row `cancelled`, and deletes the generation so the composer unlocks.
+ * The partial reply that already streamed is kept, with a stop note under it.
+ *
+ * Idempotent and owner-scoped: a thread with no live coding turn (already
+ * settled, or not the caller's) returns `{stopped:false}`. Racing the drain
+ * loop is safe — whichever finalizer wins the claim runs the side-effects once;
+ * the loser bails.
+ */
+export const stopCodingTurn = action({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.object({ stopped: v.boolean() }),
+  handler: async (ctx, args): Promise<{ stopped: boolean }> => {
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const thread = await ctx.runQuery(
+      internal.chat.threads.getOwnedThreadInternal,
+      {
+        organizationId: args.organizationId,
+        userId: auth.userId,
+        threadId: args.threadId,
+      },
+    );
+    if (thread === null) return { stopped: false };
+
+    const state = await ctx.runMutation(
+      internal.chat.generations.getCodingStateInternal,
+      { organizationId: args.organizationId, threadId: args.threadId },
+    );
+    if (state === null) return { stopped: false };
+
+    const scope: CodingTurnScope = {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      userId: auth.userId,
+    };
+    const sessionId = sessionIdForUser(args.organizationId, auth.userId);
+    const { messageId, coding } = state;
+
+    await sessionCancelExec(sessionId, coding.execId).catch((err) =>
+      console.warn('[coding-turn] stop exec cancel failed:', err),
+    );
+    await finalizeCodingTurn(ctx, {
+      scope,
+      sessionId,
+      execId: coding.execId,
+      messageId,
+      providerSlug: coding.providerSlug,
+      gatewayModel: coding.gatewayModel,
+      fallbackText: '',
+      errored: false,
+      cancelled: true,
+      reason: 'You stopped this response.',
+    });
+    return { stopped: true };
   },
 });

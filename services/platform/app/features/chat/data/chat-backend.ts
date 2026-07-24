@@ -393,8 +393,22 @@ export interface ChatTurnHandle {
 export function useChatSend(organizationId: string): {
   readonly available: boolean;
   readonly start: (request: ChatTurnRequest) => Promise<ChatTurnHandle>;
+  /** Stop the thread's in-flight coding turn (cancels the harness exec and
+   * settles the turn). A no-op for a thread with no live coding turn. */
+  readonly stop: (threadId: string) => Promise<void>;
 } {
   const convex = useConvex();
+
+  const stop = useCallback(
+    async (threadId: string): Promise<void> => {
+      if (!convex) throw new Error('The chat backend is not reachable.');
+      await convex.action(api.chat.coding_turn_action.stopCodingTurn, {
+        organizationId,
+        threadId,
+      });
+    },
+    [convex, organizationId],
+  );
 
   const start = useCallback(
     async (request: ChatTurnRequest): Promise<ChatTurnHandle> => {
@@ -452,7 +466,7 @@ export function useChatSend(organizationId: string): {
     [convex, organizationId],
   );
 
-  return { available: convex !== undefined, start };
+  return { available: convex !== undefined, start, stop };
 }
 
 /**

@@ -30,9 +30,11 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
     })),
     useChatThreads: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatMessages: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatGeneration: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatSend: vi.fn(() => ({
       available: false,
       start: () => Promise.reject(new Error('unavailable')),
+      stop: () => Promise.resolve(),
     })),
     useChatModelPreference: vi.fn(() => ({
       preference: { status: 'unavailable' as const },
@@ -42,6 +44,7 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
 });
 
 import {
+  useChatGeneration,
   useChatMessages,
   useChatModelPreference,
   useChatSend,
@@ -61,9 +64,13 @@ afterEach(() => {
   vi.mocked(useChatMessages).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
+  vi.mocked(useChatGeneration).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
   vi.mocked(useChatSend).mockImplementation(() => ({
     available: false,
     start: () => Promise.reject(new Error('unavailable')),
+    stop: () => Promise.resolve(),
   }));
   vi.mocked(useChatModelPreference).mockImplementation(() => ({
     preference: { status: 'unavailable' as const },
@@ -184,7 +191,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       status: 'ready',
       data: { models: [MODEL], sandboxAgents: [] },
     });
-    vi.mocked(useChatSend).mockReturnValue({ available: true, start });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start,
+      stop: vi.fn(() => Promise.resolve()),
+    });
   });
 
   it('welcomes on the index instead of claiming a connection problem', () => {
@@ -319,7 +330,11 @@ describe('ChatSurface on an open sandbox thread', () => {
         sandboxAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
       },
     });
-    vi.mocked(useChatSend).mockReturnValue({ available: true, start: vi.fn() });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
+    });
   });
 
   it('follows the thread onto its coding agent instead of the platform default', async () => {
@@ -342,5 +357,28 @@ describe('ChatSurface on an open sandbox thread', () => {
       ).toHaveTextContent('Claude Code');
     });
     expect(screen.getByRole('button', { name: 'Select agent' })).toBeDisabled();
+  });
+
+  it('offers a working Stop while a coding turn is in flight', async () => {
+    const stop = vi.fn(() => Promise.resolve());
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop,
+    });
+    vi.mocked(useChatGeneration).mockReturnValue({
+      status: 'ready',
+      data: { status: 'streaming' },
+    });
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
+    );
+
+    const stopButton = await screen.findByRole('button', {
+      name: 'Stop generating',
+    });
+    await user.click(stopButton);
+    expect(stop).toHaveBeenCalledWith('t-sbx');
   });
 });
