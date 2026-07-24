@@ -35,6 +35,7 @@ import {
   ensureAgentSession,
   finalizeCodingTurn,
   newExecId,
+  openCodingOp,
   provisionTurnGatewayToken,
   resolveManagedModel,
   stageSkills,
@@ -110,6 +111,10 @@ export const startCodingTurn = action({
     }
     const routing = resolveGatewayRouting(model.providerSlug, model.modelId);
     const execId = newExecId();
+    const streamId = randomUUID();
+    // One wall-clock cutoff for the whole turn, shared by the token expiry, the
+    // op row's deadline, and the drive loop's reschedule guard.
+    const deadlineAt = Date.now() + CODING_TURN_DEADLINE_MS;
 
     // The assistant message the reply streams into, and the generation that
     // carries the drainer's re-attach state.
@@ -125,7 +130,7 @@ export const startCodingTurn = action({
     await ctx.runMutation(internal.chat.generations.beginGenerationInternal, {
       organizationId: args.organizationId,
       threadId: args.threadId,
-      streamId: randomUUID(),
+      streamId,
       messageId,
       coding: {
         execId,
@@ -136,14 +141,37 @@ export const startCodingTurn = action({
       },
     });
 
+    // `sessionId` is set once the session is ensured; the catch below uses it to
+    // finalize + revoke through the op row when a later setup step throws.
+    let sessionId: string | undefined;
     try {
-      const sessionId = await ensureAgentSession(ctx, scope);
-      const token = await provisionTurnGatewayToken(
+      sessionId = await ensureAgentSession(ctx, scope);
+      const { token, keyId } = await provisionTurnGatewayToken(
         ctx,
         scope,
         sessionId,
         model,
+        {
+          harness: args.harness,
+          gatewayModel: routing.gatewayModel,
+          expiresAt: deadlineAt,
+        },
       );
+      // Open the turn's op row now that the VK id exists: it is the single
+      // source of truth the finalize claim, the fleet page, and the recovery
+      // watchdog read, and it carries the `mintedKeyId` that makes the VK
+      // revocable on every exit.
+      await openCodingOp(ctx, {
+        scope,
+        sessionId,
+        execId,
+        messageId,
+        providerSlug: model.providerSlug,
+        gatewayModel: routing.gatewayModel,
+        streamId,
+        deadlineMs: deadlineAt,
+        mintedKeyId: keyId,
+      });
       const instructions = await stageSkills(
         ctx,
         scope,
@@ -176,11 +204,14 @@ export const startCodingTurn = action({
       if (outcome.kind === 'gone') {
         await finalizeCodingTurn(ctx, {
           scope,
+          sessionId,
+          execId,
           messageId,
           providerSlug: model.providerSlug,
           gatewayModel: routing.gatewayModel,
           fallbackText: '',
           errored: true,
+          reason: 'The sandbox session ended before the turn could run.',
         });
         return {
           status: 'refused',
@@ -195,7 +226,7 @@ export const startCodingTurn = action({
             organizationId: args.organizationId,
             threadId: args.threadId,
             userId: auth.userId,
-            deadlineAt: Date.now() + CODING_TURN_DEADLINE_MS,
+            deadlineAt,
           },
         );
       }
@@ -206,14 +237,16 @@ export const startCodingTurn = action({
       console.error('[coding-turn] kick failed:', error);
       await finalizeCodingTurn(ctx, {
         scope,
+        ...(sessionId !== undefined ? { sessionId, execId } : {}),
         messageId,
         providerSlug: model.providerSlug,
         gatewayModel: routing.gatewayModel,
         fallbackText: '',
         errored: true,
+        reason: `The coding agent could not run: ${reason}`,
       });
-      // The finalize wrote a generic "ended without a reply"; make the seam's
-      // toast carry the real cause.
+      // The finalize wrote the reason under the message; surface it on the seam
+      // toast too.
       return {
         status: 'refused',
         reason: `The coding agent could not run: ${reason}`,

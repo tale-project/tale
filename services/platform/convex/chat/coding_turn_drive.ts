@@ -53,9 +53,13 @@ export const driveCodingTurn = internalAction({
     // Past the deadline → cut the exec and settle with a reason rather than
     // let a hung harness reschedule forever.
     if (Date.now() > args.deadlineAt) {
-      await sessionCancelExec(sessionId, coding.execId).catch(() => undefined);
+      await sessionCancelExec(sessionId, coding.execId).catch((err) =>
+        console.warn('[coding-turn] deadline exec cancel failed:', err),
+      );
       await finalizeCodingTurn(ctx, {
         scope,
+        sessionId,
+        execId: coding.execId,
         messageId,
         providerSlug: coding.providerSlug,
         gatewayModel: coding.gatewayModel,
@@ -90,6 +94,8 @@ export const driveCodingTurn = internalAction({
     } else if (outcome.kind === 'gone') {
       await finalizeCodingTurn(ctx, {
         scope,
+        sessionId,
+        execId: coding.execId,
         messageId,
         providerSlug: coding.providerSlug,
         gatewayModel: coding.gatewayModel,

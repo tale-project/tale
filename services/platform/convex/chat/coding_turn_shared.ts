@@ -40,7 +40,12 @@ import {
   sessionIsAlive,
   sessionStageFiles,
   type SessionExecBody,
+  type SessionExecResult,
 } from '../node_only/sandbox/helpers/session_client';
+import {
+  getVirtualKeySpendCents,
+  revokeVirtualKey,
+} from '../node_only/sandbox/llm_gateway_admin';
 import { sessionIdForUser, userOwnerId } from '../sandbox/session_naming';
 
 /** Where a conversation's equipped skills land inside the session. */
@@ -191,21 +196,107 @@ export async function stageSkills(
   ].join('\n');
 }
 
-/** Provision the session gateway key for a model, returning the plaintext
- * token (inject into the exec env; never persist). */
+/**
+ * Provision AND TRACK the session gateway key for a turn. Returns the plaintext
+ * token (inject into the exec env; never persist) and the gateway key id.
+ *
+ * The keyId is the whole point: it is persisted two ways so the VK is always
+ * revocable, closing the per-turn credential leak. A `sandboxSessionTokens` row
+ * (hash + scope + turn-deadline expiry) lets session teardown/destroy revoke it;
+ * the caller also stamps the id on the turn's op row (`mintedKeyId`) so the
+ * per-turn finalize and the recovery watchdog revoke it the instant the turn
+ * settles. The plaintext token itself is never stored — only its sha256 hash.
+ */
 export async function provisionTurnGatewayToken(
   ctx: ActionCtx,
   scope: CodingTurnScope,
   sessionId: string,
   model: { providerSlug: string; modelId: string },
-): Promise<string> {
+  meta: { harness: string; gatewayModel: string; expiresAt: number },
+): Promise<{ token: string; keyId: string }> {
   const key = await provisionSessionGatewayKey(ctx, {
     organizationId: scope.organizationId,
     sessionId,
     allowedModels: [model],
     budgetCents: TURN_BUDGET_CENTS,
   });
-  return key.token;
+  await ctx.runMutation(internal.sandbox.session_mutations.insertSessionToken, {
+    organizationId: scope.organizationId,
+    sessionId,
+    tokenHash: key.keyHash,
+    llmGatewayKeyId: key.keyId,
+    scope: {
+      agentKind: meta.harness,
+      allowedModels: [meta.gatewayModel],
+      integrationGrants: [],
+      toolGrants: [],
+      budgetCents: TURN_BUDGET_CENTS,
+      threadId: scope.threadId,
+      userId: scope.userId,
+    },
+    expiresAt: meta.expiresAt,
+  });
+  return { token: key.token, keyId: key.keyId };
+}
+
+/**
+ * Open (or re-stamp) the turn's op row — the single source of truth the
+ * recovery watchdog, the Settings fleet page, and the per-turn finalize all
+ * read. Written `running` at turn start with the durable finalize context
+ * (`mintedKeyId` to revoke, `deadlineMs`, the streamed-into message, usage
+ * attribution) and a fresh heartbeat. Idempotent: keyed by (sessionId, execId),
+ * later calls patch only the fields they carry.
+ */
+export async function openCodingOp(
+  ctx: ActionCtx,
+  args: {
+    scope: CodingTurnScope;
+    sessionId: string;
+    execId: string;
+    messageId: Id<'messages'>;
+    providerSlug: string;
+    gatewayModel: string;
+    streamId: string;
+    deadlineMs: number;
+    mintedKeyId?: string;
+  },
+): Promise<void> {
+  await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+    organizationId: args.scope.organizationId,
+    sessionId: args.sessionId,
+    threadId: args.scope.threadId,
+    execId: args.execId,
+    kind: 'agent-run',
+    status: 'running',
+    assistantMessageId: args.messageId,
+    userId: args.scope.userId,
+    modelRef: `${args.providerSlug}/${args.gatewayModel}`,
+    streamId: args.streamId,
+    deadlineMs: args.deadlineMs,
+    heartbeatAt: Date.now(),
+    ...(args.mintedKeyId !== undefined
+      ? { mintedKeyId: args.mintedKeyId }
+      : {}),
+  });
+}
+
+/** Bump the turn op row's heartbeat — proof of life for the recovery watchdog,
+ * mirroring the generation row's heartbeat. A no-op if the row is gone. */
+export async function heartbeatCodingOp(
+  ctx: ActionCtx,
+  scope: CodingTurnScope,
+  sessionId: string,
+  execId: string,
+): Promise<void> {
+  await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+    organizationId: scope.organizationId,
+    sessionId,
+    threadId: scope.threadId,
+    execId,
+    kind: 'agent-run',
+    status: 'running',
+    heartbeatAt: Date.now(),
+  });
 }
 
 /** Build the harness exec for a managed coding turn. */
@@ -351,8 +442,9 @@ export async function drainCodingWindow(
 
   const windowSignal = AbortSignal.timeout(DRAIN_WINDOW_MS);
   let exited = false;
+  let execResult: SessionExecResult | undefined;
   try {
-    await drainSessionExecResilient(
+    execResult = await drainSessionExecResilient(
       args.sessionId,
       body,
       windowSignal,
@@ -379,7 +471,9 @@ export async function drainCodingWindow(
   const ended = lastTurnEnded(events);
   const terminal = exited || ended !== undefined;
   if (!terminal) {
-    // Still running: heartbeat + let the next window continue.
+    // Still running: heartbeat BOTH the generation row (live-turn signal) and
+    // the op row (the recovery watchdog's staleness clock) + let the next
+    // window continue.
     await ctx.runMutation(
       internal.chat.generations.advanceCodingCursorInternal,
       {
@@ -388,17 +482,41 @@ export async function drainCodingWindow(
         lastSeq: 0,
       },
     );
+    await heartbeatCodingOp(ctx, args.scope, args.sessionId, args.execId).catch(
+      (err) => console.warn('[coding-turn] op heartbeat failed:', err),
+    );
     return { kind: 'continue' };
   }
 
   // A harness that lingers after its turn (held-open stdin) has ended the turn
   // but not the process — reap it so it can't hold the session.
   if (!exited && ended !== undefined) {
-    await sessionCancelExec(args.sessionId, args.execId).catch(() => undefined);
+    await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
+      console.warn('[coding-turn] linger reap failed:', err),
+    );
   }
+
+  // The exec terminated WITHOUT a `turn-ended` event: the harness crashed or was
+  // killed. Don't launder that into an empty success — carry the exit as an
+  // explicit failure reason (the agent's own `turn-ended.isError` wins when it
+  // exists; a bare crash is errored by definition).
+  const crashedNoResult = ended === undefined && exited;
+  const errored =
+    ended !== undefined ? ended.isError === true : crashedNoResult;
+  const crashReason = crashedNoResult
+    ? execResult?.errorMessage !== undefined && execResult.errorMessage !== ''
+      ? `The coding agent stopped: ${execResult.errorMessage}`
+      : `The coding agent exited unexpectedly${
+          typeof execResult?.exitCode === 'number'
+            ? ` (exit code ${execResult.exitCode})`
+            : ''
+        } without completing the turn.`
+    : undefined;
 
   await finalizeCodingTurn(ctx, {
     scope: args.scope,
+    sessionId: args.sessionId,
+    execId: args.execId,
     messageId: args.messageId,
     providerSlug: args.providerSlug,
     gatewayModel: args.gatewayModel,
@@ -406,20 +524,36 @@ export async function drainCodingWindow(
     fallbackText: text,
     usageTotals: ended?.usageTotals,
     resume: ended?.sessionId,
-    errored: ended?.isError === true,
+    errored,
+    ...(crashReason !== undefined ? { reason: crashReason } : {}),
+    ...(execResult?.exitCode != null ? { exitCode: execResult.exitCode } : {}),
+    ...(ended?.status !== undefined ? { agentResultStatus: ended.status } : {}),
   });
   return { kind: 'done' };
 }
 
 /**
- * Settle a coding turn: finalize the assistant message, meter usage, keep the
- * harness resume handle for the next turn, and delete the generation row. When
- * the turn errored with no text, the message carries the reason instead.
+ * Settle a coding turn EXACTLY ONCE: finalize the assistant message, meter
+ * usage, revoke the turn's gateway VK, stamp the op row terminal, keep the
+ * harness resume handle, and delete the generation row. When the turn errored
+ * with no text, the message carries the reason instead.
+ *
+ * The drain window, the deadline cut, a user cancel, and the recovery watchdog
+ * all race to finalize a turn; `claimSessionOpFinalize` is the OCC gate that
+ * elects one winner. Only the winner runs the charge-once side-effects (usage
+ * ledger + VK revoke + spend record) — re-running them would double-charge and
+ * (before this) leak the credential. A caller that LOST the race still unblocks
+ * the thread (idempotent generation delete) and returns.
  */
 export async function finalizeCodingTurn(
   ctx: ActionCtx,
   args: {
     scope: CodingTurnScope;
+    /** The session + exec this turn ran as — the op-row key for the finalize
+     * claim and VK revoke. Optional only for the degraded pre-op edge; the
+     * live paths always pass them. */
+    sessionId?: string;
+    execId?: string;
     messageId: Id<'messages'>;
     providerSlug: string;
     gatewayModel: string;
@@ -432,12 +566,45 @@ export async function finalizeCodingTurn(
     };
     resume?: string;
     errored: boolean;
-    /** An explicit failure reason (deadline, session gone) — shown under the
-     * message. Falls back to a generic note when the turn errored with no
+    /** An explicit failure reason (deadline, session gone, crash) — shown under
+     * the message. Falls back to a generic note when the turn errored with no
      * text. */
     reason?: string;
+    /** The harness exec's terminal exit code + the agent's self-reported status,
+     * stamped on the op row for the fleet page + the recovery watchdog. */
+    exitCode?: number;
+    agentResultStatus?: string;
   },
 ): Promise<void> {
+  // Elect the single finalizer. `won` is true only when an op row exists, was
+  // not yet finalized, and this call set `finalizedAt`. A `false` with an op row
+  // present means another path already settled the turn → do nothing but unblock
+  // the thread. A `false` with NO op row is the degraded pre-op edge → this call
+  // is the sole owner and finalizes without a per-turn revoke (the token row's
+  // teardown revoke is the backstop).
+  let won = true;
+  let mintedKeyId: string | undefined;
+  if (args.sessionId !== undefined && args.execId !== undefined) {
+    won = await ctx.runMutation(
+      internal.sandbox.session_mutations.claimSessionOpFinalize,
+      { sessionId: args.sessionId, execId: args.execId },
+    );
+    const op = await ctx.runQuery(
+      internal.sandbox.session_queries.getCodingOpForFinalize,
+      { sessionId: args.sessionId, execId: args.execId },
+    );
+    if (!won && op !== null) {
+      // Another path already finalized this turn — just make sure the thread is
+      // not left looking like it is still generating.
+      await ctx.runMutation(internal.chat.generations.endGenerationInternal, {
+        organizationId: args.scope.organizationId,
+        threadId: args.scope.threadId,
+      });
+      return;
+    }
+    mintedKeyId = op?.mintedKeyId;
+  }
+
   const haveText =
     (args.finalText !== undefined && args.finalText !== '') ||
     args.fallbackText !== '';
@@ -482,6 +649,43 @@ export async function finalizeCodingTurn(
       organizationId: args.scope.organizationId,
       threadId: args.scope.threadId,
       codingResume: args.resume,
+    });
+  }
+
+  // Revoke the turn's gateway VK — the close of the per-turn credential leak.
+  // Read the authoritative spend first (revoke deletes the key), record it on
+  // the op row for the fleet page, then delete the key and mark its token row.
+  if (won && mintedKeyId !== undefined && args.sessionId !== undefined) {
+    const spent = await getVirtualKeySpendCents(mintedKeyId);
+    if (spent !== null && args.execId !== undefined) {
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.recordSessionOpSpend,
+        { sessionId: args.sessionId, execId: args.execId, spentCents: spent },
+      );
+    }
+    await revokeVirtualKey(mintedKeyId).catch((err) =>
+      console.warn(`[coding-turn] revoke VK ${mintedKeyId} failed:`, err),
+    );
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.markSessionTokenRevokedByKeyId,
+      { sessionId: args.sessionId, llmGatewayKeyId: mintedKeyId },
+    );
+  }
+
+  // Stamp the op row terminal so the fleet page stops showing the turn as live
+  // and the recovery watchdog never re-touches it.
+  if (won && args.sessionId !== undefined && args.execId !== undefined) {
+    await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: args.scope.organizationId,
+      sessionId: args.sessionId,
+      threadId: args.scope.threadId,
+      execId: args.execId,
+      kind: 'agent-run',
+      status: args.errored ? 'failed' : 'completed',
+      ...(args.exitCode !== undefined ? { exitCode: args.exitCode } : {}),
+      ...(args.agentResultStatus !== undefined
+        ? { agentResultStatus: args.agentResultStatus }
+        : {}),
     });
   }
 

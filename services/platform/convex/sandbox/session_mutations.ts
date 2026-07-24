@@ -586,6 +586,32 @@ export const revokeTokensForSession = internalMutation({
 });
 
 /**
+ * Mark ONE session token revoked by its gateway key id (per-turn finalize).
+ * The coding turn revokes its own VK on the gateway the moment the turn
+ * settles; marking the matching token row keeps the table honest and stops a
+ * later session teardown from re-issuing a redundant gateway DELETE for a key
+ * that is already gone. Idempotent — an already-revoked or missing row no-ops.
+ */
+export const markSessionTokenRevokedByKeyId = internalMutation({
+  args: { sessionId: v.string(), llmGatewayKeyId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for await (const row of ctx.db
+      .query('sandboxSessionTokens')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (
+        row.llmGatewayKeyId === args.llmGatewayKeyId &&
+        row.revokedAt === undefined
+      ) {
+        await ctx.db.patch(row._id, { revokedAt: now });
+      }
+    }
+    return null;
+  },
+});
+
+/**
  * Delete all progress/op rows for a session. Called on teardown so a future
  * session reusing the same deterministic id (`thr-<threadId>`) can't inherit a
  * stale `agentSessionId` (the query also scopes by the new session's createdAt,
@@ -815,6 +841,9 @@ export const upsertSessionOp = internalMutation({
     ),
     agentSessionId: v.optional(v.string()),
     exitCode: v.optional(v.number()),
+    /** The agent's self-reported terminal status (turn-ended.status), preferred
+     * over a bare exit code by the recovery watchdog + fleet page. */
+    agentResultStatus: v.optional(v.string()),
     eventLogStorageId: v.optional(v.string()),
     // Durable-job fields (set by the external-agent turn + continuation).
     assistantMessageId: v.optional(v.string()),
@@ -857,6 +886,7 @@ export const upsertSessionOp = internalMutation({
       'liveTimeline',
       'agentSessionId',
       'exitCode',
+      'agentResultStatus',
       'eventLogStorageId',
       'assistantMessageId',
       'mintedKeyId',

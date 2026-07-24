@@ -91,6 +91,36 @@ export const latestAgentSessionId = internalQuery({
   },
 });
 
+/** The durable finalize context for one exec's op row (point lookup by
+ * (sessionId, execId)). The coding-turn finalize reads `mintedKeyId` here — its
+ * single source of truth for the gateway VK to revoke — so the same value the
+ * recovery watchdog reads from `listAbandonedAgentOps` also drives the live
+ * finalize, with no copy carried on the generation row. Null when the op row is
+ * gone (already reaped). */
+export const getCodingOpForFinalize = internalQuery({
+  args: { sessionId: v.string(), execId: v.string() },
+  returns: v.union(
+    v.object({
+      mintedKeyId: v.optional(v.string()),
+      finalizedAt: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (!row) return null;
+    return {
+      ...(row.mintedKeyId !== undefined && { mintedKeyId: row.mintedKeyId }),
+      ...(row.finalizedAt !== undefined && { finalizedAt: row.finalizedAt }),
+    };
+  },
+});
+
 /** Running ops for a thread, as {sessionId, execId} — the Stop path cancels
  * each one's exec in the sandbox. The external-agent turn writes
  * `sandboxSessionOps` (NOT the one-shot `sandboxExecutions` table that
