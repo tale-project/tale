@@ -19,11 +19,11 @@ import { BASE_URL } from './env';
  * `setup` project + `owner.json` storageState), which forced `workers: 1` /
  * `fullyParallel: false`: concurrent specs would have corrupted each other's
  * org state. Here each Playwright WORKER mints its own account + org once (via
- * the sign-up endpoint + create-org wizard), and every test in that worker runs
- * authenticated against that worker's private, fully-seeded org. Because the
- * hermetic stack seeds every new org from `TALE_CONFIG_DIR` (agent + mock
- * provider + prompt + workflow), N workers get N identical, isolated orgs with
- * zero per-test setup — so `fullyParallel: true` is safe and the cross-spec
+ * the sign-up endpoint + create-org wizard) and blocks until the backend's
+ * async post-create seeding (the "Getting started" starter project) has
+ * landed, then every test in that worker runs authenticated against that
+ * worker's private org. N workers get N identical, isolated orgs with zero
+ * per-test setup — so `fullyParallel: true` is safe and the cross-spec
  * shared-state flakiness is gone at the root.
  *
  * Specs that need NO org (auth / onboarding / the wizard-focus keyboard test)

@@ -1,23 +1,18 @@
 /**
- * Fixture content seeded into every org from `fixtures/config/default/`. These
- * are NOT translated UI copy — they are fixture literals (filenames /
- * display names), so they stay constants here (shared by the specs and the
- * worker-org bootstrap) rather than going through `t()`. Rename-safety lives in
- * one place.
+ * Backend-seeded starter content every fresh org receives from
+ * `convex/provisioning/seed_starter.ts` (scheduled by
+ * `auth.ts:afterCreateOrganization`, ~15s after create). These are product
+ * literals (not translated UI copy), so they stay constants here — shared by
+ * the specs and the worker-org bootstrap — rather than going through `t()`.
+ * Rename-safety lives in one place.
+ *
+ * The pre-rewrite fixture-config seeds (agent / provider / prompt / workflow
+ * under `fixtures/config/default/`) are gone as an org-seeding mechanism: the
+ * AI-backend rewrite's interim scaffolder copies only the domains registered
+ * in `lib/shared/config/registry.ts` (today `governance`), so none of those
+ * files ever reach a new org. The starter project is the one deterministic
+ * post-create artifact left to gate on.
  */
 
-/** Seeded agent — `fixtures/config/default/agents/assistant.json`. */
-export const SEEDED_AGENT_SLUG = 'assistant';
-export const SEEDED_AGENT_DISPLAY_NAME = 'E2E Assistant';
-
-/** Seeded org-custom AI provider — `fixtures/config/default/providers/e2e-mock.json`.
- * A custom (not shipped) connector, so it appears on the providers settings
- * page only AFTER the org scaffold copies the fixture — which is why the
- * worker bootstrap waits on it as the "scaffold complete" gate. */
-export const SEEDED_PROVIDER_DISPLAY_NAME = 'E2E Mock Provider';
-
-/** Seeded autoInstall prompt — `fixtures/config/default/prompts/summarize-text.json`. */
-export const SEEDED_PROMPT_TITLE = 'Summarize Text';
-
-/** Seeded start-only workflow — `fixtures/config/default/workflows/test.json`. */
-export const SEEDED_WORKFLOW_NAME = 'test';
+/** Seeded starter project — `seed_starter.ts` creates it for every new org. */
+export const STARTER_PROJECT_NAME = 'Getting started';

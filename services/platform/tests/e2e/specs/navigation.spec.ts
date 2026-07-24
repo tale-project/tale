@@ -3,7 +3,7 @@ import { type Locator, type Page } from '@playwright/test';
 import { TIMEOUT } from '../helpers/env';
 import { expect, test } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
-import { SEEDED_AGENT_DISPLAY_NAME, SEEDED_AGENT_SLUG } from '../helpers/seed';
+import { STARTER_PROJECT_NAME } from '../helpers/seed';
 
 /**
  * Cross-cutting navigation/routing the per-feature specs don't exercise:
@@ -75,12 +75,14 @@ function navCases(organizationId: string): readonly NavCase[] {
       anchor: (page) => page.getByText(t('documents.emptyState.title')).first(),
     },
     {
-      key: 'agents',
-      hrefSuffix: `/dashboard/${organizationId}/agents`,
-      urlPattern: /\/agents(?:[/?#]|$)/,
+      // The org-level agent roster (and its rail entry) is gone with the
+      // AI-backend rewrite; Automations is the rail's remaining list surface.
+      key: 'automations',
+      hrefSuffix: `/dashboard/${organizationId}/automations`,
+      urlPattern: /\/automations(?:[/?#]|$)/,
       anchor: (page) =>
         page
-          .getByRole('heading', { name: t('settings.agents.title'), level: 1 })
+          .getByRole('heading', { name: t('automations.title'), level: 2 })
           .filter({ visible: true })
           .first(),
     },
@@ -190,49 +192,54 @@ test.describe('navigation: settings rail → governance', () => {
 });
 
 test.describe('navigation: breadcrumbs', () => {
-  test('agent detail shows the breadcrumb trail and navigates up via the parent crumb', async ({
+  test('project detail shows the breadcrumb trail and navigates up via the parent crumb', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
 
-    // Deep-link into the seeded agent's detail page (param = filename basename).
-    await page.goto(
-      dashboardUrl(organizationId, `/agents/${SEEDED_AGENT_SLUG}`),
-    );
+    // Open the seeded starter project from the projects list (the worker
+    // bootstrap already gated on it existing). Row click navigates to the
+    // project detail. (The old target — the seeded agent's detail page — is
+    // gone with the org-level agent roster in the AI-backend rewrite.)
+    await page.goto(dashboardUrl(organizationId, '/projects'));
+    const starterRow = page
+      .getByRole('row')
+      .filter({ hasText: STARTER_PROJECT_NAME })
+      .first();
+    await expect(starterRow).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await starterRow.click();
+    await page.waitForURL(/\/projects\/[A-Za-z0-9]+(?:[/?#]|$)/, {
+      timeout: TIMEOUT.NAV,
+    });
 
-    // The breadcrumb parent ("Agents") is a real link; the leaf is the agent's
-    // display name. Both prove the trail rendered. Scope to the breadcrumb
-    // landmark: the side-nav rail also has an "Agents" link now (icon-only, but
-    // #2329 gave every rail link an `aria-label`), so a page-wide lookup hits a
-    // strict-mode collision. The breadcrumb nav is the unique container here.
-    const agentsCrumb = page
+    // The breadcrumb parent ("Projects") is a real link; the leaf is the
+    // project's name (the breadcrumb switcher). Both prove the trail rendered.
+    // Scope to the breadcrumb landmark: the side-nav rail also has a
+    // "Projects" link (icon-only with an `aria-label`), so a page-wide lookup
+    // hits a strict-mode collision.
+    const projectsCrumb = page
       .getByRole('navigation', { name: t('common.aria.breadcrumb') })
-      .getByRole('link', { name: t('settings.agents.title') });
-    await expect(agentsCrumb).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      .getByRole('link', { name: t('projects.title') });
+    await expect(projectsCrumb).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     // The breadcrumb trail (like all adaptive-header content) renders twice —
     // desktop strip + mobile slot — so the leaf appears once visibly and once
     // hidden; target the visible (desktop) copy.
     await expect(
-      page
-        .getByText(SEEDED_AGENT_DISPLAY_NAME)
-        .filter({ visible: true })
-        .first(),
+      page.getByText(STARTER_PROJECT_NAME).filter({ visible: true }).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
-    // Clicking the parent crumb navigates up to the agents list.
-    await agentsCrumb.click();
-    await page.waitForURL(/\/agents(?:[/?#]|$)/, { timeout: TIMEOUT.NAV });
+    // Clicking the parent crumb navigates up to the projects list.
+    await projectsCrumb.click();
+    await page.waitForURL(/\/projects(?:[/?#]|$)/, { timeout: TIMEOUT.NAV });
     await expect(
       page
-        .getByRole('heading', { name: t('settings.agents.title'), level: 1 })
-        .filter({ visible: true })
+        .getByRole('button', { name: t('projects.list.createButton') })
         .first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // Confirm we left the detail route. The "Agents" crumb links to `/agents`,
-    // which renders the roster directly (no redirect).
+    // Confirm we left the detail route (the crumb links to the bare list).
     await expect(page).toHaveURL(
-      new RegExp(`/dashboard/${organizationId}/agents$`),
+      new RegExp(`/dashboard/${organizationId}/projects$`),
     );
   });
 });

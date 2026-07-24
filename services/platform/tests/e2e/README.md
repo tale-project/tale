@@ -4,7 +4,9 @@ Full-app tests for the platform, driven by [`@playwright/test`](https://playwrig
 
 ## Parallel by construction: per-worker isolated orgs
 
-The suite runs `fullyParallel` with multiple workers. The enabler is a **worker-scoped isolated-org fixture** ([`helpers/fixtures.ts`](helpers/fixtures.ts)): each Playwright worker signs up its own throwaway owner account and creates its own organization once, then every test in that worker runs authenticated against that worker's private, fully-seeded org. Because the hermetic stack seeds every new org from `TALE_CONFIG_DIR` (agent + mock provider + prompt + workflow), N workers get N identical, isolated orgs with zero per-test setup — so concurrent specs can never corrupt each other's state.
+The suite runs `fullyParallel` with multiple workers. The enabler is a **worker-scoped isolated-org fixture** ([`helpers/fixtures.ts`](helpers/fixtures.ts)): each Playwright worker signs up its own throwaway owner account and creates its own organization once, then every test in that worker runs authenticated against that worker's private org. The bootstrap blocks on the backend's async post-create seeding (the "Getting started" starter project from `convex/provisioning/seed_starter.ts`), so N workers get N identical, isolated orgs with zero per-test setup — and the starter content can never materialize mid-suite under a spec that counts projects.
+
+> **AI-backend rewrite:** org seeding from `TALE_CONFIG_DIR` (agent + custom provider + prompt + workflow) is OFF. The interim scaffolder copies only the domains registered in `lib/shared/config/registry.ts` (today `governance`), so nothing under `fixtures/config/default/` besides governance reaches a new org. Specs that need a chat turn are `test.fixme`d until an e2e provider-credential harness exists — the composer disables Send without an org credential, and the connector schema is https-only while the mock gateway is loopback http.
 
 - **Authenticated specs** `import { test, expect } from '../helpers/fixtures'` and read the org from the `org` fixture: `test('…', async ({ page, org }) => { const { organizationId } = org; … })`. The fixture also supplies `storageState`, so the page is already signed in.
 - **Unauthenticated specs** (anything testing sign-up/in, the login form, the create-org wizard, or a second user — `auth`, `auth-account`, `onboarding`, the member side of `rbac`) `import { test, expect } from '@playwright/test'` with an empty `storageState`, so they never trigger the worker bootstrap.
@@ -21,45 +23,39 @@ CI shards the suite across four runners (`--shard=i/4`); each shard boots its ow
 | [`helpers/auth.ts`](helpers/auth.ts)         | `signUpViaApi` / `signInViaApi`, `uniqueCredentials`, `createOrgViaWizard`, `waitForSeededOrg`.                                                                                                                         |
 | [`helpers/forms.ts`](helpers/forms.ts)       | `reloadAndSettle` — reload then wait for a stable anchor before asserting the persisted field (never the transient toast).                                                                                              |
 | [`helpers/totp.ts`](helpers/totp.ts)         | Dependency-free RFC-6238 TOTP for the full 2FA flow.                                                                                                                                                                    |
-| [`helpers/seed.ts`](helpers/seed.ts)         | Seeded fixture names (agent / prompt / workflow).                                                                                                                                                                       |
+| [`helpers/seed.ts`](helpers/seed.ts)         | Backend-seeded starter-content names (the "Getting started" project — the org-ready gate).                                                                                                                              |
 | [`helpers/i18n.ts`](helpers/i18n.ts)         | `t('namespace.key')` — every visible label resolves from `messages/en.yml`; specs never hardcode UI strings.                                                                                                            |
 
 ## What runs
 
-| Spec                      | Flow                                                                                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth.spec.ts`            | Login: wrong-password error; valid login → dashboard                                                                                      |
-| `auth-account.spec.ts`    | Logout, change password, **full 2FA enroll→verify→login**, org switching + cross-org data isolation (throwaway accounts)                  |
-| `onboarding.spec.ts`      | Create-organization wizard → dashboard                                                                                                    |
-| `rbac.spec.ts`            | Owner adds a `member`; the member cannot see the admin-gated "Add member" control                                                         |
-| `chat-threads.spec.ts`    | Thread lifecycle (send → history → reopen → delete); prompt library lists the seeded prompt                                               |
-| `chat-advanced.spec.ts`   | Stop, regenerate branch, edit-message branch, copy-to-clipboard, multi-turn                                                               |
-| `chat-features.spec.ts`   | Feedback, export dialog, save-prompt-from-composer, selection → Quote                                                                     |
-| `chat-depth.spec.ts`      | Text attachment; create + open + revoke a share link                                                                                      |
-| `chat-scenarios.spec.ts`  | **Mock-only**: reasoning disclosure, `[[NEXT_STEPS]]` buttons, `request_human_input` card, arena two-model verdict, **provider-error UI** |
-| `search.spec.ts`          | Chat command palette finds a thread by message content                                                                                    |
-| `agents.spec.ts`          | List + open the seeded agent editor; create + delete a custom agent                                                                       |
-| `agent-editor.spec.ts`    | One throwaway agent (serial): instructions / tuning / starters / knowledge / tools save + reload                                          |
-| `projects.spec.ts`        | Create a project + task (board & list views), then delete                                                                                 |
-| `projects-depth.spec.ts`  | Project settings (rename + instructions); secrets CRUD; task live-edit across board ↔ list                                                |
-| `knowledge.spec.ts`       | CRUD for customer / product / vendor / knowledge-entry; **document upload → "Queued" for indexing**                                       |
-| `settings.spec.ts`        | Account name save/restore, org read-only anchor, providers list + drawer, provider display-name write/restore                             |
-| `settings-depth.spec.ts`  | Org rename, API key create/revoke, branding, personalization toggle, team CRUD                                                            |
-| `governance.spec.ts`      | Voice-output / system-prompt / run-code / content-safety toggles (save + restore); DSAR + legal-hold dialogs; logs tabs                   |
-| `workflow-editor.spec.ts` | Configure + save the seeded `test` workflow; run via the tester; **webhook-trigger fire → execution appears**                             |
-| `navigation.spec.ts`      | Side-nav between sections, settings → governance, breadcrumbs, browser back/forward                                                       |
-| `page-loads.spec.ts`      | Render-only routes (changelog, embedded `/docs` Swagger, metrics pages, redirects) in one sequential pass                                 |
-| `validation.spec.ts`      | Negative paths: invalid agent slug, empty project/team names, project cascade-delete typed-phrase gating                                  |
-| `preferences.spec.ts`     | Theme + locale switch (persist + restore), user-menu items                                                                                |
-| `list-behaviors.spec.ts`  | DataTable search-filter, pagination across pages                                                                                          |
-| `responsive.spec.ts`      | Mobile viewport: bottom tab bar + More sheet; mobile Save bar                                                                             |
-| `keyboard.spec.ts`        | Cmd/Ctrl+K command palette                                                                                                                |
+| Spec                         | Flow                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `auth.spec.ts`               | Login: wrong-password error; valid login → dashboard (throwaway accounts)                                          |
+| `auth-account.spec.ts`       | Logout, change password, **full 2FA enroll→verify→login**, org switching + cross-org data isolation                |
+| `onboarding.spec.ts`         | Create-organization wizard: name validation, slug preview, idempotent Back, Finish → new org dashboard             |
+| `rbac.spec.ts`               | Owner adds a `member`; the member cannot see the admin-gated "Add member" control                                  |
+| `boot-shell.spec.ts`         | Dashboard navigations arrive with the boot shell already injected, so the rail paints before any JS runs           |
+| `navigation.spec.ts`         | Rail-nav between sections, settings rail → governance, project breadcrumbs, back/forward history, 404 shell        |
+| `projects.spec.ts`           | Create a project + task (board & list views), status picker, then delete (cascades its tasks)                      |
+| `projects-depth.spec.ts`     | Project settings/rename, secrets CRUD, task live-edit across board ↔ list (throwaway project per flow)             |
+| `project-files-desk.spec.ts` | Project-scoped automation desk: install → desk tab → project-scoped periods/jobs isolation                         |
+| `settings.spec.ts`           | Account display-name round-trip; AI-providers page lists shipped connectors + offers the add-credential dialog     |
+| `settings-depth.spec.ts`     | Org rename, API key create/revoke, branding, personalization toggle, team CRUD (each restores or deletes)          |
+| `governance.spec.ts`         | Governance toggles/edits (flip → save → reload → assert persisted → restore); DSAR + legal-hold dialogs; logs tabs |
+| `metrics.spec.ts`            | Settings → Metrics render-smoke across all tabs: headers, toolbars, empty states                                   |
+| `return-loops.spec.ts`       | Notification bell expand-to-modal + Recent⇄Priority sort; personal notification preferences round-trip             |
+| `page-loads.spec.ts`         | Render-only routes (changelog, embedded API docs) + legacy redirects, in one sequential pass                       |
+| `validation.spec.ts`         | Negative paths: empty names, project cascade-delete typed-phrase gating (opens, asserts, cancels)                  |
+| `preferences.spec.ts`        | Theme + UI-language switch (persist + restore), user-menu items                                                    |
+| `responsive.spec.ts`         | Mobile viewport: bottom tab bar + More sheet, mobile Save bar                                                      |
+| `keyboard.spec.ts`           | Keyboard/focus: the onboarding wizard's auto-focus on the active step                                              |
+| `search.spec.ts`             | Chat command palette finds a thread by message content — **`test.fixme`** pending the e2e provider harness         |
 
 ## Determinism: the mock gateway
 
-By default the stack boots with `TALE_CONFIG_DIR` pointed at [`fixtures/config`](fixtures/config), which seeds each org with one agent ("E2E Assistant", carrying the `request_human_input` tool) and one provider whose `baseUrl` targets the [`lib/mocks`](../../../packages/mocks/README.md) gateway (port 4141). That one gateway mocks every third-party API offline — the canned chat SSE override plus Prism-mocked AI endpoints (embeddings / image / transcription / TTS) and the integration connector APIs. Chat assertions check the canned reply — no live LLM, no API keys, no cost. Integration connectors are redirected to the gateway via `TALE_MOCK_INTEGRATIONS_BASE`, so [`specs/integrations.spec.ts`](specs/integrations.spec.ts) connects real connectors offline; the fixtures' `default/integrations` is a symlink to the real `builtin-configs/integrations` catalog (no duplication).
+The stack boots with `TALE_CONFIG_DIR` pointed at [`fixtures/config`](fixtures/config) and every third-party API redirected to the [`lib/mocks`](../../lib/mocks/README.md) gateway (port 4141, booted by `playwright.config.ts`): a canned chat SSE override plus Prism-mocked AI endpoints (embeddings / image / transcription / TTS) and the integration connector APIs (`TALE_MOCK_INTEGRATIONS_BASE`). No live LLM, no API keys, no cost. **Under the AI-backend rewrite the org-seeding half of this is dormant** — the fixture agent/provider/prompt/workflow no longer reach a new org (see the note above), so the gateway currently serves only what the specs reach without an org credential.
 
-**Scenario triggers** (keyword-gated, additive — a message with no trigger gets the plain canned reply byte-for-byte, so default-path specs are unaffected): `e2e:reasoning` → `reasoning_content` deltas (thinking timeline); `e2e:nextsteps` → a `[[NEXT_STEPS]]` block; `e2e:humaninput` → a `request_human_input` tool call; `e2e:error` → an HTTP 500 on the generation call only (router/title still succeed), so the chat surfaces its provider-failure UI. `chat-scenarios.spec.ts` depends on these and `test.skip`s itself outside mock mode.
+**Scenario triggers** (keyword-gated, additive — a message with no trigger gets the plain canned reply byte-for-byte, so default-path specs are unaffected): `e2e:reasoning` → `reasoning_content` deltas (thinking timeline); `e2e:nextsteps` → a `[[NEXT_STEPS]]` block; `e2e:humaninput` → a `request_human_input` tool call; `e2e:error` → an HTTP 500 on the generation call only (router/title still succeed), so the chat surfaces its provider-failure UI. The spec that drove these (`chat-scenarios.spec.ts`) was removed with the rewrite; the triggers stay in the gateway for the specs that will re-enter once chat turns are testable again.
 
 Two env vars (pushed into the Convex deployment by `scripts/sync-convex-env-from-dotenv.ts`): `TALE_PROVIDER_KEY_E2E_MOCK` (any non-empty value) and `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` (the host policy blocks loopback `baseUrl`s by default).
 
@@ -70,7 +66,7 @@ Two env vars (pushed into the Convex deployment by `scripts/sync-convex-env-from
 bun run --filter @tale/platform test:e2e
 
 # A subset, with a chosen worker count:
-cd services/platform && E2E_WORKERS=2 bunx playwright test specs/chat-threads.spec.ts specs/settings.spec.ts
+cd services/platform && E2E_WORKERS=2 bunx playwright test specs/settings.spec.ts specs/navigation.spec.ts
 
 # Headed/debug mode:
 bun run --filter @tale/platform test:e2e:ui
@@ -81,7 +77,7 @@ bunx playwright show-report services/platform/playwright-report
 
 First run: install the browser once with `bunx playwright install chromium`.
 
-`reuseExistingServer` applies outside CI: if you already have `bun run dev` on :3000, the suite reuses it — **your stack's config dir and provider keys**, not the fixtures. In that mode run with `E2E_MOCK_LLM=0` so the chat specs assert the round-trip instead of the canned text (canned-content and `chat-scenarios` assertions are skipped), and a real provider key is required. The default (mock) mode cannot pass against a reused dev stack — the worker bootstrap fails fast with a diagnosis instead of a wall of bare locator timeouts.
+`reuseExistingServer` applies outside CI: if you already have `bun run dev` on :3000, the suite reuses it — **your stack's config dir, deployment and provider keys**, not the fixtures. Every E2E write then lands in your dev data, so prefer the isolated-worktree recipe below; the worker bootstrap names the reuse trap in its failure message rather than leaving a bare locator timeout.
 
 ### Isolated stack next to a running dev stack
 

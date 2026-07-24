@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 
 import { BASE_URL, TIMEOUT } from './env';
 import { t } from './i18n';
-import { SEEDED_PROVIDER_DISPLAY_NAME } from './seed';
+import { STARTER_PROJECT_NAME } from './seed';
 
 /**
  * Programmatic account + organization bootstrap against the Better Auth HTTP
@@ -184,63 +184,38 @@ export async function createOrgViaWizard(
 }
 
 /**
- * Block until the org has finished scaffolding (the Better Auth
- * `afterCreateOrganization` hook copies `fixtures/config/default/` into the new
- * org's config dir asynchronously). The deterministic "scaffold complete" gate
- * is the seeded org-custom AI provider appearing on the providers settings
- * page: it is a CUSTOM connector (not a shipped one), so it can only render
- * once the scaffold has copied the fixture — chat and workflow specs depend on
- * that seeded config existing. (The old gate — a seeded roster agent on
- * `/dashboard/{org}/agents` — is gone with the agent roster and its route in
- * the AI-backend rewrite.)
+ * Block until the org's async post-create hooks have landed. The
+ * deterministic "org ready" gate is the backend-seeded starter project
+ * (`seed_starter.ts`, scheduled ~15s after create) appearing in the projects
+ * list. Gating on it does two jobs: it proves the `afterCreateOrganization`
+ * pipeline ran to its last step, and it stops the starter content from
+ * materializing MID-SUITE under a spec that counts or manipulates projects.
+ * (The old gate — a seeded org-custom AI provider on the providers settings
+ * page — is gone: the AI-backend rewrite's interim scaffolder seeds only the
+ * domains registered in `lib/shared/config/registry.ts`, which no longer
+ * include `providers`, so no fixture provider can ever appear.)
  */
 export async function waitForSeededOrg(
   page: Page,
   organizationId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${organizationId}/settings/providers`);
+  await page.goto(`/dashboard/${organizationId}/projects`);
 
-  // The providers catalog loads via a NON-reactive Convex action
-  // (`listConnectorCatalogs`), so it fires once on mount and never refetches on
-  // its own. On a cold backend the first org can scaffold (the async
-  // `afterCreateOrganization` hook copying `fixtures/config/default/`) *after*
-  // that initial fire, leaving the custom provider absent with nothing to
-  // invalidate it — it then never materializes within a single load.
-  // Reload-and-retry so a later attempt re-fires the action once scaffolding
-  // has landed, instead of staking the whole suite's bootstrap on winning a
-  // cold-start race in one shot.
-  const seededRow = page
-    .getByRole('heading', { name: SEEDED_PROVIDER_DISPLAY_NAME })
-    .first();
-  // CI cold boot (Convex pre-warm + first push) can exceed 90s before the stack
-  // is READY; org scaffold is scheduled immediately after create but still
-  // races the first agents-list fetch. Extra reload attempts beat extending
-  // VISIBLE, which would slow every assertion in the suite.
-  const ATTEMPTS = 8;
-  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-    try {
-      await expect(seededRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-      return;
-    } catch (err) {
-      if (attempt === ATTEMPTS) {
-        // The seeded provider only exists when the stack seeds new orgs from
-        // tests/e2e/fixtures/config. The by-far most common way to get here is
-        // NOT a slow scaffold but the mock-mode/reuse trap: a dev stack was
-        // already serving this port, Playwright reused it
-        // (reuseExistingServer), and its orgs seed from THAT stack's config
-        // dir — no fixture provider can ever appear. Diagnose instead of
-        // leaving bare locator timeouts.
-        throw new Error(
-          `Seeded provider "${SEEDED_PROVIDER_DISPLAY_NAME}" never appeared for org ${organizationId} at ${BASE_URL}. ` +
-            `If a stack was already running on this port, Playwright reused it — with ITS config dir, not the E2E fixtures — ` +
-            `and the hermetic mock mode cannot pass against it. Either stop that stack (or run the suite from an isolated ` +
-            `worktree on another port) so the suite boots its own, or explicitly target a live stack with E2E_MOCK_LLM=0. ` +
-            `If Playwright DID boot this stack itself, org seeding is genuinely broken — check the [WebServer] logs. ` +
-            `See tests/e2e/README.md ("Running locally").`,
-          { cause: err },
-        );
-      }
-      await page.reload();
-    }
+  // The projects list is a reactive Convex query, so the row appears live
+  // once the (deliberately delayed) seeder commits — one generous wait beats
+  // reload loops. EXECUTION covers the 15s schedule delay plus a cold CI
+  // backend actually running the action.
+  const starterRow = page.getByText(STARTER_PROJECT_NAME).first();
+  try {
+    await expect(starterRow).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+  } catch (err) {
+    throw new Error(
+      `Starter project "${STARTER_PROJECT_NAME}" never appeared for org ${organizationId} at ${BASE_URL}. ` +
+        `The seeder (convex/provisioning/seed_starter.ts) is scheduled ~15s after org create; if it never lands, ` +
+        `the afterCreateOrganization pipeline is broken — check the [WebServer] logs for scheduler/action errors. ` +
+        `If a dev stack was already running on this port, Playwright reused it (reuseExistingServer) — inspect THAT ` +
+        `stack's logs, or stop it so the suite boots its own. See tests/e2e/README.md ("Running locally").`,
+      { cause: err },
+    );
   }
 }
