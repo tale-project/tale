@@ -68,7 +68,7 @@ describe('LogInPage – signed-out-for-inactivity notice (#1502)', () => {
 
     render(<LogInPage />);
 
-    expect(screen.getByRole('status')).toHaveTextContent(
+    expect(screen.getByRole('alert')).toHaveTextContent(
       'sessionIdle.signedOutNotice',
     );
     // The regular credential form stays available.
@@ -80,7 +80,7 @@ describe('LogInPage – signed-out-for-inactivity notice (#1502)', () => {
   it('shows no notice without the reason param', () => {
     render(<LogInPage />);
 
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('holds the trusted-headers auto-redirect behind an explicit continue after an idle sign-out', () => {
@@ -94,7 +94,7 @@ describe('LogInPage – signed-out-for-inactivity notice (#1502)', () => {
     render(<LogInPage />);
 
     // The notice and the click-through render instead of a silent re-auth.
-    expect(screen.getByRole('status')).toHaveTextContent(
+    expect(screen.getByRole('alert')).toHaveTextContent(
       'sessionIdle.signedOutNotice',
     );
     expect(

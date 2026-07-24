@@ -33,6 +33,14 @@ const fixtures = vi.hoisted(() => ({
   connectorsError: null as unknown,
 }));
 
+// The MCP endpoint section (moved onto this page with the integrations-page
+// rework) renders the deployment's MCP URL via `useSiteUrl`, which needs the
+// app-level SiteUrlProvider. Its content is not this suite's concern — the
+// connector sections are — so stub it at the module boundary like the hooks.
+vi.mock('./mcp-endpoint-section', () => ({
+  McpEndpointSection: () => <section data-testid="mcp-endpoint-section" />,
+}));
+
 vi.mock('../hooks/queries', () => ({
   useIntegrationConnectors: () => ({
     data: fixtures.connectors,

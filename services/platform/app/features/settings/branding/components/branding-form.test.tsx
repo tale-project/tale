@@ -159,7 +159,9 @@ describe('BrandingForm', () => {
     render(<BrandingForm {...defaultProps} />);
 
     expect(
-      screen.getByText('Upload your organization logo'),
+      screen.getByText(
+        'Upload your organization logo (SVG preferred; raster images at least 64×64 pixels)',
+      ),
     ).toBeInTheDocument();
   });
 
