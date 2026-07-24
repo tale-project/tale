@@ -15,6 +15,12 @@ export function yamlImports(): Plugin {
     name: 'tale:yaml-imports',
     transform(code, id) {
       if (!/\.ya?ml(\?.*)?$/.test(id)) return null;
+      // Idempotent: a `.yml` id can pass through two instances of this plugin
+      // when a Storybook build both inherits the app's vite config AND gets
+      // the shared `defineStorybookMain` copy. The first turns YAML into an
+      // `export default` module; the second must not re-parse that JS as
+      // YAML. Skip anything already transformed.
+      if (/^\s*export default\b/.test(code)) return null;
       return {
         code: `export default ${JSON.stringify(parse(code))};`,
         map: null,
