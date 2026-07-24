@@ -15,9 +15,11 @@
  * streams into the `messages`/`generations` rows the client subscribes to.
  *
  * V1 serves the MANAGED credential path (org provider credentials reach the
- * container only as a session-scoped gateway key). Subscription credentials
- * and connector (MCP) bridging are deferred; the picked connectors are stored
- * on the thread but not yet mounted.
+ * container only as a session-scoped gateway key). The agent's equipped
+ * connectors (project binding ∪ conversation picks) become the token's
+ * integration grants, and a turn with any mounts the in-image
+ * `tale-integrations-mcp` bridge — dispatch runs server-side, read-only in
+ * V1. Subscription credentials are still deferred.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -36,6 +38,7 @@ import {
   drainCodingWindow,
   ensureAgentSession,
   finalizeCodingTurn,
+  integrationsBridgeUrlForSessions,
   isManagedHarness,
   newExecId,
   openCodingOp,
@@ -175,6 +178,27 @@ export const startCodingTurn = action({
     let sessionId: string | undefined;
     try {
       sessionId = await ensureAgentSession(ctx, scope);
+      // A project thread runs its agent pre-equipped with the project's
+      // per-agent binding (the persistent baseline), unioned with the picks
+      // this conversation made in the composer — selecting one must never drop
+      // the other. The binding is keyed by harness slug. Resolved BEFORE the
+      // token mint: the connector union is the token's integration grant set.
+      const projectBinding = await ctx.runQuery(
+        internal.projects.internal_queries.getProjectAgentCapabilitiesForThread,
+        { threadId: args.threadId, agentId: args.harness },
+      );
+      const skillSlugs = [
+        ...new Set([
+          ...projectBinding.skills,
+          ...(thread.capabilities?.skills ?? []),
+        ]),
+      ];
+      const connectorSlugs = [
+        ...new Set([
+          ...projectBinding.connectors,
+          ...(thread.capabilities?.connectors ?? []),
+        ]),
+      ];
       const { token, keyId } = await provisionTurnGatewayToken(
         ctx,
         scope,
@@ -184,6 +208,7 @@ export const startCodingTurn = action({
           harness: args.harness,
           gatewayModel: routing.gatewayModel,
           expiresAt: deadlineAt,
+          integrationGrants: connectorSlugs,
         },
       );
       // Open the turn's op row now that the VK id exists: it is the single
@@ -201,20 +226,6 @@ export const startCodingTurn = action({
         deadlineMs: deadlineAt,
         mintedKeyId: keyId,
       });
-      // A project thread runs its agent pre-equipped with the project's
-      // per-agent binding (the persistent baseline), unioned with the picks
-      // this conversation made in the composer — selecting one must never drop
-      // the other. The binding is keyed by harness slug.
-      const projectBinding = await ctx.runQuery(
-        internal.projects.internal_queries.getProjectAgentCapabilitiesForThread,
-        { threadId: args.threadId, agentId: args.harness },
-      );
-      const skillSlugs = [
-        ...new Set([
-          ...projectBinding.skills,
-          ...(thread.capabilities?.skills ?? []),
-        ]),
-      ];
       const instructions = await stageSkills(ctx, scope, sessionId, skillSlugs);
       const exec = buildCodingExec({
         harness: args.harness,
@@ -224,6 +235,11 @@ export const startCodingTurn = action({
         prompt: args.userText,
         ...(thread.codingResume !== undefined
           ? { resume: thread.codingResume }
+          : {}),
+        // Mount the integrations MCP bridge only when the agent is actually
+        // equipped with connectors — an unequipped turn carries no bridge.
+        ...(connectorSlugs.length > 0
+          ? { bridgeUrl: integrationsBridgeUrlForSessions() }
           : {}),
         execId,
       });

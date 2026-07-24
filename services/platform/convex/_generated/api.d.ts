@@ -553,6 +553,7 @@ import type * as node_only_sandbox_browser_view from "../node_only/sandbox/brows
 import type * as node_only_sandbox_gateway_provisioning from "../node_only/sandbox/gateway_provisioning.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_stage_url from "../node_only/sandbox/helpers/stage_url.js";
+import type * as node_only_sandbox_integrations_bridge from "../node_only/sandbox/integrations_bridge.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
 import type * as node_only_sandbox_quiet_idle from "../node_only/sandbox/quiet_idle.js";
@@ -697,6 +698,7 @@ import type * as provisioning_seed_dev_user from "../provisioning/seed_dev_user.
 import type * as provisioning_seed_starter from "../provisioning/seed_starter.js";
 import type * as sandbox_admission from "../sandbox/admission.js";
 import type * as sandbox_dispatch_auth from "../sandbox/dispatch_auth.js";
+import type * as sandbox_integrations_http from "../sandbox/integrations_http.js";
 import type * as sandbox_quota_policy from "../sandbox/quota_policy.js";
 import type * as sandbox_session_mutations from "../sandbox/session_mutations.js";
 import type * as sandbox_session_naming from "../sandbox/session_naming.js";
@@ -1379,6 +1381,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/gateway_provisioning": typeof node_only_sandbox_gateway_provisioning;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/stage_url": typeof node_only_sandbox_helpers_stage_url;
+  "node_only/sandbox/integrations_bridge": typeof node_only_sandbox_integrations_bridge;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;
   "node_only/sandbox/quiet_idle": typeof node_only_sandbox_quiet_idle;
@@ -1523,6 +1526,7 @@ declare const fullApi: ApiFromModules<{
   "provisioning/seed_starter": typeof provisioning_seed_starter;
   "sandbox/admission": typeof sandbox_admission;
   "sandbox/dispatch_auth": typeof sandbox_dispatch_auth;
+  "sandbox/integrations_http": typeof sandbox_integrations_http;
   "sandbox/quota_policy": typeof sandbox_quota_policy;
   "sandbox/session_mutations": typeof sandbox_session_mutations;
   "sandbox/session_naming": typeof sandbox_session_naming;

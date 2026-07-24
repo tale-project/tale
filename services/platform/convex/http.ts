@@ -57,6 +57,10 @@ import {
   deleteProduct,
 } from './products/rest_api';
 import {
+  integrationsExecuteHandler,
+  integrationsStatusHandler,
+} from './sandbox/integrations_http';
+import {
   scimGroupResourceHandler,
   scimGroupsHandler,
   scimOptionsHandler,
@@ -701,9 +705,21 @@ http.route({
   handler: mcpMethodNotAllowed,
 });
 
-// The in-sandbox capability bridge replaces the old
-// /api/integrations/{execute,status} + /api/tools/{execute,status} pairs with
-// the unified capability dispatch (search/invoke), still VK-bearer-authed.
+// The in-sandbox integrations bridge: the platform end of the baked
+// `tale-integrations-mcp` MCP server, VK-bearer-authed against the session
+// token row (org + grants come from the row, never the body). Read-only in
+// V1; the /api/tools/{execute,status} pair (workspace tools) is not
+// registered yet — the shipped bridge 404s on it gracefully.
+http.route({
+  path: '/api/integrations/execute',
+  method: 'POST',
+  handler: integrationsExecuteHandler,
+});
+http.route({
+  path: '/api/integrations/status',
+  method: 'POST',
+  handler: integrationsStatusHandler,
+});
 
 // /api/chat-stream (GET+OPTIONS) re-registers with the chat
 // v2 streaming rebuild.

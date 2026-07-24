@@ -91,6 +91,16 @@ export function gatewayBaseUrlForSessions(): string {
   return url.replace(/\/$/, '');
 }
 
+/** The integrations-bridge base URL as a session's CONTAINER reaches it — the
+ * platform HTTP-actions origin over the sandbox network alias (same contract
+ * as the staging callback), plus the bridge's route prefix. */
+export function integrationsBridgeUrlForSessions(): string {
+  const origin = (
+    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://convex:3211'
+  ).replace(/\/$/, '');
+  return `${origin}/api/integrations`;
+}
+
 /**
  * Ensure the caller's coding sandbox session exists with the AGENT profile.
  *
@@ -237,7 +247,14 @@ export async function provisionTurnGatewayToken(
   scope: CodingTurnScope,
   sessionId: string,
   model: { providerSlug: string; modelId: string },
-  meta: { harness: string; gatewayModel: string; expiresAt: number },
+  meta: {
+    harness: string;
+    gatewayModel: string;
+    expiresAt: number;
+    /** Integration slugs this turn's agent is equipped with — the bridge's
+     * grant set, read back from the token row on every dispatch. */
+    integrationGrants?: readonly string[];
+  },
 ): Promise<{ token: string; keyId: string }> {
   const key = await provisionSessionGatewayKey(ctx, {
     organizationId: scope.organizationId,
@@ -253,7 +270,7 @@ export async function provisionTurnGatewayToken(
     scope: {
       agentKind: meta.harness,
       allowedModels: [meta.gatewayModel],
-      integrationGrants: [],
+      integrationGrants: [...(meta.integrationGrants ?? [])],
       toolGrants: [],
       budgetCents: TURN_BUDGET_CENTS,
       threadId: scope.threadId,
@@ -344,6 +361,9 @@ export function buildCodingExec(args: {
   prompt: string;
   resume?: string;
   execId: string;
+  /** When set, mount the in-image integrations MCP bridge pointed here —
+   * only for turns whose agent is equipped with at least one connector. */
+  bridgeUrl?: string;
 }): HarnessExec {
   if (!isHarnessSlug(args.harness)) {
     throw new Error(`Unknown coding agent "${args.harness}".`);
@@ -363,6 +383,9 @@ export function buildCodingExec(args: {
     ...(args.resume !== undefined ? { resume: args.resume } : {}),
     posture: 'act',
     ...(args.instructions !== '' ? { instructions: args.instructions } : {}),
+    ...(args.bridgeUrl !== undefined
+      ? { mcp: { bridgeUrl: args.bridgeUrl } }
+      : {}),
     execId: args.execId,
   });
 }
