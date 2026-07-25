@@ -96,7 +96,7 @@ Eine Automatisierung ohne live geschaltete Version lässt sich überhaupt nicht 
 
 ## Was einen Lauf startet
 
-Ein Trigger sagt, was eine Automatisierung starten darf, und es gibt genau vier Arten: einen **schedule** (ein Cron-Ausdruck, gelesen in einer benannten IANA-Zeitzone), einen **webhook** (eine eingehende URL, geschützt durch ein Token), ein **event** (der Name eines Plattform-Ereignisses) und einen **api-key**-Aufruf (eine ausdrückliche programmatische Anfrage).
+Ein Trigger sagt, was eine Automatisierung starten darf, und es gibt genau drei Arten: einen **schedule** (ein Cron-Ausdruck, gelesen in einer benannten IANA-Zeitzone), einen **webhook** (eine eingehende URL, geschützt durch ein Token) und ein **event** (der Name eines Plattform-Ereignisses).
 
 Ein Trigger hängt am **Namen** der Automatisierung, nie an einer Version. Eine neue Version live zu schalten macht deshalb nie eine Webhook-URL ungültig, auf die ein externes System angewiesen ist, und wirft nie einen Zeitplan weg, auf den sich jemand verlässt. Jeder Trigger lässt sich aus- und wieder einschalten, ohne verloren zu gehen, und jeder hält fest, wann der Scheduler zuletzt auf ihn reagiert hat. [Workflow-Trigger](/de/platform/automations/triggers) behandelt, was jede Art in den Lauf trägt.
 

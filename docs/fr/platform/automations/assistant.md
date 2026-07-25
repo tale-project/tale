@@ -13,7 +13,7 @@ Le document de l’automatisation est la seule pièce à laquelle l’assistant 
 
 Les compétences, les intégrations et les vues intégrées n’ont aucun outil d’édition : l’assistant écrit la définition selon la compétence d’écriture correspondante et te dit exactement où l’appliquer — Paramètres > Intégrations pour un identifiant, la page de l’automatisation elle-même pour une vue. Installer et configurer fonctionnent pareil : il parcourt la checklist de préparation en nommant ce qui reste à connecter et ce qui reste à activer, plutôt que de faire la connexion lui-même.
 
-La même frontière vaut pour les déclencheurs. L’assistant peut te dire quelle planification, quel webhook, quel événement ou quel déclencheur par clé d’API porte une automatisation et ce que chacun enverrait dans une exécution, et il peut te rédiger celui que tu veux — mais la décision d’exposer une automatisation au monde extérieur reste humaine. [Déclencheurs de workflow](/fr/platform/automations/triggers) couvre ce que fait chaque sorte.
+La même frontière vaut pour les déclencheurs. L’assistant peut te dire quelle planification, quel webhook ou quel événement porte une automatisation comme déclencheur et ce que chacun enverrait dans une exécution, et il peut te rédiger celui que tu veux — mais la décision d’exposer une automatisation au monde extérieur reste humaine. [Déclencheurs d’automatisation](/fr/platform/automations/triggers) couvre ce que fait chaque sorte.
 
 ## Trouver ce qui existe déjà
 

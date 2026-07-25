@@ -96,7 +96,7 @@ An automation with no deployed version cannot be started at all — not by a tri
 
 ## What starts a run
 
-A trigger says what is allowed to start an automation, and there are exactly four kinds: a **schedule** (a cron expression read in a named IANA timezone), a **webhook** (an inbound URL guarded by a token), an **event** (a platform event name), and an **api-key** call (an explicit programmatic request).
+A trigger says what is allowed to start an automation, and there are exactly three kinds: a **schedule** (a cron expression read in a named IANA timezone), a **webhook** (an inbound URL guarded by a token), and an **event** (a platform event name).
 
 A trigger binds to the automation's **name**, never to a version. Deploying a new version therefore never invalidates a webhook URL an external system depends on, and never drops a schedule someone is relying on. Each trigger can be switched off and back on without being lost, and each records when the scheduler last acted on it. [Workflow triggers](/platform/automations/triggers) covers what each kind carries into the run.
 

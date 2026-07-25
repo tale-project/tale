@@ -96,7 +96,7 @@ Une automatisation sans version en service ne peut pas être lancée du tout —
 
 ## Ce qui lance une exécution
 
-Un déclencheur dit ce qui a le droit de lancer une automatisation, et il en existe exactement quatre sortes : un **schedule** (une expression cron lue dans un fuseau IANA nommé), un **webhook** (une URL entrante protégée par un token), un **event** (le nom d’un événement de la plateforme) et un appel **api-key** (une demande programmatique explicite).
+Un déclencheur dit ce qui a le droit de lancer une automatisation, et il en existe exactement trois sortes : un **schedule** (une expression cron lue dans un fuseau IANA nommé), un **webhook** (une URL entrante protégée par un token) et un **event** (le nom d’un événement de la plateforme).
 
 Un déclencheur se rattache au **nom** de l’automatisation, jamais à une version. Mettre une nouvelle version en service n’invalide donc jamais une URL de webhook dont dépend un système externe, et ne fait jamais disparaître une planification sur laquelle quelqu’un compte. Chaque déclencheur s’éteint et se rallume sans être perdu, et chacun retient la dernière fois que le planificateur a agi dessus. [Déclencheurs de workflow](/fr/platform/automations/triggers) détaille ce que chaque sorte emporte dans l’exécution.
 

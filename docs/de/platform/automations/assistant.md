@@ -13,7 +13,7 @@ Das Dokument der Automatisierung ist der eine Bestandteil, auf den der Assistent
 
 Für Skills, Integrationen und mitgelieferte Ansichten gibt es überhaupt kein Editier-Werkzeug: Der Assistent schreibt die Definition im richtigen Format und sagt dir genau, wo du sie anwendest — Einstellungen > Integrationen für eine Anmeldung, die eigene Seite der Automatisierung für eine Ansicht. Installation und Einrichtung laufen genauso: Er geht die Einrichtungs-Checkliste mit dir durch und benennt, was noch verbunden und was noch aktiviert werden muss, statt selbst zu verbinden.
 
-Dieselbe Grenze gilt für Trigger. Der Assistent kann dir sagen, welchen Zeitplan, welchen Webhook, welches Ereignis oder welchen API-Key-Trigger eine Automatisierung trägt und was jeder davon in einen Lauf schicken würde, und er kann dir den gewünschten Trigger genau ausformulieren — aber die Entscheidung, eine Automatisierung nach außen freizugeben, bleibt eine menschliche. [Workflow-Trigger](/de/platform/automations/triggers) behandelt, was jede Art tut.
+Dieselbe Grenze gilt für Trigger. Der Assistent kann dir sagen, welchen Zeitplan-, Webhook- oder Ereignis-Trigger eine Automatisierung trägt und was jeder davon in einen Lauf schicken würde, und er kann dir den gewünschten Trigger genau ausformulieren — aber die Entscheidung, eine Automatisierung nach außen freizugeben, bleibt eine menschliche. [Automatisierungs-Trigger](/de/platform/automations/triggers) behandelt, was jede Art tut.
 
 ## Finden, was schon existiert
 
