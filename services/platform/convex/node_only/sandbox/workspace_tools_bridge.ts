@@ -10,11 +10,13 @@
  *
  * Same discipline as the integration surface: whatever these actions return is
  * relayed verbatim to the external agent as the tool result, so every shape is
- * written FOR THE MODEL (structured status + guidance, never a bare throw). The
- * reads run as the turn's user, org-scoped, through the same access-controlled
- * internal queries the rest of the platform uses — nothing here widens a
- * boundary. V1 is READ-ONLY (a write tool would need the approvals lane an
- * async turn can't answer), matching the integration bridge's stance.
+ * written FOR THE MODEL (structured status + guidance, never a bare throw).
+ * Every dispatch first re-resolves the turn user's access the way a user-side
+ * `queryWithRLS` read would — active membership + the role matrix for the
+ * table the tool exposes (`resolveWorkspaceReadAccess`) — so the session
+ * token proves WHO the turn runs as, never that they may still read. V1 is
+ * READ-ONLY (a write tool would need the approvals lane an async turn can't
+ * answer), matching the integration bridge's stance.
  *
  * `'use node'` because knowledge search binds an embedder (filesystem/network).
  */
@@ -25,6 +27,7 @@ import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { searchKnowledge } from '../../knowledge/search';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
+import type { AgentReadSubject } from '../../lib/rls/helpers/agent_read_access';
 
 /**
  * The read-only workspace tools a managed external turn is granted by default.
@@ -37,10 +40,28 @@ import { orgSlugFromId } from '../../lib/helpers/org_slug';
 export const WORKSPACE_READ_TOOLS = [
   'rag_search',
   'document_find',
+  'knowledge_entry_find',
   'contact_find',
   'product_find',
   'website_find',
 ] as const;
+
+type WorkspaceReadTool = (typeof WORKSPACE_READ_TOOLS)[number];
+
+/**
+ * The role-matrix table each tool reads, for the per-dispatch access check.
+ * Knowledge surfaces (RAG passages, hub listings, entries) all map to
+ * `documents`: passages ARE document content and entries are document-backed,
+ * so one subject governs the whole knowledge read path.
+ */
+const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, AgentReadSubject> = {
+  rag_search: 'documents',
+  document_find: 'documents',
+  knowledge_entry_find: 'documents',
+  contact_find: 'contacts',
+  product_find: 'products',
+  website_find: 'websites',
+};
 
 /** Human-facing one-liners the status listing relays to the model. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -50,11 +71,20 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   document_find:
     'List/browse documents in the organization Documents hub this user can ' +
     'access. Args: {fileName?: string, extension?: string, limit?: number}.',
+  knowledge_entry_find:
+    "List the organization's curated knowledge entries (small per-topic " +
+    'facts). Args: {topic?: string, limit?: number, cursor?: string} — topic ' +
+    'is a contains-filter; prefer rag_search for semantic questions. Pass the ' +
+    "previous result's continueCursor as cursor for the next page.",
   contact_find:
     "Search/list the organization's contacts (CRM). " +
-    'Args: {searchTerm?: string, limit?: number}.',
+    'Args: {searchTerm?: string, limit?: number, cursor?: string}. Pass the ' +
+    "previous result's continueCursor as cursor for the next page.",
   product_find:
-    "List the organization's products/catalog. Args: {limit?: number}.",
+    "Search/list the organization's products/catalog. Args: {searchTerm?: " +
+    'string, limit?: number, cursor?: string} — searchTerm matches ' +
+    'name/description/category/tags/externalId (translations included). Pass ' +
+    "the previous result's continueCursor as cursor for the next page.",
   website_find:
     "List the organization's connected websites (domain, title, page count). " +
     'Args: {} — no parameters.',
@@ -122,6 +152,42 @@ async function runWorkspaceTool(
 ): Promise<ToolResult> {
   const callArgs = isRecord(args.callArgs) ? args.callArgs : {};
 
+  if (!(WORKSPACE_READ_TOOLS as readonly string[]).includes(args.tool)) {
+    return {
+      status: 'invalid_args',
+      message:
+        `Unknown workspace tool "${args.tool}". ` +
+        `Available: ${WORKSPACE_READ_TOOLS.join(', ')}. Call workspace_status to see what is granted.`,
+    };
+  }
+
+  // The session token names the user this turn runs as; whether that user may
+  // still READ is re-resolved per dispatch from the same membership + role
+  // matrix the user-side RLS queries consult. A revoked or downgraded member
+  // loses the workspace tools on their next call, not at the next session.
+  const subject = TOOL_READ_SUBJECT[args.tool as WorkspaceReadTool];
+  const access = await ctx.runQuery(
+    internal.sandbox.workspace_access.resolveWorkspaceReadAccess,
+    { organizationId: args.organizationId, userId: args.userId, subject },
+  );
+  if (!access.allowed) {
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'access_denied',
+          guidance:
+            access.reason === 'not_a_member'
+              ? 'The user this turn runs as is not an active member of this ' +
+                'organization, so workspace reads are unavailable. Tell the ' +
+                'user; do not retry.'
+              : `The user's role does not permit reading ${subject} in this ` +
+                'organization. Tell the user; do not retry.',
+        },
+      ],
+    };
+  }
+
   if (args.tool === 'rag_search') {
     const query =
       typeof callArgs.query === 'string' ? callArgs.query.trim() : '';
@@ -185,8 +251,25 @@ async function runWorkspaceTool(
     return { status: 'ok', output: page };
   }
 
-  // The org data domains — all org-scoped internal reads (never a per-user or
-  // cross-org leak), paginated where the underlying query is.
+  if (args.tool === 'knowledge_entry_find') {
+    const page = await ctx.runQuery(
+      internal.knowledge_entries.internal_queries.listEntriesForAgent,
+      {
+        organizationId: args.organizationId,
+        ...(typeof callArgs.topic === 'string' && callArgs.topic.trim() !== ''
+          ? { topic: callArgs.topic }
+          : {}),
+        paginationOpts: {
+          numItems: readLimit(callArgs.limit, 50),
+          cursor: readCursor(callArgs.cursor),
+        },
+      },
+    );
+    return { status: 'ok', output: page };
+  }
+
+  // The org data domains — org-scoped internal reads behind the access gate
+  // above, cursor-paginated so a big catalog pages instead of truncating.
   if (args.tool === 'contact_find') {
     const page = await ctx.runQuery(
       internal.contacts.internal_queries.queryContacts,
@@ -197,7 +280,7 @@ async function runWorkspaceTool(
           : {}),
         paginationOpts: {
           numItems: readLimit(callArgs.limit, 50),
-          cursor: null,
+          cursor: readCursor(callArgs.cursor),
         },
       },
     );
@@ -206,12 +289,15 @@ async function runWorkspaceTool(
 
   if (args.tool === 'product_find') {
     const page = await ctx.runQuery(
-      internal.products.internal_queries.listByOrganization,
+      internal.products.internal_queries.queryProducts,
       {
         organizationId: args.organizationId,
+        ...(typeof callArgs.searchTerm === 'string'
+          ? { searchTerm: callArgs.searchTerm }
+          : {}),
         paginationOpts: {
           numItems: readLimit(callArgs.limit, 50),
-          cursor: null,
+          cursor: readCursor(callArgs.cursor),
         },
       },
     );
@@ -226,11 +312,12 @@ async function runWorkspaceTool(
     return { status: 'ok', output: { websites } };
   }
 
+  // Unreachable: the known-tool check above already answered. Kept as the
+  // exhaustive fallback so a tool added to WORKSPACE_READ_TOOLS without a
+  // handler fails loudly instead of silently returning nothing.
   return {
-    status: 'invalid_args',
-    message:
-      `Unknown workspace tool "${args.tool}". ` +
-      `Available: ${WORKSPACE_READ_TOOLS.join(', ')}. Call workspace_status to see what is granted.`,
+    status: 'error',
+    message: `Workspace tool "${args.tool}" has no handler.`,
   };
 }
 
@@ -239,6 +326,11 @@ function readLimit(raw: unknown, cap: number): number {
   return typeof raw === 'number' && raw > 0
     ? Math.min(Math.floor(raw), cap)
     : Math.min(20, cap);
+}
+
+/** A caller-supplied continuation cursor: a non-empty string, else page one. */
+function readCursor(raw: unknown): string | null {
+  return typeof raw === 'string' && raw !== '' ? raw : null;
 }
 
 /**
