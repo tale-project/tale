@@ -2,7 +2,7 @@
  * `executeIntegrationAction` — the ONE way any part of the platform invokes a
  * connector action.
  *
- * Workflow nodes, chat tools, conversation email replies, and actionable
+ * Automation nodes, chat tools, conversation email replies, and actionable
  * notifications all arrive here, so the rules that make an integration call
  * safe are written once: the action's JSON Schema is enforced before anything
  * leaves the process, live traffic is mediated by the host (allowlist,
@@ -198,7 +198,7 @@ export interface IntegrationInvocationRecord {
   effects: IntegrationEffect;
   mode: IntegrationMode;
   callerKind: IntegrationCaller['kind'];
-  /** Who or what asked: a user id, a workflow run, or a system reason. */
+  /** Who or what asked: a user id, an automation run, or a system reason. */
   callerRef: string;
   /** Why approvals were skipped. Always present for the `system` caller. */
   reason?: string;
@@ -303,7 +303,7 @@ export interface IntegrationDispatchContext {
   blobs?: IntegrationBlobSink;
   /**
    * Stable across retries of one logical attempt, so a re-run cannot
-   * double-send. Callers with a natural attempt identity (a workflow run and
+   * double-send. Callers with a natural attempt identity (an automation run and
    * node, a queued job) pass theirs; otherwise one is derived from the call
    * itself, which is stable for an identical retry.
    */

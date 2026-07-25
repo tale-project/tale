@@ -2,7 +2,7 @@
  * Turns the shipped connector catalog into engine node types.
  *
  * Each `configs/platform/system/integrations/<slug>/connector.yml` action
- * becomes one node type named `<connector>.<action>`, so a workflow references
+ * becomes one node type named `<connector>.<action>`, so an automation references
  * it exactly like a built-in: `type: github.create_issue`. The action's JSON
  * Schema drives input validation, its TS-style signature documents the output,
  * and its `effects` decides whether invoking it records an effect and gates

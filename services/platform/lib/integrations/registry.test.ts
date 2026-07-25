@@ -7,7 +7,7 @@ import { agentDocs } from '../engine/api/docs';
 import { execute } from '../engine/core/execute';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeTypes } from '../engine/core/slots';
-import type { Workflow } from '../engine/core/types';
+import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import { loadConnectors, nodeTypeFor } from './registry';
@@ -66,8 +66,8 @@ describe('connector registry', () => {
     ).toThrow(/declares name/);
   });
 
-  describe('a workflow can actually run a registered action', () => {
-    const workflow: Workflow = {
+  describe('an automation can actually run a registered action', () => {
+    const automation: Automation = {
       version: 1,
       name: 'research',
       inputs: {
@@ -86,12 +86,12 @@ describe('connector registry', () => {
     };
 
     it('validates against the registered schema', async () => {
-      const { errors } = await validate(workflow);
+      const { errors } = await validate(automation);
       expect(errors).toEqual([]);
     });
 
     it('executes the YAML mock body through the code runner', async () => {
-      const result = await execute(workflow, {
+      const result = await execute(automation, {
         input: { topic: 'retrieval augmented generation' },
         mode: 'mock',
       });

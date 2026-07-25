@@ -29,7 +29,7 @@ import {
   type AutomationTrigger,
   type LoadPacksOptions,
 } from '../../lib/automations/packs';
-import type { Workflow } from '../../lib/engine/core/types';
+import type { Automation } from '../../lib/engine/core/types';
 import { isValidOrgSlug } from '../../lib/shared/constants/org-slug';
 import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
@@ -38,7 +38,7 @@ import { resolveBuiltinCatalogRoot } from '../lib/config_store/builtin_catalog';
 
 /** What one pack contributes to the seed batch. */
 export interface SeedablePack {
-  document: Workflow;
+  document: Automation;
   trigger?: AutomationTrigger;
 }
 
@@ -89,7 +89,7 @@ export function loadSeedablePacks(
       );
     }
     seedable.push({
-      document: pack.workflow,
+      document: pack.automation,
       ...(triggers[0] !== undefined && { trigger: triggers[0] }),
     });
   }

@@ -628,7 +628,7 @@ export const seedDefaultPacks = internalMutation({
     const skipped: string[] = [];
     for (const pack of args.packs) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine owns the document grammar; the pack suite validates every shipped document
-      const document = pack.document as Workflow;
+      const document = pack.document as Automation;
       const name = assertAutomationName(document.name ?? '');
       const existing = await versionsOf(ctx, args.organizationId, name);
       if (existing.length > 0) {

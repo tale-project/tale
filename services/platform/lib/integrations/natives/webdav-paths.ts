@@ -2,7 +2,7 @@
  * Path safety for the native WebDAV actions — the one place a caller-supplied
  * path becomes a list of names inside ONE organization's file tree.
  *
- * An action's `path` is arbitrary text an agent or a workflow wrote, so it is
+ * An action's `path` is arbitrary text an agent or an automation wrote, so it is
  * treated as hostile. The parse refuses `..` and `.`, an empty segment, a NUL
  * or any control character, and a Windows separator; and it NEVER
  * percent-decodes, because decoding is exactly what turns `%2e%2e` back into a

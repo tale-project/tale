@@ -1,13 +1,13 @@
 /**
- * `knowledge.search` — the workflow node that retrieves from the
+ * `knowledge.search` — the automation node that retrieves from the
  * organization's knowledge.
  *
- * Retrieval reaches a workflow exactly two ways: this node, and the chat
+ * Retrieval reaches an automation exactly two ways: this node, and the chat
  * capability. Nothing injects knowledge into a prompt on its own. Automatic
  * injection was removed deliberately — it spent context on every turn whether
  * or not the question needed it, it made an agent's answer depend on a
  * retrieval the author never wrote down, and there was no way to see from a
- * workflow what it had actually read. A node makes retrieval a step: visible in
+ * automation what it had actually read. A node makes retrieval a step: visible in
  * the document, addressable by later nodes, and testable.
  *
  * The node registers exactly like a connector action does, through the engine's
@@ -20,7 +20,7 @@
  *    run never records an effect for it and it is never gated behind an
  *    approval.
  *  - a deterministic MOCK — the authoring loop must work with no database at
- *    all. The mock derives its hits from the input, so the same workflow
+ *    all. The mock derives its hits from the input, so the same automation
  *    produces the same run every time and an acceptance test can state the
  *    expected output.
  *
@@ -35,7 +35,7 @@ import { registerNodeType, type IntegrationLike } from '../engine/core/slots';
 import { DEFAULT_LIMIT, MAX_LIMIT } from './retrieve';
 import type { KnowledgeQuery, KnowledgeResult } from './types';
 
-/** How a workflow addresses the node. */
+/** How an automation addresses the node. */
 export const KNOWLEDGE_SEARCH_NODE_TYPE = 'knowledge.search';
 
 /** The node's input, after the engine has resolved its templates. */
@@ -43,7 +43,7 @@ export interface KnowledgeSearchInput extends KnowledgeQuery {
   readonly query: string;
 }
 
-/** One hit as a workflow sees it — the retrieval shape, flattened to the
+/** One hit as an automation sees it — the retrieval shape, flattened to the
  * fields an author would path into. */
 export interface KnowledgeSearchHit {
   readonly text: string;
@@ -58,15 +58,15 @@ export interface KnowledgeSearchOutput {
   readonly hits: readonly KnowledgeSearchHit[];
   readonly count: number;
   /** False when the search ran without a full-text index — the answer is
-   * dense-only. Surfaced so a workflow can tell a degraded search from a
+   * dense-only. Surfaced so an automation can tell a degraded search from a
    * healthy one. */
   readonly fullText: boolean;
 }
 
 /**
  * The live backend seam. A host installs one bound to the organization whose
- * workflow is running; the node itself never sees an organization id, so there
- * is no argument through which a workflow could address another tenant's
+ * automation is running; the node itself never sees an organization id, so there
+ * is no argument through which an automation could address another tenant's
  * corpus.
  */
 export interface KnowledgeSearchBackend {
@@ -132,7 +132,7 @@ const OUTPUT_SIGNATURE =
 
 /**
  * Deterministic mock: two hits derived from the query, so an author can build
- * and test the rest of the workflow before any document is indexed.
+ * and test the rest of the automation before any document is indexed.
  *
  * It answers in the SHAPE a real search answers, never with plausible content —
  * the text says it is a placeholder so a mock run can never be mistaken for a
@@ -151,7 +151,7 @@ export function mockKnowledgeSearch(
       ref: from === 'web' ? 'https://example.com/page' : 'mock-document-1',
       url: from === 'web' ? 'https://example.com/page' : null,
       corpus: from,
-      // Descending, so a workflow that assumes ranked output behaves the same
+      // Descending, so an automation that assumes ranked output behaves the same
       // against the mock as against a real search.
       score: Number((1 - index * 0.1).toFixed(2)),
     });

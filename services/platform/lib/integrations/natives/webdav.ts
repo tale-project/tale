@@ -11,7 +11,7 @@
  * keep for themselves only the two things a caller-facing surface must own:
  *
  *  - **which tenant** — always `ctx.organizationId`, never anything the input
- *    said. An action's arguments come from an agent or a workflow author, so an
+ *    said. An action's arguments come from an agent or an automation author, so an
  *    organization named in the input would be an organization the caller chose.
  *  - **which path** — parsed by {@link parseOrgPath}, which refuses traversal
  *    and control characters before a name reaches the store.

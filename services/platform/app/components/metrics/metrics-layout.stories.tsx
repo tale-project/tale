@@ -48,8 +48,8 @@ const series = [
 export const FullAnatomy: Story = {
   render: () => (
     <MetricsLayout
-      title="Workflow metrics"
-      description="Workflow execution health for the selected period."
+      title="Automation metrics"
+      description="Automation run health for the selected period."
       toolbar={
         <MetricSelect
           aria-label="Period"
@@ -110,7 +110,7 @@ export const FullAnatomy: Story = {
         />
       </ChartCard>
 
-      <MetricsSection title="Top workflows">
+      <MetricsSection title="Top automations">
         <div className="border-border text-muted-foreground flex h-32 items-center justify-center rounded-lg border border-dashed text-sm">
           DataTable
         </div>

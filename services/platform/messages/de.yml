@@ -715,7 +715,6 @@ automations:
       schedule: Zeitplan
       webhook: Webhook
       event: Plattform-Ereignis
-      api-key: API-Schlüssel
     cronLabel: Cron
     timezoneLabel: Zeitzone
     eventLabel: Ereignisname

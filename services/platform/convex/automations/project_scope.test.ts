@@ -113,7 +113,7 @@ describe('project-scoped automations', () => {
     await t.mutation(internal.automations.mutations.storeSave, {
       organizationId: ORG,
       actor: MEMBER,
-      workflow: WORKFLOW('desk/prepare-return'),
+      automation: AUTOMATION('desk/prepare-return'),
       projectId,
     });
 

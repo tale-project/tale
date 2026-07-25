@@ -3,7 +3,7 @@
  *
  * A knowledge corpus is read back by agents and pasted into model context, so a
  * credential that gets indexed is a credential that will eventually be spoken
- * aloud — to a chat user, into a workflow's output, or to whatever the model
+ * aloud — to a chat user, into an automation's output, or to whatever the model
  * calls next. Deleting the file afterwards does not undo that. So a file is
  * scanned BEFORE it is chunked, and a match refuses the whole upload rather
  * than redacting part of it: a partially-scrubbed secret is still a secret, and

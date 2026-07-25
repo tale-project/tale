@@ -9,7 +9,7 @@
  * {@link KnowledgeCache}, {@link KnowledgeSearchBackend} — and never the other
  * way round.
  *
- * Retrieval is reachable exactly two ways: the `knowledge.search` workflow node
+ * Retrieval is reachable exactly two ways: the `knowledge.search` automation node
  * registered here, and the chat capability that calls
  * `convex/knowledge/search.ts`. Nothing injects knowledge into a prompt on its
  * own.

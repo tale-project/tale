@@ -679,7 +679,6 @@ automations:
       schedule: Schedule
       webhook: Webhook
       event: Platform event
-      api-key: API key
     cronLabel: Cron
     timezoneLabel: Timezone
     eventLabel: Event name

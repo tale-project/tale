@@ -22,7 +22,7 @@ import {
 import { useAutomationTriggers } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
 
-const TRIGGER_KINDS = ['schedule', 'webhook', 'event', 'api-key'] as const;
+const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
 type TriggerKind = (typeof TRIGGER_KINDS)[number];
 
 function isTriggerKind(value: string): value is TriggerKind {

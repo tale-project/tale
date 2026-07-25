@@ -713,7 +713,6 @@ automations:
       schedule: Planification
       webhook: Webhook
       event: Événement de la plateforme
-      api-key: Clé API
     cronLabel: Cron
     timezoneLabel: Fuseau horaire
     eventLabel: Nom de l’événement

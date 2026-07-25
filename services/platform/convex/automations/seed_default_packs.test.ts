@@ -10,7 +10,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import type { Workflow } from '../../lib/engine/core/types';
+import type { Automation } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
 import schema from '../schema';
 import { automationReadStore, automationStore, triggerRow } from './store';
@@ -36,7 +36,7 @@ const OTHER_ORG = 'org_seed_b';
 
 type T = TestConvex<typeof schema>;
 
-function workflow(name: string, code: string): Workflow {
+function automation(name: string, code: string): Automation {
   return {
     version: 1,
     name,
@@ -54,7 +54,7 @@ const SCHEDULE = {
 async function seed(
   t: T,
   organizationId: string,
-  packs: Array<{ document: Workflow; trigger?: typeof SCHEDULE }>,
+  packs: Array<{ document: Automation; trigger?: typeof SCHEDULE }>,
 ) {
   return await t.mutation(internal.automations.mutations.seedDefaultPacks, {
     organizationId,
@@ -68,10 +68,10 @@ describe('seedDefaultPacks', () => {
 
     const result = await seed(t, ORG, [
       {
-        document: workflow('gmail-triage-inbox', 'return 1'),
+        document: automation('gmail-triage-inbox', 'return 1'),
         trigger: SCHEDULE,
       },
-      { document: workflow('outlook-triage-inbox', 'return 2') },
+      { document: automation('outlook-triage-inbox', 'return 2') },
     ]);
 
     expect(result.provisioned).toEqual([
@@ -108,7 +108,7 @@ describe('seedDefaultPacks', () => {
     const t = convexTest(schema, modules);
     const packs = [
       {
-        document: workflow('gmail-triage-inbox', 'return 1'),
+        document: automation('gmail-triage-inbox', 'return 1'),
         trigger: SCHEDULE,
       },
     ];
@@ -135,13 +135,13 @@ describe('seedDefaultPacks', () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       await automationStore(ctx, { organizationId: ORG, actor: 'user_1' }).save(
-        workflow('gmail-triage-inbox', 'return "mine"'),
+        automation('gmail-triage-inbox', 'return "mine"'),
       );
     });
 
     const result = await seed(t, ORG, [
       {
-        document: workflow('gmail-triage-inbox', 'return "pack"'),
+        document: automation('gmail-triage-inbox', 'return "pack"'),
         trigger: SCHEDULE,
       },
     ]);
@@ -152,7 +152,7 @@ describe('seedDefaultPacks', () => {
       latest: await automationReadStore(ctx, ORG).get('gmail-triage-inbox'),
       trigger: await triggerRow(ctx, ORG, 'gmail-triage-inbox'),
     }));
-    expect(seen.latest?.workflow).toMatchObject({
+    expect(seen.latest?.automation).toMatchObject({
       nodes: [{ code: 'return "mine"' }],
     });
     // The org opted out of a binding by never creating one; seeding must not
@@ -175,7 +175,7 @@ describe('seedDefaultPacks', () => {
 
     const result = await seed(t, ORG, [
       {
-        document: workflow('gmail-triage-inbox', 'return 1'),
+        document: automation('gmail-triage-inbox', 'return 1'),
         trigger: SCHEDULE,
       },
     ]);
@@ -191,7 +191,7 @@ describe('seedDefaultPacks', () => {
     const t = convexTest(schema, modules);
     await seed(t, ORG, [
       {
-        document: workflow('gmail-triage-inbox', 'return 1'),
+        document: automation('gmail-triage-inbox', 'return 1'),
         trigger: SCHEDULE,
       },
     ]);
