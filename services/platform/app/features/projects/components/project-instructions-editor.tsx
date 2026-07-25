@@ -1,6 +1,5 @@
 'use client';
 
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
@@ -31,11 +30,10 @@ interface InstructionsForm {
 const FORM_ID = 'project-instructions-form';
 
 /**
- * The project's standing instructions, as one section of the project's general
- * page — they sit with the project's other identity-level settings rather than
- * on a tab of their own, because they are a property of the project, not a
- * place to navigate to. Saving runs through the page's grouped Save/Discard
- * cluster, together with the identity form.
+ * The project's standing instructions — one field of the project's general
+ * page, not a section or a tab of its own: they are a property of the project,
+ * like its name. Saving runs through the page's grouped Save/Discard cluster,
+ * together with the identity form.
  */
 export function ProjectInstructionsEditor({
   projectId,
@@ -96,48 +94,45 @@ export function ProjectInstructionsEditor({
 
   if (!project) return null;
 
+  // No section of its own: the field renders as part of the project's
+  // general block — its row label names it, and the page's Sharing section
+  // below draws the next divider.
   return (
-    <PageSection
-      title={t('instructions.label')}
-      description={t('instructions.placeholder')}
-      gap={4}
-    >
-      <form id={FORM_ID} onSubmit={editor.submit}>
-        <fieldset disabled={!canEdit || editor.isLoading} className="contents">
-          <FormSection>
-            <Textarea
-              id="project-instructions"
-              label={t('instructions.label')}
-              placeholder={t('instructions.placeholder')}
-              rows={12}
-              {...editor.form.register('instructions')}
-            />
-            <Text
-              variant="caption"
-              className={cn(
-                overLimit && 'text-destructive',
-                nearLimit && 'text-amber-600',
-              )}
-            >
-              {t('instructions.charCount', {
-                count: charCount,
-                max: PROJECT_INSTRUCTIONS_MAX_CHARS,
-              })}
-              {overLimit
+    <form id={FORM_ID} onSubmit={editor.submit}>
+      <fieldset disabled={!canEdit || editor.isLoading} className="contents">
+        <FormSection>
+          <Textarea
+            id="project-instructions"
+            label={t('instructions.label')}
+            placeholder={t('instructions.placeholder')}
+            rows={12}
+            {...editor.form.register('instructions')}
+          />
+          <Text
+            variant="caption"
+            className={cn(
+              overLimit && 'text-destructive',
+              nearLimit && 'text-amber-600',
+            )}
+          >
+            {t('instructions.charCount', {
+              count: charCount,
+              max: PROJECT_INSTRUCTIONS_MAX_CHARS,
+            })}
+            {overLimit
+              ? ' — ' +
+                t('instructions.tokenCapError', {
+                  cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
+                })
+              : nearLimit
                 ? ' — ' +
-                  t('instructions.tokenCapError', {
+                  t('instructions.tokenCapWarning', {
                     cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
                   })
-                : nearLimit
-                  ? ' — ' +
-                    t('instructions.tokenCapWarning', {
-                      cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
-                    })
-                  : ''}
-            </Text>
-          </FormSection>
-        </fieldset>
-      </form>
-    </PageSection>
+                : ''}
+          </Text>
+        </FormSection>
+      </fieldset>
+    </form>
   );
 }

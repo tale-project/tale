@@ -8008,13 +8008,6 @@ projects:
     sharingHeading: Freigabe
     lastActivity: Letzte Aktivität {when}
     lastActivityNever: Noch keine Aktivität
-    getStartedHeading: Loslegen
-    getStartedFilesTitle: Dateien hinzufügen
-    getStartedFilesBody: Lade Referenzmaterial hoch; jeder Chat kann darauf zugreifen.
-    getStartedInstructionsTitle: Anweisungen schreiben
-    getStartedInstructionsBody: Lege Kontext fest, der für jeden Chat in diesem Projekt gilt.
-    getStartedShareTitle: Team einladen
-    getStartedShareBody: Mit anderen Teams teilen oder organisationsweit freigeben.
   instructions:
     label: Anweisungen
     placeholder: Schreibe Kontext, der für jeden Chat in diesem Projekt gilt…

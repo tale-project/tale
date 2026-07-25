@@ -121,16 +121,13 @@ describe('ProjectOverview', () => {
       expect(screen.queryByText('Get started')).not.toBeInTheDocument();
     });
 
-    it('shows Get started when the project has no files and no chats', () => {
+    it('never shows the retired Get-started nudge, even on an empty project', () => {
       statsFixture = { fileCount: 0, threadCount: 0, truncated: false };
       threadsFixture = [];
 
       renderOverview();
 
-      expect(screen.getByText('Get started')).toBeInTheDocument();
-      expect(screen.getByText('Add files')).toBeInTheDocument();
-      expect(screen.getByText('Write instructions')).toBeInTheDocument();
-      expect(screen.getByText('Invite team')).toBeInTheDocument();
+      expect(screen.queryByText('Get started')).not.toBeInTheDocument();
     });
   });
 });

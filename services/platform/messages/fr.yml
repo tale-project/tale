@@ -8123,15 +8123,6 @@ projects:
     sharingHeading: Partage
     lastActivity: Dernière activité {when}
     lastActivityNever: Aucune activité pour l'instant
-    getStartedHeading: Démarrer
-    getStartedFilesTitle: Ajouter des fichiers
-    getStartedFilesBody: Téléverse du matériel de référence ; chaque chat peut y accéder.
-    getStartedInstructionsTitle: Écrire des instructions
-    getStartedInstructionsBody: Définis le contexte qui s'applique à chaque chat de ce projet.
-    getStartedShareTitle: Inviter l'équipe
-    getStartedShareBody:
-      Partage avec d'autres équipes ou rends le projet accessible
-      à toute l'organisation.
   instructions:
     label: Instructions
     placeholder: Écris le contexte qui s'applique à chaque chat de ce projet…

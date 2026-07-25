@@ -411,7 +411,11 @@ export function NotificationListPanel({
                   ? t('emptyCaughtUpTitle')
                   : t('emptyAllTitle')}
               </p>
-              <p className="text-xs">
+              {/* Reserve two text-xs lines — the same trick the shared
+                  EmptyState uses (min-h for 2 lines) — so the one-line and
+                  two-line filter states share one height and the panel does
+                  not jump when switching filters. */}
+              <p className="min-h-8 text-xs">
                 {filter === 'unread'
                   ? t('emptyCaughtUpDescription')
                   : t('emptyAllDescription')}

@@ -5108,13 +5108,6 @@ projects:
     sharingHeading: Sharing
     lastActivity: Last activity {when}
     lastActivityNever: No activity yet
-    getStartedHeading: Get started
-    getStartedFilesTitle: Add files
-    getStartedFilesBody: Upload reference material; it's available to every chat.
-    getStartedInstructionsTitle: Write instructions
-    getStartedInstructionsBody: Set context that applies to every chat in this project.
-    getStartedShareTitle: Invite team
-    getStartedShareBody: Share with other teams or make it org-wide.
   instructions:
     label: Instructions
     placeholder: Write context that should apply to every chat in this project…
