@@ -36,7 +36,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Rate-Limits",
-      "description": "REST-API-Rate-Limits — Standard-Budgets pro Schlüssel, Org-Obergrenzen, die Form der 429-Antwort und wie du wiederholst, ohne es schlimmer zu machen."
+      "description": "REST- und MCP-Rate-Limits — die zwei Buckets, die 429-Antwort und wie du wiederholst, ohne es schlimmer zu machen."
     }
   },
   "de:develop/integrations": {
@@ -52,7 +52,16 @@
     "locale": "de",
     "frontmatter": {
       "title": "Webhooks",
-      "description": "Eingehende Webhook-Trigger (du postest an Tale) und ausgehende Event-Webhooks (Tale postet an dich). Signieren, Idempotenz, Retries."
+      "description": "Eingehende Webhook-Trigger — poste an eine Token-URL und eine deployte Automatisierung läuft. Token-Handhabung, Rotation, Idempotenz und die Antwortcodes."
+    }
+  },
+  "de:develop/mcp-endpoint": {
+    "slug": "develop/mcp-endpoint",
+    "locale": "de",
+    "frontmatter": {
+      "title": "MCP-Endpoint",
+      "description": "Verbinde einen MCP-Client mit Tale — ein Endpoint, 22 Tools für das Autorieren von Automatisierungen, Lauf- und Trigger-Verwaltung und die Capability-Oberfläche der Organisation.",
+      "i18nLintExclude": ""
     }
   },
   "de:develop/status-page": {
@@ -68,7 +77,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "API-Referenz",
-      "description": "Wie du Tale von aussen aufrufst — Authentifizierung, Endpoints, Fehlermodell, Rate Limits und der OpenAI-kompatible Chat-Endpoint. Die einzige Quelle der Wahrheit für die Tale-API-Oberfläche.",
+      "description": "Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell. Die einzige Quelle der Wahrheit für die REST-Oberfläche.",
       "i18nLintExclude": ""
     }
   },
@@ -613,8 +622,8 @@
     "slug": "platform/automations/triggers",
     "locale": "de",
     "frontmatter": {
-      "title": "Workflow-Trigger",
-      "description": "Die vier Wege, auf denen eine Automatisierung startet — ein Zeitplan, ein Webhook, ein Plattform-Ereignis oder ein API-Key-Aufruf — was jeder in den Lauf trägt und warum keiner beim Live-Schalten zerbricht."
+      "title": "Automatisierungs-Trigger",
+      "description": "Die drei Wege, auf denen eine Automatisierung von selbst startet — ein Zeitplan, ein Webhook oder ein Plattform-Ereignis — was jeder in den Lauf trägt und warum keiner beim Live-Schalten zerbricht."
     }
   },
   "de:platform/automations/catalog": {
@@ -719,7 +728,7 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "de",
     "frontmatter": {
-      "title": "Einen Workflow per Webhook auslösen",
+      "title": "Eine Automatisierung per Webhook auslösen",
       "description": "Häng einen Webhook-Trigger an eine Automatisierung und POSTe von einem externen System auf seine URL, um einen Lauf der deployten Version zu starten."
     }
   },
@@ -736,7 +745,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale aus einem Skript aufrufen",
-      "description": "Erzeug einen API-Schlüssel und ruf die Tale-REST-API aus einem Bash-, Python- oder Node-Skript auf — der kürzeste End-to-End-Pfad vom Terminal zur Agent-Antwort."
+      "description": "Erzeug einen API-Schlüssel und ruf die Tale-REST-API aus einem Bash- oder Python-Skript auf — der kürzeste End-to-End-Pfad vom Terminal zur Assistenten-Antwort."
     }
   },
   "de:tutorials/developer/mcp-server-from-scratch": {
@@ -1244,7 +1253,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Limites de débit",
-      "description": "Limites de débit de l'API REST — budgets par clé par défaut, plafonds par org, forme de la réponse 429, et comment retraiter sans empirer la situation."
+      "description": "Limites de débit REST et MCP — les deux buckets, la réponse 429, et comment relancer sans empirer la situation."
     }
   },
   "fr:develop/integrations": {
@@ -1260,7 +1269,16 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Webhooks",
-      "description": "Déclencheurs webhook entrants (toi vers Tale) et webhooks d'événement sortants (Tale vers toi). Signature, idempotence, retraitements."
+      "description": "Déclencheurs webhook entrants — poste sur une URL à jeton et une automatisation déployée s'exécute. Gestion du jeton, rotation, idempotence et codes de réponse."
+    }
+  },
+  "fr:develop/mcp-endpoint": {
+    "slug": "develop/mcp-endpoint",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Endpoint MCP",
+      "description": "Connecte un client MCP à Tale — un endpoint, 22 outils couvrant l'écriture d'automatisations, la gestion des exécutions et des déclencheurs, et la surface de capacités de l'organisation.",
+      "i18nLintExclude": ""
     }
   },
   "fr:develop/status-page": {
@@ -1276,7 +1294,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Référence API",
-      "description": "Comment appeler Tale de l'extérieur — authentification, endpoints, modèle d'erreur, limites de débit et endpoint chat compatible OpenAI. La seule source de vérité pour la surface API de Tale.",
+      "description": "Comment appeler Tale de l'extérieur — authentification, inventaire des endpoints, pagination, les boucles asynchrones d'exécution et de tour, et le modèle d'erreur. La seule source de vérité pour la surface REST.",
       "i18nLintExclude": ""
     }
   },
@@ -1821,8 +1839,8 @@
     "slug": "platform/automations/triggers",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencheurs de workflow",
-      "description": "Les quatre façons dont une automatisation démarre — une planification, un webhook, un événement de la plateforme ou un appel par clé d’API — ce que chacune transporte dans l’exécution, et pourquoi aucune ne casse à la mise en service."
+      "title": "Déclencheurs d’automatisation",
+      "description": "Les trois façons dont une automatisation démarre d’elle-même — une planification, un webhook ou un événement de la plateforme — ce que chacune transporte dans l’exécution, et pourquoi aucune ne casse à la mise en service."
     }
   },
   "fr:platform/automations/catalog": {
@@ -1927,7 +1945,7 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencher un workflow par webhook",
+      "title": "Déclencher une automatisation par webhook",
       "description": "Ajoute un déclencheur webhook à une automatisation et POSTe sur son URL depuis un système externe pour lancer une exécution de la version déployée."
     }
   },
@@ -1944,7 +1962,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Appeler Tale depuis un script",
-      "description": "Crée une clé API et appelle l'API REST de Tale depuis un script bash, Python ou Node — le chemin de bout en bout le plus court du terminal à la réponse d'agent."
+      "description": "Crée une clé API et appelle l'API REST de Tale depuis un script bash ou Python — le chemin de bout en bout le plus court du terminal à une réponse d'assistant."
     }
   },
   "fr:tutorials/developer/mcp-server-from-scratch": {
@@ -2452,7 +2470,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Rate limits",
-      "description": "REST API rate limits — default per-key budgets, per-org caps, the 429 response shape, and how to retry without making things worse."
+      "description": "REST and MCP rate limits — the two buckets, the 429 response, and how to retry without making things worse."
     }
   },
   "en:develop/integrations": {
@@ -2468,7 +2486,16 @@
     "locale": "en",
     "frontmatter": {
       "title": "Webhooks",
-      "description": "Inbound webhook triggers (you POST to Tale) and outbound event webhooks (Tale POSTs to you). Signing, idempotency, retries."
+      "description": "Inbound webhook triggers — POST to a token URL and a deployed automation runs. Token handling, rotation, idempotency, and the response codes."
+    }
+  },
+  "en:develop/mcp-endpoint": {
+    "slug": "develop/mcp-endpoint",
+    "locale": "en",
+    "frontmatter": {
+      "title": "MCP endpoint",
+      "description": "Connect an MCP client to Tale — one endpoint, 22 tools covering automation authoring, run and trigger management, and the organization's capability surface.",
+      "i18nLintExclude": ""
     }
   },
   "en:develop/status-page": {
@@ -2484,7 +2511,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "API reference",
-      "description": "How to call Tale from outside — authentication, endpoints, error model, rate limits, and the OpenAI-compatible chat endpoint. The single source of truth for the Tale API surface.",
+      "description": "How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model. The single source of truth for the REST surface.",
       "i18nLintExclude": ""
     }
   },
@@ -3029,8 +3056,8 @@
     "slug": "platform/automations/triggers",
     "locale": "en",
     "frontmatter": {
-      "title": "Workflow triggers",
-      "description": "The four ways an automation starts — a schedule, a webhook, a platform event, or an API-key call — what each carries into the run, and why none of them break when you deploy."
+      "title": "Automation triggers",
+      "description": "The three ways an automation starts on its own — a schedule, a webhook, or a platform event — what each carries into the run, and why none of them break when you deploy."
     }
   },
   "en:platform/automations/catalog": {
@@ -3135,7 +3162,7 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "en",
     "frontmatter": {
-      "title": "Trigger a workflow via webhook",
+      "title": "Trigger an automation via webhook",
       "description": "Add a webhook trigger to an automation and POST to its URL from an external system to start a run of the deployed version."
     }
   },
@@ -3152,7 +3179,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Call Tale from a script",
-      "description": "Mint an API key and call the Tale REST API from a bash, Python, or Node script — the smallest end-to-end path from terminal to agent reply."
+      "description": "Mint an API key and call the Tale REST API from a bash or Python script — the smallest end-to-end path from terminal to an assistant reply."
     }
   },
   "en:tutorials/developer/mcp-server-from-scratch": {

@@ -1,20 +1,21 @@
 ---
-title: Workflow-Trigger
-description: Die vier Wege, auf denen eine Automatisierung startet — ein Zeitplan, ein Webhook, ein Plattform-Ereignis oder ein API-Key-Aufruf — was jeder in den Lauf trägt und warum keiner beim Live-Schalten zerbricht.
+title: Automatisierungs-Trigger
+description: Die drei Wege, auf denen eine Automatisierung von selbst startet — ein Zeitplan, ein Webhook oder ein Plattform-Ereignis — was jeder in den Lauf trägt und warum keiner beim Live-Schalten zerbricht.
 ---
 
-Ein Trigger ist das, was eine Automatisierung startet, wenn niemand irgendwo klickt. Es gibt genau vier Arten, die Menge ist abgeschlossen, und eine Automatisierung darf mehrere davon gleichzeitig tragen. Das Nützlichste, was du über einen Trigger wissen kannst: Er hängt am **Namen** der Automatisierung und nicht an einer Version. Deshalb macht eine neu live geschaltete Version nie eine Webhook-URL ungültig, auf die ein externes System angewiesen ist, und wirft nie einen Zeitplan weg.
+Ein Trigger ist das, was eine Automatisierung startet, wenn niemand irgendwo klickt. Es gibt genau drei Arten, die Menge ist abgeschlossen, und eine Automatisierung darf mehrere davon gleichzeitig tragen. Das Nützlichste, was du über einen Trigger wissen kannst: Er hängt am **Namen** der Automatisierung und nicht an einer Version. Deshalb macht eine neu live geschaltete Version nie eine Webhook-URL ungültig, auf die ein externes System angewiesen ist, und wirft nie einen Zeitplan weg.
 
 Jeder Trigger startet die live geschaltete Version und läuft im Live-Modus — eine Automatisierung ohne Live-Version lässt sich von ihm also nicht starten. Jeder Trigger trägt einen Ein-Aus-Schalter und hält fest, wann der Scheduler zuletzt auf ihn reagiert hat.
 
-## Die vier Arten
+## Die drei Arten
 
 | Art        | Startet die Automatisierung, wenn …                            |
 | ---------- | -------------------------------------------------------------- |
 | `schedule` | ein Cron-Ausdruck in einer benannten IANA-Zeitzone fällig wird |
 | `webhook`  | ein externes System an eine Token-geschützte URL sendet        |
 | `event`    | ein benanntes Plattform-Ereignis eintritt                      |
-| `api-key`  | ein authentifizierter API-Client sie ausdrücklich anfordert    |
+
+Ein programmatischer Start braucht gar keinen Trigger: ein API-Client mit einem Organisationsschlüssel ruft `POST /api/v1/automations/{name}/runs` auf (oder das MCP-Tool `start_run`), und der Schlüssel selbst ist die Berechtigung — siehe die [API-Referenz](/de/develop/api-reference).
 
 ## Zeitpläne
 
@@ -63,12 +64,6 @@ Ein Ereignis, das aus dem Lauf einer Automatisierung stammt, feuert nie Trigger.
 
 </Note>
 
-## API-Key-Aufrufe
-
-Ein API-Key-Trigger macht eine Automatisierung programmatisch aufrufbar. Der Key selbst wird authentifiziert, bevor die Anfrage die Automatisierung erreicht; was dieser Trigger hinzufügt, ist die ausdrückliche Entscheidung der Organisation, dass genau diese Automatisierung so gestartet werden darf. Eine Automatisierung ohne eingeschalteten API-Key-Trigger ist nicht aufrufbar, wie gültig der Key auch sein mag — sie freizugeben bleibt also immer ein bewusster Schritt und nie ein Nebeneffekt davon, einen Key auszustellen.
-
-Das JSON des Aufrufers wird unverändert zur Eingabe des Laufs, und der Lauf hält fest, welcher authentifizierte Aufrufer ihn gestartet hat.
-
 ## Was jede Art in den Lauf trägt
 
 Die Eingabe, die eine Automatisierung erhält, sagt, welche Art sie gestartet hat — ein einzelnes Dokument kann also mehr als einen Trigger bedienen und sich am Unterschied verzweigen.
@@ -78,7 +73,8 @@ Die Eingabe, die eine Automatisierung erhält, sagt, welche Art sie gestartet ha
 | `schedule` | Die Trigger-Art und der Termin, für den er gefeuert hat      |
 | `webhook`  | Die Trigger-Art und der gesendete Body als Payload           |
 | `event`    | Die Trigger-Art, der Name des Ereignisses und dessen Payload |
-| `api-key`  | Genau das JSON, das der Aufrufer gesendet hat                |
+
+Ein per API gestarteter Lauf trägt genau den `input`, den der Aufrufer gesendet hat.
 
 Deklarier die erwartete Form im `inputs`-Schema des Dokuments, und die Referenz darauf wird geprüft, bevor die Automatisierung überhaupt läuft.
 
@@ -96,4 +92,4 @@ Einen Trigger zu löschen ist die endgültige Fassung desselben Schritts, und be
 
 ## Wo das hingehört
 
-Vier Arten, ein Verhalten: Jede startet die live geschaltete Version im Live-Modus, jede hält fest, wann sie zuletzt gefeuert hat, und jede lässt sich pausieren, ohne verloren zu gehen — und keine kümmert es, wie oft du seitdem live geschaltet hast. [Automatisierungskonzepte](/de/platform/automations/concepts) erklärt, warum die Bindung an den Namen das möglich macht; [Ausführungsprotokolle](/de/platform/automations/execution-logs) zeigt die Läufe, die deine Trigger erzeugt haben, und welcher jeden gestartet hat.
+Drei Arten, ein Verhalten: Jede startet die live geschaltete Version im Live-Modus, jede hält fest, wann sie zuletzt gefeuert hat, und jede lässt sich pausieren, ohne verloren zu gehen — und keine kümmert es, wie oft du seitdem live geschaltet hast. [Automatisierungskonzepte](/de/platform/automations/concepts) erklärt, warum die Bindung an den Namen das möglich macht; [Ausführungsprotokolle](/de/platform/automations/execution-logs) zeigt die Läufe, die deine Trigger erzeugt haben, und welcher jeden gestartet hat.

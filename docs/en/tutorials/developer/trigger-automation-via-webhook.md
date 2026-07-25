@@ -1,5 +1,5 @@
 ---
-title: Trigger a workflow via webhook
+title: Trigger an automation via webhook
 description: Add a webhook trigger to an automation and POST to its URL from an external system to start a run of the deployed version.
 ---
 
@@ -9,7 +9,7 @@ You need a Developer role in the org, an automation with a deployed version, and
 
 ## Before you begin
 
-Confirm two things. The automation you will trigger has a **deployed** version — saving a version is not enough, and a version is only deployable once its own tests pass, so run them first. Your role is at least Developer; adding triggers is gated to Developer and above. If you have no automation yet, the canonical small one is "record the payload and stop" — build it through [Workflow with approvals](/tutorials/editor/workflow-with-approvals) and drop the approval node for this walk.
+Confirm two things. The automation you will trigger has a **deployed** version — saving a version is not enough, and a version is only deployable once its own tests pass, so run them first. Your role is at least Developer; adding triggers is gated to Developer and above. If you have no automation yet, the canonical small one is "record the payload and stop" — build it through [Build a workflow with an approval](/tutorials/editor/workflow-with-approvals) and drop the approval node for this walk.
 
 ## Step 1 — Add a webhook trigger
 

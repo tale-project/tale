@@ -1,64 +1,94 @@
 ---
 title: Tale aus einem Skript aufrufen
-description: Erzeug einen API-Schlüssel und ruf die Tale-REST-API aus einem Bash-, Python- oder Node-Skript auf — der kürzeste End-to-End-Pfad vom Terminal zur Agent-Antwort.
+description: Erzeug einen API-Schlüssel und ruf die Tale-REST-API aus einem Bash- oder Python-Skript auf — der kürzeste End-to-End-Pfad vom Terminal zur Assistenten-Antwort.
 ---
 
-Tale aus einem Skript aufzurufen ist der Pfad, zu dem du greifst, wenn du einen Wert von einem Agent oder einem Workflow zurück willst, ohne die UI zu öffnen. Die Tale-API spricht JSON über HTTPS und akzeptiert ein Bearer-Token in der `Authorization`-Kopfzeile; von dort an ist jede Endpoint-Gruppe ein normaler REST-Call. Dieser Spaziergang führt dich von „ich will Tale skripten" zu einer in dein Terminal gestreamten Antwort in einer Sitzung.
+Tale aus einem Skript aufzurufen ist der Weg, wenn du einen Wert von der Plattform willst, ohne die UI zu öffnen. Die Tale-API spricht JSON über HTTPS und nimmt ein Bearer-Token im `Authorization`-Header; von da an ist jede Endpoint-Gruppe ein normaler REST-Aufruf. Dieser Walk bringt dich in einer Sitzung von „ich will Tale skripten" zu einer Assistenten-Antwort in deinem Terminal.
 
-Du brauchst eine Developer-Rolle (um API-Schlüssel zu erzeugen), die URL deiner Tale-Instanz und eine Shell mit `curl`, Python oder Node. Die volle API-Oberfläche lebt in der [API-Referenz](/de/develop/api-reference); diese Seite ist der kürzeste End-to-End-Spaziergang dadurch.
+Du brauchst eine Entwickler-Rolle (für API-Schlüssel), die URL deiner Tale-Instanz und eine Shell mit `curl` und Python. Die volle API-Oberfläche steht in der [API-Referenz](/de/develop/api-reference); diese Seite ist der kleinste End-to-End-Gang hindurch.
 
-## Bevor du beginnst
+## Bevor du anfängst
 
-Bestätige drei Dinge. Deine Instanz ist über HTTPS erreichbar — öffne `https://your-host.example.com` und prüf, dass das Dashboard lädt. Deine Rolle ist mindestens Developer — der Eintrag **Einstellungen > API-Schlüssel** ist für Member und Editor versteckt. Du hast mindestens einen veröffentlichten Agent — das Listen der Agenten gibt auf einer brandneuen Instanz ein leeres Array zurück, was den Rauch-Test mehrdeutig macht.
+Prüfe drei Dinge. Deine Instanz ist über HTTPS erreichbar — öffne `https://your-host.example.com` und schau, ob das Dashboard lädt. Deine Rolle ist mindestens Entwickler — [API-Schlüssel](/de/platform/admin/api-keys) verwalten Admin- und Entwickler-Rollen. Du kennst ein Modell, das deine Organisation konfiguriert hat — die API wählt nie automatisch eins, jeder Chat-Aufruf nennt sein Modell explizit.
 
-## Schritt 1 — Einen API-Schlüssel erzeugen
+## Schritt 1 — API-Schlüssel erzeugen
 
-Der erste Zug ist, einen API-Schlüssel zu erstellen, der auf deinen Nutzer skopiert ist. Der Schlüssel ist das, was jeder Skript-Call mitführt; ohne ihn gibt die API 401 zurück, und du kannst den Schlüssel nach der Erstellung nicht mehr lesen.
+Der erste Zug ist ein API-Schlüssel. Ihn trägt jeder Skript-Aufruf; ohne ihn antwortet die API 401, und nach der Erstellung kannst du ihn nicht mehr auslesen.
 
-Öffne **Einstellungen > API-Schlüssel** und klick **Neuer Schlüssel**. Gib ihm einen Namen (`local-script-test`), wähl einen Ablauf und klick **Erstellen**. Kopier den Schlüssel, den das Panel zeigt — Tale zeigt ihn einmal und nie wieder. Leg ihn für den Rest des Spaziergangs als Environment-Variable ab:
+Erzeuge einen Schlüssel im [API-Schlüssel](/de/platform/admin/api-keys)-Panel und kopiere, was es zeigt — Tale zeigt ihn einmal und nie wieder. Leg ihn für den Rest dieses Walks als Umgebungsvariable ab:
 
 ```bash
-export TALE_API_KEY="tk_..."
+export TALE_API_KEY="tale_..."
 export TALE_BASE_URL="https://your-host.example.com"
 ```
 
-Der Schlüssel erbt deine Rolle; behandle ihn wie ein Passwort.
+Der Schlüssel gehört dir und deiner Organisation; was er darf, folgt deiner Rolle. Behandle ihn wie ein Passwort.
 
 ## Schritt 2 — Rauchtest mit curl
 
-Der kleinste End-to-End-Check ist das Listen der für deinen Schlüssel sichtbaren Agenten. Klappt das, sind Auth, Netzwerk und API in Ordnung; bricht es ab, sagt der Fehler-Modus, welches Stück kaputt ist.
+Der kleinste End-to-End-Check ist das Auflisten der Automatisierungen der Organisation. Funktioniert das, stimmen Auth, Netzwerk und API; scheitert es, sagt dir die Fehlerart, welches der drei kaputt ist.
 
 ```bash
-curl -sS "$TALE_BASE_URL/api/v1/agents" \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "Accept: application/json" | jq
+curl -sS "$TALE_BASE_URL/api/v1/automations" \
+  -H "Authorization: Bearer $TALE_API_KEY" | jq
 ```
 
-Eine 200 mit einem JSON-Body wie `{ "agents": [ ... ] }` bestätigt den Round-trip. Eine 401 heisst, der Schlüssel ist falsch; eine 403 heisst, der Schlüssel ist gültig, die Rolle aber zu niedrig; alles andere heisst, die Instanz ist nicht erreichbar oder der Pfad ist falsch. Pick eine Agent-ID aus der Antwort — du brauchst sie für Schritt 3.
+Eine 200 mit einem `{ "page": [...], "isDone": true, ... }`-Body bestätigt die Runde — jeder Listen-Endpoint antwortet mit genau diesem paginierten Umschlag. Eine 401 heißt: der Schlüssel ist falsch; alles andere heißt: die Instanz ist unerreichbar oder der Pfad vertippt.
 
-## Schritt 3 — Einen Agent aus Python oder Node aufrufen
+## Schritt 3 — Ein Modell fragen und die Antwort lesen
 
-Das Listen der Agenten ist read-only; die nützliche Arbeit passiert, wenn du einen Agent um eine Antwort bittest. Der OpenAI-kompatible Endpoint ist der einfachste Einstieg, weil bestehende SDKs unverändert laufen:
+Chat über die API ist asynchron: du postest eine Nachricht, der Turn läuft im Hintergrund, und du pollst, bis er fertig ist. Drei Aufrufe, eine Schleife:
 
 ```python
-from openai import OpenAI
-import os
+import os, time, requests
 
-client = OpenAI(
-    base_url=f"{os.environ['TALE_BASE_URL']}/api/v1",
-    api_key=os.environ["TALE_API_KEY"],
-)
-reply = client.chat.completions.create(
-    model="agt_your_agent_id_here",
-    messages=[{"role": "user", "content": "Summarise the last quarter's revenue."}],
-)
-print(reply.choices[0].message.content)
+base = os.environ["TALE_BASE_URL"]
+auth = {"Authorization": f"Bearer {os.environ['TALE_API_KEY']}"}
+
+# 1. Ein eigener Thread
+thread = requests.post(f"{base}/api/v1/threads", headers=auth, json={}).json()
+
+# 2. Nachricht senden — nenn ein Modell, das deine Organisation konfiguriert hat
+requests.post(
+    f"{base}/api/v1/threads/{thread['id']}/messages",
+    headers=auth,
+    json={"content": "In einem Satz: Was ist Tale?", "model": "<dein-modell>"},
+).raise_for_status()
+
+# 3. Bis idle pollen, dann die letzte Nachricht lesen
+while True:
+    status = requests.get(
+        f"{base}/api/v1/threads/{thread['id']}/generation", headers=auth
+    ).json()["status"]
+    if status == "idle":
+        break
+    time.sleep(1)
+
+messages = requests.get(
+    f"{base}/api/v1/threads/{thread['id']}/messages", headers=auth
+).json()["page"]
+print(messages[-1]["content"])
 ```
 
-Das Feld `model` ist die ID des Agenten; die Instruktionen, das Wissen und die Tools des Agenten laufen wie konfiguriert. Dieselbe Form in Node nutzt `openai` aus npm mit derselben `baseURL` und demselben `apiKey`. Streaming geht mit `stream=True` und Server-Sent Events.
+`{"status": "idle"}` heißt: der Turn ist fertig — auch ein gescheiterter, der als Assistenten-Nachricht mit dem Fehler landet, statt zu verschwinden. Der Sende-Aufruf antwortet sofort **202**; die Antwort existiert erst, wenn die Poll-Schleife `queued`/`streaming` verlässt.
 
-## Wo das eingesetzt wird
+## Schritt 4 — Einen Automatisierungslauf starten
 
-Ein Skript ist der Pfad, den du nimmst, wenn die Daten-Ebene JSON ist, kein Bildschirm — Cronjobs, CI-Checks, interne Portale. Der API-Schlüssel führt deine Rolle, der OpenAI-kompatible Endpoint ist die reibungsärmste Form, und jeder List-Endpoint gibt denselben `{ resource: [...] }`-Umschlag zurück.
+Dieselbe 202-dann-pollen-Form startet echte Arbeit. Automatisierungsnamen sind `/`-Pfade und stehen in URLs mit `__` — `billing/dunning` reist als `billing__dunning`:
 
-Für eingehende Trigger — dein System POSTet in einen Tale-Workflow — siehe [Einen Workflow per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). Für die volle Endpoint-Liste und das Fehler-Modell ist die [API-Referenz](/de/develop/api-reference) die einzige Quelle der Wahrheit.
+```bash
+RUN=$(curl -sS -X POST "$TALE_BASE_URL/api/v1/automations/billing__dunning/runs" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" -d '{ "input": {} }' | jq -r .runId)
+
+curl -sS "$TALE_BASE_URL/api/v1/runs/$RUN" \
+  -H "Authorization: Bearer $TALE_API_KEY" | jq .status
+```
+
+Ein Live-Lauf braucht deine Entwickler-Rolle; mit `{"mode": "mock"}` probst du gegen deterministische Mocks, mit jedem Mitglieds-Schlüssel. Eine 409 heißt: die Automatisierung hat noch keine deployte Version.
+
+## Wo das hingehört
+
+Ein Skript ist der Weg, wenn die Datenebene JSON ist, kein Bildschirm — Cron-Jobs, CI-Checks, interne Portale. Der API-Schlüssel trägt deine Rolle, jeder Listen-Endpoint antwortet mit demselben paginierten Umschlag, und alles, was echte Arbeit startet, antwortet 202 und gibt dir etwas zum Pollen.
+
+Für eingehende Trigger — ein Drittsystem postet in eine Tale-Automatisierung — siehe [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). Für einen modellgetriebenen Client statt eines Skripts öffnet der [MCP-Endpoint](/de/develop/mcp-endpoint) dieselbe Plattform als Tools. Für das volle Endpoint-Inventar und das Fehlermodell ist die [API-Referenz](/de/develop/api-reference) die einzige Quelle der Wahrheit.

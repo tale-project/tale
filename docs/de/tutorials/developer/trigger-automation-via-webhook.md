@@ -1,5 +1,5 @@
 ---
-title: Einen Workflow per Webhook auslösen
+title: Eine Automatisierung per Webhook auslösen
 description: Häng einen Webhook-Trigger an eine Automatisierung und POSTe von einem externen System auf seine URL, um einen Lauf der deployten Version zu starten.
 ---
 

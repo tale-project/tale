@@ -284,6 +284,7 @@
         "develop/overview",
         "develop/contributor-setup",
         "develop/api-reference",
+        "develop/mcp-endpoint",
         "develop/webhooks",
         "develop/webdav-api",
         "develop/integrations",

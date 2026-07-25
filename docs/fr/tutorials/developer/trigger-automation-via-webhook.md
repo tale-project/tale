@@ -1,5 +1,5 @@
 ---
-title: Déclencher un workflow par webhook
+title: Déclencher une automatisation par webhook
 description: Ajoute un déclencheur webhook à une automatisation et POSTe sur son URL depuis un système externe pour lancer une exécution de la version déployée.
 ---
 

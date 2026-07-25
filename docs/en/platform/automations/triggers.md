@@ -1,20 +1,21 @@
 ---
-title: Workflow triggers
-description: The four ways an automation starts — a schedule, a webhook, a platform event, or an API-key call — what each carries into the run, and why none of them break when you deploy.
+title: Automation triggers
+description: The three ways an automation starts on its own — a schedule, a webhook, or a platform event — what each carries into the run, and why none of them break when you deploy.
 ---
 
-A trigger is what starts an automation when nobody is clicking anything. There are exactly four kinds, the set is closed, and an automation may carry several of them at once. The single most useful thing to know about a trigger is that it binds to the automation's **name** and not to a version, which is why deploying a new version never invalidates a webhook URL an external system depends on and never drops a schedule.
+A trigger is what starts an automation when nobody is clicking anything. There are exactly three kinds, the set is closed, and an automation may carry several of them at once. The single most useful thing to know about a trigger is that it binds to the automation's **name** and not to a version, which is why deploying a new version never invalidates a webhook URL an external system depends on and never drops a schedule.
 
 Every trigger fires against the automation's deployed version and runs in live mode, so an automation with no deployment cannot be started by one. Each trigger carries an on-off switch and records when the scheduler last acted on it.
 
-## The four kinds
+## The three kinds
 
 | Kind       | Starts the automation when …                         |
 | ---------- | ---------------------------------------------------- |
 | `schedule` | A cron expression comes due in a named IANA timezone |
 | `webhook`  | An external system posts to a token-guarded URL      |
 | `event`    | A named platform event happens                       |
-| `api-key`  | An authenticated API client asks for it explicitly   |
+
+A programmatic start needs no trigger at all: an API client with an organization key calls `POST /api/v1/automations/{name}/runs` (or the MCP `start_run` tool) and the key itself is the entitlement — see the [API reference](/develop/api-reference).
 
 ## Schedules
 
@@ -63,12 +64,6 @@ An event raised by an automation's own run never fires triggers. An automation t
 
 </Note>
 
-## API-key calls
-
-An API-key trigger makes an automation callable programmatically. The key itself is authenticated before the request reaches the automation; what this trigger adds is the organization's explicit decision that this particular automation may be started that way. An automation without an enabled API-key trigger is not callable however valid the key, which means exposing one is always a deliberate act rather than a side effect of issuing a key.
-
-The caller's own JSON becomes the run's input unchanged, and the run records which authenticated caller started it.
-
 ## What each kind carries into the run
 
 The input an automation receives says which kind started it, so a single document can serve more than one trigger and branch on the difference.
@@ -78,7 +73,8 @@ The input an automation receives says which kind started it, so a single documen
 | `schedule` | The trigger kind and the occurrence time it fired for     |
 | `webhook`  | The trigger kind and the posted body as the payload       |
 | `event`    | The trigger kind, the event name, and the event's payload |
-| `api-key`  | Exactly the JSON the caller sent                          |
+
+An API-started run carries exactly the `input` the caller sent.
 
 Declare the shape you expect in the document's `inputs` schema and the reference to it validates before the automation ever runs.
 
@@ -96,4 +92,4 @@ Deleting a trigger is the permanent version of the same thing, and for a webhook
 
 ## Where this fits
 
-Four kinds, one behaviour: each starts the deployed version in live mode, each records when it last fired, and each can be paused without being lost — and none of them care how many times you have deployed since. [Automation concepts](/platform/automations/concepts) explains why binding to the name is what makes that true; [Execution logs](/platform/automations/execution-logs) shows the runs your triggers produced and which one started each.
+Three kinds, one behaviour: each starts the deployed version in live mode, each records when it last fired, and each can be paused without being lost — and none of them care how many times you have deployed since. [Automation concepts](/platform/automations/concepts) explains why binding to the name is what makes that true; [Execution logs](/platform/automations/execution-logs) shows the runs your triggers produced and which one started each.

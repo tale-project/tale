@@ -318,19 +318,19 @@ terms:
   - key: feature_workflow
     category: feature
     en: Workflow
-    _note: One word. Established loanword in DE/FR. The multi-step definition
-      surface (`workflows.title`); the standalone Automations surface folded
-      into it.
+    _note: One word. Established loanword in DE/FR. Not a product surface
+      anymore — the user-facing noun is Automation everywhere; workflow
+      survives only as the automation's inner definition (the pack's
+      `workflow.yml`, graph-view code) and in generic prose ("Vier-Augen-Workflow").
   - key: feature_automation
     category: feature
     en: Automation
     de: Automatisierung
     fr: Automatisation
-    _note:
-      The installable bundle (integrations + agents + workflows + pages) — the
-      display name of what the code calls apps (`automations.title`). DE
-      feminine (die Automatisierung); never the standalone German 'Automation'.
-      Distinct from `feature_workflow`, the multi-step definition inside one.
+    _note: The product unit — versioned document, deployment, triggers, runs
+      (`automations.title`). DE feminine (die Automatisierung); never the
+      standalone German 'Automation'. Its inner multi-step definition is the
+      workflow (`feature_workflow`), a code/file-level term today.
   - key: feature_automations
     category: feature
     en: Automations

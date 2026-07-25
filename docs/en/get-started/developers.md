@@ -42,8 +42,8 @@ A JSON array of agents — including the built-in Assistant — proves the key, 
 
 ## The rest of the surface
 
-Everything else is variations on that request. The OpenAI-compatible endpoints (`/api/v1/chat/completions`, `/api/v1/models`) mean existing SDKs work by swapping the base URL; workflows run by slug over `/api/v1/workflows/<slug>/run` with the same Bearer key, or fire from outside over webhook URLs of the form `/api/workflows/wh/<token>` — the token in the URL is the credential; documents upload over `/api/v1/documents`. The [API reference](/develop/api-reference) is the complete inventory with auth, shapes, and limits.
+Everything else is variations on that request. Automations run by name over `POST /api/v1/automations/<name>/runs` with the same Bearer key — answered 202, polled via `/api/v1/runs/<runId>` — or fire from outside over webhook URLs of the form `/api/automations/webhook/<token>`, where the token in the URL is the credential. Chat is a thread, a posted message, and a poll; documents upload over `/api/v1/documents`; and the same key opens the [MCP endpoint](/develop/mcp-endpoint) for model-driven clients. The [API reference](/develop/api-reference) is the complete inventory with auth, shapes, and limits.
 
 ## Where you are now
 
-You hold a working credential and have seen the request shape every endpoint shares. From here, [call Tale from a script](/tutorials/developer/call-tale-from-a-script) turns the curl into a real integration, [trigger a workflow via webhook](/tutorials/developer/trigger-automation-via-webhook) covers the push direction, and [webhooks](/develop/webhooks) documents the payloads Tale sends you.
+You hold a working credential and have seen the request shape every endpoint shares. From here, [call Tale from a script](/tutorials/developer/call-tale-from-a-script) turns the curl into a real integration, [trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) covers the push direction, and the [MCP endpoint](/develop/mcp-endpoint) is the same platform for MCP clients.
