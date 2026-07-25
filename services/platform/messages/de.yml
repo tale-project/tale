@@ -8019,19 +8019,14 @@ projects:
     successToast: Projekt erstellt
     errorToast: Projekt konnte nicht erstellt werden
   overview:
-    statsHeading: Statistiken
-    statsFiles: '{count, plural, one {# Datei} other {# Dateien}}'
-    statsChats: '{count, plural, one {# Chat} other {# Chats}}'
-    statsShared: '{count, plural, one {# geteilt} other {# geteilt}}'
-    statsIndexed: '{count, plural, one {# RAG-indexiert} other {# RAG-indexiert}}'
     newChatCta: Neuer Chat
-    identityDescription: Name und Beschreibung des Projekts erscheinen in der
-      Projektliste und in der Chat-Seitenleiste.
+    projectSection: Projekt
+    projectSectionDescription: Name, Beschreibung und feste Anweisungen für
+      dieses Projekt.
     sharingHeading: Freigabe
-    lastActivity: Letzte Aktivität {when}
-    lastActivityNever: Noch keine Aktivität
   instructions:
     label: Anweisungen
+    hint: Jeder Chat in diesem Projekt startet mit diesen Anweisungen.
     placeholder: Schreibe Kontext, der für jeden Chat in diesem Projekt gilt…
     charCount: '{count} / {max}'
     tokenCapWarning: Nähert sich dem Limit von {cap} Zeichen
@@ -8138,9 +8133,12 @@ projects:
     sectionCodingAgents: Coding-Agenten
     sectionImageAgents: Bild
   settings:
-    identity: Identität
     name: Name
+    nameHint: Wird in der Projektliste und der Chat-Seitenleiste angezeigt.
     description: Beschreibung
+    descriptionHint:
+      Eine kurze Zusammenfassung, damit dein Team weiß, was hierher
+      gehört.
     iconColor: Symbol / Farbe
     sharing: Freigabe
     owningTeam: Verantwortliches Team

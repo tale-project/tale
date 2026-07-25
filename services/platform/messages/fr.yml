@@ -8130,19 +8130,14 @@ projects:
     successToast: Projet créé
     errorToast: Impossible de créer le projet
   overview:
-    statsHeading: Statistiques
-    statsFiles: '{count, plural, one {# fichier} other {# fichiers}}'
-    statsChats: '{count, plural, one {# chat} other {# chats}}'
-    statsShared: '{count, plural, one {# partagé} other {# partagés}}'
-    statsIndexed: '{count, plural, one {# indexé RAG} other {# indexés RAG}}'
     newChatCta: Nouveau chat
-    identityDescription: Le nom et la description du projet apparaissent dans la
-      liste des projets et dans la barre latérale du chat.
+    projectSection: Projet
+    projectSectionDescription: Nom, description et instructions permanentes de
+      ce projet.
     sharingHeading: Partage
-    lastActivity: Dernière activité {when}
-    lastActivityNever: Aucune activité pour l'instant
   instructions:
     label: Instructions
+    hint: Chaque chat de ce projet démarre avec ces instructions.
     placeholder: Écris le contexte qui s'applique à chaque chat de ce projet…
     charCount: '{count} / {max}'
     tokenCapWarning: Proche de la limite de {cap} caractères
@@ -8248,9 +8243,11 @@ projects:
     sectionCodingAgents: Agents de code
     sectionImageAgents: Image
   settings:
-    identity: Identité
     name: Nom
+    nameHint: Affiché dans la liste des projets et la barre latérale du chat.
     description: Description
+    descriptionHint: Un court résumé pour que ton équipe sache ce qui va
+      ici.
     iconColor: Icône / couleur
     sharing: Partage
     owningTeam: Équipe propriétaire

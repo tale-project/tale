@@ -5,13 +5,11 @@ import { render, screen } from '@/tests/utils/render';
 
 import { ProjectOverview } from './project-overview';
 
-// Regression coverage for issue #2648: the header stat line counted
-// `stats.threadCount` (`getProjectStats`, every threadMetadata row including
-// hidden backing threads) rather than the visible member-facing chats
-// (`listProjectThreads`) — so a fresh seeded project claimed "1 chat" when a
-// member could see none. The header count reads off the visible `threads`
-// list; these tests pin that, both when stats disagree with an empty visible
-// list and when chats really are present.
+// The general page opens directly with the "Project" section — the layout's
+// header already names the project, so the page renders no second name
+// heading, no stats line, and no New-chat CTA of its own. These tests pin
+// that shape plus the per-field hints under name / description /
+// instructions.
 
 type ProjectFixture = {
   name: string;
@@ -23,27 +21,10 @@ type ProjectFixture = {
   sharedWithTeamIds?: string[];
 };
 
-type ThreadFixture = {
-  _id: string;
-  threadId: string;
-  title?: string;
-  updatedAt?: number;
-  createdAt: number;
-  sharedWithProject?: boolean;
-};
-
 let projectFixture: ProjectFixture | null = null;
-let statsFixture: {
-  fileCount: number;
-  threadCount: number;
-  truncated: boolean;
-} | null = null;
-let threadsFixture: ThreadFixture[] = [];
 
 vi.mock('../hooks/queries', () => ({
   useProject: () => ({ project: projectFixture, isLoading: false }),
-  useProjectStats: () => ({ stats: statsFixture, isLoading: false }),
-  useProjectThreads: () => ({ threads: threadsFixture, isLoading: false }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -51,7 +32,7 @@ vi.mock('../hooks/mutations', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
-  // The instructions section is part of this page now, so its write is
+  // The instructions section is part of this page, so its write is
   // reachable from here too.
   useUpdateProjectInstructions: () => ({
     mutateAsync: vi.fn(),
@@ -87,47 +68,60 @@ describe('ProjectOverview', () => {
       canEdit: true,
       canAdminister: true,
     };
-    statsFixture = null;
-    threadsFixture = [];
   });
 
-  describe('header chat count (#2648)', () => {
-    it('reads 0 chats in the header when the visible thread list is empty, even if stats.threadCount is stale/non-zero', () => {
-      // A hidden backing thread inflates `getProjectStats.threadCount` to 1
-      // while no visible chat exists.
-      statsFixture = { fileCount: 0, threadCount: 1, truncated: false };
-      threadsFixture = [];
+  it('opens with the Project section — no duplicate name heading, stats line, or New-chat CTA', () => {
+    renderOverview();
 
-      renderOverview();
+    expect(
+      screen.getByRole('heading', { name: 'Project' }),
+    ).toBeInTheDocument();
+    // The layout's header owns the project name; the page repeats neither it
+    // nor the retired stats/CTA header.
+    expect(
+      screen.queryByRole('heading', { name: /Getting started/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ chats?\b/)).not.toBeInTheDocument();
+    expect(screen.queryByText('New chat')).not.toBeInTheDocument();
+  });
 
-      expect(screen.getByText(/0 chats/)).toBeInTheDocument();
-    });
+  it('describes the name, description, and instructions fields', () => {
+    renderOverview();
 
-    it('counts the visible chats when chats are present', () => {
-      statsFixture = { fileCount: 2, threadCount: 0, truncated: false };
-      threadsFixture = [
-        {
-          _id: 't1',
-          threadId: 'thread-1',
-          title: 'My chat',
-          createdAt: 1,
-          updatedAt: 2,
-        },
-      ];
+    expect(
+      screen.getByText('Shown in the projects list and the chat sidebar.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'A short summary that tells teammates what belongs here.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Every chat in this project starts with these instructions.',
+      ),
+    ).toBeInTheDocument();
+  });
 
-      renderOverview();
+  it('shows the read-only Project summary for viewers with a description', () => {
+    projectFixture = {
+      name: 'Getting started',
+      description: 'A tour of the platform.',
+      canEdit: false,
+      canAdminister: false,
+    };
 
-      expect(screen.getByText(/1 chat\b/)).toBeInTheDocument();
-      expect(screen.queryByText('Get started')).not.toBeInTheDocument();
-    });
+    renderOverview();
 
-    it('never shows the retired Get-started nudge, even on an empty project', () => {
-      statsFixture = { fileCount: 0, threadCount: 0, truncated: false };
-      threadsFixture = [];
+    expect(
+      screen.getByRole('heading', { name: 'Project' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('A tour of the platform.')).toBeInTheDocument();
+  });
 
-      renderOverview();
+  it('never shows the retired Get-started nudge, even on an empty project', () => {
+    renderOverview();
 
-      expect(screen.queryByText('Get started')).not.toBeInTheDocument();
-    });
+    expect(screen.queryByText('Get started')).not.toBeInTheDocument();
   });
 });

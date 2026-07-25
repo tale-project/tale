@@ -1,10 +1,7 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
-import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod/v4';
@@ -27,12 +24,7 @@ import {
 } from '@/lib/shared/schemas/projects';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
-import {
-  useProject,
-  useProjectStats,
-  useProjectThreads,
-} from '../hooks/queries';
-import { ProjectArchivedBadge } from './project-archived-badge';
+import { useProject } from '../hooks/queries';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSharingSection } from './project-sharing-section';
@@ -69,10 +61,7 @@ function ProjectOverviewContent({
 }: ProjectOverviewProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
-  const navigate = useNavigate();
   const { project } = useProject(projectId);
-  const { stats } = useProjectStats(projectId);
-  const { threads } = useProjectThreads(projectId, 'all');
   const { mutateAsync: updateIdentity } = useUpdateProjectIdentity();
 
   const identitySchema = useMemo(
@@ -158,77 +147,25 @@ function ProjectOverviewContent({
     },
   } = editor;
 
-  const teamCount = project
-    ? (project.teamId ? 1 : 0) + (project.sharedWithTeamIds?.length ?? 0)
-    : 0;
-
-  // Inline "stats" string (e.g. "12 files · 5 chats · Org-wide") for the
-  // page header. Computed before the project null-guard so the hook order
-  // stays stable; the empty-stats fallback returns undefined.
-  //
-  // The chat count reads the visible member-facing list (`listProjectThreads`)
-  // rather than `stats.threadCount` (`getProjectStats`, an unfiltered count of
-  // every threadMetadata row for the project — including hidden task-comment
-  // threads and other members' unshared chats), so the header never claims
-  // chats a member cannot see (#2648).
-  const statsLine = useMemo(() => {
-    if (!stats) return undefined;
-    const parts: string[] = [];
-    parts.push(
-      t('overview.statsFiles', { count: stats.fileCount }) +
-        (stats.truncated ? '+' : ''),
-    );
-    parts.push(t('overview.statsChats', { count: threads.length }));
-    if (teamCount === 0) {
-      parts.push(t('list.sharingOrgWide'));
-    } else {
-      parts.push(t('list.sharingMultipleTeams', { count: teamCount }));
-    }
-    return parts.join(' · ');
-  }, [stats, teamCount, t, threads.length]);
-
   if (!project) return null;
 
   const canEdit = project.canEdit;
   const canAdminister = project.canAdminister;
   const isViewerOnly = !canEdit && !canAdminister;
 
-  const handleNewChat = () => {
-    void navigate({
-      to: '/dashboard/$id/chat',
-      params: { id: organizationId },
-      search: { projectId: String(projectId) },
-    });
-  };
-
   return (
     <ContentArea variant="narrow" gap={6}>
       {isViewerOnly ? <ProjectReadOnlyBanner /> : null}
 
-      {/* Sticky header — project name + archived badge as title, inline
-          stats + sharing summary as description, "New chat" as the only
-          action. Save/Discard for this page's sections live in the project
-          layout's tab strip (composed by the EditorGroup above). */}
-      <StickySectionHeader
-        title={
-          <span className="inline-flex items-center gap-2">
-            {project.name}
-            {project.archivedAt ? <ProjectArchivedBadge /> : null}
-          </span>
-        }
-        description={statsLine}
-        action={
-          <Button onClick={handleNewChat}>{t('overview.newChatCta')}</Button>
-        }
-      />
-
-      {/* Identity — inline edit when canEdit, read-only summary otherwise.
-          Wrapped in a PageSection so the title + divider match the rest
-          of the platform's settings pages. */}
+      {/* The project's basics — inline edit when canEdit, read-only summary
+          otherwise. The layout's header already names the project, so this
+          page opens directly with the section. Save/Discard for its editors
+          live in the project layout's tab strip (composed by the EditorGroup
+          above). */}
       {canEdit ? (
         <PageSection
-          title={t('settings.identity')}
-          description={t('overview.identityDescription')}
+          title={t('overview.projectSection')}
+          description={t('overview.projectSectionDescription')}
           gap={4}
         >
           <form id={PROJECT_OVERVIEW_FORM_ID} onSubmit={editor.submit}>
@@ -240,6 +177,7 @@ function ProjectOverviewContent({
                 <Input
                   id="project-overview-name"
                   label={t('settings.name')}
+                  description={t('settings.nameHint')}
                   {...register('name')}
                   maxLength={PROJECT_NAME_MAX}
                   errorMessage={errors.name?.message}
@@ -247,6 +185,7 @@ function ProjectOverviewContent({
                 <Textarea
                   id="project-overview-description"
                   label={t('settings.description')}
+                  description={t('settings.descriptionHint')}
                   rows={2}
                   maxLength={PROJECT_DESCRIPTION_MAX}
                   {...register('description')}
@@ -257,7 +196,7 @@ function ProjectOverviewContent({
           </form>
         </PageSection>
       ) : project.description ? (
-        <PageSection title={t('settings.identity')} gap={3}>
+        <PageSection title={t('overview.projectSection')} gap={3}>
           <Text variant="muted">{project.description}</Text>
         </PageSection>
       ) : null}

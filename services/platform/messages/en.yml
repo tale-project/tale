@@ -5097,20 +5097,14 @@ projects:
     successToast: Project created
     errorToast: Couldn't create project
   overview:
-    statsHeading: Stats
-    statsFiles: '{count, plural, one {# file} other {# files}}'
-    statsChats: '{count, plural, one {# chat} other {# chats}}'
-    statsShared: '{count, plural, one {# shared} other {# shared}}'
-    statsIndexed: '{count, plural, one {# RAG-indexed} other {# RAG-indexed}}'
     newChatCta: New chat
-    identityDescription:
-      The project's name and description appear in the projects
-      list and on the chat sidebar.
+    projectSection: Project
+    projectSectionDescription: Name, description, and standing instructions for
+      this project.
     sharingHeading: Sharing
-    lastActivity: Last activity {when}
-    lastActivityNever: No activity yet
   instructions:
     label: Instructions
+    hint: Every chat in this project starts with these instructions.
     placeholder: Write context that should apply to every chat in this project…
     charCount: '{count} / {max}'
     tokenCapWarning: Approaching the {cap}-character limit
@@ -5210,9 +5204,10 @@ projects:
     sectionCodingAgents: Coding agents
     sectionImageAgents: Image agents
   settings:
-    identity: Identity
     name: Name
+    nameHint: Shown in the projects list and the chat sidebar.
     description: Description
+    descriptionHint: A short summary that tells teammates what belongs here.
     iconColor: Icon / Color
     sharing: Sharing
     owningTeam: Owning team

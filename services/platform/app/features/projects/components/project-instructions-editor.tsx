@@ -104,6 +104,7 @@ export function ProjectInstructionsEditor({
           <Textarea
             id="project-instructions"
             label={t('instructions.label')}
+            description={t('instructions.hint')}
             placeholder={t('instructions.placeholder')}
             rows={12}
             {...editor.form.register('instructions')}
