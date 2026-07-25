@@ -156,7 +156,12 @@ export const readSkillBundle = internalAction({
     if (skill === null || !canViewSkill(skill.meta, viewer)) return null;
     const files = await readSkillBundleFiles(args.orgSlug, args.slug);
     if (files === null) return null;
-    return { files: files.map((file) => ({ ...file })) };
+    return {
+      files: files.map((file) => ({
+        path: file.path,
+        contentBase64: file.contentBase64,
+      })),
+    };
   },
 });
 
