@@ -14,6 +14,10 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -56,22 +60,31 @@ export function WebdavSettings(props: WebdavSettingsProps) {
         title={t('connectionDetails.title')}
         description={t('description')}
       >
-        <Stack gap={4}>
-          <CopyableField label="URL" value={url} mono />
-          <CopyableField
+        {/* Same divided rows as every settings section — label + hint left,
+            value pinned right. */}
+        <SettingsFieldList>
+          <SettingsFieldRow label="URL">
+            <CopyableField value={url} mono />
+          </SettingsFieldRow>
+          <SettingsFieldRow
             label={t('connectionDetails.usernameLabel')}
-            value={user?.email ?? ''}
             description={t('connectionDetails.usernameHelp')}
-            copyAriaLabel={t('connectionDetails.copyUsername')}
-          />
-          <Stack gap={1}>
-            <Text as="span" variant="label">
-              {t('connectionDetails.passwordLabel')}
-            </Text>
-            <Text as="span" variant="muted" className="text-sm">
-              {t('connectionDetails.passwordHelp')}
-            </Text>
-          </Stack>
+          >
+            <CopyableField
+              value={user?.email ?? ''}
+              copyAriaLabel={t('connectionDetails.copyUsername')}
+            />
+          </SettingsFieldRow>
+        </SettingsFieldList>
+        {/* Not a field — a pointer at the app-passwords table below, which is
+            where the credential actually lives. */}
+        <Stack gap={1}>
+          <Text as="span" variant="label">
+            {t('connectionDetails.passwordLabel')}
+          </Text>
+          <Text as="span" variant="muted" className="text-sm">
+            {t('connectionDetails.passwordHelp')}
+          </Text>
         </Stack>
       </SettingsSection>
 

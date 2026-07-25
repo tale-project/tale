@@ -196,7 +196,7 @@ export function ReleaseRequestsSection({
         title={t('legalHold.sections.releaseRequests.title')}
         description={t('legalHold.sections.releaseRequests.description')}
       >
-        <Stack gap={4}>
+        <Stack gap={6}>
           <div>
             <Text variant="label" className="mb-2 text-sm">
               {t('legalHold.sections.releaseRequests.pendingHeader')}
@@ -217,7 +217,9 @@ export function ReleaseRequestsSection({
               caption={t('legalHold.sections.releaseRequests.pendingHeader')}
             />
           </div>
-          <div>
+          {/* Hairline between the two request buckets — without it the
+              approved list read as more rows of the pending table. */}
+          <div className="border-border border-t pt-6">
             <Text variant="label" className="mb-2 text-sm">
               {t('legalHold.sections.releaseRequests.approvedHeader')}
             </Text>

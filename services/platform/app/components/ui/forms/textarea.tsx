@@ -49,6 +49,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     // bail-out keeps this loop-free.
     const innerRef = React.useRef<HTMLTextAreaElement | null>(null);
     const [charCount, setCharCount] = React.useState(0);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- deliberately deps-less: it reconciles the counter with the DOM value after EVERY render, because form resets change the value without an event; the setState equality bail-out keeps it loop-free
     React.useEffect(() => {
       if (counterMax === undefined) return;
       setCharCount(innerRef.current?.value.length ?? 0);

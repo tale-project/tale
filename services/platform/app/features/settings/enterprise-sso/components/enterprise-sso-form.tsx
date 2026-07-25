@@ -57,13 +57,6 @@ export type EnterpriseSsoConfig = SsoConnectionView;
 
 const FORM_ID = 'enterprise-sso-form';
 
-/**
- * Field-column width inside a `SettingsSection` — matches the max-w-2xl cap the
- * shared settings primitives put on their text columns, so inputs don't stretch
- * to the full content width on wide screens.
- */
-const FIELD_COLUMN = 'max-w-2xl';
-
 /** UI-level protocol/provider choice (maps to backend protocol + providerId). */
 type UiProtocol = 'entra-id' | 'generic-oidc' | 'oauth2' | 'saml';
 
@@ -750,7 +743,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             title={tNav('enterpriseSso')}
             description={t('integrations.enterpriseSso.description')}
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
+            <Stack gap={4}>
               {connected && (
                 <StatusIndicator variant="success">
                   {t('integrations.enterpriseSso.connected')}
@@ -836,7 +829,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             className="border-border border-t pt-8"
             title={t('integrations.enterpriseSso.signInSection')}
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
+            <Stack gap={4}>
               {isOidcLike ? (
                 <>
                   {/* The redirect URL to register in the IdP, shown up-front (not
@@ -1081,7 +1074,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             className="border-border border-t pt-8"
             title={t('integrations.enterpriseSso.provisioningSection')}
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
+            <Stack gap={4}>
               <Controller
                 control={control}
                 name="defaultRole"
@@ -1167,7 +1160,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               )
             }
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
+            <Stack gap={4}>
               {scimToken ? (
                 <Stack gap={2}>
                   <Text variant="muted" className="text-sm">

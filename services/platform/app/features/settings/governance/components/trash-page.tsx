@@ -383,7 +383,10 @@ export function TrashPage({ organizationId }: Props) {
                   gap={0}
                   align="stretch"
                   justify="center"
-                  className="border-border border-t p-2"
+                  // Same footer chrome as the shared DataTable's load-more —
+                  // centered, no divider — so paging reads identically on
+                  // every table.
+                  className="py-3"
                 >
                   {loading ? (
                     <SkeletonBox>

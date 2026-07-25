@@ -4,7 +4,7 @@ import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod/v4';

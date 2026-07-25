@@ -52,7 +52,7 @@ describe('CodingTurnMetricsPage', () => {
     expect(screen.getAllByRole('heading', { level: 3 }).length).toBeGreaterThan(
       0,
     );
-    expect(screen.getByLabelText('Period')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
     // Success rate 15/19 ≈ 79%, timeout rate 1/19 ≈ 5%, p95 12.0s.
     expect(screen.getByText('79%')).toBeInTheDocument();

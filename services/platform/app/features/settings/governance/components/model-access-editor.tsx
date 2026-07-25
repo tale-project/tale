@@ -14,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
-import { Text } from '@tale/ui/text';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 

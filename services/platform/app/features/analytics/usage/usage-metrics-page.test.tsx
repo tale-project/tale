@@ -54,7 +54,7 @@ describe('UsageMetricsPage', () => {
     // The period Select control, addressed by its accessible label exactly as
     // the E2E did (page.getByLabel(period.label)). Its presence proves the page
     // rendered past its skeleton.
-    expect(screen.getByLabelText('Period')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
     // Static summary-card labels asserted by the E2E.
     expect(screen.getByText('Total Requests')).toBeInTheDocument();

@@ -20,7 +20,7 @@ import { Copy, Fingerprint, ListFilter, Shield } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { Select } from '@/app/components/ui/forms/select';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -285,77 +285,75 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
           title={t('guardrailsOverview.recentEvents.title')}
           description={t('guardrailsOverview.recentEvents.description')}
         />
-        <Row gap={2} align="stretch">
-          <Select
-            aria-label={t('guardrailsOverview.recentEvents.columnFilter')}
-            value={filterName}
-            onValueChange={(v) => {
-              if (
-                v === 'all' ||
-                v === 'pii' ||
-                v === 'chat_filter' ||
-                v === 'moderation_provider'
-              ) {
-                setFilterName(v);
-              }
-            }}
-            options={[
-              {
-                value: 'all',
-                label: t('guardrailsOverview.recentEvents.filterAll'),
+        {/* One filter button for the list, matching the sibling log views —
+            both dimensions live in it as sections. */}
+        <DataTableFilters
+          filters={[
+            {
+              key: 'source',
+              title: t('guardrailsOverview.recentEvents.columnFilter'),
+              options: [
+                {
+                  value: 'pii',
+                  label: t('guardrailsOverview.recentEvents.filterPii'),
+                },
+                {
+                  value: 'chat_filter',
+                  label: t('guardrailsOverview.recentEvents.filterChatFilter'),
+                },
+                {
+                  value: 'moderation_provider',
+                  label: t('guardrailsOverview.recentEvents.filterModeration'),
+                },
+              ],
+              selectedValues: filterName === 'all' ? [] : [filterName],
+              onChange: (values) => {
+                const v = values[0];
+                setFilterName(
+                  v === 'pii' ||
+                    v === 'chat_filter' ||
+                    v === 'moderation_provider'
+                    ? v
+                    : 'all',
+                );
               },
-              {
-                value: 'pii',
-                label: t('guardrailsOverview.recentEvents.filterPii'),
+            },
+            {
+              key: 'kind',
+              title: t('guardrailsOverview.recentEvents.columnKind'),
+              options: [
+                {
+                  value: 'detected',
+                  label: t('guardrailsOverview.recentEvents.kindDetected'),
+                },
+                {
+                  value: 'blocked',
+                  label: t('guardrailsOverview.recentEvents.kindBlocked'),
+                },
+                {
+                  value: 'step_error',
+                  label: t('guardrailsOverview.recentEvents.kindStepError'),
+                },
+                {
+                  value: 'circuit_open',
+                  label: t('guardrailsOverview.recentEvents.kindCircuitOpen'),
+                },
+              ],
+              selectedValues: kind === 'all' ? [] : [kind],
+              onChange: (values) => {
+                const v = values[0];
+                setKind(
+                  v === 'detected' ||
+                    v === 'blocked' ||
+                    v === 'step_error' ||
+                    v === 'circuit_open'
+                    ? v
+                    : 'all',
+                );
               },
-              {
-                value: 'chat_filter',
-                label: t('guardrailsOverview.recentEvents.filterChatFilter'),
-              },
-              {
-                value: 'moderation_provider',
-                label: t('guardrailsOverview.recentEvents.filterModeration'),
-              },
-            ]}
-          />
-          <Select
-            aria-label={t('guardrailsOverview.recentEvents.columnKind')}
-            value={kind}
-            onValueChange={(v) => {
-              if (
-                v === 'all' ||
-                v === 'detected' ||
-                v === 'blocked' ||
-                v === 'step_error' ||
-                v === 'circuit_open'
-              ) {
-                setKind(v);
-              }
-            }}
-            options={[
-              {
-                value: 'all',
-                label: t('guardrailsOverview.recentEvents.kindAll'),
-              },
-              {
-                value: 'detected',
-                label: t('guardrailsOverview.recentEvents.kindDetected'),
-              },
-              {
-                value: 'blocked',
-                label: t('guardrailsOverview.recentEvents.kindBlocked'),
-              },
-              {
-                value: 'step_error',
-                label: t('guardrailsOverview.recentEvents.kindStepError'),
-              },
-              {
-                value: 'circuit_open',
-                label: t('guardrailsOverview.recentEvents.kindCircuitOpen'),
-              },
-            ]}
-          />
-        </Row>
+            },
+          ]}
+        />
       </Row>
 
       {!isLoading && (!events || events.length === 0) ? (

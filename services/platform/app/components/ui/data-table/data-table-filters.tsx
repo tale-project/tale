@@ -104,6 +104,12 @@ export interface DataTableFiltersProps {
   onClearAll?: () => void;
   /** Additional content to render in the filter bar */
   children?: ReactNode;
+  /**
+   * Right-aligned toolbar actions (a primary button like "File request").
+   * Rendered in the toolbar's right cluster so filters and actions share one
+   * baseline instead of every caller re-building the row.
+   */
+  actions?: ReactNode;
   /** Additional class name */
   className?: string;
 }
@@ -126,6 +132,7 @@ export function DataTableFilters({
   disabled = false,
   onClearAll,
   children,
+  actions,
   className,
 }: DataTableFiltersProps) {
   const { t } = useT('common');
@@ -390,15 +397,20 @@ export function DataTableFilters({
         {children}
       </div>
 
-      {hasActiveFilters && onClearAll && (
-        <Button
-          variant="ghost"
-          onClick={handleClearAll}
-          className="hidden gap-2 sm:flex"
-        >
-          <X className="size-4" />
-          {t('actions.clearAll')}
-        </Button>
+      {((hasActiveFilters && onClearAll) || actions) && (
+        <div className="flex shrink-0 items-center gap-2">
+          {hasActiveFilters && onClearAll && (
+            <Button
+              variant="ghost"
+              onClick={handleClearAll}
+              className="hidden gap-2 sm:flex"
+            >
+              <X className="size-4" />
+              {t('actions.clearAll')}
+            </Button>
+          )}
+          {actions}
+        </div>
       )}
     </div>
   );

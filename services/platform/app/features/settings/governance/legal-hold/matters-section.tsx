@@ -133,34 +133,32 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
         title={t('legalHold.sections.matters.title')}
         description={t('legalHold.sections.matters.description')}
       >
-        {/* One toolbar for the table: the filter opens the view, so it reads
-            from the left; the action creates into it, so it sits right. */}
-        <Row gap={2} justify="between">
-          <DataTableFilters
-            filters={[
-              {
-                key: 'status',
-                title: t('legalHold.columns.status'),
-                options: statusOptions.filter((o) => o.value !== 'all'),
-                selectedValues: statusFilter === 'all' ? [] : [statusFilter],
-                onChange: (values) =>
-                  setStatusFilter(
-                    values[0] === 'open' || values[0] === 'closed'
-                      ? values[0]
-                      : 'all',
-                  ),
-              },
-            ]}
-          />
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => setCreateOpen(true)}
-          >
-            <Scale className="mr-1.5 size-4" aria-hidden />
-            {t('legalHold.actions.createMatter')}
-          </Button>
-        </Row>
+        <DataTableFilters
+          filters={[
+            {
+              key: 'status',
+              title: t('legalHold.columns.status'),
+              options: statusOptions.filter((o) => o.value !== 'all'),
+              selectedValues: statusFilter === 'all' ? [] : [statusFilter],
+              onChange: (values) =>
+                setStatusFilter(
+                  values[0] === 'open' || values[0] === 'closed'
+                    ? values[0]
+                    : 'all',
+                ),
+            },
+          ]}
+          actions={
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Scale className="mr-1.5 size-4" aria-hidden />
+              {t('legalHold.actions.createMatter')}
+            </Button>
+          }
+        />
         <DataTable<MatterRow>
           columns={columns}
           data={matters ?? []}

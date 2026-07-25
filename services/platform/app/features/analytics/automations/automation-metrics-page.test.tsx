@@ -77,7 +77,7 @@ describe('AutomationMetricsPage', () => {
 
     // The period Select control, addressed by its accessible label. Its
     // presence proves the page rendered past its skeleton.
-    expect(screen.getByLabelText('Period')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
     // Loaded summary-card values (total runs, success rate, avg duration).
     // '42' also renders as the status donut's center total.

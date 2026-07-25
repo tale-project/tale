@@ -99,10 +99,10 @@ describe('validateBuiltinCatalog', () => {
   it('validates the shipped repo catalog via the env-unset fallback', async () => {
     // Empty env → resolution falls back to the repo checkout's
     // configs/platform/custom (found from the vitest working directory) —
-    // proving the 21 governance seeds this repo ships are all valid.
+    // proving the 22 governance seeds this repo ships are all valid.
     vi.stubEnv('TALE_CONFIG_BUILTIN_DIR', '');
     const result = await run();
     expect(result.ok).toBe(true);
-    expect(result.filesValidated).toBe(21);
+    expect(result.filesValidated).toBe(22);
   });
 });

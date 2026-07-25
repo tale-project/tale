@@ -319,7 +319,9 @@ function PendingFieldWrap({
   return (
     <div className="relative opacity-60">
       <div className="pointer-events-none">{children}</div>
-      <Row gap={1} className="text-muted-foreground mt-1 text-xs">
+      {/* Anchored under the control (right edge), not across the row —
+          stretched full-width it read as a stray line above the divider. */}
+      <Row gap={1} justify="end" className="text-muted-foreground mt-1 text-xs">
         <Lock className="size-3" aria-hidden="true" />
         <span>{t('dsarPolicy.pendingFieldLocked')}</span>
       </Row>

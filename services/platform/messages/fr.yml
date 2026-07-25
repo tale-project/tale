@@ -3351,11 +3351,9 @@ governance:
         Les 50 dernières détections / blocages / erreurs du fournisseur
         pour cette organisation. Le texte correspondant brut n'est jamais
         stocké.
-      filterAll: Tous les filtres
       filterPii: DCP
       filterChatFilter: Sécurité du contenu
       filterModeration: Modération
-      kindAll: Tous les types
       kindDetected: Détecté
       kindBlocked: Bloqué
       kindStepError: Erreur d'étape

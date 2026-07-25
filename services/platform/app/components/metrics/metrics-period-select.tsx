@@ -2,9 +2,8 @@
 
 import { useMemo } from 'react';
 
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { useT } from '@/lib/i18n/client';
-
-import { MetricSelect } from './metric-select';
 
 /** A selectable reporting window. Numeric strings are day counts. */
 export type MetricsPeriodOption = '1' | '7' | '30' | '90' | 'all';
@@ -28,9 +27,12 @@ interface MetricsPeriodSelectProps {
 }
 
 /**
- * The ONE period dropdown for metrics surfaces. Owns the shared
- * `metrics.period.*` labels so every page offers identically worded windows;
- * pages own the value parsing (`parseMetricsPeriodDays` for the 7/30/90 set).
+ * The ONE period control for metrics surfaces — the same filter button every
+ * table toolbar uses. Owns the shared `metrics.period.*` labels so every page
+ * offers identically worded windows; pages own the value parsing
+ * (`parseMetricsPeriodDays` for the 7/30/90 set). Single-select with a
+ * mandatory window: clearing falls back to the page's current value, because
+ * a metrics view always needs a period.
  */
 export function MetricsPeriodSelect({
   value,
@@ -49,11 +51,16 @@ export function MetricsPeriodSelect({
   );
 
   return (
-    <MetricSelect
-      aria-label={t('period.label')}
-      options={options}
-      value={value}
-      onValueChange={onValueChange}
+    <DataTableFilters
+      filters={[
+        {
+          key: 'period',
+          title: t('period.label'),
+          options,
+          selectedValues: [value],
+          onChange: (values) => onValueChange(values[0] ?? value),
+        },
+      ]}
     />
   );
 }

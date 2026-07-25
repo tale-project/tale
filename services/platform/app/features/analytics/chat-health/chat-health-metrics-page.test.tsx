@@ -76,7 +76,7 @@ describe('ChatHealthMetricsPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Chat health' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Period')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
     // Summary card labels/values from surviving i18n keys.
     expect(screen.getByText('Assistant turns')).toBeInTheDocument();

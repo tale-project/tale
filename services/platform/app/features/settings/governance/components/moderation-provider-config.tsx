@@ -10,6 +10,10 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -505,28 +509,30 @@ export function ModerationProviderConfigView({
               />
             )}
 
-            <FormSection label={t('moderationProvider.applyTo')}>
-              <Stack gap={2}>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={appliesToInput}
-                    disabled={cannotManage}
-                    onChange={(e) => handleAppliesToInput(e.target.checked)}
-                  />
-                  <span>{t('moderationProvider.userInput')}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={appliesToOutput}
-                    disabled={cannotManage}
-                    onChange={(e) => handleAppliesToOutput(e.target.checked)}
-                  />
-                  <span>{t('moderationProvider.modelOutput')}</span>
-                </label>
-              </Stack>
-            </FormSection>
+            <SettingsFieldList>
+              <SettingsFieldRow label={t('moderationProvider.applyTo')}>
+                <Stack gap={2}>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={appliesToInput}
+                      disabled={cannotManage}
+                      onChange={(e) => handleAppliesToInput(e.target.checked)}
+                    />
+                    <span>{t('moderationProvider.userInput')}</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={appliesToOutput}
+                      disabled={cannotManage}
+                      onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                    />
+                    <span>{t('moderationProvider.modelOutput')}</span>
+                  </label>
+                </Stack>
+              </SettingsFieldRow>
+            </SettingsFieldList>
 
             <FormSection
               label={t('moderationProvider.failBehavior')}

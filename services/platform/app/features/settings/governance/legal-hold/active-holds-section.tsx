@@ -199,34 +199,32 @@ export function ActiveHoldsSection({
         title={t('legalHold.sections.activeHolds.title')}
         description={t('legalHold.sections.activeHolds.description')}
       >
-        {/* One toolbar for the table: the filter opens the view, so it reads
-            from the left; the action creates into it, so it sits right. */}
-        <Row gap={2} justify="between">
-          <DataTableFilters
-            filters={[
-              {
-                key: 'targetType',
-                title: t('legalHold.columns.target'),
-                options: targetTypeOptions.filter((o) => o.value !== 'all'),
-                selectedValues:
-                  targetTypeFilter === 'all' ? [] : [targetTypeFilter],
-                onChange: (values) =>
-                  setTargetTypeFilter(
-                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to FilterTargetType
-                    (values[0] as FilterTargetType | undefined) ?? 'all',
-                  ),
-              },
-            ]}
-          />
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => setPlaceOpen(true)}
-          >
-            <Lock className="mr-1.5 size-4" aria-hidden />
-            {t('legalHold.actions.placeHold')}
-          </Button>
-        </Row>
+        <DataTableFilters
+          filters={[
+            {
+              key: 'targetType',
+              title: t('legalHold.columns.target'),
+              options: targetTypeOptions.filter((o) => o.value !== 'all'),
+              selectedValues:
+                targetTypeFilter === 'all' ? [] : [targetTypeFilter],
+              onChange: (values) =>
+                setTargetTypeFilter(
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to FilterTargetType
+                  (values[0] as FilterTargetType | undefined) ?? 'all',
+                ),
+            },
+          ]}
+          actions={
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setPlaceOpen(true)}
+            >
+              <Lock className="mr-1.5 size-4" aria-hidden />
+              {t('legalHold.actions.placeHold')}
+            </Button>
+          }
+        />
         <DataTable<LegalHoldRow>
           columns={columns}
           data={rows ?? []}

@@ -183,21 +183,23 @@ export function RequestsListSection({
       <SettingsSection
         title={t('dataSubjectRequests.title')}
         description={t('dataSubjectRequests.description')}
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => setFileOpen(true)}
-          >
-            {/* H9-5: FileText conveys "file an erasure request" — the
-                previous Trash2 mis-signaled "delete-now" for an action
-                that just opens the file-request dialog. */}
-            <FileText className="mr-1.5 size-4" aria-hidden />
-            {t('dataSubjectRequests.actions.fileRequest')}
-          </Button>
-        }
       >
-        <DataTableFilters filters={filterConfigs} />
+        <DataTableFilters
+          filters={filterConfigs}
+          actions={
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setFileOpen(true)}
+            >
+              {/* FileText conveys "file an erasure request" — a trash icon
+                  mis-signaled delete-now for an action that only opens the
+                  file-request dialog. */}
+              <FileText className="mr-1.5 size-4" aria-hidden />
+              {t('dataSubjectRequests.actions.fileRequest')}
+            </Button>
+          }
+        />
         <DataTable<ErasureRow>
           columns={columns}
           data={results ?? []}

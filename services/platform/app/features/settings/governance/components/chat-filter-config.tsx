@@ -23,6 +23,10 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -340,15 +344,19 @@ export function ChatFilterConfigView({
               </Stack>
             </FormSection>
 
-            <FormSection label={t('contentSafety.maskReplacement')}>
-              <Input
-                id="chat-filter-mask"
-                value={maskReplacement}
-                disabled={cannotManage}
-                onChange={(e) => setMaskReplacement(e.target.value)}
-                onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
-              />
-            </FormSection>
+            <SettingsFieldList>
+              <SettingsFieldRow label={t('contentSafety.maskReplacement')}>
+                <Input
+                  id="chat-filter-mask"
+                  aria-label={t('contentSafety.maskReplacement')}
+                  value={maskReplacement}
+                  disabled={cannotManage}
+                  onChange={(e) => setMaskReplacement(e.target.value)}
+                  onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
 
             <FormSection
               label={t('contentSafety.preferNonStreaming')}

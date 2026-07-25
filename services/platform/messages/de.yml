@@ -3294,11 +3294,9 @@ governance:
       description:
         Die letzten 50 Erkennungen / Blockierungen / Anbieter-Fehler dieser
         Organisation. Treffertext wird nie gespeichert.
-      filterAll: Alle Filter
       filterPii: PII
       filterChatFilter: Inhaltssicherheit
       filterModeration: Moderation
-      kindAll: Alle Arten
       kindDetected: Erkannt
       kindBlocked: Blockiert
       kindStepError: Schritt-Fehler
