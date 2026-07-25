@@ -40,15 +40,27 @@ test('usage tab renders translated header, toolbar, and tables', async ({
   await expect(
     page.getByRole('heading', { name: t('analytics.usage.title'), level: 3 }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await expect(
-    page.getByRole('combobox', { name: t('metrics.period.label') }),
-  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  const filterButton = page.getByRole('button', {
+    name: t('common.labels.filter'),
+    exact: true,
+  });
+  await expect(filterButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
     page.getByRole('heading', {
       name: t('analytics.usage.tables.topAgents.title'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+  // The period picker sits behind the shared toolbar filter button now (the
+  // one-filter-button grammar); opening it proves `metrics.period.label`
+  // still resolves on the live page — its section header is a plain button
+  // named by the translated title.
+  await filterButton.click();
+  await expect(
+    page.getByRole('button', { name: t('metrics.period.label'), exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await page.keyboard.press('Escape');
 
   await expectNoRawI18nKeys(page);
 });
@@ -103,8 +115,10 @@ test('automations tab renders translated KPIs, charts, and table', async ({
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // The period picker is the shared toolbar filter button (the usage-tab test
+  // opens it and proves the period label resolves).
   await expect(
-    page.getByRole('combobox', { name: t('metrics.period.label') }),
+    page.getByRole('button', { name: t('common.labels.filter'), exact: true }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
   await expectNoRawI18nKeys(page);

@@ -93,16 +93,14 @@ test('voice-output policy: toggles, persists, and restores', async ({
 
 /**
  * The mandatory-instructions field is a `<textarea aria-label="Custom
- * instructions">` (the pre-cutover mandatory prefix/suffix pair merged into
- * this single field). Its `FormSection` wrapper is a `role="group"` whose
- * `aria-labelledby` carries the SAME text, so `getByLabel(...)` matches BOTH
- * the group and the textarea (strict-mode violation). Scope to the `textbox`
- * role — the group is not a textbox — so the locator resolves to exactly the
- * textarea.
+ * instructions">` — the same text also names the `SettingsSection` region and
+ * the section's enable switch, so scope to the `textbox` role and the locator
+ * resolves to exactly the textarea. The field exists only while the section
+ * is on (a fresh org has it off); tests flip the header switch first.
  */
 function systemPromptInstructionsField(page: Page): Locator {
   return page.getByRole('textbox', {
-    name: t('governance.systemPrompt.instructionsLabel'),
+    name: t('governance.systemPrompt.title'),
   });
 }
 
@@ -117,10 +115,28 @@ async function saveSystemPrompt(page: Page): Promise<void> {
 
 test('system prompt: edits, persists, and restores', async ({ page, org }) => {
   const { organizationId } = org;
-  await page.goto(`${governanceBase(organizationId)}/content-models`);
+  // Custom instructions live on Guardrails (they constrain every agent), not
+  // on the Models page.
+  await page.goto(`${governanceBase(organizationId)}/guardrails`);
+
+  // A fresh org has the section OFF; the header switch autosaves the flag and
+  // the textarea renders only while it is on. Restored at the end.
+  const section = page.getByRole('region', {
+    name: t('governance.systemPrompt.title'),
+  });
+  await expect(section).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  const enableSwitch = section.getByRole('switch', {
+    name: t('governance.systemPrompt.enabled'),
+  });
+  await expect(enableSwitch).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(enableSwitch).toBeEnabled();
+  const initiallyEnabled = await isChecked(enableSwitch);
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+  }
 
   const prefixField = systemPromptInstructionsField(page);
-  await expect(prefixField).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(prefixField).toBeVisible({ timeout: TIMEOUT.PERSIST });
   await expect(prefixField).toBeEnabled();
 
   const original = await prefixField.inputValue();
@@ -140,6 +156,12 @@ test('system prompt: edits, persists, and restores', async ({ page, org }) => {
   await systemPromptInstructionsField(page).fill(original);
   await saveSystemPrompt(page);
   await expect(systemPromptInstructionsField(page)).toHaveValue(original);
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+    await expect(systemPromptInstructionsField(page)).toBeHidden({
+      timeout: TIMEOUT.PERSIST,
+    });
+  }
 });
 
 // =============================================================================
@@ -264,9 +286,11 @@ test('guardrails content-safety: toggles, persists, and restores', async ({
 //
 // The apiKey budget scope targets a specific key via `apiKeyId`; saving it with
 // no key selected would persist a permanently dead rule, so the editor blocks
-// Confirm and surfaces `budgets.targetRequired`. This exercises that guard
-// without needing a seeded API key or mutating any persisted config (Confirm
-// never succeeds), so there is nothing to restore.
+// Confirm and surfaces `budgets.targetRequired`. Confirm never succeeds, so no
+// rule is ever persisted; the only state this touches is the section's enable
+// switch (the rules table renders only while the section is on, and a fresh
+// org has it off), which autosaves and is restored at the end — absent config
+// and an explicit `enabled: false` gate identically server-side.
 // =============================================================================
 
 test('budget rules: apiKey scope requires a target before saving', async ({
@@ -282,9 +306,24 @@ test('budget rules: apiKey scope requires a target before saving', async ({
     name: t('governance.budgets.title'),
   });
   await expect(budgetsSection).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await budgetsSection
-    .getByRole('button', { name: t('governance.budgets.addRule'), exact: true })
-    .click();
+
+  // The section switch carries the section title as its accessible name; the
+  // Add-rule toolbar exists only while the section is on.
+  const enableSwitch = budgetsSection.getByRole('switch', {
+    name: t('governance.budgets.title'),
+  });
+  await expect(enableSwitch).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(enableSwitch).toBeEnabled();
+  const initiallyEnabled = await isChecked(enableSwitch);
+  const addRule = budgetsSection.getByRole('button', {
+    name: t('governance.budgets.addRule'),
+    exact: true,
+  });
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+  }
+  await expect(addRule).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  await addRule.click();
 
   const dialog = page.getByRole('dialog', {
     name: t('governance.budgets.addRuleDialogTitle'),
@@ -315,9 +354,14 @@ test('budget rules: apiKey scope requires a target before saving', async ({
     dialog.getByText(t('governance.budgets.targetRequired')),
   ).toBeVisible();
 
-  // Nothing was saved; close the dialog to leave the org untouched.
+  // Nothing was saved; close the dialog and restore the enable switch so the
+  // org leaves with budgets off again.
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden({ timeout: TIMEOUT.VISIBLE });
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+    await expect(addRule).toBeHidden({ timeout: TIMEOUT.PERSIST });
+  }
 });
 
 // =============================================================================
