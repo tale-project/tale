@@ -41,6 +41,10 @@ import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sessionCancelExec } from '../node_only/sandbox/helpers/session_client';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
+import {
+  BROKERABLE_GRANTS,
+  resolveSessionCredentialEnv,
+} from '../node_only/sandbox/session_credentials';
 import { WORKSPACE_READ_TOOLS } from '../node_only/sandbox/workspace_tools_bridge';
 import { sessionIdForUser } from '../sandbox/session_naming';
 import {
@@ -355,6 +359,33 @@ export async function runExternalTurnStart(
     // the turn's user, org-scoped and audited — so a default read grant is
     // honest without a per-agent picker. Writes are not in this set.
     const toolGrants = [...WORKSPACE_READ_TOOLS];
+
+    // Tier-2 broker: the explicitly BROKERABLE grants among the turn's
+    // connectors (github today) resolve to in-container env — GITHUB_TOKEN
+    // for the git CLI via the in-image credential helper — while every other
+    // connector stays dispatch-only behind the MCP bridge. Per-exec env, not
+    // session env: the grant is per-turn, the session per-user, and the exec
+    // overlay dies with the turn, so a later ungranted turn never inherits
+    // the token. The owner's git author identity rides along unconditionally.
+    // Best-effort: a broker failure downgrades the turn (git reports its
+    // missing credentials), never kills it.
+    let brokerEnv: Record<string, string> = {};
+    try {
+      const brokered = await resolveSessionCredentialEnv(ctx, {
+        organizationId: args.organizationId,
+        sessionId,
+        grants: BROKERABLE_GRANTS.filter((grant) =>
+          connectorSlugs.includes(grant),
+        ),
+        kind: 'bootstrap',
+      });
+      brokerEnv = brokered.env;
+    } catch (err) {
+      console.warn(
+        '[external-turn] credential broker failed (continuing without):',
+        err,
+      );
+    }
     const { token, keyId } = await provisionTurnGatewayToken(
       ctx,
       scope,
@@ -399,6 +430,7 @@ export async function runExternalTurnStart(
       ...(connectorSlugs.length > 0 || toolGrants.length > 0
         ? { bridgeUrl: integrationsBridgeUrlForSessions() }
         : {}),
+      ...(Object.keys(brokerEnv).length > 0 ? { extraEnv: brokerEnv } : {}),
       execId: args.execId,
     });
 

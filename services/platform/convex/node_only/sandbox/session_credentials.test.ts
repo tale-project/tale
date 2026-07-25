@@ -1,21 +1,14 @@
-// Unit gate for the session-credential broker: the `tale-git-credential`
-// helper injection (pre-existing) and the git author-identity injection
-// (#2586) it now carries alongside it, both expressed as contiguous
-// GIT_CONFIG_* env pairs via `buildGitConfigEnv`. Mocks the generated action
-// factory + api refs (the `credential_queries.test.ts` pattern) so the
-// handler is callable directly with a fake ctx — no spawner, no real DB.
+// Unit gate for the session-credential broker: brokerable grants resolve
+// through the integration-credentials seam into per-exec env (GITHUB_TOKEN +
+// the `tale-git-credential` helper activation), the git author-identity
+// injection (#2586) rides along unconditionally, and every failure mode
+// downgrades instead of throwing. Mocks the credential seam + api refs so the
+// broker is callable directly with a fake ctx — no spawner, no real DB.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../_generated/server', () => ({
-  internalAction: (config: Record<string, unknown>) => config,
-}));
-
 vi.mock('../../_generated/api', () => ({
   internal: {
-    integrations: {
-      credential_queries: { getBySlugInternal: 'getBySlugInternal' },
-    },
     sandbox: {
       session_mutations: {
         recordCredentialAccess: 'recordCredentialAccess',
@@ -27,44 +20,17 @@ vi.mock('../../_generated/api', () => ({
   },
 }));
 
-const getDecryptedCredentials = vi.fn();
-vi.mock('../../integrations/get_decrypted_credentials', () => ({
-  getDecryptedCredentials: (...args: unknown[]) =>
-    getDecryptedCredentials(...args),
+const resolveIntegrationCredential = vi.fn();
+vi.mock('../../integration_credentials/resolve_credential', () => ({
+  resolveIntegrationCredential: (...args: unknown[]) =>
+    resolveIntegrationCredential(...args),
 }));
 
-const { resolveSessionCredentials, buildGitConfigEnv } =
+const { BROKERABLE_GRANTS, buildGitConfigEnv, resolveSessionCredentialEnv } =
   await import('./session_credentials');
 
-interface ActionHandler<TArgs, TReturn> {
-  handler: (ctx: unknown, args: TArgs) => Promise<TReturn>;
-}
-
-interface ResolveArgs {
-  organizationId: string;
-  sessionId: string;
-  grants: string[];
-  kind: 'bootstrap' | 'git';
-}
-
-interface ResolveReturn {
-  env: Record<string, string>;
-  git: Array<{ slug: string; hosts: string[]; username: string }>;
-}
-
-const resolve = resolveSessionCredentials as unknown as ActionHandler<
-  ResolveArgs,
-  ResolveReturn
->;
-
-function makeCtx(opts: {
-  credential?: { _id: string } | null;
-  identity?: { name: string; email: string } | null;
-}) {
+function makeCtx(opts: { identity?: { name: string; email: string } | null }) {
   const runQuery = vi.fn((ref: unknown) => {
-    if (ref === 'getBySlugInternal') {
-      return Promise.resolve(opts.credential ?? null);
-    }
     if (ref === 'getSessionOwnerIdentity') {
       return Promise.resolve(opts.identity ?? null);
     }
@@ -76,96 +42,168 @@ function makeCtx(opts: {
 
 const OWNER = { name: 'Ada Lovelace', email: 'ada@example.com' };
 
-describe('resolveSessionCredentials — git identity + credential-helper injection', () => {
+const ARGS = {
+  organizationId: 'org-1',
+  sessionId: 'sess-1',
+  kind: 'bootstrap' as const,
+};
+
+describe('resolveSessionCredentialEnv — git credential + identity injection', () => {
   beforeEach(() => {
-    getDecryptedCredentials.mockReset();
-    getDecryptedCredentials.mockResolvedValue({ accessToken: 'gh-token' });
+    resolveIntegrationCredential.mockReset();
   });
 
-  it('resolves a github grant to no credentials while integrations are offline, still injecting identity', async () => {
-    const ctx = makeCtx({ credential: { _id: 'cred-1' }, identity: OWNER });
-    const out = await resolve.handler(ctx as never, {
-      organizationId: 'org-1',
-      sessionId: 'sess-1',
+  it('resolves a github grant to GITHUB_TOKEN/GH_TOKEN, arms the credential helper, audits, and injects identity', async () => {
+    resolveIntegrationCredential.mockResolvedValue({
+      credentialId: 'cred-1',
+      connectorSlug: 'github',
+      authMethod: 'bearer',
+      secrets: { token: 'gh-token', accessToken: 'gh-token' },
+      config: {},
+    });
+    const ctx = makeCtx({ identity: OWNER });
+
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
       grants: ['github'],
-      kind: 'bootstrap',
     });
 
-    // Integration credential grants are offline while that backend is
-    // rebuilt: no token, no git credential entry, so no credential.helper
-    // pair — but the owner git identity is always-on and unaffected.
+    expect(out.env.GITHUB_TOKEN).toBe('gh-token');
+    expect(out.env.GH_TOKEN).toBe('gh-token');
+    expect(out.git).toEqual([
+      { slug: 'github', hosts: ['github.com'], username: 'x-access-token' },
+    ]);
+    // Helper first, then the identity pairs — contiguous from 0.
+    expect(out.env.GIT_CONFIG_COUNT).toBe('3');
+    expect(out.env.GIT_CONFIG_KEY_0).toBe('credential.helper');
+    expect(out.env.GIT_CONFIG_VALUE_0).toBe(
+      '/usr/local/bin/tale-git-credential',
+    );
+    expect(out.env.GIT_CONFIG_KEY_1).toBe('user.name');
+    expect(out.env.GIT_CONFIG_VALUE_1).toBe(OWNER.name);
+    expect(out.env.GIT_CONFIG_KEY_2).toBe('user.email');
+    expect(out.env.GIT_CONFIG_VALUE_2).toBe(OWNER.email);
+    // The Tier-2 traceability requirement: the fetch is audited.
+    expect(ctx.runMutation).toHaveBeenCalledWith('recordCredentialAccess', {
+      organizationId: 'org-1',
+      sessionId: 'sess-1',
+      slug: 'github',
+      kind: 'bootstrap',
+    });
+  });
+
+  it('prefers an OAuth access token when the bindings carry one', async () => {
+    resolveIntegrationCredential.mockResolvedValue({
+      credentialId: 'cred-1',
+      connectorSlug: 'github',
+      authMethod: 'oauth2',
+      secrets: { accessToken: 'oauth-token' },
+      config: {},
+    });
+    const ctx = makeCtx({ identity: null });
+
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
+      grants: ['github'],
+    });
+
+    expect(out.env.GITHUB_TOKEN).toBe('oauth-token');
+  });
+
+  it('skips a grant the credential seam refuses (no credential / disabled), without auditing, keeping identity', async () => {
+    resolveIntegrationCredential.mockRejectedValue(
+      new Error(
+        'No default credential is configured for "github" — add one in Settings → Integrations.',
+      ),
+    );
+    const ctx = makeCtx({ identity: OWNER });
+
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
+      grants: ['github'],
+    });
+
     expect(out.env.GITHUB_TOKEN).toBeUndefined();
     expect(out.git).toEqual([]);
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+    // No credential.helper pair — only the always-on identity.
     expect(out.env.GIT_CONFIG_COUNT).toBe('2');
     expect(out.env.GIT_CONFIG_KEY_0).toBe('user.name');
-    expect(out.env.GIT_CONFIG_VALUE_0).toBe(OWNER.name);
-    expect(out.env.GIT_CONFIG_KEY_1).toBe('user.email');
-    expect(out.env.GIT_CONFIG_VALUE_1).toBe(OWNER.email);
     expect(Object.values(out.env)).not.toContain('credential.helper');
   });
 
-  it('still injects identity when there is no git grant at all (always-on, not gated on git.length)', async () => {
-    const ctx = makeCtx({ credential: null, identity: OWNER });
-    const out = await resolve.handler(ctx as never, {
-      organizationId: 'org-1',
-      sessionId: 'sess-1',
-      grants: [],
-      kind: 'bootstrap',
+  it('skips a grant whose bindings carry no usable secret', async () => {
+    resolveIntegrationCredential.mockResolvedValue({
+      credentialId: 'cred-1',
+      connectorSlug: 'github',
+      authMethod: 'api-key',
+      secrets: {},
+      config: {},
+    });
+    const ctx = makeCtx({ identity: null });
+
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
+      grants: ['github'],
     });
 
+    expect(Object.keys(out.env)).toHaveLength(0);
+    expect(out.git).toEqual([]);
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
+  it('still injects identity when there is no grant at all (always-on, not gated on git.length)', async () => {
+    const ctx = makeCtx({ identity: OWNER });
+
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
+      grants: [],
+    });
+
+    expect(resolveIntegrationCredential).not.toHaveBeenCalled();
     expect(out.git).toEqual([]);
     expect(out.env.GIT_CONFIG_COUNT).toBe('2');
     expect(out.env.GIT_CONFIG_KEY_0).toBe('user.name');
     expect(out.env.GIT_CONFIG_VALUE_0).toBe(OWNER.name);
     expect(out.env.GIT_CONFIG_KEY_1).toBe('user.email');
     expect(out.env.GIT_CONFIG_VALUE_1).toBe(OWNER.email);
-    // No credential.helper pair anywhere in the count.
     expect(Object.values(out.env)).not.toContain('credential.helper');
   });
 
-  it('sets no git env for a granted session whose owner has no resolvable identity (system/workflow-owned)', async () => {
-    const ctx = makeCtx({ credential: { _id: 'cred-1' }, identity: null });
-    const out = await resolve.handler(ctx as never, {
-      organizationId: 'org-1',
-      sessionId: 'sess-1',
+  it('arms the helper without identity pairs for a granted session whose owner has none (system/workflow-owned)', async () => {
+    resolveIntegrationCredential.mockResolvedValue({
+      credentialId: 'cred-1',
+      connectorSlug: 'github',
+      authMethod: 'bearer',
+      secrets: { token: 'gh-token' },
+      config: {},
+    });
+    const ctx = makeCtx({ identity: null });
+
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
       grants: ['github'],
-      kind: 'bootstrap',
     });
 
-    // With grants resolving empty (integrations offline) and no identity,
-    // there is nothing to inject at all — no helper pair, no count.
-    expect(out.env.GIT_CONFIG_COUNT).toBeUndefined();
-    expect(out.env.GIT_CONFIG_KEY_0).toBeUndefined();
+    expect(out.env.GITHUB_TOKEN).toBe('gh-token');
+    expect(out.env.GIT_CONFIG_COUNT).toBe('1');
+    expect(out.env.GIT_CONFIG_KEY_0).toBe('credential.helper');
+    expect(out.env.GIT_CONFIG_KEY_1).toBeUndefined();
   });
 
-  it('sets no GIT_CONFIG_* env at all with neither a git grant nor a resolvable identity', async () => {
-    const ctx = makeCtx({ credential: null, identity: null });
-    const out = await resolve.handler(ctx as never, {
-      organizationId: 'org-1',
-      sessionId: 'sess-1',
+  it('sets no env at all with neither a grant nor a resolvable identity', async () => {
+    const ctx = makeCtx({ identity: null });
+
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
       grants: [],
-      kind: 'bootstrap',
     });
 
-    expect(out.env.GIT_CONFIG_COUNT).toBeUndefined();
     expect(Object.keys(out.env)).toHaveLength(0);
   });
 
-  it('audits the grant fetch and still resolves identity when a grant has no active credential', async () => {
-    const ctx = makeCtx({ credential: null, identity: OWNER });
-    const out = await resolve.handler(ctx as never, {
-      organizationId: 'org-1',
-      sessionId: 'sess-1',
-      grants: ['github'],
-      kind: 'bootstrap',
-    });
-
-    // Missing credential → no GITHUB_TOKEN, no git-helper entry, but the
-    // always-on identity resolution still runs.
-    expect(out.env.GITHUB_TOKEN).toBeUndefined();
-    expect(out.git).toEqual([]);
-    expect(out.env.GIT_CONFIG_COUNT).toBe('2');
-    expect(out.env.GIT_CONFIG_KEY_0).toBe('user.name');
+  it('keeps the brokerable allowlist explicit — github only, extended one deliberate entry at a time', () => {
+    expect(BROKERABLE_GRANTS).toEqual(['github']);
   });
 });
 

@@ -28,6 +28,11 @@ const mockProvision = vi.fn();
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
   provisionSessionGatewayKey: (...args: unknown[]) => mockProvision(...args),
 }));
+const mockResolveIntegrationCredential = vi.fn();
+vi.mock('../integration_credentials/resolve_credential', () => ({
+  resolveIntegrationCredential: (...args: unknown[]) =>
+    mockResolveIntegrationCredential(...args),
+}));
 vi.mock('../node_only/sandbox/llm_gateway_admin', () => ({
   getVirtualKeySpendCents: vi.fn().mockResolvedValue(null),
   resolveGatewayRouting: (providerSlug: string, modelId: string) => ({
@@ -82,6 +87,7 @@ interface CtxOverrides {
   listing?: typeof MODEL_LISTING;
   activeSession?: Record<string, unknown> | null;
   externalState?: Record<string, unknown> | null;
+  ownerIdentity?: { name: string; email: string } | null;
 }
 
 /** A mocked ActionCtx that answers by function name and records the order of
@@ -127,6 +133,9 @@ function createCtx(overrides: CtxOverrides = {}) {
     }
     if (name.endsWith('getProjectAgentCapabilitiesForThread')) {
       return Promise.resolve({ skills: [], connectors: [] });
+    }
+    if (name.endsWith('getSessionOwnerIdentity')) {
+      return Promise.resolve(overrides.ownerIdentity ?? null);
     }
     if (name.endsWith('getExternalTurnOpForFinalize')) {
       return Promise.resolve({ startedAt: 1 });
@@ -430,6 +439,95 @@ describe('runExternalTurnStart — async honesty', () => {
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
     expect(events(tape).some((e) => e.includes('endGenerationInternal'))).toBe(
       true,
+    );
+  });
+
+  it('brokers the github grant into the exec env — token, helper, identity, audit — under the harness env', async () => {
+    const { ctx, tape } = createCtx({
+      thread: { capabilities: { skills: [], connectors: ['github'] } },
+      ownerIdentity: { name: 'Ada Lovelace', email: 'ada@example.com' },
+    });
+    mockSessionIsAlive.mockResolvedValue(true);
+    mockProvision.mockResolvedValue({
+      token: 'sk-bf-test',
+      keyId: 'vk_test_1',
+      keyHash: 'hash',
+    });
+    mockStageFiles.mockResolvedValue({ staged: [], skipped: [] });
+    mockResolveIntegrationCredential.mockResolvedValue({
+      credentialId: 'cred-1',
+      connectorSlug: 'github',
+      authMethod: 'bearer',
+      secrets: { token: 'gh-pat' },
+      config: {},
+    });
+    mockDrain.mockResolvedValue({
+      status: 'completed',
+      exitCode: 1,
+      durationMs: 5,
+      stdoutBase64: '',
+      stderrBase64: '',
+      truncated: { stdout: false, stderr: false },
+    });
+
+    await runExternalTurnStart(ctx as never, START_ARGS);
+
+    expect(mockResolveIntegrationCredential).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: ORG, connectorSlug: 'github' },
+    );
+    const body = mockDrain.mock.calls[0]?.[1] as {
+      env?: Record<string, string>;
+    };
+    // The git CLI's credential env plus the in-image helper activation.
+    expect(body.env?.GITHUB_TOKEN).toBe('gh-pat');
+    expect(body.env?.GH_TOKEN).toBe('gh-pat');
+    expect(Object.values(body.env ?? {})).toContain(
+      '/usr/local/bin/tale-git-credential',
+    );
+    // The owner's author identity rides along.
+    expect(Object.values(body.env ?? {})).toContain('Ada Lovelace');
+    // The harness's own managed credential env is never shadowed.
+    expect(body.env?.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
+    // Every Tier-2 fetch is audited.
+    expect(events(tape).some((e) => e.includes('recordCredentialAccess'))).toBe(
+      true,
+    );
+  });
+
+  it('runs the turn without git credentials when the broker cannot resolve the grant', async () => {
+    const { ctx, tape } = createCtx({
+      thread: { capabilities: { skills: [], connectors: ['github'] } },
+    });
+    mockSessionIsAlive.mockResolvedValue(true);
+    mockProvision.mockResolvedValue({
+      token: 'sk-bf-test',
+      keyId: 'vk_test_1',
+      keyHash: 'hash',
+    });
+    mockStageFiles.mockResolvedValue({ staged: [], skipped: [] });
+    mockResolveIntegrationCredential.mockRejectedValue(
+      new Error('No default credential is configured for "github"'),
+    );
+    mockDrain.mockResolvedValue({
+      status: 'completed',
+      exitCode: 1,
+      durationMs: 5,
+      stdoutBase64: '',
+      stderrBase64: '',
+      truncated: { stdout: false, stderr: false },
+    });
+
+    await runExternalTurnStart(ctx as never, START_ARGS);
+
+    // The turn still starts — a broker gap downgrades, never kills.
+    expect(mockDrain).toHaveBeenCalledTimes(1);
+    const body = mockDrain.mock.calls[0]?.[1] as {
+      env?: Record<string, string>;
+    };
+    expect(body.env?.GITHUB_TOKEN).toBeUndefined();
+    expect(events(tape).some((e) => e.includes('recordCredentialAccess'))).toBe(
+      false,
     );
   });
 });
