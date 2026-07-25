@@ -9,24 +9,19 @@
 tools/plop/templates/
 # Built-in seed configs are data, not code — excluded per domain (the
 # --exclude mapping in tools/opengrep/run.sh has no negation support) so the
-# one first-party code workspace nested under builtin-configs/skills/
+# one first-party code workspace nested under configs/platform/custom/skills/
 # (visual-aspect-analyzer, baked into the sandbox-runtime image) stays
 # scanned. First-party skill code stays scanned.
-builtin-configs/agents/
-builtin-configs/automations/
-builtin-configs/branding/
-builtin-configs/governance/
-builtin-configs/integrations/
-builtin-configs/prompts/
-builtin-configs/providers/
-builtin-configs/token-sources/
-builtin-configs/workflows/
+configs/platform/custom/agents/
+configs/platform/custom/automations/
+configs/platform/custom/branding/
+configs/platform/custom/governance/
 # The document skills are vendored (Anthropic's office tooling) — their
 # XML-parsing findings are accepted-risk in the sandboxed document tool.
-builtin-configs/skills/docx/
-builtin-configs/skills/pdf/
-builtin-configs/skills/pptx/
-builtin-configs/skills/xlsx/
+configs/platform/custom/skills/docx/
+configs/platform/custom/skills/pdf/
+configs/platform/custom/skills/pptx/
+configs/platform/custom/skills/xlsx/
 # Test scaffolding & fixtures intentionally contain odd inputs (fake API keys,
 # wildcard postMessage, etc.). SAST targets shipped production code.
 **/fixtures/
@@ -46,8 +41,8 @@ tests/stress/
 .agents/review-out/
 # Generated skill trees (`bun run skills:sync`): the .agents projections and
 # the whole .claude mirror duplicate code that is already scanned (or
-# accepted-risk-excluded) at its builtin-configs/skills/ source; the
-# hand-written .agents guides are docs-only.
+# accepted-risk-excluded) at its source tree; the hand-written .agents guides
+# are docs-only.
 .agents/skills/
 .claude/skills/
 # Static assets and vendored/minified bundles are not our source to lint.
