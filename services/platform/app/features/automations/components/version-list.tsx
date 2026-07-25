@@ -41,6 +41,7 @@ export function VersionList({
   deployedVersion,
   selectedVersion,
   onSelectVersion,
+  canDeploy = true,
 }: {
   organizationId: string;
   name: string;
@@ -48,6 +49,8 @@ export function VersionList({
   deployedVersion: number | undefined;
   selectedVersion: number | undefined;
   onSelectVersion: (version: number) => void;
+  /** Promotion is a developer act; readers still see which version is live. */
+  canDeploy?: boolean;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -115,7 +118,7 @@ export function VersionList({
                 <Text as="span" variant="muted" className="text-xs">
                   {formatDate(new Date(entry.createdAt), 'long')}
                 </Text>
-                {!isDeployed && (
+                {!isDeployed && canDeploy && (
                   <Button
                     variant="secondary"
                     size="sm"

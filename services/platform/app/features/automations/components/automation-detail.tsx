@@ -8,9 +8,11 @@ import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
-import { CheckCircle2, Play, SearchX, Save } from 'lucide-react';
+import { CheckCircle2, Play, SearchX, Save, Zap } from 'lucide-react';
 import { useCallback, useId, useMemo, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { useAbility } from '@/app/hooks/use-ability';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { NodeDef, Workflow } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
@@ -37,6 +39,7 @@ import { AutomationCanvas } from './automation-canvas';
 import { NeedsReviewPanel } from './needs-review-panel';
 import { NodeInspector } from './node-inspector';
 import { RunList } from './run-list';
+import { TriggerEditor } from './trigger-editor';
 import { VersionList } from './version-list';
 
 /**
@@ -108,6 +111,11 @@ export function AutomationDetail({
   const { t } = useT('automations');
   const inspectorId = useId();
   const saveMessageId = useId();
+  const ability = useAbility();
+  // Mirrors the backend split: reads and mock runs are member acts, while
+  // saving, deploying, triggering, and LIVE runs demand
+  // `requireOrgAdminOrDeveloper` — hiding what would only fail server-side.
+  const canAuthor = ability.can('read', 'developerSettings');
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>(
     undefined,
   );
@@ -116,6 +124,7 @@ export function AutomationDetail({
   const [saveMessage, setSaveMessage] = useState('');
   const [refusal, setRefusal] = useState<string | null>(null);
   const [showLastRun, setShowLastRun] = useState(true);
+  const [confirmLiveRun, setConfirmLiveRun] = useState(false);
 
   const automationQuery = useAutomation(
     organizationId,
@@ -234,7 +243,41 @@ export function AutomationDetail({
         >
           {t('detail.runMock')}
         </Button>
+        {canAuthor && (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Zap}
+            isLoading={startRun.isPending}
+            disabled={meta?.deployedVersion === undefined}
+            disabledReason={t('detail.runLiveNeedsDeploy')}
+            onClick={() => {
+              setConfirmLiveRun(true);
+            }}
+          >
+            {t('detail.runLive')}
+          </Button>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={confirmLiveRun}
+        onOpenChange={setConfirmLiveRun}
+        title={t('detail.runLiveTitle')}
+        description={t('detail.runLiveBody')}
+        confirmText={t('detail.runLive')}
+        onConfirm={() => {
+          setRefusal(null);
+          startRun.mutate(
+            { organizationId, name: automationSlug, mode: 'live' },
+            {
+              onError: (error) => {
+                setRefusal(automationErrorMessage(error));
+              },
+            },
+          );
+        }}
+      />
 
       {workflow.description !== undefined && (
         <Text as="p" variant="muted" className="text-sm">
@@ -314,58 +357,66 @@ export function AutomationDetail({
               ? lastRunProjection.byNode.get(selectedNode.id)
               : undefined
           }
-          readOnly={false}
+          readOnly={!canAuthor}
           onChange={onChangeNode}
         />
       </div>
 
-      <div className="border-border flex flex-wrap items-end gap-2 rounded-lg border p-3">
-        <Field
-          label={t('detail.saveMessageLabel')}
-          htmlFor={saveMessageId}
-          description={t('detail.saveMessageDescription')}
-          className="min-w-[16rem] flex-1"
-        >
-          <Input
-            id={saveMessageId}
-            value={saveMessage}
-            onChange={(event) => {
-              setSaveMessage(event.target.value);
+      <TriggerEditor
+        organizationId={organizationId}
+        name={automationSlug}
+        canEdit={canAuthor}
+      />
+
+      {canAuthor && (
+        <div className="border-border flex flex-wrap items-end gap-2 rounded-lg border p-3">
+          <Field
+            label={t('detail.saveMessageLabel')}
+            htmlFor={saveMessageId}
+            description={t('detail.saveMessageDescription')}
+            className="min-w-[16rem] flex-1"
+          >
+            <Input
+              id={saveMessageId}
+              value={saveMessage}
+              onChange={(event) => {
+                setSaveMessage(event.target.value);
+              }}
+            />
+          </Field>
+          <Button
+            icon={Save}
+            isLoading={save.isPending}
+            disabled={!isDirty}
+            disabledReason={t('detail.nothingToSave')}
+            onClick={() => {
+              setRefusal(null);
+              save.mutate(
+                {
+                  organizationId,
+                  workflow,
+                  ...(saveMessage !== '' && { message: saveMessage }),
+                  // Pins a NEW automation to this project; an existing one
+                  // keeps its owner (the store refuses a mismatch).
+                  ...(projectId !== undefined && { projectId }),
+                },
+                {
+                  onSuccess: () => {
+                    setDraft(null);
+                    setSaveMessage('');
+                    setSelectedVersion(undefined);
+                  },
+                  onError: (error) => {
+                    setRefusal(automationErrorMessage(error));
+                  },
+                },
+              );
             }}
-          />
-        </Field>
-        <Button
-          icon={Save}
-          isLoading={save.isPending}
-          disabled={!isDirty}
-          disabledReason={t('detail.nothingToSave')}
-          onClick={() => {
-            setRefusal(null);
-            save.mutate(
-              {
-                organizationId,
-                workflow,
-                ...(saveMessage !== '' && { message: saveMessage }),
-                // Pins a NEW automation to this project; an existing one
-                // keeps its owner (the store refuses a mismatch).
-                ...(projectId !== undefined && { projectId }),
-              },
-              {
-                onSuccess: () => {
-                  setDraft(null);
-                  setSaveMessage('');
-                  setSelectedVersion(undefined);
-                },
-                onError: (error) => {
-                  setRefusal(automationErrorMessage(error));
-                },
-              },
-            );
-          }}
-        >
-          {t('detail.saveVersion')}
-        </Button>
-      </div>
+          >
+            {t('detail.saveVersion')}
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <VersionList
@@ -373,6 +424,7 @@ export function AutomationDetail({
           name={automationSlug}
           versions={versionsQuery.data ?? []}
           deployedVersion={meta?.deployedVersion}
+          canDeploy={canAuthor}
           selectedVersion={selectedVersion ?? meta?.version}
           onSelectVersion={(version) => {
             setDraft(null);

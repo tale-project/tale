@@ -645,8 +645,34 @@ automations:
     empty:
       title: Noch keine Automatisierungen
       description: Eine Automatisierung ist ein gespeichertes Workflow-Dokument.
-        Sobald eines gespeichert ist, findest du hier seine Versionen, seine
-        Läufe und die Version, die live ist.
+        Die mitgelieferten Starter-Automatisierungen erscheinen hier
+        automatisch, und mit "Neue Automatisierung" baut ein Entwickler neue
+        aus einem Ziel.
+  builder:
+    new: Neue Automatisierung
+    title: Neue Automatisierung
+    description:
+      Beschreibe, was die Automatisierung tun soll. Ein KI-Builder baut sie
+      gegen Mock-Integrationen und speichert das Ergebnis hier als Entwurf —
+      live läuft nichts, bevor du eine Version live schaltest.
+    goalLabel: Ziel
+    goalPlaceholder:
+      z. B. Lies jeden Morgen die neuesten Support-E-Mails und schreibe eine
+      Zusammenfassung, was heute eine Antwort braucht.
+    providerLabel: KI-Anbieter
+    providerPlaceholder: Anbieter wählen
+    modelLabel: Modell
+    modelPlaceholder: Modell wählen
+    submit: Bauen starten
+    submitting: Baut …
+    running:
+      Der Builder arbeitet — das kann ein paar Minuten dauern. Gespeicherte
+      Versionen erscheinen in der Liste, sobald sie da sind.
+    failed: 'Der Builder konnte nicht laufen: {error}'
+    gaveUp: 'Der Builder hat ohne fertige Automatisierung aufgehört: {reason}'
+    gaveUpNoReason: Der Builder hat ohne fertige Automatisierung aufgehört.
+    noProviders: Kein KI-Anbieter ist für den Builder bereit. Lege zuerst in
+      Einstellungen → KI-Anbieter einen API-Schlüssel an.
   notFound:
     title: Automatisierung nicht gefunden
     description:
@@ -664,6 +690,44 @@ automations:
     showLastRun: Letzten Lauf einblenden
     hideLastRun: Letzten Lauf ausblenden
     openLastRun: Letzten Lauf öffnen
+    runLive: Live ausführen
+    runLiveNeedsDeploy: Schalte zuerst eine Version live — ein Live-Lauf führt
+      die Version aus, die live ist.
+    runLiveTitle: Live ausführen?
+    runLiveBody: Ein Live-Lauf ruft echte Integrationen im Namen der
+      Organisation auf — Mails gehen raus, Daten ändern sich. Die Live-Version
+      läuft einmal, jetzt.
+  trigger:
+    title: Trigger
+    none: Noch nichts startet diese Automatisierung.
+    kindLabel: Art
+    kinds:
+      schedule: Zeitplan
+      webhook: Webhook
+      event: Plattform-Ereignis
+      api-key: API-Schlüssel
+    cronLabel: Cron
+    timezoneLabel: Zeitzone
+    eventLabel: Ereignisname
+    enabledLabel: Aktiv
+    enabledBadge: Aktiv
+    disabledBadge: Aus
+    lastFired: 'Zuletzt ausgelöst {at}'
+    nothingToSave: Die Bindung entspricht dem gespeicherten Stand.
+    save: Trigger speichern
+    remove: Trigger entfernen
+    removeTitle: Trigger entfernen?
+    removeBody: Die Automatisierung behält ihre Versionen und ihre Historie;
+      nichts startet sie, bis eine neue Bindung gespeichert ist.
+    tokenTitle: Webhook-Token — kopiere ihn jetzt
+    tokenHint: Dieser Token erscheint genau einmal und liegt nur als Hash
+      gespeichert.
+    tokenPath: 'Ein POST auf /api/automations/webhook/{token} startet die
+      Automatisierung.'
+    hasToken: Ein Webhook-Token existiert. Rotieren ersetzt ihn; die alte
+      Adresse funktioniert dann nicht mehr.
+    noToken: Beim Speichern entsteht ein Token und erscheint einmal.
+    rotate: Token rotieren
   canvas:
     ariaLabel: Canvas der Automatisierung
     readsFrom: 'Liest {nodes}'
@@ -4481,8 +4545,8 @@ metadata:
     description: Kontaktkonversationen anzeigen und verwalten.
   automations:
     title: Automatisierungen
-    description: Installierte Pakete und die Automatisierungen, die sie deiner
-      Organisation hinzufügen.
+    description: Alle Automatisierungen der Organisation — ihre Versionen, ihre
+      Läufe und die Version, die live ist.
   automation:
     title: Automatisierung
     description: Automatisierungs-Workflow anzeigen und bearbeiten.

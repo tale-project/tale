@@ -59,6 +59,25 @@ describe('VersionList', () => {
     expect(screen.getAllByRole('button', { name: 'Deploy' })).toHaveLength(1);
   });
 
+  it('hides the deploy control from readers without the developer capability', () => {
+    render(
+      <VersionList
+        organizationId="org"
+        name="billing/dunning"
+        versions={versions}
+        deployedVersion={1}
+        selectedVersion={2}
+        onSelectVersion={vi.fn()}
+        canDeploy={false}
+      />,
+    );
+    // The live marker stays — which version runs is a reader's fact too.
+    expect(screen.getByText('Live')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Deploy' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('says which versions were saved with failing tests', () => {
     renderList();
     expect(screen.getByText('Tests failed')).toBeVisible();

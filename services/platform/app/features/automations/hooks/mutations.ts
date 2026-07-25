@@ -1,3 +1,6 @@
+import { useMutation } from '@tanstack/react-query';
+import { useAction } from 'convex/react';
+
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
@@ -41,4 +44,30 @@ export function useCancelAutomationRun() {
   return useConvexMutation(api.automations.mutations.cancelRun, {
     errorToast: false,
   });
+}
+
+/** Bind (or re-bind) what starts the automation. The result may carry a
+ * webhook token — shown exactly once, so the call site must display it. */
+export function useSetAutomationTrigger() {
+  return useConvexMutation(api.automations.mutations.setTrigger, {
+    errorToast: false,
+  });
+}
+
+/** Unbind the automation's trigger; versions and run history stay. */
+export function useDeleteAutomationTrigger() {
+  return useConvexMutation(api.automations.mutations.deleteTrigger, {
+    errorToast: false,
+  });
+}
+
+/**
+ * Run one authoring session from a goal. An ACTION, not a mutation — a
+ * session spans minutes of model turns. TanStack's mutation state carries the
+ * pending/error UX; the automation listing updates reactively as the session
+ * saves versions, so the resolved value is only the closing summary.
+ */
+export function useStartBuilderSession() {
+  const start = useAction(api.automations_builder.actions.startBuilderSession);
+  return useMutation({ mutationFn: start });
 }

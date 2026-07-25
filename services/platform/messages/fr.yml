@@ -644,8 +644,35 @@ automations:
     empty:
       title: Aucune automatisation pour l’instant
       description: Une automatisation, c’est un document de workflow enregistré.
-        Dès qu’il y en a un, tu retrouves ici ses versions, ses exécutions et la
-        version en service.
+        Les automatisations de départ livrées arrivent ici automatiquement, et
+        un développeur en crée de nouvelles à partir d’un objectif avec
+        "Nouvelle automatisation".
+  builder:
+    new: Nouvelle automatisation
+    title: Nouvelle automatisation
+    description:
+      Décris ce que l’automatisation doit faire. Un builder IA l’écrit contre
+      des intégrations simulées et enregistre le résultat ici comme brouillon —
+      rien ne s’exécute en réel tant qu’une version n’est pas mise en service.
+    goalLabel: Objectif
+    goalPlaceholder:
+      p. ex. Chaque matin, lis les derniers e-mails du support et écris un
+      résumé de ce qui attend une réponse aujourd’hui.
+    providerLabel: Fournisseur d’IA
+    providerPlaceholder: Choisir un fournisseur
+    modelLabel: Modèle
+    modelPlaceholder: Choisir un modèle
+    submit: Lancer la construction
+    submitting: Construction…
+    running:
+      Le builder travaille — ça peut prendre quelques minutes. Les versions
+      enregistrées apparaissent dans la liste au fur et à mesure.
+    failed: 'Le builder n’a pas pu s’exécuter : {error}'
+    gaveUp: 'Le builder s’est arrêté sans automatisation terminée : {reason}'
+    gaveUpNoReason: Le builder s’est arrêté sans automatisation terminée.
+    noProviders:
+      Aucun fournisseur d’IA n’est prêt pour le builder. Ajoute d’abord une
+      clé API dans Paramètres → Fournisseurs d’IA.
   notFound:
     title: Automatisation introuvable
     description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -662,6 +689,44 @@ automations:
     showLastRun: Afficher la dernière exécution
     hideLastRun: Masquer la dernière exécution
     openLastRun: Ouvrir la dernière exécution
+    runLive: Exécuter en réel
+    runLiveNeedsDeploy: Mets d’abord une version en service — une exécution
+      réelle lance la version en service.
+    runLiveTitle: Exécuter en réel ?
+    runLiveBody: Une exécution réelle appelle les vraies intégrations au nom de
+      l’organisation — des e-mails partent, des données changent. La version en
+      service s’exécute une fois, maintenant.
+  trigger:
+    title: Déclencheur
+    none: Rien ne démarre encore cette automatisation.
+    kindLabel: Type
+    kinds:
+      schedule: Planification
+      webhook: Webhook
+      event: Événement de la plateforme
+      api-key: Clé API
+    cronLabel: Cron
+    timezoneLabel: Fuseau horaire
+    eventLabel: Nom de l’événement
+    enabledLabel: Actif
+    enabledBadge: Actif
+    disabledBadge: Coupé
+    lastFired: 'Dernier déclenchement {at}'
+    nothingToSave: La liaison correspond à ce qui est enregistré.
+    save: Enregistrer le déclencheur
+    remove: Retirer le déclencheur
+    removeTitle: Retirer le déclencheur ?
+    removeBody: L’automatisation garde ses versions et son historique ; rien ne
+      la démarre tant qu’une nouvelle liaison n’est pas enregistrée.
+    tokenTitle: Token du webhook — copie-le maintenant
+    tokenHint: Ce token apparaît une seule fois et n’est conservé que sous
+      forme de hash.
+    tokenPath: 'Un POST sur /api/automations/webhook/{token} démarre
+      l’automatisation.'
+    hasToken: Un token de webhook existe. Le faire tourner le remplace ;
+      l’ancienne adresse cesse de fonctionner.
+    noToken: Enregistrer crée un token et l’affiche une seule fois.
+    rotate: Renouveler le token
   canvas:
     ariaLabel: Canvas de l’automatisation
     readsFrom: 'Lit {nodes}'
@@ -4533,8 +4598,8 @@ metadata:
     description: Consulte et gère les conversations avec les contacts.
   automations:
     title: Automatisations
-    description: Modules installés et les automatisations qu'ils ajoutent à ton
-      organisation.
+    description: Toutes les automatisations de l’organisation — leurs versions,
+      leurs exécutions et la version en service.
   automation:
     title: Automatisation
     description: Consulte et modifie le workflow d'automatisation.

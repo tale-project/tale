@@ -10,12 +10,14 @@ import { Link } from '@tanstack/react-router';
 import { CheckCircle2, CircleDashed, Workflow } from 'lucide-react';
 import { useId } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
 import { automationSlugToParam } from '../lib/slug';
+import { NewAutomationDialog } from './new-automation-dialog';
 
 function ListLoading() {
   return (
@@ -51,7 +53,12 @@ export function AutomationsList({
 }) {
   const { t } = useT('automations');
   const headingId = useId();
+  const ability = useAbility();
   const automationsQuery = useAutomations(organizationId, projectId);
+  // Mirrors the backend gate: authoring is an owner/admin/developer act
+  // (`requireOrgAdminOrDeveloper`), so nobody else gets a button that can
+  // only fail server-side.
+  const canAuthor = ability.can('read', 'developerSettings');
 
   const automations = [...(automationsQuery.data ?? [])].sort((a, b) =>
     a.name.localeCompare(b.name),
@@ -59,13 +66,21 @@ export function AutomationsList({
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-4">
-      <div>
-        <h2 id={headingId} className="text-lg font-semibold">
-          {t('title')}
-        </h2>
-        <Text as="p" variant="muted" className="text-sm">
-          {t('list.description')}
-        </Text>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id={headingId} className="text-lg font-semibold">
+            {t('title')}
+          </h2>
+          <Text as="p" variant="muted" className="text-sm">
+            {t('list.description')}
+          </Text>
+        </div>
+        {canAuthor && (
+          <NewAutomationDialog
+            organizationId={organizationId}
+            {...(projectId !== undefined && { projectId })}
+          />
+        )}
       </div>
 
       {automationsQuery.isError && (

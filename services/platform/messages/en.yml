@@ -611,8 +611,35 @@ automations:
     empty:
       title: No automations yet
       description:
-        An automation is a saved workflow document. Once one is saved,
-        its versions, its runs, and the version that is live all appear here.
+        An automation is a saved workflow document. The shipped starter
+        automations appear here automatically, and a developer can author new
+        ones from a goal with "New automation".
+  builder:
+    new: New automation
+    title: New automation
+    description:
+      Describe what the automation should do. An AI builder authors it against
+      mock integrations and saves the result here as a draft — nothing runs
+      live until a version is deployed.
+    goalLabel: Goal
+    goalPlaceholder:
+      e.g. Every morning, read the newest support emails and write one digest
+      of what needs a reply.
+    providerLabel: AI provider
+    providerPlaceholder: Select a provider
+    modelLabel: Model
+    modelPlaceholder: Select a model
+    submit: Start building
+    submitting: Building…
+    running:
+      The builder is working — this can take a few minutes. Saved versions
+      appear in the list as they land.
+    failed: 'The builder could not run: {error}'
+    gaveUp: 'The builder stopped without a finished automation: {reason}'
+    gaveUpNoReason: The builder stopped without a finished automation.
+    noProviders:
+      No AI provider is ready for the builder. Add an API-key credential in
+      the provider settings first.
   notFound:
     title: Automation not found
     description: It may have been renamed, or it may belong to another
@@ -629,6 +656,43 @@ automations:
     showLastRun: Show last run
     hideLastRun: Hide last run
     openLastRun: Open the last run
+    runLive: Run live
+    runLiveNeedsDeploy: Deploy a version first — a live run executes the
+      deployed version.
+    runLiveTitle: Run live?
+    runLiveBody:
+      A live run performs real integration calls on the organization's behalf
+      — mail is sent, records change. The deployed version runs once, now.
+  trigger:
+    title: Trigger
+    none: Nothing starts this automation yet.
+    kindLabel: Kind
+    kinds:
+      schedule: Schedule
+      webhook: Webhook
+      event: Platform event
+      api-key: API key
+    cronLabel: Cron
+    timezoneLabel: Timezone
+    eventLabel: Event name
+    enabledLabel: Enabled
+    enabledBadge: Armed
+    disabledBadge: Off
+    lastFired: 'Last fired {at}'
+    nothingToSave: The binding matches what is stored.
+    save: Save trigger
+    remove: Remove trigger
+    removeTitle: Remove the trigger?
+    removeBody:
+      The automation keeps its versions and history; nothing will start it
+      until a new binding is saved.
+    tokenTitle: Webhook token — copy it now
+    tokenHint: This token is shown once and stored only as a hash.
+    tokenPath: 'POST to /api/automations/webhook/{token} starts the automation.'
+    hasToken: A webhook token exists. Rotating replaces it; the old URL stops
+      working.
+    noToken: Saving mints a token and shows it once.
+    rotate: Rotate token
   canvas:
     ariaLabel: Automation canvas
     readsFrom: 'Reads {nodes}'
@@ -4291,7 +4355,8 @@ metadata:
     description: View and manage contact conversations.
   automations:
     title: Automations
-    description: Installed packs and the automations they add to your organization.
+    description: Every automation in the organization — its versions, its runs,
+      and the version that is live.
   automation:
     title: Automation
     description: View and edit automation workflow.

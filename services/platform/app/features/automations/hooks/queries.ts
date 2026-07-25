@@ -96,3 +96,31 @@ export function useNodeTypeCatalog(organizationId: string) {
     { organizationId },
   );
 }
+
+/** The provider connectors with their model catalogs — the builder dialog's
+ * pick list. Developer-gated like the builder itself, and loaded only while
+ * the dialog is open: a live catalog read can fan out to provider APIs. */
+export function useBuilderModelCatalog(
+  organizationId: string,
+  enabled: boolean,
+) {
+  return useActionQuery(
+    ['automations', 'builder-models', organizationId],
+    api.lib.providers.catalog_actions.listProviderCatalogs,
+    { organizationId },
+    { enabled },
+  );
+}
+
+/** The organization's provider credentials (masked). The dialog offers only
+ * providers that hold an `api-key`/`env` credential — the two kinds a direct
+ * builder model call may use. */
+export function useBuilderCredentials(
+  organizationId: string,
+  enabled: boolean,
+) {
+  return useConvexQuery(
+    api.provider_credentials.queries.listCredentials,
+    enabled ? { organizationId } : 'skip',
+  );
+}
