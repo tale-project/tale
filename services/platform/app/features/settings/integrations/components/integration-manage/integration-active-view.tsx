@@ -5,15 +5,20 @@ import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
-import { ExternalLink, Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2, PlugZap, Unplug } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import { useT } from '@/lib/i18n/client';
 
 import type { Integration } from '../../hooks/use-integration-manage';
-import { maskValue } from '../../hooks/use-integration-manage';
 import { TestResultFeedback } from './test-result-feedback';
+
+/** Connected-summary config keys whose values are long identity strings
+ *  (emails, hosts, URLs) — shown full-width so the 2-column grid doesn't clip
+ *  or orphan-wrap them. Short values (ports, flags) keep the paired layout. */
+const WIDE_CONFIG_KEY =
+  /host|url|uri|endpoint|address|domain|server|email|dsn/i;
 
 interface IntegrationActiveViewProps {
   integration: Integration;
@@ -21,6 +26,7 @@ interface IntegrationActiveViewProps {
   busy: boolean;
   isSavingOAuth2: boolean;
   isTesting: boolean;
+  isDisconnecting: boolean;
   hasOAuth2Config: boolean;
   testResult: { success: boolean; message: string } | null;
   editableConfigFields: Array<{
@@ -30,6 +36,7 @@ interface IntegrationActiveViewProps {
   }>;
   onReauthorize: () => void;
   onTestConnection: () => void;
+  onDisconnect: () => void;
   onDismissTestResult: () => void;
 }
 
@@ -39,11 +46,13 @@ export function IntegrationActiveView({
   busy,
   isSavingOAuth2,
   isTesting,
+  isDisconnecting,
   hasOAuth2Config,
   testResult,
   editableConfigFields,
   onReauthorize,
   onTestConnection,
+  onDisconnect,
   onDismissTestResult,
 }: IntegrationActiveViewProps) {
   const { t } = useT('settings');
@@ -55,9 +64,10 @@ export function IntegrationActiveView({
         ? [
             {
               label: t('integrations.manageDialog.server'),
+              colSpan: 2 as const,
               value: (
                 <Text variant="code">
-                  {maskValue(integration.sqlConnectionConfig.server ?? '')}
+                  {integration.sqlConnectionConfig.server ?? ''}
                 </Text>
               ),
             },
@@ -68,9 +78,10 @@ export function IntegrationActiveView({
         ? [
             {
               label: t('integrations.manageDialog.username'),
+              colSpan: 2 as const,
               value: (
                 <Text variant="code">
-                  {maskValue(integration.basicAuth.username ?? '')}
+                  {integration.basicAuth.username ?? ''}
                 </Text>
               ),
             },
@@ -80,9 +91,10 @@ export function IntegrationActiveView({
         ? [
             {
               label: 'domain',
+              colSpan: 2 as const,
               value: (
-                <Text variant="code" truncate>
-                  {maskValue(integration.connectionConfig.domain ?? '')}
+                <Text variant="code">
+                  {integration.connectionConfig.domain ?? ''}
                 </Text>
               ),
             },
@@ -92,8 +104,9 @@ export function IntegrationActiveView({
         ? [
             {
               label: 'apiEndpoint',
+              colSpan: 2 as const,
               value: (
-                <Text variant="code" truncate>
+                <Text variant="code">
                   {integration.connectionConfig.apiEndpoint}
                 </Text>
               ),
@@ -103,20 +116,32 @@ export function IntegrationActiveView({
       ...editableConfigFields
         .filter((f) => f.key !== 'domain' && f.key !== 'apiEndpoint')
         .filter((f) => integration.connectionConfig?.[f.key] != null)
-        .map((f) => ({
-          label: f.key,
-          value: (
-            <Text variant="code" truncate>
-              {String(integration.connectionConfig?.[f.key])}
-            </Text>
-          ),
-        })),
+        .map(
+          (f): StatGridItem => ({
+            label: f.key,
+            // Emails/hosts/URLs get their own full-width row so the narrow
+            // 2-col grid doesn't clip or orphan-wrap them; short values pair up.
+            colSpan: WIDE_CONFIG_KEY.test(f.key) ? 2 : 1,
+            value: (
+              <Text variant="code">
+                {String(integration.connectionConfig?.[f.key])}
+              </Text>
+            ),
+          }),
+        ),
     ],
     [integration, isSql, editableConfigFields, t],
   );
 
   return (
     <Stack gap={3}>
+      {typeof integration.setupGuide === 'string' && (
+        <CollapsibleGuide
+          label={t('integrations.manageDialog.setupGuide')}
+          content={integration.setupGuide}
+        />
+      )}
+
       <BorderedSection>
         <Text variant="label">
           {t('integrations.manageDialog.authentication')}
@@ -142,15 +167,40 @@ export function IntegrationActiveView({
           !!integration.oauth2Config?.clientId;
         if (!showReauthorize) {
           return (
-            <HStack justify="end" align="center">
+            <HStack justify="end" align="center" gap={2}>
+              <Button
+                variant="secondary"
+                onClick={onDisconnect}
+                disabled={busy}
+              >
+                {isDisconnecting ? (
+                  <>
+                    <Loader2 className="mr-2 size-3.5 animate-spin" />
+                    {t('integrations.disconnecting')}
+                  </>
+                ) : (
+                  <>
+                    <Unplug className="mr-2 size-3.5" />
+                    {t('integrations.disconnect')}
+                  </>
+                )}
+              </Button>
               <Button
                 variant="secondary"
                 onClick={onTestConnection}
                 disabled={busy}
               >
-                {isTesting
-                  ? t('integrations.manageDialog.testingConnection')
-                  : t('integrations.manageDialog.testConnection')}
+                {isTesting ? (
+                  <>
+                    <Loader2 className="mr-2 size-3.5 animate-spin" />
+                    {t('integrations.manageDialog.testingConnection')}
+                  </>
+                ) : (
+                  <>
+                    <PlugZap className="mr-2 size-3.5" />
+                    {t('integrations.manageDialog.testConnection')}
+                  </>
+                )}
               </Button>
             </HStack>
           );
@@ -159,18 +209,36 @@ export function IntegrationActiveView({
           <HStack gap={2} align="center" className="w-full">
             <Button
               variant="secondary"
+              onClick={onDisconnect}
+              disabled={busy}
+              className="flex-1"
+            >
+              {isDisconnecting ? (
+                <>
+                  <Loader2 className="mr-2 size-3.5 animate-spin" />
+                  {t('integrations.disconnecting')}
+                </>
+              ) : (
+                <>
+                  <Unplug className="mr-2 size-3.5" />
+                  {t('integrations.disconnect')}
+                </>
+              )}
+            </Button>
+            <Button
+              variant="secondary"
               onClick={onReauthorize}
               disabled={busy}
               className="flex-1"
             >
               {isSavingOAuth2 ? (
                 <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  <Loader2 className="mr-2 size-3.5 animate-spin" />
                   {t('integrations.manageDialog.savingCredentials')}
                 </>
               ) : (
                 <>
-                  <ExternalLink className="mr-2 size-4" />
+                  <ExternalLink className="mr-2 size-3.5" />
                   {t('integrations.manageDialog.reauthorize')}
                 </>
               )}
@@ -181,9 +249,17 @@ export function IntegrationActiveView({
               disabled={busy}
               className="flex-1"
             >
-              {isTesting
-                ? t('integrations.manageDialog.testingConnection')
-                : t('integrations.manageDialog.testConnection')}
+              {isTesting ? (
+                <>
+                  <Loader2 className="mr-2 size-3.5 animate-spin" />
+                  {t('integrations.manageDialog.testingConnection')}
+                </>
+              ) : (
+                <>
+                  <PlugZap className="mr-2 size-3.5" />
+                  {t('integrations.manageDialog.testConnection')}
+                </>
+              )}
             </Button>
           </HStack>
         );
@@ -194,13 +270,6 @@ export function IntegrationActiveView({
           result={testResult}
           onDismiss={onDismissTestResult}
           closeLabel={tCommon('aria.close')}
-        />
-      )}
-
-      {typeof integration.setupGuide === 'string' && (
-        <CollapsibleGuide
-          label={t('integrations.manageDialog.setupGuide')}
-          content={integration.setupGuide}
         />
       )}
     </Stack>

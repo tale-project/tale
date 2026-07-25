@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { ItemPreview } from '@/app/components/ui/dialog/item-preview';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -116,6 +117,36 @@ export function IntegrationPanel({
   // don't answer "which one am I connecting?" when the panel opens.
   const panelTitle = integration.title;
 
+  // A human-recognizable identifier for the confirm dialogs. Several instances
+  // of one integration can share a base title and differ only by this identity,
+  // so a confirm that shows only the title can't tell them apart. Prefer the
+  // login/host/domain that distinguishes an instance; never a secret
+  // (passwords and keys live encrypted and are never surfaced).
+  const identity =
+    integration.basicAuth?.username ??
+    integration.sqlConnectionConfig?.server ??
+    (typeof integration.connectionConfig?.domain === 'string'
+      ? integration.connectionConfig.domain
+      : undefined) ??
+    (typeof integration.connectionConfig?.apiEndpoint === 'string'
+      ? integration.connectionConfig.apiEndpoint
+      : undefined);
+
+  // Footer secondary actions. Rendered inline: a popup for one item is more
+  // friction than it saves.
+  const secondaryActions = onExport
+    ? [
+        {
+          key: 'export',
+          label: tCommon('actions.export'),
+          icon: Download,
+          onClick: onExport,
+          disabled: manage.busy || isExporting,
+          loading: isExporting ?? false,
+        },
+      ]
+    : [];
+
   return (
     <Sheet
       open={open}
@@ -195,11 +226,13 @@ export function IntegrationPanel({
                 busy={manage.busy}
                 isSavingOAuth2={manage.isSavingOAuth2}
                 isTesting={manage.isTesting}
+                isDisconnecting={manage.isSubmitting}
                 hasOAuth2Config={manage.hasOAuth2Config}
                 testResult={manage.testResult}
                 editableConfigFields={manage.editableConfigFields}
                 onReauthorize={manage.handleReauthorize}
                 onTestConnection={manage.handleTestConnection}
+                onDisconnect={() => setConfirmDisconnect(true)}
                 onDismissTestResult={() => manage.setTestResult(null)}
               />
               {integration.name === 'slack' && (
@@ -221,36 +254,31 @@ export function IntegrationPanel({
       <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
         {isDetailsMode ? (
           <HStack justify="between" align="center" gap={2}>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setConfirmDisconnect(true)}
-              disabled={manage.busy}
-            >
-              {manage.isSubmitting ? (
-                <HStack gap={2} align="center">
-                  <Loader2 className="size-3.5 animate-spin" />
-                  {t('integrations.disconnecting')}
-                </HStack>
-              ) : (
-                t('integrations.disconnect')
-              )}
-            </Button>
-            {onExport ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onExport}
-                disabled={manage.busy || isExporting}
-              >
-                {isExporting ? (
-                  <Loader2 className="mr-2 size-3.5 animate-spin" />
-                ) : (
-                  <Download className="mr-2 size-3.5" />
-                )}
-                {tCommon('actions.export')}
-              </Button>
-            ) : null}
+            {secondaryActions.length > 0 ? (
+              <HStack gap={2} align="center">
+                {secondaryActions.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <Button
+                      key={action.key}
+                      type="button"
+                      variant="ghost"
+                      onClick={action.onClick}
+                      disabled={action.disabled}
+                    >
+                      {action.loading ? (
+                        <Loader2 className="mr-2 size-3.5 animate-spin" />
+                      ) : (
+                        <Icon className="mr-2 size-3.5" />
+                      )}
+                      {action.label}
+                    </Button>
+                  );
+                })}
+              </HStack>
+            ) : (
+              <span />
+            )}
             <Button
               type="button"
               onClick={() => manage.setConfirmDelete(true)}
@@ -324,13 +352,16 @@ export function IntegrationPanel({
             setConfirmDisconnect(false);
           });
         }}
-      />
+      >
+        <ItemPreview primary={panelTitle} secondary={identity} />
+      </ConfirmDialog>
 
       <DeleteDialog
         open={manage.confirmDelete}
         onOpenChange={manage.setConfirmDelete}
         title={t('integrations.panel.deleteConfirmTitle')}
         description={t('integrations.panel.deleteConfirmDescription')}
+        preview={{ primary: panelTitle, secondary: identity }}
         isDeleting={manage.busy}
         onDelete={manage.handleUninstall}
       />
