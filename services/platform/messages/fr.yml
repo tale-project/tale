@@ -68,7 +68,7 @@ operator:
     button: Relancer
     started: Nouvelle exécution lancée
     alreadyRunning: Une exécution est déjà en cours.
-    notStarted: Impossible de lancer l'exécution — vérifiez que le workflow est installé.
+    notStarted: Impossible de lancer l'exécution — vérifiez que l'automatisation est installée.
   stop:
     button: Arrêter
     stopped: Exécution arrêtée
@@ -76,7 +76,7 @@ operator:
     confirm:
       title: Arrêter cette exécution ?
       description:
-        Le workflow est annulé immédiatement. Les étapes en cours sont
+        L'automatisation est annulée immédiatement. Les étapes en cours sont
         abandonnées et l'exécution est marquée comme échouée. Cette action est
         irréversible.
       confirm: Arrêter l'exécution
@@ -459,7 +459,7 @@ approvalCommon:
   errorAlreadyResolved: Cette demande a déjà été traitée.
   copied: Copié !
   copyConfiguration: Copier la configuration
-  viewWorkflow: Voir le workflow
+  viewWorkflow: Voir l'automatisation
   statusPending: En attente
   statusExecuting: Exécution
   statusCompleted: Terminé
@@ -643,10 +643,11 @@ automations:
     loadFailed: 'Impossible de charger les automatisations : {error}'
     empty:
       title: Aucune automatisation pour l’instant
-      description: Une automatisation, c’est un document de workflow enregistré.
-        Les automatisations de départ livrées arrivent ici automatiquement, et
-        un développeur en crée de nouvelles à partir d’un objectif avec
-        "Nouvelle automatisation".
+      description:
+        Une automatisation, c’est un document enregistré — un graphe de
+        nœuds. Les automatisations de départ livrées arrivent ici
+        automatiquement, et un développeur en crée de nouvelles à partir d’un
+        objectif avec "Nouvelle automatisation".
   builder:
     new: Nouvelle automatisation
     title: Nouvelle automatisation
@@ -680,12 +681,20 @@ automations:
   detail:
     loading: Chargement de l’automatisation…
     deployedVersion: 'En service : v{version}'
-    unsaved: Modifications non enregistrées
     runMock: Essai
     saveVersion: Enregistrer une version
     saveMessageLabel: Note de version
     saveMessageDescription: Ce qui a changé, pour garder la liste des versions lisible.
-    nothingToSave: Rien n’a changé depuis la version affichée.
+    saveDialog:
+      title: Enregistrer une nouvelle version
+      description: L’enregistrement ajoute une nouvelle version. Celle qui est
+        affichée reste intacte, donc une exécution en cours n’est pas touchée.
+    switchVersion:
+      title: Afficher une autre version ?
+      description: Le canvas n’affiche qu’une seule version enregistrée à la
+        fois, donc en changer abandonne les modifications que tu n’as pas encore
+        enregistrées.
+      confirm: Abandonner et changer
     showLastRun: Afficher la dernière exécution
     hideLastRun: Masquer la dernière exécution
     openLastRun: Ouvrir la dernière exécution
@@ -733,7 +742,7 @@ automations:
     empty:
       title: Cette version ne contient aucun nœud
       description:
-        Un document de workflow est une liste de nœuds. Ajoutes-en un au
+        Un document d'automatisation est une liste de nœuds. Ajoutes-en un au
         document et il apparaît ici.
     cycle:
       title: Ces nœuds se référencent en boucle
@@ -774,7 +783,7 @@ automations:
       system: Prompt système
       model: Modèle
       outputSchema: Schéma de sortie
-      workflow: Workflow
+      automation: Automatisation
       credential: Identifiants
       when: Si
       whenDescription: Ignorer ce nœud quand l’expression est fausse.
@@ -976,10 +985,10 @@ chat:
     image: Images
     pptx: Présentation
     docx: Document
-    workflowRead: Workflow
-    updateWorkflowStep: Étape du workflow
-    saveWorkflowDefinition: Enregistrer le workflow
-    validateWorkflowDefinition: Valider le workflow
+    workflowRead: Automatisation
+    updateWorkflowStep: Étape de l'automatisation
+    saveWorkflowDefinition: Enregistrer l'automatisation
+    validateWorkflowDefinition: Valider l'automatisation
     excel: Fichier Excel
     contactWrite: Modifier le contact
     productWrite: Modifier le produit
@@ -1002,9 +1011,9 @@ chat:
     runCode: Exécuter du code
     generateImage: Générer une image
     text: Fichier texte
-    workflowSyntax: Syntaxe du workflow
-    createWorkflow: Créer un workflow
-    runWorkflow: Exécuter le workflow
+    workflowSyntax: Syntaxe de l'automatisation
+    createWorkflow: Créer une automatisation
+    runWorkflow: Exécuter l'automatisation
     integration: Intégration
     integrationBatch: Intégration par lot
     integrationIntrospect: Inspecter l'intégration
@@ -2026,7 +2035,8 @@ common:
     unauthenticated: Tu n'es pas connecté. Actualise la page et réessaie.
     notFound: Cette exécution est introuvable. Elle a peut-être été supprimée.
     notCancelable: Cette exécution ne peut plus être arrêtée — elle est déjà terminée.
-    missingWorkflow: Cette exécution ne peut pas être relancée car son workflow
+    missingWorkflow:
+      Cette exécution ne peut pas être relancée car son automatisation
       n'est plus disponible.
   keyboardShortcuts:
     ctrlEnter: Ctrl+Entrée
@@ -2873,7 +2883,6 @@ governance:
     enabled: Instructions personnalisées
     instructionsPlaceholder: Saisir les instructions obligatoires...
     charLimitExceeded: Limite de caractères dépassée
-    saved: Instructions personnalisées mises à jour
     saveFailed: Échec de l'enregistrement des instructions personnalisées
   budgets:
     title: Règles de budget
@@ -3002,7 +3011,6 @@ governance:
     mimeTypePlaceholder: image/*, application/pdf
     mbUnit: Mo
     gbUnit: Go
-    saved: La politique de téléversement a été mise à jour
     saveFailed: Échec de l'enregistrement de la politique de téléversement
   retentionPolicy:
     title: Politique de rétention
@@ -3124,7 +3132,7 @@ governance:
       title: Notifications
       description: Notifications in-app (mentions, résultats d'agent, alertes
         système). Peuvent référencer du contenu de chats, documents ou
-        exécutions de workflow.
+        exécutions d'automatisation.
       placeholder: ex. 30
       helper: Les notifications plus anciennes seront supprimées.
     chatHistory:
@@ -3162,13 +3170,13 @@ governance:
       placeholder: ex. 24
       helper: Les fichiers temporaires plus anciens seront supprimés.
     workflowLogs:
-      title: Journaux d'exécution de workflow
-      description: Supprime automatiquement les enregistrements d'exécution de
-        workflow plus anciens que la période de rétention. Inclut les blobs de
+      title: Journaux des exécutions d'automatisation
+      description: Supprime automatiquement les enregistrements d'exécution
+        d'automatisation plus anciens que la période de rétention. Inclut les blobs de
         stockage de variables/sorties par exécution.
       placeholder: ex. 30
       helper:
-        Les exécutions de workflow plus anciennes seront supprimées (1 à 365
+        Les exécutions d'automatisation plus anciennes seront supprimées (1 à 365
         jours).
     auditLogs:
       title: Journaux d'audit
@@ -3222,7 +3230,6 @@ governance:
       forcés de changer immédiatement.
     invalidMinLength: La longueur minimale doit être un entier entre 6 et 128.
     invalidRotationDays: La période de rotation doit être un entier entre 1 et 3650.
-    saved: La politique de mot de passe a été mise à jour
     saveFailed: Échec de l'enregistrement de la politique de mot de passe
   twoFactorPolicy:
     title: Authentification à double facteur
@@ -3276,7 +3283,6 @@ governance:
     invalidProxies:
       Les proxys de confiance doivent être une liste séparée par des
       virgules d'adresses IP, CIDR ou mots-clés (max. 32).
-    saved: La politique de connexion a été mise à jour
     saveFailed: Échec de l'enregistrement de la politique de connexion
   sessionIdleTimeout:
     title: Délai d'inactivité de session
@@ -3291,7 +3297,6 @@ governance:
       par le SESSION_IDLE_TIMEOUT_MINUTES du déploiement lorsqu'il est défini.
       Par défaut : 30."
     invalid: Le délai d'inactivité doit être un entier entre 1 et 1440 minutes.
-    saved: Le délai d'inactivité de session a été mis à jour
     saveFailed: Échec de l'enregistrement du délai d'inactivité de session
   sandboxQuota:
     title: Limites de simultanéité des sandboxes
@@ -3302,11 +3307,10 @@ governance:
       serveur partagées contre la saturation.
     maxSessions: Sessions actives max.
     maxSessionsHint: "Sessions de sandbox persistantes (agents de discussion et
-      étapes d'agent de workflow) pouvant être actives simultanément pour cette
+      étapes d'agent d'automatisation) pouvant être actives simultanément pour cette
       organisation. Les demandes au-delà de la limite échouent avec une erreur
       de quota. Par défaut : 2."
     invalidSessions: Doit être un nombre entier compris entre 1 et 500.
-    saved: Les limites de simultanéité des sandboxes ont été mises à jour
     saveFailed: Échec de l'enregistrement des limites de simultanéité des sandboxes
   featureFlags:
     title: Contrôle des fonctionnalités
@@ -3785,7 +3789,6 @@ governance:
       @scope/pkg
     save: Enregistrer
     saving: Enregistrement…
-    saved: Politique de paquets run-code mise à jour
     saveFailed: Échec de la mise à jour de la politique de paquets run-code
     testerTitle: Tester cette liste de paquets
     testerDescription:
@@ -3838,8 +3841,8 @@ governance:
       contact: Contacts
       externalConversation: Conversations externes
       messageMetadata: Métadonnées de message
-      workflowExecution: Exécutions de workflow
-      workflowTriggerLog: Logs de déclencheur de workflow
+      workflowExecution: Exécutions d'automatisation
+      workflowTriggerLog: Logs de déclencheur d'automatisation
       usageLedger: Registre d'utilisation
       auditLog: Logs d'audit
       chatFilterEvent: Événements de filtre de chat
@@ -4180,7 +4183,7 @@ governance:
       ragDocumentsRemoved: Documents retirés du RAG
       documentsErased: Documents effacés
       documentsSkippedByHold: Documents ignorés (rétention)
-      wfExecutionsErased: Exécutions de workflow effacées
+      wfExecutionsErased: Exécutions d'automatisation effacées
       promptTemplatesErased: Prompts personnels effacés
       startedAt: Démarré
       completedAt: Terminé
@@ -4226,7 +4229,7 @@ governance:
       onedrive: Configurations de synchronisation OneDrive
       loginAttempts: Tentatives de connexion et verrouillages
       notifications: Notifications de sécurité
-      wfExecutions: Exécutions de workflow
+      wfExecutions: Exécutions d'automatisation
       promptTemplates: Prompts personnels
     legalHoldBlock:
       title: Effacement bloqué par une rétention légale
@@ -4447,13 +4450,13 @@ humanInputRequest:
   statusProcessing: Traitement
   respondedByAt: Répondu par {name} le {date}
   stopWorkflow: Arrêter
-  stopWorkflowTooltip: Arrêter le workflow en cours d'exécution
+  stopWorkflowTooltip: Arrêter l'automatisation en cours d'exécution
   errorFillRequiredFields: Merci de remplir tous les champs obligatoires
   errorSelectRequired: Merci de faire une sélection
   errorFeedbackRequired: Merci de saisir ton commentaire
   errorAlreadyResponded: Cette demande a déjà reçu une réponse.
   errorNotEditable: Seule une réponse terminée peut être modifiée.
-  errorWorkflowNotEditable: Les réponses de workflow ne peuvent pas être modifiées.
+  errorWorkflowNotEditable: Les réponses d'automatisation ne peuvent pas être modifiées.
   errorGenerationInProgress: Attends la fin de la réponse en cours avant de modifier la tienne.
   copyQuestions: Copier les questions
   pushback: Répondre différemment
@@ -4602,11 +4605,11 @@ metadata:
       leurs exécutions et la version en service.
   automation:
     title: Automatisation
-    description: Consulte et modifie le workflow d'automatisation.
+    description: Consulte et modifie le document de l'automatisation.
   automationConfiguration:
     title: Configuration de l'automatisation
     description: Configure les paramètres d'automatisation.
-  automationExecutions:
+  automationRuns:
     title: Exécutions d'automatisation
     description: Consulte l'historique des exécutions d'automatisation.
   documents:
@@ -4752,17 +4755,11 @@ metadata:
     title: SSO d'entreprise
     description: Configurer l'authentification unique et le provisionnement SCIM.
   workflow:
-    title: Workflow
-    description: Consulte et modifie le workflow.
+    title: Automatisation
+    description: Consulte et modifie l'automatisation.
   workflowConfiguration:
-    title: Configuration du workflow
-    description: Configure les paramètres du workflow.
-  workflowExecutions:
-    title: Exécutions du workflow
-    description: Consulte l'historique des exécutions du workflow.
-  workflowTriggers:
-    title: Déclencheurs
-    description: Gère les déclencheurs, planifications et webhooks du workflow.
+    title: Configuration de l'automatisation
+    description: Configure les paramètres de l'automatisation.
 navigation:
   newChat: Nouveau chat
   chat: Chat
@@ -4971,7 +4968,6 @@ personalization:
     tooLong: Les instructions personnalisées dépassent {max} caractères.
     illegalChars: Supprime les chevrons, les accents graves et les caractères de contrôle.
   toasts:
-    saved: Enregistré.
     discarded: Ignoré.
     deleted: Supprimé.
     preferencesUpdated: Préférences mises à jour.
@@ -5442,20 +5438,19 @@ settings:
         déploiement qui les sous-tendent.
   mcpEndpoint:
     title: Endpoint MCP
-    description:
-      Branche n'importe quel client MCP sur ce déploiement pour créer,
-      tester et exécuter des automatisations — avec les mêmes outils que le
-      builder intégré.
+    description: Branche n'importe quel client MCP sur ce déploiement pour
+      créer, exécuter et gérer des automatisations — et pour accéder aux
+      capacités et aux connaissances de cette organisation.
     copyEndpoint: Copier l'URL de l'endpoint MCP
     authHelp:
       "Authentifie-toi avec une clé API de l'organisation en jeton Bearer :
       tu crées et gères les clés sous"
     authLink: Clés API REST.
     toolsTitle: Outils
-    toolsHelp:
-      Servis directement depuis la table de méthodes du moteur — get_docs et
-      get_catalog documentent la grammaire des workflows et les types de
-      nœuds de ce déploiement.
+    toolsHelp: Deux surfaces derrière un seul endpoint — les méthodes du
+      moteur d'automatisation, et le catalogue de capacités de cette
+      organisation. get_docs explique la grammaire des automatisations ;
+      search_capabilities trouve ce que l'organisation sait faire d'autre.
     exampleTitle: Essaie
     exampleHelp: Liste les outils — remplace par ta clé API.
     copyExample: Copier la requête d'exemple
@@ -5522,7 +5517,7 @@ settings:
     switchingLabel: Changement d'organisation
     deleteDialogTitle: Supprimer l'organisation
     deleteDialogDescription: Supprimer « {name} » ? Cela supprime ses agents,
-      workflows, fournisseurs et intégrations. Les membres perdront l'accès.
+      automatisations, fournisseurs et intégrations. Les membres perdront l'accès.
       Cette action est irréversible.
     dangerZoneTitle: Zone de danger
     dangerZoneDescription: Actions irréversibles qui affectent toute l'organisation.
@@ -5774,7 +5769,7 @@ settings:
         "Les agents externes s'exécutent dans un bac à
         sable et utilisent ce qui est lié ici : les intégrations et les outils
         de la plateforme autorisés (recherche dans les connaissances,
-        documents). Les workflows ne s'appliquent pas."
+        documents). Les automatisations ne s'appliquent pas."
       sectionIntegrationBindings: Intégrations liées
       sectionIntegrationBindingsDescription:
         Lie des intégrations spécifiques en tant
@@ -5917,21 +5912,21 @@ settings:
         sectionDescription:
           Comment cet agent s'exécute dans le chat. Les agents de code
           lancent une CLI dans un bac à sable isolé ; les agents utilisent la
-          boucle d'outils de la plateforme avec connaissances et workflows.
+          boucle d'outils de la plateforme avec connaissances et automatisations.
         internalLabel: Agent
         externalLabel: Agent de code
         imageLabel: Génération d'images
         switchTitle: Changer le type d'agent ?
         switchToExternalDescription:
           L'agent devient un agent de code dans un bac à
-          sable ; ses outils de plateforme et workflows seront effacés. Les
+          sable ; ses outils de plateforme et automatisations seront effacés. Les
           intégrations liées sont conservées.
         switchToChatDescription:
           L'agent utilisera la boucle d'outils de la plateforme ;
           ses paramètres de CLI bac à sable et d'identifiants seront effacés.
         switchToImageDescription:
           L'agent passera à la génération d'images ; ses outils,
-          workflows, intégrations et paramètres de CLI bac à sable seront
+          automatisations, intégrations et paramètres de CLI bac à sable seront
           effacés.
         switchTaskDispatchNote:
           Les paramètres de dispatch des tâches dans le JSON de
@@ -6051,7 +6046,7 @@ settings:
         knowledge: Connaissances
         tasksProjects: Tâches et projets
         agents: Agents
-        workflows: Workflows
+        workflows: Automatisations
         integrations: Intégrations et données
         analytics: Analytique
         web: Web
@@ -6073,12 +6068,12 @@ settings:
         web: Récupérer et rechercher du contenu sur le web
         image: Analyser et traiter des images
         generate_image: Créer des images à partir de descriptions textuelles
-        workflow_read: Consulter les workflows existants et leurs exécutions
-        workflow_syntax: Consulter la syntaxe des définitions de workflow
-        update_workflow_step: Modifier une étape précise d'un workflow
-        save_workflow_definition: Enregistrer une définition de workflow complète
-        create_workflow: Créer un nouveau workflow
-        run_workflow: Lancer l'exécution d'un workflow
+        workflow_read: Consulter les automatisations existantes et leurs exécutions
+        workflow_syntax: Consulter la syntaxe des définitions d'automatisation
+        update_workflow_step: Modifier une étape précise d'une automatisation
+        save_workflow_definition: Enregistrer une définition d'automatisation complète
+        create_workflow: Créer une nouvelle automatisation
+        run_workflow: Lancer l'exécution d'une automatisation
         integration: Appeler une intégration connectée
         integration_batch: Exécuter plusieurs appels d'intégration à la fois
         integration_introspect: Consulter les capacités d'une intégration connectée
@@ -6152,7 +6147,7 @@ settings:
     env:
       description:
         Variables injectées lorsque cet agent s'exécute dans une sandbox —
-        étapes de workflow et exécutions externes. Cochez « Secret » pour
+        étapes d'automatisation et exécutions externes. Cochez « Secret » pour
         chiffrer une valeur ; les secrets sont en écriture seule.
     automationBadge: Automatisation
   skills:
@@ -6300,7 +6295,6 @@ settings:
       private: Privé
       privateHelp: Toi seul le vois, et seuls tes chats le chargent.
     editor:
-      saveSuccess: Skill enregistré
       saveFailed: Échec de l'enregistrement du skill
       descriptionHelp:
         Une ou deux phrases sur ce que couvre le skill — c'est ce qui indique
@@ -6503,7 +6497,6 @@ settings:
       disable: Désactiver la connexion
       remove: Supprimer
       test: Tester la connexion
-      saved: Enregistré
       saveFailed: Échec de l'enregistrement
       testOk: La connexion semble correcte
       testFailed: Échec du test de connexion
@@ -6986,7 +6979,7 @@ settings:
         member: Membre
         data: Données
         integration: Intégration
-        workflow: Workflow
+        workflow: Automatisation
         security: Sécurité
         admin: Admin
         ai: IA
@@ -7016,7 +7009,7 @@ settings:
         member: Membre
         data: Données
         integration: Intégration
-        workflow: Workflow
+        workflow: Automatisation
         security: Sécurité
         admin: Admin
         ai: IA
@@ -7030,7 +7023,7 @@ settings:
         user: Utilisateur
         system: Système
         api: API
-        workflow: Workflow
+        workflow: Automatisation
       actionLabels:
         joined_organization: A rejoint l'organisation
         signed_in_to_organization: Connecté à l'organisation
@@ -7101,8 +7094,8 @@ settings:
         prompt_template.retention_deleted: Modèle de prompt supprimé (rétention)
         usage_ledger.retention_deleted: Registre d'usage supprimé (rétention)
         external_conversation.retention_deleted: Conversation externe supprimée (rétention)
-        workflow_execution.retention_deleted: Exécution de workflow supprimée (rétention)
-        workflow_trigger_log.retention_deleted: Journal de trigger workflow supprimé (rétention)
+        workflow_execution.retention_deleted: Exécution d'automatisation supprimée (rétention)
+        workflow_trigger_log.retention_deleted: Journal de trigger d'automatisation supprimé (rétention)
         audit_log.retention_deleted: Journal d'audit supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
@@ -7197,9 +7190,9 @@ settings:
         external_conversation.retention_expired: Conversation externe expirée par rétention
         external_conversation.retention_override_restore: Conversation externe restaurée (dérogation de rétention)
         external_conversation.restored_by_admin: Conversation externe restaurée par l'administrateur
-        workflow_execution.retention_expired: Exécution de workflow expirée par rétention
-        workflow_execution.retention_override_restore: Exécution de workflow restaurée (dérogation de rétention)
-        workflow_execution.restored_by_admin: Exécution de workflow restaurée par l'administrateur
+        workflow_execution.retention_expired: Exécution d'automatisation expirée par rétention
+        workflow_execution.retention_override_restore: Exécution d'automatisation restaurée (dérogation de rétention)
+        workflow_execution.restored_by_admin: Exécution d'automatisation restaurée par l'administrateur
         usage_ledger.retention_expired: Registre d'usage expiré par rétention
         usage_ledger.retention_override_restore: Registre d'usage restauré (dérogation de rétention)
         usage_ledger.restored_by_admin: Registre d'usage restauré par l'administrateur
@@ -7217,10 +7210,10 @@ settings:
         conversationMessage: Message de conversation
         document: Document
         agent: Agent
-        workflow: Workflow
-        workflow_run: Exécution de workflow
-        workflow_creation: Création de workflow
-        workflow_update: Mise à jour de workflow
+        workflow: Automatisation
+        workflow_run: Exécution d'automatisation
+        workflow_creation: Création d'automatisation
+        workflow_update: Mise à jour d'automatisation
         customer: Contact
         contact: Contact
         vendor: Fournisseur
@@ -7248,10 +7241,10 @@ settings:
         prompt_category: Catégorie de prompt
         message_feedback: Retour sur message
         external_conversation: Conversation externe
-        workflow_execution: Exécution de workflow
-        wf_execution: Exécution de workflow
-        wf_trigger_log: Journal de trigger de workflow
-        workflow_llm_step: Étape LLM de workflow
+        workflow_execution: Exécution d'automatisation
+        wf_execution: Exécution d'automatisation
+        wf_trigger_log: Journal de trigger d'automatisation
+        workflow_llm_step: Étape LLM d'automatisation
         usage_ledger: Registre d'usage
         audit_log: Journal d'audit
         chat_filter_event: Événement de filtre de chat
@@ -7507,8 +7500,8 @@ inbox:
   taskReviewReminderBody: Le travail de l'agent sur « {title} » attend toujours votre revue.
   taskReviewEscalated: Revue en retard
   taskReviewEscalatedBody: Une revue sur « {title} » attend depuis plus d'un jour.
-  humanInputEscalated: Workflow en attente d'une saisie
-  humanInputEscalatedBody: Un workflow attend une saisie humaine depuis {ageHours} heures.
+  humanInputEscalated: Automatisation en attente d'une saisie
+  humanInputEscalatedBody: Une automatisation attend une saisie humaine depuis {ageHours} heures.
   workforceDigest: Synthèse quotidienne de la workforce
   workforceDigestBody: "{created} créées · {completed} terminées · {runs}
     exécutions d'agents ({failed} en échec) · {pendingReviews} en attente de
@@ -7721,9 +7714,9 @@ tasks:
   timeline:
     runLabel: Exécution d'agent
     systemActor: Système
-    unresolvedWorkflow: Workflow
+    unresolvedWorkflow: Automatisation
     viewAgent: Voir l'agent
-    viewWorkflow: Voir le workflow
+    viewWorkflow: Voir l'automatisation
   dueDate:
     label: Échéance
     overdue: En retard
@@ -7812,27 +7805,18 @@ toast:
     deleted:
       title: Supprimé
       description: L'élément a été supprimé.
-    profileUpdated:
-      title: Profil mis à jour
-      description: Les modifications de ton profil ont été enregistrées.
     passwordChanged:
       title: Mot de passe modifié
       description: Utilise ton nouveau mot de passe lors de ta prochaine connexion.
     passwordSet:
       title: Mot de passe défini
       description: Tu peux maintenant te connecter avec ton mot de passe.
-    organizationUpdated:
-      title: Organisation mise à jour
-      description: Les modifications de ton organisation ont été enregistrées.
     newMemberCreated:
       title: Membre ajouté
       description: Le nouveau membre a été créé et ajouté à ton organisation.
     existingUserAdded:
       title: Membre ajouté
       description: L'utilisateur a été ajouté à ton organisation.
-    brandingUpdated:
-      title: Image de marque mise à jour
-      description: Les modifications de ton image de marque ont été enregistrées.
     faviconGenerated:
       title: Favicon généré
       description: Nous avons créé un favicon à partir de ton logo.
@@ -7842,16 +7826,13 @@ toast:
       description: Une erreur s'est produite. Merci de réessayer.
     profileUpdateFailed:
       title: Impossible de mettre à jour le profil
-      description: Une erreur s'est produite. Merci de réessayer.
     passwordChangeFailed:
       title: Impossible de changer le mot de passe
       description: Merci de vérifier ton mot de passe actuel et de réessayer.
     organizationUpdateFailed:
       title: Impossible de mettre à jour l'organisation
-      description: Une erreur s'est produite. Merci de réessayer.
     brandingUpdateFailed:
       title: Impossible de mettre à jour l'image de marque
-      description: Une erreur s'est produite. Merci de réessayer.
     imageUploadFailed: Échec du téléversement de l'image
     logoTooSmall: Le logo doit faire au moins {min}×{min} pixels.
     imageTooLarge: L'image est trop volumineuse. La taille maximale est de 2 Mo.
@@ -8084,21 +8065,21 @@ websites:
     confirmation: Es-tu sûr de vouloir supprimer ce site web ? Cette action est irréversible.
     title: Supprimer le site web
 workflowCreationApproval:
-  approve: Créer le workflow
-  approveTooltip: Approuver et créer ce workflow
-  rejectTooltip: Annuler la création du workflow
+  approve: Créer l'automatisation
+  approveTooltip: Approuver et créer cette automatisation
+  rejectTooltip: Annuler la création de l'automatisation
   stepsCount: '{count} étapes'
-  copyAriaLabel: Copier la configuration du workflow
-  createdSuccessfully: Workflow créé avec succès
-  statusExecuting: Création du workflow en cours...
-  statusCompletedFailed: La création du workflow a été approuvée mais a échoué.
-  statusCompletedSuccess: Le workflow a été créé avec succès.
-  statusRejected: La création du workflow a été annulée.
-  errorCreateFailed: Échec de la création du workflow
+  copyAriaLabel: Copier la configuration de l'automatisation
+  createdSuccessfully: Automatisation créée avec succès
+  statusExecuting: Création de l'automatisation en cours...
+  statusCompletedFailed: La création de l'automatisation a été approuvée mais a échoué.
+  statusCompletedSuccess: L'automatisation a été créée avec succès.
+  statusRejected: La création de l'automatisation a été annulée.
+  errorCreateFailed: Échec de la création de l'automatisation
 workflowRunApproval:
-  approve: Exécuter le workflow
-  approveTooltip: Approuver et exécuter ce workflow
-  rejectTooltip: Annuler l'exécution du workflow
+  approve: Exécuter l'automatisation
+  approveTooltip: Approuver et exécuter cette automatisation
+  rejectTooltip: Annuler l'exécution de l'automatisation
   statusExecuting: Exécution...
   statusCompleted: Terminé
   statusRejected: Rejeté
@@ -8114,8 +8095,8 @@ workflowRunApproval:
   showOutput: Afficher le résultat
   hideOutput: Masquer le résultat
   stopExecution: Arrêter
-  stopTooltip: Arrêter l'exécution du workflow
-  errorRunFailed: Échec de l'exécution du workflow
+  stopTooltip: Arrêter l'exécution de l'automatisation
+  errorRunFailed: Échec de l'exécution de l'automatisation
   errorStopFailed: Échec de l'arrêt de l'exécution
   submitResponse: Soumettre la réponse
   copyQuestions: Copier les questions
@@ -8129,18 +8110,18 @@ workflowRunApproval:
 workflowUpdateApproval:
   approve: Appliquer la mise à jour
   approveTooltip: Approuver et appliquer cette mise à jour
-  rejectTooltip: Annuler la mise à jour du workflow
-  badgeFullSave: Mettre à jour le workflow
+  rejectTooltip: Annuler la mise à jour de l'automatisation
+  badgeFullSave: Mettre à jour l'automatisation
   badgeMultiStep: Mettre à jour {count} étapes
   badgeStepPatch: Mettre à jour l'étape
   versionLabel: 'Version :'
   slugLabel: 'Slug :'
   copyAriaLabel: Copier la configuration de la mise à jour
-  updatedSuccessfully: Workflow mis à jour avec succès
+  updatedSuccessfully: Automatisation mise à jour avec succès
   statusExecuting: Application de la mise à jour...
   statusCompletedFailed: La mise à jour a été approuvée mais n'a pas pu être appliquée.
-  statusCompletedSuccess: Le workflow a été mis à jour avec succès.
-  statusRejected: La mise à jour du workflow a été annulée.
+  statusCompletedSuccess: L'automatisation a été mise à jour avec succès.
+  statusRejected: La mise à jour de l'automatisation a été annulée.
   errorApplyFailed: Échec de l'application de la mise à jour
 projects:
   title: Projets
@@ -8573,7 +8554,7 @@ sandboxes:
     budgets:
       user: Sessions d’agent
       thread: Sessions run-code
-      workflow: Sessions de workflow
+      workflow: Sessions d'automatisation
       render: Sessions de rendu
   columns:
     owner: Propriétaire
@@ -8641,8 +8622,9 @@ workflows:
     openNamed: Ouvrir {name}
     openLoop: Ouvrir la boucle
   emptyState:
-    noSteps: Aucune étape de workflow à afficher
-    createStepsHint: Crée des étapes pour voir l'aperçu du workflow, ou utilise
+    noSteps: Aucune étape d'automatisation à afficher
+    createStepsHint:
+      Crée des étapes pour voir l'aperçu de l'automatisation, ou utilise
       l'assistant IA pour t'aider à démarrer.
   history:
     noDifferences: Aucune différence trouvée
@@ -8654,33 +8636,32 @@ workflows:
     backoff: Backoff (ms)
     backoffHelp: Délai entre les tentatives en millisecondes
     variables: Variables (JSON)
-    variablesHelp: Ces variables seront disponibles pour toutes les étapes du workflow
+    variablesHelp: Ces variables seront disponibles pour toutes les étapes de l'automatisation
     validation:
       invalidJson: JSON invalide dans le champ des variables
     env: Environnement et secrets
     envHelp:
-      Variables injectées dans chaque étape sandbox de ce workflow. Cochez «
+      Variables injectées dans chaque étape sandbox de cette automatisation. Cochez «
       Secret » pour chiffrer une valeur ; les secrets sont en écriture seule.
       Une étape peut les remplacer.
   triggers:
     errors:
       unauthenticated: Tu n'es pas connecté. Actualise la page et réessaie.
-      invalidSlug: L'identifiant de ce workflow est invalide.
-      notInstalled: Ce workflow n'est pas encore installé.
+      invalidSlug: L'identifiant de cette automatisation est invalide.
+      notInstalled: Cette automatisation n'est pas encore installée.
       notFound: Ce déclencheur est introuvable. Il a peut-être été supprimé.
       automationOwnedWorkflow:
-        Les workflows d'automatisation s'exécutent uniquement
-        depuis l'automatisation et ne peuvent donc pas s'abonner à des
-        événements.
+        Une automatisation qui appartient à un pack s'exécute uniquement depuis
+        ce pack et ne peut donc pas s'abonner à des événements.
       invalidEventType: Ce type d'événement n'est pas valide.
-      duplicateSubscription: Ce workflow a déjà un déclencheur pour cet événement.
+      duplicateSubscription: Cette automatisation a déjà un déclencheur pour cet événement.
     schedules:
       title: Planifications
       createButton: Ajouter une planification
       emptyTitle: Aucune planification
       emptyDescription:
         Crée une planification pour déclencher automatiquement ce
-        workflow de manière récurrente.
+        automatisation de manière récurrente.
       columns:
         cronExpression: Expression cron
         project: Projet
@@ -8697,10 +8678,10 @@ workflows:
         cronPlaceholder: 0 * * * *
         cronHelp: 'Format cron standard à 5 champs : minute heure jour mois jour_semaine'
         timezoneLabel: Fuseau horaire
-        variablesLabel: Variables du workflow
+        variablesLabel: Variables de l'automatisation
         variablesDescription:
           Paramètres d'entrée transmis à chaque exécution planifiée.
-          Pré-remplis depuis le schéma d'entrée du workflow.
+          Pré-remplis depuis le schéma d'entrée de l'automatisation.
         variablesInvalid: Les variables doivent être un objet JSON valide
         projectLabel: Projet
         projectPlaceholder: Sélectionner un projet
@@ -8742,7 +8723,7 @@ workflows:
       title: Webhooks
       createButton: Ajouter un webhook
       emptyTitle: Aucun webhook
-      emptyDescription: Crée un webhook pour déclencher ce workflow via des requêtes HTTP POST.
+      emptyDescription: Crée un webhook pour déclencher cette automatisation via des requêtes HTTP POST.
       columns:
         url: URL du webhook
         active: Actif
@@ -8770,7 +8751,7 @@ workflows:
       createButton: Ajouter un déclencheur d'événement
       emptyTitle: Aucun déclencheur d'événement
       emptyDescription: Abonne-toi aux événements système pour déclencher
-        automatiquement ce workflow lorsque des actions spécifiques se
+        automatiquement cette automatisation lorsque des actions spécifiques se
         produisent.
       columns:
         eventType: Type d'événement
@@ -8796,8 +8777,8 @@ workflows:
       editTitle: Modifier le déclencheur d'événement
       deleteTitle: Supprimer le déclencheur d'événement
       deleteDescription:
-        Ce déclencheur d'événement sera définitivement supprimé. Le
-        workflow ne sera plus déclenché par cet événement.
+        Ce déclencheur d'événement sera définitivement supprimé. L'automatisation
+        ne sera plus déclenchée par cet événement.
     common:
       never: Jamais
       copied: Copié
@@ -8809,18 +8790,19 @@ workflows:
     viewOnCanvas: Voir sur le canevas
   steps:
     banners:
-      hasActiveTriggers: Ce workflow est actif — les modifications enregistrées
+      hasActiveTriggers:
+        Cette automatisation est active — les modifications enregistrées
         s’appliquent aux nouvelles exécutions.
       hasActiveTriggersScheduleGap:
-        Ce workflow est actif, mais une planification
+        Cette automatisation est active, mais une planification
         active n’a pas toutes ses variables requises ({fields}) — ces exécutions
         échoueront tant qu’elles ne sont pas définies.
     toolbar:
-      testWorkflow: Tester le workflow
+      testWorkflow: Tester l'automatisation
       addStepUnavailable:
         La modification des étapes sur le canevas n'est pas encore
         disponible — utilise l'assistant IA ou modifie la configuration du
-        workflow.
+        automatisation.
     execution:
       viewingRun: Affichage de l'exécution {id}
       clear: Masquer les résultats de l'exécution
@@ -8856,7 +8838,7 @@ workflows:
     openStepDefault: Ouvrir l'étape
   sidePanel:
     aiAssistant: Assistant IA
-    testWorkflow: Tester le workflow
+    testWorkflow: Tester l'automatisation
     stepTooltip: Étape {stepType}
     end: Fin
     close: Fermer le panneau
@@ -8867,13 +8849,13 @@ workflows:
     resizePanel: Redimensionner le panneau
     stepEditor: Éditeur d'étapes
     fileBasedStepSaveUnsupported: L'enregistrement d'étapes n'est pas encore
-      disponible pour les workflows basés sur fichiers.
+      disponible pour les automatisations basées sur fichiers.
     env: Environnement et secrets
     envHelp:
       Variables injectées dans la sandbox de cette étape ; elles l'emportent
-      sur les valeurs au niveau du workflow en cas de conflit de nom.
+      sur les valeurs au niveau de l'automatisation en cas de conflit de nom.
   nextSteps:
-    endWorkflow: Terminer le workflow
+    endWorkflow: Terminer l'automatisation
     transitions:
       success: Étape suivante (en cas de succès)
       failure: Étape suivante (en cas d'échec)
@@ -8888,9 +8870,9 @@ workflows:
     analyzeAttachments: Merci d'analyser les fichiers joints.
   tester:
     inputLabel: Entrée de test (JSON)
-    inputDescription: Fournis des données d'entrée au format JSON pour l'exécution du workflow
+    inputDescription: Fournis des données d'entrée au format JSON pour l'exécution de l'automatisation
     validation:
-      invalidJson: Saisis un JSON valide pour exécuter ce workflow.
+      invalidJson: Saisis un JSON valide pour exécuter cette automatisation.
       missingRequired: "Configure les champs requis avant d'exécuter : {fields}"
     tip: L'exécution crée de véritables exécutions visibles dans l'onglet
       Exécutions.
@@ -8900,7 +8882,7 @@ workflows:
       button: Exécution à blanc
       fileBasedUnsupported:
         L'exécution à blanc n'est pas encore disponible pour les
-        workflows basés sur fichiers.
+        automatisations basées sur fichiers.
     toast:
       invalidJson: JSON invalide
       invalidJsonDescription: Merci de fournir une entrée JSON valide
@@ -8940,8 +8922,8 @@ workflows:
     generateFromGraph: Générer la spécification à partir du graphe
     emptyState:
       Aucune spécification pour l'instant. Écris-en une, ou génère-la à
-      partir du graphe actuel du workflow.
-    placeholder: Décris ce que fait ce workflow, étape par étape…
+      partir du graphe actuel de l'automatisation.
+    placeholder: Décris ce que fait cette automatisation, étape par étape…
     generateError: Impossible de générer un aperçu. Réessaie.
     diffTitle: Vérifier le graphe généré
     diffDescription:

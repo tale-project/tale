@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { CheckCircle2, Rocket, XCircle } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -62,9 +63,11 @@ export function VersionList({
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
-      <h3 id={headingId} className="text-sm font-semibold">
-        {t('versions.title')}
-      </h3>
+      <SectionHeader
+        as="h3"
+        size="sm"
+        title={<span id={headingId}>{t('versions.title')}</span>}
+      />
 
       {refusal !== null && (
         <Alert

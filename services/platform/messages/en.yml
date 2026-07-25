@@ -68,14 +68,15 @@ operator:
     button: Re-run
     started: Re-run started
     alreadyRunning: A run is already in progress.
-    notStarted: Couldn't start the run — check the workflow is installed.
+    notStarted: Couldn't start the run — check the automation is installed.
   stop:
     button: Stop
     stopped: Run stopped
     failed: Couldn't stop the run.
     confirm:
       title: Stop this run?
-      description: This cancels the workflow immediately. Steps in progress are
+      description:
+        This cancels the automation immediately. Steps in progress are
         abandoned and the run is marked failed. This can't be undone.
       confirm: Stop run
   stage:
@@ -438,7 +439,7 @@ approvalCommon:
   errorAlreadyResolved: This request has already been resolved.
   copied: Copied!
   copyConfiguration: Copy configuration
-  viewWorkflow: View workflow
+  viewWorkflow: View automation
   statusPending: Pending
   statusExecuting: Executing
   statusCompleted: Completed
@@ -611,9 +612,9 @@ automations:
     empty:
       title: No automations yet
       description:
-        An automation is a saved workflow document. The shipped starter
-        automations appear here automatically, and a developer can author new
-        ones from a goal with "New automation".
+        An automation is a saved document — a graph of nodes. The shipped
+        starter automations appear here automatically, and a developer can
+        author new ones from a goal with "New automation".
   builder:
     new: New automation
     title: New automation
@@ -647,12 +648,19 @@ automations:
   detail:
     loading: Loading the automation…
     deployedVersion: 'Live: v{version}'
-    unsaved: Unsaved changes
     runMock: Test run
     saveVersion: Save version
     saveMessageLabel: Version message
     saveMessageDescription: What changed, so the version list stays readable.
-    nothingToSave: Nothing has changed since the version on screen.
+    saveDialog:
+      title: Save a new version
+      description: Saving appends a new version. The one on screen stays exactly
+        as it is, so a run already in flight is unaffected.
+    switchVersion:
+      title: Show another version?
+      description: The canvas draws one stored version at a time, so switching
+        drops the changes you have not saved yet.
+      confirm: Discard and switch
     showLastRun: Show last run
     hideLastRun: Hide last run
     openLastRun: Open the last run
@@ -699,7 +707,7 @@ automations:
     empty:
       title: This version has no nodes
       description:
-        A workflow document is a list of nodes. Add one to the document
+        An automation document is a list of nodes. Add one to the document
         and it appears here.
     cycle:
       title: These nodes reference each other in a circle
@@ -739,7 +747,7 @@ automations:
       system: System prompt
       model: Model
       outputSchema: Output schema
-      workflow: Workflow
+      automation: Automation
       credential: Credential
       when: When
       whenDescription: Skip this node when the expression is falsy.
@@ -932,10 +940,10 @@ chat:
     image: Images
     pptx: Presentation
     docx: Document
-    workflowRead: Workflow
-    updateWorkflowStep: Workflow step
-    saveWorkflowDefinition: Saving workflow
-    validateWorkflowDefinition: Validating workflow
+    workflowRead: Automation
+    updateWorkflowStep: Automation step
+    saveWorkflowDefinition: Saving automation
+    validateWorkflowDefinition: Validating automation
     excel: Excel file
     contactWrite: Update contact
     productWrite: Update product
@@ -958,9 +966,9 @@ chat:
     runCode: Run code
     generateImage: Generate image
     text: Text file
-    workflowSyntax: Workflow syntax
-    createWorkflow: Create workflow
-    runWorkflow: Run workflow
+    workflowSyntax: Automation syntax
+    createWorkflow: Create automation
+    runWorkflow: Run automation
     integration: Integration
     integrationBatch: Batch integration
     integrationIntrospect: Inspect integration
@@ -1928,7 +1936,7 @@ common:
     unauthenticated: You're not signed in. Refresh the page and try again.
     notFound: That run could no longer be found. It may have been deleted.
     notCancelable: This run can no longer be stopped — it has already finished.
-    missingWorkflow: This run can't be re-run because its workflow is no longer available.
+    missingWorkflow: This run can't be re-run because its automation is no longer available.
   keyboardShortcuts:
     ctrlEnter: Ctrl+Enter
     escape: Esc
@@ -2724,7 +2732,6 @@ governance:
     enabled: Custom instructions
     instructionsPlaceholder: Enter the mandatory instructions...
     charLimitExceeded: Character limit exceeded
-    saved: Custom instructions have been updated
     saveFailed: Failed to save the custom instructions
   budgets:
     title: Budget rules
@@ -2844,7 +2851,6 @@ governance:
     mimeTypePlaceholder: image/*, application/pdf
     mbUnit: MB
     gbUnit: GB
-    saved: Upload policy has been updated
     saveFailed: Failed to save upload policy
   retentionPolicy:
     title: Retention policy
@@ -2955,7 +2961,7 @@ governance:
       title: Notifications
       description:
         In-app notifications (mentions, agent results, system alerts). May
-        reference content from chats, documents, or workflow runs.
+        reference content from chats, documents, or automation runs.
       placeholder: e.g. 30
       helper: Notification rows older than this will be deleted.
     chatHistory:
@@ -2988,13 +2994,12 @@ governance:
       placeholder: e.g. 24
       helper: Temporary files older than this will be deleted.
     workflowLogs:
-      title: Workflow execution logs
-      description:
-        Automatically delete workflow execution records older than the
+      title: Automation run logs
+      description: Automatically delete automation run records older than the
         retention period. Includes per-execution variable/output storage
         blobs.
       placeholder: e.g. 30
-      helper: Workflow runs older than this will be deleted (1–365 days).
+      helper: Automation runs older than this will be deleted (1–365 days).
     auditLogs:
       title: Audit logs
       description:
@@ -3038,7 +3043,6 @@ governance:
       existing users are not forced to change immediately.
     invalidMinLength: Minimum length must be an integer between 6 and 128.
     invalidRotationDays: Rotation period must be an integer between 1 and 3650.
-    saved: Password policy has been updated
     saveFailed: Failed to save password policy
   twoFactorPolicy:
     title: Two-factor authentication
@@ -3090,7 +3094,6 @@ governance:
     invalidProxies:
       Trusted proxies must be a comma-separated list of IPs, CIDRs, or
       keywords (max 32).
-    saved: Login policy has been updated
     saveFailed: Failed to save login policy
   sessionIdleTimeout:
     title: Session idle timeout
@@ -3102,7 +3105,6 @@ governance:
       "Minutes of inactivity before a member is signed out. Capped by the
       deployment's SESSION_IDLE_TIMEOUT_MINUTES when set. Default: 30."
     invalid: Idle timeout must be an integer between 1 and 1440 minutes.
-    saved: Session idle timeout has been updated
     saveFailed: Failed to save session idle timeout
   sandboxQuota:
     title: Sandbox concurrency limits
@@ -3113,11 +3115,10 @@ governance:
       overwhelmed.
     maxSessions: Max active sessions
     maxSessionsHint:
-      'Persistent sandbox sessions (chat agents and workflow agent
+      'Persistent sandbox sessions (chat agents and automation agent
       steps) that may be active at once for this organization. Requests beyond
       the cap fail with a quota error. Default: 2.'
     invalidSessions: Must be a whole number between 1 and 500.
-    saved: Sandbox concurrency limits have been updated
     saveFailed: Failed to save sandbox concurrency limits
   featureFlags:
     title: Feature controls
@@ -3569,7 +3570,6 @@ governance:
       @scope/pkg
     save: Save
     saving: Saving…
-    saved: Run-code package policy updated
     saveFailed: Failed to update run-code package policy
     testerTitle: Test this package list
     testerDescription:
@@ -3619,8 +3619,8 @@ governance:
       contact: Contacts
       externalConversation: External conversations
       messageMetadata: Message metadata
-      workflowExecution: Workflow runs
-      workflowTriggerLog: Workflow trigger logs
+      workflowExecution: Automation runs
+      workflowTriggerLog: Automation trigger logs
       usageLedger: Usage ledger
       auditLog: Audit logs
       chatFilterEvent: Chat filter events
@@ -3948,7 +3948,7 @@ governance:
       ragDocumentsRemoved: RAG documents removed
       documentsErased: Documents erased
       documentsSkippedByHold: Documents skipped by hold
-      wfExecutionsErased: Workflow executions erased
+      wfExecutionsErased: Automation runs erased
       promptTemplatesErased: Personal prompts erased
       startedAt: Started
       completedAt: Completed
@@ -3993,7 +3993,7 @@ governance:
       onedrive: OneDrive sync configs
       loginAttempts: Login attempts and lockouts
       notifications: Security notifications
-      wfExecutions: Workflow executions
+      wfExecutions: Automation runs
       promptTemplates: Personal prompts
     legalHoldBlock:
       title: Erasure blocked by legal hold
@@ -4207,13 +4207,13 @@ humanInputRequest:
   statusProcessing: Processing
   respondedByAt: Responded by {name} at {date}
   stopWorkflow: Stop
-  stopWorkflowTooltip: Stop the running workflow
+  stopWorkflowTooltip: Stop the running automation
   errorFillRequiredFields: Please fill in all required fields
   errorSelectRequired: Please make a selection
   errorFeedbackRequired: Please enter your feedback
   errorAlreadyResponded: This request has already been answered.
   errorNotEditable: Only a completed response can be edited.
-  errorWorkflowNotEditable: Workflow responses can't be edited.
+  errorWorkflowNotEditable: Automation responses can't be edited.
   errorGenerationInProgress: Wait for the current response to finish before editing your answer.
   copyQuestions: Copy questions
   pushback: Reply differently
@@ -4359,13 +4359,13 @@ metadata:
       and the version that is live.
   automation:
     title: Automation
-    description: View and edit automation workflow.
+    description: View and edit the automation's document.
   automationConfiguration:
     title: Automation configuration
     description: Configure automation settings.
-  automationExecutions:
-    title: Automation executions
-    description: View automation execution history.
+  automationRuns:
+    title: Automation runs
+    description: View the automation's run history.
   documents:
     title: Documents
     description: Manage your knowledge base documents.
@@ -4507,17 +4507,11 @@ metadata:
     title: Enterprise SSO
     description: Configure single sign-on and SCIM provisioning.
   workflow:
-    title: Workflow
-    description: View and edit workflow.
+    title: Automation
+    description: View and edit automation.
   workflowConfiguration:
-    title: Workflow configuration
-    description: Configure workflow settings.
-  workflowExecutions:
-    title: Workflow executions
-    description: View workflow execution history.
-  workflowTriggers:
-    title: Triggers
-    description: Manage workflow triggers, schedules, and webhooks.
+    title: Automation configuration
+    description: Configure automation settings.
 navigation:
   newChat: New chat
   chat: Chat
@@ -4709,7 +4703,6 @@ personalization:
     tooLong: Custom instructions exceed {max} characters.
     illegalChars: Remove angle brackets, backticks, and control characters.
   toasts:
-    saved: Saved.
     discarded: Discarded.
     deleted: Deleted.
     preferencesUpdated: Preferences updated.
@@ -5455,18 +5448,19 @@ settings:
         behind it.
   mcpEndpoint:
     title: MCP endpoint
-    description:
-      Point any MCP client at this deployment to author, test, and run
-      automations — the same tools the in-platform builder uses.
+    description: Point any MCP client at this deployment to author, run and
+      manage automations — and to reach this organization's own capabilities and
+      knowledge.
     copyEndpoint: Copy MCP endpoint URL
     authHelp:
       'Authenticate with an organization API key as a bearer token: create
       and manage keys under'
     authLink: REST API keys.
     toolsTitle: Tools
-    toolsHelp: Served straight from the engine's method table — get_docs and
-      get_catalog are the in-band reference for the workflow grammar and
-      this deployment's node types.
+    toolsHelp: Two surfaces behind one endpoint — the automation engine's
+      methods, and this organization's capability catalog. get_docs teaches the
+      automation grammar; search_capabilities finds what else the organization
+      can do.
     exampleTitle: Try it
     exampleHelp: Lists the tools with your API key in place.
     copyExample: Copy example request
@@ -5533,7 +5527,7 @@ settings:
     switchingLabel: Switching organization
     deleteDialogTitle: Delete organization
     deleteDialogDescription:
-      Delete "{name}"? This removes its agents, workflows,
+      Delete "{name}"? This removes its agents, automations,
       providers, and integrations. Members will lose access. This cannot be
       undone.
     dangerZoneTitle: Danger zone
@@ -5776,7 +5770,7 @@ settings:
       sectionToolsExternalDescription:
         "External agents run in a sandbox and use what
         you bind here: connected integrations and the platform tools they may
-        call (knowledge search, documents). Workflows don't apply."
+        call (knowledge search, documents). Automations don't apply."
       sectionIntegrationBindings: Bound integrations
       sectionIntegrationBindingsDescription:
         Bind specific integrations as dedicated
@@ -5901,21 +5895,21 @@ settings:
         sectionDescription:
           How this agent runs in chat. Coding agents run a CLI in an
           isolated sandbox; agents run on the platform tool loop with knowledge
-          and workflows.
+          and automations.
         internalLabel: Agent
         externalLabel: Coding agent
         imageLabel: Image generation
         switchTitle: Change agent type?
         switchToExternalDescription:
           This will switch the agent to a coding agent in a
-          sandbox and clear its platform tools and workflows. Bound integrations
+          sandbox and clear its platform tools and automations. Bound integrations
           are kept.
         switchToChatDescription:
           This will switch the agent to run on the platform tool
           loop and clear its sandbox CLI and credential settings.
         switchToImageDescription:
           This will switch the agent to image generation and
-          clear its tools, workflows, integrations, and sandbox CLI settings.
+          clear its tools, automations, integrations, and sandbox CLI settings.
         switchTaskDispatchNote: Task dispatch settings in the agent JSON are unchanged.
         noModelWarning:
           This agent has no model set — add one on the Instructions tab
@@ -6021,7 +6015,7 @@ settings:
         knowledge: Knowledge
         tasksProjects: Tasks & projects
         agents: Agents
-        workflows: Workflows
+        workflows: Automations
         integrations: Integrations & data
         analytics: Analytics
         web: Web
@@ -6041,12 +6035,12 @@ settings:
         web: Fetch and search content from the web
         image: Analyze and process images
         generate_image: Create images from text prompts
-        workflow_read: Inspect existing workflows and their runs
-        workflow_syntax: Look up the workflow definition syntax
-        update_workflow_step: Modify a single step of a workflow
-        save_workflow_definition: Save a complete workflow definition
-        create_workflow: Create a new workflow
-        run_workflow: Start a workflow run
+        workflow_read: Inspect existing automations and their runs
+        workflow_syntax: Look up the automation definition syntax
+        update_workflow_step: Modify a single step of an automation
+        save_workflow_definition: Save a complete automation definition
+        create_workflow: Create a new automation
+        run_workflow: Start an automation run
         integration: Call a connected integration
         integration_batch: Run multiple integration calls at once
         integration_introspect: Inspect a connected integration's capabilities
@@ -6115,7 +6109,7 @@ settings:
       exampleOpenAIMeetilyConfig: OpenAI client config (e.g. Meetily)
     env:
       description:
-        Variables injected when this agent runs in a sandbox — workflow
+        Variables injected when this agent runs in a sandbox — automation
         steps and external runs. Mark a value as a secret to encrypt it; secrets
         are write-only.
     automationBadge: Automation
@@ -6258,7 +6252,6 @@ settings:
       private: Private
       privateHelp: Only you can see it and only your chats can load it.
     editor:
-      saveSuccess: Skill saved
       saveFailed: Failed to save skill
       descriptionHelp:
         One or two sentences on what the skill covers — this is what tells
@@ -6446,7 +6439,6 @@ settings:
       disable: Disable sign-in
       remove: Remove
       test: Test connection
-      saved: Saved
       saveFailed: Failed to save
       testOk: Connection looks good
       testFailed: Connection test failed
@@ -6895,7 +6887,7 @@ settings:
         member: Member
         data: Data
         integration: Integration
-        workflow: Workflow
+        workflow: Automation
         security: Security
         admin: Admin
         ai: AI
@@ -6925,7 +6917,7 @@ settings:
         member: Member
         data: Data
         integration: Integration
-        workflow: Workflow
+        workflow: Automation
         security: Security
         admin: Admin
         ai: AI
@@ -6939,7 +6931,7 @@ settings:
         user: User
         system: System
         api: API
-        workflow: Workflow
+        workflow: Automation
       actionLabels:
         joined_organization: Joined organization
         signed_in_to_organization: Signed in to organization
@@ -7010,8 +7002,8 @@ settings:
         prompt_template.retention_deleted: Prompt template retention deleted
         usage_ledger.retention_deleted: Usage ledger retention deleted
         external_conversation.retention_deleted: External conversation retention deleted
-        workflow_execution.retention_deleted: Workflow execution retention deleted
-        workflow_trigger_log.retention_deleted: Workflow trigger log retention deleted
+        workflow_execution.retention_deleted: Automation run retention deleted
+        workflow_trigger_log.retention_deleted: Automation trigger log retention deleted
         audit_log.retention_deleted: Audit log retention deleted
         policy_acknowledged: Policy acknowledged
         login_attempt: Login attempt
@@ -7106,9 +7098,9 @@ settings:
         external_conversation.retention_expired: External conversation expired by retention
         external_conversation.retention_override_restore: External conversation restored (retention override)
         external_conversation.restored_by_admin: External conversation restored by admin
-        workflow_execution.retention_expired: Workflow execution expired by retention
-        workflow_execution.retention_override_restore: Workflow execution restored (retention override)
-        workflow_execution.restored_by_admin: Workflow execution restored by admin
+        workflow_execution.retention_expired: Automation run expired by retention
+        workflow_execution.retention_override_restore: Automation run restored (retention override)
+        workflow_execution.restored_by_admin: Automation run restored by admin
         usage_ledger.retention_expired: Usage ledger expired by retention
         usage_ledger.retention_override_restore: Usage ledger restored (retention override)
         usage_ledger.restored_by_admin: Usage ledger restored by admin
@@ -7126,10 +7118,10 @@ settings:
         conversationMessage: Conversation message
         document: Document
         agent: Agent
-        workflow: Workflow
-        workflow_run: Workflow run
-        workflow_creation: Workflow creation
-        workflow_update: Workflow update
+        workflow: Automation
+        workflow_run: Automation run
+        workflow_creation: Automation creation
+        workflow_update: Automation update
         customer: Contact
         contact: Contact
         vendor: Vendor
@@ -7157,10 +7149,10 @@ settings:
         prompt_category: Prompt category
         message_feedback: Message feedback
         external_conversation: External conversation
-        workflow_execution: Workflow execution
-        wf_execution: Workflow execution
-        wf_trigger_log: Workflow trigger log
-        workflow_llm_step: Workflow LLM step
+        workflow_execution: Automation run
+        wf_execution: Automation run
+        wf_trigger_log: Automation trigger log
+        workflow_llm_step: Automation LLM step
         usage_ledger: Usage ledger
         audit_log: Audit log
         chat_filter_event: Chat filter event
@@ -7397,8 +7389,8 @@ inbox:
   taskReviewReminderBody: Agent work on "{title}" is still waiting for your review.
   taskReviewEscalated: Review overdue
   taskReviewEscalatedBody: A review on "{title}" has been waiting for over a day.
-  humanInputEscalated: Workflow waiting on input
-  humanInputEscalatedBody: A workflow has been waiting on human input for {ageHours} hours.
+  humanInputEscalated: Automation waiting on input
+  humanInputEscalatedBody: An automation has been waiting on human input for {ageHours} hours.
   workforceDigest: Daily workforce digest
   workforceDigestBody: '{created} created · {completed} completed · {runs} agent
     runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued
@@ -7605,9 +7597,9 @@ tasks:
   timeline:
     runLabel: Agent run
     systemActor: System
-    unresolvedWorkflow: Workflow
+    unresolvedWorkflow: Automation
     viewAgent: View agent
-    viewWorkflow: View workflow
+    viewWorkflow: View automation
   dueDate:
     label: Due date
     overdue: Overdue
@@ -7691,27 +7683,18 @@ toast:
     deleted:
       title: Deleted
       description: The item has been deleted.
-    profileUpdated:
-      title: Profile updated
-      description: Your profile changes have been saved.
     passwordChanged:
       title: Password changed
       description: Use your new password the next time you sign in.
     passwordSet:
       title: Password set
       description: You can now sign in with your password.
-    organizationUpdated:
-      title: Organization updated
-      description: Your organization changes have been saved.
     newMemberCreated:
       title: Member added
       description: The new member has been created and added to your organization.
     existingUserAdded:
       title: Member added
       description: The user has been added to your organization.
-    brandingUpdated:
-      title: Branding updated
-      description: Your branding changes have been saved.
     faviconGenerated:
       title: Favicon generated
       description: We created a favicon from your logo.
@@ -7721,16 +7704,13 @@ toast:
       description: Something went wrong. Please try again.
     profileUpdateFailed:
       title: Couldn't update profile
-      description: Something went wrong. Please try again.
     passwordChangeFailed:
       title: Couldn't change password
       description: Please check your current password and try again.
     organizationUpdateFailed:
       title: Couldn't update organization
-      description: Something went wrong. Please try again.
     brandingUpdateFailed:
       title: Couldn't update branding
-      description: Something went wrong. Please try again.
     imageUploadFailed: Failed to upload image
     logoTooSmall: The logo must be at least {min}×{min} pixels.
     imageTooLarge: Image is too large. Maximum size is 2 MB.
@@ -7950,21 +7930,21 @@ websites:
     confirmation: Are you sure you want to delete this website? This action cannot be undone.
     title: Delete website
 workflowCreationApproval:
-  approve: Create workflow
-  approveTooltip: Approve and create this workflow
-  rejectTooltip: Cancel workflow creation
+  approve: Create automation
+  approveTooltip: Approve and create this automation
+  rejectTooltip: Cancel automation creation
   stepsCount: '{count} steps'
-  copyAriaLabel: Copy workflow configuration
-  createdSuccessfully: Workflow created successfully
-  statusExecuting: Workflow creation in progress...
-  statusCompletedFailed: Workflow creation was approved but failed.
-  statusCompletedSuccess: Workflow was created successfully.
-  statusRejected: Workflow creation was cancelled.
-  errorCreateFailed: Failed to create workflow
+  copyAriaLabel: Copy automation configuration
+  createdSuccessfully: Automation created successfully
+  statusExecuting: Automation creation in progress...
+  statusCompletedFailed: Automation creation was approved but failed.
+  statusCompletedSuccess: Automation was created successfully.
+  statusRejected: Automation creation was cancelled.
+  errorCreateFailed: Failed to create automation
 workflowRunApproval:
-  approve: Run workflow
-  approveTooltip: Approve and run this workflow
-  rejectTooltip: Cancel workflow execution
+  approve: Run automation
+  approveTooltip: Approve and run this automation
+  rejectTooltip: Cancel the automation run
   statusExecuting: Executing...
   statusCompleted: Completed
   statusRejected: Rejected
@@ -7980,8 +7960,8 @@ workflowRunApproval:
   showOutput: Show output
   hideOutput: Hide output
   stopExecution: Stop
-  stopTooltip: Stop workflow execution
-  errorRunFailed: Failed to run workflow
+  stopTooltip: Stop the automation run
+  errorRunFailed: Failed to run automation
   errorStopFailed: Failed to stop execution
   submitResponse: Submit response
   copyQuestions: Copy questions
@@ -7995,18 +7975,18 @@ workflowRunApproval:
 workflowUpdateApproval:
   approve: Apply update
   approveTooltip: Approve and apply this update
-  rejectTooltip: Cancel workflow update
-  badgeFullSave: Update workflow
+  rejectTooltip: Cancel automation update
+  badgeFullSave: Update automation
   badgeMultiStep: Update {count} steps
   badgeStepPatch: Update step
   versionLabel: 'Version:'
   slugLabel: 'Slug:'
   copyAriaLabel: Copy update configuration
-  updatedSuccessfully: Workflow updated successfully
+  updatedSuccessfully: Automation updated successfully
   statusExecuting: Applying update...
   statusCompletedFailed: Update was approved but failed to apply.
-  statusCompletedSuccess: Workflow was updated successfully.
-  statusRejected: Workflow update was cancelled.
+  statusCompletedSuccess: Automation was updated successfully.
+  statusRejected: Automation update was cancelled.
   errorApplyFailed: Failed to apply update
 webdav:
   description: Mount Tale documents as a network drive in Finder, File Explorer,
@@ -8125,7 +8105,7 @@ sandboxes:
     budgets:
       user: Agent sessions
       thread: Run-code sessions
-      workflow: Workflow sessions
+      workflow: Automation sessions
       render: Render sessions
   columns:
     owner: Owner
@@ -8190,8 +8170,8 @@ workflows:
     openNamed: Open {name}
     openLoop: Open loop
   emptyState:
-    noSteps: No workflow steps to display
-    createStepsHint: Create steps to see the workflow overview, or use the AI
+    noSteps: No automation steps to display
+    createStepsHint: Create steps to see the automation overview, or use the AI
       assistant to help you get started.
   history:
     noDifferences: No differences found
@@ -8203,29 +8183,31 @@ workflows:
     backoff: Backoff (ms)
     backoffHelp: Delay between retry attempts in milliseconds
     variables: Variables (JSON)
-    variablesHelp: These variables will be available to all steps in the workflow
+    variablesHelp: These variables will be available to all steps in the automation
     validation:
       invalidJson: Invalid JSON in variables field
     env: Environment & secrets
-    envHelp: Variables injected into every sandbox step of this workflow. Mark a
+    envHelp:
+      Variables injected into every sandbox step of this automation. Mark a
       value as a secret to encrypt it; secrets are write-only. A step can
       override any of these.
   triggers:
     errors:
       unauthenticated: You're not signed in. Refresh the page and try again.
-      invalidSlug: This workflow's identifier is invalid.
-      notInstalled: This workflow isn't installed yet.
+      invalidSlug: This automation's identifier is invalid.
+      notInstalled: This automation isn't installed yet.
       notFound: That trigger could no longer be found. It may have been deleted.
-      automationOwnedWorkflow: Automation workflows run only from within the
-        automation, so they can't subscribe to events.
+      automationOwnedWorkflow:
+        An automation owned by a pack runs only from within
+        that pack, so it can't subscribe to events.
       invalidEventType: That event type isn't valid.
-      duplicateSubscription: This workflow already has a trigger for that event.
+      duplicateSubscription: This automation already has a trigger for that event.
     schedules:
       title: Schedules
       createButton: Add schedule
       emptyTitle: No schedules
       emptyDescription:
-        Create a schedule to automatically trigger this workflow on a
+        Create a schedule to automatically trigger this automation on a
         recurring basis.
       columns:
         cronExpression: Cron expression
@@ -8243,10 +8225,10 @@ workflows:
         cronPlaceholder: 0 * * * *
         cronHelp: 'Standard 5-field cron format: minute hour day month weekday'
         timezoneLabel: Timezone
-        variablesLabel: Workflow variables
+        variablesLabel: Automation variables
         variablesDescription:
           Input parameters passed to each scheduled run. Pre-filled
-          from the workflow's input schema.
+          from the automation's input schema.
         variablesInvalid: Variables must be valid JSON object
         projectLabel: Project
         projectPlaceholder: Select a project
@@ -8286,7 +8268,7 @@ workflows:
       title: Webhooks
       createButton: Add webhook
       emptyTitle: No webhooks
-      emptyDescription: Create a webhook to trigger this workflow via HTTP POST requests.
+      emptyDescription: Create a webhook to trigger this automation via HTTP POST requests.
       columns:
         url: Webhook URL
         active: Active
@@ -8313,7 +8295,7 @@ workflows:
       createButton: Add event trigger
       emptyTitle: No event triggers
       emptyDescription: Subscribe to system events to automatically trigger this
-        workflow when specific actions occur.
+        automation when specific actions occur.
       columns:
         eventType: Event type
         active: Active
@@ -8338,7 +8320,7 @@ workflows:
       editTitle: Edit event trigger
       deleteTitle: Delete event trigger
       deleteDescription:
-        This will permanently delete this event trigger. The workflow
+        This will permanently delete this event trigger. The automation
         will no longer be triggered by this event.
     common:
       never: Never
@@ -8351,16 +8333,16 @@ workflows:
     viewOnCanvas: View on canvas
   steps:
     banners:
-      hasActiveTriggers: This workflow is active — saved changes apply to new runs.
+      hasActiveTriggers: This automation is active — saved changes apply to new runs.
       hasActiveTriggersScheduleGap:
-        This workflow is active, but an active schedule is
+        This automation is active, but an active schedule is
         missing required variables ({fields}) — those runs will fail until
         they're set.
     toolbar:
-      testWorkflow: Test workflow
+      testWorkflow: Test automation
       addStepUnavailable:
         Editing steps on the canvas isn't available yet — use the AI
-        assistant or edit the workflow configuration.
+        assistant or edit the automation configuration.
     execution:
       viewingRun: Viewing run {id}
       clear: Hide run results
@@ -8396,7 +8378,7 @@ workflows:
     openStepDefault: Open step
   sidePanel:
     aiAssistant: AI Assistant
-    testWorkflow: Test workflow
+    testWorkflow: Test automation
     stepTooltip: '{stepType} step'
     end: End
     close: Close panel
@@ -8406,12 +8388,12 @@ workflows:
     saving: Saving...
     resizePanel: Resize panel
     stepEditor: Step editor
-    fileBasedStepSaveUnsupported: Step saving isn't wired up for file-based workflows yet.
+    fileBasedStepSaveUnsupported: Step saving isn't wired up for file-based automations yet.
     env: Environment & secrets
     envHelp: Variables injected into this step's sandbox, overriding the
-      workflow-level values on a name clash.
+      automation-level values on a name clash.
   nextSteps:
-    endWorkflow: End workflow
+    endWorkflow: End automation
     transitions:
       success: Next step (on success)
       failure: Next step (on failure)
@@ -8426,16 +8408,16 @@ workflows:
     analyzeAttachments: Please analyze the attached files.
   tester:
     inputLabel: Test input (JSON)
-    inputDescription: Provide input data in JSON format for the workflow execution
+    inputDescription: Provide input data in JSON format for the automation run
     validation:
-      invalidJson: Enter valid JSON to run this workflow.
+      invalidJson: Enter valid JSON to run this automation.
       missingRequired: 'Configure required field(s) before running: {fields}'
     tip: 💡 Execute creates real runs visible in Executions tab.
     execute: Execute
     executing: Executing...
     dryRun:
       button: Dry run
-      fileBasedUnsupported: Dry run isn't supported for file-based workflows yet.
+      fileBasedUnsupported: Dry run isn't supported for file-based automations yet.
     toast:
       invalidJson: Invalid JSON
       invalidJsonDescription: Please provide valid JSON input
@@ -8474,8 +8456,8 @@ workflows:
     regenerateGraph: Regenerate graph
     generateFromGraph: Generate specification from graph
     emptyState: No specification yet. Write one below, or generate one from the
-      current workflow graph.
-    placeholder: Describe what this workflow does, step by step…
+      current automation graph.
+    placeholder: Describe what this automation does, step by step…
     generateError: Couldn't generate a preview. Try again.
     diffTitle: Review the generated graph
     diffDescription:

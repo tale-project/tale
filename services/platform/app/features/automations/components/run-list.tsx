@@ -1,21 +1,22 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
+import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 
 import { readRunStatus } from '../lib/run-view';
-import { automationSlugToParam } from '../lib/slug';
 import { RunBadge } from './run-status-badge';
 
 /** One run as the listing reports it. */
 export interface AutomationRunSummary {
-  id: Id<'workflowRuns'>;
+  id: Id<'automationRuns'>;
   name: string;
   version: number;
   status: string;
@@ -51,9 +52,11 @@ export function RunList({
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
-      <h3 id={headingId} className="text-sm font-semibold">
-        {t('runs.title')}
-      </h3>
+      <SectionHeader
+        as="h3"
+        size="sm"
+        title={<span id={headingId}>{t('runs.title')}</span>}
+      />
       {runs.length === 0 ? (
         <Text as="p" variant="muted" className="text-sm">
           {t('runs.empty')}
@@ -65,12 +68,12 @@ export function RunList({
               <Link
                 {...(projectId
                   ? {
-                      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId' as const,
+                      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId' as const,
                       params: {
                         id: organizationId,
                         projectId,
                         automationSlug: automationSlugToParam(automationSlug),
-                        executionId: run.id,
+                        runId: run.id,
                       },
                     }
                   : {

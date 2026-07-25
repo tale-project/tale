@@ -3,8 +3,8 @@
  *
  * Switching orgs preserves the current page's subpath so you keep your tab /
  * filter / hash (see `routes/dashboard/switching.tsx`). But a subpath that
- * points at an org-scoped ENTITY detail — a project, chat thread, or workflow —
- * must NOT be carried verbatim: that entity does not exist in the target org,
+ * points at an org-scoped ENTITY detail — a project or a chat thread — must
+ * NOT be carried verbatim: that entity does not exist in the target org,
  * so the read correctly denies it and the user dead-ends on "We couldn't find
  * that project". For those sections we reset to the section root (the
  * list/home, which exists in every org).
@@ -18,8 +18,10 @@
  */
 
 /** Top-level sections whose detail route is keyed by an org-scoped entity
- *  (`projects/$projectId`, `chat/$threadId`, `workflows/$workflowId`). */
-const ENTITY_DETAIL_SECTIONS = new Set(['projects', 'chat', 'workflows']);
+ *  (`projects/$projectId`, `chat/$threadId`). Automations are addressed by
+ *  slug, which every organization's own catalog can carry, so they are
+ *  preserved like `agents/{slug}`. */
+const ENTITY_DETAIL_SECTIONS = new Set(['projects', 'chat']);
 
 /**
  * `projects/abc123/tasks` → `projects`; `chat/t_1#mid` → `chat`. Section roots,
@@ -34,7 +36,5 @@ export function resetCrossOrgDetailSubpath(subpath: string): string {
   // (`projects/abc`). `projects` and `projects?filter=x` have none — keep them.
   const rest = subpath.slice(section.length);
   if (!rest.startsWith('/')) return subpath;
-  // `workflows` has no standalone list route (its hub is Automations) — reset to the
-  // org home instead of a section root that would 404.
-  return section === 'workflows' ? '' : section;
+  return section;
 }

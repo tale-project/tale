@@ -14,7 +14,7 @@
  * must not see: hand-placed node positions and the converter's review notes.
  */
 
-import type { NodeDef, Workflow } from '@/lib/engine/core/types';
+import type { NodeDef, Automation } from '@/lib/engine/core/types';
 
 /** Where a node sits on the canvas when an author placed it by hand. */
 export interface NodePosition {
@@ -57,7 +57,7 @@ function readNode(value: unknown): NodeDef | undefined {
     'prompt',
     'system',
     'model',
-    'workflow',
+    'automation',
   ] as const) {
     const raw = value[field];
     if (typeof raw === 'string') node[field] = raw;
@@ -72,12 +72,12 @@ function readNode(value: unknown): NodeDef | undefined {
 }
 
 /**
- * Narrow a stored document into the engine's `Workflow` shape. Returns `null`
+ * Narrow a stored document into the engine's `Automation` shape. Returns `null`
  * only when the value is not an object at all — a document missing its nodes
  * still renders (as an empty canvas), which is what an author who has just
  * created one expects to see.
  */
-export function readDocument(value: unknown): Workflow | null {
+export function readDocument(value: unknown): Automation | null {
   if (!isRecord(value)) return null;
   const rawNodes = Array.isArray(value.nodes) ? value.nodes : [];
   const nodes: NodeDef[] = [];
@@ -85,29 +85,29 @@ export function readDocument(value: unknown): Workflow | null {
     const node = readNode(raw);
     if (node) nodes.push(node);
   }
-  const workflow: Workflow = { name: readString(value.name) ?? '', nodes };
-  if (typeof value.version === 'number') workflow.version = value.version;
+  const automation: Automation = { name: readString(value.name) ?? '', nodes };
+  if (typeof value.version === 'number') automation.version = value.version;
   const description = readString(value.description);
-  if (description !== undefined) workflow.description = description;
-  if (isRecord(value.inputs)) workflow.inputs = value.inputs;
-  if (value.output !== undefined) workflow.output = value.output;
-  if (isRecord(value.ui)) workflow.ui = value.ui;
+  if (description !== undefined) automation.description = description;
+  if (isRecord(value.inputs)) automation.inputs = value.inputs;
+  if (value.output !== undefined) automation.output = value.output;
+  if (isRecord(value.ui)) automation.ui = value.ui;
   if (Array.isArray(value.tests)) {
-    workflow.tests = value.tests.flatMap((test) =>
+    automation.tests = value.tests.flatMap((test) =>
       isRecord(test) && typeof test.name === 'string'
         ? [{ name: test.name, input: null, ...test }]
         : [],
     );
   }
-  return workflow;
+  return automation;
 }
 
 /** Hand-placed node positions, from `ui.positions`. Nodes without an entry are
  * laid out automatically. */
 export function readPositions(
-  workflow: Workflow | null,
+  automation: Automation | null,
 ): Record<string, NodePosition> {
-  const raw = workflow?.ui?.positions;
+  const raw = automation?.ui?.positions;
   if (!isRecord(raw)) return {};
   const out: Record<string, NodePosition> = {};
   for (const [id, value] of Object.entries(raw)) {
@@ -123,15 +123,15 @@ export function readPositions(
  *
  * SEAM — this is the one place the feature assumes where a conversion records
  * what it could not re-express. `lib/automations/convert.ts` returns
- * `{workflow, needsReview}`, but nothing writes the result yet; the notes ride
+ * `{automation, needsReview}`, but nothing writes the result yet; the notes ride
  * in the document's canvas metadata because they annotate NODES for a human and
  * must never reach the executor. When the writer lands it fills
  * `ui.needsReview` with the same `{node, reason}` records and nothing here
  * changes. Until then a document simply carries none, and the canvas correctly
  * reports that no node is flagged — rather than inventing flags.
  */
-export function readReviewNotes(workflow: Workflow | null): ReviewNote[] {
-  const raw = workflow?.ui?.needsReview;
+export function readReviewNotes(automation: Automation | null): ReviewNote[] {
+  const raw = automation?.ui?.needsReview;
   if (!Array.isArray(raw)) return [];
   const out: ReviewNote[] = [];
   for (const value of raw) {

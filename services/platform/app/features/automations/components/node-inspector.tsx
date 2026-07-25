@@ -4,6 +4,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { AlertTriangle } from 'lucide-react';
@@ -34,7 +35,7 @@ const FIELD_CONTROL: Record<string, 'text' | 'multiline' | 'json'> = {
   prompt: 'multiline',
   system: 'multiline',
   model: 'text',
-  workflow: 'text',
+  automation: 'text',
   credential: 'text',
 };
 
@@ -228,12 +229,12 @@ export function NodeInspector({
         aria-labelledby={headingId}
         className="border-border bg-card rounded-lg border p-4"
       >
-        <h3 id={headingId} className="text-sm font-semibold">
-          {t('editor.title')}
-        </h3>
-        <Text as="p" variant="muted" className="mt-2 text-sm">
-          {t('editor.noSelection')}
-        </Text>
+        <SectionHeader
+          as="h3"
+          size="sm"
+          title={<span id={headingId}>{t('editor.title')}</span>}
+          description={t('editor.noSelection')}
+        />
       </section>
     );
   }
@@ -250,18 +251,20 @@ export function NodeInspector({
       aria-labelledby={headingId}
       className="border-border bg-card flex flex-col gap-4 rounded-lg border p-4"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 id={headingId} className="truncate text-sm font-semibold">
+      <SectionHeader
+        as="h3"
+        size="sm"
+        className="items-start gap-2"
+        title={
+          <span id={headingId} className="block truncate">
             {node.id}
-          </h3>
-          <Text as="p" variant="muted" className="text-xs">
-            {nodeType?.description ??
-              t('editor.unknownType', { type: node.type })}
-          </Text>
-        </div>
-        <Badge variant="slate">{node.type}</Badge>
-      </div>
+          </span>
+        }
+        description={
+          nodeType?.description ?? t('editor.unknownType', { type: node.type })
+        }
+        action={<Badge variant="slate">{node.type}</Badge>}
+      />
 
       {catalogUnavailable && (
         <Alert
@@ -378,7 +381,7 @@ export function NodeInspector({
       {runView && (
         <div className="border-border flex flex-col gap-3 border-t pt-4">
           <div className="flex items-center gap-2">
-            <h4 className="text-sm font-semibold">{t('editor.runTitle')}</h4>
+            <SectionHeader as="h4" size="sm" title={t('editor.runTitle')} />
             <RunStatusBadge status={runView.status} />
           </div>
           {runView.error !== undefined && (

@@ -69,7 +69,7 @@ operator:
     started: Erneute Ausführung gestartet
     alreadyRunning: Es läuft bereits eine Ausführung.
     notStarted:
-      Ausführung konnte nicht gestartet werden – prüfe, ob der Workflow
+      Ausführung konnte nicht gestartet werden – prüfe, ob die Automatisierung
       installiert ist.
   stop:
     button: Stoppen
@@ -77,7 +77,8 @@ operator:
     failed: Ausführung konnte nicht gestoppt werden.
     confirm:
       title: Diese Ausführung stoppen?
-      description: Damit wird der Workflow sofort abgebrochen. Laufende Schritte
+      description:
+        Damit wird die Automatisierung sofort abgebrochen. Laufende Schritte
         werden verworfen und die Ausführung wird als fehlgeschlagen markiert.
         Das lässt sich nicht rückgängig machen.
       confirm: Ausführung stoppen
@@ -457,7 +458,7 @@ approvalCommon:
   errorAlreadyResolved: Diese Anfrage wurde bereits bearbeitet.
   copied: Kopiert!
   copyConfiguration: Konfiguration kopieren
-  viewWorkflow: Workflow anzeigen
+  viewWorkflow: Automatisierung anzeigen
   statusPending: Ausstehend
   statusExecuting: Wird ausgeführt
   statusCompleted: Abgeschlossen
@@ -644,8 +645,9 @@ automations:
     loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
     empty:
       title: Noch keine Automatisierungen
-      description: Eine Automatisierung ist ein gespeichertes Workflow-Dokument.
-        Die mitgelieferten Starter-Automatisierungen erscheinen hier
+      description:
+        Eine Automatisierung ist ein gespeichertes Dokument — ein Graph aus
+        Nodes. Die mitgelieferten Starter-Automatisierungen erscheinen hier
         automatisch, und mit "Neue Automatisierung" baut ein Entwickler neue
         aus einem Ziel.
   builder:
@@ -681,12 +683,20 @@ automations:
   detail:
     loading: Automatisierung wird geladen …
     deployedVersion: 'Live: v{version}'
-    unsaved: Nicht gespeicherte Änderungen
     runMock: Testlauf
     saveVersion: Version speichern
     saveMessageLabel: Notiz zur Version
     saveMessageDescription: Was sich geändert hat, damit die Versionsliste lesbar bleibt.
-    nothingToSave: Seit der angezeigten Version hat sich nichts geändert.
+    saveDialog:
+      title: Neue Version speichern
+      description: Beim Speichern kommt eine neue Version dazu. Die angezeigte
+        bleibt unverändert, ein laufender Lauf merkt davon nichts.
+    switchVersion:
+      title: Andere Version anzeigen?
+      description:
+        Der Canvas zeigt immer genau eine gespeicherte Version, deshalb
+        gehen deine noch nicht gespeicherten Änderungen dabei verloren.
+      confirm: Verwerfen und wechseln
     showLastRun: Letzten Lauf einblenden
     hideLastRun: Letzten Lauf ausblenden
     openLastRun: Letzten Lauf öffnen
@@ -734,7 +744,7 @@ automations:
     empty:
       title: Diese Version hat keine Nodes
       description:
-        Ein Workflow-Dokument besteht aus Nodes. Sobald du dem Dokument
+        Ein Automatisierungsdokument besteht aus Nodes. Sobald du dem Dokument
         eine hinzufügst, erscheint sie hier.
     cycle:
       title: Diese Nodes verweisen im Kreis aufeinander
@@ -775,7 +785,7 @@ automations:
       system: System-Prompt
       model: Modell
       outputSchema: Ausgabeschema
-      workflow: Workflow
+      automation: Automatisierung
       credential: Zugangsdaten
       when: Wenn
       whenDescription: Diese Node überspringen, wenn der Ausdruck falsch ist.
@@ -974,10 +984,10 @@ chat:
     image: Bilder
     pptx: Präsentation
     docx: Dokument
-    workflowRead: Workflow
-    updateWorkflowStep: Workflow-Schritt
-    saveWorkflowDefinition: Workflow speichern
-    validateWorkflowDefinition: Workflow validieren
+    workflowRead: Automatisierung
+    updateWorkflowStep: Automatisierungsschritt
+    saveWorkflowDefinition: Automatisierung speichern
+    validateWorkflowDefinition: Automatisierung validieren
     excel: Excel-Datei
     contactWrite: Kontakt bearbeiten
     productWrite: Produkt bearbeiten
@@ -1000,9 +1010,9 @@ chat:
     runCode: Code ausführen
     generateImage: Bild generieren
     text: Textdatei
-    workflowSyntax: Workflow-Syntax
-    createWorkflow: Workflow erstellen
-    runWorkflow: Workflow ausführen
+    workflowSyntax: Automatisierungssyntax
+    createWorkflow: Automatisierung erstellen
+    runWorkflow: Automatisierung ausführen
     integration: Integration
     integrationBatch: Batch-Integration
     integrationIntrospect: Integration prüfen
@@ -2017,7 +2027,7 @@ common:
       gelöscht.
     notCancelable: Dieser Lauf kann nicht mehr gestoppt werden – er ist bereits abgeschlossen.
     missingWorkflow: Dieser Lauf kann nicht erneut ausgeführt werden, da sein
-      Workflow nicht mehr verfügbar ist.
+      Automatisierung nicht mehr verfügbar ist.
   keyboardShortcuts:
     ctrlEnter: Ctrl+Enter
     escape: Esc
@@ -2846,7 +2856,6 @@ governance:
     enabled: Benutzerdefinierte Anweisungen
     instructionsPlaceholder: Verbindliche Anweisungen eingeben...
     charLimitExceeded: Zeichenlimit überschritten
-    saved: Benutzerdefinierte Anweisungen aktualisiert
     saveFailed: Benutzerdefinierte Anweisungen konnten nicht gespeichert werden
   budgets:
     title: Budgetregeln
@@ -2966,7 +2975,6 @@ governance:
     mimeTypePlaceholder: image/*, application/pdf
     mbUnit: MB
     gbUnit: GB
-    saved: Upload-Richtlinie wurde aktualisiert
     saveFailed: Upload-Richtlinie konnte nicht gespeichert werden
   retentionPolicy:
     title: Aufbewahrungsrichtlinie
@@ -3082,7 +3090,7 @@ governance:
       title: Benachrichtigungen
       description: In-App-Benachrichtigungen (Erwähnungen, Agentenergebnisse,
         Systemwarnungen). Können Inhalte aus Chats, Dokumenten oder
-        Workflow-Läufen referenzieren.
+        Automatisierungsläufen referenzieren.
       placeholder: z. B. 30
       helper: Benachrichtigungen, die älter als dies sind, werden gelöscht.
     chatHistory:
@@ -3118,13 +3126,13 @@ governance:
       placeholder: z. B. 24
       helper: Temporäre Dateien, die älter sind, werden gelöscht.
     workflowLogs:
-      title: Workflow-Ausführungsprotokolle
+      title: Protokolle von Automatisierungsläufen
       description:
-        Workflow-Ausführungseinträge, die älter als die Aufbewahrungsfrist
+        Einträge zu Automatisierungsläufen, die älter als die Aufbewahrungsfrist
         sind, automatisch löschen. Schließt pro Ausführung gespeicherte
         Variablen-/Output-Blobs ein.
       placeholder: z. B. 30
-      helper: Workflow-Läufe, die älter sind, werden gelöscht (1–365 Tage).
+      helper: Automatisierungsläufe, die älter sind, werden gelöscht (1–365 Tage).
     auditLogs:
       title: Audit-Logs
       description:
@@ -3172,7 +3180,6 @@ governance:
       gezwungen.
     invalidMinLength: Mindestlänge muss eine ganze Zahl zwischen 6 und 128 sein.
     invalidRotationDays: Rotationszeitraum muss eine ganze Zahl zwischen 1 und 3650 sein.
-    saved: Passwort-Richtlinie wurde aktualisiert
     saveFailed: Speichern der Passwort-Richtlinie fehlgeschlagen
   twoFactorPolicy:
     title: Zwei-Faktor-Authentifizierung
@@ -3228,7 +3235,6 @@ governance:
     invalidProxies:
       Vertrauenswürdige Proxies müssen eine komma-getrennte Liste aus
       IPs, CIDRs oder Schlüsselwörtern sein (max. 32).
-    saved: Anmelderichtlinie wurde aktualisiert
     saveFailed: Anmelderichtlinie konnte nicht gespeichert werden
   sessionIdleTimeout:
     title: Sitzungs-Leerlaufzeit
@@ -3242,7 +3248,6 @@ governance:
       durch SESSION_IDLE_TIMEOUT_MINUTES der Installation begrenzt, sofern
       gesetzt. Standard: 30.'
     invalid: Leerlaufzeit muss eine ganze Zahl zwischen 1 und 1440 Minuten sein.
-    saved: Sitzungs-Leerlaufzeit wurde aktualisiert
     saveFailed: Sitzungs-Leerlaufzeit konnte nicht gespeichert werden
   sandboxQuota:
     title: Sandbox-Parallelitätslimits
@@ -3252,11 +3257,10 @@ governance:
       Serverressourcen vor Überlastung.
     maxSessions: Max. aktive Sitzungen
     maxSessionsHint: 'Dauerhafte Sandbox-Sitzungen (Chat-Agenten und
-      Workflow-Agentenschritte), die für diese Organisation gleichzeitig aktiv
+      Automatisierungs-Agentenschritte), die für diese Organisation gleichzeitig aktiv
       sein dürfen. Anfragen über dem Limit schlagen mit einem Kontingentfehler
       fehl. Standard: 2.'
     invalidSessions: Muss eine ganze Zahl zwischen 1 und 500 sein.
-    saved: Sandbox-Parallelitätslimits wurden aktualisiert
     saveFailed: Sandbox-Parallelitätslimits konnten nicht gespeichert werden
   featureFlags:
     title: Feature-Steuerung
@@ -3723,7 +3727,6 @@ governance:
       @scope/pkg
     save: Speichern
     saving: Speichert …
-    saved: Run-code-Paketrichtlinie aktualisiert
     saveFailed: Run-code-Paketrichtlinie konnte nicht aktualisiert werden
     testerTitle: Paketliste testen
     testerDescription:
@@ -3774,8 +3777,8 @@ governance:
       contact: Kontakte
       externalConversation: Externe Konversationen
       messageMetadata: Nachrichten-Metadaten
-      workflowExecution: Workflow-Läufe
-      workflowTriggerLog: Workflow-Trigger-Logs
+      workflowExecution: Automatisierungsläufe
+      workflowTriggerLog: Automatisierungs-Trigger-Logs
       usageLedger: Nutzungsbuch
       auditLog: Audit-Logs
       chatFilterEvent: Chat-Filter-Ereignisse
@@ -4116,7 +4119,7 @@ governance:
       ragDocumentsRemoved: Aus RAG entfernte Dokumente
       documentsErased: Gelöschte Dokumente
       documentsSkippedByHold: Durch Legal Hold übersprungene Dokumente
-      wfExecutionsErased: Gelöschte Workflow-Ausführungen
+      wfExecutionsErased: Gelöschte Automatisierungsläufe
       promptTemplatesErased: Gelöschte persönliche Prompts
       startedAt: Gestartet
       completedAt: Abgeschlossen
@@ -4165,7 +4168,7 @@ governance:
       onedrive: OneDrive-Sync-Konfigurationen
       loginAttempts: Login-Versuche und Sperren
       notifications: Sicherheitsbenachrichtigungen
-      wfExecutions: Workflow-Ausführungen
+      wfExecutions: Automatisierungsläufe
       promptTemplates: Persönliche Prompts
     legalHoldBlock:
       title: Löschung durch Legal Hold blockiert
@@ -4396,13 +4399,13 @@ humanInputRequest:
   statusProcessing: Verarbeite…
   respondedByAt: Beantwortet von {name} am {date}
   stopWorkflow: Stopp
-  stopWorkflowTooltip: Den laufenden Workflow stoppen
+  stopWorkflowTooltip: Die laufende Automatisierung stoppen
   errorFillRequiredFields: Bitte fülle alle erforderlichen Felder aus
   errorSelectRequired: Bitte triff eine Auswahl
   errorFeedbackRequired: Bitte gib dein Feedback ein
   errorAlreadyResponded: Diese Anfrage wurde bereits beantwortet.
   errorNotEditable: Nur eine abgeschlossene Antwort kann bearbeitet werden.
-  errorWorkflowNotEditable: Workflow-Antworten können nicht bearbeitet werden.
+  errorWorkflowNotEditable: Antworten einer Automatisierung können nicht bearbeitet werden.
   errorGenerationInProgress: Warte, bis die aktuelle Antwort abgeschlossen ist,
     bevor du deine Antwort bearbeitest.
   copyQuestions: Fragen kopieren
@@ -4549,11 +4552,11 @@ metadata:
       Läufe und die Version, die live ist.
   automation:
     title: Automatisierung
-    description: Automatisierungs-Workflow anzeigen und bearbeiten.
+    description: Das Dokument der Automatisierung anzeigen und bearbeiten.
   automationConfiguration:
     title: Automatisierungskonfiguration
     description: Automatisierungseinstellungen konfigurieren.
-  automationExecutions:
+  automationRuns:
     title: Automatisierungsausführungen
     description: Automatisierungsausführungsverlauf anzeigen.
   documents:
@@ -4700,17 +4703,11 @@ metadata:
     title: Enterprise-SSO
     description: Single Sign-On und SCIM-Bereitstellung konfigurieren.
   workflow:
-    title: Workflow
-    description: Workflow anzeigen und bearbeiten.
+    title: Automatisierung
+    description: Automatisierung anzeigen und bearbeiten.
   workflowConfiguration:
-    title: Workflow-Konfiguration
-    description: Workflow-Einstellungen konfigurieren.
-  workflowExecutions:
-    title: Workflow-Ausführungen
-    description: Ausführungsverlauf des Workflows anzeigen.
-  workflowTriggers:
-    title: Trigger
-    description: Workflow-Trigger, Zeitpläne und Webhooks verwalten.
+    title: Automatisierungskonfiguration
+    description: Automatisierungseinstellungen konfigurieren.
 navigation:
   newChat: Neuer Chat
   chat: Chat
@@ -4905,7 +4902,6 @@ personalization:
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
     illegalChars: Entferne spitze Klammern, Backticks und Steuerzeichen.
   toasts:
-    saved: Gespeichert.
     discarded: Verworfen.
     deleted: Gelöscht.
     preferencesUpdated: Einstellungen aktualisiert.
@@ -5379,19 +5375,18 @@ settings:
         Deployment-Speicher dahinterstehen.
   mcpEndpoint:
     title: MCP-Endpunkt
-    description:
-      Verbinde einen MCP-Client mit diesem Deployment, um Automatisierungen
-      zu erstellen, zu testen und auszuführen — mit denselben Tools wie der
-      eingebaute Builder.
+    description: Verbinde einen MCP-Client mit diesem Deployment, um
+      Automatisierungen zu erstellen, auszuführen und zu verwalten — und um an
+      die Capabilities und das Wissen dieser Organisation zu kommen.
     copyEndpoint: MCP-Endpunkt-URL kopieren
     authHelp: 'Authentifiziere dich mit einem API-Schlüssel der Organisation als
       Bearer-Token: Schlüssel erstellst und verwaltest du unter'
     authLink: REST-API-Schlüssel.
     toolsTitle: Tools
-    toolsHelp:
-      Direkt aus der Methodentabelle der Engine — get_docs und get_catalog
-      sind die Referenz für die Workflow-Grammatik und die Node-Typen dieses
-      Deployments.
+    toolsHelp: Zwei Oberflächen hinter einem Endpunkt — die Methoden der
+      Automatisierungs-Engine und der Capability-Katalog dieser Organisation.
+      get_docs erklärt die Automatisierungsgrammatik; search_capabilities
+      findet, was die Organisation sonst kann.
     exampleTitle: Ausprobieren
     exampleHelp: Listet die Tools — setze deinen API-Schlüssel ein.
     copyExample: Beispiel-Anfrage kopieren
@@ -5457,7 +5452,8 @@ settings:
     switchingTo: Wechsle zu {name}…
     switchingLabel: Organisation wird gewechselt
     deleteDialogTitle: Organisation löschen
-    deleteDialogDescription: „{name}“ löschen? Damit werden Agents, Workflows,
+    deleteDialogDescription:
+      „{name}“ löschen? Damit werden Agents, Automatisierungen,
       Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff.
       Dies kann nicht rückgängig gemacht werden.
     dangerZoneTitle: Gefahrenzone
@@ -5703,7 +5699,7 @@ settings:
       sectionToolsExternalDescription:
         'Externe Agenten laufen in einer Sandbox und
         nutzen, was hier gebunden ist: Integrationen und die freigegebenen
-        Plattform-Tools (Wissenssuche, Dokumente). Workflows gelten hier nicht.'
+        Plattform-Tools (Wissenssuche, Dokumente). Automatisierungen gelten hier nicht.'
       sectionIntegrationBindings: Gebundene Integrationen
       sectionIntegrationBindingsDescription:
         Bestimmte Integrationen als dedizierte
@@ -5840,14 +5836,14 @@ settings:
         sectionDescription:
           Wie dieser Agent im Chat läuft. Coding-Agenten führen eine
           CLI in einer isolierten Sandbox aus; Agenten laufen über die
-          Tool-Schleife der Plattform mit Wissen und Workflows.
+          Tool-Schleife der Plattform mit Wissen und Automatisierungen.
         internalLabel: Agent
         externalLabel: Coding-Agent
         imageLabel: Bildgenerierung
         switchTitle: Agententyp ändern?
         switchToExternalDescription:
           Dadurch wird der Agent ein Coding-Agent in einer
-          Sandbox; seine Plattform-Tools und Workflows werden entfernt.
+          Sandbox; seine Plattform-Tools und Automatisierungen werden entfernt.
           Gebundene Integrationen bleiben erhalten.
         switchToChatDescription:
           Dadurch läuft der Agent über die Tool-Schleife der
@@ -5855,7 +5851,7 @@ settings:
           entfernt.
         switchToImageDescription:
           Dadurch wird der Agent auf Bildgenerierung umgestellt;
-          seine Tools, Workflows, Integrationen und Sandbox-CLI-Einstellungen
+          seine Tools, Automatisierungen, Integrationen und Sandbox-CLI-Einstellungen
           werden entfernt.
         switchTaskDispatchNote: Task-Dispatch-Einstellungen in der Agent-JSON bleiben unverändert.
         noModelWarning:
@@ -5964,7 +5960,7 @@ settings:
         knowledge: Wissen
         tasksProjects: Aufgaben & Projekte
         agents: Agenten
-        workflows: Workflows
+        workflows: Automatisierungen
         integrations: Integrationen & Daten
         analytics: Analysen
         web: Web
@@ -5984,12 +5980,12 @@ settings:
         web: Inhalte aus dem Web abrufen und durchsuchen
         image: Bilder analysieren und verarbeiten
         generate_image: Bilder aus Textbeschreibungen erstellen
-        workflow_read: Bestehende Workflows und ihre Läufe einsehen
-        workflow_syntax: Die Syntax für Workflow-Definitionen nachschlagen
-        update_workflow_step: Einen einzelnen Workflow-Schritt ändern
-        save_workflow_definition: Eine vollständige Workflow-Definition speichern
-        create_workflow: Einen neuen Workflow erstellen
-        run_workflow: Einen Workflow-Lauf starten
+        workflow_read: Bestehende Automatisierungen und ihre Läufe einsehen
+        workflow_syntax: Die Syntax für Automatisierungsdefinitionen nachschlagen
+        update_workflow_step: Einen einzelnen Automatisierungsschritt ändern
+        save_workflow_definition: Eine vollständige Automatisierungsdefinition speichern
+        create_workflow: Eine neue Automatisierung erstellen
+        run_workflow: Einen Automatisierungslauf starten
         integration: Eine verbundene Integration aufrufen
         integration_batch: Mehrere Integrationsaufrufe auf einmal ausführen
         integration_introspect: Die Fähigkeiten einer verbundenen Integration einsehen
@@ -6064,7 +6060,7 @@ settings:
       exampleOpenAIMeetilyConfig: OpenAI-Client-Konfiguration (z. B. Meetily)
     env:
       description: Variablen, die eingespeist werden, wenn dieser Agent in einer
-        Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere
+        Sandbox läuft — Automatisierungsschritte und externe Ausführungen. Markiere
         einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur
         schreibbar.
     automationBadge: Automatisierung
@@ -6217,7 +6213,6 @@ settings:
       private: Privat
       privateHelp: Nur du siehst ihn, und nur deine Chats laden ihn.
     editor:
-      saveSuccess: Skill gespeichert
       saveFailed: Skill konnte nicht gespeichert werden
       descriptionHelp:
         Ein bis zwei Sätze dazu, was der Skill abdeckt — daran erkennt das
@@ -6415,7 +6410,6 @@ settings:
       disable: Anmeldung deaktivieren
       remove: Entfernen
       test: Verbindung testen
-      saved: Gespeichert
       saveFailed: Speichern fehlgeschlagen
       testOk: Verbindung sieht gut aus
       testFailed: Verbindungstest fehlgeschlagen
@@ -6881,7 +6875,7 @@ settings:
         member: Mitglied
         data: Daten
         integration: Integration
-        workflow: Workflow
+        workflow: Automatisierung
         security: Sicherheit
         admin: Admin
         ai: KI
@@ -6911,7 +6905,7 @@ settings:
         member: Mitglied
         data: Daten
         integration: Integration
-        workflow: Workflow
+        workflow: Automatisierung
         security: Sicherheit
         admin: Admin
         ai: KI
@@ -6925,7 +6919,7 @@ settings:
         user: Benutzer
         system: System
         api: API
-        workflow: Workflow
+        workflow: Automatisierung
       actionLabels:
         joined_organization: Organisation beigetreten
         signed_in_to_organization: An Organisation angemeldet
@@ -6996,8 +6990,8 @@ settings:
         prompt_template.retention_deleted: Prompt-Vorlage per Aufbewahrung gelöscht
         usage_ledger.retention_deleted: Nutzungsledger per Aufbewahrung gelöscht
         external_conversation.retention_deleted: Externe Konversation per Aufbewahrung gelöscht
-        workflow_execution.retention_deleted: Workflow-Ausführung per Aufbewahrung gelöscht
-        workflow_trigger_log.retention_deleted: Workflow-Trigger-Log per Aufbewahrung gelöscht
+        workflow_execution.retention_deleted: Automatisierungslauf per Aufbewahrung gelöscht
+        workflow_trigger_log.retention_deleted: Automatisierungs-Trigger-Log per Aufbewahrung gelöscht
         audit_log.retention_deleted: Audit-Log per Aufbewahrung gelöscht
         policy_acknowledged: Richtlinie bestätigt
         login_attempt: Anmeldeversuch
@@ -7092,9 +7086,9 @@ settings:
         external_conversation.retention_expired: Externe Konversation per Aufbewahrung abgelaufen
         external_conversation.retention_override_restore: Externe Konversation wiederhergestellt (Aufbewahrungs-Override)
         external_conversation.restored_by_admin: Externe Konversation vom Admin wiederhergestellt
-        workflow_execution.retention_expired: Workflow-Ausführung per Aufbewahrung abgelaufen
-        workflow_execution.retention_override_restore: Workflow-Ausführung wiederhergestellt (Aufbewahrungs-Override)
-        workflow_execution.restored_by_admin: Workflow-Ausführung vom Admin wiederhergestellt
+        workflow_execution.retention_expired: Automatisierungslauf per Aufbewahrung abgelaufen
+        workflow_execution.retention_override_restore: Automatisierungslauf wiederhergestellt (Aufbewahrungs-Override)
+        workflow_execution.restored_by_admin: Automatisierungslauf vom Admin wiederhergestellt
         usage_ledger.retention_expired: Nutzungsledger per Aufbewahrung abgelaufen
         usage_ledger.retention_override_restore: Nutzungsledger wiederhergestellt (Aufbewahrungs-Override)
         usage_ledger.restored_by_admin: Nutzungsledger vom Admin wiederhergestellt
@@ -7112,10 +7106,10 @@ settings:
         conversationMessage: Konversationsnachricht
         document: Dokument
         agent: Agent
-        workflow: Workflow
-        workflow_run: Workflow-Lauf
-        workflow_creation: Workflow-Erstellung
-        workflow_update: Workflow-Update
+        workflow: Automatisierung
+        workflow_run: Automatisierungslauf
+        workflow_creation: Erstellung der Automatisierung
+        workflow_update: Automatisierungs-Update
         customer: Kontakt
         contact: Kontakt
         vendor: Lieferant
@@ -7143,10 +7137,10 @@ settings:
         prompt_category: Prompt-Kategorie
         message_feedback: Nachrichten-Feedback
         external_conversation: Externe Konversation
-        workflow_execution: Workflow-Ausführung
-        wf_execution: Workflow-Ausführung
-        wf_trigger_log: Workflow-Trigger-Log
-        workflow_llm_step: Workflow-LLM-Schritt
+        workflow_execution: Automatisierungslauf
+        wf_execution: Automatisierungslauf
+        wf_trigger_log: Automatisierungs-Trigger-Log
+        workflow_llm_step: Automatisierungs-LLM-Schritt
         usage_ledger: Nutzungsledger
         audit_log: Audit-Log
         chat_filter_event: Chat-Filter-Ereignis
@@ -7395,8 +7389,8 @@ inbox:
   taskReviewReminderBody: Agenten-Arbeit an "{title}" wartet weiterhin auf dein Review.
   taskReviewEscalated: Review überfällig
   taskReviewEscalatedBody: Ein Review zu "{title}" wartet seit über einem Tag.
-  humanInputEscalated: Workflow wartet auf Eingabe
-  humanInputEscalatedBody: Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.
+  humanInputEscalated: Automatisierung wartet auf Eingabe
+  humanInputEscalatedBody: Eine Automatisierung wartet seit {ageHours} Stunden auf menschliche Eingabe.
   workforceDigest: Tägliche Workforce-Übersicht
   workforceDigestBody: '{created} erstellt · {completed} abgeschlossen · {runs}
     Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review
@@ -7611,9 +7605,9 @@ tasks:
   timeline:
     runLabel: Agentenlauf
     systemActor: System
-    unresolvedWorkflow: Workflow
+    unresolvedWorkflow: Automatisierung
     viewAgent: Agent anzeigen
-    viewWorkflow: Workflow anzeigen
+    viewWorkflow: Automatisierung anzeigen
   dueDate:
     label: Fälligkeitsdatum
     overdue: Überfällig
@@ -7699,27 +7693,18 @@ toast:
     deleted:
       title: Gelöscht
       description: Das Element wurde gelöscht.
-    profileUpdated:
-      title: Profil aktualisiert
-      description: Deine Profiländerungen wurden gespeichert.
     passwordChanged:
       title: Passwort geändert
       description: Verwende dein neues Passwort bei der nächsten Anmeldung.
     passwordSet:
       title: Passwort festgelegt
       description: Du kannst dich jetzt mit deinem Passwort anmelden.
-    organizationUpdated:
-      title: Organisation aktualisiert
-      description: Deine Änderungen an der Organisation wurden gespeichert.
     newMemberCreated:
       title: Mitglied hinzugefügt
       description: Das neue Mitglied wurde erstellt und zu deiner Organisation hinzugefügt.
     existingUserAdded:
       title: Mitglied hinzugefügt
       description: Der Benutzer wurde zu deiner Organisation hinzugefügt.
-    brandingUpdated:
-      title: Branding aktualisiert
-      description: Deine Branding-Änderungen wurden gespeichert.
     faviconGenerated:
       title: Favicon erzeugt
       description: Wir haben aus deinem Logo ein Favicon erstellt.
@@ -7729,16 +7714,13 @@ toast:
       description: Etwas ist schiefgelaufen. Bitte versuche es erneut.
     profileUpdateFailed:
       title: Profil konnte nicht aktualisiert werden
-      description: Etwas ist schiefgelaufen. Bitte versuche es erneut.
     passwordChangeFailed:
       title: Passwort konnte nicht geändert werden
       description: Bitte überprüfe dein aktuelles Passwort und versuche es erneut.
     organizationUpdateFailed:
       title: Organisation konnte nicht aktualisiert werden
-      description: Etwas ist schiefgelaufen. Bitte versuche es erneut.
     brandingUpdateFailed:
       title: Branding konnte nicht aktualisiert werden
-      description: Etwas ist schiefgelaufen. Bitte versuche es erneut.
     imageUploadFailed: Bild konnte nicht hochgeladen werden
     logoTooSmall: Das Logo muss mindestens {min}×{min} Pixel groß sein.
     imageTooLarge: Bild ist zu groß. Maximale Größe ist 2 MB.
@@ -7973,21 +7955,21 @@ websites:
       nicht rückgängig gemacht werden.
     title: Website löschen
 workflowCreationApproval:
-  approve: Workflow erstellen
-  approveTooltip: Diesen Workflow genehmigen und erstellen
-  rejectTooltip: Workflow-Erstellung abbrechen
+  approve: Automatisierung erstellen
+  approveTooltip: Diese Automatisierung genehmigen und erstellen
+  rejectTooltip: Erstellung der Automatisierung abbrechen
   stepsCount: '{count} Schritte'
-  copyAriaLabel: Workflow-Konfiguration kopieren
-  createdSuccessfully: Workflow erstellt
-  statusExecuting: Workflow-Erstellung läuft...
-  statusCompletedFailed: Workflow-Erstellung wurde genehmigt, ist aber fehlgeschlagen.
-  statusCompletedSuccess: Workflow wurde erstellt.
-  statusRejected: Workflow-Erstellung wurde abgebrochen.
-  errorCreateFailed: Workflow konnte nicht erstellt werden
+  copyAriaLabel: Automatisierungskonfiguration kopieren
+  createdSuccessfully: Automatisierung erstellt
+  statusExecuting: Erstellung der Automatisierung läuft...
+  statusCompletedFailed: Erstellung der Automatisierung wurde genehmigt, ist aber fehlgeschlagen.
+  statusCompletedSuccess: Automatisierung wurde erstellt.
+  statusRejected: Erstellung der Automatisierung wurde abgebrochen.
+  errorCreateFailed: Automatisierung konnte nicht erstellt werden
 workflowRunApproval:
-  approve: Workflow ausführen
-  approveTooltip: Diesen Workflow genehmigen und ausführen
-  rejectTooltip: Workflow-Ausführung abbrechen
+  approve: Automatisierung ausführen
+  approveTooltip: Diese Automatisierung genehmigen und ausführen
+  rejectTooltip: Automatisierungslauf abbrechen
   statusExecuting: Wird ausgeführt...
   statusCompleted: Abgeschlossen
   statusRejected: Abgelehnt
@@ -8003,8 +7985,8 @@ workflowRunApproval:
   showOutput: Ausgabe anzeigen
   hideOutput: Ausgabe ausblenden
   stopExecution: Stopp
-  stopTooltip: Workflow-Ausführung stoppen
-  errorRunFailed: Workflow konnte nicht ausgeführt werden
+  stopTooltip: Automatisierungslauf stoppen
+  errorRunFailed: Automatisierung konnte nicht ausgeführt werden
   errorStopFailed: Ausführung konnte nicht gestoppt werden
   submitResponse: Antwort absenden
   copyQuestions: Fragen kopieren
@@ -8018,18 +8000,18 @@ workflowRunApproval:
 workflowUpdateApproval:
   approve: Aktualisierung anwenden
   approveTooltip: Diese Aktualisierung genehmigen und anwenden
-  rejectTooltip: Workflow-Aktualisierung abbrechen
-  badgeFullSave: Workflow aktualisieren
+  rejectTooltip: Aktualisierung der Automatisierung abbrechen
+  badgeFullSave: Automatisierung aktualisieren
   badgeMultiStep: '{count} Schritte aktualisieren'
   badgeStepPatch: Schritt aktualisieren
   versionLabel: 'Version:'
   slugLabel: 'Slug:'
   copyAriaLabel: Aktualisierungskonfiguration kopieren
-  updatedSuccessfully: Workflow aktualisiert
+  updatedSuccessfully: Automatisierung aktualisiert
   statusExecuting: Aktualisierung wird angewendet...
   statusCompletedFailed: Aktualisierung wurde genehmigt, konnte aber nicht angewendet werden.
-  statusCompletedSuccess: Workflow wurde aktualisiert.
-  statusRejected: Workflow-Aktualisierung wurde abgebrochen.
+  statusCompletedSuccess: Automatisierung wurde aktualisiert.
+  statusRejected: Aktualisierung der Automatisierung wurde abgebrochen.
   errorApplyFailed: Aktualisierung konnte nicht angewendet werden
 projects:
   title: Projekte
@@ -8467,7 +8449,7 @@ sandboxes:
     budgets:
       user: Agent-Sitzungen
       thread: Run-Code-Sitzungen
-      workflow: Workflow-Sitzungen
+      workflow: Automatisierungssitzungen
       render: Render-Sitzungen
   columns:
     owner: Eigentümer
@@ -8533,8 +8515,9 @@ workflows:
     openNamed: '{name} öffnen'
     openLoop: Schleife öffnen
   emptyState:
-    noSteps: Keine Workflow-Schritte vorhanden
-    createStepsHint: Erstelle Schritte, um die Workflow-Übersicht zu sehen, oder
+    noSteps: Keine Automatisierungsschritte vorhanden
+    createStepsHint:
+      Erstelle Schritte, um die Automatisierungsübersicht zu sehen, oder
       nutze den KI-Assistenten für den Einstieg.
   history:
     noDifferences: Keine Unterschiede gefunden
@@ -8546,32 +8529,33 @@ workflows:
     backoff: Backoff (ms)
     backoffHelp: Verzögerung zwischen Wiederholungsversuchen in Millisekunden
     variables: Variablen (JSON)
-    variablesHelp: Diese Variablen stehen allen Schritten des Workflows zur Verfügung
+    variablesHelp: Diese Variablen stehen allen Schritten der Automatisierung zur Verfügung
     validation:
       invalidJson: Ungültiges JSON im Variablen-Feld
     env: Umgebung & Geheimnisse
     envHelp:
-      Variablen, die in jeden Sandbox-Schritt dieses Workflows eingespeist
+      Variablen, die in jeden Sandbox-Schritt dieser Automatisierung eingespeist
       werden. Markiere einen Wert als geheim, um ihn zu verschlüsseln;
       Geheimnisse sind nur schreibbar. Ein Schritt kann diese überschreiben.
   triggers:
     errors:
       unauthenticated: Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.
-      invalidSlug: Die Kennung dieses Workflows ist ungültig.
-      notInstalled: Dieser Workflow ist noch nicht installiert.
+      invalidSlug: Die Kennung dieser Automatisierung ist ungültig.
+      notInstalled: Diese Automatisierung ist noch nicht installiert.
       notFound:
         Dieser Trigger konnte nicht mehr gefunden werden. Möglicherweise wurde
         er gelöscht.
       automationOwnedWorkflow:
-        Automatisierungs-Workflows laufen nur innerhalb der
-        Automatisierung und können daher keine Ereignisse abonnieren.
+        Eine Automatisierung, die zu einem Pack gehört, läuft nur innerhalb
+        dieses Packs und kann daher keine Ereignisse abonnieren.
       invalidEventType: Dieser Ereignistyp ist ungültig.
-      duplicateSubscription: Dieser Workflow hat bereits einen Trigger für dieses Ereignis.
+      duplicateSubscription: Diese Automatisierung hat bereits einen Trigger für dieses Ereignis.
     schedules:
       title: Zeitpläne
       createButton: Zeitplan hinzufügen
       emptyTitle: Keine Zeitpläne
-      emptyDescription: Erstelle einen Zeitplan, um diesen Workflow regelmäßig
+      emptyDescription:
+        Erstelle einen Zeitplan, um diese Automatisierung regelmäßig
         automatisch auszulösen.
       columns:
         cronExpression: Cron-Ausdruck
@@ -8589,10 +8573,10 @@ workflows:
         cronPlaceholder: 0 * * * *
         cronHelp: 'Standard 5-Feld Cron-Format: Minute Stunde Tag Monat Wochentag'
         timezoneLabel: Zeitzone
-        variablesLabel: Workflow-Variablen
+        variablesLabel: Automatisierungsvariablen
         variablesDescription:
           Eingabeparameter, die bei jedem geplanten Lauf übergeben
-          werden. Vorausgefüllt aus dem Eingabeschema des Workflows.
+          werden. Vorausgefüllt aus dem Eingabeschema der Automatisierung.
         variablesInvalid: Variablen müssen ein gültiges JSON-Objekt sein
         projectLabel: Projekt
         projectPlaceholder: Projekt auswählen
@@ -8636,7 +8620,7 @@ workflows:
       title: Webhooks
       createButton: Webhook hinzufügen
       emptyTitle: Keine Webhooks
-      emptyDescription: Erstelle einen Webhook, um diesen Workflow über
+      emptyDescription: Erstelle einen Webhook, um diese Automatisierung über
         HTTP-POST-Anfragen auszulösen.
       columns:
         url: Webhook-URL
@@ -8664,7 +8648,7 @@ workflows:
       createButton: Ereignis-Trigger hinzufügen
       emptyTitle: Keine Ereignis-Trigger
       emptyDescription:
-        Abonniere Systemereignisse, um diesen Workflow bei bestimmten
+        Abonniere Systemereignisse, um diese Automatisierung bei bestimmten
         Aktionen automatisch auszulösen.
       columns:
         eventType: Ereignistyp
@@ -8690,7 +8674,7 @@ workflows:
       editTitle: Ereignis-Trigger bearbeiten
       deleteTitle: Ereignis-Trigger löschen
       deleteDescription:
-        Dieser Ereignis-Trigger wird dauerhaft gelöscht. Der Workflow
+        Dieser Ereignis-Trigger wird dauerhaft gelöscht. Die Automatisierung
         wird nicht mehr durch dieses Ereignis ausgelöst.
     common:
       never: Nie
@@ -8704,18 +8688,18 @@ workflows:
   steps:
     banners:
       hasActiveTriggers:
-        Dieser Workflow ist aktiv — gespeicherte Änderungen gelten
+        Diese Automatisierung ist aktiv — gespeicherte Änderungen gelten
         für neue Ausführungen.
       hasActiveTriggersScheduleGap:
-        Dieser Workflow ist aktiv, aber einem aktiven
+        Diese Automatisierung ist aktiv, aber einem aktiven
         Zeitplan fehlen erforderliche Variablen ({fields}) — diese Ausführungen
         schlagen fehl, bis sie gesetzt sind.
     toolbar:
-      testWorkflow: Workflow testen
+      testWorkflow: Automatisierung testen
       addStepUnavailable:
         Das Bearbeiten von Schritten auf der Arbeitsfläche ist noch
         nicht verfügbar — nutze den KI-Assistenten oder bearbeite die
-        Workflow-Konfiguration.
+        Automatisierungskonfiguration.
     execution:
       viewingRun: Lauf {id} wird angezeigt
       clear: Laufergebnisse ausblenden
@@ -8751,7 +8735,7 @@ workflows:
     openStepDefault: Schritt öffnen
   sidePanel:
     aiAssistant: KI-Assistent
-    testWorkflow: Workflow testen
+    testWorkflow: Automatisierung testen
     stepTooltip: '{stepType}-Schritt'
     end: Ende
     close: Panel schließen
@@ -8761,13 +8745,13 @@ workflows:
     saving: Speichern...
     resizePanel: Panel-Größe ändern
     stepEditor: Schritt-Editor
-    fileBasedStepSaveUnsupported: Schritte speichern ist für dateibasierte Workflows noch nicht verfügbar.
+    fileBasedStepSaveUnsupported: Schritte speichern ist für dateibasierte Automatisierungen noch nicht verfügbar.
     env: Umgebung & Geheimnisse
     envHelp:
       Variablen, die in die Sandbox dieses Schritts eingespeist werden und
-      bei Namensgleichheit Vorrang vor den Werten auf Workflow-Ebene haben.
+      bei Namensgleichheit Vorrang vor den Werten auf Automatisierungsebene haben.
   nextSteps:
-    endWorkflow: Workflow beenden
+    endWorkflow: Automatisierung beenden
     transitions:
       success: Nächster Schritt (bei Erfolg)
       failure: Nächster Schritt (bei Fehler)
@@ -8781,16 +8765,16 @@ workflows:
     analyzeAttachments: Bitte analysiere die angehängten Dateien.
   tester:
     inputLabel: Testeingabe (JSON)
-    inputDescription: Gib Eingabedaten im JSON-Format für die Workflow-Ausführung an
+    inputDescription: Gib Eingabedaten im JSON-Format für den Automatisierungslauf an
     validation:
-      invalidJson: Gib gültiges JSON ein, um diesen Workflow auszuführen.
+      invalidJson: Gib gültiges JSON ein, um diese Automatisierung auszuführen.
       missingRequired: 'Konfiguriere die erforderlichen Felder, bevor du ausführst: {fields}'
     tip: Ausführen erstellt echte Läufe, die im Tab Ausführungen sichtbar sind.
     execute: Ausführen
     executing: Wird ausgeführt...
     dryRun:
       button: Probelauf
-      fileBasedUnsupported: Probelauf ist für dateibasierte Workflows noch nicht verfügbar.
+      fileBasedUnsupported: Probelauf ist für dateibasierte Automatisierungen noch nicht verfügbar.
     toast:
       invalidJson: Ungültiges JSON
       invalidJsonDescription: Bitte gib gültiges JSON ein
@@ -8830,8 +8814,8 @@ workflows:
     generateFromGraph: Spezifikation aus Graph generieren
     emptyState:
       Noch keine Spezifikation vorhanden. Schreib eine, oder generiere sie
-      aus dem aktuellen Workflow-Graphen.
-    placeholder: Beschreibe Schritt für Schritt, was dieser Workflow macht…
+      aus dem aktuellen Automatisierungsgraphen.
+    placeholder: Beschreibe Schritt für Schritt, was diese Automatisierung macht…
     generateError: Vorschau konnte nicht generiert werden. Versuch es erneut.
     diffTitle: Generierten Graphen überprüfen
     diffDescription: Vergleiche den aktuellen Graphen mit der aus deiner

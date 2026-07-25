@@ -9,12 +9,24 @@ import { Input } from '@tale/ui/input';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { CheckCircle2, Play, SearchX, Save, Zap } from 'lucide-react';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
+import { PageActionHeader } from '@/app/components/layout/page-action-header';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Dialog } from '@/app/components/ui/dialog/dialog';
+import {
+  EditorActions,
+  EditorSaveCancelledError,
+  useActiveEditor,
+  useRegisterActiveEditor,
+  useRegisterDirtySource,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { Id } from '@/convex/_generated/dataModel';
-import type { NodeDef, Workflow } from '@/lib/engine/core/types';
+import { automationSlugToParam } from '@/lib/automations/slug';
+import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import { mergeNodeTypes } from '../hooks/backend';
@@ -34,7 +46,6 @@ import {
 import { automationErrorMessage } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import { nodeStatusMap, projectRun } from '../lib/run-view';
-import { automationSlugToParam } from '../lib/slug';
 import { AutomationCanvas } from './automation-canvas';
 import { NeedsReviewPanel } from './needs-review-panel';
 import { NodeInspector } from './node-inspector';
@@ -61,18 +72,18 @@ const CLEARABLE_NODE_FIELDS = [
   'system',
   'model',
   'outputSchema',
-  'workflow',
+  'automation',
 ] as const satisfies readonly Exclude<keyof NodeDef, 'id' | 'type'>[];
 
 /** Apply one node patch to a document, dropping the fields the patch clears. */
 function patchNode(
-  workflow: Workflow,
+  automation: Automation,
   nodeId: string,
   patch: Partial<NodeDef>,
-): Workflow {
+): Automation {
   return {
-    ...workflow,
-    nodes: workflow.nodes.map((node) => {
+    ...automation,
+    nodes: automation.nodes.map((node) => {
       if (node.id !== nodeId) return node;
       const next: NodeDef = { ...node, ...patch };
       for (const field of CLEARABLE_NODE_FIELDS) {
@@ -83,6 +94,26 @@ function patchNode(
       return next;
     }),
   };
+}
+
+const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
+/** A draft diverges from the stored version as one thing — its document. */
+const DOCUMENT_DIRTY_KEYS: ReadonlySet<string> = new Set(['document']);
+
+/**
+ * The page's Save/Discard cluster.
+ *
+ * It reads the ACTIVE editor from the shell's registry instead of taking the
+ * controller as a prop, so the shell that mounts `ActiveEditorProvider` owns
+ * the one cluster on screen: the org area layout and the project-scoped
+ * automation route each mount a provider around this page and render no cluster
+ * of their own, and a shell that does render one (a tab strip) registers above
+ * this provider, so two can never appear at once.
+ */
+function AutomationEditorActions() {
+  const controller = useActiveEditor();
+  if (!controller) return null;
+  return <EditorActions controller={controller} entityKind="automation" />;
 }
 
 /**
@@ -109,6 +140,7 @@ export function AutomationDetail({
   projectId?: Id<'projects'>;
 }) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const inspectorId = useId();
   const saveMessageId = useId();
   const ability = useAbility();
@@ -120,11 +152,15 @@ export function AutomationDetail({
     undefined,
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Workflow | null>(null);
+  const [draft, setDraft] = useState<Automation | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
+  /** A refused RUN, not refused save feedback — see the Alert below. */
   const [refusal, setRefusal] = useState<string | null>(null);
   const [showLastRun, setShowLastRun] = useState(true);
   const [confirmLiveRun, setConfirmLiveRun] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  /** The version the author asked to switch to while holding a draft. */
+  const [pendingVersion, setPendingVersion] = useState<number | null>(null);
 
   const automationQuery = useAutomation(
     organizationId,
@@ -141,10 +177,10 @@ export function AutomationDetail({
     () => readDocument(automationQuery.data?.document),
     [automationQuery.data?.document],
   );
-  const workflow = draft ?? stored;
-  const graph = useMemo(() => buildGraph(workflow), [workflow]);
-  const positions = useMemo(() => readPositions(workflow), [workflow]);
-  const reviewNotes = useMemo(() => readReviewNotes(workflow), [workflow]);
+  const automation = draft ?? stored;
+  const graph = useMemo(() => buildGraph(automation), [automation]);
+  const positions = useMemo(() => readPositions(automation), [automation]);
+  const reviewNotes = useMemo(() => readReviewNotes(automation), [automation]);
   const reviewByNode = useMemo(
     () => reviewNotesByNode(reviewNotes),
     [reviewNotes],
@@ -179,86 +215,361 @@ export function AutomationDetail({
 
   const onChangeNode = useCallback(
     (patch: Partial<NodeDef>) => {
-      if (!workflow || selectedNodeId === null) return;
-      setDraft(patchNode(workflow, selectedNodeId, patch));
+      if (!automation || selectedNodeId === null) return;
+      setDraft(patchNode(automation, selectedNodeId, patch));
     },
-    [workflow, selectedNodeId],
+    [automation, selectedNodeId],
   );
+
+  const isDirty = draft !== null;
+
+  // The save-version dialog settles the promise `save()` handed back: confirming
+  // resolves it once the version is written, backing out rejects it as a
+  // cancellation, and a refused write rejects it with the store's own sentence.
+  const pendingSaveRef = useRef<{
+    resolve: () => void;
+    reject: (reason: unknown) => void;
+  } | null>(null);
+
+  const requestSave = useCallback(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        if (pendingSaveRef.current !== null) {
+          // The dialog is already up and owns this save; a second request
+          // (⌘S while it is open) is a deliberate no-op.
+          reject(new EditorSaveCancelledError());
+          return;
+        }
+        pendingSaveRef.current = { resolve, reject };
+        setSaveDialogOpen(true);
+      }),
+    [],
+  );
+
+  const cancelSave = useCallback(() => {
+    const pending = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    setSaveDialogOpen(false);
+    // Backing out is not a failure: the cluster stays silent and the draft
+    // stays dirty so the author can try again.
+    pending?.reject(new EditorSaveCancelledError());
+  }, []);
+
+  const discardDraft = useCallback(() => {
+    setDraft(null);
+  }, []);
+
+  const controller = useMemo<EditorController>(
+    () => ({
+      isDirty,
+      isSaving: save.isPending,
+      // Nothing about a draft document can be judged in the browser — the
+      // store owns the naming rules and the schema — so a draft is always
+      // savable and the refusal, when there is one, comes from the server.
+      isValid: true,
+      isLoading: automationQuery.isPending,
+      dirtyKeys: isDirty ? DOCUMENT_DIRTY_KEYS : NO_DIRTY_KEYS,
+      save: requestSave,
+      reset: discardDraft,
+    }),
+    [
+      isDirty,
+      save.isPending,
+      automationQuery.isPending,
+      requestSave,
+      discardDraft,
+    ],
+  );
+
+  useRegisterActiveEditor(controller);
+  // A draft lives in this component only, so leaving the page loses it —
+  // every navigation away is worth a prompt. Members never accumulate one:
+  // the inspector is read-only without the developer capability.
+  useRegisterDirtySource(isDirty);
 
   if (automationQuery.data === null) {
     return (
-      <EmptyState
-        icon={SearchX}
-        title={t('notFound.title')}
-        description={t('notFound.description')}
-        headingLevel={2}
-      />
+      <ContentArea variant="narrow">
+        <EmptyState
+          icon={SearchX}
+          title={t('notFound.title')}
+          description={t('notFound.description')}
+          headingLevel={2}
+        />
+      </ContentArea>
     );
   }
-  if (!workflow) {
+  if (!automation) {
     return (
-      <Text as="p" variant="muted" className="p-4 text-sm">
-        {t('detail.loading')}
-      </Text>
+      <ContentArea variant="narrow">
+        <Text as="p" variant="muted" className="text-sm">
+          {t('detail.loading')}
+        </Text>
+      </ContentArea>
     );
   }
 
   const meta = automationQuery.data;
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  const isDirty = draft !== null;
+
+  const confirmSave = async (): Promise<void> => {
+    const pending = pendingSaveRef.current;
+    try {
+      await save.mutateAsync({
+        organizationId,
+        automation,
+        ...(saveMessage !== '' && { message: saveMessage }),
+        // Pins a NEW automation to this project; an existing one
+        // keeps its owner (the store refuses a mismatch).
+        ...(projectId !== undefined && { projectId }),
+      });
+      pendingSaveRef.current = null;
+      setSaveDialogOpen(false);
+      setDraft(null);
+      setSaveMessage('');
+      setSelectedVersion(undefined);
+      pending?.resolve();
+    } catch (error) {
+      pendingSaveRef.current = null;
+      setSaveDialogOpen(false);
+      // The store's refusal names the problem AND the fix; hand that sentence
+      // to the Save cluster, which owns the single failure toast.
+      pending?.reject(new Error(automationErrorMessage(error)));
+    }
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">{automationSlug}</h2>
-        {meta && (
-          <Badge variant="slate">
-            {t('versions.versionLabel', { version: meta.version })}
-          </Badge>
+    <>
+      <PageActionHeader
+        // The automation's name is this page's heading: the area layout owns the
+        // `h1`, and without an `h2` here the outline would jump straight to the
+        // inspector and log headings below.
+        titleAs="h2"
+        title={automationSlug}
+        {...(automation.description !== undefined && {
+          description: automation.description,
+        })}
+        // Which version is on screen, and which one is live, belong beside the
+        // actions rather than inside the heading — a badge is status, not title.
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {meta && (
+              <Badge variant="slate">
+                {t('versions.versionLabel', { version: meta.version })}
+              </Badge>
+            )}
+            {meta?.deployedVersion !== undefined && (
+              <Badge variant="green" icon={CheckCircle2}>
+                {t('detail.deployedVersion', { version: meta.deployedVersion })}
+              </Badge>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Play}
+              isLoading={startRun.isPending}
+              onClick={() => {
+                setRefusal(null);
+                startRun.mutate(
+                  { organizationId, name: automationSlug, mode: 'mock' },
+                  {
+                    onError: (error) => {
+                      setRefusal(automationErrorMessage(error));
+                    },
+                  },
+                );
+              }}
+            >
+              {t('detail.runMock')}
+            </Button>
+            {canAuthor && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Zap}
+                isLoading={startRun.isPending}
+                disabled={meta?.deployedVersion === undefined}
+                disabledReason={t('detail.runLiveNeedsDeploy')}
+                onClick={() => {
+                  setConfirmLiveRun(true);
+                }}
+              >
+                {t('detail.runLive')}
+              </Button>
+            )}
+            {canAuthor && <AutomationEditorActions />}
+          </div>
+        }
+      />
+      {/* Full width rather than the `narrow` configuration measure: this page is
+          a workbench, not a form — the canvas and its inspector are a
+          two-column grid, and the version and run logs read as a pair beside
+          it. Constraining them to the settings measure would stack everything
+          into one 48rem column and make the graph unreadable. */}
+      <ContentArea className="flex-1" gap={4}>
+        {/* A refused RUN, kept inline: it is the engine's own account of why
+            nothing started, which the author has to read next to the automation
+            it concerns. Save feedback goes through the editor cluster instead. */}
+        {refusal !== null && (
+          <Alert variant="destructive" description={refusal} />
         )}
-        {meta?.deployedVersion !== undefined && (
-          <Badge variant="green" icon={CheckCircle2}>
-            {t('detail.deployedVersion', { version: meta.deployedVersion })}
-          </Badge>
+
+        <NeedsReviewPanel
+          notes={reviewNotes}
+          onSelectNode={setSelectedNodeId}
+        />
+
+        {lastRun && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={showLastRun}
+              onClick={() => {
+                setShowLastRun((shown) => !shown);
+              }}
+            >
+              {showLastRun ? t('detail.hideLastRun') : t('detail.showLastRun')}
+            </Button>
+            {projectId ? (
+              <Link
+                to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
+                params={{
+                  id: organizationId,
+                  projectId,
+                  automationSlug: automationSlugToParam(automationSlug),
+                  runId: lastRun.id,
+                }}
+                className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
+              >
+                {t('detail.openLastRun')}
+              </Link>
+            ) : (
+              <Link
+                to="/dashboard/$id/automations/$automationSlug/runs/$runId"
+                params={{
+                  id: organizationId,
+                  automationSlug: automationSlugToParam(automationSlug),
+                  runId: lastRun.id,
+                }}
+                className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
+              >
+                {t('detail.openLastRun')}
+              </Link>
+            )}
+          </div>
         )}
-        {isDirty && <Badge variant="yellow">{t('detail.unsaved')}</Badge>}
-        <div className="flex-1" />
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={Play}
-          isLoading={startRun.isPending}
-          onClick={() => {
-            setRefusal(null);
-            startRun.mutate(
-              { organizationId, name: automationSlug, mode: 'mock' },
-              {
-                onError: (error) => {
-                  setRefusal(automationErrorMessage(error));
-                },
-              },
-            );
-          }}
-        >
-          {t('detail.runMock')}
-        </Button>
-        {canAuthor && (
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={Zap}
-            isLoading={startRun.isPending}
-            disabled={meta?.deployedVersion === undefined}
-            disabledReason={t('detail.runLiveNeedsDeploy')}
-            onClick={() => {
-              setConfirmLiveRun(true);
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="flex min-h-[26rem] flex-col">
+            <AutomationCanvas
+              graph={graph}
+              positions={positions}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={setSelectedNodeId}
+              inspectorId={inspectorId}
+              {...(runStatusByNode !== undefined && { runStatusByNode })}
+              reviewCountByNode={reviewCountByNode}
+            />
+          </div>
+          <NodeInspector
+            id={inspectorId}
+            node={selectedNode}
+            nodeType={nodeTypes.find((def) => def.type === selectedNode?.type)}
+            catalogUnavailable={catalogQuery.isError}
+            reviewNotes={
+              selectedNode ? (reviewByNode.get(selectedNode.id) ?? []) : []
+            }
+            runView={
+              selectedNode && showLastRun
+                ? lastRunProjection.byNode.get(selectedNode.id)
+                : undefined
+            }
+            readOnly={!canAuthor}
+            onChange={onChangeNode}
+          />
+        </div>
+
+        <TriggerEditor
+          organizationId={organizationId}
+          name={automationSlug}
+          canEdit={canAuthor}
+        />
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <VersionList
+            organizationId={organizationId}
+            name={automationSlug}
+            versions={versionsQuery.data ?? []}
+            deployedVersion={meta?.deployedVersion}
+            canDeploy={canAuthor}
+            selectedVersion={selectedVersion ?? meta?.version}
+            onSelectVersion={(version) => {
+              // Another version replaces what the canvas shows, so a draft
+              // cannot survive the switch — ask before dropping it.
+              if (isDirty) {
+                setPendingVersion(version);
+                return;
+              }
+              setSelectedVersion(version);
             }}
-          >
-            {t('detail.runLive')}
-          </Button>
-        )}
-      </div>
+          />
+          <RunList
+            organizationId={organizationId}
+            automationSlug={automationSlug}
+            runs={runs}
+            {...(projectId !== undefined && { projectId })}
+          />
+        </div>
+      </ContentArea>
+
+      {/* Saving APPENDS a version, so the one thing the author is asked for is
+          the line that will stand in the history beside it. */}
+      <Dialog
+        open={saveDialogOpen}
+        onOpenChange={(open) => {
+          // A write in flight cannot be backed out of — Escape and the close
+          // control wait for it, exactly as the Cancel button does.
+          if (!open && !save.isPending) cancelSave();
+        }}
+        title={t('detail.saveDialog.title')}
+        description={t('detail.saveDialog.description')}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={save.isPending}
+              onClick={cancelSave}
+            >
+              {tCommon('actions.cancel')}
+            </Button>
+            <Button
+              type="button"
+              icon={Save}
+              isLoading={save.isPending}
+              onClick={() => void confirmSave()}
+            >
+              {t('detail.saveVersion')}
+            </Button>
+          </>
+        }
+      >
+        <Field
+          label={t('detail.saveMessageLabel')}
+          htmlFor={saveMessageId}
+          description={t('detail.saveMessageDescription')}
+        >
+          <Input
+            id={saveMessageId}
+            value={saveMessage}
+            onChange={(event) => {
+              setSaveMessage(event.target.value);
+            }}
+          />
+        </Field>
+      </Dialog>
 
       <ConfirmDialog
         open={confirmLiveRun}
@@ -279,165 +590,21 @@ export function AutomationDetail({
         }}
       />
 
-      {workflow.description !== undefined && (
-        <Text as="p" variant="muted" className="text-sm">
-          {workflow.description}
-        </Text>
-      )}
-
-      {refusal !== null && (
-        <Alert variant="destructive" description={refusal} />
-      )}
-
-      <NeedsReviewPanel notes={reviewNotes} onSelectNode={setSelectedNodeId} />
-
-      {lastRun && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-pressed={showLastRun}
-            onClick={() => {
-              setShowLastRun((shown) => !shown);
-            }}
-          >
-            {showLastRun ? t('detail.hideLastRun') : t('detail.showLastRun')}
-          </Button>
-          {projectId ? (
-            <Link
-              to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId"
-              params={{
-                id: organizationId,
-                projectId,
-                automationSlug: automationSlugToParam(automationSlug),
-                executionId: lastRun.id,
-              }}
-              className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
-            >
-              {t('detail.openLastRun')}
-            </Link>
-          ) : (
-            <Link
-              to="/dashboard/$id/automations/$automationSlug/runs/$runId"
-              params={{
-                id: organizationId,
-                automationSlug: automationSlugToParam(automationSlug),
-                runId: lastRun.id,
-              }}
-              className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
-            >
-              {t('detail.openLastRun')}
-            </Link>
-          )}
-        </div>
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-h-[26rem] flex-col">
-          <AutomationCanvas
-            graph={graph}
-            positions={positions}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={setSelectedNodeId}
-            inspectorId={inspectorId}
-            {...(runStatusByNode !== undefined && { runStatusByNode })}
-            reviewCountByNode={reviewCountByNode}
-          />
-        </div>
-        <NodeInspector
-          id={inspectorId}
-          node={selectedNode}
-          nodeType={nodeTypes.find((def) => def.type === selectedNode?.type)}
-          catalogUnavailable={catalogQuery.isError}
-          reviewNotes={
-            selectedNode ? (reviewByNode.get(selectedNode.id) ?? []) : []
-          }
-          runView={
-            selectedNode && showLastRun
-              ? lastRunProjection.byNode.get(selectedNode.id)
-              : undefined
-          }
-          readOnly={!canAuthor}
-          onChange={onChangeNode}
-        />
-      </div>
-
-      <TriggerEditor
-        organizationId={organizationId}
-        name={automationSlug}
-        canEdit={canAuthor}
+      <ConfirmDialog
+        open={pendingVersion !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingVersion(null);
+        }}
+        title={t('detail.switchVersion.title')}
+        description={t('detail.switchVersion.description')}
+        confirmText={t('detail.switchVersion.confirm')}
+        variant="destructive"
+        onConfirm={() => {
+          setDraft(null);
+          setSelectedVersion(pendingVersion ?? undefined);
+          setPendingVersion(null);
+        }}
       />
-
-      {canAuthor && (
-        <div className="border-border flex flex-wrap items-end gap-2 rounded-lg border p-3">
-          <Field
-            label={t('detail.saveMessageLabel')}
-            htmlFor={saveMessageId}
-            description={t('detail.saveMessageDescription')}
-            className="min-w-[16rem] flex-1"
-          >
-            <Input
-              id={saveMessageId}
-              value={saveMessage}
-              onChange={(event) => {
-                setSaveMessage(event.target.value);
-              }}
-            />
-          </Field>
-          <Button
-            icon={Save}
-            isLoading={save.isPending}
-            disabled={!isDirty}
-            disabledReason={t('detail.nothingToSave')}
-            onClick={() => {
-              setRefusal(null);
-              save.mutate(
-                {
-                  organizationId,
-                  workflow,
-                  ...(saveMessage !== '' && { message: saveMessage }),
-                  // Pins a NEW automation to this project; an existing one
-                  // keeps its owner (the store refuses a mismatch).
-                  ...(projectId !== undefined && { projectId }),
-                },
-                {
-                  onSuccess: () => {
-                    setDraft(null);
-                    setSaveMessage('');
-                    setSelectedVersion(undefined);
-                  },
-                  onError: (error) => {
-                    setRefusal(automationErrorMessage(error));
-                  },
-                },
-              );
-            }}
-          >
-            {t('detail.saveVersion')}
-          </Button>
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <VersionList
-          organizationId={organizationId}
-          name={automationSlug}
-          versions={versionsQuery.data ?? []}
-          deployedVersion={meta?.deployedVersion}
-          canDeploy={canAuthor}
-          selectedVersion={selectedVersion ?? meta?.version}
-          onSelectVersion={(version) => {
-            setDraft(null);
-            setSelectedVersion(version);
-          }}
-        />
-        <RunList
-          organizationId={organizationId}
-          automationSlug={automationSlug}
-          runs={runs}
-          {...(projectId !== undefined && { projectId })}
-        />
-      </div>
-    </div>
+    </>
   );
 }

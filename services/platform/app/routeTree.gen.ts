@@ -36,7 +36,6 @@ import { Route as DashboardIdSettingsIndexRouteImport } from './routes/dashboard
 import { Route as DashboardIdProjectsIndexRouteImport } from './routes/dashboard/$id/projects/index';
 import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index';
 import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index';
-import { Route as DashboardIdWorkflowsWorkflowIdRouteImport } from './routes/dashboard/$id/workflows/$workflowId';
 import { Route as DashboardIdSettingsWebdavRouteImport } from './routes/dashboard/$id/settings/webdav';
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
 import { Route as DashboardIdSettingsSkillsRouteImport } from './routes/dashboard/$id/settings/skills';
@@ -120,7 +119,7 @@ import { Route as DashboardIdProjectsProjectIdTasksBacklogRouteImport } from './
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug';
 import { Route as DashboardIdAutomationsAutomationSlugRunsRunIdRouteImport } from './routes/dashboard/$id/automations/$automationSlug/runs/$runId';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/index';
-import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
+import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -259,12 +258,6 @@ const DashboardIdAutomationsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdAutomationsRoute,
-  } as any);
-const DashboardIdWorkflowsWorkflowIdRoute =
-  DashboardIdWorkflowsWorkflowIdRouteImport.update({
-    id: '/workflows/$workflowId',
-    path: '/workflows/$workflowId',
-    getParentRoute: () => DashboardIdRoute,
   } as any);
 const DashboardIdSettingsWebdavRoute =
   DashboardIdSettingsWebdavRouteImport.update({
@@ -763,11 +756,11 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute =
     getParentRoute: () =>
       DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
   } as any);
-const DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute =
-  DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRouteImport.update(
+const DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute =
+  DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRouteImport.update(
     {
-      id: '/runs/$executionId',
-      path: '/runs/$executionId',
+      id: '/runs/$runId',
+      path: '/runs/$runId',
       getParentRoute: () =>
         DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
     } as any,
@@ -831,7 +824,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
-  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
   '/dashboard/$id/projects/': typeof DashboardIdProjectsIndexRoute;
@@ -883,7 +875,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
-  '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -931,7 +923,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/sandboxes': typeof DashboardIdSettingsSandboxesRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
-  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRoute;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute;
   '/dashboard/$id/projects': typeof DashboardIdProjectsIndexRoute;
@@ -982,7 +973,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/projects/$projectId/automations': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
-  '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -1045,7 +1036,6 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
-  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
   '/dashboard/$id/projects/': typeof DashboardIdProjectsIndexRoute;
@@ -1097,7 +1087,7 @@ export interface FileRoutesById {
   '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
-  '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -1159,7 +1149,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/settings/webdav'
-    | '/dashboard/$id/workflows/$workflowId'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
     | '/dashboard/$id/projects/'
@@ -1211,7 +1200,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -1259,7 +1248,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/sandboxes'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/settings/webdav'
-    | '/dashboard/$id/workflows/$workflowId'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/projects'
@@ -1310,7 +1298,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/automations'
     | '/dashboard/$id/projects/$projectId/tasks'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
   id:
     | '__root__'
     | '/'
@@ -1372,7 +1360,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/settings/webdav'
-    | '/dashboard/$id/workflows/$workflowId'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
     | '/dashboard/$id/projects/'
@@ -1424,7 +1411,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -1628,13 +1615,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/automations/';
       preLoaderRoute: typeof DashboardIdAutomationsIndexRouteImport;
       parentRoute: typeof DashboardIdAutomationsRoute;
-    };
-    '/dashboard/$id/workflows/$workflowId': {
-      id: '/dashboard/$id/workflows/$workflowId';
-      path: '/workflows/$workflowId';
-      fullPath: '/dashboard/$id/workflows/$workflowId';
-      preLoaderRoute: typeof DashboardIdWorkflowsWorkflowIdRouteImport;
-      parentRoute: typeof DashboardIdRoute;
     };
     '/dashboard/$id/settings/webdav': {
       id: '/dashboard/$id/settings/webdav';
@@ -2217,11 +2197,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
     };
-    '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId': {
-      id: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
-      path: '/runs/$executionId';
-      fullPath: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
-      preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRouteImport;
+    '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': {
+      id: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
+      path: '/runs/$runId';
+      fullPath: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
     };
   }
@@ -2549,15 +2529,15 @@ const DashboardIdSettingsRouteWithChildren =
 
 interface DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren {
   DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
-  DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute;
+  DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
 }
 
 const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren: DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren =
   {
     DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute:
       DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute,
-    DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute:
-      DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute,
+    DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute:
+      DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute,
   };
 
 const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteWithChildren =
@@ -2628,7 +2608,6 @@ interface DashboardIdRouteChildren {
   DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren;
   DashboardIdIndexRoute: typeof DashboardIdIndexRoute;
   DashboardIdProjectsProjectIdRoute: typeof DashboardIdProjectsProjectIdRouteWithChildren;
-  DashboardIdWorkflowsWorkflowIdRoute: typeof DashboardIdWorkflowsWorkflowIdRoute;
   DashboardIdProjectsIndexRoute: typeof DashboardIdProjectsIndexRoute;
 }
 
@@ -2642,7 +2621,6 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdIndexRoute: DashboardIdIndexRoute,
   DashboardIdProjectsProjectIdRoute:
     DashboardIdProjectsProjectIdRouteWithChildren,
-  DashboardIdWorkflowsWorkflowIdRoute: DashboardIdWorkflowsWorkflowIdRoute,
   DashboardIdProjectsIndexRoute: DashboardIdProjectsIndexRoute,
 };
 

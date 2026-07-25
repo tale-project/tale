@@ -8,18 +8,18 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { METHODS } from '@/lib/engine/api/dispatch';
 import { useT } from '@/lib/i18n/client';
+import { MCP_TOOLS } from '@/lib/mcp/tools';
 import { useSiteUrl } from '@/lib/site-url-context';
 
 /**
- * The INBOUND MCP surface: the platform's own MCP endpoint, fronting the
- * automation engine's method table. An MCP client (an IDE, a desktop
- * assistant, an external agent) points at the endpoint with an org API key and
- * gets the same tools the in-platform builder drives — the method list
- * renders the engine's own `METHODS`, so the section can never advertise a
- * tool the executor would refuse. Lives on the Integrations page so every
- * way of connecting outside software is managed in one place. (Managing
+ * The INBOUND MCP surface: the platform's own MCP endpoint. An MCP client (an
+ * IDE, a desktop assistant, an external agent) points at the endpoint with an
+ * org API key and gets the same tools the in-platform builder drives, plus the
+ * organization's capability surface. The list renders `MCP_TOOLS` — the very
+ * inventory the endpoint answers `tools/list` with — so this section can never
+ * advertise a tool the server would refuse. Lives on the Integrations page so
+ * every way of connecting outside software is managed in one place. (Managing
  * OUTBOUND MCP servers for agents is a separate, retired surface; it returns
  * with the capability registrations.)
  */
@@ -72,9 +72,9 @@ export function McpEndpointSection({
           description={t('mcpEndpoint.toolsHelp')}
         >
           <ul className="grid grid-cols-2 gap-1">
-            {METHODS.map((method) => (
-              <li key={method}>
-                <code className="text-xs">{method}</code>
+            {MCP_TOOLS.map((tool) => (
+              <li key={tool.name}>
+                <code className="text-xs">{tool.name}</code>
               </li>
             ))}
           </ul>

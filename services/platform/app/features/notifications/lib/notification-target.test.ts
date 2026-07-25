@@ -141,7 +141,7 @@ describe('orgNotificationTarget', () => {
     });
   });
 
-  it('falls back to Automations for a linkless system/workflow alert', () => {
+  it('falls back to Automations for a linkless system/automation alert', () => {
     expect(orgNotificationTarget(ORG, undefined, 'system')).toEqual({
       to: '/dashboard/$id/automations',
       params: { id: ORG },

@@ -71,7 +71,7 @@ export function useAutomationRuns(
  * canvas overlays. */
 export function useAutomationRun(
   organizationId: string,
-  runId: Id<'workflowRuns'> | undefined,
+  runId: Id<'automationRuns'> | undefined,
 ) {
   return useConvexQuery(
     api.automations.queries.getRun,

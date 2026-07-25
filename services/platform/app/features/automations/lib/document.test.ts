@@ -17,15 +17,15 @@ import {
 
 describe('readDocument', () => {
   it('round-trips the engine worked example', () => {
-    const workflow = readDocument(DOC_EXAMPLE.workflow);
-    expect(workflow?.name).toBe('order-report');
-    expect(workflow?.nodes.map((node) => node.id)).toEqual([
+    const automation = readDocument(DOC_EXAMPLE.automation);
+    expect(automation?.name).toBe('order-report');
+    expect(automation?.nodes.map((node) => node.id)).toEqual([
       'calc',
       'summary',
       'summary_empty',
     ]);
-    expect(workflow?.nodes[1].when).toBe('{{ nodes.calc.output.count > 0 }}');
-    expect(workflow?.nodes[1].model).toBe('anthropic/claude-haiku-4-5');
+    expect(automation?.nodes[1].when).toBe('{{ nodes.calc.output.count > 0 }}');
+    expect(automation?.nodes[1].model).toBe('anthropic/claude-haiku-4-5');
   });
 
   it('is null only when the value is not an object at all', () => {
@@ -35,7 +35,7 @@ describe('readDocument', () => {
   });
 
   it('drops a node that cannot be drawn instead of rendering a blank box', () => {
-    const workflow = readDocument({
+    const automation = readDocument({
       name: 'partial',
       nodes: [
         { id: 'ok', type: 'transform', code: 'return 1;' },
@@ -44,11 +44,11 @@ describe('readDocument', () => {
         'nonsense',
       ],
     });
-    expect(workflow?.nodes.map((node) => node.id)).toEqual(['ok']);
+    expect(automation?.nodes.map((node) => node.id)).toEqual(['ok']);
   });
 
   it('keeps only the control-flow values the engine would accept', () => {
-    const workflow = readDocument({
+    const automation = readDocument({
       name: 'a',
       nodes: [
         {
@@ -60,28 +60,28 @@ describe('readDocument', () => {
         },
       ],
     });
-    expect(workflow?.nodes[0]).toEqual({ id: 'n', type: 'transform' });
+    expect(automation?.nodes[0]).toEqual({ id: 'n', type: 'transform' });
   });
 });
 
 describe('readPositions', () => {
   it('reads hand-placed positions from the canvas metadata', () => {
-    const workflow = readDocument({
+    const automation = readDocument({
       name: 'a',
       nodes: [{ id: 'n', type: 'transform', code: 'return 1;' }],
       ui: { positions: { n: { x: 10, y: 20 }, bad: { x: 'left' } } },
     });
-    expect(readPositions(workflow)).toEqual({ n: { x: 10, y: 20 } });
+    expect(readPositions(automation)).toEqual({ n: { x: 10, y: 20 } });
   });
 
   it('reads no positions from a document that placed none', () => {
-    expect(readPositions(readDocument(DOC_EXAMPLE.workflow))).toEqual({});
+    expect(readPositions(readDocument(DOC_EXAMPLE.automation))).toEqual({});
   });
 });
 
 describe('readReviewNotes', () => {
   it('reads the converter notes a document carries', () => {
-    const workflow = readDocument({
+    const automation = readDocument({
       name: 'a',
       nodes: [{ id: 'n', type: 'transform', code: 'return 1;' }],
       ui: {
@@ -92,12 +92,12 @@ describe('readReviewNotes', () => {
         ],
       },
     });
-    const notes = readReviewNotes(workflow);
+    const notes = readReviewNotes(automation);
     expect(notes).toHaveLength(2);
     expect(reviewNotesByNode(notes).get('n')).toHaveLength(2);
   });
 
   it('reports no flagged node when the document carries none', () => {
-    expect(readReviewNotes(readDocument(DOC_EXAMPLE.workflow))).toEqual([]);
+    expect(readReviewNotes(readDocument(DOC_EXAMPLE.automation))).toEqual([]);
   });
 });

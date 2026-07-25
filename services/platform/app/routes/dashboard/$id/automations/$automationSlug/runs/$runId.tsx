@@ -1,14 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { RunDetail } from '@/app/features/automations/components/run-detail';
-import { paramToAutomationSlug } from '@/app/features/automations/lib/slug';
 import type { Id } from '@/convex/_generated/dataModel';
+import { paramToAutomationSlug } from '@/lib/automations/slug';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$automationSlug/runs/$runId',
 )({
-  head: () => ({ meta: seo('automationExecutions') }),
+  head: () => ({ meta: seo('automationRuns') }),
   component: AutomationRunPage,
 });
 
@@ -22,7 +22,7 @@ function AutomationRunPage() {
       // that does not belong to the caller's organization, so an id shaped
       // like another table's reads as "not found" rather than leaking.
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a route param is a string; the server validates it
-      runId={runId as Id<'workflowRuns'>}
+      runId={runId as Id<'automationRuns'>}
     />
   );
 }

@@ -93,7 +93,7 @@ describe('deriveEdges', () => {
   });
 
   it('derives the engine worked example the same way the executor orders it', () => {
-    const edges = deriveEdges(DOC_EXAMPLE.workflow.nodes);
+    const edges = deriveEdges(DOC_EXAMPLE.automation.nodes);
     // `summary` names `calc` in BOTH its `when` and its prompt. A source that
     // is referenced for data anywhere propagates skipping, so the edge is a
     // data edge — the classification is per SOURCE, not per field.

@@ -20,14 +20,14 @@ import { api } from '@/convex/_generated/api';
 
 /** Append a version of the automation's document. */
 export function useSaveAutomation() {
-  return useConvexMutation(api.automations.mutations.saveWorkflow, {
+  return useConvexMutation(api.automations.mutations.saveAutomation, {
     errorToast: false,
   });
 }
 
 /** Promote one version to the single live version of the automation. */
 export function useDeployAutomation() {
-  return useConvexMutation(api.automations.mutations.deployWorkflow, {
+  return useConvexMutation(api.automations.mutations.deployAutomation, {
     errorToast: false,
   });
 }

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AutomationDetail } from '@/app/features/automations/components/automation-detail';
-import { paramToAutomationSlug } from '@/app/features/automations/lib/slug';
+import { paramToAutomationSlug } from '@/lib/automations/slug';
 
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$automationSlug/',

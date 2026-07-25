@@ -13,6 +13,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import type { Id } from '@/convex/_generated/dataModel';
+import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 
 import { useStartBuilderSession } from '../hooks/mutations';
@@ -21,7 +22,6 @@ import {
   useBuilderModelCatalog,
 } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
-import { automationSlugToParam } from '../lib/slug';
 
 /** The two credential kinds a direct builder model call may use — the
  * subscription flavors are bound to vendor harnesses (see `model_call.ts`). */

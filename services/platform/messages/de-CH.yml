@@ -64,8 +64,8 @@ auth:
 workflows:
   triggers:
     schedules:
-      emptyDescription: Erstelle einen Zeitplan, um diesen Workflow regelmässig
-        automatisch auszulösen.
+      emptyDescription: Erstelle einen Zeitplan, um diese Automatisierung
+        regelmässig automatisch auszulösen.
   sidePanel:
     close: Panel schliessen
     resizePanel: Panel-Grösse ändern
@@ -94,7 +94,7 @@ governance:
   retentionPolicy:
     workflowLogs:
       description:
-        Workflow-Ausführungseinträge, die älter als die Aufbewahrungsfrist
+        Einträge zu Automatisierungsläufen, die älter als die Aufbewahrungsfrist
         sind, automatisch löschen. Schliesst pro Ausführung gespeicherte
         Variablen-/Output-Blobs ein.
   passwordPolicy:

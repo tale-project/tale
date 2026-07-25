@@ -8,10 +8,10 @@ import {
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
 import { AutomationMetricsPage } from '@/app/features/analytics/automations/automation-metrics-page';
-import { automationSlugToParam } from '@/app/features/automations/lib/slug';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
+import { automationSlugToParam } from '@/lib/automations/slug';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/metrics/automations',

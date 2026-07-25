@@ -42,8 +42,8 @@ export type NotificationTarget =
       to: '/dashboard/$id/projects/$projectId';
       params: { id: string; projectId: string };
     }
-  // Automations — landing for a generic system/workflow org alert with
-  // no more specific link (the standalone workflows list was removed;
+  // Automations — landing for a generic system/automation org alert with
+  // no more specific link (the standalone automations list was removed;
   // installed automation lives in Automations).
   | {
       to: '/dashboard/$id/automations';
@@ -139,7 +139,7 @@ export function personalNotificationTarget(args: {
 
 /**
  * Deep-link target for an ORG notification. A stored `link` routes to its
- * specific page; a linkless row (legacy or generic workflow/system alert) falls
+ * specific page; a linkless row (legacy or generic automation/system alert) falls
  * back by `category` — security alerts land on Governance, everything else on
  * Automations. Always returns a target, so an org row is never a dead,
  * unclickable line (#2377).

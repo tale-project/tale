@@ -9,10 +9,6 @@ describe('resetCrossOrgDetailSubpath', () => {
       'projects',
     );
     expect(resetCrossOrgDetailSubpath('chat/t_1#mid')).toBe('chat');
-    // Workflows has no standalone list route — a detail resets to the org home.
-    expect(resetCrossOrgDetailSubpath('workflows/my-workflow?panel=test')).toBe(
-      '',
-    );
   });
 
   it('preserves section roots, filters, and config subpaths', () => {
@@ -23,9 +19,13 @@ describe('resetCrossOrgDetailSubpath', () => {
     expect(
       resetCrossOrgDetailSubpath('settings/governance?group=security'),
     ).toBe('settings/governance?group=security');
-    // agents/{slug} is slug-keyed config that exists per-org, not a Convex id.
+    // agents/{slug} and automations/{slug} are slug-keyed and exist per-org,
+    // not Convex ids.
     expect(resetCrossOrgDetailSubpath('agents/my-agent')).toBe(
       'agents/my-agent',
     );
+    expect(
+      resetCrossOrgDetailSubpath('automations/github__triage-issues'),
+    ).toBe('automations/github__triage-issues');
   });
 });

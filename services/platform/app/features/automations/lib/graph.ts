@@ -18,7 +18,7 @@
  */
 
 import { refsOf, topoSort } from '@/lib/engine/core/execute/controlflow';
-import type { NodeDef, Workflow } from '@/lib/engine/core/types';
+import type { NodeDef, Automation } from '@/lib/engine/core/types';
 
 /** One derived connection between two nodes of the document. */
 export interface DerivedEdge {
@@ -159,8 +159,8 @@ export interface AutomationGraph {
   hasCycle: boolean;
 }
 
-export function buildGraph(workflow: Workflow | null): AutomationGraph {
-  const source = workflow?.nodes ?? [];
+export function buildGraph(automation: Automation | null): AutomationGraph {
+  const source = automation?.nodes ?? [];
   const { nodes, hasCycle } = orderedNodes(source);
   const edges = deriveEdges(nodes);
   return { nodes, edges, ranks: rankNodes(nodes, edges), hasCycle };

@@ -4,10 +4,12 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { Ban, SearchX } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -55,7 +57,7 @@ export function RunDetail({
 }: {
   organizationId: string;
   automationSlug: string;
-  runId: Id<'workflowRuns'>;
+  runId: Id<'automationRuns'>;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -74,15 +76,15 @@ export function RunDetail({
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const cancel = useCancelAutomationRun();
 
-  const workflow = useMemo(
+  const automation = useMemo(
     () => readDocument(versionQuery.data?.document),
     [versionQuery.data?.document],
   );
-  const graph = useMemo(() => buildGraph(workflow), [workflow]);
-  const positions = useMemo(() => readPositions(workflow), [workflow]);
+  const graph = useMemo(() => buildGraph(automation), [automation]);
+  const positions = useMemo(() => readPositions(automation), [automation]);
   const reviewByNode = useMemo(
-    () => reviewNotesByNode(readReviewNotes(workflow)),
-    [workflow],
+    () => reviewNotesByNode(readReviewNotes(automation)),
+    [automation],
   );
   const projection = useMemo(() => projectRun(run), [run]);
   const runStatusByNode = useMemo(
@@ -105,19 +107,23 @@ export function RunDetail({
 
   if (runQuery.data === null) {
     return (
-      <EmptyState
-        icon={SearchX}
-        title={t('runs.notFound.title')}
-        description={t('runs.notFound.description')}
-        headingLevel={2}
-      />
+      <ContentArea variant="narrow">
+        <EmptyState
+          icon={SearchX}
+          title={t('runs.notFound.title')}
+          description={t('runs.notFound.description')}
+          headingLevel={2}
+        />
+      </ContentArea>
     );
   }
   if (!run) {
     return (
-      <Text as="p" variant="muted" className="p-4 text-sm">
-        {t('runs.loading')}
-      </Text>
+      <ContentArea variant="narrow">
+        <Text as="p" variant="muted" className="text-sm">
+          {t('runs.loading')}
+        </Text>
+      </ContentArea>
     );
   }
 
@@ -126,11 +132,17 @@ export function RunDetail({
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
 
   return (
-    <div className="flex flex-col gap-4">
+    // Full width rather than the `narrow` configuration measure: a run is read
+    // on the same two-column workbench the automation is authored on — the
+    // canvas beside its inspector — and the settings measure would leave the
+    // graph a ~25rem column next to a 22rem panel.
+    <ContentArea className="flex-1" gap={4}>
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">
-          {t('runs.heading', { automation: run.name })}
-        </h2>
+        <SectionHeader
+          as="h2"
+          size="lg"
+          title={t('runs.heading', { automation: run.name })}
+        />
         <RunBadge status={status} />
         <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
           {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
@@ -214,12 +226,16 @@ export function RunDetail({
       </div>
 
       <section className="flex flex-col gap-2">
-        <h3 id={effectsHeadingId} className="text-sm font-semibold">
-          {t('runs.effects.title', { count: projection.effects.length })}
-        </h3>
-        <Text as="p" variant="muted" className="text-xs">
-          {t('runs.effects.description')}
-        </Text>
+        <SectionHeader
+          as="h3"
+          size="sm"
+          title={
+            <span id={effectsHeadingId}>
+              {t('runs.effects.title', { count: projection.effects.length })}
+            </span>
+          }
+          description={t('runs.effects.description')}
+        />
         <EffectList
           effects={projection.effects}
           emptyMessage={t('runs.effects.none')}
@@ -229,16 +245,16 @@ export function RunDetail({
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold">{t('runs.inputTitle')}</h3>
+          <SectionHeader as="h3" size="sm" title={t('runs.inputTitle')} />
           <JsonViewer data={run.input} collapsed={1} />
         </section>
         {run.output !== undefined && (
           <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold">{t('runs.outputTitle')}</h3>
+            <SectionHeader as="h3" size="sm" title={t('runs.outputTitle')} />
             <JsonViewer data={run.output} collapsed={1} />
           </section>
         )}
       </div>
-    </div>
+    </ContentArea>
   );
 }

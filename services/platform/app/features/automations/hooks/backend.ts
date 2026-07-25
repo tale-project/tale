@@ -12,7 +12,7 @@ import { nodeTypes } from '@/lib/engine/core/slots';
  *
  * The node-type catalog is bound here rather than there because the editor
  * also needs the CORE types when the call has not resolved (or was refused):
- * `transform`, `llm`, and `subworkflow` are registered in
+ * `transform`, `llm`, and `subautomation` are registered in
  * `lib/engine/core/slots.ts` at module scope, with the same field
  * declarations the executor validates against, and `mergeNodeTypes` folds
  * the server's connector types (`<connector>.<action>`) over that floor.
