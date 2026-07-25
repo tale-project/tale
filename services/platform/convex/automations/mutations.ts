@@ -35,10 +35,12 @@ import type { NodeCheckpoint, NodeCursor } from './checkpoints';
 import { readCheckpoints } from './checkpoints';
 import type { StoredTrigger } from './store';
 import {
+  assertAutomationName,
   automationStore,
   deploymentRow,
   triggerRow,
   versionRow,
+  versionsOf,
 } from './store';
 import { hashWebhookToken, mintWebhookToken } from './webhook_token';
 
@@ -339,12 +341,16 @@ export const storeSave = internalMutation({
     workflow: v.any(),
     message: v.optional(v.string()),
     testsPassed: v.optional(v.boolean()),
+    /** Owning project for a NEW automation; an existing name keeps its
+     * owner and refuses a mismatch (see the store's save). */
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: args.actor,
+      ...(args.projectId !== undefined && { projectId: args.projectId }),
     });
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine owns the document grammar; the store only records it
     return await store.save(args.workflow as Workflow, args.message, {
@@ -416,6 +422,64 @@ export const storeRecordRun = internalMutation({
     const result = args.result as RunResult;
     await store.recordRun(args.name, args.version, result, args.mode);
     return null;
+  },
+});
+
+// ------------------------------------------------------------- provisioning
+
+/** One shipped pack as the provisioner hands it over: the workflow document
+ * plus the trigger binding its manifest declares. */
+const seedPackValidator = v.object({
+  document: v.any(),
+  trigger: v.optional(v.any()),
+});
+
+/**
+ * Seed the shipped default packs into this organization's store — the write
+ * half of `provisioning/provision_default_automations.ts`.
+ *
+ * Create-if-absent, atomic for the whole batch: an automation whose name
+ * already has ANY version is skipped outright (the organization's own history
+ * wins — a shipped change to a pack is a new-org default, never an in-place
+ * rewrite), and a trigger is bound only when the name carries none, so an
+ * organization that deleted or re-bound a seeded trigger is never re-armed
+ * behind its back. Nothing is deployed: a seeded pack is a draft behind the
+ * same deploy gate as any authored version.
+ */
+export const seedDefaultPacks = internalMutation({
+  args: {
+    organizationId: v.string(),
+    packs: v.array(seedPackValidator),
+  },
+  returns: v.object({
+    provisioned: v.array(v.string()),
+    skipped: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const store = automationStore(ctx, {
+      organizationId: args.organizationId,
+      actor: 'system:provisioning',
+    });
+    const provisioned: string[] = [];
+    const skipped: string[] = [];
+    for (const pack of args.packs) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine owns the document grammar; the pack suite validates every shipped document
+      const document = pack.document as Workflow;
+      const name = assertAutomationName(document.name ?? '');
+      const existing = await versionsOf(ctx, args.organizationId, name);
+      if (existing.length > 0) {
+        skipped.push(name);
+        continue;
+      }
+      await store.save(document, 'Shipped default pack');
+      const boundTrigger = await triggerRow(ctx, args.organizationId, name);
+      if (pack.trigger !== undefined && boundTrigger === null) {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store validates the kind and its required fields
+        await store.setTrigger(name, pack.trigger as StoredTrigger);
+      }
+      provisioned.push(name);
+    }
+    return { provisioned, skipped };
   },
 });
 

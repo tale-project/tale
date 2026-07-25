@@ -1,17 +1,22 @@
 'use node';
 
 /**
- * Provision the out-of-the-box automations to EXISTING organizations (new
- * orgs get them from the org-creation hook). Idempotent — per-automation
- * `wfDefaultProvisions` rows make re-runs no-ops, and orgs that uninstalled
- * an autoInstall automation or deactivated its triggers are never
- * re-provisioned behind their back.
+ * Provision the shipped automation packs to EXISTING organizations (new orgs
+ * get them from the org-creation hook). A pack directory under the builtin
+ * catalog's `automations/` (read by `lib/automations/packs.ts`) seeds one
+ * automation into the org-scoped store: version 1 of its workflow document
+ * plus the trigger binding its manifest declares — as a DRAFT. Nothing is
+ * deployed: live runs stay behind the deploy gate a person clicks.
  *
- * Two entry points (mirrors `provision_default_agents.ts`):
+ * Idempotent — the store's own history is the provision marker: a name with
+ * any existing version is never touched again, so an organization's edits,
+ * its trigger changes, and its refusal to deploy all win over re-runs (see
+ * `automations/mutations.ts:seedDefaultPacks`, the write half).
+ *
+ * Two entry points (mirrors `provision_default_prompts.ts`):
  *  - `provisionDefaultAutomationsAllOrgs` — registered in
  *    `provisioning.ts:provisionAll`, which the deploy entrypoint executes:
- *    the packs come PREINSTALLED with active triggers for every org on every
- *    deploy, no rollout step.
+ *    packs reach every existing org on every deploy, no rollout step.
  *  - `provisionDefaultAutomations` — single-org ops tool:
  *    bunx convex run provisioning/provision_default_automations:provisionDefaultAutomations \
  *      '{ "organizationId": "<org-id>", "orgSlug": "<org-slug>" }'
@@ -19,10 +24,77 @@
 
 import { v } from 'convex/values';
 
+import {
+  loadAutomationPacks,
+  type AutomationTrigger,
+  type LoadPacksOptions,
+} from '../../lib/automations/packs';
+import type { Workflow } from '../../lib/engine/core/types';
 import { isValidOrgSlug } from '../../lib/shared/constants/org-slug';
 import { getString, isRecord } from '../../lib/utils/type-utils';
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { resolveBuiltinCatalogRoot } from '../lib/config_store/builtin_catalog';
+
+/** What one pack contributes to the seed batch. */
+export interface SeedablePack {
+  document: Workflow;
+  trigger?: AutomationTrigger;
+}
+
+/**
+ * The packs a provisioning run may seed: org-scope only (a project-scope pack
+ * has no target project at provision time, so it is skipped with a log line
+ * rather than guessed at), `hidden` packs excluded, first declared trigger
+ * only — the store binds one trigger per automation.
+ *
+ * `null` means the catalog itself could not be read — a misconfiguration to
+ * surface as a failure, unlike an absent catalog root, which degrades to an
+ * empty batch the same graceful way the org scaffold treats a not-yet-rebuilt
+ * catalog.
+ */
+export function loadSeedablePacks(
+  options: LoadPacksOptions = {},
+): SeedablePack[] | null {
+  const root = options.root ?? resolveBuiltinCatalogRoot();
+  if (root === null) {
+    console.warn(
+      '[AutomationProvision] no builtin catalog root (TALE_CONFIG_BUILTIN_DIR unset, no repo checkout) — nothing to seed',
+    );
+    return [];
+  }
+  let packs;
+  try {
+    packs = loadAutomationPacks({ root });
+  } catch (error) {
+    console.error(
+      '[AutomationProvision] failed to read the pack catalog',
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
+  const seedable: SeedablePack[] = [];
+  for (const pack of packs) {
+    if (pack.manifest.scope === 'project') {
+      console.log(
+        `[AutomationProvision] pack "${pack.slug}" is project-scoped — not an org default, skipping`,
+      );
+      continue;
+    }
+    if (pack.manifest.hidden === true) continue;
+    const triggers = pack.manifest.triggers ?? [];
+    if (triggers.length > 1) {
+      console.warn(
+        `[AutomationProvision] pack "${pack.slug}" declares ${triggers.length} triggers — the store binds one per automation, seeding the first`,
+      );
+    }
+    seedable.push({
+      document: pack.workflow,
+      ...(triggers[0] !== undefined && { trigger: triggers[0] }),
+    });
+  }
+  return seedable;
+}
 
 export const provisionDefaultAutomations = internalAction({
   args: {
@@ -38,15 +110,25 @@ export const provisionDefaultAutomations = internalAction({
     ctx,
     args,
   ): Promise<{ provisioned: number; skipped: number; failed: number }> => {
-    // Default-automation installs return with the
-    // the rebuilt automation engine provisioner. Deploy-time provisioning must stay
-    // callable and idempotent, so this reports a clean no-op.
-    void ctx;
-    console.log(
-      '[AutomationProvision] skipped — automation backend rewrite in progress',
-      { organizationId: args.organizationId },
+    const packs = loadSeedablePacks();
+    if (packs === null) return { provisioned: 0, skipped: 0, failed: 1 };
+    if (packs.length === 0) return { provisioned: 0, skipped: 0, failed: 0 };
+    const result = await ctx.runMutation(
+      internal.automations.mutations.seedDefaultPacks,
+      { organizationId: args.organizationId, packs },
     );
-    return { provisioned: 0, skipped: 0, failed: 0 };
+    if (result.provisioned.length > 0) {
+      console.log('[AutomationProvision] seeded', {
+        orgSlug: args.orgSlug,
+        provisioned: result.provisioned,
+        skipped: result.skipped.length,
+      });
+    }
+    return {
+      provisioned: result.provisioned.length,
+      skipped: result.skipped.length,
+      failed: 0,
+    };
   },
 });
 
@@ -104,15 +186,17 @@ export const provisionDefaultAutomationsAllOrgs = internalAction({
         isRecord(res) && typeof res.isDone === 'boolean' ? res.isDone : true;
     }
 
-    const provisioned = 0;
+    let provisioned = 0;
     let failedOrgs = 0;
     for (const org of orgs.sort((a, b) => a.slug.localeCompare(b.slug))) {
       try {
-        // Per-org default-automation install returns with
-        // the rebuilt automation engine; the fleet sweep stays callable as a no-op meanwhile.
-        console.log('[AutomationProvision] skipped (rewrite in progress)', {
-          orgSlug: org.slug,
-        });
+        const result = await ctx.runAction(
+          internal.provisioning.provision_default_automations
+            .provisionDefaultAutomations,
+          { organizationId: org.id, orgSlug: org.slug },
+        );
+        provisioned += result.provisioned;
+        if (result.failed > 0) failedOrgs += 1;
       } catch (error) {
         // One broken org must not block the fleet; the next deploy retries.
         failedOrgs += 1;

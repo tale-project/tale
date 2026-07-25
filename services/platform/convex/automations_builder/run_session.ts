@@ -6,8 +6,9 @@
  * Everything that decides how a session behaves lives in
  * `lib/automations_builder/` and is pure. This module is the wiring: it
  * installs the engine's seams, binds `dispatch` to the organization's
- * automation store, supplies the real model call, and exposes one internal
- * action.
+ * automation store (`automationActionStore` — every save, deploy and trigger
+ * hops through the same internal mutations as any other caller), supplies the
+ * real model call, and exposes internal actions.
  *
  * INTERNAL by contract. A session authors and saves automations on the
  * organization's behalf and spends the organization's model budget, so the
@@ -20,7 +21,7 @@
  * system. Live runs belong to deployment, behind the deploy gate.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { runBuilderSession } from '../../lib/automations_builder/session';
 import { dispatch, type DispatchStore } from '../../lib/engine/api/dispatch';
@@ -33,33 +34,6 @@ import { internalAction } from '../_generated/server';
 import { automationActionStore } from '../automations/store';
 import { loadIntegrationConnectors } from '../integration_credentials/connector_catalog';
 import { createBuilderModel, type BuilderModelTarget } from './model_call';
-
-/**
- * The persistence a session needs: the engine's own `DispatchStore`, scoped
- * to one organization and one actor, reachable from a Node action. Stating
- * the contract locally rather than importing an implementation is what lets
- * the builder ship, be tested, and be reviewed on its own — the loop cares
- * that saves are versioned and org-scoped, not who writes the rows.
- */
-export type AutomationStoreFactory = (
-  ctx: ActionCtx,
-  scope: { organizationId: string; actor: string },
-) => Promise<DispatchStore>;
-
-/**
- * WIRING SEAM — the one place the builder binds to the automations host.
- * Return the org-scoped store here once the automations domain exposes one to
- * actions: the store's own methods run in a mutation context, so the factory
- * an action can use is the adapter that hops through the domain's internal
- * mutations and queries.
- *
- * Until then a session refuses to start rather than writing anywhere. A
- * builder pointed at a stand-in store would author real work into a place
- * nobody can find it, which is worse than a clear refusal.
- */
-function automationStoreFactory(): AutomationStoreFactory | null {
-  return null;
-}
 
 /**
  * Install the seams one session needs. Cheap and idempotent — the connector
@@ -149,6 +123,30 @@ export async function runSessionWithStore(
   return outcome;
 }
 
+/** The session outcome on the wire — shared by every host that returns one
+ * (the internal action below, and the client-facing surface in `actions.ts`). */
+export const builderSessionOutcomeValidator = v.object({
+  status: v.union(
+    v.literal('succeeded'),
+    v.literal('gave-up'),
+    v.literal('cancelled'),
+  ),
+  reason: v.optional(v.string()),
+  saved: v.optional(v.object({ name: v.string(), version: v.number() })),
+  turns: v.number(),
+  restarts: v.number(),
+  usage: v.object({ prompt: v.number(), completion: v.number() }),
+  steps: v.array(
+    v.object({
+      turn: v.number(),
+      kind: v.string(),
+      method: v.optional(v.string()),
+      note: v.optional(v.string()),
+      progress: v.optional(v.boolean()),
+    }),
+  ),
+});
+
 /**
  * Author an automation from a goal, autonomously.
  *
@@ -164,37 +162,9 @@ export const buildAutomation = internalAction({
     /** Lower the turn budget for a cheap exploratory run. */
     maxTurns: v.optional(v.number()),
   },
-  returns: v.object({
-    status: v.union(
-      v.literal('succeeded'),
-      v.literal('gave-up'),
-      v.literal('cancelled'),
-    ),
-    reason: v.optional(v.string()),
-    saved: v.optional(v.object({ name: v.string(), version: v.number() })),
-    turns: v.number(),
-    restarts: v.number(),
-    usage: v.object({ prompt: v.number(), completion: v.number() }),
-    steps: v.array(
-      v.object({
-        turn: v.number(),
-        kind: v.string(),
-        method: v.optional(v.string()),
-        note: v.optional(v.string()),
-        progress: v.optional(v.boolean()),
-      }),
-    ),
-  }),
+  returns: builderSessionOutcomeValidator,
   handler: async (ctx, args): Promise<BuilderSessionOutcome> => {
-    const createStore = automationStoreFactory();
-    if (createStore === null) {
-      throw new ConvexError({
-        code: 'AUTOMATION_STORE_UNWIRED',
-        message:
-          'The automation builder has no store to save into yet — wire the automations store factory in convex/automations_builder/run_session.ts.',
-      });
-    }
-    const store = await createStore(ctx, {
+    const store = automationActionStore(ctx, {
       organizationId: args.organizationId,
       actor: args.actorId,
     });

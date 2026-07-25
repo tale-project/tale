@@ -30,6 +30,9 @@ vi.mock('../_generated/api', () => ({
       },
     },
     provisioning: {
+      provision_default_automations: {
+        provisionDefaultAutomations: 'provisionDefaultAutomations',
+      },
       seed_starter: { seedStarterContent: 'seedStarterContent' },
     },
   },
@@ -181,13 +184,18 @@ describe('retryProvisioning', () => {
       true,
     );
     expect(result).toEqual({ ok: true, failedDomains: [] });
-    // Config caches, prompts provisioner, starter content. Automations/agents
-    // installs are the automation-engine rebuild/the chat rebuild stubs (no longer scheduled).
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(3);
+    // Config caches, automation packs, prompts provisioner, starter content.
+    // Agent installs stay a chat-rebuild stub (not scheduled).
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(4);
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,
       'syncOrgConfigCaches',
       { organizationId: 'org-1' },
+    );
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'provisionDefaultAutomations',
+      { organizationId: 'org-1', orgSlug: 'acme' },
     );
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,

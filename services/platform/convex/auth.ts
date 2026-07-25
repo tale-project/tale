@@ -775,9 +775,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.lib.config_cache.sync_org.syncOrgConfigCaches,
                   { organizationId: data.organization.id },
                 );
-                // The default-automation auto-install
-                // (task-ops, mention dispatch, sync packs) re-schedules here
-                // when the rebuilt automation engine lands its provisioner.
+                // Seed the shipped automation packs into the org's automation
+                // store as drafts (nothing deploys itself). Deferred like the
+                // prompt provisioner below; idempotent, so a lost beat is
+                // healed by the next deploy's all-orgs run.
+                await runCtx.scheduler.runAfter(
+                  10_000,
+                  internal.provisioning.provision_default_automations
+                    .provisionDefaultAutomations,
+                  { organizationId: data.organization.id, orgSlug: slug },
+                );
                 // Seed the default prompt-library catalog (global prompts) in
                 // the org's chosen language (from the wizard, persisted as the
                 // `defaultLocale` metadata). Same deferral rationale as the

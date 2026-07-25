@@ -14,10 +14,10 @@
  *
  * `retryProvisioning` re-runs the full org-create pipeline idempotently:
  * every scaffolded domain in the current current minimal registry (just `governance`)
- * plus the config-cache sync, the prompts provisioner, and starter content.
- * The automations/agents default-install provisioners retired along with
- * their domains (see the `the automation-engine rebuild`/`the chat rebuild` markers below)
- * and will re-provision here once those phases land. It then RE-PROBES: `ok`
+ * plus the config-cache sync, the automation-pack and prompts provisioners,
+ * and starter content. The agents default-install provisioner retired with
+ * its domain (see `the chat rebuild` marker below) and will re-provision
+ * here once that phase lands. It then RE-PROBES: `ok`
  * is earned only when the post-repair probe lists nothing missing — a repair
  * that couldn't land the files must not toast success while the banner
  * persists (#2676). Gated on developer-settings access like the catalog
@@ -90,7 +90,12 @@ export const retryProvisioning = action({
       internal.lib.config_cache.sync_org.syncOrgConfigCaches,
       { organizationId: args.organizationId },
     );
-    // Default automation installs re-provision here.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.provisioning.provision_default_automations
+        .provisionDefaultAutomations,
+      { organizationId: args.organizationId, orgSlug },
+    );
     // Locale intentionally omitted: the prompt provisioner resolves the org's
     // `defaultLocale` metadata itself when the arg is absent.
     await ctx.scheduler.runAfter(

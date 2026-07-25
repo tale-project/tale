@@ -439,6 +439,9 @@ export function automationActionStore(
         organizationId,
         actor,
         workflow,
+        // Ownership travels with the scope: an action-side save into a
+        // project surface pins the project exactly as a transactional one.
+        ...(scope.projectId !== undefined && { projectId: scope.projectId }),
         ...(message !== undefined && message !== '' && { message }),
         ...(options?.testsPassed !== undefined && {
           testsPassed: options.testsPassed,

@@ -14,7 +14,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 import { beginRun } from './mutations';
@@ -95,6 +95,33 @@ describe('project-scoped automations', () => {
     );
     expect(orgList.map((a) => a.name)).toEqual(['org/digest']);
 
+    const projectList = await asMember.query(
+      api.automations.queries.listAutomations,
+      { organizationId: ORG, projectId },
+    );
+    expect(projectList.map((a) => a.name)).toEqual(['desk/prepare-return']);
+  });
+
+  it('pins ownership through the action-side storeSave too', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seed(t);
+    const asMember = t.withIdentity({ subject: MEMBER });
+
+    // The adapter an action holds (builder session, MCP dispatch) forwards
+    // its project scope through this internal mutation; dropping it would
+    // silently re-home a project automation onto the org page.
+    await t.mutation(internal.automations.mutations.storeSave, {
+      organizationId: ORG,
+      actor: MEMBER,
+      workflow: WORKFLOW('desk/prepare-return'),
+      projectId,
+    });
+
+    const orgList = await asMember.query(
+      api.automations.queries.listAutomations,
+      { organizationId: ORG },
+    );
+    expect(orgList).toEqual([]);
     const projectList = await asMember.query(
       api.automations.queries.listAutomations,
       { organizationId: ORG, projectId },
