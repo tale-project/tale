@@ -50,6 +50,20 @@ export const MAX_SKILL_FRONTMATTER_BYTES = 16 * 1024;
 /** Cap on a whole `SKILL.md` document (frontmatter + body). */
 export const MAX_SKILL_MD_BYTES = 512 * 1024;
 
+/**
+ * Caps on a bundle as staged into a sandbox session — SKILL.md plus every
+ * asset beside it. Sized for knowledge packs (the largest shipped asset, an
+ * OOXML schema, is ~240 KB): a bundle over these is a mis-import, not a
+ * bigger skill, and is refused before it is read into memory.
+ */
+export const MAX_SKILL_BUNDLE_FILES = 512;
+
+/** Cap on one bundle asset file. */
+export const MAX_SKILL_BUNDLE_FILE_BYTES = 4 * 1024 * 1024;
+
+/** Cap on a bundle's total bytes across all files. */
+export const MAX_SKILL_BUNDLE_TOTAL_BYTES = 32 * 1024 * 1024;
+
 /** How a skill is shared inside its organization. */
 export const SKILL_VISIBILITIES = ['private', 'org'] as const;
 export type SkillVisibility = (typeof SKILL_VISIBILITIES)[number];

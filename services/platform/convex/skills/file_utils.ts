@@ -21,11 +21,14 @@
  * against the domain root so a planted link cannot reach outside the tree.
  */
 
-import { lstat } from 'node:fs/promises';
+import { lstat, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
   isValidSkillSlug,
+  MAX_SKILL_BUNDLE_FILE_BYTES,
+  MAX_SKILL_BUNDLE_FILES,
+  MAX_SKILL_BUNDLE_TOTAL_BYTES,
   MAX_SKILL_MD_BYTES,
 } from '../../lib/shared/schemas/skills';
 import type { SkillBundleReader } from '../../lib/skills/listing';
@@ -149,6 +152,99 @@ export async function readSkillMdText(
   if (result.ok) return result.data;
   if (result.error === 'not_found') return null;
   throw new Error(`${filePath}: ${result.message}`);
+}
+
+/** One file of a skill bundle: its bundle-relative POSIX path plus bytes. */
+export interface SkillBundleFileContent {
+  readonly path: string;
+  readonly contentBase64: string;
+}
+
+/**
+ * Directory names the bundle walk never descends into: build/dependency
+ * trees and dot-entries are tooling residue around the bundle's source (the
+ * shipped visual-aspect-analyzer carries `.turbo/`, an org-authored TS skill
+ * may grow `node_modules/`), not knowledge the skill teaches. Dependencies
+ * are the sandbox image's job, never staged bytes.
+ */
+const BUNDLE_WALK_EXCLUDED_DIRS = new Set(['node_modules', '__pycache__']);
+
+function isBundleWalkExcluded(name: string): boolean {
+  return name.startsWith('.') || BUNDLE_WALK_EXCLUDED_DIRS.has(name);
+}
+
+/**
+ * Every file of one bundle, base64-encoded and sorted by path, for staging
+ * into a sandbox session — `SKILL.md` verbatim (frontmatter included) plus
+ * its assets, which is what makes the staged copy the bundle "exactly as it
+ * is on disk". Returns `null` when the org has no such bundle.
+ *
+ * Same defensive posture as {@link readSkillMdText}: a symlink anywhere in
+ * the bundle throws rather than being skipped, and the walk refuses bundles
+ * over the staging caps — an operator has to see a broken or mis-imported
+ * bundle, not a silently thinned copy of it.
+ */
+export async function readSkillBundleFiles(
+  orgSlug: string,
+  slug: string,
+): Promise<SkillBundleFileContent[] | null> {
+  const skillDir = resolveSkillDir(orgSlug, slug);
+
+  let bundleStats;
+  try {
+    bundleStats = await lstat(skillDir);
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return null;
+    throw err;
+  }
+  if (bundleStats.isSymbolicLink()) {
+    throw new Error(`${skillDir}: skill bundle directory is a symlink`);
+  }
+  await verifyPathWithinBase(skillDir, resolveSkillsDir(orgSlug));
+
+  const files: SkillBundleFileContent[] = [];
+  let totalBytes = 0;
+
+  async function walk(dir: string, relPrefix: string): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (isBundleWalkExcluded(entry.name)) continue;
+      const absPath = path.join(dir, entry.name);
+      const relPath =
+        relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
+      if (entry.isSymbolicLink()) {
+        throw new Error(`${absPath}: skill bundle contains a symlink`);
+      }
+      if (entry.isDirectory()) {
+        await walk(absPath, relPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      if (files.length >= MAX_SKILL_BUNDLE_FILES) {
+        throw new Error(
+          `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
+        );
+      }
+      const content = await readFile(absPath);
+      if (content.byteLength > MAX_SKILL_BUNDLE_FILE_BYTES) {
+        throw new Error(
+          `${absPath}: bundle file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+        );
+      }
+      totalBytes += content.byteLength;
+      if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
+        throw new Error(
+          `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes in total`,
+        );
+      }
+      files.push({ path: relPath, contentBase64: content.toString('base64') });
+    }
+  }
+
+  await walk(skillDir, '');
+  files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return files;
 }
 
 /**

@@ -45,6 +45,20 @@ export const skillDocumentValidator = v.object({
 });
 
 /**
+ * One file of a bundle as staged into a sandbox session: its bundle-relative
+ * POSIX path plus base64 bytes. `SKILL.md` travels verbatim alongside its
+ * assets — the staged copy is the bundle exactly as the org's tree has it.
+ */
+export const skillBundleFileValidator = v.object({
+  path: v.string(),
+  contentBase64: v.string(),
+});
+
+export const skillBundleValidator = v.object({
+  files: v.array(skillBundleFileValidator),
+});
+
+/**
  * A bundle that failed to load. `path` is relative to the org's config tree
  * so an operator can find the file without the server's absolute layout
  * being handed to a browser.
@@ -94,6 +108,15 @@ export interface SkillSummaryView {
 
 export interface SkillDocumentView extends SkillSummaryView {
   body: string;
+}
+
+export interface SkillBundleFileView {
+  path: string;
+  contentBase64: string;
+}
+
+export interface SkillBundleView {
+  files: SkillBundleFileView[];
 }
 
 export interface SkillLoadFailureView {

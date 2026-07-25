@@ -237,6 +237,11 @@ export async function ensureAgentSession(
 /**
  * Stage the thread's equipped skills into the session and return the
  * instructions addendum describing them (empty when nothing staged).
+ *
+ * A skill ships as its WHOLE bundle — `SKILL.md` verbatim plus every asset
+ * beside it — because a script-driven skill (the document skills' `scripts/`
+ * trees) is inert without them; `sessionStageFiles` chunks the payload, so
+ * bundle size is the file layer's concern, not this one's.
  */
 export async function stageSkills(
   ctx: ActionCtx,
@@ -249,17 +254,22 @@ export async function stageSkills(
   const files: Array<{ path: string; contentBase64: string }> = [];
   const staged: string[] = [];
   for (const slug of skillSlugs) {
-    const skill = await ctx.runAction(internal.skills.file_actions.readSkill, {
-      orgSlug,
-      slug,
-      viewerUserId: scope.userId,
-      isOrgAdmin: false,
-    });
-    if (skill === null) continue;
-    files.push({
-      path: `${SKILLS_DIR}/${slug}/SKILL.md`,
-      contentBase64: Buffer.from(skill.body, 'utf8').toString('base64'),
-    });
+    const bundle = await ctx.runAction(
+      internal.skills.file_actions.readSkillBundle,
+      {
+        orgSlug,
+        slug,
+        viewerUserId: scope.userId,
+        isOrgAdmin: false,
+      },
+    );
+    if (bundle === null || bundle.files.length === 0) continue;
+    for (const file of bundle.files) {
+      files.push({
+        path: `${SKILLS_DIR}/${slug}/${file.path}`,
+        contentBase64: file.contentBase64,
+      });
+    }
     staged.push(slug);
   }
   if (files.length === 0) return '';
@@ -411,12 +421,17 @@ export function buildExternalTurnExec(args: {
   /** When set, mount the in-image integrations MCP bridge pointed here —
    * only for turns whose agent is equipped with at least one connector. */
   bridgeUrl?: string;
+  /** Extra per-exec env under the harness's own (the Tier-2 broker's git
+   * credential + author identity) — the harness env wins on collision, so a
+   * connector token can never shadow a credential/config key the harness
+   * itself needs. */
+  extraEnv?: Record<string, string>;
 }): HarnessExec {
   if (!isHarnessSlug(args.harness)) {
     throw new Error(`Unknown external agent "${args.harness}".`);
   }
   const glue = getHarnessGlue(args.harness, loadHarnesses());
-  return glue.buildExec({
+  const exec = glue.buildExec({
     prompt: args.prompt,
     model: args.gatewayModel,
     credential: {
@@ -435,6 +450,8 @@ export function buildExternalTurnExec(args: {
       : {}),
     execId: args.execId,
   });
+  if (args.extraEnv === undefined) return exec;
+  return { ...exec, env: { ...args.extraEnv, ...exec.env } };
 }
 
 /** Text produced so far: the streamed deltas concatenated, or the complete

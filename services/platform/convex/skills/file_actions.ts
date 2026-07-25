@@ -38,6 +38,7 @@ import {
 import { internalAction } from '../_generated/server';
 import {
   createOrgSkillReader,
+  readSkillBundleFiles,
   removeSkillBundle,
   resolveSkillMdPath,
   SKILL_DOCUMENT_NAME,
@@ -45,10 +46,12 @@ import {
   writeSkillMdText,
 } from './file_utils';
 import {
+  skillBundleValidator,
   skillDocumentValidator,
   skillEditArgs,
   skillListingValidator,
   skillViewerArgs,
+  type SkillBundleView,
   type SkillDocumentView,
   type SkillListingView,
   type SkillSummaryView,
@@ -133,6 +136,27 @@ export const readSkill = internalAction({
     const skill = await loadSkillOrThrow(args.orgSlug, args.slug);
     if (skill === null || !canViewSkill(skill.meta, viewer)) return null;
     return { ...toSummary(skill, viewer), body: skill.body };
+  },
+});
+
+/**
+ * Every file of one bundle, for staging into a sandbox session. Visibility
+ * follows {@link readSkill}: a bundle the member may not see reads as absent.
+ * The `SKILL.md` gate runs first — a bundle whose document is malformed
+ * throws the operator-facing error instead of staging a skill no listing
+ * would admit to having.
+ */
+export const readSkillBundle = internalAction({
+  args: { orgSlug: v.string(), slug: v.string(), ...skillViewerArgs },
+  returns: v.union(v.null(), skillBundleValidator),
+  handler: async (_ctx, args): Promise<SkillBundleView | null> => {
+    assertValidSlug(args.slug);
+    const viewer = viewerFrom(args);
+    const skill = await loadSkillOrThrow(args.orgSlug, args.slug);
+    if (skill === null || !canViewSkill(skill.meta, viewer)) return null;
+    const files = await readSkillBundleFiles(args.orgSlug, args.slug);
+    if (files === null) return null;
+    return { files: files.map((file) => ({ ...file })) };
   },
 });
 

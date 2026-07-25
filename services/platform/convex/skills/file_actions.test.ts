@@ -517,3 +517,94 @@ describe('deleteSkill', () => {
     ).toEqual([]);
   });
 });
+
+describe('readSkillBundle', () => {
+  it('hands a member the whole bundle, SKILL.md verbatim', async () => {
+    const doc = skillMd({
+      name: 'docx',
+      description: 'Word docs.',
+      visibility: 'org',
+    });
+    await seedSkill('acme', 'docx', doc);
+    const bundleDir = path.join(configRoot, 'acme', 'skills', 'docx');
+    await mkdir(path.join(bundleDir, 'scripts'), { recursive: true });
+    await writeFile(
+      path.join(bundleDir, 'scripts', 'unpack.py'),
+      'print("unpack")\n',
+      'utf-8',
+    );
+    const readSkillBundle = await load('readSkillBundle');
+
+    const bundle = await readSkillBundle.handler(null, {
+      orgSlug: 'acme',
+      slug: 'docx',
+      ...bob,
+    });
+
+    expect(bundle.files.map((f: { path: string }) => f.path)).toEqual([
+      'SKILL.md',
+      'scripts/unpack.py',
+    ]);
+    expect(
+      Buffer.from(bundle.files[0].contentBase64, 'base64').toString(),
+    ).toBe(doc);
+  });
+
+  it('reads a private bundle as absent for everyone but its owner', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    );
+    const readSkillBundle = await load('readSkillBundle');
+
+    const forAlice = await readSkillBundle.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+    });
+    const forBob = await readSkillBundle.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...bob,
+    });
+
+    expect(forAlice.files.map((f: { path: string }) => f.path)).toEqual([
+      'SKILL.md',
+    ]);
+    expect(forBob).toBeNull();
+  });
+
+  it('is null for a bundle the org does not have', async () => {
+    const readSkillBundle = await load('readSkillBundle');
+
+    expect(
+      await readSkillBundle.handler(null, {
+        orgSlug: 'acme',
+        slug: 'missing',
+        ...bob,
+      }),
+    ).toBeNull();
+  });
+
+  it('surfaces a malformed SKILL.md instead of staging around it', async () => {
+    await seedSkill('acme', 'broken', '# no frontmatter\n');
+    const readSkillBundle = await load('readSkillBundle');
+
+    try {
+      await readSkillBundle.handler(null, {
+        orgSlug: 'acme',
+        slug: 'broken',
+        ...bob,
+      });
+      expect.unreachable('malformed bundle must throw');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_MALFORMED');
+    }
+  });
+});
