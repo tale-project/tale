@@ -46,7 +46,11 @@ Both levers are enforced at request time, not at install time — changing a lev
 
 ## Revoking an integration
 
-Click the row, then **Disconnect**. A disconnected integration stops authenticating immediately; agents and workflows that depend on it surface a configuration error on the next call. The row stays in the list with a disconnected badge so the audit trail survives. Reconnecting walks the credential flow again from scratch.
+Click the row, then **Disconnect**. A disconnected integration stops authenticating immediately; agents and workflows that depend on it surface a configuration error on the next call. The row stays in the list with a disconnected badge so the audit trail survives.
+
+Disconnecting keeps the stored login, so the row offers **Reconnect** — one click, no re-typing. Tale tests the saved credential first and only marks the integration connected if it still works; if the password or key changed while it was down, the test fails and the row stays disconnected, so a stale login never looks healthy. Use **Use different credentials** to enter a new login instead. OAuth integrations reconnect through the provider's consent screen, since a revoked grant can only be restored by authorizing again. Reconnecting also restores the agents the disconnect disabled and resumes the automations bound to the integration.
+
+**Remove connection** goes further than Disconnect: it deletes the stored login entirely. The integration template stays in the catalog, so you can connect it again later by entering credentials.
 
 ## Running two of the same integration
 

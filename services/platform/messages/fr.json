@@ -6152,7 +6152,8 @@
       },
       "toast": {
         "disconnected": "Déconnectée",
-        "disconnectFailed": "Échec de la déconnexion"
+        "disconnectFailed": "Échec de la déconnexion",
+        "reconnectFailed": "Échec de la reconnexion"
       },
       "connectionSuccessful": "Connexion réussie",
       "connectionTestFailed": "Échec du test de connexion",
@@ -6268,6 +6269,10 @@
         "newCodeLines": "{count} lignes de code"
       },
       "panel": {
+        "connect": "Connecter",
+        "reconnect": "Reconnecter",
+        "savedLoginHint": "Tu es déconnecté — tes identifiants enregistrés sont conservés. Reconnecte-toi ou utilise d'autres identifiants.",
+        "useDifferentCredentials": "Utiliser d'autres identifiants",
         "connectName": "Connecter {name}",
         "saveCredentialsThenConnect": "Enregistre les identifiants ci-dessus, puis connecte.",
         "enterCredentialsToConnect": "Saisis des identifiants pour connecter.",

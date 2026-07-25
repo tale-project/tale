@@ -1,11 +1,12 @@
 'use client';
 
+import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
-import { Copy, Download, Loader2, Trash2, X } from 'lucide-react';
+import { Copy, Download, Loader2, Plug, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -138,6 +139,27 @@ export function IntegrationPanel({
       ? integration.connectionConfig.apiEndpoint
       : undefined);
 
+  // A disconnected integration that still has stored credentials shows a
+  // "saved login" view (identity + one-click Reconnect) instead of a blank
+  // form; re-entering is opt-in via "use different credentials". A
+  // never-connected instance (a fresh duplicate) has no stored login → form.
+  const hasSavedLogin = Boolean(
+    integration.basicAuth?.username ||
+    integration.apiKeyAuth ||
+    integration.oauth2Auth,
+  );
+  const [editingCredentials, setEditingCredentials] = useState(false);
+  const showSavedLogin = hasSavedLogin && !editingCredentials;
+
+  // This integration connects by the OAuth2 authorize round-trip rather than by
+  // testing stored credentials. Shared by Connect AND Reconnect so both agree:
+  // a grant revoked at the provider can't be revived by flipping a flag, so
+  // reconnect must re-authorize, not re-activate.
+  const connectViaOAuth2 =
+    manage.selectedAuthMethod === 'oauth2' &&
+    manage.hasOAuth2Config &&
+    manage.hasOAuth2Credentials;
+
   // Footer secondary actions (Export, Duplicate) — at most two, so they render
   // inline. A popup for one or two items is more friction than it saves; if a
   // third ever lands, collapse them then.
@@ -263,6 +285,28 @@ export function IntegrationPanel({
                 />
               )}
             </Stack>
+          ) : showSavedLogin ? (
+            <Stack gap={3}>
+              <BorderedSection>
+                <Text variant="label">
+                  {t('integrations.manageDialog.authentication')}
+                </Text>
+                <Text variant="muted" className="text-sm">
+                  {t('integrations.panel.savedLoginHint')}
+                </Text>
+                {identity ? <Text variant="code">{identity}</Text> : null}
+              </BorderedSection>
+              <HStack justify="end" align="center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setEditingCredentials(true)}
+                  disabled={manage.busy}
+                >
+                  {t('integrations.panel.useDifferentCredentials')}
+                </Button>
+              </HStack>
+            </Stack>
           ) : (
             <IntegrationCredentialsFormConnected
               integration={integration}
@@ -328,48 +372,55 @@ export function IntegrationPanel({
                 {tCommon('actions.delete')}
               </Button>
             ) : null}
-            <Button
-              onClick={
-                manage.selectedAuthMethod === 'oauth2' &&
-                manage.hasOAuth2Config &&
-                manage.hasOAuth2Credentials
-                  ? manage.handleReauthorize
-                  : manage.handleTestConnection
-              }
-              disabled={
-                manage.busy ||
-                (manage.selectedAuthMethod === 'oauth2' &&
-                manage.hasOAuth2Config &&
-                manage.hasOAuth2Credentials
-                  ? false
-                  : !manage.hasChanges)
-              }
-              disabledReason={
-                !manage.busy &&
-                !(
-                  manage.selectedAuthMethod === 'oauth2' &&
-                  manage.hasOAuth2Config &&
-                  manage.hasOAuth2Credentials
-                ) &&
-                !manage.hasChanges
-                  ? manage.selectedAuthMethod === 'oauth2' &&
-                    manage.hasOAuth2Config
-                    ? t('integrations.panel.saveCredentialsThenConnect')
-                    : t('integrations.panel.enterCredentialsToConnect')
-                  : undefined
-              }
-            >
-              {manage.isTesting || manage.isSavingOAuth2 ? (
-                <>
+            {showSavedLogin ? (
+              <Button
+                type="button"
+                onClick={
+                  connectViaOAuth2
+                    ? manage.handleReauthorize
+                    : () => void manage.handleReconnect()
+                }
+                disabled={manage.busy}
+              >
+                {manage.isSubmitting || manage.isSavingOAuth2 ? (
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  {t('integrations.manageDialog.connecting')}
-                </>
-              ) : (
-                t('integrations.panel.connectName', {
-                  name: integration.title,
-                })
-              )}
-            </Button>
+                ) : (
+                  <Plug className="mr-2 size-4" />
+                )}
+                {t('integrations.panel.reconnect')}
+              </Button>
+            ) : (
+              <Button
+                onClick={
+                  connectViaOAuth2
+                    ? manage.handleReauthorize
+                    : manage.handleTestConnection
+                }
+                disabled={
+                  manage.busy || (connectViaOAuth2 ? false : !manage.hasChanges)
+                }
+                disabledReason={
+                  !manage.busy && !connectViaOAuth2 && !manage.hasChanges
+                    ? manage.selectedAuthMethod === 'oauth2' &&
+                      manage.hasOAuth2Config
+                      ? t('integrations.panel.saveCredentialsThenConnect')
+                      : t('integrations.panel.enterCredentialsToConnect')
+                    : undefined
+                }
+              >
+                {manage.isTesting || manage.isSavingOAuth2 ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    {t('integrations.manageDialog.connecting')}
+                  </>
+                ) : (
+                  <>
+                    <Plug className="mr-2 size-4" />
+                    {t('integrations.panel.connect')}
+                  </>
+                )}
+              </Button>
+            )}
           </HStack>
         )}
       </div>
