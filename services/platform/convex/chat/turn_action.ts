@@ -49,7 +49,7 @@ import type {
   ProviderConnector,
 } from '../../lib/shared/schemas/providers';
 import { api, internal } from '../_generated/api';
-import { action, type ActionCtx } from '../_generated/server';
+import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
@@ -486,3 +486,104 @@ export const startTurn = action({
       : { status: 'refused', reason: outcome.reason };
   },
 });
+
+/**
+ * Start a turn for a caller the REST surface authenticated with an organization
+ * API key.
+ *
+ * The identity arrives EXPLICITLY because an API key has no Convex identity for
+ * `requireOrgMembershipById` to read. Everything else is the same turn: the
+ * thread must belong to the `(organizationId, userId)` pair — checked here
+ * again, against the same owned-thread query the session action uses, because
+ * this runs detached from the request that scheduled it — and a thread already
+ * generating refuses rather than interleaving two turns.
+ *
+ * It is scheduled, not awaited: `POST /api/v1/threads/:id/messages` answers 202
+ * and the caller polls the generation. A failure BEFORE the pipeline starts (an
+ * unknown model id) would otherwise leave no trace at all, so it is recorded as
+ * an assistant message carrying the error — the same shape the pipeline itself
+ * writes for a mid-stream failure, which is what makes the failure visible to a
+ * client that only reads messages.
+ */
+export const startTurnForApiKey = internalAction({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    userText: v.string(),
+    modelId: v.string(),
+    agentSlug: v.optional(v.string()),
+    locale: v.optional(v.string()),
+  },
+  returns: v.object({
+    status: v.union(v.literal('completed'), v.literal('refused')),
+    reason: v.optional(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
+    const owned = await ctx.runQuery(
+      internal.chat.threads.getOwnedThreadInternal,
+      {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        threadId: args.threadId,
+      },
+    );
+    if (owned === null) {
+      return { status: 'refused', reason: 'This conversation does not exist.' };
+    }
+    const busy = await ctx.runQuery(
+      internal.chat.generations.hasLiveGenerationInternal,
+      { organizationId: args.organizationId, threadId: args.threadId },
+    );
+    if (busy) {
+      return {
+        status: 'refused',
+        reason: 'This conversation is already generating a response.',
+      };
+    }
+
+    let outcome: TurnOutcome;
+    try {
+      outcome = await executeTurn(ctx, {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        threadId: args.threadId,
+        userText: args.userText,
+        modelId: args.modelId,
+        // Direct execution only: the sandbox lane is started by its own action.
+        sandbox: false,
+        ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
+        locale: args.locale ?? 'en',
+      });
+    } catch (error) {
+      const reason =
+        error instanceof ConvexError && typeof error.data === 'object'
+          ? (readErrorMessage(error.data) ?? error.message)
+          : error instanceof Error
+            ? error.message
+            : 'The turn could not be started.';
+      await ctx.runMutation(internal.chat.messages.appendMessageInternal, {
+        organizationId: args.organizationId,
+        threadId: args.threadId,
+        role: 'assistant',
+        parts: [],
+        model: args.modelId,
+        error: reason,
+      });
+      return { status: 'refused', reason };
+    }
+    return outcome.status === 'completed'
+      ? { status: 'completed' }
+      : { status: 'refused', reason: outcome.reason };
+  },
+});
+
+/** The `message` a coded ConvexError carries, when it carries one. */
+function readErrorMessage(data: unknown): string | undefined {
+  return isRecord(data) && typeof data.message === 'string'
+    ? data.message
+    : undefined;
+}

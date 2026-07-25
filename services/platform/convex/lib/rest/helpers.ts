@@ -7,6 +7,7 @@
 
 import { ConvexError } from 'convex/values';
 
+import { defineAbilityFor } from '../../../lib/permissions/ability';
 import { components, internal } from '../../_generated/api';
 import { httpAction } from '../../_generated/server';
 import { createAuth } from '../../auth';
@@ -53,7 +54,7 @@ export class AuthError extends Error {
 
 export const REST_CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 };
@@ -76,6 +77,17 @@ export function jsonOk(data: unknown): Response {
 export function jsonCreated(data: unknown): Response {
   return new Response(JSON.stringify(data), {
     status: 201,
+    headers: { 'Content-Type': 'application/json', ...REST_CORS_HEADERS },
+  });
+}
+
+/**
+ * The work was accepted but has not finished — a durable automation run, a chat
+ * turn. The body carries whatever identity the caller polls with.
+ */
+export function jsonAccepted(data: unknown): Response {
+  return new Response(JSON.stringify(data), {
+    status: 202,
     headers: { 'Content-Type': 'application/json', ...REST_CORS_HEADERS },
   });
 }
@@ -198,6 +210,62 @@ export async function resolveOrganization(
 }
 
 // ---------------------------------------------------------------------------
+// Authorization
+// ---------------------------------------------------------------------------
+
+/**
+ * The key holder's role in the resolved organization.
+ *
+ * Resolved LAZILY rather than on every request: most REST handlers only need
+ * membership, which org resolution already proved, and the role costs another
+ * Better Auth read. A handler that gates on a capability asks for it here.
+ *
+ * A missing or `disabled` member row is refused as `ORG_FORBIDDEN` — the same
+ * answer `requireOrgMembershipById` gives a session caller, so an API key is
+ * never a way around a revoked membership.
+ */
+export async function resolveRestOrgRole(rc: RestContext): Promise<string> {
+  const role = await rc.ctx.runQuery(
+    internal.members.internal_queries.getMemberRole,
+    { userId: rc.user.userId, organizationId: rc.org.organizationId },
+  );
+  if (role === null || role === 'disabled') {
+    throw new ConvexError({
+      code: 'ORG_FORBIDDEN',
+      message: `Not a member of organization "${rc.org.orgSlug}".`,
+    });
+  }
+  return role;
+}
+
+/**
+ * Whether the key holder may administer the organization's shared
+ * configuration — the `orgSettings` write capability, which is what lets an
+ * admin curate an org-visible agent or skill they do not own. The same flag
+ * the session-authenticated actions hand to the config file layer.
+ */
+export async function restCallerIsOrgAdmin(rc: RestContext): Promise<boolean> {
+  const role = await resolveRestOrgRole(rc);
+  return defineAbilityFor(role).can('write', 'orgSettings');
+}
+
+/**
+ * Assert the `developerSettings` capability — the gate on authoring and on
+ * starting a LIVE automation run. Throws `FORBIDDEN_DEVELOPER_SETTINGS`, the
+ * same coded error `requireOrgAdminOrDeveloper` raises for a session caller,
+ * so both surfaces answer a wrong role identically (→ 403).
+ */
+export async function requireRestDeveloper(rc: RestContext): Promise<void> {
+  const role = await resolveRestOrgRole(rc);
+  if (defineAbilityFor(role).cannot('read', 'developerSettings')) {
+    throw new ConvexError({
+      code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+      message: `Role "${role}" lacks the developer-settings capability required to perform this action.`,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Rate limiting
 // ---------------------------------------------------------------------------
 
@@ -277,6 +345,209 @@ export function parseIntParam(
   return Number.isNaN(parsed) ? defaultValue : parsed;
 }
 
+/**
+ * A page size a client asked for, clamped into what the backing read will
+ * serve. An absent, unparseable, or out-of-range `limit` resolves to something
+ * usable rather than refusing the request — the bound is the server's, not the
+ * client's, and a listing has no security dependency on it.
+ */
+export function parsePageLimit(
+  url: URL,
+  defaultValue: number,
+  maxValue: number,
+): number {
+  const parsed = parseIntParam(url, 'limit', defaultValue);
+  if (!Number.isFinite(parsed)) return defaultValue;
+  return Math.min(Math.max(1, Math.trunc(parsed)), maxValue);
+}
+
+// ---------------------------------------------------------------------------
+// Request-body validation
+// ---------------------------------------------------------------------------
+
+/**
+ * A malformed request body or query. Thrown by the readers below and mapped to
+ * 400 by {@link withRestAuth}, so a handler validates by reading rather than by
+ * branching — every unchecked field is a boundary an attacker chooses.
+ */
+export class BadRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BadRequestError';
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * The request body as a JSON object. A non-JSON body, a JSON array, and a bare
+ * scalar are all refused: every write endpoint here takes an object, so
+ * anything else is a client mistake worth reporting rather than a `{}` to
+ * silently apply.
+ */
+export async function readJsonObject(
+  request: Request,
+): Promise<Record<string, unknown>> {
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    throw new BadRequestError('Request body must be valid JSON');
+  }
+  if (!isPlainObject(raw)) {
+    throw new BadRequestError('Request body must be a JSON object');
+  }
+  return raw;
+}
+
+/**
+ * Like {@link readJsonObject}, but an EMPTY body reads as `{}`. For endpoints
+ * whose body is entirely optional (starting a run with no input), where
+ * demanding `{}` on the wire would be pedantry; a present-but-malformed body is
+ * still refused.
+ */
+export async function readJsonObjectOrEmpty(
+  request: Request,
+): Promise<Record<string, unknown>> {
+  const raw = await request.text();
+  if (raw.trim().length === 0) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new BadRequestError('Request body must be valid JSON');
+  }
+  if (!isPlainObject(parsed)) {
+    throw new BadRequestError('Request body must be a JSON object');
+  }
+  return parsed;
+}
+
+/** A required, non-empty string field. */
+export function requiredString(
+  body: Record<string, unknown>,
+  key: string,
+  maxLength = 100_000,
+): string {
+  const value = body[key];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new BadRequestError(`"${key}" must be a non-empty string`);
+  }
+  if (value.length > maxLength) {
+    throw new BadRequestError(
+      `"${key}" must be at most ${maxLength} characters`,
+    );
+  }
+  return value;
+}
+
+/** An optional string field — absent and `null` both read as "not given". */
+export function optionalString(
+  body: Record<string, unknown>,
+  key: string,
+  maxLength = 100_000,
+): string | undefined {
+  const value = body[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') {
+    throw new BadRequestError(`"${key}" must be a string`);
+  }
+  if (value.length > maxLength) {
+    throw new BadRequestError(
+      `"${key}" must be at most ${maxLength} characters`,
+    );
+  }
+  return value;
+}
+
+/** An optional boolean field. */
+export function optionalBoolean(
+  body: Record<string, unknown>,
+  key: string,
+): boolean | undefined {
+  const value = body[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'boolean') {
+    throw new BadRequestError(`"${key}" must be a boolean`);
+  }
+  return value;
+}
+
+/** An optional finite number field, bounded to `[min, max]`. */
+export function optionalNumber(
+  body: Record<string, unknown>,
+  key: string,
+  bounds: { min: number; max: number },
+): number | undefined {
+  const value = body[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new BadRequestError(`"${key}" must be a number`);
+  }
+  if (value < bounds.min || value > bounds.max) {
+    throw new BadRequestError(
+      `"${key}" must be between ${bounds.min} and ${bounds.max}`,
+    );
+  }
+  return value;
+}
+
+/** An optional array-of-strings field. */
+export function optionalStringArray(
+  body: Record<string, unknown>,
+  key: string,
+  maxItems = 200,
+): string[] | undefined {
+  const value = optionalStringArrayOrNull(body, key, maxItems);
+  return value === null ? undefined : value;
+}
+
+/**
+ * An optional array-of-strings field where `null` is a VALUE, not an absence.
+ * The agent binding lists mean three different things — absent keeps the
+ * current narrowing, `[]` narrows to nothing, `null` removes the narrowing —
+ * and collapsing null into absent would make a widening inexpressible.
+ */
+export function optionalStringArrayOrNull(
+  body: Record<string, unknown>,
+  key: string,
+  maxItems = 200,
+): string[] | null | undefined {
+  const value = body[key];
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new BadRequestError(`"${key}" must be an array of strings, or null`);
+  }
+  if (value.length > maxItems) {
+    throw new BadRequestError(`"${key}" must have at most ${maxItems} items`);
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every element was just checked to be a string
+  return value as string[];
+}
+
+/** One of a closed set of literals. */
+export function optionalEnum<T extends string>(
+  body: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+): T | undefined {
+  const value = body[key];
+  if (value === undefined || value === null) return undefined;
+  // Find the allowed literal EQUAL to the value, rather than asserting the
+  // value into the literal type — the match is the proof.
+  const match =
+    typeof value === 'string'
+      ? allowed.find((candidate) => candidate === value)
+      : undefined;
+  if (match === undefined) {
+    throw new BadRequestError(`"${key}" must be one of: ${allowed.join(', ')}`);
+  }
+  return match;
+}
+
 // ---------------------------------------------------------------------------
 // High-level handler wrapper
 // ---------------------------------------------------------------------------
@@ -331,6 +602,10 @@ export function withRestAuth(
     try {
       return await handler({ ctx, user, org }, request);
     } catch (error) {
+      // A body/query the handler refused to read is the client's mistake.
+      if (error instanceof BadRequestError) {
+        return jsonError(error.message, 400);
+      }
       // Map structured ConvexError codes to proper HTTP statuses so
       // typed errors thrown by mutations (e.g. cross-tenant rejections,
       // legal-hold blocks) surface to REST clients as actionable
@@ -372,29 +647,65 @@ export function httpStatusForConvexCode(code: string | undefined): number {
       return 401;
     case 'forbidden':
     case 'FORBIDDEN':
+    // The caller is a member but their role lacks the capability the write
+    // needs (`requireOrgAdminOrDeveloper`, and the same capability check the
+    // automation run path applies to an API key).
+    case 'FORBIDDEN_DEVELOPER_SETTINGS':
+    case 'ORG_FORBIDDEN':
+    case 'PROJECT_FORBIDDEN':
+    // Config-file ownership: the caller may see the agent/skill but is not the
+    // owner and is not an org admin, so they may not change it.
+    case 'AGENT_FORBIDDEN':
+    case 'SKILL_FORBIDDEN':
       return 403;
     case 'not_found':
-    case 'VENDOR_NOT_FOUND':
-    case 'CUSTOMER_NOT_FOUND':
+    case 'ORG_NOT_FOUND':
+    case 'PROJECT_NOT_FOUND':
     case 'WEBSITE_NOT_FOUND':
+    case 'CRAWLER_WEBSITE_NOT_FOUND':
     case 'DOCUMENT_NOT_FOUND':
     case 'FOLDER_NOT_FOUND':
+    case 'CONTACT_NOT_FOUND':
+    case 'AUTOMATION_RUN_NOT_FOUND':
+    case 'KNOWLEDGE_ENTRY_NOT_FOUND':
       return 404;
     case 'validation':
-    case 'EMAIL_REQUIRED':
     case 'MISSING_FILTER':
     case 'too_long':
+    case 'invalid_locale':
+    case 'INVALID_SCAN_INTERVAL':
+    // The automation store refused the document itself (an unknown project
+    // owner, a name that is not a slug) — a bad request, not a conflict.
+    case 'AUTOMATION_SAVE_REJECTED':
+    case 'AUTOMATION_TRIGGER_REJECTED':
+    // The config-file domains reject a malformed slug or document before they
+    // touch the filesystem.
+    case 'INVALID_AGENT':
+    case 'INVALID_AGENT_SLUG':
+    case 'INVALID_SKILL':
+    case 'INVALID_SKILL_SLUG':
+    // Knowledge-entry field validation (`validateTopicAndContent`).
+    case 'KNOWLEDGE_ENTRY_TOPIC_REQUIRED':
+    case 'KNOWLEDGE_ENTRY_TOPIC_TOO_LONG':
+    case 'KNOWLEDGE_ENTRY_CONTENT_REQUIRED':
+    case 'KNOWLEDGE_ENTRY_CONTENT_TOO_LONG':
       return 400;
     // Duplicate-add rejections: a conflicting row already exists. Map to 409
     // so REST clients get an actionable conflict instead of an opaque 500.
-    case 'CUSTOMER_DUPLICATE_EMAIL':
-    case 'CUSTOMER_DUPLICATE_EXTERNAL_ID':
-    case 'VENDOR_DUPLICATE_EMAIL':
-    case 'VENDOR_DUPLICATE_EXTERNAL_ID':
     case 'WEBSITE_DUPLICATE_DOMAIN':
     case 'DUPLICATE_EMAIL':
     case 'DUPLICATE_EXTERNAL_ID':
     case 'DUPLICATE_DOMAIN':
+    case 'CONTACT_DUPLICATE_EMAIL':
+    case 'CONTACT_DUPLICATE_EXTERNAL_ID':
+    case 'DUPLICATE_PRODUCT_NAME':
+    case 'KNOWLEDGE_ENTRY_DUPLICATE':
+    // State conflicts: the resource exists but is not in a state that can
+    // serve the request. Nothing the caller can fix by changing the body.
+    case 'AUTOMATION_NOT_DEPLOYED':
+    case 'AUTOMATION_DEPLOY_REJECTED':
+    case 'KNOWLEDGE_ENTRY_NOT_ACTIVE':
+    case 'KNOWLEDGE_EMBEDDING_NOT_CONFIGURED':
       return 409;
     default:
       // Codes we don't recognize fall through to the 500 path so the

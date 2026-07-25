@@ -3,8 +3,9 @@
 /**
  * The one entry point into knowledge retrieval.
  *
- * Everything that retrieves — the chat capability `get_knowledge`, the workflow
- * node `knowledge.search` — calls {@link searchKnowledge}. Nothing else does,
+ * Everything that retrieves — the chat capability `get_knowledge`, the
+ * automation node `knowledge.search`, the REST endpoint
+ * `POST /api/v1/knowledge/search` — calls {@link searchKnowledge}. Nothing else does,
  * because there is nothing else: knowledge is never injected into a prompt on
  * its own. That was removed deliberately. Automatic injection spent context on
  * every turn whether the question needed knowledge or not, it made an answer
@@ -103,9 +104,9 @@ export async function searchKnowledge(
 /**
  * A `knowledge.search` backend bound to one organization.
  *
- * A workflow host installs this for the run it is executing, which is why the
- * node's own input has no organization field: the run decides whose knowledge
- * is searched, never the workflow document.
+ * An automation host installs this for the run it is executing, which is why
+ * the node's own input has no organization field: the run decides whose
+ * knowledge is searched, never the automation document.
  */
 export function knowledgeSearchBackendFor(
   ctx: ActionCtx,

@@ -3,13 +3,29 @@ import { httpRouter } from 'convex/server';
 import { getString, isRecord } from '../lib/utils/type-utils';
 import { components, internal } from './_generated/api';
 import { httpAction } from './_generated/server';
+import { deleteAgent, getAgent, listAgents, putAgent } from './agents/rest_api';
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
+import {
+  automationDeleteActions,
+  automationPostActions,
+  automationPutActions,
+  automationReads,
+  getAutomationRun,
+  listAutomations,
+  runPostActions,
+} from './automations/rest_api';
 import { automationWebhookHandler } from './automations/triggers';
 import {
   mcpHandler,
   mcpMethodNotAllowed,
 } from './automations_builder/mcp_http';
+import {
+  createThread,
+  listThreads,
+  threadPostActions,
+  threadReads,
+} from './chat/rest_api';
 import {
   listContacts,
   createContact,
@@ -42,6 +58,14 @@ import {
   integrationsSlackEventsHandler,
 } from './http_integrations/http_actions';
 import { integrationsHostcallHandler } from './integrations/hostcall_http';
+import { searchKnowledge } from './knowledge/rest_api';
+import {
+  createKnowledgeEntry,
+  deleteKnowledgeEntry,
+  getKnowledgeEntry,
+  listKnowledgeEntries,
+  patchKnowledgeEntry,
+} from './knowledge_entries/rest_api';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
@@ -72,6 +96,7 @@ import {
   scimUserResourceHandler,
   scimUsersHandler,
 } from './scim/http_actions';
+import { deleteSkill, getSkill, listSkills, putSkill } from './skills/rest_api';
 import { trustedHeadersAuthHandler } from './trusted_headers_auth/http_handlers';
 import {
   listWebsites,
@@ -706,6 +731,11 @@ http.route({
   method: 'GET',
   handler: mcpMethodNotAllowed,
 });
+http.route({
+  path: '/api/v1/mcp',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
 
 // The in-sandbox integrations bridge: the platform end of the baked
 // `tale-integrations-mcp` MCP server, VK-bearer-authed against the session
@@ -858,9 +888,6 @@ http.route({
 // Agent webhook routes (/api/agents/wh/*) re-register with
 // the chat rebuild agent-webhooks rebuild.
 
-// Workflow trigger routes (/api/workflows/wh/*,
-// /api/workflows/trigger) re-register with the rebuilt automation engine trigger surface.
-
 // The OpenAI-compatible inbound API (/api/v1/chat/completions,
 // /api/v1/images/generations, /api/v1/models) re-registers with the chat rebuild.
 
@@ -910,9 +937,11 @@ http.route({
   handler: restOptionsHandler,
 });
 
-// External-runtime (tale-daemon) REST routes
-// (/api/v1/runtimes/*, /api/v1/runs/*) re-register with the chat rebuild
-// daemon-runs rebuild.
+// External-runtime (tale-daemon) REST routes (/api/v1/runtimes/*) re-register
+// with the chat rebuild daemon-runs rebuild. NOTE: /api/v1/runs/ now addresses
+// AUTOMATION runs (registered below), so the daemon lane needs a path of its
+// own — /api/v1/runtimes/{id}/runs — rather than the top-level one it used to
+// claim.
 
 // Websites
 http.route({ path: '/api/v1/websites', method: 'GET', handler: listWebsites });
@@ -1027,9 +1056,181 @@ http.route({
   handler: restOptionsHandler,
 });
 
-// Threads + agents REST v1 routes re-register with the chat rebuild.
+// Automations. One handler per METHOD dispatches the sub-resources
+// (`/versions`, `/runs`, `/triggers`) because the router matches a path prefix,
+// not a pattern. An automation's name is a `/`-separated path, so it travels in
+// the URL with `__` for the separator — the same codec the app's detail route
+// uses. See automations/rest_api.ts.
+http.route({
+  path: '/api/v1/automations',
+  method: 'GET',
+  handler: listAutomations,
+});
+http.route({
+  path: '/api/v1/automations',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/automations/',
+  method: 'GET',
+  handler: automationReads,
+});
+http.route({
+  pathPrefix: '/api/v1/automations/',
+  method: 'POST',
+  handler: automationPostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/automations/',
+  method: 'PUT',
+  handler: automationPutActions,
+});
+http.route({
+  pathPrefix: '/api/v1/automations/',
+  method: 'DELETE',
+  handler: automationDeleteActions,
+});
+http.route({
+  pathPrefix: '/api/v1/automations/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
 
-// Workflows REST v1 routes re-register with the rebuilt automation engine.
+// Automation runs. Addressed by run id rather than under the automation,
+// because a run id is unique on its own and a caller polling one holds nothing
+// else.
+http.route({
+  pathPrefix: '/api/v1/runs/',
+  method: 'GET',
+  handler: getAutomationRun,
+});
+http.route({
+  pathPrefix: '/api/v1/runs/',
+  method: 'POST',
+  handler: runPostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/runs/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Chat threads. A thread is user-private: these see exactly the threads of the
+// user the API key belongs to. Sending a message starts a DIRECT turn and
+// answers 202; the caller polls `/generation`. See chat/rest_api.ts.
+http.route({ path: '/api/v1/threads', method: 'GET', handler: listThreads });
+http.route({ path: '/api/v1/threads', method: 'POST', handler: createThread });
+http.route({
+  path: '/api/v1/threads',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'GET',
+  handler: threadReads,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'POST',
+  handler: threadPostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Agents and skills — the org's config tree, not tables. PUT because the slug
+// in the path is the identity: the same request creates or updates.
+http.route({ path: '/api/v1/agents', method: 'GET', handler: listAgents });
+http.route({
+  path: '/api/v1/agents',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({ pathPrefix: '/api/v1/agents/', method: 'GET', handler: getAgent });
+http.route({ pathPrefix: '/api/v1/agents/', method: 'PUT', handler: putAgent });
+http.route({
+  pathPrefix: '/api/v1/agents/',
+  method: 'DELETE',
+  handler: deleteAgent,
+});
+http.route({
+  pathPrefix: '/api/v1/agents/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+http.route({ path: '/api/v1/skills', method: 'GET', handler: listSkills });
+http.route({
+  path: '/api/v1/skills',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({ pathPrefix: '/api/v1/skills/', method: 'GET', handler: getSkill });
+http.route({ pathPrefix: '/api/v1/skills/', method: 'PUT', handler: putSkill });
+http.route({
+  pathPrefix: '/api/v1/skills/',
+  method: 'DELETE',
+  handler: deleteSkill,
+});
+http.route({
+  pathPrefix: '/api/v1/skills/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Knowledge entries (the curated facts) and knowledge SEARCH (retrieval over
+// the org's corpora). The search endpoint runs in a node action because
+// retrieval needs a PostgreSQL pool and an embedding client.
+http.route({
+  path: '/api/v1/knowledge-entries',
+  method: 'GET',
+  handler: listKnowledgeEntries,
+});
+http.route({
+  path: '/api/v1/knowledge-entries',
+  method: 'POST',
+  handler: createKnowledgeEntry,
+});
+http.route({
+  path: '/api/v1/knowledge-entries',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/knowledge-entries/',
+  method: 'GET',
+  handler: getKnowledgeEntry,
+});
+http.route({
+  pathPrefix: '/api/v1/knowledge-entries/',
+  method: 'PATCH',
+  handler: patchKnowledgeEntry,
+});
+http.route({
+  pathPrefix: '/api/v1/knowledge-entries/',
+  method: 'DELETE',
+  handler: deleteKnowledgeEntry,
+});
+http.route({
+  pathPrefix: '/api/v1/knowledge-entries/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+http.route({
+  path: '/api/v1/knowledge/search',
+  method: 'POST',
+  handler: searchKnowledge,
+});
+http.route({
+  path: '/api/v1/knowledge/search',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
 
 // ---------------------------------------------------------------------------
 // API Gateway Routes - Handle /api/run/* paths with session cookie or API key authentication
@@ -1046,5 +1247,4 @@ http.route({
   handler: apiGatewayOptions,
 });
 
-const _routes = http.getRoutes();
 export default http;

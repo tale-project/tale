@@ -456,6 +456,16 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 200,
   },
+  // Tighter than rest:api — the two REST endpoints that START work rather than
+  // read it (an automation run, a chat turn) each cost a model call or a whole
+  // durable execution, so they get their own, much smaller budget. Same
+  // reasoning as openai:images sitting below openai:chat.
+  'rest:execute': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
+  },
   // External agent runtimes (tale-daemon). Per-IP buckets; a hot daemon
   // polls claim at ~3s (20/min) and heartbeats at 15s while running.
   'runtime:register': {
