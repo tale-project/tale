@@ -1,3 +1,5 @@
+import { rm } from 'node:fs/promises';
+
 import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -107,6 +109,7 @@ const {
   saveIntegrationConfig,
   writeIntegrationFiles,
   duplicateIntegration,
+  deleteIntegrationInstance,
 } = await import('./file_actions');
 
 type ActionConfig = {
@@ -122,6 +125,9 @@ const writeFilesHandler = (writeIntegrationFiles as unknown as ActionConfig)
   .handler;
 const duplicateHandler = (duplicateIntegration as unknown as ActionConfig)
   .handler;
+const deleteInstanceHandler = (
+  deleteIntegrationInstance as unknown as ActionConfig
+).handler;
 
 function createMockCtx() {
   return {
@@ -356,6 +362,70 @@ describe('duplicateIntegration', () => {
         newIntegrationSlug: 'imap_smtp-2',
         installedBy: 'a@b.com',
       }),
+    );
+  });
+});
+
+describe('deleteIntegrationInstance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireDeveloperSettingsAccessById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      member: { _id: 'm-1', role: 'developer' },
+    });
+    mockCleanupReboundAutomations.mockResolvedValue(undefined);
+  });
+
+  it('rejects a plain member before any teardown', async () => {
+    mockRequireDeveloperSettingsAccessById.mockRejectedValue(FORBIDDEN);
+    const ctx = createMockCtx();
+    await expect(
+      deleteInstanceHandler(
+        ctx as never,
+        { organizationId: 'org-123', slug: 'imap_smtp-2' } as never,
+      ),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' } });
+    expect(mockCleanupReboundAutomations).not.toHaveBeenCalled();
+  });
+
+  it('refuses to delete a built-in template (disconnect only)', async () => {
+    // `imap_smtp` has no `-<n>` suffix → a builtin per the mock.
+    const ctx = createMockCtx();
+    await expect(
+      deleteInstanceHandler(
+        ctx as never,
+        { organizationId: 'org-123', slug: 'imap_smtp' } as never,
+      ),
+    ).rejects.toThrow(/built-in template/i);
+    expect(mockCleanupReboundAutomations).not.toHaveBeenCalled();
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+    expect(vi.mocked(rm)).not.toHaveBeenCalled();
+  });
+
+  it('fully deletes a non-builtin instance even if never connected: automations, credential, dir', async () => {
+    // `imap_smtp-2` ends in `-2` → a non-builtin instance per the mock.
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue({ _id: 'cred-2' }); // getBySlugInternal
+
+    const result = await deleteInstanceHandler(
+      ctx as never,
+      { organizationId: 'org-123', slug: 'imap_smtp-2' } as never,
+    );
+
+    expect(result).toEqual({ deleted: true });
+    expect(mockCleanupReboundAutomations).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({ integrationSlug: 'imap_smtp-2' }),
+    );
+    expect(ctx.runMutation).toHaveBeenCalledWith('deleteCredentialsInternal', {
+      credentialId: 'cred-2',
+    });
+    expect(vi.mocked(rm)).toHaveBeenCalledWith(
+      '/data/integrations/default/imap_smtp-2',
+      { recursive: true, force: true },
     );
   });
 });

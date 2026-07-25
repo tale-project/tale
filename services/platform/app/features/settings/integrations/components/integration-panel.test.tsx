@@ -322,3 +322,32 @@ describe('IntegrationPanel — duplicate action', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe('IntegrationPanel — delete a disconnected removable instance', () => {
+  it('offers Delete on the disconnected footer and opens the confirm dialog', () => {
+    const setConfirmDelete = vi.fn();
+    vi.mocked(useIntegrationManage).mockImplementation(
+      () =>
+        ({
+          ...baseManage,
+          isActive: false,
+          isRemovable: true,
+          confirmDelete: false,
+          setConfirmDelete,
+          handleDeleteInstance: vi.fn(),
+        }) as never,
+    );
+    render(
+      <IntegrationPanel
+        open
+        onOpenChange={vi.fn()}
+        integration={integration}
+        organizationId="org-1"
+      />,
+    );
+    const sheet = screen.getByTestId('sheet');
+    // A disconnected duplicate is deletable even though it was never connected.
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Delete' }));
+    expect(setConfirmDelete).toHaveBeenCalledWith(true);
+  });
+});

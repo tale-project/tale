@@ -6273,9 +6273,11 @@
         "enterCredentialsToConnect": "Gib Zugangsdaten ein, um zu verbinden.",
         "disconnectConfirmTitle": "Integration trennen",
         "disconnectConfirmDescription": "Möchtest du diese Integration wirklich trennen? Du kannst sie später erneut verbinden.",
-        "deleteConfirmTitle": "Integration löschen",
-        "deleteConfirmDescription": "Möchtest du diese Integration wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-        "deleteIntegration": "Integration löschen"
+        "deleteConfirmTitle": "Verbindung entfernen",
+        "deleteConfirmDescription": "Damit werden die gespeicherten Zugangsdaten entfernt und die Integration getrennt. Die Vorlage bleibt erhalten – zum erneuten Verbinden gibst du die Zugangsdaten wieder ein.",
+        "deleteInstanceConfirmTitle": "Diese Instanz löschen",
+        "deleteInstanceConfirmDescription": "Damit werden diese Integration und alle dafür eingerichteten Automatisierungen dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+        "deleteIntegration": "Verbindung entfernen"
       },
       "authMethods": {
         "api_key": "API-Schlüssel",

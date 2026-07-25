@@ -54,6 +54,8 @@ Some integrations are needed more than once — two mailboxes, two databases, tw
 
 The copy starts disconnected and stays idle — no scheduled run fires until you enter its credentials and connect it, so an unconfigured duplicate never generates failing runs. Duplicate is offered only where a second instance can actually work: OAuth integrations (Gmail, Outlook, Slack) and GitHub are bound to their exact identity at the provider, so they cannot be duplicated.
 
+A duplicate is fully removable. While it is disconnected, its panel offers **Delete**, which removes the instance, its credential, and the automations that were cloned for it. Built-in integrations never offer Delete — they can only be disconnected, so the template survives for the next connection.
+
 ## Slack bot and notifications
 
 Slack is two-directional. Beyond the agent calling Slack (posting messages, reading channels), the org can let people talk to an agent from inside Slack and have system events pushed to a channel. Both are configured on the connected Slack row, and both ride the single OAuth credential — no second connection.

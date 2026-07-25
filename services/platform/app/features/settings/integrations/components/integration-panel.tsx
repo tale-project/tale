@@ -307,11 +307,27 @@ export function IntegrationPanel({
               variant="destructive"
             >
               <Trash2 className="mr-2 size-3.5" />
-              {t('integrations.panel.deleteIntegration')}
+              {manage.isRemovable
+                ? tCommon('actions.delete')
+                : t('integrations.panel.deleteIntegration')}
             </Button>
           </HStack>
         ) : (
-          <HStack justify="end" align="center">
+          <HStack
+            justify={manage.isRemovable ? 'between' : 'end'}
+            align="center"
+          >
+            {manage.isRemovable ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => manage.setConfirmDelete(true)}
+                disabled={manage.busy}
+              >
+                <Trash2 className="mr-2 size-3.5" />
+                {tCommon('actions.delete')}
+              </Button>
+            ) : null}
             <Button
               onClick={
                 manage.selectedAuthMethod === 'oauth2' &&
@@ -380,11 +396,23 @@ export function IntegrationPanel({
       <DeleteDialog
         open={manage.confirmDelete}
         onOpenChange={manage.setConfirmDelete}
-        title={t('integrations.panel.deleteConfirmTitle')}
-        description={t('integrations.panel.deleteConfirmDescription')}
+        title={
+          manage.isRemovable
+            ? t('integrations.panel.deleteInstanceConfirmTitle')
+            : t('integrations.panel.deleteConfirmTitle')
+        }
+        description={
+          manage.isRemovable
+            ? t('integrations.panel.deleteInstanceConfirmDescription')
+            : t('integrations.panel.deleteConfirmDescription')
+        }
         preview={{ primary: panelTitle, secondary: identity }}
         isDeleting={manage.busy}
-        onDelete={manage.handleUninstall}
+        onDelete={
+          manage.isRemovable
+            ? manage.handleDeleteInstance
+            : manage.handleUninstall
+        }
       />
     </Sheet>
   );

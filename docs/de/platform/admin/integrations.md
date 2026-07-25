@@ -54,6 +54,8 @@ Manche Integrationen braucht man mehrfach — zwei Postfächer, zwei Datenbanken
 
 Die Kopie startet getrennt und bleibt ruhig — bis du ihre Anmeldedaten einträgst und verbindest, läuft kein geplanter Durchlauf. Ein unkonfiguriertes Duplikat erzeugt also nie fehlschlagende Durchläufe. Duplizieren wird nur dort angeboten, wo eine zweite Instanz tatsächlich funktionieren kann: OAuth-Integrationen (Gmail, Outlook, Slack) und GitHub sind beim Anbieter an ihre exakte Identität gebunden und lassen sich deshalb nicht duplizieren.
 
+Ein Duplikat ist vollständig entfernbar. Solange es getrennt ist, bietet sein Panel **Löschen** an — das entfernt die Instanz, ihre Anmeldedaten und die für sie geklonten Automatisierungen. Mitgelieferte Integrationen bieten nie Löschen an: sie lassen sich nur trennen, damit die Vorlage für die nächste Verbindung erhalten bleibt.
+
 ## Slack-Bot und Benachrichtigungen
 
 Slack ist zweigerichtet. Über den Agent, der Slack aufruft (Nachrichten posten, Kanäle lesen), hinaus kann die Organisation Leute aus Slack heraus mit einem Agent sprechen lassen und System-Events in einen Kanal pushen. Beides wird auf der verbundenen Slack-Zeile konfiguriert, und beides nutzt dieselbe OAuth-Anmeldung — keine zweite Verbindung.

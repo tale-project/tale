@@ -54,6 +54,8 @@ Certaines intégrations servent plusieurs fois — deux boîtes mail, deux bases
 
 La copie démarre déconnectée et reste au repos : aucune exécution planifiée ne se déclenche avant que tu saisisses ses identifiants et la connectes, donc un doublon non configuré ne produit jamais d’exécutions en échec. Dupliquer n’est proposé que là où une seconde instance peut réellement fonctionner : les intégrations OAuth (Gmail, Outlook, Slack) et GitHub sont liées à leur identité exacte chez le fournisseur et ne peuvent donc pas être dupliquées.
 
+Un doublon se retire entièrement. Tant qu’il est déconnecté, son panneau propose **Supprimer**, ce qui retire l’instance, son identifiant et les automatisations clonées pour elle. Les intégrations livrées ne proposent jamais Supprimer : elles ne peuvent qu’être déconnectées, pour que le modèle survive à la prochaine connexion.
+
 ## Bot Slack et notifications
 
 Slack est bidirectionnel. Au-delà de l’agent qui appelle Slack (poster des messages, lire des canaux), l’org peut laisser des personnes parler à un agent depuis Slack et pousser des événements système dans un canal. Les deux se configurent sur la ligne Slack connectée, et les deux utilisent le même identifiant OAuth — pas de seconde connexion.
