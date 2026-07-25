@@ -9,10 +9,13 @@
  * cannot be held open for a long turn — a cold or slow turn would outlive its
  * execution window and be killed mid-run). Each window re-attaches to the
  * running exec from the START of runnerd's byte-identical replay buffer,
- * re-parses the full output-so-far, SETs the assistant message, and settles
- * when the harness turn ends. Re-parsing from the start (rather than carrying
- * a per-delta cursor across windows) keeps a JSONL line that straddles a
- * window boundary from being stranded by the fresh per-window parser.
+ * re-parses the full output-so-far, streams the accumulating reply into the
+ * assistant message as it arrives, and settles when the harness turn ends —
+ * the exec's exit, or the `turn-ended` event cutting the window early for a
+ * hold-stdin harness whose process lingers after its reply. Re-parsing from
+ * the start (rather than carrying a per-delta cursor across windows) keeps a
+ * JSONL line that straddles a window boundary from being stranded by the
+ * fresh per-window parser.
  *
  * The scheduled start action owns the gateway token (it starts the exec with
  * the token in the env); a drain window only ATTACHES, so no secret is ever
@@ -54,6 +57,13 @@ import { sessionIdForUser, userOwnerId } from '../sandbox/session_naming';
 const SKILLS_DIR = 'workspace/.tale/skills';
 /** One drain window; well under the Convex action execution ceiling. */
 export const DRAIN_WINDOW_MS = 90_000;
+/** After the parser sees `turn-ended`, how long to keep draining for the
+ * exec's natural exit (which carries a close-stdin harness's exit code)
+ * before cutting the window. A hold-stdin harness (claude-code) never exits
+ * on its own — without the cut, every reply would sit out the full window. */
+export const TURN_ENDED_EXIT_GRACE_MS = 1_500;
+/** Floor between two mid-window writes of the accumulating reply text. */
+export const STREAM_TEXT_THROTTLE_MS = 1_000;
 /** Overall wall-clock a turn may run before it is cut as hung. */
 export const EXTERNAL_TURN_DEADLINE_MS = 30 * 60_000;
 /** Session gateway key budget per turn, in cents. */
@@ -487,8 +497,53 @@ export async function drainExternalTurnWindow(
   );
   const parser = glue.createParser();
   const events: HarnessEvent[] = [];
+
+  // A hold-stdin harness (claude-code) lingers after its reply waiting for
+  // more input, so its process exit can be a whole window away from the
+  // `turn-ended` event that actually ends the turn. Cut the drain shortly
+  // after the parser sees `turn-ended`; the grace lets a harness that DOES
+  // exit deliver its terminal result (and exit code) first.
+  const turnEndedCut = new AbortController();
+  let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
+
+  // Stream the text-so-far into the assistant message while the exec runs —
+  // throttled, serialized, best-effort — so the reply reads live instead of
+  // landing once per window. Each write carries the FULL text-so-far (the SET
+  // is idempotent), so a failed write is healed by the next one.
+  let lastStreamedText = '';
+  let lastStreamAt = 0;
+  let streamChain: Promise<unknown> = Promise.resolve();
+  const streamTextSoFar = () => {
+    const now = Date.now();
+    if (now - lastStreamAt < STREAM_TEXT_THROTTLE_MS) return;
+    const text = textFromEvents(events);
+    if (text === '' || text === lastStreamedText) return;
+    lastStreamAt = now;
+    lastStreamedText = text;
+    streamChain = streamChain.then(() =>
+      ctx
+        .runMutation(internal.chat.messages.setAssistantTextInternal, {
+          organizationId: args.scope.organizationId,
+          messageId: args.messageId,
+          text,
+        })
+        .catch((err) =>
+          console.warn('[external-turn] mid-window text write failed:', err),
+        ),
+    );
+  };
+
   const onStdout = (chunk: string) => {
-    for (const e of parser.feed(chunk)) events.push(e);
+    for (const e of parser.feed(chunk)) {
+      events.push(e);
+      if (e.type === 'turn-ended' && turnEndedGrace === undefined) {
+        turnEndedGrace = setTimeout(
+          () => turnEndedCut.abort(),
+          TURN_ENDED_EXIT_GRACE_MS,
+        );
+      }
+    }
+    streamTextSoFar();
   };
 
   const body: SessionExecBody = args.start
@@ -551,26 +606,33 @@ export async function drainExternalTurnWindow(
   }
 
   const windowSignal = AbortSignal.timeout(DRAIN_WINDOW_MS);
+  const drainSignal = AbortSignal.any([windowSignal, turnEndedCut.signal]);
   let exited = false;
   let execResult: SessionExecResult | undefined;
   try {
     execResult = await drainSessionExecResilient(
       args.sessionId,
       body,
-      windowSignal,
+      drainSignal,
       { onStdout },
       args.start ? {} : { resumeSinceSeq: 0 },
     );
     exited = true;
   } catch (err) {
     if (err instanceof SessionNotFoundError) return { kind: 'gone' };
-    if (!windowSignal.aborted) throw err;
-    // Window elapsed with the exec still live — not terminal.
+    if (!drainSignal.aborted) throw err;
+    // Window elapsed with the exec still live, or the turn ended under a
+    // lingering exec — either way not a drain failure.
+  } finally {
+    if (turnEndedGrace !== undefined) clearTimeout(turnEndedGrace);
+    // Order the terminal full-text write below after any in-flight streamed
+    // one, and never leave a write dangling past the action.
+    await streamChain;
   }
   for (const e of parser.end()) events.push(e);
 
   const text = textFromEvents(events);
-  if (text !== '') {
+  if (text !== '' && text !== lastStreamedText) {
     await ctx.runMutation(internal.chat.messages.setAssistantTextInternal, {
       organizationId: args.scope.organizationId,
       messageId: args.messageId,
