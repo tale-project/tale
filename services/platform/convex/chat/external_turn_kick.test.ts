@@ -18,8 +18,10 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   drainSessionExecResilient: (...args: unknown[]) => mockDrain(...args),
   sessionCancelExec: vi.fn().mockResolvedValue(undefined),
   sessionCreate: (...args: unknown[]) => mockSessionCreate(...args),
+  sessionDeleteFiles: vi.fn().mockResolvedValue(undefined),
   sessionExecStatus: vi.fn(),
   sessionIsAlive: (...args: unknown[]) => mockSessionIsAlive(...args),
+  sessionListFiles: vi.fn().mockResolvedValue([]),
   sessionStageFiles: (...args: unknown[]) => mockStageFiles(...args),
   SessionDuplicateError: class SessionDuplicateError extends Error {},
   SessionNotFoundError: class SessionNotFoundError extends Error {},
@@ -492,6 +494,14 @@ describe('runExternalTurnStart — async honesty', () => {
     // Every Tier-2 fetch is audited.
     expect(events(tape).some((e) => e.includes('recordCredentialAccess'))).toBe(
       true,
+    );
+    // The equipped connector also materializes as a staged skill, so the
+    // agent can discover what it is equipped with.
+    const stagedPaths = mockStageFiles.mock.calls.flatMap((call) =>
+      (call[1] as Array<{ path: string }>).map((file) => file.path),
+    );
+    expect(stagedPaths).toContain(
+      'workspace/.tale/skills/integration-github/SKILL.md',
     );
   });
 

@@ -556,6 +556,7 @@ import type * as node_only_sandbox_engine_exec_runner from "../node_only/sandbox
 import type * as node_only_sandbox_gateway_provisioning from "../node_only/sandbox/gateway_provisioning.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_stage_url from "../node_only/sandbox/helpers/stage_url.js";
+import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
 import type * as node_only_sandbox_integrations_bridge from "../node_only/sandbox/integrations_bridge.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
@@ -1389,6 +1390,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/gateway_provisioning": typeof node_only_sandbox_gateway_provisioning;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/stage_url": typeof node_only_sandbox_helpers_stage_url;
+  "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;
   "node_only/sandbox/integrations_bridge": typeof node_only_sandbox_integrations_bridge;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;

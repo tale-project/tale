@@ -40,6 +40,7 @@ import type { Id } from '../_generated/dataModel';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sessionCancelExec } from '../node_only/sandbox/helpers/session_client';
+import { stageIntegrationSkills } from '../node_only/sandbox/integration_skills';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
 import {
   BROKERABLE_GRANTS,
@@ -59,6 +60,7 @@ import {
   openExternalTurnOp,
   provisionTurnGatewayToken,
   resolveManagedModel,
+  SKILLS_DIR,
   stageSkills,
   type ExternalTurnScope,
 } from './external_turn_shared';
@@ -412,7 +414,26 @@ export async function runExternalTurnStart(
       deadlineMs: args.deadlineAt,
       mintedKeyId: keyId,
     });
-    const instructions = await stageSkills(ctx, scope, sessionId, skillSlugs);
+    const skillInstructions = await stageSkills(
+      ctx,
+      scope,
+      sessionId,
+      skillSlugs,
+    );
+    // The equipped connectors materialize as skills too (one file per
+    // connector: operations, parameters, blocker guidance), so the agent
+    // KNOWS what it is equipped with instead of having to guess that the
+    // generic `integration` tool covers, say, GitHub. Ported from the legacy
+    // backend; best-effort — a staging failure downgrades discovery, never
+    // the turn.
+    const integrationInstructions = await stageIntegrationSkills(ctx, {
+      sessionId,
+      skillsDir: SKILLS_DIR,
+      grants: connectorSlugs,
+    });
+    const instructions = [skillInstructions, integrationInstructions]
+      .filter((section) => section !== '')
+      .join('\n\n');
     const exec = buildExternalTurnExec({
       harness: args.harness,
       gatewayModel: args.gatewayModel,

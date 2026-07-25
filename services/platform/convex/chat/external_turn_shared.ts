@@ -54,7 +54,10 @@ import {
 import { sessionIdForUser, userOwnerId } from '../sandbox/session_naming';
 
 /** Where a conversation's equipped skills land inside the session. */
-const SKILLS_DIR = 'workspace/.tale/skills';
+/** Session-relative dir every staged skill lands in — org skills
+ * (`stageSkills`) and the per-connector integration skills alike, so the
+ * instructions can point at one tree. */
+export const SKILLS_DIR = 'workspace/.tale/skills';
 /** One drain window; well under the Convex action execution ceiling. */
 export const DRAIN_WINDOW_MS = 90_000;
 /** After the parser sees `turn-ended`, how long to keep draining for the
