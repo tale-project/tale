@@ -339,6 +339,72 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 });
 
 /**
+ * The thread-list panel folds away from a toggle in the conversation column
+ * and the choice persists per org — the same key the index.html pre-hydration
+ * script reads to decide whether the served boot shell shows the panel
+ * skeleton, so these tests also pin the storage contract and the live
+ * `boot-chat-panel-open` mirror on <html>.
+ */
+describe('ChatSurface history panel toggle', () => {
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+  });
+
+  afterEach(() => {
+    window.localStorage.removeItem('chat-history-panel-open-org-1');
+    document.documentElement.classList.remove('boot-chat-panel-open');
+  });
+
+  it('collapses the panel, flips the toggle, and persists the choice', async () => {
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    const panel = screen.getByRole('navigation', { name: 'Chats' });
+    expect(panel).not.toHaveClass('w-0');
+    expect(document.documentElement).toHaveClass('boot-chat-panel-open');
+
+    const toggle = screen.getByRole('button', { name: 'Hide chats' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-controls', 'chat-sub-panel');
+    await user.click(toggle);
+
+    // The panel folds to zero width but keeps its landmark; its content is
+    // taken out of the accessibility tree and the tab order.
+    expect(panel).toHaveClass('w-0');
+    expect(
+      // oxlint-disable-next-line testing-library/no-node-access -- the inert wrapper is structural, not a queryable role
+      panel.querySelector('[inert]'),
+    ).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByRole('button', { name: 'Show chats' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(document.documentElement).not.toHaveClass('boot-chat-panel-open');
+    expect(window.localStorage.getItem('chat-history-panel-open-org-1')).toBe(
+      'false',
+    );
+  });
+
+  it('mounts collapsed when the persisted state says so', () => {
+    window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(screen.getByRole('navigation', { name: 'Chats' })).toHaveClass(
+      'w-0',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Show chats' }),
+    ).toBeInTheDocument();
+    expect(document.documentElement).not.toHaveClass('boot-chat-panel-open');
+  });
+
+  it('passes an axe audit while collapsed', async () => {
+    window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
+    const { container } = render(<ChatSurface organizationId="org-1" />);
+    await waitFor(() => checkAccessibility(container));
+  });
+});
+
+/**
  * A sandbox thread keeps its external agent for life. Opening one must show
  * that agent — not reset to the platform default — or the next turn would
  * silently run on the wrong lane. The agent picker locks; switching is a new

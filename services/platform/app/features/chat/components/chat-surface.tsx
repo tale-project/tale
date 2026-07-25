@@ -25,13 +25,15 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Cpu, PlugZap } from 'lucide-react';
+import { Cpu, PanelLeftClose, PanelLeftOpen, PlugZap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
 import { useAbility } from '@/app/hooks/use-ability';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import {
   useCanvasSources,
@@ -108,6 +110,30 @@ export function ChatSurface({
   const modelPreference = useChatModelPreference(organizationId);
 
   const [selection, setSelection] = useState(NO_SELECTION);
+
+  // Chat sub-panel (thread list) visibility on desktop, toggled from the
+  // conversation column. Org-scoped, NOT user-scoped, on purpose: the
+  // pre-hydration script in index.html reads this exact key before auth (or
+  // any JS bundle) runs to decide whether the served boot shell shows the
+  // panel skeleton — it can't know the user id. Panel visibility is layout
+  // chrome, device-scoped like `tale-theme`.
+  const [isHistoryPanelOpen, setHistoryPanelOpen] = usePersistedState(
+    `chat-history-panel-open-${organizationId}`,
+    true,
+  );
+
+  // Keep the pre-hydration `boot-chat-panel-open` marker (set by the inline
+  // script in index.html from the persisted state) an honest live mirror of
+  // "a chat surface with the panel open is on screen": it gates every
+  // ChatSubPanelPlaceholder (boot shell, access-resolving layout), so a
+  // placeholder rendered after a runtime toggle or an org switch must
+  // reflect the current state, not the page-load snapshot. Removed on
+  // unmount — non-chat surfaces render no panel.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('boot-chat-panel-open', isHistoryPanelOpen);
+    return () => root.classList.remove('boot-chat-panel-open');
+  }, [isHistoryPanelOpen]);
 
   const models =
     composerOptions.status === 'ready'
@@ -314,27 +340,73 @@ export function ChatSurface({
 
   return (
     <div className="flex min-h-0 flex-1 flex-row">
+      {/* The panel folds to zero width while the fixed-width inner column
+          keeps its layout, so the fold is a clip, not a reflow. */}
       <SubPanel
         as="nav"
         width="wide"
         ariaLabel={t('chatsSection')}
         id="chat-sub-panel"
+        className={cn(
+          '[transition:width_250ms_var(--ease-out-quint)] motion-reduce:transition-none',
+          !isHistoryPanelOpen && 'w-0 border-r-0',
+        )}
       >
-        <ThreadList
-          organizationId={organizationId}
-          threads={threadsAvailable ? threads.data : []}
-          activeThreadId={threadId}
-          available={threadsAvailable}
-        />
+        <div
+          inert={!isHistoryPanelOpen || undefined}
+          aria-hidden={!isHistoryPanelOpen}
+          className="flex h-full w-64 shrink-0 flex-col overflow-hidden"
+        >
+          <ThreadList
+            organizationId={organizationId}
+            threads={threadsAvailable ? threads.data : []}
+            activeThreadId={threadId}
+            available={threadsAvailable}
+          />
+        </div>
       </SubPanel>
 
-      <Stack gap={0} className="min-h-0 min-w-0 flex-1">
+      <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
+        {/* Frosted floating toggle: an absolute overlay on the message
+            column, so content scrolls BENEATH the blur. The glass layer is
+            taller than the controls row and dissolves to transparent —
+            gradient tint + a mask on the backdrop blur — and pointer-events
+            pass through everywhere except the button. Desktop-only: below
+            `md` the panel itself is hidden. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
+          <div
+            aria-hidden
+            className="from-background/75 absolute inset-x-0 top-0 h-18 bg-gradient-to-b to-transparent [mask-image:linear-gradient(to_bottom,black_40%,transparent)] backdrop-blur-md"
+          />
+          <div className="relative flex h-13 items-center px-4">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setHistoryPanelOpen((open) => !open)}
+              aria-label={
+                isHistoryPanelOpen ? t('hideHistory') : t('showHistory')
+              }
+              aria-expanded={isHistoryPanelOpen}
+              aria-controls="chat-sub-panel"
+              className="pointer-events-auto -ml-2"
+            >
+              {isHistoryPanelOpen ? (
+                <PanelLeftClose className="text-muted-foreground size-5 p-0.25" />
+              ) : (
+                <PanelLeftOpen className="text-muted-foreground size-5 p-0.25" />
+              )}
+            </Button>
+          </div>
+        </div>
         {messagesAvailable ? (
           <MessageThread
             messages={messages.data}
             generation={
               generation.status === 'ready' ? generation.data : undefined
             }
+            // Clears the floating glass bar at rest; scrolled content still
+            // passes beneath its blur (overflow clips at the padding box).
+            className="md:pt-13"
           />
         ) : threadId !== undefined ? (
           messages.status === 'unavailable' ? (
@@ -399,7 +471,7 @@ export function ChatSurface({
           // open thread shows before its first message. It also holds while
           // the model listing is still answering, so the surface never flips
           // welcome → provider-setup → welcome across navigations.
-          <MessageThread messages={[]} />
+          <MessageThread messages={[]} className="md:pt-13" />
         )}
 
         <div className="shrink-0 px-4 pb-4">
