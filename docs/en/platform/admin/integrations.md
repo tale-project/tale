@@ -48,6 +48,12 @@ Both levers are enforced at request time, not at install time — changing a lev
 
 Click the row, then **Disconnect**. A disconnected integration stops authenticating immediately; agents and workflows that depend on it surface a configuration error on the next call. The row stays in the list with a disconnected badge so the audit trail survives. Reconnecting walks the credential flow again from scratch.
 
+## Running two of the same integration
+
+Some integrations are needed more than once — two mailboxes, two databases, two API tenants. Open the integration and choose **Duplicate** (also in the row's ⋯ menu) to create a second instance. Tale copies the integration's configuration under a new name (`Support mailbox (2)`), leaves its credential blank for you to fill in, and clones any automation bound to the original so the copy gets its own sync and its own inbox thread.
+
+The copy starts disconnected and stays idle — no scheduled run fires until you enter its credentials and connect it, so an unconfigured duplicate never generates failing runs. Duplicate is offered only where a second instance can actually work: OAuth integrations (Gmail, Outlook, Slack) and GitHub are bound to their exact identity at the provider, so they cannot be duplicated.
+
 ## Slack bot and notifications
 
 Slack is two-directional. Beyond the agent calling Slack (posting messages, reading channels), the org can let people talk to an agent from inside Slack and have system events pushed to a channel. Both are configured on the connected Slack row, and both ride the single OAuth credential — no second connection.

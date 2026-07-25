@@ -131,6 +131,40 @@ describe('IntegrationCard', () => {
     expect(screen.getByRole('button', { name: 'Shopify' })).toBeDisabled();
   });
 
+  it('offers a Duplicate action in the ⋯ menu that fires onDuplicate', async () => {
+    const user = userEvent.setup();
+    const onDuplicate = vi.fn();
+    render(
+      <IntegrationCard
+        title="Shopify"
+        description="Sync products."
+        onClick={vi.fn()}
+        onDuplicate={onDuplicate}
+      />,
+    );
+    // The ⋯ trigger's accessible name is the (mocked) menuLabel key.
+    await user.click(
+      screen.getByRole('button', { name: 'integrations.menuLabel' }),
+    );
+    await user.click(await screen.findByText('actions.duplicate'));
+    expect(onDuplicate).toHaveBeenCalledOnce();
+  });
+
+  it('hides the Duplicate action when onDuplicate is not provided', async () => {
+    const user = userEvent.setup();
+    render(
+      <IntegrationCard
+        title="Shopify"
+        description="Sync products."
+        onClick={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'integrations.menuLabel' }),
+    );
+    expect(screen.queryByText('actions.duplicate')).not.toBeInTheDocument();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(

@@ -48,6 +48,12 @@ Les deux leviers sont appliqués à la requête, pas à l’installation — cha
 
 Clique la ligne, puis **Déconnecter**. Une intégration déconnectée arrête d’authentifier immédiatement ; les agents et workflows qui en dépendent font remonter une erreur de configuration au prochain appel. La ligne reste dans la liste avec un badge déconnecté pour que la piste d’audit survive. Reconnecter parcourt le flux d’identifiants de zéro.
 
+## Faire tourner deux fois la même intégration
+
+Certaines intégrations servent plusieurs fois — deux boîtes mail, deux bases de données, deux locataires d’API. Ouvre l’intégration et choisis **Dupliquer** (également dans le menu ⋯ de la ligne) pour créer une seconde instance. Tale copie la configuration de l’intégration sous un nouveau nom (`Boîte support (2)`), laisse son identifiant vide pour que tu le renseignes, et clone toute automatisation liée à l’originale afin que la copie ait sa propre synchronisation et son propre fil de réception.
+
+La copie démarre déconnectée et reste au repos : aucune exécution planifiée ne se déclenche avant que tu saisisses ses identifiants et la connectes, donc un doublon non configuré ne produit jamais d’exécutions en échec. Dupliquer n’est proposé que là où une seconde instance peut réellement fonctionner : les intégrations OAuth (Gmail, Outlook, Slack) et GitHub sont liées à leur identité exacte chez le fournisseur et ne peuvent donc pas être dupliquées.
+
 ## Bot Slack et notifications
 
 Slack est bidirectionnel. Au-delà de l’agent qui appelle Slack (poster des messages, lire des canaux), l’org peut laisser des personnes parler à un agent depuis Slack et pousser des événements système dans un canal. Les deux se configurent sur la ligne Slack connectée, et les deux utilisent le même identifiant OAuth — pas de seconde connexion.

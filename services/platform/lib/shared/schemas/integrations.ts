@@ -106,3 +106,29 @@ export const integrationJsonSchema = z.object({
 });
 
 export type IntegrationJsonConfig = z.infer<typeof integrationJsonSchema>;
+
+/**
+ * Whether an integration instance can be safely duplicated (cloned under a new
+ * slug). The single source of truth for the "Duplicate" gate — used both to
+ * project `duplicable` onto the integration list and to guard the
+ * `duplicateIntegration` action server-side.
+ *
+ * Duplication is safe for integrations whose runtime behaviour keys on `type`
+ * or on the dynamic slug, but NOT for ones with provider-side registration or
+ * runtime slug-equality branches bound to the literal slug — a copy under a new
+ * slug would silently fail to authenticate or route:
+ *   - `oauth2` auth (gmail, outlook, slack): OAuth redirect URIs, provider
+ *     client registration, and inbound routing are bound to the exact slug.
+ *   - `github`: sandbox git auth keys on `slug === 'github'`
+ *     (convex/node_only/sandbox/session_credentials.ts), so a `github-2` copy
+ *     loses its git credentials. It authenticates via `bearer_token`, not
+ *     `oauth2`, so it needs the explicit slug exclusion.
+ * imap_smtp and generic REST / SQL are clean (only `type ===` branches, and
+ * `type` rides along in the copied config.json).
+ */
+export function isDuplicableIntegration(input: {
+  slug: string;
+  authMethod: string;
+}): boolean {
+  return input.authMethod !== 'oauth2' && input.slug !== 'github';
+}

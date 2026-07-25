@@ -4,7 +4,7 @@ import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Search, Unplug } from 'lucide-react';
+import { Loader2, Search, Unplug } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -22,6 +22,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { downloadBase64File } from '@/lib/utils/download';
 
+import { useDuplicateIntegration } from '../hooks/use-duplicate-integration';
 import { useExportIntegration } from '../hooks/use-export-integration';
 import { IntegrationCard } from './integration-card';
 import { IntegrationPanel } from './integration-panel';
@@ -36,6 +37,9 @@ export interface IntegrationListItem {
   labels?: string[];
   type?: 'rest_api' | 'sql';
   authMethod: string;
+  /** Whether the "Duplicate" action is offered — false for OAuth / slug-bound
+   *  integrations (see isDuplicableIntegration); projected by listIntegrations. */
+  duplicable: boolean;
   operationCount: number;
   hash: string;
   [key: string]: unknown;
@@ -114,6 +118,63 @@ export function Integrations({
       }
     },
     [exportingSlug, exportIntegration, organizationId, t],
+  );
+
+  const { mutateAsync: duplicateIntegration } = useDuplicateIntegration();
+  const [duplicatingSlug, setDuplicatingSlug] = useState<string | null>(null);
+  // After a duplicate resolves, open the new instance's panel once the
+  // refetched list contains it (mirrors the `initialSlug` deep-link effect) so
+  // the user lands on its credentials form instead of a dead-end grid.
+  const [pendingOpenSlug, setPendingOpenSlug] = useState<string | null>(null);
+  const handleDuplicate = useCallback(
+    async (item: IntegrationListItem) => {
+      if (duplicatingSlug) return;
+      setDuplicatingSlug(item.slug);
+      // Duplicating is a multi-step server action (clone config → mint an
+      // inactive credential → rebind bundled automations), and the ⋯ menu that
+      // launched it has already closed — so surface progress as a loading toast
+      // that the success/error toast then replaces (the store keeps one toast).
+      toast({
+        title: (
+          <span className="inline-flex items-center gap-2">
+            {t('integrations.duplicate.pending', {
+              name: item.title,
+              defaultValue: 'Creating a copy of {name}…',
+            })}
+            <Loader2 className="size-4 animate-spin" />
+          </span>
+        ),
+        duration: 60_000,
+      });
+      try {
+        const result = await duplicateIntegration({
+          organizationId,
+          slug: item.slug,
+        });
+        toast({
+          variant: 'success',
+          title: t('integrations.duplicate.success', {
+            name: item.title,
+            defaultValue: 'Created a copy of {name}',
+          }),
+        });
+        // The new instance is inactive, so it only shows on the "all" tab —
+        // switch there and open it so Duplicate never dead-ends on Connected.
+        onTabChange('all');
+        setPendingOpenSlug(result.newSlug);
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: t('integrations.duplicate.failed', {
+            defaultValue: 'Failed to duplicate integration',
+          }),
+          variant: 'destructive',
+        });
+      } finally {
+        setDuplicatingSlug(null);
+      }
+    },
+    [duplicatingSlug, duplicateIntegration, onTabChange, organizationId, t],
   );
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,6 +260,16 @@ export function Integrations({
     onInitialSlugConsumed?.();
   }, [initialSlug, integrations, onInitialSlugConsumed]);
 
+  // Open a freshly duplicated instance once the invalidated list refetches and
+  // includes it — then clear the pending slug so it opens exactly once.
+  useEffect(() => {
+    if (!pendingOpenSlug) return;
+    const match = integrations.find((i) => i.slug === pendingOpenSlug);
+    if (!match) return;
+    setManagingIntegration(match);
+    setPendingOpenSlug(null);
+  }, [pendingOpenSlug, integrations]);
+
   return (
     // Fill the settings pane so EmptyState (flex-1 + justify-center) sits in
     // the middle of the area below the tabs/search — same fix as Automations.
@@ -240,6 +311,11 @@ export function Integrations({
               }
               onClick={() => handleCardClick(integration)}
               onExport={() => void handleExport(integration)}
+              onDuplicate={
+                integration.duplicable
+                  ? () => void handleDuplicate(integration)
+                  : undefined
+              }
             />
           ))}
         </CatalogGrid>
@@ -263,6 +339,12 @@ export function Integrations({
           organizationId={organizationId}
           onExport={() => void handleExport(managingIntegration)}
           isExporting={exportingSlug === managingIntegration.slug}
+          onDuplicate={
+            managingIntegration.duplicable
+              ? () => void handleDuplicate(managingIntegration)
+              : undefined
+          }
+          isDuplicating={duplicatingSlug === managingIntegration.slug}
         />
       )}
     </Stack>

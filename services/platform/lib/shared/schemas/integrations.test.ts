@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { integrationJsonSchema } from './integrations';
+import { integrationJsonSchema, isDuplicableIntegration } from './integrations';
 
 /**
  * Every integration `config.json` in `builtin-configs/integrations/` ships as
@@ -62,4 +62,32 @@ describe('builtin-configs/integrations/*/config.json invariants', () => {
       });
     });
   }
+});
+
+describe('isDuplicableIntegration', () => {
+  it('allows non-OAuth, type/capability-driven integrations', () => {
+    expect(
+      isDuplicableIntegration({ slug: 'imap_smtp', authMethod: 'basic_auth' }),
+    ).toBe(true);
+    expect(
+      isDuplicableIntegration({ slug: 'tavily', authMethod: 'api_key' }),
+    ).toBe(true);
+    expect(
+      isDuplicableIntegration({ slug: 'discord', authMethod: 'bearer_token' }),
+    ).toBe(true);
+  });
+
+  it('blocks OAuth integrations (gmail / outlook / slack) — slug-bound registration', () => {
+    for (const slug of ['gmail', 'outlook', 'slack']) {
+      expect(isDuplicableIntegration({ slug, authMethod: 'oauth2' })).toBe(
+        false,
+      );
+    }
+  });
+
+  it('blocks github even though it is bearer_token (sandbox git auth keys on the slug)', () => {
+    expect(
+      isDuplicableIntegration({ slug: 'github', authMethod: 'bearer_token' }),
+    ).toBe(false);
+  });
 });

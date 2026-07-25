@@ -243,6 +243,7 @@ import type * as auth from "../auth.js";
 import type * as automations_agent_readiness from "../automations/agent_readiness.js";
 import type * as automations_automation_workflow_slugs from "../automations/automation_workflow_slugs.js";
 import type * as automations_bundle_parse from "../automations/bundle_parse.js";
+import type * as automations_duplicate_rebind from "../automations/duplicate_rebind.js";
 import type * as automations_file_actions from "../automations/file_actions.js";
 import type * as automations_file_utils from "../automations/file_utils.js";
 import type * as automations_install_actions from "../automations/install_actions.js";
@@ -252,6 +253,7 @@ import type * as automations_install_mutations from "../automations/install_muta
 import type * as automations_install_preflight from "../automations/install_preflight.js";
 import type * as automations_install_queries from "../automations/install_queries.js";
 import type * as automations_provision_defaults from "../automations/provision_defaults.js";
+import type * as automations_rebind_manifest from "../automations/rebind_manifest.js";
 import type * as automations_schedule_readiness from "../automations/schedule_readiness.js";
 import type * as automations_schedule_variables from "../automations/schedule_variables.js";
 import type * as automations_upload_actions from "../automations/upload_actions.js";
@@ -2042,6 +2044,7 @@ declare const fullApi: ApiFromModules<{
   "automations/agent_readiness": typeof automations_agent_readiness;
   "automations/automation_workflow_slugs": typeof automations_automation_workflow_slugs;
   "automations/bundle_parse": typeof automations_bundle_parse;
+  "automations/duplicate_rebind": typeof automations_duplicate_rebind;
   "automations/file_actions": typeof automations_file_actions;
   "automations/file_utils": typeof automations_file_utils;
   "automations/install_actions": typeof automations_install_actions;
@@ -2051,6 +2054,7 @@ declare const fullApi: ApiFromModules<{
   "automations/install_preflight": typeof automations_install_preflight;
   "automations/install_queries": typeof automations_install_queries;
   "automations/provision_defaults": typeof automations_provision_defaults;
+  "automations/rebind_manifest": typeof automations_rebind_manifest;
   "automations/schedule_readiness": typeof automations_schedule_readiness;
   "automations/schedule_variables": typeof automations_schedule_variables;
   "automations/upload_actions": typeof automations_upload_actions;
