@@ -34,6 +34,13 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { chatKindValidator } from './schema';
 
+/** What the conversation equips its agent with — the shape
+ * `threads.capabilities` stores, shared by every read and write of it here. */
+const threadCapabilitiesValidator = v.object({
+  skills: v.array(v.string()),
+  connectors: v.array(v.string()),
+});
+
 /** One row of the thread list, already reduced to what the sub-panel renders. */
 const threadSummaryValidator = v.object({
   id: v.id('threads'),
@@ -42,6 +49,10 @@ const threadSummaryValidator = v.object({
   agentSlug: v.optional(v.string()),
   /** The external agent pinned to a sandbox thread (absent on direct threads). */
   harness: v.optional(v.string()),
+  /** The conversation's capability assembly (the composer's Skills /
+   * Connectors picks) — surfaced so the composer re-hydrates its menu from
+   * the thread instead of resetting to empty on every remount. */
+  capabilities: v.optional(threadCapabilitiesValidator),
   /** The project the thread is filed under (absent = the loose Chats list). */
   projectId: v.optional(v.id('projects')),
   archived: v.boolean(),
@@ -49,6 +60,41 @@ const threadSummaryValidator = v.object({
   updatedAt: v.number(),
   generating: v.boolean(),
 });
+
+/** A conversation may equip its agent with at most this many skills /
+ * connectors — mirrors the project binding's `MAX_PROJECT_AGENT_*` ceilings;
+ * a generous guard, not a curation limit. */
+const MAX_THREAD_SKILLS = 25;
+const MAX_THREAD_CONNECTORS = 25;
+
+/** Normalize a capability assembly for storage: enforce the ceilings, dedupe,
+ * drop empties (it is a set, not an ordered list), and collapse an
+ * all-empty assembly to `undefined` so the thread falls back to its defaults
+ * rather than pinning "nothing". Shared by `createThread` and
+ * `setThreadCapabilities`, so both write paths accept exactly the same
+ * shapes. */
+function sanitizeThreadCapabilities(capabilities: {
+  skills: string[];
+  connectors: string[];
+}): { skills: string[]; connectors: string[] } | undefined {
+  if (
+    capabilities.skills.length > MAX_THREAD_SKILLS ||
+    capabilities.connectors.length > MAX_THREAD_CONNECTORS
+  ) {
+    throw new ConvexError({
+      code: 'too_many_bindings',
+      message: `A conversation may equip at most ${MAX_THREAD_SKILLS} skills and ${MAX_THREAD_CONNECTORS} connectors.`,
+    });
+  }
+  const skills = [
+    ...new Set(capabilities.skills.filter((slug) => slug.length > 0)),
+  ];
+  const connectors = [
+    ...new Set(capabilities.connectors.filter((slug) => slug.length > 0)),
+  ];
+  if (skills.length === 0 && connectors.length === 0) return undefined;
+  return { skills, connectors };
+}
 
 /** One message of a shared snapshot — the same projection `listMessages`
  * returns, re-declared here because the share read authorizes by token + org
@@ -163,6 +209,7 @@ export const listThreads = query({
       kind: thread.kind,
       agentSlug: thread.agentSlug,
       harness: thread.harness,
+      capabilities: thread.capabilities,
       projectId: thread.projectId,
       archived: thread.archived,
       isShared: thread.isShared,
@@ -195,6 +242,7 @@ export const getThread = query({
       kind: thread.kind,
       agentSlug: thread.agentSlug,
       harness: thread.harness,
+      capabilities: thread.capabilities,
       projectId: thread.projectId,
       archived: thread.archived,
       isShared: thread.isShared,
@@ -216,12 +264,7 @@ export const getOwnedThreadInternal = internalQuery({
     v.null(),
     v.object({
       kind: chatKindValidator,
-      capabilities: v.optional(
-        v.object({
-          skills: v.array(v.string()),
-          connectors: v.array(v.string()),
-        }),
-      ),
+      capabilities: v.optional(threadCapabilitiesValidator),
       externalResume: v.optional(v.string()),
     }),
   ),
@@ -272,12 +315,7 @@ export const createThread = mutation({
     title: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     harness: v.optional(v.string()),
-    capabilities: v.optional(
-      v.object({
-        skills: v.array(v.string()),
-        connectors: v.array(v.string()),
-      }),
-    ),
+    capabilities: v.optional(threadCapabilitiesValidator),
     /** Start the conversation inside a project (the project's "New chat"
      * flow). A string because it arrives from a URL param; validated here. */
     projectId: v.optional(v.string()),
@@ -322,12 +360,50 @@ export const createThread = mutation({
       title: args.title,
       agentSlug: args.agentSlug,
       harness: args.harness,
-      capabilities: args.capabilities,
+      capabilities:
+        args.capabilities !== undefined
+          ? sanitizeThreadCapabilities(args.capabilities)
+          : undefined,
       ...(projectId !== undefined ? { projectId } : {}),
       archived: false,
       createdAt: now,
       updatedAt: now,
     });
+  },
+});
+
+/**
+ * Replace the conversation's capability assembly — the composer's Skills /
+ * Connectors picks — for every turn that follows. Written on each toggle, so
+ * a pick made mid-conversation outlives the message it was made for
+ * (previously the assembly was frozen at `createThread`, which made
+ * re-toggling in an existing thread a silent no-op). An assembly that ends up
+ * empty clears the field, so the thread falls back to its project/agent
+ * defaults rather than pinning "nothing". Editing the assembly is a metadata
+ * edit, not chat activity, so `updatedAt` stays untouched and the list keeps
+ * its recency order. Returns false when the thread is not the caller's, so a
+ * client can distinguish a no-op from a success.
+ */
+export const setThreadCapabilities = mutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    capabilities: threadCapabilitiesValidator,
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return false;
+    await ctx.db.patch(thread._id, {
+      capabilities: sanitizeThreadCapabilities(args.capabilities),
+    });
+    return true;
   },
 });
 

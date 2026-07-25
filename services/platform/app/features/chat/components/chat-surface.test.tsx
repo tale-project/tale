@@ -50,6 +50,10 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
       preference: { status: 'unavailable' as const },
       save: vi.fn(),
     })),
+    useThreadCapabilities: vi.fn(() => ({
+      available: false,
+      save: vi.fn(),
+    })),
   };
 });
 
@@ -59,7 +63,9 @@ import {
   useChatModelPreference,
   useChatSend,
   useChatThreads,
+  useComposerCapabilities,
   useComposerModels,
+  useThreadCapabilities,
 } from '../data/chat-backend';
 import { ChatSurface } from './chat-surface';
 
@@ -85,6 +91,13 @@ afterEach(() => {
   }));
   vi.mocked(useChatModelPreference).mockImplementation(() => ({
     preference: { status: 'unavailable' as const },
+    save: vi.fn(),
+  }));
+  vi.mocked(useComposerCapabilities).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
+  vi.mocked(useThreadCapabilities).mockImplementation(() => ({
+    available: false,
     save: vi.fn(),
   }));
 });
@@ -453,5 +466,105 @@ describe('ChatSurface on an open sandbox thread', () => {
     });
     await user.click(stopButton);
     expect(stop).toHaveBeenCalledWith('t-sbx');
+  });
+});
+
+/**
+ * The conversation's capability assembly lives on the thread row. The surface
+ * remounts between the index and `$threadId`, so the menu must re-hydrate
+ * from the row (or it resets to empty right after the first send), and a
+ * toggle made mid-conversation must persist through the seam (or the next
+ * turn silently runs with the stale set frozen at creation).
+ */
+describe('ChatSurface capability assembly on an open sandbox thread', () => {
+  const MODEL = {
+    id: 'deepseek-chat',
+    label: 'deepseek-chat',
+    providerSlug: 'deepseek',
+    credential: { authMethod: 'api-key' as const },
+  };
+
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 't-sbx',
+          kind: 'sandbox',
+          harness: 'claude-code',
+          capabilities: { skills: [], connectors: ['github'] },
+          archived: false,
+          updatedAt: 1,
+          generating: false,
+        },
+      ],
+    });
+    vi.mocked(useChatMessages).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL],
+        externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
+      },
+    });
+    vi.mocked(useComposerCapabilities).mockReturnValue({
+      status: 'ready',
+      data: {
+        skills: [],
+        connectors: [
+          { slug: 'github', label: 'GitHub' },
+          { slug: 'tavily', label: 'Tavily' },
+        ],
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+  });
+
+  it('re-hydrates the menu from the thread row instead of resetting to empty', async () => {
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Capabilities' }),
+      ).toHaveTextContent('Capabilities (1)');
+    });
+    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'GitHub' }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Tavily' }),
+    ).not.toBeChecked();
+  });
+
+  it('persists a toggle made mid-conversation onto the thread', async () => {
+    const save = vi.fn();
+    vi.mocked(useThreadCapabilities).mockReturnValue({
+      available: true,
+      save,
+    });
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Capabilities' }),
+      ).toHaveTextContent('Capabilities (1)');
+    });
+    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Tavily' }));
+
+    expect(save).toHaveBeenCalledWith('t-sbx', {
+      skills: [],
+      connectors: ['github', 'tavily'],
+    });
   });
 });

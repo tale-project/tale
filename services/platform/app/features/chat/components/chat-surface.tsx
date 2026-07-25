@@ -26,7 +26,7 @@ import { Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Cpu, PlugZap } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -43,6 +43,7 @@ import {
   useComposerCapabilities,
   useComposerModels,
   useHarnessHealth,
+  useThreadCapabilities,
 } from '../data/chat-backend';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { CanvasPanel } from './canvas/canvas-panel';
@@ -95,6 +96,7 @@ export function ChatSurface({
   const harnessHealth = useHarnessHealth(organizationId);
   const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
+  const threadCapabilities = useThreadCapabilities(organizationId);
 
   // The circuit-breaker set: harnesses the health signal flags as recently
   // failing, so the agent picker can mark them.
@@ -139,6 +141,26 @@ export function ChatSurface({
     );
   }, [threadPinsExternalAgent, activeThread?.harness]);
 
+  // Hydrate the capability picks from the open thread once its row loads.
+  // The assembly LIVES on the thread (`threads.capabilities`) and the surface
+  // remounts between the index and `$threadId`, so without this the menu
+  // reset to empty right after the first send — while the turn kept running
+  // with the set frozen on the row. Runs once per thread; toggles made
+  // in-session are left alone (a row echo arriving after a toggle must not
+  // wrestle the hand that just made it).
+  const capabilitiesHydratedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (threadId === undefined || activeThread === undefined) return;
+    if (capabilitiesHydratedFor.current === threadId) return;
+    capabilitiesHydratedFor.current = threadId;
+    const stored = activeThread.capabilities;
+    setSelection((previous) => ({
+      ...previous,
+      skills: stored?.skills ?? [],
+      connectors: stored?.connectors ?? [],
+    }));
+  }, [threadId, activeThread]);
+
   // Seed the default model once BOTH the listing and the user's sticky pick
   // have answered, so the seed lands once — never "first model, then the
   // saved one a beat later". Both lanes run a model — the external lane
@@ -157,6 +179,25 @@ export function ChatSurface({
   const handleSelectionChange = (next: ComposerSelection) => {
     if (next.modelId !== undefined && next.modelId !== selection.modelId) {
       modelPreference.save(next.modelId);
+    }
+    // A capability toggle in an open thread persists on the thread row the
+    // moment it is made — the next turn reads the row, and a remounted
+    // surface re-hydrates from it. (On the index there is no row yet; the
+    // picks travel with the send into `createThread`.) The menu builds fresh
+    // arrays per toggle, so identity is the change signal.
+    if (
+      threadId !== undefined &&
+      (next.skills !== selection.skills ||
+        next.connectors !== selection.connectors)
+    ) {
+      // The user's own toggle outranks the row: mark the thread hydrated so
+      // a thread list that answers AFTER the toggle (deep link, slow query)
+      // cannot clobber the fresher hand-made pick with the stale row.
+      capabilitiesHydratedFor.current = threadId;
+      threadCapabilities.save(threadId, {
+        skills: next.skills,
+        connectors: next.connectors,
+      });
     }
     setSelection(next);
   };

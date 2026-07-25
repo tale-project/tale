@@ -551,3 +551,141 @@ describe('chat threads — project filing', () => {
     expect(listed[0]?.projectId).toBeUndefined();
   });
 });
+
+/**
+ * The conversation's capability assembly must OUTLIVE the message it was
+ * toggled for: it is written on every toggle (`setThreadCapabilities`) and
+ * surfaced by the list/get projections so the composer re-hydrates after a
+ * remount. Before this, the assembly was frozen at `createThread` and never
+ * read back — re-toggling mid-conversation was a silent no-op and the menu
+ * reset to empty after the first send.
+ */
+describe('chat threads — capability assembly', () => {
+  it('persists a capability update and surfaces it through both projections', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'sandbox',
+        harness: 'claude-code',
+        capabilities: { skills: [], connectors: ['github'] },
+      });
+
+    const updated = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.setThreadCapabilities, {
+        organizationId: ORG_A,
+        threadId,
+        capabilities: { skills: ['docx'], connectors: ['github', 'tavily'] },
+      });
+    expect(updated).toBe(true);
+
+    const listed = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(listed[0]?.capabilities).toEqual({
+      skills: ['docx'],
+      connectors: ['github', 'tavily'],
+    });
+
+    const fetched = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(fetched?.capabilities).toEqual({
+      skills: ['docx'],
+      connectors: ['github', 'tavily'],
+    });
+  });
+
+  it('clears the assembly when every pick is toggled off, and dedupes on write', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'sandbox',
+        capabilities: { skills: [], connectors: ['github'] },
+      });
+
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.setThreadCapabilities, {
+        organizationId: ORG_A,
+        threadId,
+        capabilities: { skills: ['docx', 'docx', ''], connectors: [] },
+      });
+    const deduped = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(deduped?.capabilities).toEqual({ skills: ['docx'], connectors: [] });
+
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.setThreadCapabilities, {
+        organizationId: ORG_A,
+        threadId,
+        capabilities: { skills: [], connectors: [] },
+      });
+    const cleared = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(cleared?.capabilities).toBeUndefined();
+  });
+
+  it('refuses an update on a thread the caller does not own', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    await seedMember(t, BOB, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'sandbox',
+      });
+
+    const asBob = await t
+      .withIdentity({ subject: BOB })
+      .mutation(api.chat.threads.setThreadCapabilities, {
+        organizationId: ORG_A,
+        threadId,
+        capabilities: { skills: [], connectors: ['github'] },
+      });
+    expect(asBob).toBe(false);
+
+    const asAlice = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(asAlice?.capabilities).toBeUndefined();
+  });
+
+  it('rejects an assembly beyond the per-conversation ceiling', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'sandbox',
+      });
+
+    await expect(
+      t
+        .withIdentity({ subject: ALICE })
+        .mutation(api.chat.threads.setThreadCapabilities, {
+          organizationId: ORG_A,
+          threadId,
+          capabilities: {
+            skills: Array.from({ length: 26 }, (_, i) => `skill-${i}`),
+            connectors: [],
+          },
+        }),
+    ).rejects.toThrow(/at most/);
+  });
+});

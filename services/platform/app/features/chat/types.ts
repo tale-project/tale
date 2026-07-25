@@ -23,6 +23,12 @@ export interface ChatThreadSummary {
   readonly agentSlug?: string;
   /** The external agent pinned to a sandbox thread (absent on direct threads). */
   readonly harness?: string;
+  /** The conversation's capability assembly (the composer's Skills /
+   * Connectors picks) — the composer re-hydrates its menu from this. */
+  readonly capabilities?: {
+    readonly skills: readonly string[];
+    readonly connectors: readonly string[];
+  };
   /** The project the thread is filed under (absent = the loose Chats list). */
   readonly projectId?: string;
   readonly archived: boolean;

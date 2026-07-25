@@ -604,6 +604,62 @@ export function useThreadProjectMove(organizationId: string): {
 }
 
 /**
+ * Persist the conversation's capability assembly (the composer's Skills /
+ * Connectors picks) on its thread, so a toggle holds for every turn that
+ * follows — not merely the message it was made for. Fire-and-forget like the
+ * model preference: a lost write costs one re-toggle, never a blocked send.
+ * `available` mirrors the reads for a provider-less render.
+ */
+export function useThreadCapabilities(organizationId: string): {
+  readonly available: boolean;
+  readonly save: (
+    threadId: string,
+    capabilities: {
+      readonly skills: readonly string[];
+      readonly connectors: readonly string[];
+    },
+  ) => void;
+} {
+  const convex = useConvex();
+
+  const save = useCallback(
+    (
+      threadId: string,
+      capabilities: {
+        readonly skills: readonly string[];
+        readonly connectors: readonly string[];
+      },
+    ) => {
+      if (!convex) return;
+      convex
+        .mutation(api.chat.threads.setThreadCapabilities, {
+          organizationId,
+          threadId,
+          capabilities: {
+            skills: [...capabilities.skills],
+            connectors: [...capabilities.connectors],
+          },
+        })
+        .then(
+          (owned) => {
+            if (!owned) {
+              console.warn(
+                '[chat] capability save skipped: the thread is not the caller’s',
+              );
+            }
+          },
+          (error: unknown) => {
+            console.warn('[chat] could not save the capability picks', error);
+          },
+        );
+    },
+    [convex, organizationId],
+  );
+
+  return { available: convex !== undefined, save };
+}
+
+/**
  * Everything the Canvas panel reads about the open thread. The Canvas reflects
  * a sandbox session — a separate subsystem — so this reports `unavailable`
  * until that backend exists rather than rendering a panel with nothing behind
