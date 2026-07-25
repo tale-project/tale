@@ -14,11 +14,28 @@
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { AlertTriangle, Bot, ChevronDown, Sparkles } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, type ComponentType } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import type { ComposerExternalAgentOption, ComposerSelection } from '../types';
+
+/**
+ * A dropdown-item icon component for a harness's shipped icon: renders the
+ * inline data URL when the harness ships one, the generic agent glyph when it
+ * doesn't. Decorative — the item's label names the agent — so the image
+ * carries an empty alt. Built per URL because the menu's `icon` slot takes a
+ * component, not an element.
+ */
+function harnessIcon(
+  iconUrl: string | undefined,
+): ComponentType<{ className?: string }> {
+  if (iconUrl === undefined) return Bot;
+  return function HarnessIcon({ className }: { className?: string }) {
+    return <img src={iconUrl} alt="" className={cn('rounded-sm', className)} />;
+  };
+}
 
 interface ComposerAgentPickerProps {
   /** The third-party agents (sandbox harnesses) on offer. */
@@ -75,7 +92,7 @@ export function ComposerAgentPicker({
             label: degraded
               ? `${agent.label} · ${t('agentSelector.degraded')}`
               : agent.label,
-            icon: degraded ? AlertTriangle : Bot,
+            icon: degraded ? AlertTriangle : harnessIcon(agent.iconUrl),
             selected:
               selection.agentKind === 'external' &&
               agent.harness === selection.harness,

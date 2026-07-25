@@ -3,7 +3,7 @@
 # URL is the documented compatibility path of the Gemini API
 # (generativelanguage.googleapis.com); re-verify it against Google's current
 # docs when touching this file — Google moves API surfaces more often than
-# the others. Static model catalog (models/gemini.yml).
+# the others. Static model catalog (models/gemini/models.yml).
 #
 # The subscription method is the Gemini CLI's Google-account sign-in (the
 # Code Assist license tier): the stored secret is the CLI's OAuth

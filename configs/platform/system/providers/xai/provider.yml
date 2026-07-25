@@ -3,7 +3,7 @@
 # and its endpoint through the rebrand — api.x.ai stays live with a 12+
 # month migration window before any SpaceX-branded URL replaces it; update
 # baseUrl when that migration is announced. OpenAI-compatible wire format.
-# Static model catalog (models/xai.yml) — the vendor's /models listing is
+# Static model catalog (models/xai/models.yml) — the vendor's /models listing is
 # too sparse to normalize.
 name: xai
 displayName: SpaceXAI

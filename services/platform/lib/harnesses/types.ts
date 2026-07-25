@@ -6,7 +6,7 @@
 // The harness layer is CONFIG-FIRST: everything declarative — credential
 // policy, credential env keys, model-id dialect, prompt transport,
 // capabilities, pinned CLI version, AND the full exec construction facts —
-// lives in `configs/platform/system/harnesses/<slug>.yml` and validates
+// lives in `configs/platform/system/harnesses/<slug>/harness.yml` and validates
 // through `harnessConnectorSchema`. One generic interpreter
 // (`exec-builder.ts`) turns those facts plus a `HarnessRunSpec` into a
 // `HarnessExec`; the YAML's `parser` field keys the stream-parser family
@@ -42,7 +42,7 @@
 
 /**
  * The nine shipped harnesses. One fact file per slug
- * (`configs/platform/system/harnesses/<slug>.yml`) carries the complete
+ * (`configs/platform/system/harnesses/<slug>/harness.yml`) carries the complete
  * declarative surface; the registry composes each into a `HarnessGlue`.
  */
 export const HARNESS_SLUGS = [

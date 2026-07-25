@@ -102,6 +102,8 @@ export interface ComposerModelOption {
 export interface ComposerExternalAgentOption {
   readonly harness: string;
   readonly label: string;
+  /** The harness's shipped icon, inlined as a data URL. */
+  readonly iconUrl?: string;
 }
 
 /** An agent configuration the slim agent picker offers. */

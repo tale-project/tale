@@ -204,8 +204,9 @@ describe('registry-completeness posture (fixture tree)', () => {
     for (const subdir of ['providers', 'models', 'harnesses']) {
       await mkdir(path.join(root, subdir));
     }
+    await mkdir(path.join(root, 'providers', 'openai'));
     await writeFile(
-      path.join(root, 'providers', 'openai.yml'),
+      path.join(root, 'providers', 'openai', 'provider.yml'),
       [
         'name: openai',
         'displayName: OpenAI',
@@ -235,9 +236,10 @@ describe('registry-completeness posture (fixture tree)', () => {
     expect(() => loadProviderConnectors({ root })).toThrow(/notes\.txt/);
   });
 
-  it('errors on a connector whose name differs from its file name', async () => {
+  it('errors on a connector whose name differs from its directory name', async () => {
+    await mkdir(path.join(root, 'providers', 'renamed'));
     await writeFile(
-      path.join(root, 'providers', 'renamed.yml'),
+      path.join(root, 'providers', 'renamed', 'provider.yml'),
       [
         'name: openai-two',
         'displayName: OpenAI',
@@ -251,13 +253,14 @@ describe('registry-completeness posture (fixture tree)', () => {
       ].join('\n'),
     );
     expect(() => loadProviderConnectors({ root })).toThrow(
-      /must match the file name "renamed"/,
+      /must match its directory name "renamed"/,
     );
   });
 
   it('errors on a catalog entry declaring a foreign provider', async () => {
+    await mkdir(path.join(root, 'models', 'openai'));
     await writeFile(
-      path.join(root, 'models', 'openai.yml'),
+      path.join(root, 'models', 'openai', 'models.yml'),
       [
         '- id: claude-fable-5',
         '  provider: anthropic',
@@ -274,8 +277,9 @@ describe('registry-completeness posture (fixture tree)', () => {
   });
 
   it('errors on a schema violation with the file path in the message', async () => {
+    await mkdir(path.join(root, 'harnesses', 'cursor'));
     await writeFile(
-      path.join(root, 'harnesses', 'cursor.yml'),
+      path.join(root, 'harnesses', 'cursor', 'harness.yml'),
       [
         'slug: cursor',
         'displayName: Cursor',
@@ -293,7 +297,24 @@ describe('registry-completeness posture (fixture tree)', () => {
         '',
       ].join('\n'),
     );
-    expect(() => loadHarnesses({ root })).toThrow(/cursor\.yml/);
+    expect(() => loadHarnesses({ root })).toThrow(/harness\.yml/);
+  });
+
+  it('errors on an entry directory missing its canonical file', async () => {
+    await mkdir(path.join(root, 'providers', 'empty-entry'));
+    expect(() => loadProviderConnectors({ root })).toThrow(
+      /missing its provider\.yml/,
+    );
+  });
+
+  it('leaves entry assets like icon.svg alone', async () => {
+    await writeFile(
+      path.join(root, 'providers', 'openai', 'icon.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    );
+    expect(loadProviderConnectors({ root }).map((c) => c.name)).toEqual([
+      'openai',
+    ]);
   });
 
   it('errors when a shipped directory is missing entirely', async () => {

@@ -1,6 +1,6 @@
 # AI provider connector — Z.ai (Zhipu's international brand, the GLM model
 # family). API traffic rides the vendor's explicit OpenAI-compatibility
-# path. Static model catalog (models/zai.yml).
+# path. Static model catalog (models/zai/models.yml).
 #
 # The subscription method is the GLM Coding Plan: a static plan key that
 # only serves agentic coding traffic through Z.ai's Anthropic-compatible

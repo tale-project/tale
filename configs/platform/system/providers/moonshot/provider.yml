@@ -1,5 +1,5 @@
 # AI provider connector — Moonshot AI (the Kimi model family), on its
-# OpenAI-compatible platform API. Static model catalog (models/moonshot.yml).
+# OpenAI-compatible platform API. Static model catalog (models/moonshot/models.yml).
 #
 # The subscription method is Kimi's coding-plan key: it rides Moonshot's
 # Anthropic-compatible endpoint for agentic coding tools only, so it forces

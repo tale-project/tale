@@ -19,6 +19,7 @@ import { v } from 'convex/values';
 import { action } from '../../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../auth/require_org_admin_or_developer';
 import { getConnectorCatalog } from './catalog_fetch';
+import { readSystemEntryIcon } from './load_system_config';
 import { resolveConnectorsForOrgId } from './org_connectors';
 
 const modelEntryValidator = v.object({
@@ -45,6 +46,8 @@ const modelEntryValidator = v.object({
 const connectorCatalogValidator = v.object({
   name: v.string(),
   displayName: v.string(),
+  /** The connector's shipped `icon.svg`, inlined as a data URL. */
+  iconUrl: v.optional(v.string()),
   apiFormat: v.union(v.literal('openai'), v.literal('anthropic')),
   /** Absent for per-credential-endpoint connectors (Azure). */
   baseUrl: v.optional(v.string()),
@@ -89,9 +92,11 @@ export const listProviderCatalogs = action({
           err,
         );
       }
+      const iconUrl = readSystemEntryIcon('providers', connector.name);
       results.push({
         name: connector.name,
         displayName: connector.displayName,
+        ...(iconUrl !== undefined && { iconUrl }),
         apiFormat: connector.apiFormat,
         ...(connector.baseUrl !== undefined && { baseUrl: connector.baseUrl }),
         ...(connector.endpointMode !== undefined && {

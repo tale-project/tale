@@ -1,6 +1,6 @@
 # AI provider connector — Qwen (Alibaba Cloud Model Studio / DashScope,
 # international endpoint) via its OpenAI compatible-mode path. Static model
-# catalog (models/qwen.yml).
+# catalog (models/qwen/models.yml).
 #
 # The Qwen Code CLI is available as a sandbox HARNESS with these same
 # credentials (its own hosted OAuth free tier was discontinued 2026-04-15,

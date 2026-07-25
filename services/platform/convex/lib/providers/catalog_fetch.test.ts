@@ -75,7 +75,7 @@ describe('getConnectorCatalog — live sources', () => {
   it('fetches OpenRouter once, serves the cache within the daily window, and appends the shipped defaults', async () => {
     mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
     const first = await getConnectorCatalog(OPENROUTER);
-    // Fetched entries lead; the shipped models/openrouter.yml defaults
+    // Fetched entries lead; the shipped models/openrouter/models.yml defaults
     // follow for every id the listing didn't carry. The fetched
     // claude-sonnet-5 wins over the default of the same id (exactly one).
     expect(first.slice(0, 2).map((e) => e.id)).toEqual([

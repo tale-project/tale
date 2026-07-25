@@ -1,5 +1,5 @@
 # AI provider connector — Anthropic's own API (Messages wire shape). Static
-# model catalog (models/anthropic.yml). Besides key-based auth, a Claude
+# model catalog (models/anthropic/models.yml). Besides key-based auth, a Claude
 # subscription can be attached through an OAuth token broker; that credential
 # only works inside the vendor's own CLI, so it forces sandbox execution with
 # the claude-code harness (enforced by the execution-resolution case split).

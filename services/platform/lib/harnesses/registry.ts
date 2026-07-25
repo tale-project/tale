@@ -1,5 +1,5 @@
 // The harness registry, config-first: a harness IS its fact file
-// (`configs/platform/system/harnesses/<slug>.yml`). `composeHarnessGlue`
+// (`configs/platform/system/harnesses/<slug>/harness.yml`). `composeHarnessGlue`
 // turns one validated fact into the `HarnessGlue` surface — `buildExec` is
 // the generic interpreter (`exec-builder.ts`) bound to the fact's `exec`
 // section, `createParser` the slug-bound parser family named by its `parser`

@@ -1,17 +1,21 @@
 'use node';
 
 /**
- * Loader for the shipped AI-provider system config —
- * `configs/platform/system/{providers,models,harnesses}/*.yml`.
+ * Loader for the shipped AI-provider system config — one directory per entry,
+ * holding that entry's canonical file (the same layout the integrations
+ * catalog uses, so an entry can carry siblings like `icon.svg`):
+ * `providers/<name>/provider.yml`, `models/<provider>/models.yml`,
+ * `harnesses/<slug>/harness.yml`.
  *
- * The directory listing IS the registry: every file in a shipped dir must
- * parse through the safe YAML loader and validate against its Zod schema,
- * a file's name must equal the identity it declares (`openrouter.yml` ⇒
- * `name: openrouter`; `pi.yml` ⇒ `slug: pi`; every entry in
- * `models/anthropic.yml` ⇒ `provider: anthropic`), and an unexpected file —
- * a stray extension, a subdirectory — is an error, never silently skipped.
- * Any violation is a packaging defect and throws with the file path in the
- * message.
+ * The directory listing IS the registry: every entry directory must hold its
+ * canonical file, the file must parse through the safe YAML loader and
+ * validate against its Zod schema, and the directory's name must equal the
+ * identity the file declares (`providers/openrouter/` ⇒ `name: openrouter`;
+ * `harnesses/pi/` ⇒ `slug: pi`; every entry of `models/anthropic/models.yml`
+ * ⇒ `provider: anthropic`). A stray top-level file is an error, never
+ * silently skipped; other files INSIDE an entry directory (`icon.svg`) are
+ * that entry's assets and are left alone. Any violation is a packaging
+ * defect and throws with the path in the message.
  *
  * Caching mirrors the pii data loader: parses are memoized per absolute
  * path keyed on (mtimeMs, size), and each directory's assembled result is
@@ -28,7 +32,7 @@
  * checkout's convex dev process.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { z } from 'zod/v4';
@@ -123,29 +127,39 @@ function sameStamp(a: FileStamp, b: FileStamp): boolean {
 }
 
 /**
- * List a shipped config dir under the registry-completeness posture:
- * `.yml`/`.yaml` files are returned; dotfiles (editor/OS droppings like
- * `.DS_Store`) are deliberately ignored; anything else in the dir is a
- * packaging error.
+ * List a shipped config dir under the registry-completeness posture: every
+ * entry is a DIRECTORY named after its identity, holding the kind's
+ * canonical file (`provider.yml` / `models.yml` / `harness.yml`) — the file
+ * an entry cannot exist without. Dotfiles (editor/OS droppings like
+ * `.DS_Store`) are deliberately ignored; any other top-level file is a
+ * packaging error. Files beside the canonical one inside an entry directory
+ * (`icon.svg`) are the entry's assets and are not listed here.
  */
-function listConfigDir(dir: string): StampedFile[] {
+function listConfigDir(dir: string, canonicalFile: string): StampedFile[] {
   if (!isDirectory(dir)) {
     throw new Error(`[providers] missing shipped config directory: ${dir}`);
   }
   const files: StampedFile[] = [];
   for (const name of readdirSync(dir).sort()) {
     if (name.startsWith('.')) continue;
-    const filePath = path.join(dir, name);
-    const stat = statSync(filePath);
-    const extension = path.extname(name);
-    if (stat.isDirectory() || (extension !== '.yml' && extension !== '.yaml')) {
+    const entryDir = path.join(dir, name);
+    if (!statSync(entryDir).isDirectory()) {
       throw new Error(
-        `[providers] unexpected entry in shipped config directory: ${filePath} — only .yml files belong here`,
+        `[providers] unexpected entry in shipped config directory: ${entryDir} — every entry is a directory holding its ${canonicalFile}`,
+      );
+    }
+    const filePath = path.join(entryDir, canonicalFile);
+    let stat;
+    try {
+      stat = statSync(filePath);
+    } catch {
+      throw new Error(
+        `[providers] entry directory ${entryDir} is missing its ${canonicalFile}`,
       );
     }
     files.push({
       filePath,
-      stem: name.slice(0, -extension.length),
+      stem: name,
       stamp: { mtimeMs: stat.mtimeMs, size: stat.size },
     });
   }
@@ -192,13 +206,14 @@ function parseFile<T>(
 function loadDir<T>(
   root: string,
   subdir: string,
+  canonicalFile: string,
   parseCache: Map<string, CachedParse<T>>,
   dirCache: Map<string, CachedDir<T>>,
   allowArrayRoot: boolean,
   validate: (data: unknown, file: StampedFile) => T,
 ): readonly T[] {
   const dir = path.join(root, subdir);
-  const files = listConfigDir(dir);
+  const files = listConfigDir(dir, canonicalFile);
 
   const stamps = new Map<string, FileStamp>();
   for (const file of files) {
@@ -240,13 +255,14 @@ const catalogDirCache = new Map<
 const harnessParseCache = new Map<string, CachedParse<HarnessConnector>>();
 const harnessDirCache = new Map<string, CachedDir<HarnessConnector>>();
 
-/** Load the shipped provider connectors (`providers/<name>.yml`). */
+/** Load the shipped provider connectors (`providers/<name>/provider.yml`). */
 export function loadProviderConnectors(
   options: LoadSystemConfigOptions = {},
 ): readonly ProviderConnector[] {
   return loadDir(
     resolveRoot(options),
     'providers',
+    'provider.yml',
     connectorParseCache,
     connectorDirCache,
     false,
@@ -254,7 +270,7 @@ export function loadProviderConnectors(
       const connector = providerConnectorSchema.parse(data);
       if (connector.name !== file.stem) {
         throw new Error(
-          `connector name "${connector.name}" must match the file name "${file.stem}"`,
+          `connector name "${connector.name}" must match its directory name "${file.stem}"`,
         );
       }
       return connector;
@@ -263,9 +279,9 @@ export function loadProviderConnectors(
 }
 
 /**
- * Load the shipped static model catalogs (`models/<provider>.yml`), keyed
- * by provider slug. Every entry's `provider` must equal its file name — a
- * catalog file cannot smuggle entries for another connector.
+ * Load the shipped static model catalogs (`models/<provider>/models.yml`),
+ * keyed by provider slug. Every entry's `provider` must equal its directory
+ * name — a catalog cannot smuggle entries for another connector.
  */
 export function loadStaticCatalogs(
   options: LoadSystemConfigOptions = {},
@@ -273,6 +289,7 @@ export function loadStaticCatalogs(
   const catalogs = loadDir(
     resolveRoot(options),
     'models',
+    'models.yml',
     catalogParseCache,
     catalogDirCache,
     true,
@@ -281,7 +298,7 @@ export function loadStaticCatalogs(
       for (const entry of entries) {
         if (entry.provider !== file.stem) {
           throw new Error(
-            `model "${entry.id}" declares provider "${entry.provider}" but lives in ${file.stem}.yml`,
+            `model "${entry.id}" declares provider "${entry.provider}" but lives in models/${file.stem}/`,
           );
         }
       }
@@ -295,13 +312,14 @@ export function loadStaticCatalogs(
   );
 }
 
-/** Load the shipped harness connectors (`harnesses/<slug>.yml`). */
+/** Load the shipped harness connectors (`harnesses/<slug>/harness.yml`). */
 export function loadHarnesses(
   options: LoadSystemConfigOptions = {},
 ): readonly HarnessConnector[] {
   return loadDir(
     resolveRoot(options),
     'harnesses',
+    'harness.yml',
     harnessParseCache,
     harnessDirCache,
     false,
@@ -309,10 +327,37 @@ export function loadHarnesses(
       const harness = harnessConnectorSchema.parse(data);
       if (harness.slug !== file.stem) {
         throw new Error(
-          `harness slug "${harness.slug}" must match the file name "${file.stem}"`,
+          `harness slug "${harness.slug}" must match its directory name "${file.stem}"`,
         );
       }
       return harness;
     },
   );
+}
+
+/**
+ * A shipped entry's `icon.svg` as an inline data URL, or `undefined` when it
+ * ships none. Served inline for the same reasons the integrations catalog
+ * serves its icons inline: the SVGs are small, identical for every
+ * organization, and live in the same tree the entries themselves resolve
+ * from — no extra HTTP surface, and the UI falls back to its placeholder.
+ */
+export function readSystemEntryIcon(
+  kind: 'providers' | 'harnesses',
+  slug: string,
+  options: LoadSystemConfigOptions = {},
+): string | undefined {
+  const file = path.join(resolveRoot(options), kind, slug, 'icon.svg');
+  if (!existsSync(file)) return undefined;
+  try {
+    const svg = readFileSync(file, 'utf8');
+    return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
+  } catch (err) {
+    console.warn(
+      `[providers] icon.svg for ${kind}/${slug} is present but unreadable: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return undefined;
+  }
 }

@@ -27,7 +27,10 @@ import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
 import { credentialAuthFor } from '../lib/providers/credential_auth';
-import { loadHarnesses } from '../lib/providers/load_system_config';
+import {
+  loadHarnesses,
+  readSystemEntryIcon,
+} from '../lib/providers/load_system_config';
 import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
 
 /** The forced-execution constraints a subscription credential carries. */
@@ -64,6 +67,8 @@ const composerModelOptionValidator = v.object({
 const composerExternalAgentValidator = v.object({
   harness: v.string(),
   label: v.string(),
+  /** The harness's shipped `icon.svg`, inlined as a data URL. */
+  iconUrl: v.optional(v.string()),
 });
 
 type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
@@ -156,7 +161,13 @@ export const listComposerModels = action({
     // offer what can't run — the plan's honesty gate.
     const externalAgents: ComposerExternalAgentOption[] = loadHarnesses()
       .filter((harness) => harness.credentialPolicy.managed)
-      .map((harness) => ({ harness: harness.slug, label: harness.displayName }))
+      .map((harness) => ({
+        harness: harness.slug,
+        label: harness.displayName,
+        // Convex drops undefined fields at serialization, matching the
+        // validator's optional iconUrl.
+        iconUrl: readSystemEntryIcon('harnesses', harness.slug),
+      }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
     return { models, externalAgents };

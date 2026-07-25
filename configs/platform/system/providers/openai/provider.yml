@@ -1,5 +1,5 @@
 # AI provider connector — OpenAI's own API. Static model catalog
-# (models/openai.yml): the vendor's listing endpoint carries no capability or
+# (models/openai/models.yml): the vendor's listing endpoint carries no capability or
 # pricing metadata worth normalizing.
 name: openai
 displayName: OpenAI

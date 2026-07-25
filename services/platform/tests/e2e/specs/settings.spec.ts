@@ -12,7 +12,7 @@ import { t } from '../helpers/i18n';
  * the worker's isolated org is left as it was found.
  */
 
-// A shipped provider connector (`configs/platform/system/providers/*.yml`) —
+// A shipped provider connector (`configs/platform/system/providers/*/provider.yml`) —
 // always present, independent of org data. `displayName` renders as the
 // connector section's heading. A config literal, kept local (not via `t()`).
 const SHIPPED_PROVIDER_DISPLAY_NAME = 'Anthropic';

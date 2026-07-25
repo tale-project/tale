@@ -2,17 +2,17 @@
  * AI-provider system-config schemas — the shapes of the three shipped config
  * trees under `configs/platform/system/`:
  *
- *  - `providers/<name>.yml`  → {@link providerConnectorSchema} — a provider
+ *  - `providers/<name>/provider.yml`  → {@link providerConnectorSchema} — a provider
  *    CONNECTOR: which wire dialect the endpoint speaks, where it lives, how
  *    its model catalog is sourced, and which credential auth methods it
  *    accepts. Credentials themselves are org data (the `providerCredentials`
  *    table), never part of the connector.
- *  - `models/<provider>.yml` → {@link modelCatalogFileSchema} — the static
+ *  - `models/<provider>/models.yml` → {@link modelCatalogFileSchema} — the static
  *    model catalog for connectors with `catalog.source: static`; one
  *    normalized {@link modelCatalogEntrySchema} shape shared with the
  *    API-fetched catalogs (OpenRouter, models-endpoint), so everything
  *    downstream reads one model vocabulary.
- *  - `harnesses/<slug>.yml`  → {@link harnessConnectorSchema} — the
+ *  - `harnesses/<slug>/harness.yml`  → {@link harnessConnectorSchema} — the
  *    declarative facts of a sandbox coding harness: credential policy,
  *    credential env keys, model-id dialect, prompt transport, capabilities,
  *    the `parser` stream-dialect family, and the full `exec` construction
@@ -193,7 +193,7 @@ export type ProviderAuthMethod = z.infer<typeof providerAuthMethodSchema>;
 /** The auth-method discriminant values — the credential-side vocabulary. */
 export type ProviderAuthMethodName = ProviderAuthMethod['method'];
 
-/** The shape of one `configs/platform/system/providers/<name>.yml`. */
+/** The shape of one `configs/platform/system/providers/<name>/provider.yml`. */
 export const providerConnectorSchema = z
   .object({
     name: slugSchema,
@@ -841,7 +841,7 @@ function argvSlotKind(slot: Record<string, unknown>): string {
   return Object.keys(slot)[0] ?? '';
 }
 
-/** The shape of one `configs/platform/system/harnesses/<slug>.yml`. */
+/** The shape of one `configs/platform/system/harnesses/<slug>/harness.yml`. */
 export const harnessConnectorSchema = z
   .object({
     slug: slugSchema,
