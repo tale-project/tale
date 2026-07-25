@@ -74,6 +74,12 @@ export const WORLD_USERS = {
 const T0 = WORLD_EPOCH_MS;
 
 /**
+ * 2100-01-01T00:00:00Z — a heartbeat no stale-sweep cron ever reaps (see the
+ * generations insert below for why the world's one in-flight row needs it).
+ */
+const WORLD_SWEEP_PROOF_HEARTBEAT_MS = 4102444800000;
+
+/**
  * Seed every baseline row. Runs inside one `t.run` transaction; inserts are
  * schema-validated by convex-test against the real production schema, so a
  * live-schema change that breaks the corpus fails HERE, not mid-suite.
@@ -184,26 +190,22 @@ export async function seedWorldDb(
     sequence: 2,
     createdAt: T0 + 4_200,
   });
-  // External-lane on purpose: recoverStaleDirectGenerations (a 2-minute cron
-  // in the LIVE stack the container e2e boots) deletes any direct-lane row
-  // whose heartbeat went stale — which this frozen world row always is — and
-  // reaped it mid-test between the seeded and post-down world digests. An
-  // external-lane generation is settled only through its agent-run op row,
-  // and the world seeds none, so this row is sweep-proof at rest.
+  // The heartbeat sits far in the FUTURE on purpose: the live stack the
+  // container e2e boots runs recoverStaleDirectGenerations (2-min cron),
+  // which DELETES any direct-lane generations row whose heartbeat went
+  // stale — and every T0-anchored heartbeat is years stale, so the cron ate
+  // this row mid-test between the seeded and post-down world digests.
+  // Schema-wise the field is just a number, nothing asserts heartbeat
+  // sanity, and the row must stay shaped as the BASELINE release knows it
+  // (no post-0.4.1 fields here — the versions suite validates the world
+  // against the real 0.4.1 checkpoint schema).
   await ctx.db.insert('generations', {
     organizationId: alpha,
     threadId: String(alphaChatThread),
     status: 'queued',
     streamId: 'world-stream-alpha-1',
-    external: {
-      execId: 'world-exec-alpha-1',
-      lastSeq: 0,
-      harness: 'claude-code',
-      providerSlug: 'anthropic',
-      gatewayModel: 'claude-sonnet-5',
-    },
     startedAt: T0 + 4_150,
-    heartbeatAt: T0 + 4_150,
+    heartbeatAt: WORLD_SWEEP_PROOF_HEARTBEAT_MS,
   });
   await ctx.db.insert('memories', {
     organizationId: alpha,
