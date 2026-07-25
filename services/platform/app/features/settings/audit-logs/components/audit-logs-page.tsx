@@ -186,14 +186,19 @@ export function AuditLogsPage({
           value={activeTab}
           onValueChange={onTabChange}
           className="flex min-h-0 flex-1 flex-col"
-          actions={
-            <Row gap={2}>
-              {showCategoryFilter && (
-                <DataTableFilters
-                  filters={auditFilterConfigs}
-                  onClearAll={handleClearFilters}
-                />
-              )}
+          // Per-view controls live under the strip, not on it: the filter
+          // opens the view's data, so it reads from the left; export acts on
+          // it, so it sits right.
+          toolbar={
+            <Row gap={2} justify="between">
+              <Row gap={2}>
+                {showCategoryFilter && (
+                  <DataTableFilters
+                    filters={auditFilterConfigs}
+                    onClearAll={handleClearFilters}
+                  />
+                )}
+              </Row>
               {isAdminUser && (
                 <DropdownMenu
                   align="end"

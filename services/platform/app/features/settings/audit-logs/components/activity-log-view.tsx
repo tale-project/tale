@@ -8,7 +8,7 @@ import { Text } from '@tale/ui/text';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState } from 'react';
 
-import { Select } from '@/app/components/ui/forms/select';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import type { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
@@ -135,15 +135,22 @@ function ActivityLogViewInner({
 
   return (
     <Stack gap={6}>
-      <HStack gap={2} className="justify-end">
-        <div className="w-36">
-          <Select
-            options={periodOptions}
-            value={String(periodDays)}
-            onValueChange={onPeriod}
-            aria-label={t('logs.activity.period.label')}
-          />
-        </div>
+      {/* Same filter affordance as the sibling log views — a filter button,
+          left-aligned in the view's toolbar row. Single-select; clearing it
+          falls back to the default period rather than an unfiltered view,
+          because the summary always needs a window. */}
+      <HStack gap={2}>
+        <DataTableFilters
+          filters={[
+            {
+              key: 'period',
+              title: t('logs.activity.period.label'),
+              options: periodOptions,
+              selectedValues: [String(periodDays)],
+              onChange: (values) => onPeriod(values[0] ?? '30'),
+            },
+          ]}
+        />
       </HStack>
 
       <StatCardGrid>

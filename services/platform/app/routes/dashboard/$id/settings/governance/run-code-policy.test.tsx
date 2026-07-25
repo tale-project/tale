@@ -83,10 +83,10 @@ afterEach(() => {
 });
 
 function pythonAllow() {
-  return screen.getByLabelText('Python allow list');
+  return screen.getByRole('textbox', { name: 'Python allow list' });
 }
 function nodeAllow() {
-  return screen.getByLabelText('Node allow list');
+  return screen.getByRole('textbox', { name: 'Node allow list' });
 }
 
 // The page docks Save/Discard in the settings header via the active-editor

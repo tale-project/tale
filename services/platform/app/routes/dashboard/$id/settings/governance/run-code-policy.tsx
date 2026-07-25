@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { CheckCircle2, XCircle } from 'lucide-react';
@@ -15,6 +15,10 @@ import {
 import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
@@ -280,120 +284,152 @@ function RunCodePolicyRoute() {
           title={t('runCodePolicy.modeSectionTitle')}
           description={t('runCodePolicy.modeSectionDescription')}
         >
-          <RadioGroup
-            value={form.defaultMode}
-            onValueChange={(value) => {
-              if (value === 'allowlist' || value === 'denylist') {
-                updateField('defaultMode', value);
-              }
-            }}
-            options={[
-              {
-                value: 'denylist',
-                label: t('runCodePolicy.modeDenylistLabel'),
-                description: t('runCodePolicy.modeDenylistDescription'),
-                disabled: cannotManage,
-              },
-              {
-                value: 'allowlist',
-                label: t('runCodePolicy.modeAllowlistLabel'),
-                description: t('runCodePolicy.modeAllowlistDescription'),
-                disabled: cannotManage,
-              },
-            ]}
-          />
+          <SettingsFieldList>
+            <SettingsFieldRow
+              label={t('runCodePolicy.modeSectionTitle')}
+              wideControl
+            >
+              <RadioGroup
+                aria-label={t('runCodePolicy.modeSectionTitle')}
+                value={form.defaultMode}
+                onValueChange={(value) => {
+                  if (value === 'allowlist' || value === 'denylist') {
+                    updateField('defaultMode', value);
+                  }
+                }}
+                options={[
+                  {
+                    value: 'denylist',
+                    label: t('runCodePolicy.modeDenylistLabel'),
+                    description: t('runCodePolicy.modeDenylistDescription'),
+                    disabled: cannotManage,
+                  },
+                  {
+                    value: 'allowlist',
+                    label: t('runCodePolicy.modeAllowlistLabel'),
+                    description: t('runCodePolicy.modeAllowlistDescription'),
+                    disabled: cannotManage,
+                  },
+                ]}
+              />
+            </SettingsFieldRow>
+          </SettingsFieldList>
         </SettingsSection>
 
         <SettingsSection
           title={t('runCodePolicy.pythonSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
-          <Stack gap={4} className="max-w-3xl">
-            <Textarea
+          <SettingsFieldList>
+            <SettingsFieldRow
               label={t('runCodePolicy.pythonAllowLabel')}
               description={t('runCodePolicy.pythonAllowDescription')}
-              placeholder={t('runCodePolicy.pythonPlaceholder')}
-              value={form.pythonAllowText}
-              onChange={(e) => updateField('pythonAllowText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-            <Textarea
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.pythonAllowLabel')}
+                placeholder={t('runCodePolicy.pythonPlaceholder')}
+                value={form.pythonAllowText}
+                onChange={(e) => updateField('pythonAllowText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+            <SettingsFieldRow
               label={t('runCodePolicy.pythonDenyLabel')}
               description={t('runCodePolicy.pythonDenyDescription')}
-              placeholder={t('runCodePolicy.pythonPlaceholder')}
-              value={form.pythonDenyText}
-              onChange={(e) => updateField('pythonDenyText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-          </Stack>
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.pythonDenyLabel')}
+                placeholder={t('runCodePolicy.pythonPlaceholder')}
+                value={form.pythonDenyText}
+                onChange={(e) => updateField('pythonDenyText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+          </SettingsFieldList>
         </SettingsSection>
 
         <SettingsSection
           title={t('runCodePolicy.nodeSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
-          <Stack gap={4} className="max-w-3xl">
-            <Textarea
+          <SettingsFieldList>
+            <SettingsFieldRow
               label={t('runCodePolicy.nodeAllowLabel')}
               description={t('runCodePolicy.nodeAllowDescription')}
-              placeholder={t('runCodePolicy.nodePlaceholder')}
-              value={form.nodeAllowText}
-              onChange={(e) => updateField('nodeAllowText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-            <Textarea
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.nodeAllowLabel')}
+                placeholder={t('runCodePolicy.nodePlaceholder')}
+                value={form.nodeAllowText}
+                onChange={(e) => updateField('nodeAllowText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+            <SettingsFieldRow
               label={t('runCodePolicy.nodeDenyLabel')}
               description={t('runCodePolicy.nodeDenyDescription')}
-              placeholder={t('runCodePolicy.nodePlaceholder')}
-              value={form.nodeDenyText}
-              onChange={(e) => updateField('nodeDenyText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-          </Stack>
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.nodeDenyLabel')}
+                placeholder={t('runCodePolicy.nodePlaceholder')}
+                value={form.nodeDenyText}
+                onChange={(e) => updateField('nodeDenyText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+          </SettingsFieldList>
         </SettingsSection>
 
         <SettingsSection
           title={t('runCodePolicy.testerTitle')}
           description={t('runCodePolicy.testerDescription')}
         >
-          <Stack gap={3} className="max-w-3xl">
-            <RadioGroup
-              label={t('runCodePolicy.testerBucketLabel')}
-              value={testBucket}
-              onValueChange={(value) => {
-                if (value === 'python' || value === 'node') {
-                  setTestBucket(value);
-                }
-              }}
-              columns={2}
-              options={[
-                { value: 'python', label: t('runCodePolicy.bucketPython') },
-                { value: 'node', label: t('runCodePolicy.bucketNode') },
-              ]}
-            />
-            <Input
-              label={t('runCodePolicy.testerInputLabel')}
-              placeholder={
-                testBucket === 'python'
-                  ? t('runCodePolicy.testerPlaceholderPython')
-                  : t('runCodePolicy.testerPlaceholderNode')
-              }
-              value={testInput}
-              onChange={(e) => setTestInput(e.target.value)}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleRunTest}
-              className="self-start"
-              disabled={testInput.trim().length === 0}
-            >
-              {t('runCodePolicy.testerButton')}
-            </Button>
+          <Stack gap={4}>
+            <SettingsFieldList>
+              <SettingsFieldRow label={t('runCodePolicy.testerBucketLabel')}>
+                <RadioGroup
+                  aria-label={t('runCodePolicy.testerBucketLabel')}
+                  value={testBucket}
+                  onValueChange={(value) => {
+                    if (value === 'python' || value === 'node') {
+                      setTestBucket(value);
+                    }
+                  }}
+                  columns={2}
+                  options={[
+                    { value: 'python', label: t('runCodePolicy.bucketPython') },
+                    { value: 'node', label: t('runCodePolicy.bucketNode') },
+                  ]}
+                />
+              </SettingsFieldRow>
+              <SettingsFieldRow label={t('runCodePolicy.testerInputLabel')}>
+                <Input
+                  aria-label={t('runCodePolicy.testerInputLabel')}
+                  placeholder={
+                    testBucket === 'python'
+                      ? t('runCodePolicy.testerPlaceholderPython')
+                      : t('runCodePolicy.testerPlaceholderNode')
+                  }
+                  value={testInput}
+                  onChange={(e) => setTestInput(e.target.value)}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
+            <Row justify="end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleRunTest}
+                disabled={testInput.trim().length === 0}
+              >
+                {t('runCodePolicy.testerButton')}
+              </Button>
+            </Row>
 
             {testRows.length > 0 && (
               <Card padding="none" className="overflow-hidden">
