@@ -15,12 +15,15 @@ interface ColorPickerInputProps {
   onChange: (value: string) => void;
   label: string;
   id?: string;
+  /** Extra classes for the row frame — e.g. the divided list's `py-5`. */
+  className?: string;
 }
 
 export function ColorPickerInput({
   value,
   onChange,
   label,
+  className,
   id,
 }: ColorPickerInputProps) {
   const { t } = useT('settings');
@@ -111,7 +114,10 @@ export function ColorPickerInput({
   );
 
   return (
-    <SettingsRow label={label}>
+    <SettingsRow
+      label={label}
+      {...(className !== undefined ? { className } : {})}
+    >
       {loading ? <SkeletonBox>{control}</SkeletonBox> : control}
     </SettingsRow>
   );

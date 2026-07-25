@@ -857,6 +857,13 @@ export const conversationAccessConfigSchema = z.object({
  * order. Missing row / empty `rules` ⇒ no routing.
  */
 export const conversationRoutingConfigSchema = z.object({
+  /**
+   * Whether routing runs at all — the section's toggle. Absent means "decide
+   * from the rules": an org that configured routing before this flag existed
+   * keeps it, a fresh org (no rules) reads as off. Only an explicit `false`
+   * silences configured rules.
+   */
+  enabled: z.boolean().optional(),
   rules: z
     .array(
       z.object({

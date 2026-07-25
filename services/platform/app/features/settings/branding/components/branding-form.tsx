@@ -20,7 +20,7 @@ import {
   useRegisterActiveEditor,
 } from '@/app/components/ui/editor';
 import { Form } from '@/app/components/ui/forms/form';
-import { FormSection } from '@/app/components/ui/forms/form-section';
+import { SettingsFieldList } from '@/app/features/settings/components/settings-field-list';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { useToast } from '@/app/hooks/use-toast';
@@ -307,8 +307,11 @@ export function BrandingForm({
       className="w-full max-w-sm shrink-0 space-y-0 self-start"
     >
       <Stack gap={0} justify="between" className="h-full">
-        <FormSection className="gap-6">
+        {/* One divided list, like every settings section: a hairline between
+            Logo, Favicon and Accent color. */}
+        <SettingsFieldList>
           <SettingsRow
+            className="py-5"
             label={t('branding.logo')}
             description={t('branding.logoDescription')}
           >
@@ -332,6 +335,7 @@ export function BrandingForm({
           </SettingsRow>
 
           <SettingsRow
+            className="py-5"
             label={t('branding.favicon')}
             description={t('branding.faviconDescription')}
           >
@@ -388,13 +392,14 @@ export function BrandingForm({
             render={({ field }) => (
               <ColorPickerInput
                 id="branding-accent-color"
+                className="py-5"
                 value={field.value ?? ''}
                 onChange={field.onChange}
                 label={t('branding.accentColor')}
               />
             )}
           />
-        </FormSection>
+        </SettingsFieldList>
       </Stack>
 
       {/* Clearing is destructive (deletes the uploaded logo + favicon blobs

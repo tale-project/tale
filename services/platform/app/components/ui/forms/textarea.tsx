@@ -54,9 +54,6 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 
     return (
       <FieldShell
-        // A textarea is a writing surface, not a one-line value: it keeps the
-        // full width of the control column even in label-left layouts.
-        wideControl
         {...(label !== undefined
           ? {
               label: (

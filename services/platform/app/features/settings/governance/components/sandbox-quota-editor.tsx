@@ -1,8 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
@@ -11,6 +9,10 @@ import {
   useRegisterGroupedEditor,
 } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -136,23 +138,23 @@ export function SandboxQuotaEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            <Stack gap={6}>
-              <div>
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={t('sandboxQuota.maxSessions')}
+                description={t('sandboxQuota.maxSessionsHint')}
+              >
                 <Input
-                  label={t('sandboxQuota.maxSessions')}
+                  aria-label={t('sandboxQuota.maxSessions')}
                   type="number"
                   min={1}
                   max={500}
                   step={1}
-                  wrapperClassName="max-w-xs"
+                  wrapperClassName="w-full"
                   errorMessage={errors.maxSessionsPerOrg?.message}
                   {...register('maxSessionsPerOrg', { valueAsNumber: true })}
                 />
-                <Text variant="muted" className="mt-1 text-xs">
-                  {t('sandboxQuota.maxSessionsHint')}
-                </Text>
-              </div>
-            </Stack>
+              </SettingsFieldRow>
+            </SettingsFieldList>
           </fieldset>
         </form>
       </SettingsSection>

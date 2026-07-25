@@ -24,6 +24,10 @@ import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -595,30 +599,21 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
       >
         {(enabled || loading) && (
           <Stack gap={6}>
-            <HStack gap={2} align="center" justify="between">
-              <HStack gap={2} align="center">
-                <Text className="text-sm font-medium">
-                  {t('modelAccess.mode')}
-                </Text>
-                <div className="w-36">
-                  <Select
-                    options={MODE_OPTIONS}
-                    value={mode}
-                    onValueChange={handleModeChange}
-                    disabled={cannotManage || isPending}
-                    aria-label={t('modelAccess.mode')}
-                  />
-                </div>
-              </HStack>
-              <Button
-                variant="primary"
-                onClick={openAddDialog}
-                disabled={cannotManage}
-              >
-                <Plus className="mr-1.5 size-4" />
-                {t('modelAccess.addRule')}
-              </Button>
-            </HStack>
+            {/* The mode is a settings field like any other — label + hint on
+                the left, the control on the right, closed off by the list's
+                own divider before the rules table. */}
+            <SettingsFieldList className="border-border border-b">
+              <SettingsFieldRow label={t('modelAccess.mode')}>
+                <Select
+                  options={MODE_OPTIONS}
+                  value={mode}
+                  onValueChange={handleModeChange}
+                  disabled={cannotManage || isPending}
+                  aria-label={t('modelAccess.mode')}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
 
             <Card padding="none" className="overflow-hidden">
               <Table aria-label={t('modelAccess.title')}>
@@ -720,6 +715,17 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                 </TableBody>
               </Table>
             </Card>
+
+            <HStack justify="end">
+              <Button
+                variant="primary"
+                onClick={openAddDialog}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('modelAccess.addRule')}
+              </Button>
+            </HStack>
           </Stack>
         )}
 

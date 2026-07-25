@@ -1496,6 +1496,8 @@ schemas:
   governance.conversationRoutingConfigSchema:
     additionalProperties: false
     properties:
+      enabled:
+        type: boolean
       rules:
         items:
           additionalProperties: false

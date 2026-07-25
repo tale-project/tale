@@ -584,10 +584,125 @@ export function DefaultModelEditor({
         title={t('defaultModels.title')}
         description={t('defaultModels.description')}
         action={
-          <Row gap={2} align="center">
-            {/* Adding a rule is only offered while the section is on — there is
-                nothing to add to an inactive policy. */}
-            {enabled && (
+          <Switch
+            aria-label={t('defaultModels.title')}
+            checked={enabled}
+            onCheckedChange={onToggle}
+            disabled={cannotManage || isToggling}
+          />
+        }
+      >
+        {/* The rule table exists only while the section is on — a toggle hides
+            its content rather than showing rules nothing enforces. It stays
+            mounted (masked) while loading so the skeleton keeps the real
+            shape; `enabled` is only known once the read settles. Add rule
+            sits under the table, where Model access has it. */}
+        {(loading || enabled) && (
+          <Stack gap={4}>
+            <Card padding="none" className="overflow-hidden">
+              <Table>
+                <TableCaption className="sr-only">
+                  {t('defaultModels.title')}
+                </TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('defaultModels.scope')}</TableHead>
+                    <TableHead>{t('defaultModels.target')}</TableHead>
+                    <TableHead>{t('defaultModels.provider')}</TableHead>
+                    <TableHead>{t('defaultModels.model')}</TableHead>
+                    <TableHead className="text-right">
+                      {t('defaultModels.actions')}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    displayRows.map((_, index) => (
+                      <TableRow key={`skeleton-${index}`}>
+                        <TableCell>
+                          <SkeletonBox>
+                            <div className="h-3.5 w-16" />
+                          </SkeletonBox>
+                        </TableCell>
+                        <TableCell>
+                          <SkeletonBox>
+                            <div className="h-3.5 w-24" />
+                          </SkeletonBox>
+                        </TableCell>
+                        <TableCell>
+                          <SkeletonBox>
+                            <div className="h-3.5 w-20" />
+                          </SkeletonBox>
+                        </TableCell>
+                        <TableCell>
+                          <SkeletonBox>
+                            <div className="h-3.5 w-28" />
+                          </SkeletonBox>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <HStack gap={1} justify="end">
+                            <SkeletonBox>
+                              <div className="size-8 rounded-md" />
+                            </SkeletonBox>
+                            <SkeletonBox>
+                              <div className="size-8 rounded-md" />
+                            </SkeletonBox>
+                          </HStack>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : rules.length > 0 ? (
+                    rules.map((rule, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="capitalize">
+                          {rule.scope}
+                        </TableCell>
+                        <TableCell>{resolveTarget(rule)}</TableCell>
+                        <TableCell>{resolveProviderName(rule)}</TableCell>
+                        <TableCell>{resolveModelName(rule)}</TableCell>
+                        <TableCell className="text-right">
+                          <HStack gap={1} justify="end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(index)}
+                              disabled={cannotManage}
+                              title={t('defaultModels.editRule', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingIndex(index)}
+                              disabled={cannotManage}
+                              title={t('defaultModels.removeRule', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </HStack>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow data-no-hover>
+                      <TableCell colSpan={5} className="p-0">
+                        <RulesTableEmptyState
+                          icon={Database}
+                          title={t('defaultModels.noRulesTitle')}
+                          description={t('defaultModels.noRulesDescription')}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+            <Row justify="end">
               <Button
                 variant="primary"
                 onClick={openAddDialog}
@@ -596,122 +711,8 @@ export function DefaultModelEditor({
                 <Plus className="mr-1.5 size-4" />
                 {t('defaultModels.addRule')}
               </Button>
-            )}
-            <Switch
-              aria-label={t('defaultModels.title')}
-              checked={enabled}
-              onCheckedChange={onToggle}
-              disabled={cannotManage || isToggling}
-            />
-          </Row>
-        }
-      >
-        {/* The rule table exists only while the section is on — a toggle hides
-            its content rather than showing rules nothing enforces. It stays
-            mounted (masked) while loading so the skeleton keeps the real
-            shape; `enabled` is only known once the read settles. */}
-        {(loading || enabled) && (
-          <Card padding="none" className="overflow-hidden">
-            <Table>
-              <TableCaption className="sr-only">
-                {t('defaultModels.title')}
-              </TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('defaultModels.scope')}</TableHead>
-                  <TableHead>{t('defaultModels.target')}</TableHead>
-                  <TableHead>{t('defaultModels.provider')}</TableHead>
-                  <TableHead>{t('defaultModels.model')}</TableHead>
-                  <TableHead className="text-right">
-                    {t('defaultModels.actions')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  displayRows.map((_, index) => (
-                    <TableRow key={`skeleton-${index}`}>
-                      <TableCell>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-16" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-24" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-20" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-28" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <HStack gap={1} justify="end">
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                        </HStack>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : rules.length > 0 ? (
-                  rules.map((rule, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="capitalize">{rule.scope}</TableCell>
-                      <TableCell>{resolveTarget(rule)}</TableCell>
-                      <TableCell>{resolveProviderName(rule)}</TableCell>
-                      <TableCell>{resolveModelName(rule)}</TableCell>
-                      <TableCell className="text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(index)}
-                            disabled={cannotManage}
-                            title={t('defaultModels.editRule', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeletingIndex(index)}
-                            disabled={cannotManage}
-                            title={t('defaultModels.removeRule', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow data-no-hover>
-                    <TableCell colSpan={5} className="p-0">
-                      <RulesTableEmptyState
-                        icon={Database}
-                        title={t('defaultModels.noRulesTitle')}
-                        description={t('defaultModels.noRulesDescription')}
-                      />
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Card>
+            </Row>
+          </Stack>
         )}
 
         <RuleDialog

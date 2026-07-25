@@ -35,10 +35,11 @@ const FRAME_ROW =
 const LABEL_COLUMN_ROW =
   'in-data-[field-layout=row]:sm:max-w-xs in-data-[field-layout=row]:sm:shrink-0 in-data-[field-layout=row]:sm:pt-2';
 
-// The control column takes the remaining width, capped so a lone text input
-// doesn't stretch across a wide settings pane.
+// The control column is the settings control width — the same 20rem column
+// `SettingsFieldRow` pins its controls to, so every field on a page lines up
+// regardless of which wrapper framed it.
 const CONTROL_COLUMN_ROW =
-  'in-data-[field-layout=row]:sm:w-full in-data-[field-layout=row]:sm:max-w-md';
+  'in-data-[field-layout=row]:sm:w-80 in-data-[field-layout=row]:sm:shrink-0';
 
 export interface FieldShellProps {
   /** The rendered `<Label>`, when the field has one. */

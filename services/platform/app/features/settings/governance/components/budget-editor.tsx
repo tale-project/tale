@@ -692,26 +692,12 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         title={t('budgets.title')}
         description={t('budgets.description')}
         action={
-          <Row gap={2} align="center">
-            {/* Adding a rule is only offered while the section is on — there is
-                nothing to add to an inactive policy. */}
-            {enabled && (
-              <Button
-                variant="primary"
-                onClick={onAddRule}
-                disabled={cannotManage}
-              >
-                <Plus className="mr-1.5 size-4" />
-                {t('budgets.addRule')}
-              </Button>
-            )}
-            <Switch
-              aria-label={t('budgets.title')}
-              checked={enabled}
-              onCheckedChange={onToggle}
-              disabled={cannotManage || isToggling}
-            />
-          </Row>
+          <Switch
+            aria-label={t('budgets.title')}
+            checked={enabled}
+            onCheckedChange={onToggle}
+            disabled={cannotManage || isToggling}
+          />
         }
       >
         {/* The rules table exists only while the section is on — a toggle hides
@@ -863,6 +849,18 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                 </TableBody>
               </Table>
             </Card>
+
+            {/* Add rule sits under the table, where Model access has it. */}
+            <Row justify="end">
+              <Button
+                variant="primary"
+                onClick={onAddRule}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('budgets.addRule')}
+              </Button>
+            </Row>
           </Stack>
         )}
 

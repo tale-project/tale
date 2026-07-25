@@ -100,7 +100,7 @@ export function Field({
           ) : null}
         </div>
       ) : null}
-      <div className="flex min-w-0 flex-col gap-2 in-data-[field-layout=row]:sm:w-full in-data-[field-layout=row]:sm:max-w-md">
+      <div className="flex min-w-0 flex-col gap-2 in-data-[field-layout=row]:sm:w-80 in-data-[field-layout=row]:sm:shrink-0">
         {enhancedChildren}
         {error ? (
           <p
