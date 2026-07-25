@@ -165,6 +165,7 @@ async function runWorkspaceTool(
   // still READ is re-resolved per dispatch from the same membership + role
   // matrix the user-side RLS queries consult. A revoked or downgraded member
   // loses the workspace tools on their next call, not at the next session.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the WORKSPACE_READ_TOOLS membership guard above; an unknown tool already returned
   const subject = TOOL_READ_SUBJECT[args.tool as WorkspaceReadTool];
   const access = await ctx.runQuery(
     internal.sandbox.workspace_access.resolveWorkspaceReadAccess,

@@ -28,6 +28,7 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -318,33 +319,35 @@ export function ChatFilterConfigView({
 
         {enabled && (
           <>
-            <FormSection
-              label={t('contentSafety.applyTo')}
-              description={t('contentSafety.applyToDescription')}
-            >
-              <Stack gap={2}>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={appliesToInput}
-                    disabled={cannotManage}
-                    onChange={(e) => handleAppliesToInput(e.target.checked)}
-                  />
-                  <span>{t('contentSafety.userInput')}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={appliesToOutput}
-                    disabled={cannotManage}
-                    onChange={(e) => handleAppliesToOutput(e.target.checked)}
-                  />
-                  <span>{t('contentSafety.modelOutput')}</span>
-                </label>
-              </Stack>
-            </FormSection>
-
+            {/* One divided list for the section's settings — label + hint
+                left, control right, like every other section. */}
             <SettingsFieldList>
+              <SettingsFieldRow
+                label={t('contentSafety.applyTo')}
+                description={t('contentSafety.applyToDescription')}
+              >
+                <Stack gap={2}>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={appliesToInput}
+                      disabled={cannotManage}
+                      onChange={(e) => handleAppliesToInput(e.target.checked)}
+                    />
+                    <span>{t('contentSafety.userInput')}</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={appliesToOutput}
+                      disabled={cannotManage}
+                      onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                    />
+                    <span>{t('contentSafety.modelOutput')}</span>
+                  </label>
+                </Stack>
+              </SettingsFieldRow>
+
               <SettingsFieldRow label={t('contentSafety.maskReplacement')}>
                 <Input
                   id="chat-filter-mask"
@@ -356,20 +359,18 @@ export function ChatFilterConfigView({
                   wrapperClassName="w-full"
                 />
               </SettingsFieldRow>
-            </SettingsFieldList>
 
-            <FormSection
-              label={t('contentSafety.preferNonStreaming')}
-              description={t('contentSafety.preferNonStreamingDescription')}
-            >
-              <Switch
-                id="chat-filter-nonstreaming"
+              {/* A toggle row is already a settings row — it joins the list
+                  so it shares the same divider and vertical rhythm. */}
+              <SettingsToggleRow
+                className="py-5"
+                label={t('contentSafety.preferNonStreaming')}
+                description={t('contentSafety.preferNonStreamingDescription')}
                 checked={preferNonStreaming}
                 disabled={cannotManage}
                 onCheckedChange={handlePreferNonStreaming}
-                aria-label={t('contentSafety.preferNonStreaming')}
               />
-            </FormSection>
+            </SettingsFieldList>
 
             <FormSection
               label={t('contentSafety.categoriesTitle')}

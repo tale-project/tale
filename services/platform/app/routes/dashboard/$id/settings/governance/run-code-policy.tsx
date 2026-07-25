@@ -399,7 +399,6 @@ function RunCodePolicyRoute() {
                       setTestBucket(value);
                     }
                   }}
-                  columns={2}
                   options={[
                     { value: 'python', label: t('runCodePolicy.bucketPython') },
                     { value: 'node', label: t('runCodePolicy.bucketNode') },

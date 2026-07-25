@@ -38,6 +38,10 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
 import {
   BUILT_IN_PII_PATTERN_NAMES,
@@ -180,18 +184,22 @@ function ModeSection({
       disabled,
     },
   ];
+  // A settings field like any other: label on the left, the options on the
+  // right — the same row shape run-code's Default mode uses.
   return (
-    <Section title={tPiiConfigPanel('modeLabel')}>
-      <RadioGroup
-        aria-label={tPiiConfigPanel('modeLabel')}
-        value={value.mode}
-        onValueChange={(mode) => {
-          const item = items.find((i) => i.value === mode);
-          if (item) onChange({ ...value, mode: item.value });
-        }}
-        options={items}
-      />
-    </Section>
+    <SettingsFieldList>
+      <SettingsFieldRow label={tPiiConfigPanel('modeLabel')} wideControl>
+        <RadioGroup
+          aria-label={tPiiConfigPanel('modeLabel')}
+          value={value.mode}
+          onValueChange={(mode) => {
+            const item = items.find((i) => i.value === mode);
+            if (item) onChange({ ...value, mode: item.value });
+          }}
+          options={items}
+        />
+      </SettingsFieldRow>
+    </SettingsFieldList>
   );
 }
 
