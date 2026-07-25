@@ -307,6 +307,34 @@ export const setExternalResumeInternal = internalMutation({
   },
 });
 
+/**
+ * Set the AI-generated title on a thread that is still untitled. Written by
+ * `generate_title.ts` only: the guard on an existing title makes the write
+ * idempotent and keeps a slow generation from ever clobbering a title that
+ * arrived by another path (a branch copy, a future rename). A title is
+ * metadata, not chat activity, so `updatedAt` stays untouched and the list
+ * keeps its recency order.
+ */
+export const setThreadTitleInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    title: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const threadId = ctx.db.normalizeId('threads', args.threadId);
+    if (!threadId) return null;
+    const thread = await ctx.db.get(threadId);
+    if (!thread || thread.organizationId !== args.organizationId) return null;
+    if (thread.title !== undefined) return null;
+    const title = args.title.trim();
+    if (title.length === 0) return null;
+    await ctx.db.patch(threadId, { title });
+    return null;
+  },
+});
+
 /** Start a new thread owned by the caller. */
 export const createThread = mutation({
   args: {

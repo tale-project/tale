@@ -70,6 +70,7 @@ import type * as chat_external_turn_action from "../chat/external_turn_action.js
 import type * as chat_external_turn_drive from "../chat/external_turn_drive.js";
 import type * as chat_external_turn_recovery from "../chat/external_turn_recovery.js";
 import type * as chat_external_turn_shared from "../chat/external_turn_shared.js";
+import type * as chat_generate_title from "../chat/generate_title.js";
 import type * as chat_generations from "../chat/generations.js";
 import type * as chat_memories from "../chat/memories.js";
 import type * as chat_messages from "../chat/messages.js";
@@ -476,6 +477,7 @@ import type * as lib_rls_context_create_rls_context from "../lib/rls/context/cre
 import type * as lib_rls_context_request_auth_cache from "../lib/rls/context/request_auth_cache.js";
 import type * as lib_rls_errors from "../lib/rls/errors.js";
 import type * as lib_rls_helpers_access_control from "../lib/rls/helpers/access_control.js";
+import type * as lib_rls_helpers_agent_read_access from "../lib/rls/helpers/agent_read_access.js";
 import type * as lib_rls_helpers_mutation_with_rls from "../lib/rls/helpers/mutation_with_rls.js";
 import type * as lib_rls_helpers_query_with_rls from "../lib/rls/helpers/query_with_rls.js";
 import type * as lib_rls_helpers_rls_rules from "../lib/rls/helpers/rls_rules.js";
@@ -715,6 +717,7 @@ import type * as sandbox_user_env from "../sandbox/user_env.js";
 import type * as sandbox_user_env_actions from "../sandbox/user_env_actions.js";
 import type * as sandbox_user_env_constants from "../sandbox/user_env_constants.js";
 import type * as sandbox_wire from "../sandbox/wire.js";
+import type * as sandbox_workspace_access from "../sandbox/workspace_access.js";
 import type * as sandbox_workspace_files from "../sandbox/workspace_files.js";
 import type * as scim_data from "../scim/data.js";
 import type * as scim_discovery from "../scim/discovery.js";
@@ -904,6 +907,7 @@ declare const fullApi: ApiFromModules<{
   "chat/external_turn_drive": typeof chat_external_turn_drive;
   "chat/external_turn_recovery": typeof chat_external_turn_recovery;
   "chat/external_turn_shared": typeof chat_external_turn_shared;
+  "chat/generate_title": typeof chat_generate_title;
   "chat/generations": typeof chat_generations;
   "chat/memories": typeof chat_memories;
   "chat/messages": typeof chat_messages;
@@ -1310,6 +1314,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/context/request_auth_cache": typeof lib_rls_context_request_auth_cache;
   "lib/rls/errors": typeof lib_rls_errors;
   "lib/rls/helpers/access_control": typeof lib_rls_helpers_access_control;
+  "lib/rls/helpers/agent_read_access": typeof lib_rls_helpers_agent_read_access;
   "lib/rls/helpers/mutation_with_rls": typeof lib_rls_helpers_mutation_with_rls;
   "lib/rls/helpers/query_with_rls": typeof lib_rls_helpers_query_with_rls;
   "lib/rls/helpers/rls_rules": typeof lib_rls_helpers_rls_rules;
@@ -1549,6 +1554,7 @@ declare const fullApi: ApiFromModules<{
   "sandbox/user_env_actions": typeof sandbox_user_env_actions;
   "sandbox/user_env_constants": typeof sandbox_user_env_constants;
   "sandbox/wire": typeof sandbox_wire;
+  "sandbox/workspace_access": typeof sandbox_workspace_access;
   "sandbox/workspace_files": typeof sandbox_workspace_files;
   "scim/data": typeof scim_data;
   "scim/discovery": typeof scim_discovery;

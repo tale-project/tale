@@ -75,6 +75,7 @@ export {
   type ContextTruncation,
   type ToolDoc,
 } from './context';
+export { deriveFallbackTitle } from './derive-fallback-title';
 export {
   DEFAULT_FAIL_BEHAVIOR,
   GUARDRAIL_CHAIN_ORDER,

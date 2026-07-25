@@ -27,6 +27,7 @@ import {
   decodeChatError,
 } from '../../lib/shared/chat-errors';
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
+import { internal } from '../_generated/api';
 import { internalMutation, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
@@ -434,13 +435,35 @@ export const appendMessageInternal = internalMutation({
     // A turn just wrote to the thread; keep its list ordering fresh.
     await ctx.db.patch(thread._id, { updatedAt: Date.now() });
 
+    // The thread's first user message names the conversation: fire the AI
+    // title generation exactly once — for the opening user message of a
+    // thread that has no title yet (a branch copy or an explicitly titled
+    // thread keeps what it has). Scheduled inside this transaction, so the
+    // job exists iff the message committed.
+    if (args.role === 'user' && sequence === 0 && thread.title === undefined) {
+      const firstMessage = textOfParts(args.parts);
+      if (firstMessage.trim().length > 0) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.chat.generate_title.generateThreadTitle,
+          {
+            organizationId: args.organizationId,
+            threadId: thread._id,
+            userId: thread.userId,
+            firstMessage,
+          },
+        );
+      }
+    }
+
     return { id, sequence };
   },
 });
 
-/** The assistant message's accumulated text, read for an append. Kept tiny so
- * the read-modify-write a streaming window does stays cheap. */
-function assistantTextOf(parts: unknown): string {
+/** A message's accumulated text — the user text a title is generated from,
+ * and the assistant text a streaming window replaces. Kept tiny so the
+ * read-modify-write a streaming window does stays cheap. */
+function textOfParts(parts: unknown): string {
   if (!Array.isArray(parts)) return '';
   let out = '';
   for (const part of parts) {
@@ -478,7 +501,7 @@ export const setAssistantTextInternal = internalMutation({
     if (args.text === '') return null;
     const message = await ctx.db.get(args.messageId);
     if (!message || message.organizationId !== args.organizationId) return null;
-    if (assistantTextOf(message.parts) === args.text) return null;
+    if (textOfParts(message.parts) === args.text) return null;
     await ctx.db.patch(args.messageId, {
       parts: [{ type: 'text', text: args.text }],
     });
@@ -508,7 +531,7 @@ export const finalizeAssistantMessageInternal = internalMutation({
     const text =
       args.finalText !== undefined && args.finalText !== ''
         ? args.finalText
-        : assistantTextOf(message.parts);
+        : textOfParts(message.parts);
     await ctx.db.patch(args.messageId, {
       parts: [{ type: 'text', text }],
       ...(args.model !== undefined ? { model: args.model } : {}),

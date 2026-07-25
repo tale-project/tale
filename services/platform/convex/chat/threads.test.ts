@@ -8,7 +8,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import schema from '../schema';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'chat';
@@ -168,6 +168,100 @@ describe('chat threads — scoping', () => {
       .withIdentity({ subject: ALICE })
       .query(api.chat.threads.listThreads, { organizationId: ORG_A });
     expect(threads[0]?.generating).toBe(true);
+  });
+});
+
+describe('chat threads — AI title write', () => {
+  it('fills an absent title and refuses to clobber one that exists', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+
+    await t.mutation(internal.chat.threads.setThreadTitleInternal, {
+      organizationId: ORG_A,
+      threadId,
+      title: 'Configure Git Identity',
+    });
+    const titled = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(titled?.title).toBe('Configure Git Identity');
+
+    // A second write — a slow generation landing after the first — is a no-op.
+    await t.mutation(internal.chat.threads.setThreadTitleInternal, {
+      organizationId: ORG_A,
+      threadId,
+      title: 'Late Duplicate',
+    });
+    const after = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(after?.title).toBe('Configure Git Identity');
+  });
+
+  it('ignores a blank title and a thread outside the organization', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+
+    await t.mutation(internal.chat.threads.setThreadTitleInternal, {
+      organizationId: ORG_A,
+      threadId,
+      title: '   ',
+    });
+    await t.mutation(internal.chat.threads.setThreadTitleInternal, {
+      organizationId: ORG_B,
+      threadId,
+      title: 'Cross-org write',
+    });
+
+    const thread = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(thread?.title).toBeUndefined();
+  });
+
+  it('does not disturb the list ordering — a title is metadata, not activity', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const older = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+    const newer = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+    // Force distinct updatedAt stamps so the order is unambiguous.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(older, { updatedAt: 1000 });
+      await ctx.db.patch(newer, { updatedAt: 2000 });
+    });
+
+    await t.mutation(internal.chat.threads.setThreadTitleInternal, {
+      organizationId: ORG_A,
+      threadId: older,
+      title: 'Named Later',
+    });
+
+    const threads = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(threads.map((thread) => thread.id)).toEqual([newer, older]);
   });
 });
 

@@ -141,6 +141,103 @@ describe('chat message sequence assignment', () => {
   });
 });
 
+describe('chat messages — thread title scheduling', () => {
+  /** The generateThreadTitle jobs the append left behind (we assert the
+   * schedule, never run it — the job's model call has no provider here). */
+  async function scheduledTitleJobs(t: T) {
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    return scheduled.filter((job) => job.name.includes('generateThreadTitle'));
+  }
+
+  it('schedules title generation for the first user message of an untitled thread', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+
+    await t.mutation(internal.chat.messages.appendMessageInternal, {
+      organizationId: ORG_A,
+      threadId,
+      role: 'user',
+      parts: [{ type: 'text', text: 'How do I configure git?' }],
+    });
+
+    const jobs = await scheduledTitleJobs(t);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.args[0]).toMatchObject({
+      organizationId: ORG_A,
+      threadId,
+      userId: ALICE,
+      firstMessage: 'How do I configure git?',
+    });
+  });
+
+  it('schedules exactly once — never for the messages that follow', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+
+    for (const [role, text] of [
+      ['user', 'first'],
+      ['assistant', 'reply'],
+      ['user', 'second'],
+    ] as const) {
+      await t.mutation(internal.chat.messages.appendMessageInternal, {
+        organizationId: ORG_A,
+        threadId,
+        role,
+        parts: [{ type: 'text', text }],
+      });
+    }
+
+    const jobs = await scheduledTitleJobs(t);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.args[0]).toMatchObject({ firstMessage: 'first' });
+  });
+
+  it('does not schedule for an assistant opener, a titled thread, or an empty message', async () => {
+    const t = convexTest(schema, modules);
+
+    // Assistant first (an external turn refused before start).
+    const refused = await seedThread(t, ORG_A, ALICE);
+    await t.mutation(internal.chat.messages.appendMessageInternal, {
+      organizationId: ORG_A,
+      threadId: refused,
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'No model is configured.' }],
+    });
+
+    // Already titled (a branch copy carries its parent's title).
+    const titled = await t.run(async (ctx) =>
+      ctx.db.insert('threads', {
+        organizationId: ORG_A,
+        userId: ALICE,
+        kind: 'direct',
+        title: 'Carried over',
+        archived: false,
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    await t.mutation(internal.chat.messages.appendMessageInternal, {
+      organizationId: ORG_A,
+      threadId: titled,
+      role: 'user',
+      parts: [{ type: 'text', text: 'more' }],
+    });
+
+    // Nothing to name a thread after.
+    const empty = await seedThread(t, ORG_A, ALICE);
+    await t.mutation(internal.chat.messages.appendMessageInternal, {
+      organizationId: ORG_A,
+      threadId: empty,
+      role: 'user',
+      parts: [{ type: 'text', text: '   ' }],
+    });
+
+    expect(await scheduledTitleJobs(t)).toHaveLength(0);
+  });
+});
+
 describe('chat messages — scoping', () => {
   it('returns a thread’s messages in sequence order to its owner', async () => {
     const t = convexTest(schema, modules);
