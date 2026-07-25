@@ -156,6 +156,45 @@ function defaultFilterFn(option: SearchableSelectOption, query: string) {
   );
 }
 
+/**
+ * Filter a flat option list while preserving section structure: never match
+ * headers against the query; keep a header only when its section has ≥1
+ * matching item. Leading unsectioned items filter normally.
+ */
+function filterOptionsWithSections(
+  options: ReadonlyArray<SearchableSelectOption>,
+  query: string,
+  filter: (option: SearchableSelectOption, query: string) => boolean,
+): SearchableSelectOption[] {
+  const result: SearchableSelectOption[] = [];
+  let i = 0;
+  while (i < options.length) {
+    const current = options[i];
+    if (!current) {
+      i++;
+      continue;
+    }
+    if (current.isSectionHeader) {
+      const header = current;
+      i++;
+      const matched: SearchableSelectOption[] = [];
+      while (i < options.length && !options[i]?.isSectionHeader) {
+        const item = options[i];
+        if (item && filter(item, query)) matched.push(item);
+        i++;
+      }
+      if (matched.length > 0) {
+        result.push(header, ...matched);
+      }
+      continue;
+    }
+    // Unsectioned leading (or mid-list) item — filter on its own.
+    if (filter(current, query)) result.push(current);
+    i++;
+  }
+  return result;
+}
+
 function findNextEnabledIndex(
   options: ReadonlyArray<SearchableSelectOption>,
   current: number,
@@ -268,7 +307,7 @@ function SearchableSelectBase({
 
   const filteredOptions = useMemo(() => {
     if (!search) return options;
-    return options.filter((o) => filter(o, search));
+    return filterOptionsWithSections(options, search, filter);
   }, [options, search, filter]);
 
   const initializeHighlight = useCallback(() => {

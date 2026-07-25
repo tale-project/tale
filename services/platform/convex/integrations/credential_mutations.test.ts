@@ -44,7 +44,7 @@ vi.mock('./slack_installations', () => ({
   deleteSlackInstallationsForCredential: vi.fn().mockResolvedValue(undefined),
 }));
 
-const { updateCredentials, deleteCredentials } =
+const { updateCredentials, updateCredentialsInternal, deleteCredentials } =
   await import('./credential_mutations');
 
 type MutationConfig = {
@@ -52,18 +52,22 @@ type MutationConfig = {
 };
 
 const updateHandler = (updateCredentials as unknown as MutationConfig).handler;
+const updateInternalHandler = (
+  updateCredentialsInternal as unknown as MutationConfig
+).handler;
 const deleteHandler = (deleteCredentials as unknown as MutationConfig).handler;
 
-function createMockCtx() {
+function createMockCtx(
+  cred: Record<string, unknown> = { status: 'active', isActive: true },
+) {
   return {
     db: {
       get: vi.fn().mockResolvedValue({
         _id: 'cred-1',
         organizationId: 'org-123',
         slug: 'slack',
-        status: 'active',
-        isActive: true,
         authMethod: 'apiKey',
+        ...cred,
       }),
       patch: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
@@ -71,6 +75,18 @@ function createMockCtx() {
     storage: { delete: vi.fn().mockResolvedValue(undefined) },
     scheduler: { runAfter: vi.fn().mockResolvedValue(undefined) },
   };
+}
+
+/** The cascade mode scheduled by a handler, or null when none was scheduled. */
+function scheduledCascadeMode(
+  ctx: ReturnType<typeof createMockCtx>,
+): string | null {
+  const call = ctx.scheduler.runAfter.mock.calls.find(
+    (args: unknown[]) => args[1] === 'cascadeIntegration',
+  );
+  if (!call) return null;
+  const payload = call[2] as { mode: string };
+  return payload.mode;
 }
 
 describe('credential mutations capability gate', () => {
@@ -151,6 +167,74 @@ describe('credential mutations capability gate', () => {
       );
 
       expect(ctx.db.patch).toHaveBeenCalled();
+    });
+  });
+
+  // The cascade re-enables agents a disconnect disabled AND provisions the
+  // schedules of the automations bound to the integration. It must fire on BOTH
+  // connected-state edges — reconnect used to schedule nothing, which left the
+  // `enable` half of cascade.ts unreachable.
+  describe('connected-state cascade', () => {
+    it('cascades disable when a connected credential is deactivated', async () => {
+      asDeveloper();
+      const ctx = createMockCtx({ status: 'active', isActive: true });
+
+      await updateHandler(
+        ctx as never,
+        {
+          credentialId: 'cred-1',
+          isActive: false,
+          status: 'inactive',
+        } as never,
+      );
+
+      expect(scheduledCascadeMode(ctx)).toBe('disable');
+    });
+
+    it('cascades enable when a disconnected credential is reactivated', async () => {
+      asDeveloper();
+      const ctx = createMockCtx({ status: 'inactive', isActive: false });
+
+      await updateHandler(
+        ctx as never,
+        { credentialId: 'cred-1', isActive: true, status: 'active' } as never,
+      );
+
+      expect(scheduledCascadeMode(ctx)).toBe('enable');
+    });
+
+    it('schedules nothing when the connected state does not change', async () => {
+      asDeveloper();
+      const ctx = createMockCtx({ status: 'active', isActive: true });
+
+      await updateHandler(
+        ctx as never,
+        { credentialId: 'cred-1', errorMessage: 'transient' } as never,
+      );
+
+      expect(scheduledCascadeMode(ctx)).toBeNull();
+    });
+
+    it('cascades enable from the internal mutation (the OAuth2 exchange path)', async () => {
+      const ctx = createMockCtx({ status: 'inactive', isActive: false });
+
+      await updateInternalHandler(
+        ctx as never,
+        { credentialId: 'cred-1', isActive: true, status: 'active' } as never,
+      );
+
+      expect(scheduledCascadeMode(ctx)).toBe('enable');
+    });
+
+    it('does not cascade on an internal token refresh of a live credential', async () => {
+      const ctx = createMockCtx({ status: 'active', isActive: true });
+
+      await updateInternalHandler(
+        ctx as never,
+        { credentialId: 'cred-1', status: 'active', isActive: true } as never,
+      );
+
+      expect(scheduledCascadeMode(ctx)).toBeNull();
     });
   });
 });
