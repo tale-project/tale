@@ -104,6 +104,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isWorkspaceReadTool(tool: string): tool is WorkspaceReadTool {
+  return (WORKSPACE_READ_TOOLS as readonly string[]).includes(tool);
+}
+
 /**
  * Run one read-only workspace tool for a sandbox external turn. The HTTP dispatch
  * has already authenticated the session token and checked the grant set; this
@@ -152,7 +156,7 @@ async function runWorkspaceTool(
 ): Promise<ToolResult> {
   const callArgs = isRecord(args.callArgs) ? args.callArgs : {};
 
-  if (!(WORKSPACE_READ_TOOLS as readonly string[]).includes(args.tool)) {
+  if (!isWorkspaceReadTool(args.tool)) {
     return {
       status: 'invalid_args',
       message:
@@ -165,8 +169,7 @@ async function runWorkspaceTool(
   // still READ is re-resolved per dispatch from the same membership + role
   // matrix the user-side RLS queries consult. A revoked or downgraded member
   // loses the workspace tools on their next call, not at the next session.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the WORKSPACE_READ_TOOLS membership guard above; an unknown tool already returned
-  const subject = TOOL_READ_SUBJECT[args.tool as WorkspaceReadTool];
+  const subject = TOOL_READ_SUBJECT[args.tool];
   const access = await ctx.runQuery(
     internal.sandbox.workspace_access.resolveWorkspaceReadAccess,
     { organizationId: args.organizationId, userId: args.userId, subject },
