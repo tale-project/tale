@@ -46,7 +46,11 @@ Les deux leviers sont appliqués à la requête, pas à l’installation — cha
 
 ## Révoquer une intégration
 
-Clique la ligne, puis **Déconnecter**. Une intégration déconnectée arrête d’authentifier immédiatement ; les agents et workflows qui en dépendent font remonter une erreur de configuration au prochain appel. La ligne reste dans la liste avec un badge déconnecté pour que la piste d’audit survive. Reconnecter parcourt le flux d’identifiants de zéro.
+Clique la ligne, puis **Déconnecter**. Une intégration déconnectée arrête d’authentifier immédiatement ; les agents et workflows qui en dépendent font remonter une erreur de configuration au prochain appel. La ligne reste dans la liste avec un badge déconnecté pour que la piste d’audit survive.
+
+Déconnecter conserve l’identifiant enregistré : la ligne propose donc **Reconnecter** — un clic, rien à retaper. Tale teste d’abord l’identifiant enregistré et ne marque l’intégration comme connectée que s’il fonctionne toujours ; si le mot de passe ou la clé a changé entre-temps, le test échoue et la ligne reste déconnectée — un identifiant périmé n’a donc jamais l’air sain. **Utiliser d’autres identifiants** permet d’en saisir un nouveau à la place. Les intégrations OAuth se reconnectent via l’écran de consentement du fournisseur, car une autorisation révoquée ne se rétablit qu’en autorisant à nouveau. Reconnecter réactive aussi les agents que la déconnexion avait désactivés et relance les automatisations liées à l’intégration.
+
+**Retirer la connexion** va plus loin que Déconnecter : l’identifiant enregistré est supprimé. Le modèle de l’intégration reste au catalogue, tu peux donc la reconnecter plus tard en saisissant de nouveaux identifiants.
 
 ## Faire tourner deux fois la même intégration
 

@@ -6451,7 +6451,8 @@
       },
       "toast": {
         "disconnected": "Disconnected",
-        "disconnectFailed": "Disconnect failed"
+        "disconnectFailed": "Disconnect failed",
+        "reconnectFailed": "Reconnect failed"
       },
       "connectionSuccessful": "Connection successful",
       "connectionTestFailed": "Connection test failed",
@@ -6567,6 +6568,10 @@
         "newCodeLines": "{count} lines of code"
       },
       "panel": {
+        "connect": "Connect",
+        "reconnect": "Reconnect",
+        "savedLoginHint": "You're disconnected — your saved login is kept. Reconnect, or use different credentials.",
+        "useDifferentCredentials": "Use different credentials",
         "connectName": "Connect {name}",
         "saveCredentialsThenConnect": "Save credentials above, then connect.",
         "enterCredentialsToConnect": "Enter credentials to connect.",

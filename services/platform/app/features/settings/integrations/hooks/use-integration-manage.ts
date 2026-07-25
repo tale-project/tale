@@ -855,6 +855,46 @@ export function useIntegrationManage(
     }
   }, [updateCredentials, integration, t]);
 
+  // Reactivate a disconnected integration using its RETAINED credentials — the
+  // one-click inverse of handleDisconnect, no re-entry needed.
+  //
+  // TESTS FIRST, then activates. A credential can rot while disconnected (the
+  // mailbox password changed, the API key was rotated), and activating on faith
+  // would flip the badge to Connected while every sync fails silently — the
+  // same success gate `handleTestConnection` applies to the Connect path.
+  // OAuth2 reconnect is NOT this handler: a revoked grant needs the authorize
+  // round-trip (`handleReauthorize`), which the panel routes to instead.
+  const handleReconnect = useCallback(async () => {
+    setIsSubmitting(true);
+    try {
+      const result = await testConnection({
+        credentialId: toId<'integrationCredentials'>(integration._id),
+      });
+      if (!result.success) {
+        toast({
+          title: t('integrations.toast.reconnectFailed'),
+          description: result.message ?? t('integrations.connectionTestFailed'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      await updateCredentials({
+        credentialId: toId<'integrationCredentials'>(integration._id),
+        isActive: true,
+        status: 'active',
+      });
+      setOptimisticActive(true);
+    } catch (error) {
+      toast({
+        title: t('integrations.toast.reconnectFailed'),
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [testConnection, updateCredentials, integration, t]);
+
   const handleSaveOAuth2Only = useCallback(async () => {
     if (
       !oauth2Fields.authorizationUrl.trim() ||
@@ -1071,6 +1111,7 @@ export function useIntegrationManage(
     setTestResult,
     handleTestConnection,
     handleDisconnect,
+    handleReconnect,
     handleReauthorize,
     prepareOAuth2Url,
 

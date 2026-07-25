@@ -40,15 +40,14 @@ function integrationCard(page: Page, title: string) {
   return page.getByRole('button', { name: title, exact: true });
 }
 
-function connectButton(page: Page, title: string) {
-  // `connectName` is "Connect {name}"; the e2e i18n resolver does not
-  // interpolate, so substitute the (config-derived) title ourselves.
-  const label = t('settings.integrations.panel.connectName').replace(
-    '{name}',
-    title,
-  );
+function connectButton(page: Page) {
+  // The settings panel's primary action is a bare "Connect" — the sheet is
+  // already titled with the integration name, so the button doesn't repeat it.
   return page
-    .getByRole('button', { name: label, exact: true })
+    .getByRole('button', {
+      name: t('settings.integrations.panel.connect'),
+      exact: true,
+    })
     .filter({ visible: true });
 }
 
@@ -109,7 +108,7 @@ async function connectAndVerify(
   await expect(field).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await field.fill(opts.token);
 
-  const connect = connectButton(page, opts.title);
+  const connect = connectButton(page);
   await expect(connect).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await connect.click();
 

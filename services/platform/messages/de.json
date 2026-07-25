@@ -6152,7 +6152,8 @@
       },
       "toast": {
         "disconnected": "Getrennt",
-        "disconnectFailed": "Trennung fehlgeschlagen"
+        "disconnectFailed": "Trennung fehlgeschlagen",
+        "reconnectFailed": "Neuverbindung fehlgeschlagen"
       },
       "connectionSuccessful": "Verbindung",
       "connectionTestFailed": "Verbindungstest fehlgeschlagen",
@@ -6268,6 +6269,10 @@
         "newCodeLines": "{count} Codezeilen"
       },
       "panel": {
+        "connect": "Verbinden",
+        "reconnect": "Neu verbinden",
+        "savedLoginHint": "Du bist getrennt – deine gespeicherten Zugangsdaten bleiben erhalten. Verbinde neu oder verwende andere Zugangsdaten.",
+        "useDifferentCredentials": "Andere Zugangsdaten verwenden",
         "connectName": "{name} verbinden",
         "saveCredentialsThenConnect": "Speichere oben die Zugangsdaten, dann verbinde.",
         "enterCredentialsToConnect": "Gib Zugangsdaten ein, um zu verbinden.",

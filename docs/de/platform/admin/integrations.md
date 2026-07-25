@@ -46,7 +46,11 @@ Beide Hebel werden zur Anfrage-Zeit erzwungen, nicht zur Installations-Zeit — 
 
 ## Eine Integration widerrufen
 
-Klick auf die Zeile, dann auf **Trennen**. Eine getrennte Integration hört sofort auf zu authentifizieren; Agents und Workflows, die von ihr abhängen, melden beim nächsten Aufruf einen Konfigurationsfehler. Die Zeile bleibt mit einem Getrennt-Badge in der Liste, damit der Audit-Pfad überlebt. Erneutes Verbinden geht den Anmelde-Fluss von Grund auf neu.
+Klick auf die Zeile, dann auf **Trennen**. Eine getrennte Integration hört sofort auf zu authentifizieren; Agents und Workflows, die von ihr abhängen, melden beim nächsten Aufruf einen Konfigurationsfehler. Die Zeile bleibt mit einem Getrennt-Badge in der Liste, damit der Audit-Pfad überlebt.
+
+Beim Trennen bleibt die gespeicherte Anmeldung erhalten, deshalb bietet die Zeile **Neu verbinden** an — ein Klick, kein erneutes Eintippen. Tale prüft die gespeicherten Anmeldedaten zuerst und markiert die Integration nur dann als verbunden, wenn sie noch funktionieren; wurde das Passwort oder der Schlüssel in der Zwischenzeit geändert, scheitert die Prüfung und die Zeile bleibt getrennt — eine veraltete Anmeldung sieht also nie gesund aus. Über **Andere Anmeldedaten verwenden** trägst du stattdessen eine neue Anmeldung ein. OAuth-Integrationen verbinden sich über den Zustimmungsdialog des Anbieters neu, denn eine widerrufene Freigabe lässt sich nur durch erneutes Autorisieren wiederherstellen. Beim Neuverbinden werden außerdem die beim Trennen deaktivierten Agents wieder aktiv und die an die Integration gebundenen Automatisierungen laufen weiter.
+
+**Verbindung entfernen** geht weiter als Trennen: die gespeicherte Anmeldung wird vollständig gelöscht. Die Vorlage der Integration bleibt im Katalog, du kannst sie also später erneut mit neuen Anmeldedaten verbinden.
 
 ## Zwei Instanzen derselben Integration betreiben
 

@@ -351,3 +351,76 @@ describe('IntegrationPanel — delete a disconnected removable instance', () => 
     expect(setConfirmDelete).toHaveBeenCalledWith(true);
   });
 });
+
+describe('IntegrationPanel — disconnected with a saved login', () => {
+  it('shows Reconnect + the saved identity instead of a blank form', () => {
+    const handleReconnect = vi.fn();
+    vi.mocked(useIntegrationManage).mockImplementation(
+      () => ({ ...baseManage, isActive: false, handleReconnect }) as never,
+    );
+    render(
+      <IntegrationPanel
+        open
+        onOpenChange={vi.fn()}
+        integration={
+          {
+            ...integration,
+            isActive: false,
+            basicAuth: { username: 'hello@support.example.com' },
+          } as Parameters<typeof IntegrationPanel>[0]['integration']
+        }
+        organizationId="org-1"
+      />,
+    );
+    const sheet = screen.getByTestId('sheet');
+    // The retained login is shown, not hidden behind a blank re-entry form.
+    expect(
+      within(sheet).getByText('hello@support.example.com'),
+    ).toBeInTheDocument();
+    // One-click Reconnect, not a "Connect" that implies re-entering everything.
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Reconnect' }));
+    expect(handleReconnect).toHaveBeenCalledOnce();
+    expect(
+      within(sheet).queryByRole('button', { name: 'Connect' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('reconnects an OAuth2 integration via the authorize round-trip, not a flag flip', () => {
+    // A grant revoked at the provider can't be revived by re-activating a stored
+    // token, so Reconnect must route to reauthorize for oauth2 — the same branch
+    // the Connect button takes.
+    const handleReconnect = vi.fn();
+    const handleReauthorize = vi.fn();
+    vi.mocked(useIntegrationManage).mockImplementation(
+      () =>
+        ({
+          ...baseManage,
+          isActive: false,
+          selectedAuthMethod: 'oauth2',
+          hasOAuth2Config: true,
+          hasOAuth2Credentials: true,
+          handleReconnect,
+          handleReauthorize,
+        }) as never,
+    );
+    render(
+      <IntegrationPanel
+        open
+        onOpenChange={vi.fn()}
+        integration={
+          {
+            ...integration,
+            isActive: false,
+            authMethod: 'oauth2',
+            oauth2Auth: { accessTokenEncrypted: 'x' },
+          } as Parameters<typeof IntegrationPanel>[0]['integration']
+        }
+        organizationId="org-1"
+      />,
+    );
+    const sheet = screen.getByTestId('sheet');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Reconnect' }));
+    expect(handleReauthorize).toHaveBeenCalledOnce();
+    expect(handleReconnect).not.toHaveBeenCalled();
+  });
+});
