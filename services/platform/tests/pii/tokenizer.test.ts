@@ -80,6 +80,9 @@ describe('round-trip property over the fixture corpus', () => {
         );
       }
     },
+    // Seconds of real regex work per locale corpus — a loaded CI runner has
+    // pushed a single locale past the default 5s budget.
+    20_000,
   );
 });
 
