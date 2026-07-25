@@ -1,8 +1,6 @@
 'use client';
 
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod/v4';
 
@@ -12,16 +10,21 @@ import {
   useFormEditor,
   useRegisterGroupedEditor,
 } from '@/app/components/ui/editor';
-import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { toast } from '@/app/hooks/use-toast';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
+import { SECTION_DIVIDER_CLASS } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   PROJECT_DESCRIPTION_MAX,
   PROJECT_NAME_MAX,
 } from '@/lib/shared/schemas/projects';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
@@ -40,6 +43,23 @@ type IdentityForm = {
 };
 
 const PROJECT_OVERVIEW_FORM_ID = 'project-overview-identity-form';
+
+/**
+ * The input a rejected identity update belongs to, or undefined when the
+ * failure isn't about one field. The two are shown in different places: a
+ * field rejection renders under its own input, anything else becomes the one
+ * destructive toast the save cluster raises.
+ */
+function identityErrorField(error: unknown): keyof IdentityForm | undefined {
+  switch (convexErrorCode(error)) {
+    case 'PROJECT_NAME_INVALID':
+      return 'name';
+    case 'PROJECT_DESCRIPTION_INVALID':
+      return 'description';
+    default:
+      return undefined;
+  }
+}
 
 /**
  * The project's general page. Two independently-editable sections live here —
@@ -93,6 +113,12 @@ function ProjectOverviewContent({
     [project],
   );
 
+  // Save feedback belongs to the grouped `EditorActions` cluster in the project
+  // layout's tab strip: it flashes "Saved" on success and raises the single
+  // destructive toast on failure. So this only persists — a rejection that
+  // belongs to one of the inputs travels on untouched for `mapServerError` to
+  // place under that input, and every other failure becomes the translated line
+  // the cluster shows.
   const save = useCallback(
     async (values: IdentityForm) => {
       try {
@@ -102,37 +128,39 @@ function ProjectOverviewContent({
           description:
             values.description.trim().length > 0 ? values.description : null,
         });
-        toast({ title: t('settings.saveSuccess'), variant: 'success' });
       } catch (error) {
-        if (error instanceof ConvexError) {
-          const code = error.data?.code;
-          if (code === 'PROJECT_NAME_INVALID') {
-            toast({
-              title: t('errors.PROJECT_NAME_INVALID'),
-              variant: 'destructive',
-            });
-            throw error;
-          }
-          if (code === 'PROJECT_DESCRIPTION_INVALID') {
-            toast({
-              title: t('errors.PROJECT_DESCRIPTION_INVALID'),
-              variant: 'destructive',
-            });
-            throw error;
-          }
-        }
+        if (identityErrorField(error)) throw error;
         console.error('updateProjectIdentity failed', error);
-        toast({ title: t('settings.saveError'), variant: 'destructive' });
-        throw error;
+        throw new Error(t('settings.saveError'), { cause: error });
       }
     },
     [projectId, t, updateIdentity],
+  );
+
+  // A name or description the server refused belongs under its own input, not
+  // in a toast — returning issues here routes them through `form.setError` and
+  // suppresses the toast entirely.
+  const mapServerError = useCallback(
+    (error: unknown) => {
+      const field = identityErrorField(error);
+      if (field === 'name') {
+        return [{ path: field, message: t('errors.PROJECT_NAME_INVALID') }];
+      }
+      if (field === 'description') {
+        return [
+          { path: field, message: t('errors.PROJECT_DESCRIPTION_INVALID') },
+        ];
+      }
+      return null;
+    },
+    [t],
   );
 
   const editor = useFormEditor<IdentityForm>({
     data,
     schema: identitySchema,
     save,
+    mapServerError,
   });
 
   // Hand this controller to the page's editor group, which composes it with
@@ -154,7 +182,12 @@ function ProjectOverviewContent({
   const isViewerOnly = !canEdit && !canAdminister;
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    // This page is a configuration surface built from `SettingsSection`, so it
+    // carries the shared section-divider rule instead of hand-rolled borders on
+    // individual sections: the rule keys on each section's marker, which is what
+    // keeps one hairline between Project and Sharing — and none around the
+    // instructions field, which is deliberately not a section of its own.
+    <ContentArea variant="narrow" gap={6} className={SECTION_DIVIDER_CLASS}>
       {isViewerOnly ? <ProjectReadOnlyBanner /> : null}
 
       {/* The project's basics — inline edit when canEdit, read-only summary
@@ -163,53 +196,73 @@ function ProjectOverviewContent({
           live in the project layout's tab strip (composed by the EditorGroup
           above). */}
       {canEdit ? (
-        <PageSection
+        <SettingsSection
           title={t('overview.projectSection')}
           description={t('overview.projectSectionDescription')}
-          gap={4}
         >
+          {/* Submit through the controller, never `form.handleSubmit(save)`:
+              that second path would skip the dirty-baseline reset and the
+              server-error mapping the tab strip's Save button gets. */}
           <form id={PROJECT_OVERVIEW_FORM_ID} onSubmit={editor.submit}>
             <fieldset
               disabled={editor.isLoading || editor.isSaving}
               className="contents"
             >
-              <FormSection>
-                <Input
-                  id="project-overview-name"
+              {/* The shared settings-field list: each field is a row with its
+                  label + helper text on the left and its control pinned right
+                  in the same fixed-width column, divided from its neighbour, so
+                  the two read as one block with their controls aligned. */}
+              <SettingsFieldList>
+                <SettingsFieldRow
                   label={t('settings.name')}
                   description={t('settings.nameHint')}
-                  {...register('name')}
-                  maxLength={PROJECT_NAME_MAX}
-                  errorMessage={errors.name?.message}
-                />
-                <Textarea
-                  id="project-overview-description"
+                  required
+                >
+                  {/* The row owns the label, so the control carries its
+                      accessible name itself. `wrapperClassName="w-full"` lets
+                      the bare Input fill the row's control column so its
+                      skeleton mask matches the loaded width. */}
+                  <Input
+                    id="project-overview-name"
+                    aria-label={t('settings.name')}
+                    required
+                    maxLength={PROJECT_NAME_MAX}
+                    errorMessage={errors.name?.message}
+                    {...register('name')}
+                    wrapperClassName="w-full"
+                  />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow
                   label={t('settings.description')}
                   description={t('settings.descriptionHint')}
-                  rows={2}
-                  maxLength={PROJECT_DESCRIPTION_MAX}
-                  {...register('description')}
-                  errorMessage={errors.description?.message}
-                />
-              </FormSection>
+                >
+                  <Textarea
+                    id="project-overview-description"
+                    aria-label={t('settings.description')}
+                    rows={2}
+                    maxLength={PROJECT_DESCRIPTION_MAX}
+                    errorMessage={errors.description?.message}
+                    {...register('description')}
+                  />
+                </SettingsFieldRow>
+              </SettingsFieldList>
             </fieldset>
           </form>
-        </PageSection>
+        </SettingsSection>
       ) : project.description ? (
-        <PageSection title={t('overview.projectSection')} gap={3}>
+        <SettingsSection title={t('overview.projectSection')}>
           <Text variant="muted">{project.description}</Text>
-        </PageSection>
+        </SettingsSection>
       ) : null}
 
       {/* The project's standing instructions — a property of the project, so
           they sit with identity here instead of on a tab of their own. */}
       <ProjectInstructionsEditor projectId={projectId} />
 
-      <PageSection
+      <SettingsSection
         id="project-sharing"
         title={t('overview.sharingHeading')}
-        gap={4}
-        className="mt-8 border-t pt-8"
       >
         <ProjectSharingSection
           projectId={projectId}
@@ -218,7 +271,7 @@ function ProjectOverviewContent({
           sharedWithTeamIds={project.sharedWithTeamIds ?? []}
           canAdminister={canAdminister}
         />
-      </PageSection>
+      </SettingsSection>
     </ContentArea>
   );
 }

@@ -15,7 +15,6 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_SANDBOX_QUOTA,
@@ -53,7 +52,6 @@ export function SandboxQuotaEditor({
   organizationId,
 }: SandboxQuotaEditorProps) {
   const { t } = useT('governance');
-  const { toast } = useToast();
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -85,6 +83,9 @@ export function SandboxQuotaEditor({
     };
   }, [isLoading, savedConfig]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure.
   const save = useCallback(
     async (values: SandboxQuotaForm) => {
       try {
@@ -99,21 +100,12 @@ export function SandboxQuotaEditor({
             maxSessionsPerOrg: values.maxSessionsPerOrg,
           } satisfies SandboxQuotaConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('sandboxQuota.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('sandboxQuota.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[sandboxQuota save]', err);
+        throw new Error(t('sandboxQuota.saveFailed'), { cause: err });
       }
     },
-    [organizationId, savedConfig, t, toast, upsertMutation],
+    [organizationId, savedConfig, t, upsertMutation],
   );
 
   const editor = useFormEditor<SandboxQuotaForm>({ data, schema, save });

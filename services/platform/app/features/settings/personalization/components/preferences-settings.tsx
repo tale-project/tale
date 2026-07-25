@@ -174,6 +174,10 @@ function CustomInstructionsSection({
     return { customInstructions: savedInstructions };
   }, [loading, savedInstructions]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. So this only persists and, when the write fails, throws the
+  // translated line for the cluster to show.
   const save = useCallback(
     async (values: CustomInstructionsForm) => {
       try {
@@ -181,13 +185,12 @@ function CustomInstructionsSection({
           organizationId,
           customInstructions: values.customInstructions,
         });
-        toast({ title: t('toasts.saved') });
       } catch (err) {
-        toast({ title: t('errors.saveFailed'), variant: 'destructive' });
-        throw err;
+        console.error('[personalization] custom instructions save failed', err);
+        throw new Error(t('errors.saveFailed'), { cause: err });
       }
     },
-    [organizationId, t, toast, upsert],
+    [organizationId, t, upsert],
   );
 
   const editor = useFormEditor<CustomInstructionsForm>({ data, schema, save });

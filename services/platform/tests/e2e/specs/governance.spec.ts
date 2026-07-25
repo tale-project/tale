@@ -104,13 +104,15 @@ function systemPromptInstructionsField(page: Page): Locator {
   });
 }
 
+// The editor toasts nothing on success — the Save cluster flashes "Saved" and
+// then settles back to a DISABLED "Save" once the form is clean again, which is
+// the stable commit signal (a failed save leaves the form dirty and the button
+// enabled).
 async function saveSystemPrompt(page: Page): Promise<void> {
   const save = globalSaveButton(page);
   await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await save.click();
-  await expect(
-    page.getByText(t('governance.systemPrompt.saved')).first(),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 }
 
 test('system prompt: edits, persists, and restores', async ({ page, org }) => {
@@ -184,13 +186,13 @@ function allowlistRadio(page: Page): Locator {
   });
 }
 
+// Same commit gate as the system-prompt save above: no success toast, so wait
+// for the Save cluster to settle back to a disabled "Save".
 async function saveRunCodePolicy(page: Page): Promise<void> {
   const save = globalSaveButton(page);
   await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await save.click();
-  await expect(
-    page.getByText(t('governance.runCodePolicy.saved')).first(),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 }
 
 test('run-code policy: flips the default mode, persists, and restores', async ({

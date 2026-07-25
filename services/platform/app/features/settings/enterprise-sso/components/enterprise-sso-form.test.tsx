@@ -290,6 +290,76 @@ describe('EnterpriseSsoForm validation + save', () => {
     expect(upsertSamlMock).not.toHaveBeenCalled();
   });
 
+  it('reports a successful save through the cluster only — no page toast', async () => {
+    // Save feedback belongs to the `EditorActions` cluster: it flashes "Saved"
+    // on its own, so a page toast here would report one save twice.
+    upsertSamlMock.mockClear();
+    toastMock.mockClear();
+    const { user } = renderForm(samlConfig);
+
+    const displayName = screen.getByLabelText(/display name/i);
+    await user.clear(displayName);
+    await user.type(displayName, 'Renamed SSO');
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    await waitFor(() => expect(upsertSamlMock).toHaveBeenCalledTimes(1));
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(await screen.findByText(/^saved$/i)).toBeInTheDocument();
+  });
+
+  it('pins a rejected client secret under its own input instead of toasting', async () => {
+    // A field-mappable server error routes through `mapServerError`, so it
+    // renders under the client-secret input and raises no toast at all.
+    upsertOidcMock.mockClear();
+    toastMock.mockClear();
+    upsertOidcMock.mockRejectedValueOnce(
+      new ConvexError({ code: 'sso_client_secret_required' }),
+    );
+    // The read view omits the client id; the form reveals it on mount and the
+    // schema requires it, so seed the reveal or Save never enables.
+    revealClientIdMock.mockResolvedValueOnce('client-123');
+    const { user } = renderForm(connectedOidc);
+
+    const displayName = screen.getByLabelText(/display name/i);
+    await user.clear(displayName);
+    await user.type(displayName, 'Renamed SSO');
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    expect(
+      await screen.findByText(/a client secret is required/i),
+    ).toBeInTheDocument();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it('surfaces any other save failure as the cluster’s one destructive toast', async () => {
+    upsertOidcMock.mockClear();
+    toastMock.mockClear();
+    upsertOidcMock.mockRejectedValueOnce(new Error('boom'));
+    revealClientIdMock.mockResolvedValueOnce('client-123');
+    const { user } = renderForm(connectedOidc);
+
+    const displayName = screen.getByLabelText(/display name/i);
+    await user.clear(displayName);
+    await user.type(displayName, 'Renamed SSO');
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+    expect(toastMock).toHaveBeenCalledWith({
+      title: 'Save',
+      description: 'Failed to save',
+      variant: 'destructive',
+    });
+  });
+
   it('round-trips a stored OAuth2 connection’s endpoints into the edit form', async () => {
     // Regression: the read view now carries the explicit OAuth2 endpoints, so
     // the form must seed them — otherwise editing an existing connection blanks

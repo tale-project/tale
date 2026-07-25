@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
-import { SettingsPage } from './settings-page';
+import { SECTION_DIVIDER_CLASS, SettingsPage } from './settings-page';
 
 describe('SettingsPage', () => {
   describe('rendering', () => {
@@ -37,6 +37,16 @@ describe('SettingsPage', () => {
     it('drops the max-w-3xl cap when fullWidth', () => {
       const { container } = render(<SettingsPage fullWidth />);
       expect(container.firstChild).not.toHaveClass('mx-auto', 'max-w-3xl');
+    });
+
+    // The divider rule is exported so other configuration surfaces (the
+    // project overview) reuse the exact same marker-driven selectors instead
+    // of hand-rolling `border-t pt-8`. Assert the page still applies what it
+    // exports, so the two can never drift apart.
+    it('applies the exported section-divider rule', () => {
+      const { container } = render(<SettingsPage />);
+      expect(SECTION_DIVIDER_CLASS).toContain('data-settings-section');
+      expect(container.firstChild).toHaveClass(SECTION_DIVIDER_CLASS);
     });
   });
 

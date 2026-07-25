@@ -51,6 +51,12 @@ function ProjectMetricsRoute() {
   );
 
   return (
+    // Full-pane width on purpose — not the `narrow` measure the other project
+    // tabs share: `ProjectMetricsPage` lays out a four-up stat-card grid plus
+    // two-column chart grids, all designed for more room than the `max-w-3xl`
+    // configuration measure. It is the same justification Settings → Metrics
+    // documents for rendering on a `SettingsPage fullWidth`. `py-4` keeps the
+    // vertical rhythm of the sibling project tabs.
     <ContentArea gap={4} className="py-4">
       {/* Metrics is a sub-view of Tasks (no tab of its own), so lead with a
           back link to the tasks list — otherwise there's no way back. */}

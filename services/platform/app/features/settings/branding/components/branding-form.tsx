@@ -119,6 +119,10 @@ export function BrandingForm({
     [branding, displayAccent],
   );
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The favicon/logo uploads below are instant actions and keep their
+  // own toasts — they never pass through this save.
   const save = useCallback(
     async (values: BrandingFormData) => {
       try {
@@ -145,18 +149,11 @@ export function BrandingForm({
           .catch((e) => console.warn('[branding history snapshot]', e));
         onSaved?.();
         void refetchBranding();
-        toast({
-          title: tToast('success.brandingUpdated.title'),
-          description: tToast('success.brandingUpdated.description'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: tToast('error.brandingUpdateFailed.title'),
-          description: tToast('error.brandingUpdateFailed.description'),
-          variant: 'destructive',
+        console.error('[branding] save failed', err);
+        throw new Error(tToast('error.brandingUpdateFailed.title'), {
+          cause: err,
         });
-        throw err;
       }
     },
     [
@@ -168,7 +165,6 @@ export function BrandingForm({
       saveBranding,
       snapshotHistory,
       storedAccent,
-      toast,
       tToast,
     ],
   );

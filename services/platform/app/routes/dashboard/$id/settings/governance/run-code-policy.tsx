@@ -28,7 +28,6 @@ import {
   packageBaseName,
 } from '@/app/features/settings/governance/lib/run-code-package-policy';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { runCodePolicyConfigSchema } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';
@@ -138,7 +137,6 @@ interface TestRow {
 function RunCodePolicyRoute() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('governance');
-  const { toast } = useToast();
   const ability = useAbility();
   const cannotManage = ability.cannot('write', 'orgSettings');
 
@@ -201,6 +199,10 @@ function RunCodePolicyRoute() {
     [form],
   );
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. So this only persists and, when the write fails, throws the
+  // translated line for the cluster to show.
   const handleSave = useCallback(async () => {
     try {
       await upsertMutation.mutateAsync({
@@ -217,23 +219,11 @@ function RunCodePolicyRoute() {
       // Drop local edits so the form re-reads the freshly-saved server state
       // (the reactive `getPolicy` query updates once the write completes).
       setEdits({});
-      toast({
-        title: t('toastSavedTitle'),
-        description: t('runCodePolicy.saved'),
-        variant: 'success',
-      });
     } catch (error) {
       console.error('[run_code_policy] save failed', error);
-      toast({
-        title: t('toastSaveFailedTitle'),
-        description: t('runCodePolicy.saveFailed'),
-        variant: 'destructive',
-      });
-      // Rethrow so the header Save cluster doesn't flash "Saved" on failure
-      // (same local-toast-then-throw contract as the useFormEditor pages).
-      throw error;
+      throw new Error(t('runCodePolicy.saveFailed'), { cause: error });
     }
-  }, [liveDraft, organizationId, upsertMutation, toast, t]);
+  }, [liveDraft, organizationId, upsertMutation, t]);
 
   // Header Save/Discard via the settings layout's active-editor registry —
   // the same cluster every other settings page uses (no in-content button).

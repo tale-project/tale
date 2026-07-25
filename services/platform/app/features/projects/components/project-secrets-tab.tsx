@@ -11,7 +11,7 @@
  * a mask and the field clears for a clean re-type.
  */
 import { Alert } from '@tale/ui/alert';
-import { SectionHeader } from '@tale/ui/section-header';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { ShieldAlert } from 'lucide-react';
 
 import {
@@ -58,8 +58,11 @@ export function ProjectSecretsTab({
 
   if (isAccessDenied) {
     return (
-      <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-        <SectionHeader title={t('title')} description={t('description')} />
+      <ContentArea variant="narrow" gap={6}>
+        <StickySectionHeader
+          title={t('title')}
+          description={t('description')}
+        />
         <Alert
           variant="destructive"
           icon={ShieldAlert}
@@ -82,8 +85,8 @@ export function ProjectSecretsTab({
   }));
 
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader title={t('title')} description={t('description')} />
+    <ContentArea variant="narrow" gap={6}>
+      <StickySectionHeader title={t('title')} description={t('description')} />
       <Alert
         variant="warning"
         icon={ShieldAlert}

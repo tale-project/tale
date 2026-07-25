@@ -408,6 +408,10 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     };
   }, [config, defaultDisplayNames, revealedClientId]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The connection test, the metadata import and the SCIM token
+  // actions below are instant actions and keep their own toasts.
   const save = useCallback(
     async (values: SsoFormData) => {
       const provisioning = {
@@ -469,23 +473,37 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             ...provisioning,
           });
         }
-        toast({
-          title: t('integrations.enterpriseSso.saved'),
-          variant: 'success',
-        });
       } catch (error) {
-        const fallback = t('integrations.enterpriseSso.saveFailed');
-        toast({
-          title:
-            convexErrorCode(error) === 'sso_client_secret_required'
-              ? t('integrations.enterpriseSso.validation.clientSecretRequired')
-              : convexErrorMessage(error, fallback),
-          variant: 'destructive',
-        });
-        throw error;
+        // A missing client secret belongs under its own input — rethrow it
+        // untouched so `mapServerError` can pin it there. Everything else
+        // becomes the translated line the cluster shows in one toast.
+        if (convexErrorCode(error) === 'sso_client_secret_required')
+          throw error;
+        console.error('[sso] save failed', error);
+        throw new Error(
+          convexErrorMessage(error, t('integrations.enterpriseSso.saveFailed')),
+          { cause: error },
+        );
       }
     },
-    [config, organizationId, t, toast, upsertOidc, upsertSaml],
+    [config, organizationId, t, upsertOidc, upsertSaml],
+  );
+
+  const mapServerError = useCallback(
+    (error: unknown) => {
+      if (convexErrorCode(error) === 'sso_client_secret_required') {
+        return [
+          {
+            path: 'clientSecret',
+            message: t(
+              'integrations.enterpriseSso.validation.clientSecretRequired',
+            ),
+          },
+        ];
+      }
+      return null;
+    },
+    [t],
   );
 
   const editor = useFormEditor<SsoFormData>({
@@ -493,6 +511,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     defaultValues: EMPTY_FORM_DATA,
     schema,
     save,
+    mapServerError,
   });
 
   useRegisterActiveEditor(editor);

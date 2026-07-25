@@ -86,7 +86,7 @@ function buildConfig(
 
 // =============================================================================
 // Single editor — owns data fetching, the form controller, the enable toggle
-// state, save/toast wiring, and the loading state. Renders the REAL
+// state, the save wiring, and the loading state. Renders the REAL
 // `SettingsSection` once, always, wrapped in `<Skeletonize>`; the skeleton-aware
 // `<Switch>`/`<Input>` leaves mask themselves while loading, so the loading and
 // loaded layouts are the SAME tree.
@@ -175,6 +175,10 @@ export function UploadPolicyEditor({
     };
   }, [isLoading, savedConfig]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The enable switch below is an instant action and keeps its own
+  // revert-and-report toast.
   const save = useCallback(
     async (values: UploadPolicyForm) => {
       try {
@@ -183,21 +187,12 @@ export function UploadPolicyEditor({
           policyType: 'upload_policy',
           config: buildConfig(values, enabled),
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('uploadPolicy.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('uploadPolicy.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[uploadPolicy save]', err);
+        throw new Error(t('uploadPolicy.saveFailed'), { cause: err });
       }
     },
-    [enabled, organizationId, t, toast, upsertMutation],
+    [enabled, organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<UploadPolicyForm>({

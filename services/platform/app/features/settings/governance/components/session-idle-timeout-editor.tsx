@@ -16,7 +16,6 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_SESSION_IDLE_TIMEOUT,
@@ -59,7 +58,6 @@ export function SessionIdleTimeoutEditor({
   organizationId,
 }: SessionIdleTimeoutEditorProps) {
   const { t } = useT('governance');
-  const { toast } = useToast();
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -109,6 +107,10 @@ export function SessionIdleTimeoutEditor({
     return { idleTimeoutMinutes: savedConfig.idleTimeoutMinutes };
   }, [isLoading, savedConfig]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The enable switch above is an instant action and reports through
+  // the shared toggle hook instead.
   const save = useCallback(
     async (values: SessionIdleTimeoutForm) => {
       try {
@@ -120,21 +122,12 @@ export function SessionIdleTimeoutEditor({
             idleTimeoutMinutes: values.idleTimeoutMinutes,
           } satisfies SessionIdleTimeoutConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('sessionIdleTimeout.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('sessionIdleTimeout.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[sessionIdleTimeout save]', err);
+        throw new Error(t('sessionIdleTimeout.saveFailed'), { cause: err });
       }
     },
-    [enabled, organizationId, t, toast, upsertMutation],
+    [enabled, organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<SessionIdleTimeoutForm>({

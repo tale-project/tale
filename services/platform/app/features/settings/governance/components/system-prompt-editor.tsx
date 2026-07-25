@@ -12,7 +12,6 @@ import {
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   effectiveMandatoryInstructions,
@@ -70,7 +69,7 @@ function readSavedInstructions(rawConfig: unknown): SavedInstructions {
 
 // =============================================================================
 // Single editor — owns data fetching, the form controller, the instant-save
-// section toggle, save/toast wiring, and the loading state. Renders the REAL
+// section toggle, the save wiring, and the loading state. Renders the REAL
 // layout once, always, wrapped in `<Skeletonize>`. The skeleton-aware
 // `<Textarea>` masks itself to its exact `rows={4}` height while loading. Route
 // loaders warm `system_prompt` so warm navigations skip the skeleton entirely.
@@ -85,7 +84,6 @@ export function SystemPromptEditor({
   organizationId,
 }: SystemPromptEditorProps) {
   const { t } = useT('governance');
-  const { toast } = useToast();
 
   const { data: policy, isLoading } = useGovernancePolicy(
     organizationId,
@@ -137,6 +135,10 @@ export function SystemPromptEditor({
     return { mandatoryInstructions: saved.text };
   }, [isLoading, saved.text]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The section toggle is an instant action and reports through the
+  // shared toggle hook instead.
   const save = useCallback(
     async (values: SystemPromptForm) => {
       try {
@@ -150,21 +152,12 @@ export function SystemPromptEditor({
             mandatoryInstructions: values.mandatoryInstructions.trim(),
           } satisfies SystemPromptConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('systemPrompt.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('systemPrompt.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[systemPrompt save]', err);
+        throw new Error(t('systemPrompt.saveFailed'), { cause: err });
       }
     },
-    [organizationId, t, toast, upsertMutation],
+    [organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<SystemPromptForm>({

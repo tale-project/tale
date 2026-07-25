@@ -7,7 +7,7 @@
  * "set" — it is write-only, so focusing the field clears it for a clean re-type
  * and blurring an untouched field restores the preview. Owns its local row state
  * + the rename / secret-dirty diffing, then commits via the injected `onSet` /
- * `onDelete` callbacks — so the same component backs the workflow-level,
+ * `onDelete` callbacks — so the same component backs the automation-level,
  * step-level, and per-agent surfaces, each wiring its own store.
  */
 import { Button } from '@tale/ui/button';
@@ -331,7 +331,10 @@ export function EnvVarListEditor({
       // server can produce them).
       dirty.current = false;
       setIsDirty(false);
-      toast({ title: t('saved'), variant: 'success' });
+      // External mode: the host's Save cluster flashes "Saved" itself, so a
+      // toast here would report the same save twice. The inline mode has no
+      // cluster, so its own Save button still reports through the toast.
+      if (!externalSave) toast({ title: t('saved'), variant: 'success' });
     } catch (err) {
       // External mode: rethrow so EditorActions owns the (single) failure
       // toast; inline mode keeps the local toast.

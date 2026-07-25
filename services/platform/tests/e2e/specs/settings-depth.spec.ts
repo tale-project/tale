@@ -65,13 +65,15 @@ test.describe('settings depth — organization', () => {
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
 
-    // Commit gate: wait for the success toast BEFORE reloading. Reloading
-    // mid-save aborts the in-flight mutation and the reloaded field would
-    // still show the original name; the toast is the commit signal. We assert
-    // persistence off the reloaded FIELD, not the toast.
-    await expect(
-      page.getByText(t('toast.success.organizationUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Commit gate: wait for the Save cluster to settle BEFORE reloading.
+    // Reloading mid-save aborts the in-flight mutation and the reloaded field
+    // would still show the original name. The page toasts nothing on success —
+    // the cluster flashes "Saved" and then settles back to a DISABLED "Save"
+    // once the form is clean again, which is the stable commit signal (a failed
+    // save leaves the form dirty and the button enabled). `visibleSaveButton`
+    // matches the label exactly, so it can't match the in-flight "Saving…" or
+    // the "Saved" flash. We assert persistence off the reloaded FIELD.
+    await expect(save).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(newName, { timeout: TIMEOUT.PERSIST });
 
@@ -80,9 +82,7 @@ test.describe('settings depth — organization', () => {
     const restoreSave = visibleSaveButton(page);
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
-    await expect(
-      page.getByText(t('toast.success.organizationUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(restoreSave).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(originalName, {
       timeout: TIMEOUT.PERSIST,
@@ -204,12 +204,12 @@ test.describe('settings depth — branding', () => {
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
 
-    // Commit gate: wait for the success toast BEFORE reloading. Reloading
-    // mid-save aborts the in-flight mutation; the toast is the commit signal.
-    // Persistence is asserted off the reloaded FIELD below, not the toast.
-    await expect(
-      page.getByText(t('toast.success.brandingUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Commit gate: wait for the Save cluster to settle BEFORE reloading.
+    // Reloading mid-save aborts the in-flight mutation. The page toasts nothing
+    // on success — the cluster flashes "Saved" and settles back to a DISABLED
+    // "Save" once the form is clean again, which is the stable commit signal.
+    // Persistence is asserted off the reloaded FIELD below.
+    await expect(save).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, accentColorField);
     await expect(accentColorField).toHaveValue(/123456/i, {
       timeout: TIMEOUT.PERSIST,
@@ -221,9 +221,7 @@ test.describe('settings depth — branding', () => {
     const restoreSave = visibleSaveButton(page);
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
-    await expect(
-      page.getByText(t('toast.success.brandingUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(restoreSave).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, accentColorField);
     await expect(accentColorField).toHaveValue(originalAccentColor, {
       timeout: TIMEOUT.PERSIST,

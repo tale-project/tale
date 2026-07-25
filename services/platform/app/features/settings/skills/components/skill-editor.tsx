@@ -75,6 +75,10 @@ export function SkillEditor({
     };
   }, [skill]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. Delete stays a local, dialog-confirmed action and keeps its own
+  // toasts.
   const save = useCallback(
     async (values: SkillFormState) => {
       const labels = values.labels
@@ -90,11 +94,9 @@ export function SkillEditor({
           visibility: values.visibility,
           labels,
         });
-        toast({ title: t('skills.editor.saveSuccess'), variant: 'success' });
       } catch (error) {
         console.error('Failed to save skill', error);
-        toast({ title: t('skills.editor.saveFailed'), variant: 'destructive' });
-        throw error;
+        throw new Error(t('skills.editor.saveFailed'), { cause: error });
       }
     },
     [organizationId, saveSkill, slug, t],

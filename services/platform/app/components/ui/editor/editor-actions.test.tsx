@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EditorActions } from './editor-actions';
-import type { EditorController } from './types';
+import { EditorSaveCancelledError } from './types';
+import type { EditorController, EditorTelemetryEvent } from './types';
 
 const toastMock = vi.fn();
 
@@ -91,5 +92,38 @@ describe('EditorActions — suppressServerErrorToast', () => {
         variant: 'destructive',
       }),
     );
+  });
+});
+
+describe('EditorActions — cancelled save', () => {
+  it('stays silent when the save is cancelled: no toast, no saved flash', async () => {
+    const events: EditorTelemetryEvent[] = [];
+    const controller = makeController({
+      save: vi.fn().mockRejectedValue(new EditorSaveCancelledError()),
+    });
+    render(
+      <EditorActions
+        controller={controller}
+        entityKind="project"
+        onEvent={(event) => events.push(event)}
+      />,
+    );
+    clickSave();
+
+    await waitFor(() =>
+      expect(events.map((e) => e.type)).toEqual([
+        'save_attempt',
+        'save_cancelled',
+      ]),
+    );
+    expect(toastMock).not.toHaveBeenCalled();
+    // The button label is the flash signal — it must still read "Save", never
+    // "Saved", for a save the user backed out of.
+    expect(
+      screen.getByRole('button', { name: 'actions.save' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'actions.saved' }),
+    ).not.toBeInTheDocument();
   });
 });

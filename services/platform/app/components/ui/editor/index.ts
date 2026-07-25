@@ -11,6 +11,7 @@ export {
   useDirtyBlockerControl,
 } from './dirty-blocker-provider';
 export { EditorActions } from './editor-actions';
+export { EditorSaveCancelledError, isEditorSaveCancelled } from './types';
 export type { EditorController, EditorTelemetryEvent } from './types';
 export { useRegisterDirtySource } from './use-dirty-source';
 export type { DirtySourceEntry, DirtySourceOptions } from './use-dirty-source';

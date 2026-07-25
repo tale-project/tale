@@ -10,7 +10,6 @@ import {
 } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@/lib/shared/schemas/projects';
@@ -54,28 +53,46 @@ export function ProjectInstructionsEditor({
       try {
         await updateInstructions({ projectId, instructions });
       } catch (error) {
-        if (error instanceof ConvexError) {
-          const code = error.data?.code;
-          if (code === 'PROJECT_INSTRUCTIONS_TOO_LONG') {
-            toast({
-              title: t('errors.PROJECT_INSTRUCTIONS_TOO_LONG', {
-                cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
-              }),
-              variant: 'destructive',
-            });
-          }
-        } else {
-          console.error('updateProjectInstructions failed', error);
+        // The over-limit rejection is rethrown untouched so `mapServerError`
+        // can pin it under the field; anything else surfaces as the cluster's
+        // one generic save toast.
+        if (
+          error instanceof ConvexError &&
+          error.data?.code === 'PROJECT_INSTRUCTIONS_TOO_LONG'
+        ) {
+          throw error;
         }
-        throw error;
+        console.error('updateProjectInstructions failed', error);
+        throw new Error(t('settings.saveError'), { cause: error });
       }
     },
     [projectId, t, updateInstructions],
   );
 
+  const mapServerError = useCallback(
+    (error: unknown) => {
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'PROJECT_INSTRUCTIONS_TOO_LONG'
+      ) {
+        return [
+          {
+            path: 'instructions',
+            message: t('errors.PROJECT_INSTRUCTIONS_TOO_LONG', {
+              cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
+            }),
+          },
+        ];
+      }
+      return null;
+    },
+    [t],
+  );
+
   const editor = useFormEditor<InstructionsForm>({
     data,
     save,
+    mapServerError,
   });
 
   const value = editor.form.watch('instructions') ?? '';
@@ -108,6 +125,7 @@ export function ProjectInstructionsEditor({
             placeholder={t('instructions.placeholder')}
             rows={12}
             {...editor.form.register('instructions')}
+            errorMessage={editor.form.formState.errors.instructions?.message}
           />
           <Text
             variant="caption"

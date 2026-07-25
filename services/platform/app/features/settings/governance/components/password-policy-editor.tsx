@@ -51,7 +51,7 @@ const parseConfig = createConfigParser(
 );
 
 // =============================================================================
-// Single editor — owns data fetching, the form controller, save/toast wiring,
+// Single editor — owns data fetching, the form controller, the save wiring,
 // and the loading state. Renders the REAL layout once, always, wrapped in
 // `<Skeletonize>`. The skeleton-aware `<Input>`/`<Checkbox>`/`<Switch>` mask
 // themselves to their exact size while loading. The `rotationDays` input
@@ -107,6 +107,11 @@ export function PasswordPolicyEditor({
     };
   }, [isLoading, policy]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The checkboxes and the rotation switch below persist instantly
+  // through `persistToggle`, which has no cluster to report through and so
+  // raises its own failure toast.
   const save = useCallback(
     async (values: PasswordPolicyForm) => {
       try {
@@ -122,22 +127,12 @@ export function PasswordPolicyEditor({
             rotationDays: values.rotationEnabled ? values.rotationDays : 0,
           } satisfies PasswordPolicyConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('passwordPolicy.saved'),
-          variant: 'success',
-        });
       } catch (e) {
-        console.error(e);
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('passwordPolicy.saveFailed'),
-          variant: 'destructive',
-        });
-        throw e;
+        console.error('[passwordPolicy save]', e);
+        throw new Error(t('passwordPolicy.saveFailed'), { cause: e });
       }
     },
-    [organizationId, t, toast, upsertMutation],
+    [organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<PasswordPolicyForm>({
@@ -170,16 +165,21 @@ export function PasswordPolicyEditor({
   const persistToggle = useCallback(
     (field: keyof PasswordPolicyForm, value: boolean) => {
       setValue(field, value, { shouldDirty: true, shouldValidate: true });
-      // Fire-and-forget: `save()` already toasts real failures, and a
-      // validation failure (e.g. a numeric input mid-edit) surfaces inline on
-      // that field. Catch so the discarded promise never rejects unhandled.
+      // Fire-and-forget, so catch: a validation failure (e.g. a numeric input
+      // mid-edit) surfaces inline on that field and needs nothing here, while a
+      // real write failure has no Save cluster to report through on this path —
+      // the toggle applied without a click on Save — so it toasts here.
       editor.save().catch((err) => {
-        if (!(err instanceof Error && err.message === 'VALIDATION_FAILED')) {
-          console.error('[passwordPolicy] toggle save failed', err);
-        }
+        if (err instanceof Error && err.message === 'VALIDATION_FAILED') return;
+        console.error('[passwordPolicy] toggle save failed', err);
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('passwordPolicy.saveFailed'),
+          variant: 'destructive',
+        });
       });
     },
-    [editor, setValue],
+    [editor, setValue, t, toast],
   );
 
   return (

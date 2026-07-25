@@ -13,7 +13,7 @@ import {
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { structuralEqual } from '@/lib/utils/structural-equal';
 
-import type { EditorController } from './types';
+import { isEditorSaveCancelled, type EditorController } from './types';
 import { useRegisterDirtySource } from './use-dirty-source';
 
 // `zodResolver` is generic over `<unknown, FieldValues>`; we widen it back to
@@ -223,10 +223,13 @@ export function useFormEditor<T extends FieldValues>({
     (e?: { preventDefault: () => void }) => {
       e?.preventDefault();
       // Route the native form submit through `doSave` so the dirty baseline is
-      // reset on success. Validation failures surface inline via `form.setError`
-      // and server errors are already toasted by the caller's `save` — log
-      // anything unexpected rather than swallow it (mirrors password-policy).
+      // reset on success. Validation failures surface inline via
+      // `form.setError` and a cancelled save is a deliberate no-op, so both
+      // stay quiet; a server failure has no cluster to toast it on this path
+      // (the native submit bypasses `EditorActions`), so log it rather than
+      // swallow it.
       doSave().catch((err) => {
+        if (isEditorSaveCancelled(err)) return;
         if (!(err instanceof Error && err.message === 'VALIDATION_FAILED')) {
           console.error('[useFormEditor] submit failed', err);
         }

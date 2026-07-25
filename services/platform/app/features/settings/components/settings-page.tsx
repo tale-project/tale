@@ -5,24 +5,34 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { FIELD_LAYOUT_ROW } from '@/app/components/ui/forms/field-shell';
 import { cn } from '@/lib/utils/cn';
 
-// A page's dividers key on SettingsSection's `data-settings-section` marker,
-// never on "every child". Two shapes have to work, and one must NOT:
-//
-//   • sections as siblings — either directly under the page, or all inside one
-//     wrapper (a `<Skeletonize>`, a `<form>`), which is how several governance
-//     pages are built;
-//   • sections each inside their own wrapper, siblings at the page level —
-//     matched by asking whether a child CONTAINS a section;
-//   • a wrapper holding a section header plus its table: those children are
-//     not sections, so they get no line between them — the stray divider that
-//     appeared under Teams / Skills / Sandboxes / Branding / Trash and the
-//     environment page.
-//
-// Dialogs and other children that render nothing where they sit never match
-// either rule, so a page can no longer end on a divider with empty space.
-// Written as whole literals: Tailwind generates CSS from the class strings it
-// finds in the source, so an interpolated selector would emit nothing.
-const SECTION_DIVIDER_CLASS =
+/**
+ * The section-divider rule for configuration surfaces: every
+ * `SettingsSection` after the first is separated from its predecessor by one
+ * hairline. `SettingsPage` applies it for the whole settings area; other
+ * configuration surfaces built from `SettingsSection` — the project overview
+ * page, for one — apply it to their own section container instead of
+ * hand-rolling `border-t pt-8` on individual sections, so all of them share
+ * one rhythm and none can forget a line on a single sibling.
+ *
+ * Dividers key on `SettingsSection`'s `data-settings-section` marker, never on
+ * "every child". Two shapes have to work, and one must NOT:
+ *
+ *   • sections as siblings — either directly under the page, or all inside one
+ *     wrapper (a `<Skeletonize>`, a `<form>`), which is how several governance
+ *     pages are built;
+ *   • sections each inside their own wrapper, siblings at the page level —
+ *     matched by asking whether a child CONTAINS a section;
+ *   • a wrapper holding a section header plus its table: those children are
+ *     not sections, so they get no line between them — the stray divider that
+ *     appeared under Teams / Skills / Sandboxes / Branding / Trash and the
+ *     environment page.
+ *
+ * Dialogs and other children that render nothing where they sit never match
+ * either rule, so a page can no longer end on a divider with empty space.
+ * Written as whole literals: Tailwind generates CSS from the class strings it
+ * finds in the source, so an interpolated selector would emit nothing.
+ */
+export const SECTION_DIVIDER_CLASS =
   '[&_[data-settings-section]~[data-settings-section]]:border-border [&_[data-settings-section]~[data-settings-section]]:border-t [&_[data-settings-section]~[data-settings-section]]:pt-8 [&>:is([data-settings-section],:has([data-settings-section]))~:is([data-settings-section],:has([data-settings-section]))]:border-border [&>:is([data-settings-section],:has([data-settings-section]))~:is([data-settings-section],:has([data-settings-section]))]:border-t [&>:is([data-settings-section],:has([data-settings-section]))~:is([data-settings-section],:has([data-settings-section]))]:pt-8';
 
 interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
@@ -76,9 +86,9 @@ export function SettingsPage({
       {...FIELD_LAYOUT_ROW}
       className={cn(
         'flex w-full flex-col gap-8',
-        // Every section after the first gets the same divider, owned HERE so
-        // no page can forget it on one sibling and render an inconsistent
-        // rhythm.
+        // Every section after the first gets the same divider, owned by the
+        // shared rule so no page can forget it on one sibling and render an
+        // inconsistent rhythm.
         SECTION_DIVIDER_CLASS,
         !fullWidth && 'mx-auto max-w-3xl',
         // Bottom breathing room. ContentArea's `py-6` lives on a `flex-1`
