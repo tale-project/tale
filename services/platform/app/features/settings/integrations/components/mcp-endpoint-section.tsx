@@ -1,10 +1,12 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { METHODS } from '@/lib/engine/api/dispatch';
 import { useT } from '@/lib/i18n/client';
@@ -40,55 +42,55 @@ export function McpEndpointSection({
       title={t('mcpEndpoint.title')}
       description={t('mcpEndpoint.description')}
     >
-      <Stack gap={6}>
-        <Stack gap={2}>
-          <div className="max-w-xl">
-            <CopyableField
-              value={endpoint}
-              mono
-              copyAriaLabel={t('mcpEndpoint.copyEndpoint')}
-            />
-          </div>
-          <Text as="p" variant="muted" className="max-w-xl text-sm">
-            {t('mcpEndpoint.authHelp')}{' '}
-            <Link
-              to="/dashboard/$id/settings/api/rest"
-              params={{ id: organizationId }}
-              className="underline"
-            >
-              {t('mcpEndpoint.authLink')}
-            </Link>
-          </Text>
-        </Stack>
+      {/* Same divided rows as every settings section — label + hint left,
+          the value pinned right. */}
+      <SettingsFieldList>
+        <SettingsFieldRow
+          label={t('mcpEndpoint.title')}
+          description={
+            <>
+              {t('mcpEndpoint.authHelp')}{' '}
+              <Link
+                to="/dashboard/$id/settings/api/rest"
+                params={{ id: organizationId }}
+                className="underline"
+              >
+                {t('mcpEndpoint.authLink')}
+              </Link>
+            </>
+          }
+        >
+          <CopyableField
+            value={endpoint}
+            mono
+            copyAriaLabel={t('mcpEndpoint.copyEndpoint')}
+          />
+        </SettingsFieldRow>
 
-        <Stack gap={2}>
-          <Text variant="label">{t('mcpEndpoint.toolsTitle')}</Text>
-          <Text as="p" variant="muted" className="max-w-xl text-sm">
-            {t('mcpEndpoint.toolsHelp')}
-          </Text>
-          <ul className="grid max-w-xl grid-cols-2 gap-1 sm:grid-cols-3">
+        <SettingsFieldRow
+          label={t('mcpEndpoint.toolsTitle')}
+          description={t('mcpEndpoint.toolsHelp')}
+        >
+          <ul className="grid grid-cols-2 gap-1">
             {METHODS.map((method) => (
               <li key={method}>
                 <code className="text-xs">{method}</code>
               </li>
             ))}
           </ul>
-        </Stack>
+        </SettingsFieldRow>
 
-        <Stack gap={2}>
-          <Text variant="label">{t('mcpEndpoint.exampleTitle')}</Text>
-          <Text as="p" variant="muted" className="max-w-xl text-sm">
-            {t('mcpEndpoint.exampleHelp')}
-          </Text>
-          <div className="max-w-xl">
-            <CopyableField
-              value={`curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`}
-              mono
-              copyAriaLabel={t('mcpEndpoint.copyExample')}
-            />
-          </div>
-        </Stack>
-      </Stack>
+        <SettingsFieldRow
+          label={t('mcpEndpoint.exampleTitle')}
+          description={t('mcpEndpoint.exampleHelp')}
+        >
+          <CopyableField
+            value={`curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`}
+            mono
+            copyAriaLabel={t('mcpEndpoint.copyExample')}
+          />
+        </SettingsFieldRow>
+      </SettingsFieldList>
     </SettingsSection>
   );
 }

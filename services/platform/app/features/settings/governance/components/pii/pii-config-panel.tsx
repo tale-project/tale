@@ -188,7 +188,7 @@ function ModeSection({
   // right — the same row shape run-code's Default mode uses.
   return (
     <SettingsFieldList>
-      <SettingsFieldRow label={tPiiConfigPanel('modeLabel')} wideControl>
+      <SettingsFieldRow label={tPiiConfigPanel('modeLabel')}>
         <RadioGroup
           aria-label={tPiiConfigPanel('modeLabel')}
           value={value.mode}

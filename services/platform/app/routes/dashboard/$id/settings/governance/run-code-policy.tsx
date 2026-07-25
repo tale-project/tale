@@ -285,10 +285,7 @@ function RunCodePolicyRoute() {
           description={t('runCodePolicy.modeSectionDescription')}
         >
           <SettingsFieldList>
-            <SettingsFieldRow
-              label={t('runCodePolicy.modeSectionTitle')}
-              wideControl
-            >
+            <SettingsFieldRow label={t('runCodePolicy.modeSectionTitle')}>
               <RadioGroup
                 aria-label={t('runCodePolicy.modeSectionTitle')}
                 value={form.defaultMode}

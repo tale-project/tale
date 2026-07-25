@@ -26,6 +26,7 @@ import {
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -1314,18 +1315,15 @@ function ReadOnlyCopy({
   onCopy: (value: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  // A settings field like any other: label + help on the left, the copyable
+  // value pinned right in the shared control column.
   return (
-    <Stack gap={1}>
-      <Text variant="label" className="text-sm">
-        {label}
-      </Text>
-      {helpText && (
-        <Text variant="muted" className="text-xs">
-          {helpText}
-        </Text>
-      )}
-      <HStack gap={2} align="center">
-        <code className="bg-muted block flex-1 truncate rounded-md p-2 font-mono text-xs">
+    <SettingsFieldRow
+      label={label}
+      {...(helpText !== undefined ? { description: helpText } : {})}
+    >
+      <HStack gap={2} align="center" className="w-full">
+        <code className="bg-muted block min-w-0 flex-1 truncate rounded-md p-2 font-mono text-xs">
           {value || '—'}
         </code>
         <Button
@@ -1343,7 +1341,7 @@ function ReadOnlyCopy({
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </Button>
       </HStack>
-    </Stack>
+    </SettingsFieldRow>
   );
 }
 

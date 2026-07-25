@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Stack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Key, KeyRound, Trash2 } from 'lucide-react';
@@ -91,12 +91,14 @@ export function WebdavSettings(props: WebdavSettingsProps) {
       <SettingsSection
         title={t('list.title')}
         description={t('create.description')}
-        action={
+      >
+        {/* The table is always on screen — empty state included — with its
+            action right-aligned above it, where every table's action sits. */}
+        <Row justify="end">
           <Button icon={KeyRound} onClick={() => setCreateOpen(true)}>
             {t('create.submit')}
           </Button>
-        }
-      >
+        </Row>
         <WebdavAppPasswordsTable rows={rows} />
       </SettingsSection>
 
