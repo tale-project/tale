@@ -6750,6 +6750,11 @@
       "export": {
         "failed": "Failed to export integration"
       },
+      "duplicate": {
+        "failed": "Failed to duplicate integration",
+        "pending": "Creating a copy of {name}…",
+        "success": "Created a copy of {name}"
+      },
       "viewDetails": "View details",
       "menuLabel": "Manage {name}"
     },

@@ -8,19 +8,27 @@
  * Supports compare-and-swap via expectedHash to prevent lost updates.
  */
 
-import { readdir } from 'node:fs/promises';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 import { v } from 'convex/values';
 import JSZip from 'jszip';
 
-import type { IntegrationJsonConfig } from '../../lib/shared/schemas/integrations';
+import {
+  isDuplicableIntegration,
+  type IntegrationJsonConfig,
+} from '../../lib/shared/schemas/integrations';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
-import { action, internalAction } from '../_generated/server';
+import { type ActionCtx, action, internalAction } from '../_generated/server';
+import {
+  cleanupReboundAutomations,
+  rebindBundledAutomations,
+} from '../automations/duplicate_rebind';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
+  atomicWriteBuffer,
   readFileBufferSafe,
   readFileSafe,
   readJsonFile,
@@ -29,6 +37,8 @@ import {
 import { requireDeveloperSettingsAccessById } from '../providers/auth';
 import type { IntegrationReadResult } from './file_utils';
 import {
+  deriveNextSlug,
+  isBuiltinIntegrationSlug,
   MAX_FILE_SIZE_BYTES,
   parseIntegrationJson,
   resolveConfigPath,
@@ -161,6 +171,14 @@ export const listIntegrations = action({
 
           const entry: Record<string, unknown> = {
             slug,
+            // Only a base builtin template spawns instances; an instance
+            // (a duplicate like imap_smtp-2) is a leaf — not itself duplicable.
+            duplicable:
+              isBuiltinIntegrationSlug(slug) &&
+              isDuplicableIntegration({
+                slug,
+                authMethod: result.config.authMethod,
+              }),
             title: result.config.title,
             description: result.config.description,
             labels: result.config.labels,
@@ -446,7 +464,6 @@ export const writeIntegrationFiles = action({
     const configContent = serializeIntegrationJson(config);
     const integrationDir = resolveIntegrationDir(orgSlug, args.slug);
 
-    const { mkdir } = await import('node:fs/promises');
     await mkdir(integrationDir, { recursive: true });
 
     await atomicWrite(path.join(integrationDir, 'config.json'), configContent);
@@ -522,6 +539,208 @@ export const exportIntegration = action({
       filename: `${args.slug}.zip`,
       dataBase64,
     };
+  },
+});
+
+/**
+ * Best-effort teardown for a failed {@link duplicateIntegration}, in reverse of
+ * creation order: remove any rebound automations, delete the credential, then
+ * remove the integration dir — so a retry re-derives the same slug from a clean
+ * slate. Never throws (each step is logged); the caller rethrows the original
+ * error.
+ */
+async function cleanupDuplicatedIntegration(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    orgSlug: string;
+    newSlug: string;
+    newDir: string;
+    credentialId: Id<'integrationCredentials'> | null;
+  },
+): Promise<void> {
+  const { organizationId, orgSlug, newSlug, newDir, credentialId } = args;
+  await cleanupReboundAutomations(ctx, {
+    organizationId,
+    orgSlug,
+    integrationSlug: newSlug,
+  }).catch((error: unknown) => {
+    console.error(
+      `[duplicateIntegration] rebound-automation cleanup for "${newSlug}" failed:`,
+      error,
+    );
+  });
+  if (credentialId) {
+    await ctx
+      .runMutation(
+        internal.integrations.credential_mutations.deleteCredentialsInternal,
+        { credentialId },
+      )
+      .catch((error: unknown) => {
+        console.error(
+          `[duplicateIntegration] credential cleanup for "${newSlug}" failed:`,
+          error,
+        );
+      });
+  }
+  await rm(newDir, { recursive: true, force: true }).catch((error: unknown) => {
+    console.error(
+      `[duplicateIntegration] dir cleanup for "${newSlug}" failed:`,
+      error,
+    );
+  });
+}
+
+/**
+ * Duplicate an integration under a new, unique slug: clone its config dir
+ * (config.json + optional connector.ts + icon.svg) with a distinguishing
+ * "<title> (N)" title, create an inactive/blank credential, and rebind any
+ * bundled sync automation to the new slug so the copy gets its own sync + inbox.
+ * General to any duplication-safe integration ({@link isDuplicableIntegration});
+ * the automation rebind is a no-op for integrations without a bundled one
+ * (REST / SQL). Gated on the same `developerSettings` capability as the other
+ * integration writes.
+ *
+ * Multi-step (files + DB rows + automation install) with no cross-boundary
+ * transaction, so on any failure it best-effort tears down in reverse order and
+ * rethrows — a retry then re-derives the same slug from a clean slate.
+ */
+export const duplicateIntegration = action({
+  args: {
+    organizationId: v.string(),
+    slug: v.string(),
+  },
+  returns: v.object({
+    newSlug: v.string(),
+    credentialId: v.id('integrationCredentials'),
+    reboundAutomations: v.array(
+      v.object({ sourceSlug: v.string(), newSlug: v.string() }),
+    ),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    newSlug: string;
+    credentialId: Id<'integrationCredentials'>;
+    reboundAutomations: Array<{ sourceSlug: string; newSlug: string }>;
+  }> => {
+    if (!validateIntegrationSlug(args.slug)) {
+      throw new Error(`Invalid integration slug: ${args.slug}`);
+    }
+    const { orgSlug, userId, email } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+    const installedBy = email ? email : userId;
+
+    const source = await readIntegrationConfigFile(orgSlug, args.slug);
+    if (!source.ok) {
+      throw new Error(`Cannot duplicate integration: ${source.message}`);
+    }
+    // Server-side duplicability guard behind the UI gate: OAuth / slug-bound
+    // integrations can't be safely cloned under a new slug.
+    if (
+      !isDuplicableIntegration({
+        slug: args.slug,
+        authMethod: source.config.authMethod,
+      })
+    ) {
+      throw new Error(
+        `Integration "${args.slug}" cannot be duplicated (OAuth or provider-bound).`,
+      );
+    }
+    // Duplicate the base template, not an instance — a duplicate is a leaf.
+    if (!isBuiltinIntegrationSlug(args.slug)) {
+      throw new Error(
+        `Integration "${args.slug}" is already an instance; duplicate the base integration instead.`,
+      );
+    }
+
+    const connectorCode = await readConnectorCode(orgSlug, args.slug);
+    const iconBuf = await readFileBufferSafe(
+      resolveIconPath(orgSlug, args.slug),
+    );
+
+    // Derive a unique new slug across on-disk dirs AND credential rows.
+    const dirNames = await readdir(resolveIntegrationsDir(orgSlug)).catch(
+      () => [] as string[],
+    );
+    const credentials = (await ctx.runQuery(
+      internal.integrations.credential_queries.listInternal,
+      { organizationId: args.organizationId },
+    )) as Array<{ slug: string }>;
+    const newSlug = deriveNextSlug(args.slug, [
+      ...dirNames.filter(
+        (e) => !e.startsWith('.') && validateIntegrationSlug(e),
+      ),
+      ...credentials.map((c) => c.slug),
+    ]);
+    if (!validateIntegrationSlug(newSlug)) {
+      throw new Error(`Derived integration slug is invalid: ${newSlug}`);
+    }
+    // deriveNextSlug always appends `-<n>`; that trailing number distinguishes
+    // the copy's title so the two show apart in the inbox channel picker.
+    const suffix = newSlug.slice(newSlug.lastIndexOf('-') + 1);
+
+    const newDir = resolveIntegrationDir(orgSlug, newSlug);
+    let credentialId: Id<'integrationCredentials'> | null = null;
+    try {
+      await mkdir(newDir, { recursive: true });
+      const dupConfig: IntegrationJsonConfig = {
+        ...source.config,
+        title: `${source.config.title} (${suffix})`,
+      };
+      await atomicWrite(
+        resolveConfigPath(orgSlug, newSlug),
+        serializeIntegrationJson(dupConfig),
+      );
+      if (connectorCode) {
+        await atomicWrite(
+          resolveConnectorPath(orgSlug, newSlug),
+          connectorCode,
+        );
+      }
+      // writeIntegrationFiles omits the icon; copy it byte-for-byte here.
+      if (iconBuf) {
+        await atomicWriteBuffer(resolveIconPath(orgSlug, newSlug), iconBuf);
+      }
+
+      // Inactive, blank credential — NO secrets, NO connectionConfig (the blank
+      // config-file templates ride along in the copied config.json; the
+      // operator fills in this instance's login).
+      credentialId = await ctx.runMutation(
+        internal.integrations.credential_mutations.createCredentials,
+        {
+          organizationId: args.organizationId,
+          slug: newSlug,
+          status: 'inactive',
+          isActive: false,
+          authMethod: source.config.authMethod,
+          supportedAuthMethods: source.config.supportedAuthMethods,
+          capabilities: source.config.capabilities,
+        },
+      );
+
+      const reboundAutomations = await rebindBundledAutomations(ctx, {
+        organizationId: args.organizationId,
+        orgSlug,
+        sourceIntegrationSlug: args.slug,
+        newIntegrationSlug: newSlug,
+        installedBy,
+      });
+
+      return { newSlug, credentialId, reboundAutomations };
+    } catch (error) {
+      await cleanupDuplicatedIntegration(ctx, {
+        organizationId: args.organizationId,
+        orgSlug,
+        newSlug,
+        newDir,
+        credentialId,
+      });
+      throw error;
+    }
   },
 });
 

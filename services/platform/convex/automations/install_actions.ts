@@ -315,6 +315,15 @@ export async function ensureOrgResources(
   organizationId: string,
   automationSlug: string,
   install: InstallContext,
+  /**
+   * Skip schedule provisioning. For an automation installed against an
+   * integration that is not connected yet (a fresh duplicate's blank
+   * credential), a cron created now would fire a doomed run on every tick until
+   * an operator fills the login in. The integration's reconnect cascade
+   * (`integrations/cascade.ts`) reconciles the schedule the moment it first
+   * connects, so skipping here defers the cron rather than dropping it.
+   */
+  skipSchedules = false,
 ): Promise<{ workflows: number; agents: number; resources: number }> {
   const { orgSlug, installedBy, manifest } = install;
   const record: {
@@ -381,7 +390,14 @@ export async function ensureOrgResources(
   // project for a project automation (re-seeding each existing binding's schedules on
   // reinstall). A newly added binding's schedules are created by `installAutomation`
   // after the bind, when the binding is visible.
-  await syncAutomationSchedules(ctx, organizationId, automationSlug, manifest);
+  if (!skipSchedules) {
+    await syncAutomationSchedules(
+      ctx,
+      organizationId,
+      automationSlug,
+      manifest,
+    );
+  }
 
   return {
     workflows: workflow ? 1 : 0,
@@ -595,6 +611,14 @@ export const installAutomationInternal = internalAction({
     organizationId: v.string(),
     automationSlug: v.string(),
     installedBy: v.string(),
+    /**
+     * Install without provisioning the automation's cron triggers. Set by the
+     * "Duplicate integration" rebind: the duplicate's credential is blank until
+     * an operator fills it in, and a schedule created now would fire a failing
+     * run every tick in the meantime. The integration's reconnect cascade
+     * provisions it on first successful connect.
+     */
+    skipSchedules: v.optional(v.boolean()),
   },
   returns: v.object({
     ok: v.boolean(),
@@ -627,6 +651,7 @@ export const installAutomationInternal = internalAction({
       args.organizationId,
       args.automationSlug,
       install,
+      args.skipSchedules ?? false,
     );
     return { ok: true, ...counts };
   },

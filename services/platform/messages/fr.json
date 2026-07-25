@@ -6451,6 +6451,11 @@
       "export": {
         "failed": "Échec de l'export de l'intégration"
       },
+      "duplicate": {
+        "failed": "Échec de la duplication de l'intégration",
+        "pending": "Création d'une copie de {name}…",
+        "success": "Copie de {name} créée"
+      },
       "viewDetails": "Voir les détails",
       "menuLabel": "Gérer {name}"
     },

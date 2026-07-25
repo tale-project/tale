@@ -6451,6 +6451,11 @@
       "export": {
         "failed": "Integration konnte nicht exportiert werden"
       },
+      "duplicate": {
+        "failed": "Integration konnte nicht dupliziert werden",
+        "pending": "Kopie von {name} wird erstellt…",
+        "success": "Kopie von {name} erstellt"
+      },
       "viewDetails": "Details anzeigen",
       "menuLabel": "{name} verwalten"
     },

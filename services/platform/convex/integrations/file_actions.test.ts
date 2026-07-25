@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('node:fs/promises', () => ({
   readdir: vi.fn().mockResolvedValue([]),
   mkdir: vi.fn().mockResolvedValue(undefined),
+  rm: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('node:path', async () => {
@@ -36,13 +37,26 @@ vi.mock('../_generated/api', () => ({
 }));
 
 const mockAtomicWrite = vi.fn();
+const mockAtomicWriteBuffer = vi.fn();
 const mockReadFileSafe = vi.fn();
+const mockReadFileBufferSafe = vi.fn();
 const mockReadJsonFile = vi.fn();
 vi.mock('../lib/file_io', () => ({
   atomicWrite: (...args: unknown[]) => mockAtomicWrite(...args),
+  atomicWriteBuffer: (...args: unknown[]) => mockAtomicWriteBuffer(...args),
   readFileSafe: (...args: unknown[]) => mockReadFileSafe(...args),
+  readFileBufferSafe: (...args: unknown[]) => mockReadFileBufferSafe(...args),
   readJsonFile: (...args: unknown[]) => mockReadJsonFile(...args),
   sha256: () => 'mock-hash',
+}));
+
+const mockRebindBundledAutomations = vi.fn();
+const mockCleanupReboundAutomations = vi.fn();
+vi.mock('../automations/duplicate_rebind', () => ({
+  rebindBundledAutomations: (...args: unknown[]) =>
+    mockRebindBundledAutomations(...args),
+  cleanupReboundAutomations: (...args: unknown[]) =>
+    mockCleanupReboundAutomations(...args),
 }));
 
 // The capability gate lives in providers/auth (a `'use node'` helper that issues
@@ -67,10 +81,19 @@ vi.mock('./file_utils', async () => {
     ...actual,
     resolveConfigPath: (orgSlug: string, slug: string) =>
       `/data/integrations/${orgSlug}/${slug}/config.json`,
+    resolveConnectorPath: (orgSlug: string, slug: string) =>
+      `/data/integrations/${orgSlug}/${slug}/connector.ts`,
+    resolveIconPath: (orgSlug: string, slug: string) =>
+      `/data/integrations/${orgSlug}/${slug}/icon.svg`,
     resolveIntegrationDir: (orgSlug: string, slug: string) =>
       `/data/integrations/${orgSlug}/${slug}`,
+    resolveIntegrationsDir: (orgSlug: string) =>
+      `/data/integrations/${orgSlug}`,
     parseIntegrationJson: (s: string) => JSON.parse(s),
     serializeIntegrationJson: (c: unknown) => JSON.stringify(c),
+    // Stand-in for the catalog check: a duplicate ends in `-<n>`; everything
+    // else (bare slugs) is treated as a seeded builtin.
+    isBuiltinIntegrationSlug: (slug: string) => !/-\d+$/.test(slug),
   };
 });
 
@@ -83,6 +106,7 @@ const {
   uninstallIntegration,
   saveIntegrationConfig,
   writeIntegrationFiles,
+  duplicateIntegration,
 } = await import('./file_actions');
 
 type ActionConfig = {
@@ -95,6 +119,8 @@ const uninstallHandler = (uninstallIntegration as unknown as ActionConfig)
 const saveConfigHandler = (saveIntegrationConfig as unknown as ActionConfig)
   .handler;
 const writeFilesHandler = (writeIntegrationFiles as unknown as ActionConfig)
+  .handler;
+const duplicateHandler = (duplicateIntegration as unknown as ActionConfig)
   .handler;
 
 function createMockCtx() {
@@ -222,5 +248,114 @@ describe('integrations/file_actions capability gates', () => {
       });
       expect(mockAtomicWrite).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('duplicateIntegration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireDeveloperSettingsAccessById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      member: { _id: 'm-1', role: 'developer' },
+    });
+    mockReadFileSafe.mockResolvedValue(null);
+    mockReadFileBufferSafe.mockResolvedValue(null);
+    mockRebindBundledAutomations.mockResolvedValue([]);
+  });
+
+  it('rejects a plain member before any file or credential write', async () => {
+    mockRequireDeveloperSettingsAccessById.mockRejectedValue(FORBIDDEN);
+    const ctx = createMockCtx();
+    await expect(
+      duplicateHandler(
+        ctx as never,
+        { organizationId: 'org-123', slug: 'imap_smtp' } as never,
+      ),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' } });
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+    expect(mockRebindBundledAutomations).not.toHaveBeenCalled();
+  });
+
+  it('refuses to duplicate an OAuth integration', async () => {
+    mockReadJsonFile.mockResolvedValue({
+      ok: true,
+      data: { title: 'Gmail', authMethod: 'oauth2' },
+      hash: 'h',
+    });
+    const ctx = createMockCtx();
+    await expect(
+      duplicateHandler(
+        ctx as never,
+        { organizationId: 'org-123', slug: 'gmail' } as never,
+      ),
+    ).rejects.toThrow(/cannot be duplicated/i);
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+    expect(mockRebindBundledAutomations).not.toHaveBeenCalled();
+  });
+
+  it('refuses to duplicate github (slug-bound) even though it is not OAuth', async () => {
+    mockReadJsonFile.mockResolvedValue({
+      ok: true,
+      data: { title: 'GitHub', authMethod: 'bearer_token' },
+      hash: 'h',
+    });
+    const ctx = createMockCtx();
+    await expect(
+      duplicateHandler(
+        ctx as never,
+        { organizationId: 'org-123', slug: 'github' } as never,
+      ),
+    ).rejects.toThrow(/cannot be duplicated/i);
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
+  it('clones a safe integration to the next slug with a suffixed title and rebinds its automations', async () => {
+    mockReadJsonFile.mockResolvedValue({
+      ok: true,
+      data: { title: 'IMAP / SMTP Mailbox', authMethod: 'basic_auth' },
+      hash: 'h',
+    });
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue([]); // no existing credential rows
+    ctx.runMutation.mockResolvedValue('cred-2'); // createCredentials → id
+
+    const result = await duplicateHandler(
+      ctx as never,
+      { organizationId: 'org-123', slug: 'imap_smtp' } as never,
+    );
+
+    expect(result).toMatchObject({
+      newSlug: 'imap_smtp-2',
+      credentialId: 'cred-2',
+      reboundAutomations: [],
+    });
+    // Inactive, blank credential under the derived slug.
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'createCredentials',
+      expect.objectContaining({
+        organizationId: 'org-123',
+        slug: 'imap_smtp-2',
+        status: 'inactive',
+        isActive: false,
+        authMethod: 'basic_auth',
+      }),
+    );
+    // Config written under the new slug with a distinguishing "(2)" title.
+    expect(mockAtomicWrite).toHaveBeenCalledWith(
+      '/data/integrations/default/imap_smtp-2/config.json',
+      expect.stringContaining('IMAP / SMTP Mailbox (2)'),
+    );
+    // Bundled automations rebound onto the new slug.
+    expect(mockRebindBundledAutomations).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        sourceIntegrationSlug: 'imap_smtp',
+        newIntegrationSlug: 'imap_smtp-2',
+        installedBy: 'a@b.com',
+      }),
+    );
   });
 });

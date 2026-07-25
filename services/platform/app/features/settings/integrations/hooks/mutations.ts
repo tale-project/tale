@@ -5,7 +5,7 @@ import { useCallback } from 'react';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-function useInvalidateIntegrations() {
+export function useInvalidateIntegrations() {
   const queryClient = useQueryClient();
   return () =>
     queryClient.invalidateQueries({ queryKey: ['config', 'integrations'] });

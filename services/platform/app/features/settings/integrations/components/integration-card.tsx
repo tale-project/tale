@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Download, Eye, Puzzle, type LucideIcon } from 'lucide-react';
+import { Copy, Download, Eye, Puzzle, type LucideIcon } from 'lucide-react';
 
 import {
   CatalogCard,
@@ -28,6 +28,8 @@ interface IntegrationCardProps {
   onClick?: () => void;
   /** Download this integration's files as a zip (fills the ⋯ Export action). */
   onExport?: () => void;
+  /** Clone this integration under a new slug (fills the ⋯ Duplicate action). */
+  onDuplicate?: () => void;
 }
 
 export function IntegrationCard({
@@ -41,6 +43,7 @@ export function IntegrationCard({
   icon: Icon = Puzzle,
   onClick,
   onExport,
+  onDuplicate,
 }: IntegrationCardProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -102,6 +105,16 @@ export function IntegrationCard({
                       label: tCommon('actions.export'),
                       icon: Download,
                       onClick: onExport,
+                    } satisfies EntityRowAction,
+                  ]
+                : []),
+              ...(onDuplicate
+                ? [
+                    {
+                      key: 'duplicate',
+                      label: tCommon('actions.duplicate'),
+                      icon: Copy,
+                      onClick: onDuplicate,
                     } satisfies EntityRowAction,
                   ]
                 : []),

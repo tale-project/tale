@@ -5,7 +5,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
-import { Download, Loader2, Trash2, X } from 'lucide-react';
+import { Copy, Download, Loader2, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -35,6 +35,10 @@ interface IntegrationPanelProps {
   onExport?: () => void;
   /** Parent-owned export in-flight state, reflected on the Export button. */
   isExporting?: boolean;
+  /** Clone this integration under a new slug (footer Duplicate action). */
+  onDuplicate?: () => void;
+  /** Parent-owned duplicate in-flight state, reflected on the Duplicate button. */
+  isDuplicating?: boolean;
 }
 
 export function IntegrationPanel({
@@ -44,6 +48,8 @@ export function IntegrationPanel({
   organizationId,
   onExport,
   isExporting,
+  onDuplicate,
+  isDuplicating,
 }: IntegrationPanelProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -132,20 +138,35 @@ export function IntegrationPanel({
       ? integration.connectionConfig.apiEndpoint
       : undefined);
 
-  // Footer secondary actions. Rendered inline: a popup for one item is more
-  // friction than it saves.
-  const secondaryActions = onExport
-    ? [
-        {
-          key: 'export',
-          label: tCommon('actions.export'),
-          icon: Download,
-          onClick: onExport,
-          disabled: manage.busy || isExporting,
-          loading: isExporting ?? false,
-        },
-      ]
-    : [];
+  // Footer secondary actions (Export, Duplicate) — at most two, so they render
+  // inline. A popup for one or two items is more friction than it saves; if a
+  // third ever lands, collapse them then.
+  const secondaryActions = [
+    ...(onExport
+      ? [
+          {
+            key: 'export',
+            label: tCommon('actions.export'),
+            icon: Download,
+            onClick: onExport,
+            disabled: manage.busy || isExporting,
+            loading: isExporting ?? false,
+          },
+        ]
+      : []),
+    ...(onDuplicate
+      ? [
+          {
+            key: 'duplicate',
+            label: tCommon('actions.duplicate'),
+            icon: Copy,
+            onClick: onDuplicate,
+            disabled: manage.busy || isDuplicating,
+            loading: isDuplicating ?? false,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <Sheet

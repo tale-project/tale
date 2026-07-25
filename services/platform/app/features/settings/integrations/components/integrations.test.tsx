@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,7 +18,9 @@ vi.mock('@/app/components/ui/data-display/image', () => ({
 }));
 
 vi.mock('./integration-panel', () => ({
-  IntegrationPanel: () => <div data-testid="integration-panel" />,
+  IntegrationPanel: ({ integration }: { integration: { title?: string } }) => (
+    <div data-testid="integration-panel">{integration?.title}</div>
+  ),
 }));
 
 vi.mock('./integration-upload/integration-upload-dialog', () => ({
@@ -28,6 +30,11 @@ vi.mock('./integration-upload/integration-upload-dialog', () => ({
 // The export action wires a Convex hook (no ConvexProvider mounts here).
 vi.mock('../hooks/use-export-integration', () => ({
   useExportIntegration: () => ({ mutateAsync: vi.fn() }),
+}));
+
+const mockDuplicateAsync = vi.fn();
+vi.mock('../hooks/use-duplicate-integration', () => ({
+  useDuplicateIntegration: () => ({ mutateAsync: mockDuplicateAsync }),
 }));
 
 afterEach(() => {
@@ -44,6 +51,7 @@ function makeIntegration(
     title: 'Test Integration',
     description: 'A test integration',
     authMethod: 'bearer_token',
+    duplicable: true,
     operationCount: 5,
     hash: 'abc123',
     ...overrides,
@@ -167,6 +175,60 @@ describe('Integrations', () => {
 
     await user.click(screen.getByText('integrations.tabs.connected'));
     expect(onTabChange).toHaveBeenCalledWith('connected');
+  });
+
+  it('duplicating switches to the all tab and opens the new instance once it appears', async () => {
+    const user = userEvent.setup();
+    const onTabChange = vi.fn();
+    mockDuplicateAsync.mockResolvedValue({
+      newSlug: 'imap_smtp-2',
+      credentialId: 'c1',
+      reboundAutomations: [],
+    });
+    const source = makeIntegration({
+      slug: 'imap_smtp',
+      title: 'IMAP / SMTP Mailbox',
+      duplicable: true,
+    });
+    const { rerender } = render(
+      <Integrations
+        {...defaultProps}
+        onTabChange={onTabChange}
+        integrations={[source]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'integrations.menuLabel' }),
+    );
+    await user.click(await screen.findByText('actions.duplicate'));
+
+    // Duplicate fires, then switches to the "all" tab (the new instance is
+    // inactive, so it would be hidden on Connected).
+    await waitFor(() => {
+      expect(mockDuplicateAsync).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        slug: 'imap_smtp',
+      });
+      expect(onTabChange).toHaveBeenCalledWith('all');
+    });
+
+    // The new instance arrives on the refetch → its panel opens automatically.
+    const duplicate = makeIntegration({
+      slug: 'imap_smtp-2',
+      title: 'IMAP / SMTP Mailbox (2)',
+      duplicable: true,
+    });
+    rerender(
+      <Integrations
+        {...defaultProps}
+        onTabChange={onTabChange}
+        integrations={[source, duplicate]}
+      />,
+    );
+    expect(await screen.findByTestId('integration-panel')).toHaveTextContent(
+      'IMAP / SMTP Mailbox (2)',
+    );
   });
 
   describe('accessibility', () => {

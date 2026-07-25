@@ -276,3 +276,49 @@ describe('IntegrationPanel — confirm dialogs name the instance', () => {
     expect(within(dialog).getByText('support@acme.test')).toBeInTheDocument();
   });
 });
+
+describe('IntegrationPanel — duplicate action', () => {
+  beforeEach(() => {
+    // A connected integration renders the details-mode footer.
+    vi.mocked(useIntegrationManage).mockImplementation(
+      () => baseManage as never,
+    );
+  });
+
+  it('renders a Duplicate button that fires onDuplicate', () => {
+    const onDuplicate = vi.fn();
+    render(
+      <IntegrationPanel
+        open
+        onOpenChange={vi.fn()}
+        integration={integration}
+        organizationId="org-1"
+        onDuplicate={onDuplicate}
+      />,
+    );
+    // With 1–2 secondary actions the footer renders inline buttons (no ⋯ menu).
+    const sheet = screen.getByTestId('sheet');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Duplicate' }));
+    expect(onDuplicate).toHaveBeenCalledOnce();
+  });
+
+  it('omits the Duplicate button when onDuplicate is not provided', () => {
+    render(
+      <IntegrationPanel
+        open
+        onOpenChange={vi.fn()}
+        integration={integration}
+        organizationId="org-1"
+        onExport={vi.fn()}
+      />,
+    );
+    const sheet = screen.getByTestId('sheet');
+    // Export renders as an inline button; Duplicate does not.
+    expect(
+      within(sheet).getByRole('button', { name: 'Export' }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole('button', { name: 'Duplicate' }),
+    ).not.toBeInTheDocument();
+  });
+});

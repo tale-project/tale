@@ -48,6 +48,12 @@ Beide Hebel werden zur Anfrage-Zeit erzwungen, nicht zur Installations-Zeit — 
 
 Klick auf die Zeile, dann auf **Trennen**. Eine getrennte Integration hört sofort auf zu authentifizieren; Agents und Workflows, die von ihr abhängen, melden beim nächsten Aufruf einen Konfigurationsfehler. Die Zeile bleibt mit einem Getrennt-Badge in der Liste, damit der Audit-Pfad überlebt. Erneutes Verbinden geht den Anmelde-Fluss von Grund auf neu.
 
+## Zwei Instanzen derselben Integration betreiben
+
+Manche Integrationen braucht man mehrfach — zwei Postfächer, zwei Datenbanken, zwei API-Mandanten. Öffne die Integration und wähle **Duplizieren** (auch im ⋯-Menü der Zeile), um eine zweite Instanz anzulegen. Tale kopiert die Konfiguration der Integration unter einem neuen Namen (`Support-Postfach (2)`), lässt die Anmeldedaten für dich frei und klont jede an das Original gebundene Automatisierung, damit die Kopie ihre eigene Synchronisation und ihren eigenen Posteingang bekommt.
+
+Die Kopie startet getrennt und bleibt ruhig — bis du ihre Anmeldedaten einträgst und verbindest, läuft kein geplanter Durchlauf. Ein unkonfiguriertes Duplikat erzeugt also nie fehlschlagende Durchläufe. Duplizieren wird nur dort angeboten, wo eine zweite Instanz tatsächlich funktionieren kann: OAuth-Integrationen (Gmail, Outlook, Slack) und GitHub sind beim Anbieter an ihre exakte Identität gebunden und lassen sich deshalb nicht duplizieren.
+
 ## Slack-Bot und Benachrichtigungen
 
 Slack ist zweigerichtet. Über den Agent, der Slack aufruft (Nachrichten posten, Kanäle lesen), hinaus kann die Organisation Leute aus Slack heraus mit einem Agent sprechen lassen und System-Events in einen Kanal pushen. Beides wird auf der verbundenen Slack-Zeile konfiguriert, und beides nutzt dieselbe OAuth-Anmeldung — keine zweite Verbindung.
