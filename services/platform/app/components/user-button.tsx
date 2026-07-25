@@ -702,6 +702,9 @@ export function UserButton({
             align={isSidebarVariant ? (align ?? 'end') : align}
             side={isSidebarVariant ? 'right' : undefined}
             sideOffset={isSidebarVariant ? 16 : undefined}
+            // The rail's own 8px inset: any more and Radix shifts the menu up,
+            // off the trigger's bottom edge the bell panel aligns with.
+            collisionPadding={isSidebarVariant ? 8 : undefined}
             open={open}
             onOpenChange={handleOpenChange}
             contentClassName={contentClassName}

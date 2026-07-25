@@ -104,6 +104,13 @@ interface DropdownMenuProps {
   side?: 'top' | 'right' | 'bottom' | 'left';
   /** Gap between the trigger and the menu. @default 4 */
   sideOffset?: number;
+  /**
+   * Distance the menu keeps from the viewport edges before Radix shifts it.
+   * The default suits floating menus; an edge-anchored panel (the rail's
+   * account menu) passes the rail's own inset so alignment with its trigger
+   * survives near the viewport edge.
+   */
+  collisionPadding?: number;
   contentClassName?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -229,6 +236,11 @@ function renderItem(item: DropdownMenuItem, key: number) {
             </svg>
           </DropdownMenuPrimitive.SubTrigger>
           <DropdownMenuPrimitive.SubContent
+            // A 16px visual gap to the parent panel — the same distance the
+            // panel keeps to its own anchor. Radix measures from the trigger
+            // item, which sits inside the panel's 4px padding and 1px border,
+            // so those are added back here.
+            sideOffset={21}
             collisionPadding={16}
             className={cn(
               'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
@@ -354,6 +366,7 @@ export function DropdownMenu({
   align,
   side,
   sideOffset,
+  collisionPadding,
   contentClassName,
   open,
   onOpenChange,
@@ -399,7 +412,7 @@ export function DropdownMenu({
           side={side}
           sideOffset={sideOffset ?? 4}
           align={align}
-          collisionPadding={16}
+          collisionPadding={collisionPadding ?? 16}
           onClick={(e) => e.stopPropagation()}
           className={cn(
             'z-50 max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] overflow-y-auto overflow-x-hidden rounded-lg border bg-card p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none',
