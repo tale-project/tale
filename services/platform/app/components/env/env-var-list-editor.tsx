@@ -548,7 +548,7 @@ export function EnvVarListEditor({
           className="self-start"
           onClick={addRow}
         >
-          <Plus className="size-4" />
+          <Plus className="mr-1.5 size-4" />
           {t('add')}
         </Button>
         {!externalSave && (

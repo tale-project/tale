@@ -2780,7 +2780,6 @@ governance:
       Nutzer können ihn nicht überschreiben.
     enabled: Benutzerdefinierte Anweisungen
     instructionsPlaceholder: Verbindliche Anweisungen eingeben...
-    charCount: '{count} / {max}'
     charLimitExceeded: Zeichenlimit überschritten
     saved: Benutzerdefinierte Anweisungen aktualisiert
     saveFailed: Benutzerdefinierte Anweisungen konnten nicht gespeichert werden
@@ -3611,9 +3610,9 @@ governance:
       hänge?key=DEIN_PERSPECTIVE_KEY an die URL an. (Das unten verschlüsselte
       API-Schlüsselfeld wird von Perspective nicht verwendet.)
   groups:
-    contentAndModels: Inhalte & Modelle
+    contentAndModels: Modelle
     policiesAndLimits: Richtlinien & Limits
-    securityAndMonitoring: Sicherheit & Überwachung
+    securityAndMonitoring: Sicherheit
     legalHold: Legal Hold
     trash: Papierkorb
     guardrails: Guardrails
@@ -4628,6 +4627,9 @@ metadata:
   webdav:
     title: WebDAV
     description: Tale-Dokumente als Netzlaufwerk einhängen.
+  mcp:
+    title: MCP
+    description: Verbinde externe Agent-Hosts über MCP mit diesem Workspace.
   sandboxes:
     title: Sandboxes
     description: Verwalten Sie die Remote-Agent-Sandboxes Ihrer Organisation.
@@ -4669,6 +4671,7 @@ navigation:
   account: Konto
   agents: Agenten
   skills: Skills
+  mcp: MCP
   webdav: WebDAV
   teamFilter:
     label: Team

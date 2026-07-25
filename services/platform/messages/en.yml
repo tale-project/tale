@@ -2659,7 +2659,6 @@ governance:
       Users cannot override it.
     enabled: Custom instructions
     instructionsPlaceholder: Enter the mandatory instructions...
-    charCount: '{count} / {max}'
     charLimitExceeded: Character limit exceeded
     saved: Custom instructions have been updated
     saveFailed: Failed to save the custom instructions
@@ -3458,9 +3457,9 @@ governance:
       ?key=YOUR_PERSPECTIVE_KEY to the URL. (The encrypted API-key field below
       is not used by Perspective.)
   groups:
-    contentAndModels: Content & Models
+    contentAndModels: Models
     policiesAndLimits: Policies & Limits
-    securityAndMonitoring: Security & Monitoring
+    securityAndMonitoring: Security
     legalHold: Legal hold
     trash: Trash
     guardrails: Guardrails
@@ -4435,6 +4434,9 @@ metadata:
   webdav:
     title: WebDAV
     description: Mount Tale documents as a network drive.
+  mcp:
+    title: MCP
+    description: Connect external agent hosts to this workspace over MCP.
   sandboxes:
     title: Sandboxes
     description: Manage your organization's remote agent sandboxes.
@@ -4476,6 +4478,7 @@ navigation:
   account: Account
   agents: Agents
   skills: Skills
+  mcp: MCP
   webdav: WebDAV
   teamFilter:
     label: Team

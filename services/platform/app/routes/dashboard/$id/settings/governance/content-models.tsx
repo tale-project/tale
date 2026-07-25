@@ -4,7 +4,6 @@ import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { DefaultModelEditor } from '@/app/features/settings/governance/components/default-model-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
-import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
 
 export const Route = createFileRoute(
@@ -16,7 +15,6 @@ export const Route = createFileRoute(
   // loading + access checks still render correctly.
   loader: ({ context, params }) =>
     ensureGovernancePolicies(context, params.id, [
-      'system_prompt',
       'default_models',
       'model_access',
     ]).catch((error: unknown) => {
@@ -34,7 +32,6 @@ function ContentModelsRoute() {
   return (
     <SettingsPage>
       <EditorGroup>
-        <SystemPromptEditor organizationId={organizationId} />
         <DefaultModelEditor organizationId={organizationId} />
         <ModelAccessEditor organizationId={organizationId} />
       </EditorGroup>

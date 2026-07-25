@@ -19,7 +19,6 @@ import {
 } from '../hooks/queries';
 import { mapIntegrationError } from '../integration-errors';
 import { ConnectorSection } from './connector-section';
-import { McpEndpointSection } from './mcp-endpoint-section';
 
 /** Placeholder sections shown while the catalog action resolves. */
 function ConnectorsLoading() {
@@ -131,8 +130,6 @@ export function IntegrationsSettings({
           />
         ))
       )}
-
-      <McpEndpointSection organizationId={organizationId} />
     </SettingsPage>
   );
 }

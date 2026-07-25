@@ -2808,7 +2808,6 @@ governance:
       travail. Les utilisateurs ne peuvent pas le remplacer.
     enabled: Instructions personnalisées
     instructionsPlaceholder: Saisir les instructions obligatoires...
-    charCount: '{count} / {max}'
     charLimitExceeded: Limite de caractères dépassée
     saved: Instructions personnalisées mises à jour
     saveFailed: Échec de l'enregistrement des instructions personnalisées
@@ -3671,9 +3670,9 @@ governance:
       ajoute ?key=TA_CLE_PERSPECTIVE à l'URL. (Le champ de clé API chiffrée
       ci-dessous n'est pas utilisé par Perspective.)
   groups:
-    contentAndModels: Contenu et modèles
+    contentAndModels: Modèles
     policiesAndLimits: Politiques et limites
-    securityAndMonitoring: Sécurité et surveillance
+    securityAndMonitoring: Sécurité
     legalHold: Conservation légale
     trash: Corbeille
     guardrails: Garde-fous
@@ -4681,6 +4680,9 @@ metadata:
   webdav:
     title: WebDAV
     description: Monte les documents Tale comme lecteur réseau.
+  mcp:
+    title: MCP
+    description: Connecte des hôtes d'agents externes à cet espace de travail via MCP.
   sandboxes:
     title: Sandboxes
     description: Gérez les sandboxes d’agent distant de votre organisation.
@@ -4722,6 +4724,7 @@ navigation:
   account: Compte
   agents: Agents
   skills: Skills
+  mcp: MCP
   webdav: WebDAV
   teamFilter:
     label: Équipe
