@@ -26,7 +26,19 @@ vi.mock('./integration-details', () => ({
   IntegrationDetails: () => null,
 }));
 vi.mock('./integration-manage/integration-active-view', () => ({
-  IntegrationActiveView: () => null,
+  // Disconnect lives here now (beside Test connection); render a minimal
+  // stand-in so the disconnect-loading test can still drive it.
+  IntegrationActiveView: ({
+    onDisconnect,
+    isDisconnecting,
+  }: {
+    onDisconnect: () => void;
+    isDisconnecting: boolean;
+  }) => (
+    <button type="button" onClick={onDisconnect}>
+      {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+    </button>
+  ),
 }));
 vi.mock('./integration-manage/integration-credentials-form-connected', () => ({
   IntegrationCredentialsFormConnected: () => null,
@@ -201,5 +213,66 @@ describe('IntegrationPanel — disconnect loading state', () => {
     expect(
       within(screen.getByTestId('sheet')).queryByText('Disconnecting...'),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('IntegrationPanel — confirm dialogs name the instance', () => {
+  // Several instances of one integration can share a base title and differ only
+  // by their identity (login/host/domain), so the destructive confirms must show
+  // it — otherwise you can't tell which look-alike instance you're about to
+  // disconnect or delete.
+  const integrationWithIdentity = {
+    ...integration,
+    authMethod: 'basic_auth',
+    basicAuth: { username: 'support@acme.test' },
+  } as Parameters<typeof IntegrationPanel>[0]['integration'];
+
+  it('shows the instance title + identity in the delete confirm', () => {
+    vi.mocked(useIntegrationManage).mockImplementation(
+      () =>
+        ({
+          ...baseManage,
+          isActive: true,
+          confirmDelete: true,
+          handleUninstall: vi.fn(),
+        }) as never,
+    );
+    render(
+      <IntegrationPanel
+        open
+        onOpenChange={vi.fn()}
+        integration={integrationWithIdentity}
+        organizationId="org-1"
+      />,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Shopify')).toBeInTheDocument();
+    expect(within(dialog).getByText('support@acme.test')).toBeInTheDocument();
+  });
+
+  it('shows the instance title + identity in the disconnect confirm', async () => {
+    vi.mocked(useIntegrationManage).mockImplementation(
+      () =>
+        ({
+          ...baseManage,
+          isActive: true,
+          handleDisconnect: vi.fn().mockResolvedValue(undefined),
+        }) as never,
+    );
+    render(
+      <IntegrationPanel
+        open
+        onOpenChange={vi.fn()}
+        integration={integrationWithIdentity}
+        organizationId="org-1"
+      />,
+    );
+    // Open the disconnect confirm via the (stubbed) active-view button.
+    fireEvent.click(
+      within(screen.getByTestId('sheet')).getByText('Disconnect'),
+    );
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Shopify')).toBeInTheDocument();
+    expect(within(dialog).getByText('support@acme.test')).toBeInTheDocument();
   });
 });
