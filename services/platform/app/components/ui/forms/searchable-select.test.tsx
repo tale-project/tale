@@ -190,6 +190,78 @@ describe('SearchableSelect', () => {
     });
   });
 
+  describe('section headers during search', () => {
+    // Mirrors assignee pickers: "Team" contains "a" so a naive label filter
+    // would keep an empty Team header when only a person matches.
+    const sectionedOptions: SearchableSelectOption[] = [
+      {
+        value: '__people_header__',
+        label: 'People',
+        isSectionHeader: true,
+      },
+      { value: 'user:israel', label: 'Israel Iyanda' },
+      // No "a"/"i" so person-only and both-type queries stay precise.
+      { value: 'user:bob', label: 'Bob' },
+      {
+        value: '__team_header__',
+        label: 'Team',
+        isSectionHeader: true,
+      },
+      { value: 'team:eng', label: 'Engineering' },
+      // No "a"/"i" — "Team" itself contains "a" and must not keep an empty section.
+      { value: 'team:support', label: 'Support' },
+    ];
+
+    function renderSectioned() {
+      return renderSelect({ options: sectionedOptions });
+    }
+
+    it('keeps People header and drops empty Team when only a person matches', async () => {
+      const { user } = renderSectioned();
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'a');
+      // "Team".includes("a") must NOT keep an empty Team header.
+      expect(screen.getByText('People')).toBeInTheDocument();
+      expect(screen.queryByText('Team')).not.toBeInTheDocument();
+      const opts = screen.getAllByRole('option');
+      expect(opts).toHaveLength(1);
+      expect(opts[0]).toHaveTextContent('Israel Iyanda');
+    });
+
+    it('keeps Team header and drops People when only a team matches', async () => {
+      const { user } = renderSectioned();
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'eng');
+      expect(screen.queryByText('People')).not.toBeInTheDocument();
+      expect(screen.getByText('Team')).toBeInTheDocument();
+      const opts = screen.getAllByRole('option');
+      expect(opts).toHaveLength(1);
+      expect(opts[0]).toHaveTextContent('Engineering');
+    });
+
+    it('keeps both headers when people and teams match', async () => {
+      const { user } = renderSectioned();
+      await user.click(screen.getByText('Open select'));
+      // "i" matches Israel + Engineering; neither header label contains "i".
+      await user.type(screen.getByRole('combobox'), 'i');
+      expect(screen.getByText('People')).toBeInTheDocument();
+      expect(screen.getByText('Team')).toBeInTheDocument();
+      const opts = screen.getAllByRole('option');
+      expect(opts).toHaveLength(2);
+      expect(opts[0]).toHaveTextContent('Israel Iyanda');
+      expect(opts[1]).toHaveTextContent('Engineering');
+    });
+
+    it('shows empty state when no section has matches', async () => {
+      const { user } = renderSectioned();
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'zzzzz');
+      expect(screen.queryByText('People')).not.toBeInTheDocument();
+      expect(screen.queryByText('Team')).not.toBeInTheDocument();
+      expect(screen.getByText('No results')).toBeInTheDocument();
+    });
+  });
+
   describe('keyboard navigation', () => {
     it('moves highlight down with ArrowDown', async () => {
       const { user } = renderSelect();

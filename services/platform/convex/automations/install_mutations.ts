@@ -246,6 +246,31 @@ export const listAutomationInstallationsInternal = internalQuery({
   },
 });
 
+/**
+ * Automation slugs whose install row lists `integrationSlug` in its
+ * `requiredIntegrations` — the automations BOUND to a given integration in this
+ * org. Drives "Duplicate integration": each bound automation is cloned + rebound
+ * to the duplicate's new slug. Single `by_org` scan + in-memory filter (the set
+ * per org is small); `requiredIntegrations` is already denormalized on the row.
+ */
+export const listInstallationsRequiringIntegrationInternal = internalQuery({
+  args: { organizationId: v.string(), integrationSlug: v.string() },
+  returns: v.array(v.object({ automationSlug: v.string() })),
+  handler: async (ctx, args): Promise<Array<{ automationSlug: string }>> => {
+    const out: Array<{ automationSlug: string }> = [];
+    for await (const row of ctx.db
+      .query('automationInstallations')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row.requiredIntegrations.includes(args.integrationSlug)) {
+        out.push({ automationSlug: row.automationSlug });
+      }
+    }
+    return out;
+  },
+});
+
 export const getAutomationInstallationInternal = internalQuery({
   args: { organizationId: v.string(), automationSlug: v.string() },
   returns: v.union(v.any(), v.null()),

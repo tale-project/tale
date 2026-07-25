@@ -47,9 +47,45 @@ vi.mock('@/app/features/tasks/components/assignee-avatar', () => ({
   }) => <span data-testid={`avatar-${assigneeId}`}>{name ?? assigneeId}</span>,
 }));
 
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    hash,
+    params,
+    onClick,
+    className,
+  }: {
+    children: React.ReactNode;
+    to: string;
+    hash?: string;
+    params?: { id: string };
+    onClick?: () => void;
+    className?: string;
+  }) => (
+    <a
+      href={`${to}${hash ? `#${hash}` : ''}`}
+      data-org={params?.id}
+      className={className}
+      onClick={onClick}
+    >
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock('@/app/components/ui/forms/searchable-select', () => ({
-  SearchableSelect: ({ trigger }: { trigger: React.ReactNode }) => (
-    <div data-testid="assign-select">{trigger}</div>
+  SearchableSelect: ({
+    trigger,
+    footer,
+  }: {
+    trigger: React.ReactNode;
+    footer?: React.ReactNode;
+  }) => (
+    <div data-testid="assign-select">
+      {trigger}
+      {footer ? <div data-testid="assign-footer">{footer}</div> : null}
+    </div>
   ),
 }));
 
@@ -118,5 +154,38 @@ describe('ConversationAssigneePicker', () => {
 
     expect(screen.queryByTestId('assign-dual-stack')).not.toBeInTheDocument();
     expect(screen.getByTestId('avatar-user-1')).toBeInTheDocument();
+  });
+
+  it('always shows Auto assign linking to conversation routing settings', () => {
+    render(
+      <ConversationAssigneePicker
+        conversation={makeConversation()}
+        organizationId="org-1"
+      />,
+    );
+
+    const link = screen.getByRole('link', { name: /auto assign/i });
+    expect(link).toHaveAttribute(
+      'href',
+      '/dashboard/$id/settings/governance/policies-limits#conversation-routing',
+    );
+    expect(link).toHaveAttribute('data-org', 'org-1');
+  });
+
+  it('shows Unassign and Auto assign together when a person is assigned', () => {
+    render(
+      <ConversationAssigneePicker
+        conversation={makeConversation({ assigneeUserId: 'user-1' })}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(screen.getByTestId('assign-footer')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /unassign/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /auto assign/i }),
+    ).toBeInTheDocument();
   });
 });
