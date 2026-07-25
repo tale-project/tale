@@ -275,11 +275,11 @@ export function AutomationDetail({
             </Link>
           ) : (
             <Link
-              to="/dashboard/$id/automations/$automationSlug/runs/$executionId"
+              to="/dashboard/$id/automations/$automationSlug/runs/$runId"
               params={{
                 id: organizationId,
                 automationSlug: automationSlugToParam(automationSlug),
-                executionId: lastRun.id,
+                runId: lastRun.id,
               }}
               className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
             >

@@ -6,14 +6,14 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
-  '/dashboard/$id/automations/$automationSlug/runs/$executionId',
+  '/dashboard/$id/automations/$automationSlug/runs/$runId',
 )({
   head: () => ({ meta: seo('automationExecutions') }),
   component: AutomationRunPage,
 });
 
 function AutomationRunPage() {
-  const { id: organizationId, automationSlug, executionId } = Route.useParams();
+  const { id: organizationId, automationSlug, runId } = Route.useParams();
   return (
     <RunDetail
       organizationId={organizationId}
@@ -22,7 +22,7 @@ function AutomationRunPage() {
       // that does not belong to the caller's organization, so an id shaped
       // like another table's reads as "not found" rather than leaking.
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a route param is a string; the server validates it
-      runId={executionId as Id<'workflowRuns'>}
+      runId={runId as Id<'workflowRuns'>}
     />
   );
 }

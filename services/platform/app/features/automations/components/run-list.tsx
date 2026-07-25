@@ -74,11 +74,11 @@ export function RunList({
                       },
                     }
                   : {
-                      to: '/dashboard/$id/automations/$automationSlug/runs/$executionId' as const,
+                      to: '/dashboard/$id/automations/$automationSlug/runs/$runId' as const,
                       params: {
                         id: organizationId,
                         automationSlug: automationSlugToParam(automationSlug),
-                        executionId: run.id,
+                        runId: run.id,
                       },
                     })}
                 className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring flex flex-wrap items-center gap-2 rounded-md border p-3 focus-visible:ring-2 focus-visible:outline-none"
