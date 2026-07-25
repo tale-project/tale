@@ -69,9 +69,11 @@ copy; never hand-edit the `.claude/skills/` mirror.
 
 The skill set is being rebuilt after the AI-backend rewrite, so this index is deliberately short — only
 the three skills below exist today, and the earlier workflow guides were removed rather than restored.
-The one product skill, `visual-aspect-analyzer`, is not a repo-dev workflow: it lives under
-[`configs/platform/custom/skills/`](configs/platform/custom/skills/) and is baked into the sandbox image
-that product-org agents run with.
+The product skills are not repo-dev workflows: they live under
+[`configs/platform/custom/skills/`](configs/platform/custom/skills/) as the builtin catalog every org is
+seeded with — `visual-aspect-analyzer` (also baked into the sandbox image for its Playwright/Chromium
+deps) plus the official document skills `docx`, `pdf`, `pptx`, `xlsx`, whose bundles are staged into a
+session when equipped.
 
 | Skill                                                              | Read before…                                                                                                      |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |

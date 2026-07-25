@@ -80,7 +80,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf "$(command -v fdfind)" /usr/local/bin/fd
 
 # --- document conversion toolchain (Office / PDF) ---------------------------
-# Binaries the bundled document skills (builtin-configs/skills/*) and any agent
+# Binaries the bundled document skills (configs/platform/custom/skills/*) and any agent
 # asked to read/convert .docx/.xlsx/.pptx/.pdf shell out to. These CANNOT come
 # in via the per-execution `uv pip install` path (that only provides Python
 # *libraries* into /user/.runtime/deps/python — see entrypoint.sh install_python),
