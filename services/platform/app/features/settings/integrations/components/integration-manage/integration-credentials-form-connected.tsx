@@ -40,6 +40,8 @@ export function IntegrationCredentialsFormConnected({
       credentials={manage.credentials}
       smtpSeparate={manage.smtpSeparate}
       onSmtpSeparateChange={manage.handleSmtpSeparateChange}
+      fromSameAsUsername={manage.fromSameAsUsername}
+      onFromSameAsUsernameChange={manage.handleFromSameAsUsernameChange}
       displayBindings={manage.displayBindings}
       editableConfigFields={manage.editableConfigFields}
       configValues={manage.configValues}

@@ -152,6 +152,10 @@ export function useIntegrationManage(
   // imap_smtp: whether sending uses a separate SMTP provider (its own login)
   // rather than the mailbox login. Synced to stored state below.
   const [smtpSeparate, setSmtpSeparate] = useState(false);
+  // imap_smtp: whether the sender (From) address mirrors the mailbox username,
+  // so the operator never enters their email twice. Off = a distinct sender
+  // (e.g. a relay/Resend setup). Synced to stored state below.
+  const [fromSameAsUsername, setFromSameAsUsername] = useState(true);
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [sqlConfig, setSqlConfig] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -199,6 +203,20 @@ export function useIntegrationManage(
   useEffect(() => {
     setSmtpSeparate(hasStoredSmtpAuth);
   }, [integration._id, hasStoredSmtpAuth, open]);
+
+  // Stored sender identity (imap_smtp), as primitives so the reset effect below
+  // depends on stable strings rather than the connectionConfig object.
+  const rawStoredFrom = integration.connectionConfig?.fromAddress;
+  const storedFromAddress =
+    typeof rawStoredFrom === 'string' ? rawStoredFrom.trim() : '';
+  const storedMailboxUsername = (integration.basicAuth?.username ?? '').trim();
+  // Reset "send from my mailbox address" to stored state whenever the dialog
+  // (re)opens: on when no distinct From is stored, or it equals the login.
+  useEffect(() => {
+    setFromSameAsUsername(
+      storedFromAddress === '' || storedFromAddress === storedMailboxUsername,
+    );
+  }, [integration._id, storedFromAddress, storedMailboxUsername, open]);
 
   const { mutateAsync: updateCredentials } = useUpdateCredentials();
   const { mutateAsync: testConnection, isPending: isTesting } =
@@ -335,6 +353,20 @@ export function useIntegrationManage(
         const next = { ...prev };
         delete next['smtpUsername'];
         delete next['smtpPassword'];
+        return next;
+      });
+    }
+  }, []);
+
+  // Toggle "send from my mailbox address". When on, the From address mirrors
+  // the login (set at save time), so drop any typed fromAddress to keep state
+  // clean and avoid a stale value re-enabling Save.
+  const handleFromSameAsUsernameChange = useCallback((value: boolean) => {
+    setFromSameAsUsername(value);
+    if (value) {
+      setConfigValues((prev) => {
+        const next = { ...prev };
+        delete next['fromAddress'];
         return next;
       });
     }
@@ -628,6 +660,15 @@ export function useIntegrationManage(
           field.type === 'number' ? Number(raw) : raw;
       }
     }
+    // imap_smtp: when "send from my mailbox address" is on, the From address is
+    // the mailbox login — mirror it so the operator never types their email
+    // twice. A freshly typed username wins over the stored one.
+    if (integration.type === 'imap_smtp' && fromSameAsUsername) {
+      const mailbox =
+        credentials['username']?.trim() ||
+        integration.basicAuth?.username?.trim();
+      if (mailbox) connectionUpdates['fromAddress'] = mailbox;
+    }
     if (Object.keys(connectionUpdates).length > 0) {
       payload.connectionConfig = {
         ...integration.connectionConfig,
@@ -645,6 +686,7 @@ export function useIntegrationManage(
     editableConfigFields,
     smtpSeparate,
     hasStoredSmtpAuth,
+    fromSameAsUsername,
   ]);
 
   const buildSqlConnectionPayload = useCallback(() => {
@@ -998,6 +1040,8 @@ export function useIntegrationManage(
     setCredentials,
     smtpSeparate,
     handleSmtpSeparateChange,
+    fromSameAsUsername,
+    handleFromSameAsUsernameChange,
     hasChanges,
 
     sqlConfig,
