@@ -5,7 +5,7 @@
  * (`tale-integrations-mcp` → `/api/integrations/{execute,status}`).
  *
  * The bridge is a thin relay: whatever these actions return is serialized
- * verbatim as the tool result the coding agent reads, so every shape here is
+ * verbatim as the tool result the external agent reads, so every shape here is
  * written FOR THE MODEL — structured statuses with guidance it can relay,
  * never a bare error string. The dispatch itself reuses the integrations
  * dispatcher (`runIntegrationAction`), so credential resolution, the audit
@@ -13,7 +13,7 @@
  * credentials never leave the platform.
  *
  * V1 is READ-ONLY: a write action needs the approvals lane, and an async
- * coding turn has no human-in-the-loop to answer an approval card yet, so a
+ * external turn has no human-in-the-loop to answer an approval card yet, so a
  * write refuses with guidance instead of parking a card nobody can see.
  *
  * `'use node'` because the shipped connector catalog is filesystem work.
@@ -57,7 +57,7 @@ function readOperations(connectorSlug: string): string[] {
 }
 
 /**
- * Run one integration operation for a sandbox coding turn. The caller (the
+ * Run one integration operation for a sandbox external turn. The caller (the
  * HTTP dispatch) has already authenticated the session token and checked the
  * grant set; this action owns catalog validation, the read-only rule, and the
  * dispatcher call as the turn's user.
@@ -141,7 +141,7 @@ async function runBridgeIntegration(
         {
           code: 'write_not_supported',
           guidance:
-            `"${args.operation}" changes the outside world, and write actions are not available from the coding agent yet. ` +
+            `"${args.operation}" changes the outside world, and write actions are not available from the external agent yet. ` +
             'Ask the user to run it themselves (for example from chat, where approvals work).',
         },
       ],

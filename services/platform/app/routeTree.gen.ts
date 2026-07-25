@@ -84,7 +84,7 @@ import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './
 import { Route as DashboardIdSettingsMetricsUsageRouteImport } from './routes/dashboard/$id/settings/metrics/usage';
 import { Route as DashboardIdSettingsMetricsProjectsRouteImport } from './routes/dashboard/$id/settings/metrics/projects';
 import { Route as DashboardIdSettingsMetricsFeedbackRouteImport } from './routes/dashboard/$id/settings/metrics/feedback';
-import { Route as DashboardIdSettingsMetricsCodingTurnsRouteImport } from './routes/dashboard/$id/settings/metrics/coding-turns';
+import { Route as DashboardIdSettingsMetricsExternalTurnsRouteImport } from './routes/dashboard/$id/settings/metrics/external-turns';
 import { Route as DashboardIdSettingsMetricsChatHealthRouteImport } from './routes/dashboard/$id/settings/metrics/chat-health';
 import { Route as DashboardIdSettingsMetricsAutomationsRouteImport } from './routes/dashboard/$id/settings/metrics/automations';
 import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage';
@@ -545,10 +545,10 @@ const DashboardIdSettingsMetricsFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
   } as any);
-const DashboardIdSettingsMetricsCodingTurnsRoute =
-  DashboardIdSettingsMetricsCodingTurnsRouteImport.update({
-    id: '/coding-turns',
-    path: '/coding-turns',
+const DashboardIdSettingsMetricsExternalTurnsRoute =
+  DashboardIdSettingsMetricsExternalTurnsRouteImport.update({
+    id: '/external-turns',
+    path: '/external-turns',
     getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
   } as any);
 const DashboardIdSettingsMetricsChatHealthRoute =
@@ -862,7 +862,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/metrics/automations': typeof DashboardIdSettingsMetricsAutomationsRoute;
   '/dashboard/$id/settings/metrics/chat-health': typeof DashboardIdSettingsMetricsChatHealthRoute;
-  '/dashboard/$id/settings/metrics/coding-turns': typeof DashboardIdSettingsMetricsCodingTurnsRoute;
+  '/dashboard/$id/settings/metrics/external-turns': typeof DashboardIdSettingsMetricsExternalTurnsRoute;
   '/dashboard/$id/settings/metrics/feedback': typeof DashboardIdSettingsMetricsFeedbackRoute;
   '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
   '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
@@ -962,7 +962,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/metrics/automations': typeof DashboardIdSettingsMetricsAutomationsRoute;
   '/dashboard/$id/settings/metrics/chat-health': typeof DashboardIdSettingsMetricsChatHealthRoute;
-  '/dashboard/$id/settings/metrics/coding-turns': typeof DashboardIdSettingsMetricsCodingTurnsRoute;
+  '/dashboard/$id/settings/metrics/external-turns': typeof DashboardIdSettingsMetricsExternalTurnsRoute;
   '/dashboard/$id/settings/metrics/feedback': typeof DashboardIdSettingsMetricsFeedbackRoute;
   '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
   '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
@@ -1076,7 +1076,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/metrics/automations': typeof DashboardIdSettingsMetricsAutomationsRoute;
   '/dashboard/$id/settings/metrics/chat-health': typeof DashboardIdSettingsMetricsChatHealthRoute;
-  '/dashboard/$id/settings/metrics/coding-turns': typeof DashboardIdSettingsMetricsCodingTurnsRoute;
+  '/dashboard/$id/settings/metrics/external-turns': typeof DashboardIdSettingsMetricsExternalTurnsRoute;
   '/dashboard/$id/settings/metrics/feedback': typeof DashboardIdSettingsMetricsFeedbackRoute;
   '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
   '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
@@ -1190,7 +1190,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/metrics/automations'
     | '/dashboard/$id/settings/metrics/chat-health'
-    | '/dashboard/$id/settings/metrics/coding-turns'
+    | '/dashboard/$id/settings/metrics/external-turns'
     | '/dashboard/$id/settings/metrics/feedback'
     | '/dashboard/$id/settings/metrics/projects'
     | '/dashboard/$id/settings/metrics/usage'
@@ -1290,7 +1290,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/metrics/automations'
     | '/dashboard/$id/settings/metrics/chat-health'
-    | '/dashboard/$id/settings/metrics/coding-turns'
+    | '/dashboard/$id/settings/metrics/external-turns'
     | '/dashboard/$id/settings/metrics/feedback'
     | '/dashboard/$id/settings/metrics/projects'
     | '/dashboard/$id/settings/metrics/usage'
@@ -1403,7 +1403,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/metrics/automations'
     | '/dashboard/$id/settings/metrics/chat-health'
-    | '/dashboard/$id/settings/metrics/coding-turns'
+    | '/dashboard/$id/settings/metrics/external-turns'
     | '/dashboard/$id/settings/metrics/feedback'
     | '/dashboard/$id/settings/metrics/projects'
     | '/dashboard/$id/settings/metrics/usage'
@@ -1965,11 +1965,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsMetricsFeedbackRouteImport;
       parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
     };
-    '/dashboard/$id/settings/metrics/coding-turns': {
-      id: '/dashboard/$id/settings/metrics/coding-turns';
-      path: '/coding-turns';
-      fullPath: '/dashboard/$id/settings/metrics/coding-turns';
-      preLoaderRoute: typeof DashboardIdSettingsMetricsCodingTurnsRouteImport;
+    '/dashboard/$id/settings/metrics/external-turns': {
+      id: '/dashboard/$id/settings/metrics/external-turns';
+      path: '/external-turns';
+      fullPath: '/dashboard/$id/settings/metrics/external-turns';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsExternalTurnsRouteImport;
       parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
     };
     '/dashboard/$id/settings/metrics/chat-health': {
@@ -2423,7 +2423,7 @@ const DashboardIdSettingsGovernanceRouteRouteWithChildren =
 interface DashboardIdSettingsMetricsRouteRouteChildren {
   DashboardIdSettingsMetricsAutomationsRoute: typeof DashboardIdSettingsMetricsAutomationsRoute;
   DashboardIdSettingsMetricsChatHealthRoute: typeof DashboardIdSettingsMetricsChatHealthRoute;
-  DashboardIdSettingsMetricsCodingTurnsRoute: typeof DashboardIdSettingsMetricsCodingTurnsRoute;
+  DashboardIdSettingsMetricsExternalTurnsRoute: typeof DashboardIdSettingsMetricsExternalTurnsRoute;
   DashboardIdSettingsMetricsFeedbackRoute: typeof DashboardIdSettingsMetricsFeedbackRoute;
   DashboardIdSettingsMetricsProjectsRoute: typeof DashboardIdSettingsMetricsProjectsRoute;
   DashboardIdSettingsMetricsUsageRoute: typeof DashboardIdSettingsMetricsUsageRoute;
@@ -2436,8 +2436,8 @@ const DashboardIdSettingsMetricsRouteRouteChildren: DashboardIdSettingsMetricsRo
       DashboardIdSettingsMetricsAutomationsRoute,
     DashboardIdSettingsMetricsChatHealthRoute:
       DashboardIdSettingsMetricsChatHealthRoute,
-    DashboardIdSettingsMetricsCodingTurnsRoute:
-      DashboardIdSettingsMetricsCodingTurnsRoute,
+    DashboardIdSettingsMetricsExternalTurnsRoute:
+      DashboardIdSettingsMetricsExternalTurnsRoute,
     DashboardIdSettingsMetricsFeedbackRoute:
       DashboardIdSettingsMetricsFeedbackRoute,
     DashboardIdSettingsMetricsProjectsRoute:

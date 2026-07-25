@@ -1,8 +1,8 @@
-// Data-layer guarantees the coding-turn finalize depends on. These lock the
+// Data-layer guarantees the external-turn finalize depends on. These lock the
 // two invariants that close the per-turn VK leak (plan Contract 3) and the
 // double-charge race (plan Phase 1): a turn's gateway key is recorded so it is
 // always revocable, and exactly ONE finalizer wins so usage is metered + the VK
-// revoked once. The node orchestration (finalizeCodingTurn) is thin glue over
+// revoked once. The node orchestration (finalizeExternalTurn) is thin glue over
 // these; the hazards live here.
 
 import { convexTest, type TestConvex } from 'convex-test';
@@ -29,11 +29,11 @@ for (const [key, loader] of Object.entries(rawModules)) {
 
 type T = TestConvex<typeof schema>;
 
-const ORG = 'org_coding';
+const ORG = 'org_external';
 const SID = 'usr-user_1-deadbeefdeadbeef';
 const EXEC = 'exec-1';
 
-/** Open a running agent-run op row exactly as the coding kick does. */
+/** Open a running agent-run op row exactly as the external-turn kick does. */
 async function openOp(
   t: T,
   overrides: { execId?: string; mintedKeyId?: string } = {},
@@ -71,7 +71,7 @@ async function seedMember(
   });
 }
 
-describe('recordTurnEvent + getCodingTurnMetrics — the turn SLO', () => {
+describe('recordTurnEvent + getExternalTurnMetrics — the turn SLO', () => {
   const ADMIN = 'user_admin';
 
   async function record(
@@ -133,7 +133,7 @@ describe('recordTurnEvent + getCodingTurnMetrics — the turn SLO', () => {
 
     const m = await t
       .withIdentity({ subject: ADMIN })
-      .query(api.sandbox.session_queries_public.getCodingTurnMetrics, {
+      .query(api.sandbox.session_queries_public.getExternalTurnMetrics, {
         organizationId: ORG,
       });
     expect(m).not.toBeNull();
@@ -167,7 +167,7 @@ describe('recordTurnEvent + getCodingTurnMetrics — the turn SLO', () => {
 
     const m = await t
       .withIdentity({ subject: ADMIN })
-      .query(api.sandbox.session_queries_public.getCodingTurnMetrics, {
+      .query(api.sandbox.session_queries_public.getExternalTurnMetrics, {
         organizationId: ORG,
       });
     expect(m?.recovered).toBe(1);
@@ -177,7 +177,7 @@ describe('recordTurnEvent + getCodingTurnMetrics — the turn SLO', () => {
     await seedMember(t, MEMBER, ORG, 'member');
     const denied = await t
       .withIdentity({ subject: MEMBER })
-      .query(api.sandbox.session_queries_public.getCodingTurnMetrics, {
+      .query(api.sandbox.session_queries_public.getExternalTurnMetrics, {
         organizationId: ORG,
       });
     expect(denied).toBeNull();
@@ -306,13 +306,13 @@ describe('getHarnessHealth — the circuit breaker signal', () => {
   });
 });
 
-describe('getCodingOpForFinalize', () => {
+describe('getExternalTurnOpForFinalize', () => {
   it('returns the op row mintedKeyId — the VK the finalize revokes', async () => {
     const t = convexTest(schema, modules);
     await openOp(t, { mintedKeyId: 'vk_abc' });
 
     const op = await t.query(
-      internal.sandbox.session_queries.getCodingOpForFinalize,
+      internal.sandbox.session_queries.getExternalTurnOpForFinalize,
       { sessionId: SID, execId: EXEC },
     );
     expect(op).not.toBeNull();
@@ -323,7 +323,7 @@ describe('getCodingOpForFinalize', () => {
   it('returns null when the op row is gone (already reaped)', async () => {
     const t = convexTest(schema, modules);
     const op = await t.query(
-      internal.sandbox.session_queries.getCodingOpForFinalize,
+      internal.sandbox.session_queries.getExternalTurnOpForFinalize,
       { sessionId: SID, execId: 'never' },
     );
     expect(op).toBeNull();
@@ -348,7 +348,7 @@ describe('claimSessionOpFinalize — exactly-once (no double charge)', () => {
 
     // The claim is visible to a subsequent finalize read (loser path bails on it).
     const op = await t.query(
-      internal.sandbox.session_queries.getCodingOpForFinalize,
+      internal.sandbox.session_queries.getExternalTurnOpForFinalize,
       { sessionId: SID, execId: EXEC },
     );
     expect(op?.finalizedAt).toBeGreaterThan(0);
@@ -506,7 +506,7 @@ describe('hasLiveGenerationInternal — the at-most-one-turn gate', () => {
 describe('recoverStaleDirectGenerations — unwedge a crashed direct turn', () => {
   async function insertGeneration(
     t: T,
-    overrides: { heartbeatAt: number; coding?: boolean; threadId?: string },
+    overrides: { heartbeatAt: number; external?: boolean; threadId?: string },
   ) {
     return t.run((ctx) =>
       ctx.db.insert('generations', {
@@ -516,9 +516,9 @@ describe('recoverStaleDirectGenerations — unwedge a crashed direct turn', () =
         streamId: 'stream_1',
         startedAt: 0,
         heartbeatAt: overrides.heartbeatAt,
-        ...(overrides.coding === true
+        ...(overrides.external === true
           ? {
-              coding: {
+              external: {
                 execId: EXEC,
                 lastSeq: 0,
                 harness: 'claude-code',
@@ -531,7 +531,7 @@ describe('recoverStaleDirectGenerations — unwedge a crashed direct turn', () =
     );
   }
 
-  it('clears a stale direct row but spares a fresh one and a coding row', async () => {
+  it('clears a stale direct row but spares a fresh one and an external row', async () => {
     const t = convexTest(schema, modules);
     const stale = 100; // far below any realistic now - stale window
     const fresh = Date.now();
@@ -543,10 +543,10 @@ describe('recoverStaleDirectGenerations — unwedge a crashed direct turn', () =
       heartbeatAt: fresh,
       threadId: 'thread_fresh',
     });
-    const staleCoding = await insertGeneration(t, {
+    const staleExternal = await insertGeneration(t, {
       heartbeatAt: stale,
-      coding: true,
-      threadId: 'thread_coding',
+      external: true,
+      threadId: 'thread_external',
     });
 
     const cleared = await t.mutation(
@@ -559,7 +559,7 @@ describe('recoverStaleDirectGenerations — unwedge a crashed direct turn', () =
     const ids = rows.map((r) => r._id);
     expect(ids).not.toContain(staleDirect);
     expect(ids).toContain(freshDirect); // fresh heartbeat → live turn, kept
-    expect(ids).toContain(staleCoding); // coding lane → op-row recovery, kept
+    expect(ids).toContain(staleExternal); // external lane → op-row recovery, kept
   });
 });
 

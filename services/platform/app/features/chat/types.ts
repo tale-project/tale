@@ -21,7 +21,7 @@ export interface ChatThreadSummary {
   readonly title?: string;
   readonly kind: ChatThreadKind;
   readonly agentSlug?: string;
-  /** The coding agent pinned to a sandbox thread (absent on direct threads). */
+  /** The external agent pinned to a sandbox thread (absent on direct threads). */
   readonly harness?: string;
   /** The project the thread is filed under (absent = the loose Chats list). */
   readonly projectId?: string;
@@ -89,11 +89,11 @@ export interface ComposerModelOption {
 }
 
 /**
- * A third-party coding agent the composer can pick — an external harness
+ * A third-party agent the composer can pick — an external harness
  * (Claude Code, Codex) that runs the turn in a sandbox and brings its own
  * model. (The field is still named for the harness it maps to.)
  */
-export interface ComposerSandboxAgentOption {
+export interface ComposerExternalAgentOption {
   readonly harness: string;
   readonly label: string;
 }
@@ -107,11 +107,11 @@ export interface ChatAgentOption {
 
 /**
  * Which kind of agent answers the turn. `platform` is the first-party
- * assistant that runs a model directly; `coding` is a third-party harness that
+ * assistant that runs a model directly; `external` is a third-party harness that
  * runs in a sandbox. The kind — not a separate switch — decides where the turn
  * runs, so there is no sandbox toggle in the selection.
  */
-export type ComposerAgentKind = 'platform' | 'coding';
+export type ComposerAgentKind = 'platform' | 'external';
 
 /** A skill or connector a conversation can equip its agent with. */
 export interface ComposerCapabilityOption {
@@ -125,7 +125,7 @@ export interface ComposerSelection {
   readonly agentKind: ComposerAgentKind;
   /** The platform agent's chosen model. */
   readonly modelId?: string;
-  /** The third-party coding agent's harness. */
+  /** The third-party agent's harness. */
   readonly harness?: string;
   /** Org skill slugs the conversation equips its agent with. */
   readonly skills: readonly string[];

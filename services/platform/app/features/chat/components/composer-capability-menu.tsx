@@ -4,7 +4,7 @@
  * The conversation's capability assembly: which org skills and enabled
  * connectors the picked agent is equipped with.
  *
- * Offered for third-party coding agents — their capabilities are provisioned
+ * Offered for third-party agents — their capabilities are provisioned
  * into the sandbox session (skills staged as files), so no model tool-loop is
  * involved. The menu only ASSEMBLES; what a selection does is decided by the
  * lane that runs the agent.
@@ -12,7 +12,7 @@
  * A capability GROUP appears only when that capability can actually reach the
  * agent turn. Skills stage into the session today, so their group always shows
  * (an org with none sees "nothing to equip"). Connectors are not bridged into a
- * coding turn yet, so the backend lists none and the group is hidden entirely —
+ * external turn yet, so the backend lists none and the group is hidden entirely —
  * the plan forbids offering a capability the turn can't reach. It returns with
  * the sandbox capability bridge.
  */

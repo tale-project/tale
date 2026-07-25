@@ -2,7 +2,7 @@
 
 /**
  * A project's per-agent capability assembly: the skills and connectors one
- * fixed agent (a third-party coding harness) is equipped with IN THIS PROJECT.
+ * fixed agent (a third-party harness) is equipped with IN THIS PROJECT.
  *
  * The persistent, project-scoped analog of the chat composer's capability
  * menu — same two-checkbox-group shape, but the selection is a plain

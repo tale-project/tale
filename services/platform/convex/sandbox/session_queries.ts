@@ -93,12 +93,12 @@ export const latestAgentSessionId = internalQuery({
 });
 
 /** The durable finalize context for one exec's op row (point lookup by
- * (sessionId, execId)). The coding-turn finalize reads `mintedKeyId` here — its
+ * (sessionId, execId)). The external-turn finalize reads `mintedKeyId` here — its
  * single source of truth for the gateway VK to revoke — so the same value the
  * recovery watchdog reads from `listAbandonedAgentOps` also drives the live
  * finalize, with no copy carried on the generation row. Null when the op row is
  * gone (already reaped). */
-export const getCodingOpForFinalize = internalQuery({
+export const getExternalTurnOpForFinalize = internalQuery({
   args: { sessionId: v.string(), execId: v.string() },
   returns: v.union(
     v.object({

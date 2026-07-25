@@ -459,7 +459,7 @@ function assistantTextOf(parts: unknown): string {
 }
 
 /**
- * Set the coding turn's assistant message to the text parsed so far. Each
+ * Set the external turn's assistant message to the text parsed so far. Each
  * drainer window runs as its OWN Convex action with fresh memory and re-reads
  * the harness output from the START of the ring buffer, so it holds the FULL
  * text-so-far, not a delta — it REPLACES the message text rather than
@@ -487,7 +487,7 @@ export const setAssistantTextInternal = internalMutation({
 });
 
 /**
- * Settle the coding turn's assistant message: replace its text with the
+ * Settle the external turn's assistant message: replace its text with the
  * authoritative final text when the harness gave one (`turn-ended.finalText`),
  * else keep what streamed in, and stamp model / usage / a refusal reason.
  */

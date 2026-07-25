@@ -152,10 +152,9 @@ analytics:
     empty:
       title: Aucune exécution
       description: Aucune automatisation n'a tourné sur la période choisie.
-  codingTurns:
-    title: Tours de codage
-    description: Fiabilité des agents de codage tiers exécutés dans le bac à
-      sable.
+  externalTurns:
+    title: Tours d'agents tiers
+    description: Fiabilité des agents tiers exécutés dans le bac à sable.
     cappedNotice: Affichage des 5 000 tours les plus récents de cette période.
       Les tours plus anciens ne sont pas inclus dans ces totaux.
     cards:
@@ -166,12 +165,12 @@ analytics:
       cancelled: Arrêtés par l'utilisateur
       recovered: Récupérés
     byHarness:
-      title: Par agent de codage
-      harness: Agent de codage
+      title: Par agent
+      harness: Agent
       turns: Tours
       successRate: Taux de réussite
       timeouts: Expirations
-      empty: Aucun tour de codage n'a tourné sur la période choisie.
+      empty: Aucun tour d'agent tiers n'a tourné sur la période choisie.
   usage:
     title: Métriques d'utilisation
     description: Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.
@@ -969,7 +968,7 @@ chat:
     searchPlaceholder: Rechercher des agents
     noResults: Aucun agent trouvé
     lockedExternal:
-      Ce chat s'exécute dans un bac à sable et garde son agent de code
+      Ce chat s'exécute dans un bac à sable et garde son agent tiers
       — démarre un nouveau chat pour en utiliser un autre.
     lockedExternalLabel: 'Agent : {agent} (fixé pour ce chat sandbox)'
     browseAutomations: Parcourir les automatisations
@@ -4361,7 +4360,7 @@ metrics:
     usage: Utilisation
     feedback: Retours
     chat-health: Santé de l'assistant
-    coding-turns: Tours de codage
+    external-turns: Tours d'agents tiers
     automations: Automatisations
     projects: Projets
   period:
@@ -7560,8 +7559,8 @@ tasks:
     unassigned: Non assigné
     assignToMe: M’assigner
     agents: Agents
-    codingAgents: Agents de code
-    codingAgentsInfo:
+    externalAgents: Agents tiers
+    externalAgentsInfo:
       Le dispatch sur le board dépend de chaque agent — tale-daemon
       sur ta machine, bac à sable durable, ou boucle plateforme quand seul le
       chat utilise un bac à sable.
@@ -7577,8 +7576,7 @@ tasks:
       codingDurable: S'exécute dans un bac à sable ; écrit un fichier de synthèse.
       codingSandboxOnly: Le chat utilise un bac à sable ; les tâches du board
         utilisent la boucle plateforme.
-    nonCodeWarning:
-      Cet agent de code est optimisé pour le travail sur dépôt. Pour
+    nonCodeWarning: Cet agent tiers est optimisé pour le travail sur dépôt. Pour
       la recherche, la rédaction ou des livrables personnels, assigne une
       personne ou un Agent.
   activity:
@@ -8199,7 +8197,7 @@ projects:
       Équipe chaque agent des compétences et connecteurs avec lesquels il
       travaille dans ce projet. Tout le monde ici voit l'agent pré-équipé de ce
       que tu choisis.
-    noCodingAgents: Aucun agent de code n'est encore disponible.
+    noExternalAgents: Aucun agent tiers n'est encore disponible.
     modeRecommended: Recommandés
     modeRecommendedDescription: Épingle les éléments ci-dessous en haut. Les autres restent disponibles.
     modeRestricted: Restreints
@@ -8535,7 +8533,7 @@ sandboxes:
     title: Aucune sandbox active
     description:
       Les sandboxes démarrent automatiquement lorsqu’un membre discute
-      avec un agent de codage.
+      avec un agent tiers.
   accessDenied: Vous avez besoin d’un accès développeur ou admin pour gérer les sandboxes.
 envEditor:
   confirmRemoveTitle: Supprimer la variable ?

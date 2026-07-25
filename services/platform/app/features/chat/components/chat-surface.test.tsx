@@ -137,7 +137,7 @@ describe('ChatSurface when the model listing answers and is empty', () => {
   beforeEach(() => {
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [], sandboxAgents: [] },
+      data: { models: [], externalAgents: [] },
     });
   });
 
@@ -220,7 +220,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [MODEL], sandboxAgents: [] },
+      data: { models: [MODEL], externalAgents: [] },
     });
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
@@ -254,7 +254,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
   it("seeds the user's sticky pick over the listing default", () => {
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [MODEL, SECOND_MODEL], sandboxAgents: [] },
+      data: { models: [MODEL, SECOND_MODEL], externalAgents: [] },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
       preference: { status: 'ready', data: SECOND_MODEL.id },
@@ -272,7 +272,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     const save = vi.fn();
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [MODEL, SECOND_MODEL], sandboxAgents: [] },
+      data: { models: [MODEL, SECOND_MODEL], externalAgents: [] },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
       preference: { status: 'ready', data: undefined },
@@ -326,7 +326,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 });
 
 /**
- * A sandbox thread keeps its coding agent for life. Opening one must show
+ * A sandbox thread keeps its external agent for life. Opening one must show
  * that agent — not reset to the platform default — or the next turn would
  * silently run on the wrong lane. The agent picker locks; switching is a new
  * chat.
@@ -358,7 +358,7 @@ describe('ChatSurface on an open sandbox thread', () => {
       status: 'ready',
       data: {
         models: [MODEL],
-        sandboxAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
+        externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
       },
     });
     vi.mocked(useChatSend).mockReturnValue({
@@ -368,7 +368,7 @@ describe('ChatSurface on an open sandbox thread', () => {
     });
   });
 
-  it('follows the thread onto its coding agent instead of the platform default', async () => {
+  it('follows the thread onto its external agent instead of the platform default', async () => {
     render(<ChatSurface organizationId="org-1" threadId="t-sbx" />);
 
     await waitFor(() => {
@@ -376,7 +376,49 @@ describe('ChatSurface on an open sandbox thread', () => {
         screen.getByRole('button', { name: 'Select agent' }),
       ).toHaveTextContent('Claude Code');
     });
-    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull();
+    // The external lane keeps a model picker: a managed harness runs a
+    // directly-served org model, seeded exactly like the platform lane.
+    expect(
+      screen.getByRole('button', { name: 'Select model' }),
+    ).toHaveTextContent('deepseek-chat');
+  });
+
+  it('sends the external turn with its harness and the direct-served model', async () => {
+    const start = vi.fn().mockResolvedValue({
+      threadId: 't-sbx',
+      outcome: Promise.resolve({ status: 'completed' as const }),
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start,
+      stop: vi.fn(() => Promise.resolve()),
+    });
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Select agent' }),
+      ).toHaveTextContent('Claude Code');
+    });
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'Fix the bug',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith({
+        threadId: 't-sbx',
+        text: 'Fix the bug',
+        agentKind: 'external',
+        modelId: 'deepseek-chat',
+        harness: 'claude-code',
+        sandbox: true,
+      });
+    });
   });
 
   it('locks the agent picker — the thread cannot change agents', async () => {
@@ -390,7 +432,7 @@ describe('ChatSurface on an open sandbox thread', () => {
     expect(screen.getByRole('button', { name: 'Select agent' })).toBeDisabled();
   });
 
-  it('offers a working Stop while a coding turn is in flight', async () => {
+  it('offers a working Stop while an external turn is in flight', async () => {
     const stop = vi.fn(() => Promise.resolve());
     vi.mocked(useChatSend).mockReturnValue({
       available: true,

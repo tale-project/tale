@@ -1,9 +1,9 @@
 'use node';
 
 /**
- * Crash-recovery sweep for coding turns.
+ * Crash-recovery sweep for external turns.
  *
- * A coding turn is driven by a self-chaining `driveCodingTurn` action. If a
+ * An external turn is driven by a self-chaining `driveExternalTurn` action. If a
  * reschedule is lost — a deploy or restart kills the in-flight action, or a
  * window throws past its handler — the turn's op + generation rows are left
  * `running` forever: the thread shows "generating" with no user escape. This
@@ -25,9 +25,9 @@ import { internalAction } from '../_generated/server';
 import { sessionExecStatus } from '../node_only/sandbox/helpers/session_client';
 import { revokeVirtualKey } from '../node_only/sandbox/llm_gateway_admin';
 import {
-  CODING_TURN_DEADLINE_MS,
-  finalizeCodingTurn,
-} from './coding_turn_shared';
+  EXTERNAL_TURN_DEADLINE_MS,
+  finalizeExternalTurn,
+} from './external_turn_shared';
 
 /** No op heartbeat for this long ⇒ the drainer is dead. Comfortably past one
  * drain window (90s) + its reschedule, so a live-but-slow drainer is never
@@ -36,7 +36,7 @@ const RECOVERY_STALE_MS = 5 * 60_000;
 /** Ops finalized/resumed per sweep — bounds the action's work. */
 const RECOVERY_BATCH = 20;
 
-export const recoverAbandonedCodingTurns = internalAction({
+export const recoverAbandonedExternalTurns = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
@@ -47,8 +47,8 @@ export const recoverAbandonedCodingTurns = internalAction({
     );
 
     for (const op of abandoned) {
-      // Coding-chat turns carry a thread + user; the durable workflow lane is
-      // session-scoped and sets neither. Only the coding lane is recovered here
+      // External-agent chat turns carry a thread + user; the durable workflow lane is
+      // session-scoped and sets neither. Only the external lane is recovered here
       // (a workflow run resumes through its own durable handler).
       if (op.threadId === undefined || op.userId === undefined) continue;
       const scope = {
@@ -64,7 +64,7 @@ export const recoverAbandonedCodingTurns = internalAction({
         liveness = await sessionExecStatus(op.sessionId, op.execId);
       } catch (err) {
         console.warn(
-          `[coding-recovery] exec probe failed for ${op.execId}:`,
+          `[external-turn-recovery] exec probe failed for ${op.execId}:`,
           err,
         );
         continue;
@@ -81,12 +81,12 @@ export const recoverAbandonedCodingTurns = internalAction({
         if (!claimed) continue;
         await ctx.scheduler.runAfter(
           0,
-          internal.chat.coding_turn_drive.driveCodingTurn,
+          internal.chat.external_turn_drive.driveExternalTurn,
           {
             organizationId: op.organizationId,
             threadId: op.threadId,
             userId: op.userId,
-            deadlineAt: op.deadlineMs ?? Date.now() + CODING_TURN_DEADLINE_MS,
+            deadlineAt: op.deadlineMs ?? Date.now() + EXTERNAL_TURN_DEADLINE_MS,
           },
         );
         continue;
@@ -96,24 +96,24 @@ export const recoverAbandonedCodingTurns = internalAction({
       // still present (finalize deletes it last), so it carries the model +
       // message the finalize needs.
       const state = await ctx.runQuery(
-        internal.chat.generations.getCodingStateInternal,
+        internal.chat.generations.getExternalTurnStateInternal,
         { organizationId: op.organizationId, threadId: op.threadId },
       );
       if (state !== null) {
-        await finalizeCodingTurn(ctx, {
+        await finalizeExternalTurn(ctx, {
           scope,
           sessionId: op.sessionId,
           execId: op.execId,
           messageId: state.messageId,
-          providerSlug: state.coding.providerSlug,
-          gatewayModel: state.coding.gatewayModel,
+          providerSlug: state.external.providerSlug,
+          gatewayModel: state.external.gatewayModel,
           fallbackText: op.progressText ?? '',
           errored: true,
-          harness: state.coding.harness,
+          harness: state.external.harness,
           reason:
             liveness.state === 'gone'
               ? 'The sandbox session ended before the turn finished.'
-              : 'The coding agent stopped unexpectedly.',
+              : 'The third-party agent stopped unexpectedly.',
           ...(liveness.state === 'exited' && liveness.exitCode != null
             ? { exitCode: liveness.exitCode }
             : {}),
@@ -135,7 +135,7 @@ export const recoverAbandonedCodingTurns = internalAction({
       if (op.mintedKeyId !== undefined) {
         await revokeVirtualKey(op.mintedKeyId).catch((err) =>
           console.warn(
-            `[coding-recovery] revoke VK ${op.mintedKeyId} failed:`,
+            `[external-turn-recovery] revoke VK ${op.mintedKeyId} failed:`,
             err,
           ),
         );

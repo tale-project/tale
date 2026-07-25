@@ -67,7 +67,7 @@ describe('AssigneePicker', () => {
     );
   });
 
-  it('groups platform agents and coding agents with section headers', async () => {
+  it('groups platform agents and external agents with section headers', async () => {
     const { user } = render(
       <AssigneePicker
         organizationId="org-1"
@@ -81,7 +81,9 @@ describe('AssigneePicker', () => {
     );
 
     expect(screen.getByText('tasks.assignee.agents')).toBeInTheDocument();
-    expect(screen.getByText('tasks.assignee.codingAgents')).toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.externalAgents'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Research Bot')).toBeInTheDocument();
     expect(screen.getByText('Software Developer')).toBeInTheDocument();
     expect(screen.queryByText('Image Bot')).not.toBeInTheDocument();
@@ -108,7 +110,7 @@ describe('AssigneePicker', () => {
     ).toHaveLength(2);
   });
 
-  it('shows non-code warning when a coding agent is assigned to a generic task', () => {
+  it('shows non-code warning when an external agent is assigned to a generic task', () => {
     render(
       <AssigneePicker
         organizationId="org-1"

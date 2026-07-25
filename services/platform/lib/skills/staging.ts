@@ -1,7 +1,7 @@
 /**
  * Which skills get staged into a sandbox workspace.
  *
- * When Tale runs an external coding agent in a sandbox it copies the
+ * When Tale runs an external external agent in a sandbox it copies the
  * organization's skills into the agent's user-level skill directory. The
  * repository checked out in that workspace may ship skills of its own at the
  * project level. The repository is authoritative: on an exact slug collision

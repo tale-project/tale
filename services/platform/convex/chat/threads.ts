@@ -40,7 +40,7 @@ const threadSummaryValidator = v.object({
   title: v.optional(v.string()),
   kind: chatKindValidator,
   agentSlug: v.optional(v.string()),
-  /** The coding agent pinned to a sandbox thread (absent on direct threads). */
+  /** The external agent pinned to a sandbox thread (absent on direct threads). */
   harness: v.optional(v.string()),
   /** The project the thread is filed under (absent = the loose Chats list). */
   projectId: v.optional(v.id('projects')),
@@ -204,7 +204,7 @@ export const getThread = query({
   },
 });
 
-/** The thread facts a coding turn reads, scoped like every other read —
+/** The thread facts an external turn reads, scoped like every other read —
  * the (org, user) pair must own the thread. */
 export const getOwnedThreadInternal = internalQuery({
   args: {
@@ -222,7 +222,7 @@ export const getOwnedThreadInternal = internalQuery({
           connectors: v.array(v.string()),
         }),
       ),
-      codingResume: v.optional(v.string()),
+      externalResume: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -236,17 +236,19 @@ export const getOwnedThreadInternal = internalQuery({
     return {
       kind: thread.kind,
       capabilities: thread.capabilities,
-      codingResume: thread.codingResume,
+      // The deprecated `codingResume` read shim lives HERE, so every
+      // consumer sees only `externalResume`.
+      externalResume: thread.externalResume ?? thread.codingResume,
     };
   },
 });
 
-/** Remember the harness conversation handle a coding turn ended with. */
-export const setCodingResumeInternal = internalMutation({
+/** Remember the harness conversation handle an external turn ended with. */
+export const setExternalResumeInternal = internalMutation({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
-    codingResume: v.string(),
+    externalResume: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -255,7 +257,7 @@ export const setCodingResumeInternal = internalMutation({
     const thread = await ctx.db.get(threadId);
     if (!thread || thread.organizationId !== args.organizationId) return null;
     await ctx.db.patch(threadId, {
-      codingResume: args.codingResume,
+      externalResume: args.externalResume,
       updatedAt: Date.now(),
     });
     return null;

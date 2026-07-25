@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
-import { CodingTurnMetricsPage } from './coding-turns-metrics-page';
+import { ExternalTurnMetricsPage } from './external-turns-metrics-page';
 
 // Prop-driven render assertion: the metrics query is the page's only data
 // source, so mocking it leaves a genuine component-tier render assertion. A
@@ -39,10 +39,10 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   }),
 }));
 
-describe('CodingTurnMetricsPage', () => {
+describe('ExternalTurnMetricsPage', () => {
   it('renders the title, period control, SLO cards, and per-harness row', () => {
     render(
-      <CodingTurnMetricsPage
+      <ExternalTurnMetricsPage
         organizationId="org-1"
         periodDays={30}
         onChangePeriod={() => undefined}
@@ -66,7 +66,7 @@ describe('CodingTurnMetricsPage', () => {
 
   it('passes an axe audit in its loaded state', async () => {
     const { container } = render(
-      <CodingTurnMetricsPage
+      <ExternalTurnMetricsPage
         organizationId="org-1"
         periodDays={30}
         onChangePeriod={() => undefined}

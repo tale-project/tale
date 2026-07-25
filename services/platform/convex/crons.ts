@@ -179,22 +179,22 @@ cron(
   {},
 );
 
-// Coding-turn crash-recovery sweep — a lost driveCodingTurn reschedule (deploy
+// External-turn crash-recovery sweep — a lost driveExternalTurn reschedule (deploy
 // / restart / action-ceiling kill) would strand a turn's op + generation rows
 // `running` forever with no drainer. This heartbeat-based sweep probes each
 // abandoned exec and resumes it (still alive) or finalizes it (exited/gone),
 // exactly-once, revoking the turn's gateway VK on every terminal path. Own cron
 // entry (not folded into a sibling) so one throw can't disable another watchdog.
 cron(
-  'recover abandoned coding turns (every 2 min)',
+  'recover abandoned external turns (every 2 min)',
   '*/2 * * * *',
-  internal.chat.coding_turn_recovery.recoverAbandonedCodingTurns,
+  internal.chat.external_turn_recovery.recoverAbandonedExternalTurns,
   {},
 );
 
 // Direct (platform-chat) crash-recovery sweep — a hard-killed direct turn
 // strands its generation row `running`, wedging the thread. This clears stale
-// non-coding generations so the composer unlocks (coding rows are the sweep
+// non-external-turn generations so the composer unlocks (external rows are the sweep
 // above's job — deleting one here could strand a live sandbox exec).
 cron(
   'recover stale direct chat generations (every 2 min)',

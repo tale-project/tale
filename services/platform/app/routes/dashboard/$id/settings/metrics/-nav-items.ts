@@ -12,7 +12,7 @@ type MetricsNavSlug =
   | 'usage'
   | 'feedback'
   | 'chat-health'
-  | 'coding-turns'
+  | 'external-turns'
   | 'automations'
   | 'projects';
 
@@ -32,7 +32,7 @@ export const METRICS_NAV_ITEMS: MetricsNavItem[] = [
   { slug: 'usage', labelKey: 'usage', icon: TrendingUp },
   { slug: 'feedback', labelKey: 'feedback', icon: MessagesSquare },
   { slug: 'chat-health', labelKey: 'chat-health', icon: Activity },
-  { slug: 'coding-turns', labelKey: 'coding-turns', icon: TerminalSquare },
+  { slug: 'external-turns', labelKey: 'external-turns', icon: TerminalSquare },
   { slug: 'automations', labelKey: 'automations', icon: Workflow },
   { slug: 'projects', labelKey: 'projects', icon: BarChart3 },
 ];

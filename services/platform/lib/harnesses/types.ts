@@ -1,4 +1,4 @@
-// The harness exec-glue contract: what the platform asks of a sandbox coding
+// The harness exec-glue contract: what the platform asks of a sandbox
 // harness (`HarnessRunSpec`), what the sandbox session-exec API runs
 // (`HarnessExec`), and the one normalized event union every harness's native
 // stdout stream maps into (`HarnessEvent`).

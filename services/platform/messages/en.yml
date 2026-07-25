@@ -137,9 +137,9 @@ analytics:
     empty:
       title: No automation runs
       description: No automations have run in the selected period.
-  codingTurns:
-    title: Coding turns
-    description: Reliability of third-party coding agents running in the sandbox.
+  externalTurns:
+    title: Third-party agent turns
+    description: Reliability of third-party agents running in the sandbox.
     cappedNotice: Showing the most recent 5,000 turns in this window. Older
       turns in this period are not included in these totals.
     cards:
@@ -150,12 +150,12 @@ analytics:
       cancelled: Stopped by user
       recovered: Recovered
     byHarness:
-      title: By coding agent
-      harness: Coding agent
+      title: By agent
+      harness: Agent
       turns: Turns
       successRate: Success rate
       timeouts: Timeouts
-      empty: No coding turns have run in the selected period.
+      empty: No third-party agent turns have run in the selected period.
   usage:
     title: Usage Metrics
     description: Token consumption, requests, and active users over time.
@@ -923,7 +923,7 @@ chat:
     searchPlaceholder: Search agents
     noResults: No agents found
     lockedExternal:
-      This chat runs in a sandbox and keeps its coding agent — start a
+      This chat runs in a sandbox and keeps its third-party agent — start a
       new chat to use a different one.
     lockedExternalLabel: 'Agent: {agent} (pinned for this sandbox chat)'
     browseAutomations: Browse automations
@@ -4121,7 +4121,7 @@ metrics:
     usage: Usage
     feedback: Feedback
     chat-health: Chat health
-    coding-turns: Coding turns
+    external-turns: Third-party turns
     automations: Automations
     projects: Projects
   period:
@@ -5180,7 +5180,7 @@ projects:
     sectionDescription:
       Equip each agent with the skills and connectors it runs with in this
       project. Everyone here sees the agent pre-equipped with what you pick.
-    noCodingAgents: No coding agents are available yet.
+    noExternalAgents: No third-party agents are available yet.
     modeRecommended: Recommended
     modeRecommendedDescription: Pin the items below to the top. Others remain available.
     modeRestricted: Restricted
@@ -7453,8 +7453,9 @@ tasks:
     unassigned: Unassigned
     assignToMe: Assign to me
     agents: Agents
-    codingAgents: Coding agents
-    codingAgentsInfo: Board dispatch depends on each agent — tale-daemon on your
+    externalAgents: Third-party agents
+    externalAgentsInfo:
+      Board dispatch depends on each agent — tale-daemon on your
       machine, a durable sandbox, or the platform loop when only chat uses a
       sandbox.
     unassign: Unassign
@@ -7467,7 +7468,8 @@ tasks:
       codingDaemon: Runs on your machine in a git workspace.
       codingDurable: Runs in a sandbox container; writes a summary file.
       codingSandboxOnly: Chat uses a sandbox; board tasks use the platform loop.
-    nonCodeWarning: This coding agent is optimized for repo work. For research,
+    nonCodeWarning:
+      This third-party agent is optimized for repo work. For research,
       writing, or personal deliverables, assign a person or an Agent.
   activity:
     created: Created
@@ -8085,7 +8087,8 @@ sandboxes:
     error: Action failed
   empty:
     title: No active sandboxes
-    description: Sandboxes start automatically when a member chats with a coding agent.
+    description: Sandboxes start automatically when a member chats with a
+      third-party agent.
   accessDenied: You need developer or admin access to manage sandboxes.
 envEditor:
   confirmRemoveTitle: Remove variable?

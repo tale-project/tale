@@ -48,6 +48,7 @@ import type { ComposerModelOption, ComposerSelection } from '../types';
 import { CanvasPanel } from './canvas/canvas-panel';
 import { Composer } from './composer';
 import {
+  resolveExternalModelId,
   resolveSelectionSandbox,
   withDefaultModel,
 } from './composer-model-picker';
@@ -112,7 +113,7 @@ export function ChatSurface({
       : NO_MODELS;
 
   // The thread being viewed, once the list has answered. A thread FIXES its
-  // agent for its whole life — a sandbox thread keeps its coding agent, a
+  // agent for its whole life — a sandbox thread keeps its external agent, a
   // direct thread stays platform — so the composer follows the open thread
   // rather than resetting to the platform default when the surface remounts
   // on navigation (which silently sent the next turn to the wrong lane).
@@ -120,36 +121,36 @@ export function ChatSurface({
     threadId !== undefined && threads.status === 'ready'
       ? threads.data.find((thread) => thread.id === threadId)
       : undefined;
-  const threadPinsCodingAgent =
+  const threadPinsExternalAgent =
     activeThread?.kind === 'sandbox' && activeThread.harness !== undefined;
 
   // Align the selection with the open thread the moment it loads: a sandbox
-  // thread pins its coding agent; a fresh sandbox thread the surface just
+  // thread pins its external agent; a fresh sandbox thread the surface just
   // created (harness known, list not yet refetched) keeps the harness the
   // user picked. This runs once per (thread, harness) — a pick the user then
   // makes in-session is left alone by the model-seed effect below.
   useEffect(() => {
-    if (!threadPinsCodingAgent || activeThread?.harness === undefined) return;
+    if (!threadPinsExternalAgent || activeThread?.harness === undefined) return;
     const harness = activeThread.harness;
     setSelection((previous) =>
-      previous.agentKind === 'coding' && previous.harness === harness
+      previous.agentKind === 'external' && previous.harness === harness
         ? previous
-        : { ...previous, agentKind: 'coding', harness },
+        : { ...previous, agentKind: 'external', harness },
     );
-  }, [threadPinsCodingAgent, activeThread?.harness]);
+  }, [threadPinsExternalAgent, activeThread?.harness]);
 
   // Seed the default model once BOTH the listing and the user's sticky pick
   // have answered, so the seed lands once — never "first model, then the
-  // saved one a beat later". Only the platform agent runs a model, so a
-  // coding thread is left alone. A pick made in this session is left alone.
+  // saved one a beat later". Both lanes run a model — the external lane
+  // derives its direct-served pick from this same seed — so an external-agent
+  // thread seeds too. A pick made in this session is left alone.
   const preference = modelPreference.preference;
   useEffect(() => {
-    if (threadPinsCodingAgent) return;
     if (models.length === 0 || preference.status === 'loading') return;
     const preferredId =
       preference.status === 'ready' ? preference.data : undefined;
     setSelection((previous) => withDefaultModel(previous, models, preferredId));
-  }, [threadPinsCodingAgent, models, preference]);
+  }, [models, preference]);
 
   // An explicit model pick becomes the user's sticky default; the seeding
   // effect above writes nothing, so only real choices persist.
@@ -183,11 +184,11 @@ export function ChatSurface({
     (threadId !== undefined && !messagesAvailable) ||
     needsProviderSetup;
 
-  // Stop is wired for coding turns only — the harness runs independently in the
+  // Stop is wired for external turns only — the harness runs independently in the
   // sandbox, so it can be cancelled mid-flight; the direct lane's single-action
   // turn has no cancel yet. The composer shows the stop button accordingly.
-  const codingTurnInFlight =
-    generationInFlight && selection.agentKind === 'coding';
+  const externalTurnInFlight =
+    generationInFlight && selection.agentKind === 'external';
   const handleStop = () => {
     if (threadId === undefined) return;
     void chatSend.stop(threadId).catch((error: unknown) => {
@@ -196,23 +197,32 @@ export function ChatSurface({
     });
   };
 
+  // The model an external turn runs on: the explicit pick when the managed
+  // lane can serve it, else the first direct-served model — mirrors the
+  // backend's own fallback, so what is sent is what the picker displayed.
+  const externalModelId = resolveExternalModelId(selection, models);
+
   const handleSend = (text: string) => {
-    // Each kind has one prerequisite: a model for the platform agent, a
-    // harness for a coding agent. `sendDisabled` already gates these; the
-    // guard here keeps a race from slipping through.
+    // Each kind has its prerequisites: a model for the platform agent; a
+    // harness plus a direct-served model for an external agent.
+    // `sendDisabled` already gates these; the guard here keeps a race from
+    // slipping through.
     if (selection.agentKind === 'platform' && selection.modelId === undefined)
       return;
-    if (selection.agentKind === 'coding' && selection.harness === undefined)
+    if (
+      selection.agentKind === 'external' &&
+      (selection.harness === undefined || externalModelId === undefined)
+    )
       return;
+    const modelIdToSend =
+      selection.agentKind === 'external' ? externalModelId : selection.modelId;
     void (async () => {
       try {
         const turn = await chatSend.start({
           ...(threadId !== undefined ? { threadId } : {}),
           text,
           agentKind: selection.agentKind,
-          ...(selection.modelId !== undefined
-            ? { modelId: selection.modelId }
-            : {}),
+          ...(modelIdToSend !== undefined ? { modelId: modelIdToSend } : {}),
           ...(selection.harness !== undefined
             ? { harness: selection.harness }
             : {}),
@@ -354,9 +364,9 @@ export function ChatSurface({
         <div className="shrink-0 px-4 pb-4">
           <Composer
             models={models}
-            sandboxAgents={
+            externalAgents={
               composerOptions.status === 'ready'
-                ? composerOptions.data.sandboxAgents
+                ? composerOptions.data.externalAgents
                 : []
             }
             skills={
@@ -374,18 +384,19 @@ export function ChatSurface({
             onSelectionChange={handleSelectionChange}
             onSend={handleSend}
             onStop={handleStop}
-            generating={codingTurnInFlight}
+            generating={externalTurnInFlight}
             disabled={composerDisabled}
             // An open thread's agent is fixed for its life — switching agents
             // is a new chat — so the agent picker locks once a thread exists.
             lockAgent={activeThread !== undefined}
-            // Send waits for the kind's one prerequisite (model or harness)
-            // and for the running turn to settle; typing and the pickers stay
-            // usable through both.
+            // Send waits for the kind's prerequisites (a model; a harness
+            // plus a direct-served model) and for the running turn to settle;
+            // typing and the pickers stay usable through both.
             sendDisabled={
               (selection.agentKind === 'platform'
                 ? selection.modelId === undefined
-                : selection.harness === undefined) || generationInFlight
+                : selection.harness === undefined ||
+                  externalModelId === undefined) || generationInFlight
             }
           />
         </div>

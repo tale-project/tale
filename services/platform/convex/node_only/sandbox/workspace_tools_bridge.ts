@@ -9,7 +9,7 @@
  * Documents hub — as read-only tools.
  *
  * Same discipline as the integration surface: whatever these actions return is
- * relayed verbatim to the coding agent as the tool result, so every shape is
+ * relayed verbatim to the external agent as the tool result, so every shape is
  * written FOR THE MODEL (structured status + guidance, never a bare throw). The
  * reads run as the turn's user, org-scoped, through the same access-controlled
  * internal queries the rest of the platform uses — nothing here widens a
@@ -27,7 +27,7 @@ import { searchKnowledge } from '../../knowledge/search';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 
 /**
- * The read-only workspace tools a managed coding turn is granted by default.
+ * The read-only workspace tools a managed external turn is granted by default.
  * These are first-party reads of the ORG's own data — org-scoped and audited —
  * so a default read grant is honest without a per-agent picker (the agent
  * Tools-tab UI was retired). The names match the descriptions baked into the
@@ -75,7 +75,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Run one read-only workspace tool for a sandbox coding turn. The HTTP dispatch
+ * Run one read-only workspace tool for a sandbox external turn. The HTTP dispatch
  * has already authenticated the session token and checked the grant set; this
  * action owns tool-name validation and the org-scoped read as the turn's user.
  */

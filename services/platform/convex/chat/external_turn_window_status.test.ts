@@ -1,4 +1,4 @@
-// Regression for the "Queued — waiting to start" lie: a coding turn's
+// Regression for the "Queued — waiting to start" lie: an external turn's
 // generation used to stay 'queued' until the FIRST drain window ended (up to
 // 90s), even though the exec was already running. The kick window must flip
 // the generation to streaming BEFORE it blocks in the drain; an attach-only
@@ -27,7 +27,7 @@ vi.mock('../node_only/sandbox/llm_gateway_admin', () => ({
 import { getFunctionName } from 'convex/server';
 
 import { internal } from '../_generated/api';
-import { drainCodingWindow } from './coding_turn_shared';
+import { drainExternalTurnWindow } from './external_turn_shared';
 
 const SCOPE = {
   organizationId: 'org_1',
@@ -62,7 +62,7 @@ function startExec() {
   };
 }
 
-describe('drainCodingWindow — generation status honesty', () => {
+describe('drainExternalTurnWindow — generation status honesty', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('flips the generation out of queued BEFORE the kick window blocks', async () => {
@@ -77,7 +77,7 @@ describe('drainCodingWindow — generation status honesty', () => {
       return Promise.resolve(TERMINAL);
     });
 
-    await drainCodingWindow(ctx as never, {
+    await drainExternalTurnWindow(ctx as never, {
       scope: SCOPE,
       sessionId: 'session_1',
       execId: 'exec_1',
@@ -99,7 +99,7 @@ describe('drainCodingWindow — generation status honesty', () => {
     const ctx = createCtx();
     mockDrain.mockResolvedValue(TERMINAL);
 
-    await drainCodingWindow(ctx as never, {
+    await drainExternalTurnWindow(ctx as never, {
       scope: SCOPE,
       sessionId: 'session_1',
       execId: 'exec_1',

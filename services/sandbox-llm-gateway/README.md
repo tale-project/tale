@@ -1,6 +1,6 @@
 # @tale/sandbox-llm-gateway
 
-The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) core). The single path from in-sandbox code to an LLM — coding agents (Claude Code / OpenCode), and the `tale-vision` CLI that chat `run_code` execs use for image analysis.
+The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) core). The single path from in-sandbox code to an LLM — third-party agents (Claude Code / OpenClaw / OpenCode), and the `tale-vision` CLI that chat `run_code` execs use for image analysis.
 
 ## Overview
 

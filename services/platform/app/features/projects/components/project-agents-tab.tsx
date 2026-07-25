@@ -14,7 +14,7 @@ import { useSetProjectAgentCapabilities } from '../hooks/mutations';
 import {
   useProject,
   useProjectCapabilityCatalog,
-  useProjectCodingAgents,
+  useProjectExternalAgents,
 } from '../hooks/queries';
 import {
   type AgentCapabilityBinding,
@@ -30,7 +30,7 @@ const EMPTY_BINDING: AgentCapabilityBinding = { skills: [], connectors: [] };
 
 /**
  * The project's per-agent equipment. The agent set is fixed — the same
- * third-party coding agents (sandbox harnesses) chat offers — and this page
+ * third-party agents (sandbox harnesses) chat offers — and this page
  * binds each one to the skills and connectors it runs with IN THIS PROJECT.
  * The persistent, project-scoped analog of the chat composer's per-turn
  * capability assembly: what a member picks here is what that agent shows up
@@ -47,7 +47,7 @@ export function ProjectAgentsTab({
 }: ProjectAgentsTabProps) {
   const { t } = useT('projects');
   const { project } = useProject(projectId);
-  const agentsQuery = useProjectCodingAgents(organizationId);
+  const agentsQuery = useProjectExternalAgents(organizationId);
   const catalogQuery = useProjectCapabilityCatalog(organizationId);
   const { mutateAsync: setCapabilities } = useSetProjectAgentCapabilities();
 
@@ -71,7 +71,7 @@ export function ProjectAgentsTab({
 
   if (!project) return null;
 
-  const agents = agentsQuery.data?.sandboxAgents ?? [];
+  const agents = agentsQuery.data?.externalAgents ?? [];
   const skills = catalogQuery.data?.skills ?? [];
   const connectors = catalogQuery.data?.connectors ?? [];
   const bindings = project.agentCapabilities ?? {};
@@ -86,7 +86,7 @@ export function ProjectAgentsTab({
 
       {agents.length === 0 ? (
         <Text variant="caption" className="text-muted-foreground">
-          {t('agents.noCodingAgents')}
+          {t('agents.noExternalAgents')}
         </Text>
       ) : (
         <Stack as="ul" gap={2}>

@@ -37,7 +37,7 @@ Ein gelöschter Skill verschwindet von der Platte, und jeder daran gebundene Age
 
 ## Skills in einer Sandbox-Sitzung
 
-Läuft ein Zug in einer Sandbox, kommen gebundene Bundles nicht über einen Tool-Aufruf. Sie werden als Dateien in die Sitzung gelegt, in der Anordnung, die die Laufzeitumgebung ohnehin kennt — der Coding-Agent findet sie also so, wie er einen Skill auf jeder anderen Maschine fände.
+Läuft ein Zug in einer Sandbox, kommen gebundene Bundles nicht über einen Tool-Aufruf. Sie werden als Dateien in die Sitzung gelegt, in der Anordnung, die die Laufzeitumgebung ohnehin kennt — der Drittanbieter-Agent findet sie also so, wie er einen Skill auf jeder anderen Maschine fände.
 
 Für Kollisionen gilt eine Regel: Das Repository gewinnt. Bringt das ausgecheckte Repository einen Skill unter demselben Slug mit, den auch Tale legen würde, hält Tale seine Kopie zurück, und die Fassung aus dem Repository bleibt stehen. Ein Repository kann damit immer überschreiben, was die Plattform dem Agenten sonst beibrächte, und in der Sitzung liegen nie zwei Bundles unter einem Namen. Verglichen wird exakt: Ein Slug, der sich um ein einziges Zeichen unterscheidet, ist ein anderer Skill, und beide werden gelegt.
 

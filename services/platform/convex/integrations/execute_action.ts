@@ -480,7 +480,7 @@ export const runIntegrationAction = internalAction({
     /** Stable across retries of the same logical attempt. */
     idempotencyKey: v.optional(v.string()),
     /** A live sandbox session to run the yaml-js body IN (out of process).
-     * Supplied by callers that own one (the coding-turn bridge); without it a
+     * Supplied by callers that own one (the external-turn bridge); without it a
      * live yaml-js body refuses on the data-only in-process runner. */
     execSessionId: v.optional(v.string()),
   },

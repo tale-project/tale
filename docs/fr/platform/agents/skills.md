@@ -37,7 +37,7 @@ Supprimer un skill retire le bundle du disque, et chaque agent lié y perd l’a
 
 ## Les skills dans une session sandbox
 
-Quand un tour s’exécute dans une sandbox, les bundles liés n’arrivent pas par un appel d’outil. Ils sont déposés dans la session sous forme de fichiers, dans la disposition que l’environnement d’exécution sait déjà parcourir : l’agent de code les trouve comme il trouverait un skill sur n’importe quelle machine.
+Quand un tour s’exécute dans une sandbox, les bundles liés n’arrivent pas par un appel d’outil. Ils sont déposés dans la session sous forme de fichiers, dans la disposition que l’environnement d’exécution sait déjà parcourir : l’agent tiers les trouve comme il trouverait un skill sur n’importe quelle machine.
 
 Une règle tranche les collisions : le dépôt gagne. Si le dépôt cloné livre un skill sous le même slug qu’un bundle que Tale déposerait, Tale retient sa copie et la version du dépôt reste en place. Un dépôt peut donc toujours écraser ce que la plateforme apprendrait sinon à l’agent, et la session ne contient jamais deux bundles réclamant le même nom. La comparaison est exacte : un slug qui diffère d’un seul caractère est un autre skill, et les deux sont déposés.
 

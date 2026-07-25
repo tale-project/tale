@@ -63,7 +63,7 @@ export const teardownThreadSessionAtTurnEnd = internalAction({
  * Reclaim the CREDENTIALS of hard-TTL-expired sessions (the row-flip half is
  * `recoverStuckSessions`, which schedules this). Revokes each session's gateway
  * VKs so an expired row can never leave a spendable credential live on the
- * gateway — the gap that let coding-turn keys accumulate past a session's life.
+ * gateway — the gap that let external-turn keys accumulate past a session's life.
  *
  * Deliberately does NOT destroy the workspace: expiry is a lifetime cap, not an
  * explicit user Destroy, and "never destroy state without explicit permission"

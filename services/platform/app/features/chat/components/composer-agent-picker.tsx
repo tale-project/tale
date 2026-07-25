@@ -6,7 +6,7 @@
  * Two kinds, and the kind alone decides where the turn runs — so there is no
  * separate sandbox switch. The PLATFORM agent ("Assistant") runs a model
  * directly, and its model is chosen in the picker beside this one. A
- * THIRD-PARTY agent is an external coding harness (Claude Code, Codex) that
+ * THIRD-PARTY agent is an external harness (Claude Code, OpenClaw, …) that
  * always runs in a sandbox and brings its own model, so no model picker shows
  * for it.
  */
@@ -18,11 +18,11 @@ import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import type { ComposerSandboxAgentOption, ComposerSelection } from '../types';
+import type { ComposerExternalAgentOption, ComposerSelection } from '../types';
 
 interface ComposerAgentPickerProps {
-  /** The third-party coding agents (sandbox harnesses) on offer. */
-  codingAgents: readonly ComposerSandboxAgentOption[];
+  /** The third-party agents (sandbox harnesses) on offer. */
+  externalAgents: readonly ComposerExternalAgentOption[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   disabled?: boolean;
@@ -32,7 +32,7 @@ interface ComposerAgentPickerProps {
 }
 
 export function ComposerAgentPicker({
-  codingAgents,
+  externalAgents,
   selection,
   onSelectionChange,
   disabled,
@@ -40,7 +40,7 @@ export function ComposerAgentPicker({
 }: ComposerAgentPickerProps) {
   const { t } = useT('chat');
 
-  const selectedAgent = codingAgents.find(
+  const selectedAgent = externalAgents.find(
     (agent) => agent.harness === selection.harness,
   );
 
@@ -63,10 +63,10 @@ export function ComposerAgentPicker({
       ],
     ];
 
-    if (codingAgents.length > 0) {
+    if (externalAgents.length > 0) {
       groups.push([
         { type: 'label', content: t('agentSelector.sectionThirdParty') },
-        ...codingAgents.map((agent) => {
+        ...externalAgents.map((agent) => {
           const degraded = degradedHarnesses?.has(agent.harness) === true;
           return {
             type: 'item' as const,
@@ -77,7 +77,7 @@ export function ComposerAgentPicker({
               : agent.label,
             icon: degraded ? AlertTriangle : Bot,
             selected:
-              selection.agentKind === 'coding' &&
+              selection.agentKind === 'external' &&
               agent.harness === selection.harness,
             // The platform model stays in the selection — a harness turn never
             // reads it, and keeping it means returning to the platform agent
@@ -85,7 +85,7 @@ export function ComposerAgentPicker({
             onClick: () =>
               onSelectionChange({
                 ...selection,
-                agentKind: 'coding',
+                agentKind: 'external',
                 harness: agent.harness,
               }),
           };
@@ -94,10 +94,10 @@ export function ComposerAgentPicker({
     }
 
     return groups;
-  }, [codingAgents, selection, onSelectionChange, degradedHarnesses, t]);
+  }, [externalAgents, selection, onSelectionChange, degradedHarnesses, t]);
 
   const triggerLabel =
-    selection.agentKind === 'coding'
+    selection.agentKind === 'external'
       ? (selectedAgent?.label ?? t('agentSelector.defaultAgent'))
       : t('agentSelector.defaultAgent');
 

@@ -150,10 +150,9 @@ analytics:
     empty:
       title: Keine Läufe
       description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
-  codingTurns:
-    title: Coding-Runden
-    description: Zuverlässigkeit der Coding-Agenten von Drittanbietern in der
-      Sandbox.
+  externalTurns:
+    title: Runden mit Drittanbieter-Agenten
+    description: Zuverlässigkeit der Drittanbieter-Agenten in der Sandbox.
     cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
       angezeigt. Ältere Runden fließen nicht in diese Summen ein.
     cards:
@@ -164,12 +163,13 @@ analytics:
       cancelled: Von Nutzer gestoppt
       recovered: Wiederhergestellt
     byHarness:
-      title: Nach Coding-Agent
-      harness: Coding-Agent
+      title: Nach Agent
+      harness: Agent
       turns: Runden
       successRate: Erfolgsquote
       timeouts: Timeouts
-      empty: Im gewählten Zeitraum ist keine Coding-Runde gelaufen.
+      empty: Im gewählten Zeitraum ist keine Runde mit einem
+        Drittanbieter-Agenten gelaufen.
   usage:
     title: Nutzungs-Metriken
     description: Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.
@@ -967,7 +967,8 @@ chat:
     searchPlaceholder: Agents suchen
     noResults: Keine Agents gefunden
     lockedExternal: Dieser Chat läuft in einer Sandbox und behält seinen
-      Coding-Agent — starte einen neuen Chat, um einen anderen zu verwenden.
+      Drittanbieter-Agenten — starte einen neuen Chat, um einen anderen zu
+      verwenden.
     lockedExternalLabel: 'Agent: {agent} (für diesen Sandbox-Chat festgelegt)'
     browseAutomations: Automatisierungen durchsuchen
     sectionAgents: Agenten
@@ -4309,7 +4310,7 @@ metrics:
     usage: Nutzung
     feedback: Feedback
     chat-health: Chat-Zustand
-    coding-turns: Coding-Runden
+    external-turns: Drittanbieter-Runden
     automations: Automatisierungen
     projects: Projekte
   period:
@@ -7448,8 +7449,9 @@ tasks:
     unassigned: Nicht zugewiesen
     assignToMe: Mir zuweisen
     agents: Agenten
-    codingAgents: Coding-Agenten
-    codingAgentsInfo: Der Board-Dispatch hängt vom Agenten ab — tale-daemon auf
+    externalAgents: Drittanbieter-Agenten
+    externalAgentsInfo:
+      Der Board-Dispatch hängt vom Agenten ab — tale-daemon auf
       deinem Rechner, durable Sandbox oder die Plattform-Schleife, wenn nur der
       Chat eine Sandbox nutzt.
     unassign: Zuweisung aufheben
@@ -7463,7 +7465,8 @@ tasks:
       codingDaemon: Läuft auf deinem Rechner in einem Git-Workspace.
       codingDurable: Läuft in einer Sandbox; schreibt eine Summary-Datei.
       codingSandboxOnly: Chat nutzt eine Sandbox; Board-Tasks nutzen die Plattform-Schleife.
-    nonCodeWarning: Dieser Coding-Agent ist für Repo-Arbeit optimiert. Für
+    nonCodeWarning: Dieser Drittanbieter-Agent ist für Repo-Arbeit optimiert.
+      Für
       Recherche, Texte oder persönliche Deliverables weise eine Person oder
       einen Agent zu.
   activity:
@@ -8083,7 +8086,7 @@ projects:
     sectionDescription: Rüste jeden Agenten mit den Skills und Konnektoren aus,
       mit denen er in diesem Projekt arbeitet. Alle hier sehen den Agenten
       vorausgerüstet mit dem, was du auswählst.
-    noCodingAgents: Es sind noch keine Coding-Agenten verfügbar.
+    noExternalAgents: Es sind noch keine Drittanbieter-Agenten verfügbar.
     modeRecommended: Empfohlen
     modeRecommendedDescription: Pinne die Einträge unten oben an. Der Rest bleibt verfügbar.
     modeRestricted: Eingeschränkt
@@ -8424,7 +8427,7 @@ sandboxes:
   empty:
     title: Keine aktiven Sandboxes
     description: Sandboxes starten automatisch, wenn ein Mitglied mit einem
-      Coding-Agenten chattet.
+      Drittanbieter-Agenten chattet.
   accessDenied: Sie benötigen Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
 envEditor:
   confirmRemoveTitle: Variable entfernen?

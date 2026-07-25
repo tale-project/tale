@@ -1,11 +1,12 @@
 'use node';
 
 /**
- * The coding turn's DRAINER: a self-chaining internal action that keeps a
+ * The external turn's DRAINER: a self-chaining internal action that keeps a
  * long turn's reply flowing without holding any single Convex action open.
  *
  * Each invocation ATTACHES to the still-running harness exec (started by the
- * kick) from the ring-buffer start, drains one short window, updates the
+ * scheduled `startExternalTurnExec`) from the ring-buffer start, drains one
+ * short window, updates the
  * assistant message, and settles the turn if it ended. Still running at the
  * window's close → it reschedules itself; past the overall deadline → it cuts
  * the exec and settles with a timeout reason. A turn that already settled (its
@@ -19,12 +20,12 @@ import { internalAction } from '../_generated/server';
 import { sessionCancelExec } from '../node_only/sandbox/helpers/session_client';
 import { sessionIdForUser } from '../sandbox/session_naming';
 import {
-  drainCodingWindow,
-  finalizeCodingTurn,
-  type CodingTurnScope,
-} from './coding_turn_shared';
+  drainExternalTurnWindow,
+  finalizeExternalTurn,
+  type ExternalTurnScope,
+} from './external_turn_shared';
 
-export const driveCodingTurn = internalAction({
+export const driveExternalTurn = internalAction({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
@@ -35,71 +36,72 @@ export const driveCodingTurn = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     const state = await ctx.runQuery(
-      internal.chat.generations.getCodingStateInternal,
+      internal.chat.generations.getExternalTurnStateInternal,
       { organizationId: args.organizationId, threadId: args.threadId },
     );
-    // No live coding generation → the turn already settled (completed, or the
+    // No live external-turn generation → the turn already settled (completed, or the
     // user stopped it). Nothing to drive.
     if (state === null) return null;
 
-    const scope: CodingTurnScope = {
+    const scope: ExternalTurnScope = {
       organizationId: args.organizationId,
       threadId: args.threadId,
       userId: args.userId,
     };
     const sessionId = sessionIdForUser(args.organizationId, args.userId);
-    const { messageId, coding } = state;
+    const { messageId, external } = state;
 
     // Past the deadline → cut the exec and settle with a reason rather than
     // let a hung harness reschedule forever.
     if (Date.now() > args.deadlineAt) {
-      await sessionCancelExec(sessionId, coding.execId).catch((err) =>
-        console.warn('[coding-turn] deadline exec cancel failed:', err),
+      await sessionCancelExec(sessionId, external.execId).catch((err) =>
+        console.warn('[external-turn] deadline exec cancel failed:', err),
       );
-      await finalizeCodingTurn(ctx, {
+      await finalizeExternalTurn(ctx, {
         scope,
         sessionId,
-        execId: coding.execId,
+        execId: external.execId,
         messageId,
-        providerSlug: coding.providerSlug,
-        gatewayModel: coding.gatewayModel,
+        providerSlug: external.providerSlug,
+        gatewayModel: external.gatewayModel,
         fallbackText: '',
         errored: true,
         timedOut: true,
-        harness: coding.harness,
-        reason: 'The coding agent ran past its time limit and was stopped.',
+        harness: external.harness,
+        reason:
+          'The third-party agent ran past its time limit and was stopped.',
       });
       return null;
     }
 
     let outcome;
     try {
-      outcome = await drainCodingWindow(ctx, {
+      outcome = await drainExternalTurnWindow(ctx, {
         scope,
         sessionId,
-        execId: coding.execId,
+        execId: external.execId,
         messageId,
-        harness: coding.harness,
-        providerSlug: coding.providerSlug,
-        gatewayModel: coding.gatewayModel,
+        harness: external.harness,
+        providerSlug: external.providerSlug,
+        gatewayModel: external.gatewayModel,
       });
     } catch (err) {
       // A window that THREW (staging failure, exhausted reconnects, a Convex
       // hiccup) must not silently end the chain and strand the thread — route
       // it to the same unified failure exit. finalize's exactly-once claim
       // keeps this from racing the crash-recovery sweep.
-      console.error('[coding-turn] drive window threw:', err);
-      await finalizeCodingTurn(ctx, {
+      console.error('[external-turn] drive window threw:', err);
+      await finalizeExternalTurn(ctx, {
         scope,
         sessionId,
-        execId: coding.execId,
+        execId: external.execId,
         messageId,
-        providerSlug: coding.providerSlug,
-        gatewayModel: coding.gatewayModel,
+        providerSlug: external.providerSlug,
+        gatewayModel: external.gatewayModel,
         fallbackText: '',
         errored: true,
-        harness: coding.harness,
-        reason: 'The coding agent stopped unexpectedly.',
+        harness: external.harness,
+        reason: 'The third-party agent stopped unexpectedly.',
       });
       return null;
     }
@@ -107,7 +109,7 @@ export const driveCodingTurn = internalAction({
     if (outcome.kind === 'continue') {
       await ctx.scheduler.runAfter(
         0,
-        internal.chat.coding_turn_drive.driveCodingTurn,
+        internal.chat.external_turn_drive.driveExternalTurn,
         {
           organizationId: args.organizationId,
           threadId: args.threadId,
@@ -116,20 +118,20 @@ export const driveCodingTurn = internalAction({
         },
       );
     } else if (outcome.kind === 'gone') {
-      await finalizeCodingTurn(ctx, {
+      await finalizeExternalTurn(ctx, {
         scope,
         sessionId,
-        execId: coding.execId,
+        execId: external.execId,
         messageId,
-        providerSlug: coding.providerSlug,
-        gatewayModel: coding.gatewayModel,
+        providerSlug: external.providerSlug,
+        gatewayModel: external.gatewayModel,
         fallbackText: '',
         errored: true,
-        harness: coding.harness,
+        harness: external.harness,
         reason: 'The sandbox session ended before the turn finished.',
       });
     }
-    // 'done' → drainCodingWindow already finalized.
+    // 'done' → drainExternalTurnWindow already finalized.
     return null;
   },
 });

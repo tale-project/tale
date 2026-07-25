@@ -9,7 +9,7 @@
  *   status:  body `{}`                      → JSON listing body
  * Auth: `Authorization: Bearer <session VK>` — resolved by `authSessionToken`
  * to the token row's org + grant set; NOTHING is trusted from the body. The
- * response body is relayed verbatim to the coding agent as tool-result text,
+ * response body is relayed verbatim to the external agent as tool-result text,
  * so every branch answers structured JSON with guidance, and only transport
  * failures (auth) use a non-2xx status.
  */
@@ -70,7 +70,7 @@ export const integrationsExecuteHandler = httpAction(async (ctx, request) => {
       ],
     });
   }
-  // Coding-turn tokens always carry the turn's user; a token without one
+  // External-turn tokens always carry the turn's user; a token without one
   // cannot attribute the call, so it cannot dispatch.
   if (auth.userId === undefined) {
     return json(200, {

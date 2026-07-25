@@ -1,13 +1,16 @@
 'use client';
 
 /**
- * The platform agent's model override.
+ * The model picker, plus the helpers that decide which model a turn runs.
  *
- * The platform agent runs a model directly; this picker is how the user
- * changes which one. It lists ONLY models — where a turn runs is decided by
- * the agent kind (see {@link ComposerAgentPicker}), never here, so there is no
- * harness group and no sandbox toggle. `withDefaultModel` seeds a model the
- * moment the listing answers, so a turn sends without ever opening this menu.
+ * The platform agent runs a model directly; a third-party agent runs a
+ * directly-served org model through the session gateway — both pick it here.
+ * It lists ONLY models — where a turn runs is decided by the agent kind (see
+ * {@link ComposerAgentPicker}), never here, so there is no harness group and
+ * no sandbox toggle. `withDefaultModel` seeds a model the moment the listing
+ * answers, so a turn sends without ever opening this menu; the external lane
+ * narrows to `directServedModels` and falls back through
+ * `resolveExternalModelId`, mirroring the backend.
  */
 
 import { Button } from '@tale/ui/button';
@@ -46,14 +49,14 @@ function asCatalogEntry(option: ComposerModelOption): ModelCatalogEntry {
 
 /**
  * Whether the current selection must run in a sandbox — derived, never
- * toggled. A third-party coding agent always does; a platform model whose
+ * toggled. A third-party agent always does; a platform model whose
  * credential binds it to a vendor's own tooling does too.
  */
 export function resolveSelectionSandbox(
   selection: ComposerSelection,
   models: readonly ComposerModelOption[],
 ): boolean {
-  if (selection.agentKind === 'coding') return true;
+  if (selection.agentKind === 'external') return true;
   const model = models.find((candidate) => candidate.id === selection.modelId);
   return model
     ? resolveSandboxAffordance(asCatalogEntry(model), model.credential).locked
@@ -80,6 +83,36 @@ export function withDefaultModel(
     models[0];
   if (chosen === undefined) return selection;
   return { ...selection, modelId: chosen.id };
+}
+
+/**
+ * The models the managed external lane can run: those a direct-capable
+ * (api-key/env) credential serves — the same filter the turn's kick applies
+ * server-side. A subscription-bound model only runs inside its own vendor's
+ * tooling, never under a third-party harness here.
+ */
+export function directServedModels(
+  models: readonly ComposerModelOption[],
+): ComposerModelOption[] {
+  return models.filter(
+    (model) =>
+      !resolveSandboxAffordance(asCatalogEntry(model), model.credential).locked,
+  );
+}
+
+/**
+ * The model an external turn runs on: the explicit pick when the managed
+ * lane can serve it, else the first direct-served model — the same fallback
+ * the backend applies, so the picker never displays a model the turn would
+ * not use.
+ */
+export function resolveExternalModelId(
+  selection: ComposerSelection,
+  models: readonly ComposerModelOption[],
+): string | undefined {
+  const eligible = directServedModels(models);
+  const picked = eligible.find((model) => model.id === selection.modelId);
+  return (picked ?? eligible[0])?.id;
 }
 
 export function ComposerModelPicker({

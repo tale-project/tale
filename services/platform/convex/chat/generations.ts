@@ -127,7 +127,7 @@ async function currentGeneration(
  * turn that never settled), it is reset rather than duplicated, so the
  * one-row-per-thread invariant holds.
  */
-const codingStateValidator = v.object({
+const externalTurnStateValidator = v.object({
   execId: v.string(),
   lastSeq: v.number(),
   harness: v.string(),
@@ -141,10 +141,10 @@ export const beginGenerationInternal = internalMutation({
     threadId: v.string(),
     streamId: v.string(),
     /** The assistant message the turn streams into, when created up front (the
-     * coding lane writes a placeholder so a drainer window can append to it). */
+     * external lane writes a placeholder so a drainer window can append to it). */
     messageId: v.optional(v.string()),
-    /** Present for a third-party coding turn — the drainer's re-attach state. */
-    coding: v.optional(codingStateValidator),
+    /** Present for a third-party external turn — the drainer's re-attach state. */
+    external: v.optional(externalTurnStateValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -159,7 +159,7 @@ export const beginGenerationInternal = internalMutation({
         status: 'queued',
         streamId: args.streamId,
         messageId: args.messageId,
-        coding: args.coding,
+        external: args.external,
         waitingOn: undefined,
         startedAt: now,
         heartbeatAt: now,
@@ -172,7 +172,7 @@ export const beginGenerationInternal = internalMutation({
       status: 'queued',
       streamId: args.streamId,
       ...(args.messageId !== undefined ? { messageId: args.messageId } : {}),
-      ...(args.coding !== undefined ? { coding: args.coding } : {}),
+      ...(args.external !== undefined ? { external: args.external } : {}),
       startedAt: now,
       heartbeatAt: now,
     });
@@ -181,12 +181,12 @@ export const beginGenerationInternal = internalMutation({
 });
 
 /**
- * Advance a coding turn's reconnect cursor after a drain window, so the next
+ * Advance an external turn's reconnect cursor after a drain window, so the next
  * window re-attaches from exactly where this one stopped (no missed or
  * replayed output). Also bumps the heartbeat — a window that drained is proof
  * of life. A no-op if the turn already settled.
  */
-export const advanceCodingCursorInternal = internalMutation({
+export const advanceExternalTurnCursorInternal = internalMutation({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
@@ -199,27 +199,27 @@ export const advanceCodingCursorInternal = internalMutation({
       args.organizationId,
       args.threadId,
     );
-    if (!existing || existing.coding === undefined) return null;
+    if (!existing || existing.external === undefined) return null;
     await ctx.db.patch(existing._id, {
       status: 'streaming',
       heartbeatAt: Date.now(),
-      coding: { ...existing.coding, lastSeq: args.lastSeq },
+      external: { ...existing.external, lastSeq: args.lastSeq },
     });
     return null;
   },
 });
 
-/** Read a thread's live coding-turn state for a drainer window. `messageId`
+/** Read a thread's live external-turn state for a drainer window. `messageId`
  * is normalized to an id (null when the turn has no streamable message or has
  * already settled) so the drainer can hand it straight to the message
  * mutations. */
-export const getCodingStateInternal = internalQuery({
+export const getExternalTurnStateInternal = internalQuery({
   args: { organizationId: v.string(), threadId: v.string() },
   returns: v.union(
     v.null(),
     v.object({
       messageId: v.id('messages'),
-      coding: codingStateValidator,
+      external: externalTurnStateValidator,
     }),
   ),
   handler: async (ctx, args) => {
@@ -228,11 +228,11 @@ export const getCodingStateInternal = internalQuery({
       args.organizationId,
       args.threadId,
     );
-    if (!existing || existing.coding === undefined) return null;
+    if (!existing || existing.external === undefined) return null;
     if (existing.messageId === undefined) return null;
     const messageId = ctx.db.normalizeId('messages', existing.messageId);
     if (messageId === null) return null;
-    return { messageId, coding: existing.coding };
+    return { messageId, external: existing.external };
   },
 });
 
@@ -297,7 +297,7 @@ const DIRECT_GENERATION_SWEEP_LIMIT = 50;
  * looking like it is generating forever with no drainer to settle it. This
  * deletes those stale rows so the composer unlocks.
  *
- * Coding-turn generations are SKIPPED (coding !== undefined): they are settled
+ * External-turn generations are SKIPPED (external !== undefined): they are settled
  * by the op-row recovery sweep, which probes the still-running exec before
  * touching the row — deleting one here could strand a live sandbox exec.
  */
@@ -310,7 +310,7 @@ export const recoverStaleDirectGenerations = internalMutation({
     for await (const row of ctx.db
       .query('generations')
       .withIndex('by_heartbeat', (q) => q.lt('heartbeatAt', staleBefore))) {
-      if (row.coding !== undefined) continue; // coding lane → op-row recovery
+      if (row.external !== undefined) continue; // external lane → op-row recovery
       await ctx.db.delete(row._id);
       cleared += 1;
       if (cleared >= DIRECT_GENERATION_SWEEP_LIMIT) break;

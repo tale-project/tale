@@ -13,7 +13,7 @@ import { useSiteUrl } from '@/lib/site-url-context';
 /**
  * The INBOUND MCP surface: the platform's own MCP endpoint, fronting the
  * automation engine's method table. An MCP client (an IDE, a desktop
- * assistant, a coding agent) points at the endpoint with an org API key and
+ * assistant, an external agent) points at the endpoint with an org API key and
  * gets the same tools the in-platform builder drives — the method list
  * renders the engine's own `METHODS`, so the section can never advertise a
  * tool the executor would refuse. Lives on the Integrations page so every

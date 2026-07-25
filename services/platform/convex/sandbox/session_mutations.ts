@@ -601,7 +601,7 @@ export const revokeTokensForSession = internalMutation({
 
 /**
  * Mark ONE session token revoked by its gateway key id (per-turn finalize).
- * The coding turn revokes its own VK on the gateway the moment the turn
+ * The external turn revokes its own VK on the gateway the moment the turn
  * settles; marking the matching token row keeps the table honest and stops a
  * later session teardown from re-issuing a redundant gateway DELETE for a key
  * that is already gone. Idempotent — an already-revoked or missing row no-ops.
@@ -1063,7 +1063,7 @@ export const recordSessionOpSpend = internalMutation({
 });
 
 /**
- * Record ONE durable turn-SLO event when a coding turn settles (the finalize
+ * Record ONE durable turn-SLO event when an external turn settles (the finalize
  * winner). Outlives the session (op rows are purged on teardown), so the turn
  * dashboard keeps history. Never carries a prompt/reply — only the turn shape.
  */

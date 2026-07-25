@@ -27,14 +27,14 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-export interface CodingTurnMetricsPageProps {
+export interface ExternalTurnMetricsPageProps {
   organizationId: string;
   periodDays: MetricsPeriodDays;
   onChangePeriod: (period: MetricsPeriodDays) => void;
 }
 
-type CodingTurnMetrics = FunctionReturnType<
-  typeof api.sandbox.session_queries_public.getCodingTurnMetrics
+type ExternalTurnMetrics = FunctionReturnType<
+  typeof api.sandbox.session_queries_public.getExternalTurnMetrics
 >;
 
 /** Rate (0..1 or null) as a percentage, or an em dash when there is nothing to
@@ -50,14 +50,14 @@ function durationSeconds(ms: number): string {
 }
 
 interface ViewProps {
-  data: CodingTurnMetrics | undefined;
+  data: ExternalTurnMetrics | undefined;
   periodDays: MetricsPeriodDays;
   onPeriod: (value: string) => void;
 }
 
 // Plain presentational view — rendered live AND as its own skeleton (wrapped in
 // <Skeletonize>), so the loading and loaded layouts are the same tree.
-export function CodingTurnMetricsPageView({
+export function ExternalTurnMetricsPageView({
   data,
   periodDays,
   onPeriod,
@@ -70,8 +70,8 @@ export function CodingTurnMetricsPageView({
   return (
     <MetricsLayout
       as="h3"
-      title={t('codingTurns.title')}
-      description={t('codingTurns.description')}
+      title={t('externalTurns.title')}
+      description={t('externalTurns.description')}
       toolbar={
         <MetricsPeriodSelect
           value={String(periodDays)}
@@ -83,57 +83,57 @@ export function CodingTurnMetricsPageView({
           <Alert
             variant="warning"
             icon={AlertTriangle}
-            title={t('codingTurns.cappedNotice')}
+            title={t('externalTurns.cappedNotice')}
           />
         ) : undefined
       }
     >
       <StatCardGrid>
         <StatCard
-          label={t('codingTurns.cards.total')}
+          label={t('externalTurns.cards.total')}
           value={formatNumber(data?.total ?? 0)}
         />
         <StatCard
-          label={t('codingTurns.cards.successRate')}
+          label={t('externalTurns.cards.successRate')}
           value={ratePercent(data?.successRate)}
         />
         <StatCard
-          label={t('codingTurns.cards.timeoutRate')}
+          label={t('externalTurns.cards.timeoutRate')}
           value={ratePercent(data?.timeoutRate)}
         />
         <StatCard
-          label={t('codingTurns.cards.durationP95')}
+          label={t('externalTurns.cards.durationP95')}
           value={durationSeconds(data?.durationP95Ms ?? 0)}
         />
         <StatCard
-          label={t('codingTurns.cards.cancelled')}
+          label={t('externalTurns.cards.cancelled')}
           value={formatNumber(data?.cancelled ?? 0)}
         />
         <StatCard
-          label={t('codingTurns.cards.recovered')}
+          label={t('externalTurns.cards.recovered')}
           value={formatNumber(data?.recovered ?? 0)}
         />
       </StatCardGrid>
 
       <div>
         <Text as="div" variant="label" className="mb-2">
-          {t('codingTurns.byHarness.title')}
+          {t('externalTurns.byHarness.title')}
         </Text>
         {byHarness.length === 0 ? (
-          <Text variant="muted">{t('codingTurns.byHarness.empty')}</Text>
+          <Text variant="muted">{t('externalTurns.byHarness.empty')}</Text>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('codingTurns.byHarness.harness')}</TableHead>
+                <TableHead>{t('externalTurns.byHarness.harness')}</TableHead>
                 <TableHead className="text-right">
-                  {t('codingTurns.byHarness.turns')}
+                  {t('externalTurns.byHarness.turns')}
                 </TableHead>
                 <TableHead className="text-right">
-                  {t('codingTurns.byHarness.successRate')}
+                  {t('externalTurns.byHarness.successRate')}
                 </TableHead>
                 <TableHead className="text-right">
-                  {t('codingTurns.byHarness.timeouts')}
+                  {t('externalTurns.byHarness.timeouts')}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -161,15 +161,15 @@ export function CodingTurnMetricsPageView({
 }
 
 // Container — owns the metrics query.
-export function CodingTurnMetricsPage({
+export function ExternalTurnMetricsPage({
   organizationId,
   periodDays,
   onChangePeriod,
-}: CodingTurnMetricsPageProps) {
+}: ExternalTurnMetricsPageProps) {
   const { t } = useT('analytics');
 
   const { data, isLoading } = useConvexQuery(
-    api.sandbox.session_queries_public.getCodingTurnMetrics,
+    api.sandbox.session_queries_public.getExternalTurnMetrics,
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );
@@ -180,8 +180,8 @@ export function CodingTurnMetricsPage({
   );
 
   return (
-    <Skeletonize loading={isLoading} label={t('codingTurns.title')}>
-      <CodingTurnMetricsPageView
+    <Skeletonize loading={isLoading} label={t('externalTurns.title')}>
+      <ExternalTurnMetricsPageView
         data={data ?? undefined}
         periodDays={periodDays}
         onPeriod={handlePeriod}

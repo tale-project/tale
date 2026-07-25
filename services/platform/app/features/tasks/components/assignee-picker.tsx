@@ -25,7 +25,7 @@ import { AssigneeAvatar } from './assignee-avatar';
  * Assignee control built on the same {@link SearchableSelect} as the chat model
  * and agent selectors: the assignee avatar is the (icon-button) trigger, and a
  * searchable list offers the current user first (self-assign), then the other
- * members, then platform Agents and Coding agents (image agents excluded), with
+ * members, then platform Agents and External agents (image agents excluded), with
  * an Unassign action in the footer.
  *
  * When `disabled` (no edit permission) it renders the bare avatar with no menu.
@@ -54,7 +54,8 @@ export function AssigneePicker({
   size?: 'sm' | 'md';
   align?: 'start' | 'center' | 'end';
   disabled?: boolean;
-  /** When set, enables the coding-agent / non-code-task guidance under the trigger. */
+  /** When set, enables the third-party-agent / non-code-task guidance under
+   * the trigger. */
   taskTitle?: string;
   taskDescription?: string;
   taskLabels?: string[];
@@ -126,7 +127,7 @@ export function AssigneePicker({
     () => assignableAgents.filter((a) => a.displayCategory === 'agent'),
     [assignableAgents],
   );
-  const codingAgents = useMemo(
+  const externalAgents = useMemo(
     () => assignableAgents.filter((a) => a.displayCategory === 'coding-agent'),
     [assignableAgents],
   );
@@ -166,21 +167,21 @@ export function AssigneePicker({
       });
       agentSections.push(...platformAgents.map(agentOption));
     }
-    if (codingAgents.length > 0) {
+    if (externalAgents.length > 0) {
       agentSections.push({
-        value: '__section:coding-agents',
-        label: t('assignee.codingAgents'),
+        value: '__section:external-agents',
+        label: t('assignee.externalAgents'),
         isSectionHeader: true,
-        labelBadge: sectionInfoButton(t('assignee.codingAgentsInfo')),
+        labelBadge: sectionInfoButton(t('assignee.externalAgentsInfo')),
       });
-      agentSections.push(...codingAgents.map(agentOption));
+      agentSections.push(...externalAgents.map(agentOption));
     }
 
     return [...memberOptions, ...agentSections];
   }, [
     assignableMembers,
     platformAgents,
-    codingAgents,
+    externalAgents,
     currentUserId,
     t,
     sectionInfoButton,

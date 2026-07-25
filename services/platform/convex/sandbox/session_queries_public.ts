@@ -457,14 +457,14 @@ function percentile(sortedAsc: readonly number[], p: number): number {
 }
 
 /**
- * Coding-turn SLO for the org over the last `periodDays` — the numbers the
+ * External-turn SLO for the org over the last `periodDays` — the numbers the
  * plan's release gate tracks: success rate (excluding user cancels), duration
  * p50/p95, timeout rate, and a per-harness breakdown, plus recovered-turn count
  * and in-turn spend. Aggregated from the durable `sandboxTurnEvents` sidecar
  * (survives session teardown). Admin-gated (developerSettings) like the
  * Sandboxes page; returns null on access-denied so the page renders that state.
  */
-export const getCodingTurnMetrics = query({
+export const getExternalTurnMetrics = query({
   args: {
     organizationId: v.string(),
     periodDays: v.optional(v.number()),

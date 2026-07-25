@@ -1,5 +1,5 @@
 // Coverage for `getProjectAgentCapabilitiesForThread` — the Phase B resolver a
-// coding turn calls to run its agent pre-equipped with the project's binding.
+// external turn calls to run its agent pre-equipped with the project's binding.
 // Locks the three "nothing bound" fallbacks (thread not in a project, project
 // gone, agent unbound) that all collapse to empty lists, plus the happy path.
 //

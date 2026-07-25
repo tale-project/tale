@@ -407,7 +407,7 @@ export const sandboxToolCallsTable = defineTable({
   .index('by_organizationId', ['organizationId']);
 
 /**
- * DURABLE per-turn SLO fact — one row written when a coding turn settles (the
+ * DURABLE per-turn SLO fact — one row written when an external turn settles (the
  * exactly-once finalize winner). Distinct from `sandboxSessionOps` (session-
  * scoped, purged on teardown): this sidecar OUTLIVES the session so the turn
  * dashboard's success rate / latency / spend hold history across reaps and

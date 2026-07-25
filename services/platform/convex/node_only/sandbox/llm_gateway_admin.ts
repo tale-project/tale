@@ -74,7 +74,7 @@ const REQUEST_TIMEOUT_SECONDS = 600;
  * which is fine for a native Anthropic upstream (it pings every ~15-30s) —
  * but a CUSTOM OpenAI-compatible upstream sends NO keepalive during a long
  * prefill or a silent reasoning gap, so a large-context turn trips the 60s
- * window and the agent's stream dies mid-run with no retry (coding CLIs do
+ * window and the agent's stream dies mid-run with no retry (harness CLIs do
  * not auto-retry a mid-stream failure). Default it to the full request
  * budget so a silent gap is bounded only by the total timeout, never a
  * premature idle abort. Operator-tunable. */

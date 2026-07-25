@@ -102,7 +102,7 @@ export const getProjectIdForThread = internalQuery({
 
 /**
  * The skills + connectors a project has bound to one agent, resolved from a
- * thread. Phase B consumption: a coding turn in a project thread runs its agent
+ * thread. Phase B consumption: an external turn in a project thread runs its agent
  * PRE-EQUIPPED with this binding — the persistent project baseline, which the
  * turn unions with the conversation's own composer picks. Returns empty lists
  * when the thread is not in a project, the project is gone, or the agent has no

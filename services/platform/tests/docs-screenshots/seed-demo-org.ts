@@ -495,7 +495,7 @@ const PLATFORM_DIR = path.join(
  * UI-driven flow once the catalog installer ships. Idempotent (upsert).
  */
 async function ensureResearcherInstalled(orgId: string): Promise<void> {
-  // The coding agents ride along for the developer episode — same rationale.
+  // The external agents ride along for the developer episode — same rationale.
   for (const agentSlug of ['researcher', 'claude-code', 'cursor']) {
     await execFileAsync(
       'bunx',

@@ -1,7 +1,7 @@
 /**
  * Episode 10 — "Bonus: Tale for developers". The builder's lap: scoped API
  * keys, the API surfaces (REST, MCP, WebDAV), webhook triggers on agents,
- * external coding agents working in sandboxes, and the run-code policy that
+ * external external agents working in sandboxes, and the run-code policy that
  * keeps package installs and network egress contained. Closes the series.
  *
  * AI-literacy beat: power tools in a contained blast radius — scoped keys,
@@ -35,7 +35,7 @@ export const EP10_DEVELOPERS: EpisodeSpec = {
       id: 'title',
       leadInMs: 1200,
       narration: {
-        en: 'A bonus lap for the builders. Everything the series showed has an API underneath — this episode walks the developer surface: keys, webhooks, coding agents, and the sandbox that contains them.',
+        en: 'A bonus lap for the builders. Everything the series showed has an API underneath — this episode walks the developer surface: keys, webhooks, external agents, and the sandbox that contains them.',
         de: 'Eine Bonusrunde für die Bauenden. Alles, was die Serie gezeigt hat, trägt eine API darunter — diese Episode geht die Entwickler-Oberfläche ab: Schlüssel, Webhooks, Coding-Agenten und die Sandbox, die sie einhegt.',
         fr: 'Un tour bonus pour celles et ceux qui construisent. Tout ce que la série a montré repose sur une API — cet épisode parcourt la surface développeur : clés, webhooks, agents de code, et le bac à sable qui les contient.',
       },
@@ -72,16 +72,16 @@ export const EP10_DEVELOPERS: EpisodeSpec = {
       },
     },
     {
-      id: 'coding-agents',
+      id: 'external-agents',
       chapterByLocale: {
-        en: 'Coding agents',
+        en: 'External agents',
         de: 'Coding-Agenten',
         fr: 'Agents de code',
       },
       chapterTransition: 'cut',
       minMs: 14_000,
       narration: {
-        en: 'And the heavy machinery: external coding agents — Claude Code, Cursor, and their peers — work inside Tale in their own sandboxes. They plan, write files, run commands… inside a box that starts empty and stays disconnected except for what the policy allows.',
+        en: 'And the heavy machinery: external external agents — Claude Code, Cursor, and their peers — work inside Tale in their own sandboxes. They plan, write files, run commands… inside a box that starts empty and stays disconnected except for what the policy allows.',
         de: 'Und das schwere Gerät: externe Coding-Agenten — Claude Code, Cursor und ihre Kollegen — arbeiten in Tale in eigenen Sandboxes. Sie planen, schreiben Dateien, führen Befehle aus … in einer Box, die leer startet und getrennt bleibt, bis auf das, was die Richtlinie erlaubt.',
         fr: 'Et l’artillerie lourde : les agents de code externes — Claude Code, Cursor et leurs pairs — travaillent dans Tale dans leurs propres bacs à sable. Ils planifient, écrivent des fichiers, lancent des commandes… dans une boîte qui démarre vide et reste déconnectée, sauf ce que la politique autorise.',
       },

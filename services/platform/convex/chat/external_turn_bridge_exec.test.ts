@@ -1,4 +1,4 @@
-// The exec side of the integrations bridge: a coding exec mounts the
+// The exec side of the integrations bridge: an external-agent exec mounts the
 // in-image `tale-integrations-mcp` server exactly when the turn passes a
 // bridgeUrl (i.e. the agent is equipped with at least one connector), and the
 // bridge env carries the platform URL + the session key. Uses the real
@@ -8,9 +8,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildCodingExec,
+  buildExternalTurnExec,
   integrationsBridgeUrlForSessions,
-} from './coding_turn_shared';
+} from './external_turn_shared';
 
 const BASE = {
   harness: 'claude-code',
@@ -30,9 +30,9 @@ describe('integrationsBridgeUrlForSessions', () => {
   });
 });
 
-describe('buildCodingExec — integrations bridge mount', () => {
+describe('buildExternalTurnExec — integrations bridge mount', () => {
   it('mounts the bridge with URL + session key when a bridgeUrl is passed', () => {
-    const exec = buildCodingExec({
+    const exec = buildExternalTurnExec({
       ...BASE,
       bridgeUrl: 'http://convex:3211/api/integrations',
     });
@@ -43,7 +43,7 @@ describe('buildCodingExec — integrations bridge mount', () => {
   });
 
   it('mounts no bridge for an unequipped turn', () => {
-    const exec = buildCodingExec(BASE);
+    const exec = buildExternalTurnExec(BASE);
     expect(JSON.stringify(exec)).not.toContain('tale-integrations-mcp');
   });
 });

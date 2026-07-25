@@ -37,7 +37,7 @@ Deleting a skill removes the bundle from disk, and every agent bound to it loses
 
 ## Skills in a sandbox session
 
-When a turn runs in a sandbox, bound bundles do not arrive through a tool call. They are staged into the session as files, in the layout the runtime already knows how to discover, so the coding agent finds them the way it would find a skill on any machine it works on.
+When a turn runs in a sandbox, bound bundles do not arrive through a tool call. They are staged into the session as files, in the layout the runtime already knows how to discover, so the third-party agent finds them the way it would find a skill on any machine it works on.
 
 One rule governs collisions: the repository wins. If the checked-out repository ships a skill under the same slug as one Tale would stage, Tale withholds its copy and the repository's version stands. A repository can always override what the platform would otherwise teach the agent, and the session never holds two bundles claiming the same name. Matching is exact, so a slug that differs by a single character is a different skill and both get staged.
 

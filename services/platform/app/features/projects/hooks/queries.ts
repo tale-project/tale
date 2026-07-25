@@ -8,12 +8,12 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 /**
- * The fixed third-party coding agents (sandbox harnesses) a project can equip.
+ * The fixed third-party agents (sandbox harnesses) a project can equip.
  * Reuses the composer's org-scoped listing — the same fixed set chat offers.
  */
-export function useProjectCodingAgents(organizationId: string) {
+export function useProjectExternalAgents(organizationId: string) {
   return useActionQuery(
-    ['projects', 'coding-agents', organizationId],
+    ['projects', 'external-agents', organizationId],
     api.chat.composer.listComposerModels,
     { organizationId },
   );

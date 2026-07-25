@@ -7,7 +7,7 @@
  * preference: "Read replies aloud" belongs here, next to attaching a file,
  * and nowhere in the preferences page. There is no entry for choosing where
  * a turn runs either — that is decided by the agent picked in the same row
- * (the platform agent runs direct; a coding agent runs in a sandbox).
+ * (the platform agent runs direct; an external agent runs in a sandbox).
  */
 
 import { Button } from '@tale/ui/button';

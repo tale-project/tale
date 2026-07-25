@@ -2,13 +2,14 @@
 
 /**
  * The composer: the message field and the controls that decide how the
- * message is sent — the `+` mode menu, the agent picker, and (for the platform
- * agent) the model picker, plus dictation and send/stop.
+ * message is sent — the `+` mode menu, the agent picker, and the model
+ * picker, plus dictation and send/stop.
  *
  * Which agent runs the turn also decides WHERE it runs, so there is no sandbox
- * toggle: the platform agent runs a model directly and shows a model picker; a
- * third-party coding agent runs in a sandbox and brings its own model, so it
- * shows the conversation's capability assembly instead of a model picker.
+ * toggle: the platform agent runs a model directly and picks among every
+ * model; a third-party agent runs in a sandbox on a directly-served org model
+ * (the picker narrows to what the managed lane can mint a session key for)
+ * and adds the conversation's capability assembly beside it.
  *
  * Send and stop are the same slot, because a thread is either taking input
  * or producing output: while a turn is in flight the button stops it, and
@@ -19,7 +20,7 @@ import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowUp, CircleStop } from 'lucide-react';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
@@ -29,13 +30,17 @@ import { useT } from '@/lib/i18n/client';
 import type {
   ComposerCapabilityOption,
   ComposerModelOption,
-  ComposerSandboxAgentOption,
+  ComposerExternalAgentOption,
   ComposerSelection,
 } from '../types';
 import { ComposerAgentPicker } from './composer-agent-picker';
 import { ComposerCapabilityMenu } from './composer-capability-menu';
 import { ComposerModeMenu } from './composer-mode-menu';
-import { ComposerModelPicker } from './composer-model-picker';
+import {
+  ComposerModelPicker,
+  directServedModels,
+  resolveExternalModelId,
+} from './composer-model-picker';
 import {
   DictationButton,
   type DictationButtonHandle,
@@ -57,11 +62,11 @@ function toBcp47(locale: string): string | undefined {
 
 interface ComposerProps {
   models: readonly ComposerModelOption[];
-  /** Third-party coding agents (sandbox harnesses). */
-  sandboxAgents: readonly ComposerSandboxAgentOption[];
+  /** Third-party external agents (sandbox harnesses). */
+  externalAgents: readonly ComposerExternalAgentOption[];
   /** Harness slugs the circuit breaker flags as recently failing. */
   degradedHarnesses?: ReadonlySet<string>;
-  /** What a conversation can equip a coding agent with. */
+  /** What a conversation can equip an external agent with. */
   skills: readonly ComposerCapabilityOption[];
   connectors: readonly ComposerCapabilityOption[];
   selection: ComposerSelection;
@@ -84,7 +89,7 @@ interface ComposerProps {
 
 export function Composer({
   models,
-  sandboxAgents,
+  externalAgents,
   degradedHarnesses,
   skills,
   connectors,
@@ -104,6 +109,16 @@ export function Composer({
   const dictationRef = useRef<DictationButtonHandle>(null);
 
   const speechLang = toBcp47(i18n.language) ?? 'en-US';
+
+  // The external lane offers only the models the managed lane can actually
+  // run, and displays the one the turn WOULD use — the explicit pick when it
+  // is direct-served, else the first that is — so the trigger never shows a
+  // model the sandbox could not mint a key for.
+  const externalModels = useMemo(() => directServedModels(models), [models]);
+  const externalSelection = useMemo(() => {
+    const modelId = resolveExternalModelId(selection, models);
+    return modelId === undefined ? selection : { ...selection, modelId };
+  }, [selection, models]);
 
   const canSend = text.trim().length > 0 && !disabled && !sendDisabled;
 
@@ -195,7 +210,7 @@ export function Composer({
             disabled={disabled}
           />
           <ComposerAgentPicker
-            codingAgents={sandboxAgents}
+            externalAgents={externalAgents}
             selection={selection}
             onSelectionChange={onSelectionChange}
             disabled={disabled || lockAgent}
@@ -209,15 +224,24 @@ export function Composer({
               disabled={disabled}
             />
           ) : (
-            // A coding agent is equipped per conversation: org skills and
-            // enabled connectors, provisioned into its sandbox session.
-            <ComposerCapabilityMenu
-              skills={skills}
-              connectors={connectors}
-              selection={selection}
-              onSelectionChange={onSelectionChange}
-              disabled={disabled}
-            />
+            <>
+              <ComposerModelPicker
+                models={externalModels}
+                selection={externalSelection}
+                onSelectionChange={onSelectionChange}
+                disabled={disabled}
+              />
+              {/* An external agent is also equipped per conversation: org
+                  skills and enabled connectors, provisioned into its sandbox
+                  session. */}
+              <ComposerCapabilityMenu
+                skills={skills}
+                connectors={connectors}
+                selection={selection}
+                onSelectionChange={onSelectionChange}
+                disabled={disabled}
+              />
+            </>
           )}
         </Row>
 

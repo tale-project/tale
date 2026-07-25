@@ -446,7 +446,7 @@ export const startTurn = action({
     // A thread is user-private: only its owner may run turns into it. Without
     // this, org membership alone let any member write user+assistant messages
     // into another member's thread (listMessages returns [] for a foreign
-    // thread, but the append path only checked org). The coding lane already
+    // thread, but the append path only checked org). The external lane already
     // gates on the same owned-thread query.
     const owned = await ctx.runQuery(
       internal.chat.threads.getOwnedThreadInternal,

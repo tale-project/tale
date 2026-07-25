@@ -7,31 +7,31 @@ import {
   parseMetricsPeriodDays,
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
-import { CodingTurnMetricsPage } from '@/app/features/analytics/coding-turns/coding-turns-metrics-page';
+import { ExternalTurnMetricsPage } from '@/app/features/analytics/external-turns/external-turns-metrics-page';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute(
-  '/dashboard/$id/settings/metrics/coding-turns',
+  '/dashboard/$id/settings/metrics/external-turns',
 )({
   validateSearch: metricsPeriodSearchSchema,
   loaderDeps: ({ search }) => ({ period: search.period ?? '30' }),
   loader: ({ context, params, deps }) =>
     ensureConvexQuery(
       context,
-      api.sandbox.session_queries_public.getCodingTurnMetrics,
+      api.sandbox.session_queries_public.getExternalTurnMetrics,
       {
         organizationId: params.id,
         periodDays: parseMetricsPeriodDays(deps.period),
       },
     ).catch((error: unknown) => {
-      console.warn('Failed to preload coding-turn metrics', error);
+      console.warn('Failed to preload external-turn metrics', error);
     }),
-  component: CodingTurnsRoute,
+  component: ExternalTurnsRoute,
 });
 
-function CodingTurnsRoute() {
+function ExternalTurnsRoute() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ function CodingTurnsRoute() {
   const onChangePeriod = useCallback(
     (next: MetricsPeriodDays) => {
       void navigate({
-        to: '/dashboard/$id/settings/metrics/coding-turns',
+        to: '/dashboard/$id/settings/metrics/external-turns',
         params: { id: organizationId },
         search: (prev) => ({
           ...prev,
@@ -55,7 +55,7 @@ function CodingTurnsRoute() {
 
   return (
     <SettingsPage>
-      <CodingTurnMetricsPage
+      <ExternalTurnMetricsPage
         organizationId={organizationId}
         periodDays={periodDays}
         onChangePeriod={onChangePeriod}

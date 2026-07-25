@@ -1,9 +1,9 @@
 'use node';
 
 /**
- * Shared machinery for the async third-party coding turn.
+ * Shared machinery for the async third-party external turn.
  *
- * A coding turn runs a harness CLI inside the thread's sandbox session. The
+ * An external turn runs a harness CLI inside the thread's sandbox session. The
  * exec runs UNDER runnerd, independent of any single Convex action: it is
  * kicked once and then DRAINED in short self-chaining windows (a Convex action
  * cannot be held open for a long turn — a cold or slow turn would outlive its
@@ -14,8 +14,9 @@
  * a per-delta cursor across windows) keeps a JSONL line that straddles a
  * window boundary from being stranded by the fresh per-window parser.
  *
- * The kick owns the gateway token (it starts the exec with the token in the
- * env); a drain window only ATTACHES, so no secret is ever persisted.
+ * The scheduled start action owns the gateway token (it starts the exec with
+ * the token in the env); a drain window only ATTACHES, so no secret is ever
+ * persisted.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -54,33 +55,66 @@ const SKILLS_DIR = 'workspace/.tale/skills';
 /** One drain window; well under the Convex action execution ceiling. */
 export const DRAIN_WINDOW_MS = 90_000;
 /** Overall wall-clock a turn may run before it is cut as hung. */
-export const CODING_TURN_DEADLINE_MS = 30 * 60_000;
+export const EXTERNAL_TURN_DEADLINE_MS = 30 * 60_000;
 /** Session gateway key budget per turn, in cents. */
 export const TURN_BUDGET_CENTS = 500;
 
-export interface CodingTurnScope {
+export interface ExternalTurnScope {
   organizationId: string;
   threadId: string;
   userId: string;
 }
 
-/** The org's first directly-served model — the managed model a coding turn
- * runs on until per-conversation model choice lands. */
+/** How the managed lane resolved the model a turn runs on. A refusal carries
+ * user-facing prose (the kick writes it under the message verbatim). */
+export type ManagedModelChoice =
+  | { ok: true; providerSlug: string; modelId: string }
+  | { ok: false; reason: string };
+
+/**
+ * The managed model an external turn runs on: the composer's explicit pick
+ * when one is sent, else the org's first directly-served model. Only a model
+ * a direct-capable credential (api-key/env) serves can ride the session
+ * gateway key, so a pick outside that set is refused by name — the composer
+ * filters its picker to the same set, but a stale client or a direct API call
+ * can still ask for more.
+ */
 export async function resolveManagedModel(
   ctx: ActionCtx,
   organizationId: string,
-): Promise<{ providerSlug: string; modelId: string } | null> {
+  requestedModelId?: string,
+): Promise<ManagedModelChoice> {
   const listing = await ctx.runAction(api.chat.composer.listComposerModels, {
     organizationId,
   });
-  const direct = listing.models.find(
+  const direct = listing.models.filter(
     (model) =>
       model.credential.authMethod === 'api-key' ||
       model.credential.authMethod === 'env',
   );
-  return direct
-    ? { providerSlug: direct.providerSlug, modelId: direct.id }
-    : null;
+  if (requestedModelId !== undefined) {
+    const match = direct.find((model) => model.id === requestedModelId);
+    if (match) {
+      return { ok: true, providerSlug: match.providerSlug, modelId: match.id };
+    }
+    const subscriptionOnly = listing.models.some(
+      (model) => model.id === requestedModelId,
+    );
+    return {
+      ok: false,
+      reason: subscriptionOnly
+        ? `The model "${requestedModelId}" is served by a subscription credential bound to its vendor's own tooling, so a third-party agent here cannot run it. Pick a directly served model.`
+        : `The model "${requestedModelId}" is not offered by any active provider credential of this organization. Pick a model from the composer's list, or connect a provider under Settings → AI providers.`,
+    };
+  }
+  const first = direct[0];
+  return first
+    ? { ok: true, providerSlug: first.providerSlug, modelId: first.id }
+    : {
+        ok: false,
+        reason:
+          'This third-party agent needs a model to run on, and the organization has no directly usable AI provider credential. Connect one under Settings → AI providers.',
+      };
 }
 
 /** The gateway base URL as a session's CONTAINER reaches it (sandbox network
@@ -102,10 +136,10 @@ export function integrationsBridgeUrlForSessions(): string {
 }
 
 /**
- * Ensure the caller's coding sandbox session exists with the AGENT profile.
+ * Ensure the caller's external-agent sandbox session exists with the AGENT profile.
  *
- * The session is USER-scoped, one persistent sandbox per (org, user): a coding
- * chat is the user's ongoing workspace, so every coding thread they open
+ * The session is USER-scoped, one persistent sandbox per (org, user): an external-agent
+ * chat is the user's ongoing workspace, so every such thread they open
  * shares it and its files/`--resume` state persist across conversations. The
  * CONTAINER is disposable — a reaped/stopped one is recreated against the same
  * deterministic id, which re-attaches the preserved workspace — but the DATA
@@ -114,7 +148,7 @@ export function integrationsBridgeUrlForSessions(): string {
  */
 export async function ensureAgentSession(
   ctx: ActionCtx,
-  scope: CodingTurnScope,
+  scope: ExternalTurnScope,
 ): Promise<string> {
   const sessionId = sessionIdForUser(scope.organizationId, scope.userId);
   const ownerId = userOwnerId(scope.organizationId, scope.userId);
@@ -137,7 +171,7 @@ export async function ensureAgentSession(
     } catch (err) {
       if (!(err instanceof SessionDuplicateError)) throw err;
       console.warn(
-        `[coding-turn] adopting orphan sandbox container for ${sessionId} (spawner had it; platform row was stale)`,
+        `[external-turn] adopting orphan sandbox container for ${sessionId} (spawner had it; platform row was stale)`,
       );
     }
     await ctx.runMutation(
@@ -169,7 +203,7 @@ export async function ensureAgentSession(
     // failing the turn with a 409.
     if (err instanceof SessionDuplicateError) {
       console.warn(
-        `[coding-turn] adopting orphan sandbox container for ${sessionId} (no platform row; spawner had it)`,
+        `[external-turn] adopting orphan sandbox container for ${sessionId} (no platform row; spawner had it)`,
       );
       await ctx.runMutation(
         internal.sandbox.session_mutations.setSessionStatus,
@@ -196,7 +230,7 @@ export async function ensureAgentSession(
  */
 export async function stageSkills(
   ctx: ActionCtx,
-  scope: CodingTurnScope,
+  scope: ExternalTurnScope,
   sessionId: string,
   skillSlugs: readonly string[],
 ): Promise<string> {
@@ -244,7 +278,7 @@ export async function stageSkills(
  */
 export async function provisionTurnGatewayToken(
   ctx: ActionCtx,
-  scope: CodingTurnScope,
+  scope: ExternalTurnScope,
   sessionId: string,
   model: { providerSlug: string; modelId: string },
   meta: {
@@ -292,10 +326,10 @@ export async function provisionTurnGatewayToken(
  * attribution) and a fresh heartbeat. Idempotent: keyed by (sessionId, execId),
  * later calls patch only the fields they carry.
  */
-export async function openCodingOp(
+export async function openExternalTurnOp(
   ctx: ActionCtx,
   args: {
-    scope: CodingTurnScope;
+    scope: ExternalTurnScope;
     sessionId: string;
     execId: string;
     messageId: Id<'messages'>;
@@ -327,9 +361,9 @@ export async function openCodingOp(
 
 /** Bump the turn op row's heartbeat — proof of life for the recovery watchdog,
  * mirroring the generation row's heartbeat. A no-op if the row is gone. */
-export async function heartbeatCodingOp(
+export async function heartbeatExternalTurnOp(
   ctx: ActionCtx,
-  scope: CodingTurnScope,
+  scope: ExternalTurnScope,
   sessionId: string,
   execId: string,
 ): Promise<void> {
@@ -344,7 +378,7 @@ export async function heartbeatCodingOp(
   });
 }
 
-/** Whether a harness can run in the MANAGED coding lane (V1's only path): it
+/** Whether a harness can run in the MANAGED external lane (V1's only path): it
  * must be a known slug AND declare `credentialPolicy.managed`. A byo-only
  * harness (e.g. Cursor) can't route through the session gateway, so a managed
  * turn on it would build an inert exec that hangs to the deadline — refuse it
@@ -355,8 +389,8 @@ export function isManagedHarness(harness: string): boolean {
   return def?.credentialPolicy.managed === true;
 }
 
-/** Build the harness exec for a managed coding turn. */
-export function buildCodingExec(args: {
+/** Build the harness exec for a managed external turn. */
+export function buildExternalTurnExec(args: {
   harness: string;
   gatewayModel: string;
   gatewayToken: string;
@@ -369,7 +403,7 @@ export function buildCodingExec(args: {
   bridgeUrl?: string;
 }): HarnessExec {
   if (!isHarnessSlug(args.harness)) {
-    throw new Error(`Unknown coding agent "${args.harness}".`);
+    throw new Error(`Unknown external agent "${args.harness}".`);
   }
   const glue = getHarnessGlue(args.harness, loadHarnesses());
   return glue.buildExec({
@@ -428,16 +462,16 @@ export type WindowOutcome =
   | { kind: 'gone' };
 
 /**
- * Drain ONE window of a coding turn. Re-attaches from the ring-buffer start,
+ * Drain ONE window of an external turn. Re-attaches from the ring-buffer start,
  * re-parses the full output-so-far, streams it into the assistant message,
- * and settles the turn when the harness ends. `start` is set on the kick's
- * first window (it starts the exec with the gateway token in the env); a
- * drain window omits it and only attaches.
+ * and settles the turn when the harness ends. `start` is set on the start
+ * action's first window (it starts the exec with the gateway token in the
+ * env); a drain window omits it and only attaches.
  */
-export async function drainCodingWindow(
+export async function drainExternalTurnWindow(
   ctx: ActionCtx,
   args: {
-    scope: CodingTurnScope;
+    scope: ExternalTurnScope;
     sessionId: string;
     execId: string;
     messageId: Id<'messages'>;
@@ -474,15 +508,15 @@ export async function drainCodingWindow(
           ? { stdinMode: args.start.stdinMode }
           : {}),
         collectOutput: false,
-        timeoutMs: CODING_TURN_DEADLINE_MS,
+        timeoutMs: EXTERNAL_TURN_DEADLINE_MS,
       }
     : {
         execId: args.execId,
         collectOutput: false,
-        timeoutMs: CODING_TURN_DEADLINE_MS,
+        timeoutMs: EXTERNAL_TURN_DEADLINE_MS,
       };
 
-  // On the kick's first window we STAGE the exec's own input files, then start
+  // On the start action's first window we STAGE the exec's input files, then start
   // it; drain windows attach from the ring-buffer start (resumeSinceSeq 0).
   if (
     args.start?.stagedFiles !== undefined &&
@@ -502,7 +536,8 @@ export async function drainCodingWindow(
     }
   }
 
-  // The kick's first window is about to START the exec — flip the generation
+  // The start action's first window is about to START the exec — flip the
+  // generation
   // out of 'queued' NOW. The only other flip is the cursor advance at this
   // window's END, up to DRAIN_WINDOW_MS away, and until then the UI would
   // show "waiting to start" for a turn that is already running in the
@@ -550,16 +585,19 @@ export async function drainCodingWindow(
     // the op row (the recovery watchdog's staleness clock) + let the next
     // window continue.
     await ctx.runMutation(
-      internal.chat.generations.advanceCodingCursorInternal,
+      internal.chat.generations.advanceExternalTurnCursorInternal,
       {
         organizationId: args.scope.organizationId,
         threadId: args.scope.threadId,
         lastSeq: 0,
       },
     );
-    await heartbeatCodingOp(ctx, args.scope, args.sessionId, args.execId).catch(
-      (err) => console.warn('[coding-turn] op heartbeat failed:', err),
-    );
+    await heartbeatExternalTurnOp(
+      ctx,
+      args.scope,
+      args.sessionId,
+      args.execId,
+    ).catch((err) => console.warn('[external-turn] op heartbeat failed:', err));
     return { kind: 'continue' };
   }
 
@@ -567,7 +605,7 @@ export async function drainCodingWindow(
   // but not the process — reap it so it can't hold the session.
   if (!exited && ended !== undefined) {
     await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
-      console.warn('[coding-turn] linger reap failed:', err),
+      console.warn('[external-turn] linger reap failed:', err),
     );
   }
 
@@ -580,15 +618,15 @@ export async function drainCodingWindow(
     ended !== undefined ? ended.isError === true : crashedNoResult;
   const crashReason = crashedNoResult
     ? execResult?.errorMessage !== undefined && execResult.errorMessage !== ''
-      ? `The coding agent stopped: ${execResult.errorMessage}`
-      : `The coding agent exited unexpectedly${
+      ? `The third-party agent stopped: ${execResult.errorMessage}`
+      : `The third-party agent exited unexpectedly${
           typeof execResult?.exitCode === 'number'
             ? ` (exit code ${execResult.exitCode})`
             : ''
         } without completing the turn.`
     : undefined;
 
-  await finalizeCodingTurn(ctx, {
+  await finalizeExternalTurn(ctx, {
     scope: args.scope,
     sessionId: args.sessionId,
     execId: args.execId,
@@ -609,7 +647,7 @@ export async function drainCodingWindow(
 }
 
 /**
- * Settle a coding turn EXACTLY ONCE: finalize the assistant message, meter
+ * Settle an external turn EXACTLY ONCE: finalize the assistant message, meter
  * usage, revoke the turn's gateway VK, stamp the op row terminal, keep the
  * harness resume handle, and delete the generation row. When the turn errored
  * with no text, the message carries the reason instead.
@@ -621,10 +659,10 @@ export async function drainCodingWindow(
  * (before this) leak the credential. A caller that LOST the race still unblocks
  * the thread (idempotent generation delete) and returns.
  */
-export async function finalizeCodingTurn(
+export async function finalizeExternalTurn(
   ctx: ActionCtx,
   args: {
-    scope: CodingTurnScope;
+    scope: ExternalTurnScope;
     /** The session + exec this turn ran as — the op-row key for the finalize
      * claim and VK revoke. Optional only for the degraded pre-op edge; the
      * live paths always pass them. */
@@ -677,7 +715,7 @@ export async function finalizeCodingTurn(
       { sessionId: args.sessionId, execId: args.execId },
     );
     const op = await ctx.runQuery(
-      internal.sandbox.session_queries.getCodingOpForFinalize,
+      internal.sandbox.session_queries.getExternalTurnOpForFinalize,
       { sessionId: args.sessionId, execId: args.execId },
     );
     if (!won && op !== null) {
@@ -700,7 +738,7 @@ export async function finalizeCodingTurn(
   const blockedReason =
     args.reason ??
     (args.errored && !haveText
-      ? 'The coding agent ended without producing a reply.'
+      ? 'The third-party agent ended without producing a reply.'
       : undefined);
   await ctx.runMutation(
     internal.chat.messages.finalizeAssistantMessageInternal,
@@ -734,10 +772,10 @@ export async function finalizeCodingTurn(
   }
 
   if (args.resume !== undefined) {
-    await ctx.runMutation(internal.chat.threads.setCodingResumeInternal, {
+    await ctx.runMutation(internal.chat.threads.setExternalResumeInternal, {
       organizationId: args.scope.organizationId,
       threadId: args.scope.threadId,
-      codingResume: args.resume,
+      externalResume: args.resume,
     });
   }
 
@@ -757,7 +795,7 @@ export async function finalizeCodingTurn(
       }
     }
     await revokeVirtualKey(mintedKeyId).catch((err) =>
-      console.warn(`[coding-turn] revoke VK ${mintedKeyId} failed:`, err),
+      console.warn(`[external-turn] revoke VK ${mintedKeyId} failed:`, err),
     );
     await ctx.runMutation(
       internal.sandbox.session_mutations.markSessionTokenRevokedByKeyId,
@@ -815,12 +853,12 @@ export async function finalizeCodingTurn(
     organizationId: args.scope.organizationId,
     threadId: args.scope.threadId,
   });
-  // A chat coding session is THREAD-scoped, not turn-scoped: the harness keeps
+  // A chat external-agent session outlives the turn: the harness keeps
   // its conversation (and `--resume` state) across the thread's turns, and the
   // next turn reuses it WARM. So the turn end does NOT tear the session down —
   // reclamation is the thread-delete path (`destroyThreadSession`) and the
   // idle reaper (a reaped container recreates against the preserved workspace
-  // on the next turn). NOTE: wiring thread-delete + idle-reap for coding
+  // on the next turn). NOTE: wiring thread-delete + idle-reap for external-agent
   // sessions is the outstanding lifecycle follow-up.
 }
 

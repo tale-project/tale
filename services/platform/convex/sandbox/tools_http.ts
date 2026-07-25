@@ -69,7 +69,7 @@ export const toolsExecuteHandler = httpAction(async (ctx, request) => {
       ],
     });
   }
-  // A coding-turn token always carries the turn's user; without one the read
+  // An external-turn token always carries the turn's user; without one the read
   // cannot be access-scoped, so it cannot run.
   if (auth.userId === undefined) {
     return json(200, {

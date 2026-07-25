@@ -37,7 +37,7 @@ export const threadsTable = defineTable({
    * What the conversation equips its agent with, picked in the composer:
    * org skill slugs and enabled-connector slugs. Stored on the thread so the
    * whole conversation runs with one assembly; CONSUMED by the lane that runs
-   * the agent (a coding agent's session provisioning stages the skills and
+   * the agent (an external agent's session provisioning stages the skills and
    * bridges the connectors) — never interpreted here.
    */
   capabilities: v.optional(
@@ -46,7 +46,7 @@ export const threadsTable = defineTable({
       connectors: v.array(v.string()),
     }),
   ),
-  /** The third-party coding agent pinned to a sandbox thread. A sandbox
+  /** The third-party agent pinned to a sandbox thread. A sandbox
    * thread keeps its agent for its whole life — switching means a new chat —
    * so the composer reads this to stay on it across turns and reloads. */
   harness: v.optional(v.string()),
@@ -56,8 +56,11 @@ export const threadsTable = defineTable({
    * context. (Discussion/task threads carry their link on `threadMetadata`
    * instead — resolvers check both.) */
   projectId: v.optional(v.id('projects')),
-  /** The coding harness's own conversation handle from the last turn, so the
-   * next turn resumes it (its state lives in the preserved workspace). */
+  /** The harness's own conversation handle from the last turn, so the next
+   * turn resumes it (its state lives in the preserved workspace). */
+  externalResume: v.optional(v.string()),
+  /** @deprecated Renamed to `externalResume` — kept readable so threads
+   * written before the rename keep their resume handle; never written. */
   codingResume: v.optional(v.string()),
   /** Branching: the message this thread was forked from, if any. Threads are
    * the unit of branching so a fork never mutates the conversation it came
@@ -144,7 +147,7 @@ export const generationsTable = defineTable({
   /** What the turn is blocked on, when waiting. */
   waitingOn: v.optional(v.string()),
   /**
-   * A third-party coding turn runs its harness in the sandbox, INDEPENDENT of
+   * A third-party external turn runs its harness in the sandbox, INDEPENDENT of
    * any single Convex action: the exec is kicked once, then drained in short
    * self-chaining windows (a Convex action can't be held open for a long
    * turn). This carries the state a drainer window needs to re-attach — the
@@ -153,7 +156,7 @@ export const generationsTable = defineTable({
    * stored: the gateway token lives only in the kick that started the exec;
    * re-attach needs none.
    */
-  coding: v.optional(
+  external: v.optional(
     v.object({
       execId: v.string(),
       lastSeq: v.number(),

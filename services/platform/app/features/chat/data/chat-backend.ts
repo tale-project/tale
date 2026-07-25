@@ -52,7 +52,7 @@ import type {
   ChatThreadSummary,
   ComposerCapabilityOption,
   ComposerModelOption,
-  ComposerSandboxAgentOption,
+  ComposerExternalAgentOption,
 } from '../types';
 
 /**
@@ -239,7 +239,7 @@ export function useHarnessHealth(organizationId: string): ChatQuery<
 
 interface ComposerCatalog {
   readonly models: readonly ComposerModelOption[];
-  readonly sandboxAgents: readonly ComposerSandboxAgentOption[];
+  readonly externalAgents: readonly ComposerExternalAgentOption[];
 }
 
 /**
@@ -445,12 +445,14 @@ export function useChatModelPreference(organizationId: string): {
 
 /** What a turn needs from the composer. Omitting `threadId` means "start a
  * new thread for this turn" — the handle carries the id that was created.
- * `platform` turns run the direct model lane and need `modelId`; `coding`
- * turns run the harness lane and need `harness`. */
+ * `platform` turns run the direct model lane and need `modelId`; `external`
+ * turns run the harness lane and need `harness`, plus the `modelId` the
+ * managed harness runs on (absent falls back to the org's first
+ * directly-served model, server-side). */
 export interface ChatTurnRequest {
   readonly threadId?: string;
   readonly text: string;
-  readonly agentKind: 'platform' | 'coding';
+  readonly agentKind: 'platform' | 'external';
   readonly modelId?: string;
   readonly harness?: string;
   readonly sandbox?: boolean;
@@ -465,7 +467,12 @@ export interface ChatTurnRequest {
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
- * outcome that settles when the turn does — a refusal carries its reason. */
+ * outcome promise — a refusal carries its reason. The direct lane settles it
+ * when the turn completes; the external lane settles it when the turn is
+ * ACCEPTED (the kick is thin by contract — a browser-held action does not
+ * survive a websocket reconnect, so nothing long may ride on this promise)
+ * and the reply itself arrives through the messages/generations
+ * subscriptions. */
 export interface ChatTurnHandle {
   readonly threadId: string;
   readonly outcome: Promise<{
@@ -485,8 +492,8 @@ export interface ChatTurnHandle {
 export function useChatSend(organizationId: string): {
   readonly available: boolean;
   readonly start: (request: ChatTurnRequest) => Promise<ChatTurnHandle>;
-  /** Stop the thread's in-flight coding turn (cancels the harness exec and
-   * settles the turn). A no-op for a thread with no live coding turn. */
+  /** Stop the thread's in-flight external turn (cancels the harness exec and
+   * settles the turn). A no-op for a thread with no live external turn. */
   readonly stop: (threadId: string) => Promise<void>;
 } {
   const convex = useConvex();
@@ -494,7 +501,7 @@ export function useChatSend(organizationId: string): {
   const stop = useCallback(
     async (threadId: string): Promise<void> => {
       if (!convex) throw new Error('The chat backend is not reachable.');
-      await convex.action(api.chat.coding_turn_action.stopCodingTurn, {
+      await convex.action(api.chat.external_turn_action.stopExternalTurn, {
         organizationId,
         threadId,
       });
@@ -509,7 +516,7 @@ export function useChatSend(organizationId: string): {
         request.threadId ??
         (await convex.mutation(api.chat.threads.createThread, {
           organizationId,
-          kind: request.agentKind === 'coding' ? 'sandbox' : 'direct',
+          kind: request.agentKind === 'external' ? 'sandbox' : 'direct',
           ...(request.agentSlug !== undefined
             ? { agentSlug: request.agentSlug }
             : {}),
@@ -528,17 +535,20 @@ export function useChatSend(organizationId: string): {
             ? { projectId: request.projectId }
             : {}),
         }));
-      if (request.agentKind === 'coding') {
+      if (request.agentKind === 'external') {
         if (request.harness === undefined) {
-          throw new Error('A coding turn needs its agent.');
+          throw new Error('An external turn needs its agent.');
         }
         const outcome = convex.action(
-          api.chat.coding_turn_action.startCodingTurn,
+          api.chat.external_turn_action.startExternalTurn,
           {
             organizationId,
             threadId,
             userText: request.text,
             harness: request.harness,
+            ...(request.modelId !== undefined
+              ? { modelId: request.modelId }
+              : {}),
           },
         );
         return { threadId, outcome };

@@ -62,13 +62,13 @@ const composerModelOptionValidator = v.object({
   credential: credentialAuthValidator,
 });
 
-const composerSandboxAgentValidator = v.object({
+const composerExternalAgentValidator = v.object({
   harness: v.string(),
   label: v.string(),
 });
 
 type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
-type ComposerSandboxAgentOption = Infer<typeof composerSandboxAgentValidator>;
+type ComposerExternalAgentOption = Infer<typeof composerExternalAgentValidator>;
 type CredentialAuthMethod = ComposerModelOption['credential']['authMethod'];
 
 /**
@@ -121,7 +121,7 @@ export const listComposerModels = action({
   args: { organizationId: v.string() },
   returns: v.object({
     models: v.array(composerModelOptionValidator),
-    sandboxAgents: v.array(composerSandboxAgentValidator),
+    externalAgents: v.array(composerExternalAgentValidator),
   }),
   handler: async (ctx, args) => {
     await requireOrgMembershipById(ctx, args.organizationId);
@@ -189,12 +189,12 @@ export const listComposerModels = action({
     // a managed-incapable harness (e.g. Cursor: byo-only, no gateway base-URL
     // override) would build an inert exec that hangs to the turn deadline. Don't
     // offer what can't run — the plan's honesty gate.
-    const sandboxAgents: ComposerSandboxAgentOption[] = loadHarnesses()
+    const externalAgents: ComposerExternalAgentOption[] = loadHarnesses()
       .filter((harness) => harness.credentialPolicy.managed)
       .map((harness) => ({ harness: harness.slug, label: harness.displayName }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    return { models, sandboxAgents };
+    return { models, externalAgents };
   },
 });
 
@@ -216,8 +216,8 @@ interface ComposerCapabilityListing {
  * its ENABLED connectors — a connector counts as enabled when the org holds
  * an active credential for it, the same credential-gated rule the model
  * listing follows. Listing is non-secret capability metadata, open to any
- * member; what a selection DOES is decided where it is consumed (a coding
- * agent's session provisioning), never here.
+ * member; what a selection DOES is decided where it is consumed (a
+ * third-party agent's session provisioning), never here.
  *
  * The handler's return type is annotated explicitly — it calls back through
  * the generated `api`, and an unannotated return would flow that cycle into

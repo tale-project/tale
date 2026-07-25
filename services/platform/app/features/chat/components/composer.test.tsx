@@ -9,7 +9,7 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 import type {
   ComposerCapabilityOption,
   ComposerModelOption,
-  ComposerSandboxAgentOption,
+  ComposerExternalAgentOption,
   ComposerSelection,
 } from '../types';
 import { Composer } from './composer';
@@ -32,7 +32,7 @@ const SUBSCRIPTION_MODEL: ComposerModelOption = {
   },
 };
 
-const CODING_AGENTS: ComposerSandboxAgentOption[] = [
+const EXTERNAL_AGENTS: ComposerExternalAgentOption[] = [
   { harness: 'claude-code', label: 'Claude Code' },
   { harness: 'codex', label: 'Codex' },
 ];
@@ -44,8 +44,8 @@ const PLATFORM: ComposerSelection = {
   voiceOutput: false,
 };
 
-const CODING: ComposerSelection = {
-  agentKind: 'coding',
+const EXTERNAL: ComposerSelection = {
+  agentKind: 'external',
   harness: 'codex',
   skills: [],
   connectors: [],
@@ -63,7 +63,7 @@ const CONNECTORS: ComposerCapabilityOption[] = [
 /** Renders the composer with real selection state so picks stick. */
 function renderComposer({
   models = [API_KEY_MODEL],
-  sandboxAgents = CODING_AGENTS,
+  externalAgents = EXTERNAL_AGENTS,
   skills = SKILLS,
   connectors = CONNECTORS,
   initial = PLATFORM,
@@ -72,7 +72,7 @@ function renderComposer({
   sendDisabled = false,
 }: {
   models?: ComposerModelOption[];
-  sandboxAgents?: ComposerSandboxAgentOption[];
+  externalAgents?: ComposerExternalAgentOption[];
   skills?: ComposerCapabilityOption[];
   connectors?: ComposerCapabilityOption[];
   initial?: ComposerSelection;
@@ -88,7 +88,7 @@ function renderComposer({
     return (
       <Composer
         models={models}
-        sandboxAgents={sandboxAgents}
+        externalAgents={externalAgents}
         skills={skills}
         connectors={connectors}
         selection={selection}
@@ -122,7 +122,7 @@ describe('Composer agent picker', () => {
     expect(screen.getByRole('menuitem', { name: 'Codex' })).toBeInTheDocument();
   });
 
-  it('picking a coding agent switches the kind and keeps the platform model for the way back', async () => {
+  it('picking an external agent switches the kind and keeps the platform model for the way back', async () => {
     const { user, selection } = renderComposer({
       initial: { ...PLATFORM, modelId: API_KEY_MODEL.id },
     });
@@ -131,24 +131,31 @@ describe('Composer agent picker', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Codex' }));
 
     expect(selection()).toMatchObject({
-      agentKind: 'coding',
+      agentKind: 'external',
       harness: 'codex',
       // Held, not dropped: returning to the platform agent returns to it.
       modelId: API_KEY_MODEL.id,
     });
   });
 
-  it('shows the capability assembly instead of a model picker for a coding agent', () => {
-    renderComposer({ initial: CODING });
+  it('shows the model picker beside the capability assembly for an external agent', () => {
+    renderComposer({
+      initial: EXTERNAL,
+      models: [SUBSCRIPTION_MODEL, API_KEY_MODEL],
+    });
 
-    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull();
+    // The trigger displays the model the turn WOULD use — the first
+    // direct-served one, never the subscription-bound entry.
+    expect(
+      screen.getByRole('button', { name: 'Select model' }),
+    ).toHaveTextContent(API_KEY_MODEL.label);
     expect(
       screen.getByRole('button', { name: 'Capabilities' }),
     ).toBeInTheDocument();
   });
 
   it('returns to the platform agent and its model picker', async () => {
-    const { user, selection } = renderComposer({ initial: CODING });
+    const { user, selection } = renderComposer({ initial: EXTERNAL });
 
     await user.click(screen.getByRole('button', { name: 'Select agent' }));
     await user.click(screen.getByRole('menuitem', { name: 'Assistant' }));
@@ -162,8 +169,8 @@ describe('Composer agent picker', () => {
 });
 
 describe('Composer capability assembly', () => {
-  it('offers skills and connectors to a coding agent, and toggles stick', async () => {
-    const { user, selection } = renderComposer({ initial: CODING });
+  it('offers skills and connectors to an external agent, and toggles stick', async () => {
+    const { user, selection } = renderComposer({ initial: EXTERNAL });
 
     await user.click(screen.getByRole('button', { name: 'Capabilities' }));
 
@@ -188,7 +195,7 @@ describe('Composer capability assembly', () => {
 
   it('counts the assembly on the trigger', async () => {
     const { user } = renderComposer({
-      initial: { ...CODING, skills: ['visual-aspect-analyzer'] },
+      initial: { ...EXTERNAL, skills: ['visual-aspect-analyzer'] },
     });
 
     expect(
@@ -202,7 +209,7 @@ describe('Composer capability assembly', () => {
 
   it('shows the skills group empty, and hides connectors until they are bridged', async () => {
     const { user } = renderComposer({
-      initial: CODING,
+      initial: EXTERNAL,
       skills: [],
       connectors: [],
     });
@@ -213,7 +220,7 @@ describe('Composer capability assembly', () => {
     expect(
       screen.getByText('No skills in this organization yet.'),
     ).toBeInTheDocument();
-    // Connectors aren't reachable from a coding turn yet, so the group is hidden
+    // Connectors aren't reachable from an external turn yet, so the group is hidden
     // entirely — never advertised as "none available" (the plan's honesty gate).
     expect(screen.queryByText(/No connectors enabled yet/)).toBeNull();
     expect(screen.queryByText('Connectors')).toBeNull();
@@ -259,11 +266,50 @@ describe('Composer model picker', () => {
       modelId: SUBSCRIPTION_MODEL.id,
     });
   });
+
+  it('narrows the external lane to direct-served models, and a pick sticks', async () => {
+    const secondDirect: ComposerModelOption = {
+      id: 'zai/glm-5',
+      label: 'GLM-5',
+      providerSlug: 'zai',
+      credential: { authMethod: 'env' },
+    };
+    const { user, selection } = renderComposer({
+      initial: EXTERNAL,
+      models: [SUBSCRIPTION_MODEL, API_KEY_MODEL, secondDirect],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Select model' }));
+
+    // A subscription-bound model only runs in its own vendor's tooling — the
+    // external lane never offers it.
+    expect(
+      screen.queryByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+    ).toBeNull();
+
+    await user.click(
+      screen.getByRole('menuitem', { name: secondDirect.label }),
+    );
+
+    expect(selection()).toMatchObject({
+      agentKind: 'external',
+      harness: 'codex',
+      modelId: secondDirect.id,
+    });
+  });
+
+  it('claims no models for an external agent when nothing is direct-served', () => {
+    renderComposer({ initial: EXTERNAL, models: [SUBSCRIPTION_MODEL] });
+
+    expect(
+      screen.getByRole('button', { name: 'Select model' }),
+    ).toHaveTextContent('No models available');
+  });
 });
 
 describe('resolveSelectionSandbox', () => {
-  it('runs a coding agent in a sandbox, always', () => {
-    expect(resolveSelectionSandbox(CODING, [API_KEY_MODEL])).toBe(true);
+  it('runs an external agent in a sandbox, always', () => {
+    expect(resolveSelectionSandbox(EXTERNAL, [API_KEY_MODEL])).toBe(true);
   });
 
   it('runs a platform key-served model directly', () => {
