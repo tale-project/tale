@@ -40,6 +40,8 @@ export interface IntegrationListItem {
   /** Whether the "Duplicate" action is offered — false for OAuth / slug-bound
    *  integrations (see isDuplicableIntegration); projected by listIntegrations. */
   duplicable: boolean;
+  /** True for a user-created duplicate instance — fully deletable, not a builtin. */
+  removable?: boolean;
   operationCount: number;
   hash: string;
   [key: string]: unknown;

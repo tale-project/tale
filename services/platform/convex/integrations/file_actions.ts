@@ -179,6 +179,11 @@ export const listIntegrations = action({
                 slug,
                 authMethod: result.config.authMethod,
               }),
+            // A non-builtin instance (a duplicate like imap_smtp-2, or an
+            // uploaded connector) — its org-owned dir is fully deletable, unlike
+            // a seeded builtin template (which is only disconnected). Independent
+            // of connection state (a never-connected duplicate is deletable).
+            removable: !isBuiltinIntegrationSlug(slug),
             title: result.config.title,
             description: result.config.description,
             labels: result.config.labels,
@@ -741,6 +746,61 @@ export const duplicateIntegration = action({
       });
       throw error;
     }
+  },
+});
+
+/**
+ * Fully delete a DUPLICATED integration instance: remove its rebound automations,
+ * its credential, and its config dir — the inverse of `duplicateIntegration`,
+ * available while the instance is disconnected. Only a user-created duplicate
+ * (marked `metadata.duplicatedFrom`) may be deleted this way; a builtin template
+ * is refused (disconnect keeps the seeded template). Gated on the same
+ * `developerSettings` capability as the other integration writes.
+ */
+export const deleteIntegrationInstance = action({
+  args: { organizationId: v.string(), slug: v.string() },
+  returns: v.object({ deleted: v.boolean() }),
+  handler: async (ctx, args): Promise<{ deleted: boolean }> => {
+    if (!validateIntegrationSlug(args.slug)) {
+      throw new Error(`Invalid integration slug: ${args.slug}`);
+    }
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+    // Safety: never fully delete a builtin template — that would take the seeded
+    // template dir with it. A non-builtin instance (a duplicate or an uploaded
+    // connector) is org-owned and deletable whether or not it was ever
+    // connected; a builtin is only disconnected.
+    if (isBuiltinIntegrationSlug(args.slug)) {
+      throw new Error(
+        `Integration "${args.slug}" is a built-in template; disconnect it instead of deleting.`,
+      );
+    }
+
+    // Reverse the instance footprint, in creation-reverse order: rebound
+    // automations, then the credential, then the config dir.
+    await cleanupReboundAutomations(ctx, {
+      organizationId: args.organizationId,
+      orgSlug,
+      integrationSlug: args.slug,
+    });
+    const existing = await ctx.runQuery(
+      internal.integrations.credential_queries.getBySlugInternal,
+      { organizationId: args.organizationId, slug: args.slug },
+    );
+    if (existing) {
+      await ctx.runMutation(
+        internal.integrations.credential_mutations.deleteCredentialsInternal,
+        { credentialId: existing._id },
+      );
+    }
+    await rm(resolveIntegrationDir(orgSlug, args.slug), {
+      recursive: true,
+      force: true,
+    });
+
+    return { deleted: true };
   },
 });
 

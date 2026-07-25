@@ -6572,9 +6572,11 @@
         "enterCredentialsToConnect": "Enter credentials to connect.",
         "disconnectConfirmTitle": "Disconnect integration",
         "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
-        "deleteConfirmTitle": "Delete integration",
-        "deleteConfirmDescription": "Are you sure you want to delete this integration? This action cannot be undone.",
-        "deleteIntegration": "Delete integration"
+        "deleteConfirmTitle": "Remove connection",
+        "deleteConfirmDescription": "This removes the stored login and disconnects this integration. The template stays, so you can reconnect by entering credentials again.",
+        "deleteInstanceConfirmTitle": "Delete this instance",
+        "deleteInstanceConfirmDescription": "This permanently deletes this integration and any automations set up for it. This can't be undone.",
+        "deleteIntegration": "Remove connection"
       },
       "authMethods": {
         "api_key": "API key",

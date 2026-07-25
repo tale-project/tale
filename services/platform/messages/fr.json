@@ -6273,9 +6273,11 @@
         "enterCredentialsToConnect": "Saisis des identifiants pour connecter.",
         "disconnectConfirmTitle": "Déconnecter l'intégration",
         "disconnectConfirmDescription": "Es-tu sûr de vouloir déconnecter cette intégration ? Tu pourras la reconnecter ultérieurement.",
-        "deleteConfirmTitle": "Supprimer l'intégration",
-        "deleteConfirmDescription": "Es-tu sûr de vouloir supprimer cette intégration ? Cette action est irréversible.",
-        "deleteIntegration": "Supprimer l'intégration"
+        "deleteConfirmTitle": "Supprimer la connexion",
+        "deleteConfirmDescription": "Cela supprime les identifiants enregistrés et déconnecte l'intégration. Le modèle est conservé — pour te reconnecter, saisis à nouveau tes identifiants.",
+        "deleteInstanceConfirmTitle": "Supprimer cette instance",
+        "deleteInstanceConfirmDescription": "Cela supprime définitivement cette intégration et toutes les automatisations configurées pour elle. Cette action est irréversible.",
+        "deleteIntegration": "Supprimer la connexion"
       },
       "authMethods": {
         "api_key": "Clé API",

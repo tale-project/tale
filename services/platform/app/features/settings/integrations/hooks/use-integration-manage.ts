@@ -59,6 +59,8 @@ export type Integration = Record<string, unknown> & {
   authMethod?: string;
   supportedAuthMethods?: string[];
   isActive?: boolean;
+  /** True for a user-created duplicate instance — fully deletable, not a builtin. */
+  removable?: boolean;
   iconUrl?: string | null;
   oauth2Config?: {
     authorizationUrl?: string;
@@ -224,12 +226,19 @@ export function useIntegrationManage(
   const uninstallFn = useAction(
     api.integrations.file_actions.uninstallIntegration,
   );
+  const deleteInstanceFn = useAction(
+    api.integrations.file_actions.deleteIntegrationInstance,
+  );
   const installFn = useAction(api.integrations.file_actions.installIntegration);
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
   const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
   const { mutateAsync: saveOAuth2Credentials } = useSaveOAuth2Credentials();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Drives the DeleteDialog's loading state (via `busy`) so a delete/uninstall
+  // shows "Deleting…" and holds the dialog open until it resolves — mirroring
+  // the disconnect confirm, so a destructive action never looks like a no-op.
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const hasOAuth2Config = !!integration.oauth2Config;
 
@@ -372,7 +381,12 @@ export function useIntegrationManage(
     }
   }, []);
 
-  const busy = isSubmitting || isTesting || isSavingOAuth2 || isApplyingUpdate;
+  const busy =
+    isSubmitting ||
+    isTesting ||
+    isSavingOAuth2 ||
+    isApplyingUpdate ||
+    isDeleting;
 
   const busyRef = useRef(false);
   busyRef.current = busy;
@@ -964,6 +978,7 @@ export function useIntegrationManage(
     !!integration.oauth2Config?.clientId || oauth2SavedOptimistic;
 
   const handleUninstall = useCallback(async () => {
+    setIsDeleting(true);
     try {
       await uninstallFn({
         slug: integration.name ?? '',
@@ -986,9 +1001,50 @@ export function useIntegrationManage(
         variant: 'destructive',
       });
     } finally {
+      setIsDeleting(false);
       setConfirmDelete(false);
     }
   }, [uninstallFn, integration, organizationId, onOpenChange, t, queryClient]);
+
+  // Fully delete a user-created duplicate instance (config dir + credential +
+  // rebound automations) — unlike `handleUninstall`, which only removes the
+  // credential. Available while the instance is disconnected.
+  const isRemovable = integration.removable === true;
+  const handleDeleteInstance = useCallback(async () => {
+    setIsDeleting(true);
+    try {
+      await deleteInstanceFn({
+        slug: integration.name ?? '',
+        organizationId,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['config', 'integrations'],
+      });
+      toast({
+        title: t('integrations.manageDialog.deleted'),
+        description: t('integrations.manageDialog.deletedDescription', {
+          name: integration.title,
+        }),
+      });
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: t('integrations.manageDialog.deleteFailed'),
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setConfirmDelete(false);
+    }
+  }, [
+    deleteInstanceFn,
+    integration,
+    organizationId,
+    onOpenChange,
+    t,
+    queryClient,
+  ]);
 
   const operationCount =
     (integration.connector?.operations?.length ??
@@ -1059,6 +1115,8 @@ export function useIntegrationManage(
     confirmDelete,
     setConfirmDelete,
     handleUninstall,
+    isRemovable,
+    handleDeleteInstance,
 
     maskValue,
   };
