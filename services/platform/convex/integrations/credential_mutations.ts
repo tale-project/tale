@@ -25,20 +25,39 @@ import {
 } from './validators';
 
 /**
- * Disconnecting an integration cascade-disables agents that hard-require it.
- * Scheduled (not awaited) because the cascade coordinator is a `'use node'`
- * action a V8 mutation cannot call directly.
+ * Disconnecting an integration cascade-disables agents that hard-require it;
+ * reconnecting restores them and (re)provisions the schedules of the automations
+ * bound to it. Scheduled (not awaited) because the cascade coordinator is a
+ * `'use node'` action a V8 mutation cannot call directly.
  */
-function scheduleCascadeDisable(
+function scheduleCascade(
   ctx: MutationCtx,
   organizationId: string,
   slug: string,
+  mode: 'disable' | 'enable',
 ): Promise<unknown> {
   return ctx.scheduler.runAfter(
     0,
     internal.integrations.cascade.cascadeIntegration,
-    { organizationId, slug, mode: 'disable' },
+    { organizationId, slug, mode },
   );
+}
+
+/**
+ * Whether this patch flips the credential's connected state, and which way.
+ * `null` when the transition is a no-op (a plain credential edit, a re-save of
+ * an already-connected integration) — the cascade only runs on a real edge.
+ */
+function connectedTransition(
+  cred: { isActive: boolean; status: string },
+  updates: { isActive?: boolean; status?: string },
+): 'disable' | 'enable' | null {
+  const wasActive = cred.isActive && cred.status === 'active';
+  const nowActive =
+    (updates.isActive ?? cred.isActive) &&
+    (updates.status ?? cred.status) === 'active';
+  if (wasActive === nowActive) return null;
+  return nowActive ? 'enable' : 'disable';
 }
 
 export const createCredentials = internalMutation({
@@ -136,14 +155,12 @@ export const updateCredentials = mutation({
     if (clearSmtpAuth) cleanUpdates.smtpAuth = undefined;
     await ctx.db.patch(credentialId, cleanUpdates);
 
-    // Cascade on the disconnect transition: disable any agents that
-    // hard-require this integration.
-    const wasActive = cred.isActive && cred.status === 'active';
-    const nowActive =
-      (updates.isActive ?? cred.isActive) &&
-      (updates.status ?? cred.status) === 'active';
-    if (!nowActive && wasActive) {
-      await scheduleCascadeDisable(ctx, cred.organizationId, cred.slug);
+    // Cascade on either connected-state edge: disconnect disables the agents
+    // that hard-require this integration, reconnect restores them and revives
+    // the bound automations' schedules.
+    const transition = connectedTransition(cred, updates);
+    if (transition) {
+      await scheduleCascade(ctx, cred.organizationId, cred.slug, transition);
     }
 
     await AuditLogHelpers.logSuccess(ctx, {
@@ -179,6 +196,7 @@ export const updateCredentialsInternal = internalMutation({
   args: updateCredentialsArgs,
   handler: async (ctx, args) => {
     const { credentialId, clearSmtpAuth, ...updates } = args;
+    const cred = await ctx.db.get(credentialId);
     const cleanUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined),
     );
@@ -186,6 +204,17 @@ export const updateCredentialsInternal = internalMutation({
     // mailbox login when the separate SMTP provider is turned off.
     if (clearSmtpAuth) cleanUpdates.smtpAuth = undefined;
     await ctx.db.patch(credentialId, cleanUpdates);
+
+    // Same connected-state cascade the user-facing mutation runs: the OAuth2
+    // token exchange completes a (re)connection here, and a failed refresh
+    // parks the credential in `error`. Edge-gated, so a plain token refresh
+    // (active → active) is a no-op.
+    if (cred) {
+      const transition = connectedTransition(cred, updates);
+      if (transition) {
+        await scheduleCascade(ctx, cred.organizationId, cred.slug, transition);
+      }
+    }
   },
 });
 
@@ -221,7 +250,7 @@ export const deleteCredentials = mutation({
     await ctx.db.delete(args.credentialId);
 
     // Disconnecting the integration: cascade-disable its hard-requiring agents.
-    await scheduleCascadeDisable(ctx, cred.organizationId, cred.slug);
+    await scheduleCascade(ctx, cred.organizationId, cred.slug, 'disable');
 
     await AuditLogHelpers.logSuccess(ctx, {
       auditCtx: {
