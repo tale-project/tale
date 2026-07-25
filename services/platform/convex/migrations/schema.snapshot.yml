@@ -1700,7 +1700,7 @@ tables:
         type: number
       optional: true
   generations:
-    coding:
+    external:
       ft:
         type: object
         value:
@@ -5679,6 +5679,10 @@ tables:
       ft:
         type: number
       optional: false
+    externalResume:
+      ft:
+        type: string
+      optional: true
     harness:
       ft:
         type: string
