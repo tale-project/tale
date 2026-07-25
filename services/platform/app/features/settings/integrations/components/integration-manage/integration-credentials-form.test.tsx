@@ -39,6 +39,7 @@ function makeProps(integration: Integration): FormProps {
     isEditingOAuth2: false,
     credentials: {},
     smtpSeparate: false,
+    fromSameAsUsername: false,
     displayBindings: ['username', 'password'],
     editableConfigFields: [],
     configValues: {},
@@ -47,6 +48,7 @@ function makeProps(integration: Integration): FormProps {
     onAuthMethodChange: vi.fn(),
     onCredentialChange: vi.fn(),
     onSmtpSeparateChange: vi.fn(),
+    onFromSameAsUsernameChange: vi.fn(),
     onConfigValueChange: vi.fn(),
     onSqlConfigChange: vi.fn(),
     onOAuth2FieldChange: vi.fn(),
@@ -75,9 +77,13 @@ describe('IntegrationCredentialsForm — SMTP fields', () => {
       />,
     );
 
-    expect(screen.getByRole('switch')).toBeInTheDocument();
+    // Two imap_smtp switches now: separate-SMTP provider + send-from-mailbox.
+    expect(screen.getAllByRole('switch')).toHaveLength(2);
     expect(
       screen.getByText('integrations.manageDialog.smtpSeparateToggle'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('integrations.manageDialog.fromSameAsUsername'),
     ).toBeInTheDocument();
   });
 
@@ -126,5 +132,49 @@ describe('IntegrationCredentialsForm — SMTP fields', () => {
     expect(
       screen.queryByLabelText('integrations.manageDialog.smtpUsername'),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('IntegrationCredentialsForm — imap_smtp config controls', () => {
+  const configFields = [
+    { key: 'imapSecure', type: 'string' as const, defaultValue: 'true' },
+    { key: 'fromAddress', type: 'string' as const, defaultValue: '' },
+  ];
+
+  it('renders secure config keys as switches, not text inputs', () => {
+    render(
+      <IntegrationCredentialsForm
+        {...makeProps(makeIntegration('imap_smtp'))}
+        editableConfigFields={configFields}
+      />,
+    );
+    // imapSecure is a boolean-ish key → rendered as a switch (its i18n label),
+    // never the raw "Imap Secure" text input.
+    expect(
+      screen.getByText('integrations.manageDialog.imapSecure'),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Imap Secure')).not.toBeInTheDocument();
+  });
+
+  it('hides the From field while "send from my mailbox address" is on', () => {
+    render(
+      <IntegrationCredentialsForm
+        {...makeProps(makeIntegration('imap_smtp'))}
+        editableConfigFields={configFields}
+        fromSameAsUsername
+      />,
+    );
+    expect(screen.queryByLabelText('From Address')).not.toBeInTheDocument();
+  });
+
+  it('shows the From field when the toggle is off', () => {
+    render(
+      <IntegrationCredentialsForm
+        {...makeProps(makeIntegration('imap_smtp'))}
+        editableConfigFields={configFields}
+        fromSameAsUsername={false}
+      />,
+    );
+    expect(screen.getByLabelText('From Address')).toBeInTheDocument();
   });
 });

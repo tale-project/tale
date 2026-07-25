@@ -20,6 +20,13 @@ import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
 import { SlackSetupGuide } from './slack-setup-guide';
 import { TestResultFeedback } from './test-result-feedback';
 
+/** imap_smtp connectionConfig keys stored as "true"/"false" — shown as switches. */
+const IMAP_SMTP_BOOLEAN_KEYS = new Set([
+  'imapSecure',
+  'smtpSecure',
+  'saveSentToImap',
+]);
+
 interface IntegrationCredentialsFormProps {
   integration: Integration;
   isSql: boolean;
@@ -43,6 +50,8 @@ interface IntegrationCredentialsFormProps {
   credentials: Record<string, string>;
   /** imap_smtp: whether the "separate SMTP provider" fields are shown. */
   smtpSeparate: boolean;
+  /** imap_smtp: whether the From address mirrors the mailbox username. */
+  fromSameAsUsername: boolean;
   displayBindings: string[];
   editableConfigFields: Array<{
     key: string;
@@ -55,6 +64,7 @@ interface IntegrationCredentialsFormProps {
   onAuthMethodChange: (method: string) => void;
   onCredentialChange: (key: string, value: string) => void;
   onSmtpSeparateChange: (value: boolean) => void;
+  onFromSameAsUsernameChange: (value: boolean) => void;
   onConfigValueChange: (key: string, value: string) => void;
   onSqlConfigChange: (key: string, value: string) => void;
   onOAuth2FieldChange: (
@@ -81,6 +91,7 @@ export function IntegrationCredentialsForm({
   isEditingOAuth2,
   credentials,
   smtpSeparate,
+  fromSameAsUsername,
   displayBindings,
   editableConfigFields,
   configValues,
@@ -89,6 +100,7 @@ export function IntegrationCredentialsForm({
   onAuthMethodChange,
   onCredentialChange,
   onSmtpSeparateChange,
+  onFromSameAsUsernameChange,
   onConfigValueChange,
   onSqlConfigChange,
   onOAuth2FieldChange,
@@ -284,6 +296,16 @@ export function IntegrationCredentialsForm({
                 </Text>
               </>
             )}
+            <Switch
+              id="manage-from-same-as-username"
+              label={t('integrations.manageDialog.fromSameAsUsername')}
+              description={t(
+                'integrations.manageDialog.fromSameAsUsernameHint',
+              )}
+              checked={fromSameAsUsername}
+              onCheckedChange={onFromSameAsUsernameChange}
+              disabled={busy}
+            />
           </>
         )}
 
@@ -292,24 +314,64 @@ export function IntegrationCredentialsForm({
             <Text variant="label">
               {t('integrations.manageDialog.configuration')}
             </Text>
-            {editableConfigFields.map((field) => (
-              <Input
-                key={field.key}
-                id={`manage-config-${field.key}`}
-                label={startCase(field.key)}
-                type={field.type === 'number' ? 'number' : 'text'}
-                placeholder={String(field.defaultValue)}
-                value={configValues[field.key] ?? ''}
-                onChange={(e) => onConfigValueChange(field.key, e.target.value)}
-                description={
+            {editableConfigFields
+              .filter(
+                (field) =>
+                  // Hidden while "send from my mailbox address" is on — the From
+                  // address then mirrors the login and isn't edited here.
+                  !(
+                    integration.type === 'imap_smtp' &&
+                    field.key === 'fromAddress' &&
+                    fromSameAsUsername
+                  ),
+              )
+              .map((field) => {
+                if (
                   integration.type === 'imap_smtp' &&
-                  field.key === 'fromAddress'
-                    ? t('integrations.manageDialog.fromAddressHint')
-                    : undefined
+                  IMAP_SMTP_BOOLEAN_KEYS.has(field.key)
+                ) {
+                  const current =
+                    configValues[field.key] ?? String(field.defaultValue);
+                  return (
+                    <Switch
+                      key={field.key}
+                      id={`manage-config-${field.key}`}
+                      label={t(`integrations.manageDialog.${field.key}`)}
+                      description={t(
+                        `integrations.manageDialog.${field.key}Hint`,
+                      )}
+                      checked={current === 'true'}
+                      onCheckedChange={(checked) =>
+                        onConfigValueChange(
+                          field.key,
+                          checked ? 'true' : 'false',
+                        )
+                      }
+                      disabled={busy}
+                    />
+                  );
                 }
-                disabled={busy}
-              />
-            ))}
+                return (
+                  <Input
+                    key={field.key}
+                    id={`manage-config-${field.key}`}
+                    label={startCase(field.key)}
+                    type={field.type === 'number' ? 'number' : 'text'}
+                    placeholder={String(field.defaultValue)}
+                    value={configValues[field.key] ?? ''}
+                    onChange={(e) =>
+                      onConfigValueChange(field.key, e.target.value)
+                    }
+                    description={
+                      integration.type === 'imap_smtp' &&
+                      field.key === 'fromAddress'
+                        ? t('integrations.manageDialog.fromAddressHint')
+                        : undefined
+                    }
+                    disabled={busy}
+                  />
+                );
+              })}
           </>
         )}
 
