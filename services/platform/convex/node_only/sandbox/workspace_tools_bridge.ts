@@ -155,6 +155,10 @@ async function runWorkspaceTool(
   },
 ): Promise<ToolResult> {
   const callArgs = isRecord(args.callArgs) ? args.callArgs : {};
+  // Captured before the guard narrows `args.tool`: the fallback below runs
+  // exactly when the narrowing left nothing (`never`), so it needs the raw
+  // requested name to still be a plain string.
+  const requestedTool: string = args.tool;
 
   if (!isWorkspaceReadTool(args.tool)) {
     return {
@@ -321,7 +325,7 @@ async function runWorkspaceTool(
   // handler fails loudly instead of silently returning nothing.
   return {
     status: 'error',
-    message: `Workspace tool "${args.tool}" has no handler.`,
+    message: `Workspace tool "${requestedTool}" has no handler.`,
   };
 }
 
