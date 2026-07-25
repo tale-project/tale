@@ -2,7 +2,7 @@
  * Agent-facing documentation, generated from the registry so it can never
  * drift from behavior — and honest by construction: DOC_EXAMPLE renders into
  * the docs AND is executed by the selftest, so every documented example is a
- * proven, passing workflow.
+ * proven, passing automation.
  *
  * Content decisions are measured: YAML-first documents, verbose docs (terse
  * docs cost accuracy AND turns), TS-style output signatures, and no inline
@@ -11,15 +11,15 @@
 
 import { stringifyYaml } from '../../shared/config/yaml';
 import { nodeTypes } from '../core/slots';
-import type { Workflow } from '../core/types';
+import type { Automation } from '../core/types';
 
 /** The worked example woven through the docs — executed by the selftest.
  * Core node types only, so it runs on a bare engine with no connectors. */
 export const DOC_EXAMPLE: {
-  workflow: Workflow;
+  automation: Automation;
   input: Record<string, unknown>;
 } = {
-  workflow: {
+  automation: {
     version: 1,
     name: 'order-report',
     inputs: {
@@ -113,18 +113,18 @@ function integrationLines(): string {
     : '   (none registered on this engine yet — discover with search_catalog once the host installs connectors)';
 }
 
-/** The full engine guide an agent needs to author workflows. */
+/** The full engine guide an agent needs to author automations. */
 export function agentDocs(): string {
-  return `You are an autonomous workflow builder operating the workflow engine. There is no human in the loop.
+  return `You are an autonomous automation builder operating the automation engine. There is no human in the loop.
 
 ## Protocol
 Every reply MUST contain exactly ONE action in a fenced yaml block (a short sentence before it is OK, nothing after it):
 
 \`\`\`yaml
-method: run_workflow
+method: run_automation
 params:
-  workflow:
-${stringifyYaml(DOC_EXAMPLE.workflow)
+  automation:
+${stringifyYaml(DOC_EXAMPLE.automation)
   .trimEnd()
   .split('\n')
   .map((l) => `    ${l}`)
@@ -132,26 +132,43 @@ ${stringifyYaml(DOC_EXAMPLE.workflow)
   input: ${JSON.stringify(DOC_EXAMPLE.input)}
 \`\`\`
 
-Methods:
-- get_docs           params {}                    → this guide
-- get_catalog        params {}                    → the registered capability list (compact)
-- search_catalog     params {query}               → find capabilities by keywords
-- validate_workflow  params {workflow}            → static analysis only
-- run_workflow       params {workflow, input}     → validate + execute with a test input; returns output, per-node trace, effects
-- test_workflow      params {workflow}            → run the workflow's own tests: block
-- save_workflow      params {workflow, message?}  → save as a new immutable version
-- get_workflow       params {name, version?}      → fetch a saved version
-- list_workflows     params {}                    → saved workflows with their latest versions
-- deploy_workflow    params {name, version}       → mark the version triggers run
-- set_trigger        params {name, trigger}       → host-managed trigger binding
-- run_deployed       params {name, input}         → execute the deployed version
-(run_workflow validates automatically — you rarely need validate_workflow.)
+Authoring methods:
+- get_docs             params {}                      → this guide
+- get_catalog          params {}                      → the registered capability list (compact)
+- search_catalog       params {query}                 → find capabilities by keywords
+- validate_automation  params {automation}            → static analysis only
+- run_automation       params {automation, input}     → validate + execute with a test input; returns output, per-node trace, effects
+- test_automation      params {automation}            → run the automation's own tests: block
+- save_automation      params {automation, message?}  → save as a new immutable version
+- get_automation       params {name, version?}        → fetch a saved version
+- list_automations     params {}                      → saved automations with their latest versions
+- deploy_automation    params {name, version}         → mark the version triggers run
+- set_trigger          params {name, trigger}         → host-managed trigger binding
+- run_deployed         params {name, input}           → execute the deployed version and WAIT for the full result
+(run_automation validates automatically — you rarely need validate_automation.)
 
-## Workflow document
-A workflow is a node graph. Execution order is computed automatically from data references; list order does not matter and there is NO "edges" field. All nodes run unless skipped. Documents start with version: 1.
+Management methods — they read and steer what the host has persisted:
+- start_run            params {name, input?, version?} → hand the run to the host and return {runId, version} IMMEDIATELY; poll get_run
+- list_runs            params {name?, limit?}         → recent runs, newest first
+- get_run              params {runId}                 → one run in full: status, output, trace, effects
+- cancel_run           params {runId}                 → stop a run at its next node boundary
+- list_versions        params {name}                  → the immutable version history
+- list_triggers        params {name?}                 → what starts the automations (never the webhook secret)
+- delete_trigger       params {name}                  → unbind the trigger; versions and run history stay
+(run_deployed vs start_run: run_deployed answers with the finished result and is
+what you want while building; start_run answers with a handle and is what you
+want for a long automation you will poll.)
+
+The platform serves three more tools on the same endpoint —
+search_capabilities, invoke_capability and get_knowledge. They are NOT engine
+methods and are not documented here: they reach the organization's capability
+registry and knowledge base, and describe themselves in their own schemas.
+
+## Automation document
+An automation is a node graph. Execution order is computed automatically from data references; list order does not matter and there is NO "edges" field. All nodes run unless skipped. Documents start with version: 1.
 - "inputs": JSON Schema describing the runtime input.
-- "output": the workflow's return value (templates allowed inside).
-- "tests": [{name, input, expect: {output?, effects?: [{integration, input}]}}] — acceptance tests run by test_workflow.
+- "output": the automation's return value (templates allowed inside).
+- "tests": [{name, input, expect: {output?, effects?: [{integration, input}]}}] — acceptance tests run by test_automation.
 
 YAML gotchas (top causes of failure):
 - ALWAYS double-quote any string containing {{ }} or starting with # — unquoted they break YAML.
@@ -166,7 +183,7 @@ YAML gotchas (top causes of failure):
 
 ## Node kinds
 Every node has "id" (unique snake_case) and "type", plus optional control flow:
-- "when": "{{ <boolean> }}" — skip the node when falsy; nodes reading a skipped node's output skip too; in the workflow output a skipped node's output is null.
+- "when": "{{ <boolean> }}" — skip the node when falsy; nodes reading a skipped node's output skip too; in the automation output a skipped node's output is null.
 - "elseOf": "<node id>" — run exactly when that node was when-skipped (exclusive else-branch).
 - "forEach": "{{ <array expr> }}" — run once per item (use item / item.total); the node's output becomes the ARRAY of results.
 - "repeatUntil": "{{ <boolean> }}" with "maxRepeats": <1..20> — re-run the node until true (poll async jobs). The in-flight result is available as output (or this node's own nodes.<id>.output).
@@ -179,26 +196,26 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
    {id, type: llm, model: "<model id>", system?: "...", prompt: "... {{ nodes.get.output }} ..."} → output {text: string}
    With "outputSchema" (a JSON Schema), the output becomes the schema-shaped OBJECT instead — this is the one bridge from free text to structured data, and the fix for "an unstructured output has no fields".
 
-3. subworkflow — run a saved workflow as a node: {id, type: subworkflow, workflow: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
+3. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
 
 4. capability nodes — connectors to external apps and platform tools. Set "type" to the capability's own name (never "integration"); data goes in "input" and must match its schema:
 ${integrationLines()}
    Capability nodes accept NO other fields. During testing they are deterministic mocks: same input → same output. Discover more with search_catalog.
 
 ## Results you get back
-run_workflow returns {status, output, trace, effects}:
+run_automation returns {status, output, trace, effects}:
 - trace: each node's resolved input and actual output — read it to see real data shapes.
 - effects: every external call (message/email/llm/…) with its input.
 Compare output and effects to the requirements character by character.
 
 ## How to work
-1. Draft the complete workflow, then call run_workflow with a realistic test input.
-2. If it fails, read error + hint + trace, fix the workflow, run again.
-3. When the run output and effects EXACTLY match the requirements, attach a tests: block and verify with test_workflow.
-4. Finish per your task's instructions (save_workflow after tests pass, then deploy_workflow when asked).
+1. Draft the complete automation, then call run_automation with a realistic test input.
+2. If it fails, read error + hint + trace, fix the automation, run again.
+3. When the run output and effects EXACTLY match the requirements, attach a tests: block and verify with test_automation.
+4. Finish per your task's instructions (save_automation after tests pass, then deploy_automation when asked).
 
 ## Pre-submit checklist — run through it EVERY time before finishing
-1. Did run_workflow succeed with a realistic test input?
+1. Did run_automation succeed with a realistic test input?
 2. Does the output match the required shape and strings EXACTLY (character by character, correct types)?
 3. Do the effects match exactly — right channel/recipient, exact text, correct count, nothing extra?
 4. Only if all three are yes → finish. Otherwise fix and re-run first.

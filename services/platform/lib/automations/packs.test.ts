@@ -2,11 +2,11 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { runWorkflowTests } from '../engine/api/tests';
+import { runAutomationTests } from '../engine/api/tests';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeTypes } from '../engine/core/slots';
 import { templateExprsIn } from '../engine/core/template';
-import type { Workflow } from '../engine/core/types';
+import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import { loadConnectors } from '../integrations/registry';
@@ -32,9 +32,9 @@ const packs = loadAutomationPacks({
 const connectorNames = new Set(connectors.map((connector) => connector.name));
 
 /** The connectors a document actually calls, from its node types. */
-function connectorsUsedBy(workflow: Workflow): string[] {
+function connectorsUsedBy(automation: Automation): string[] {
   const used = new Set<string>();
-  for (const node of workflow.nodes) {
+  for (const node of automation.nodes) {
     if (!node.type.includes('.')) continue;
     used.add(node.type.slice(0, node.type.indexOf('.')));
   }
@@ -55,12 +55,12 @@ describe('the shipped automation packs', () => {
   for (const pack of packs) {
     describe(pack.slug, () => {
       it('validates clean', async () => {
-        const { errors } = await validate(pack.workflow);
+        const { errors } = await validate(pack.automation);
         expect(errors).toEqual([]);
       });
 
       it('carries its own tests and they all pass against the mocks', async () => {
-        const report = await runWorkflowTests(pack.workflow);
+        const report = await runAutomationTests(pack.automation);
         expect(report).not.toHaveProperty('error');
         expect(report).toMatchObject({ failed: 0 });
         expect('passed' in report ? report.passed : 0).toBeGreaterThan(0);
@@ -70,18 +70,18 @@ describe('the shipped automation packs', () => {
         const declared = [
           ...(pack.manifest.requires?.integrations ?? []),
         ].sort();
-        expect(declared).toEqual(connectorsUsedBy(pack.workflow));
+        expect(declared).toEqual(connectorsUsedBy(pack.automation));
         for (const name of declared) expect(connectorNames).toContain(name);
       });
 
       it('names every node type the engine knows', () => {
-        for (const node of pack.workflow.nodes) {
+        for (const node of pack.automation.nodes) {
           expect(nodeTypes().has(node.type)).toBe(true);
         }
       });
 
       it('is addressed by its directory', () => {
-        expect(pack.workflow.name).toBe(pack.slug.replaceAll('/', '-'));
+        expect(pack.automation.name).toBe(pack.slug.replaceAll('/', '-'));
         expect(pack.manifest.name.length).toBeGreaterThan(0);
       });
     });
@@ -111,13 +111,13 @@ function packBySlug(slug: string): AutomationPack {
   return found;
 }
 
-function substituted(workflow: Workflow, connector: string): unknown {
+function substituted(automation: Automation, connector: string): unknown {
   const prefix = `${connector}.`;
   return {
-    version: workflow.version,
-    inputs: workflow.inputs,
-    output: workflow.output,
-    nodes: workflow.nodes.map((node) =>
+    version: automation.version,
+    inputs: automation.inputs,
+    output: automation.output,
+    nodes: automation.nodes.map((node) =>
       node.type.startsWith(prefix)
         ? {
             ...node,
@@ -128,7 +128,7 @@ function substituted(workflow: Workflow, connector: string): unknown {
           }
         : node,
     ),
-    tests: (workflow.tests ?? []).map((test) => ({
+    tests: (automation.tests ?? []).map((test) => ({
       name: test.name,
       input: test.input,
     })),
@@ -138,21 +138,21 @@ function substituted(workflow: Workflow, connector: string): unknown {
 describe('the three inbox packs stay one document', () => {
   const [canonical, ...variants] = EMAIL_PACKS;
   const expected = substituted(
-    packBySlug(canonical.slug).workflow,
+    packBySlug(canonical.slug).automation,
     canonical.connector,
   );
 
   for (const variant of variants) {
     it(`${variant.slug} differs from ${canonical.slug} only by its connector`, () => {
       expect(
-        substituted(packBySlug(variant.slug).workflow, variant.connector),
+        substituted(packBySlug(variant.slug).automation, variant.connector),
       ).toEqual(expected);
     });
   }
 
   for (const variant of EMAIL_PACKS) {
     it(`${variant.slug} really calls ${variant.connector}`, () => {
-      expect(connectorsUsedBy(packBySlug(variant.slug).workflow)).toEqual([
+      expect(connectorsUsedBy(packBySlug(variant.slug).automation)).toEqual([
         variant.connector,
       ]);
     });
@@ -161,7 +161,7 @@ describe('the three inbox packs stay one document', () => {
   it('keeps each variant honest about the provider in its display text', () => {
     for (const variant of EMAIL_PACKS) {
       const pack = packBySlug(variant.slug);
-      expect(pack.workflow.name).toContain(variant.connector);
+      expect(pack.automation.name).toContain(variant.connector);
       expect(pack.manifest.labels).toContain('Email');
     }
   });

@@ -63,7 +63,7 @@ const versionSummaryValidator = v.object({
   createdAt: v.number(),
 });
 
-function toVersionSummary(row: Doc<'workflows'>) {
+function toVersionSummary(row: Doc<'automations'>) {
   return {
     version: row.version,
     ...(row.message !== undefined && { message: row.message }),
@@ -74,7 +74,7 @@ function toVersionSummary(row: Doc<'workflows'>) {
 }
 
 const runSummaryValidator = v.object({
-  id: v.id('workflowRuns'),
+  id: v.id('automationRuns'),
   name: v.string(),
   version: v.number(),
   status: v.string(),
@@ -85,7 +85,7 @@ const runSummaryValidator = v.object({
   finishedAt: v.optional(v.number()),
 });
 
-function toRunSummary(row: Doc<'workflowRuns'>) {
+function toRunSummary(row: Doc<'automationRuns'>) {
   return {
     id: row._id,
     name: row.name,
@@ -112,7 +112,7 @@ const triggerViewValidator = v.object({
   lastFiredAt: v.optional(v.number()),
 });
 
-function toTriggerView(row: Doc<'workflowTriggers'>) {
+function toTriggerView(row: Doc<'automationTriggers'>) {
   return {
     name: row.name,
     kind: row.kind,
@@ -150,7 +150,7 @@ export const listAutomations = query({
       args.projectId ?? null,
     );
     const deployments = await ctx.db
-      .query('workflowDeployments')
+      .query('automationDeployments')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .collect();
     const live = new Map(deployments.map((row) => [row.name, row.version]));
@@ -241,7 +241,7 @@ export const listRuns = query({
     let rows;
     if (name !== undefined) {
       rows = await ctx.db
-        .query('workflowRuns')
+        .query('automationRuns')
         .withIndex('by_org_name', (q) =>
           q.eq('organizationId', args.organizationId).eq('name', name),
         )
@@ -252,7 +252,7 @@ export const listRuns = query({
       }
     } else if (args.projectId !== undefined) {
       rows = await ctx.db
-        .query('workflowRuns')
+        .query('automationRuns')
         .withIndex('by_org_project', (q) =>
           q
             .eq('organizationId', args.organizationId)
@@ -262,7 +262,7 @@ export const listRuns = query({
         .take(limit);
     } else {
       rows = await ctx.db
-        .query('workflowRuns')
+        .query('automationRuns')
         .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
         .order('desc')
         .take(limit);
@@ -273,11 +273,11 @@ export const listRuns = query({
 
 /** One run in full — the trace and per-node checkpoints the canvas overlays. */
 export const getRun = query({
-  args: { organizationId: v.string(), runId: v.id('workflowRuns') },
+  args: { organizationId: v.string(), runId: v.id('automationRuns') },
   returns: v.union(
     v.null(),
     v.object({
-      id: v.id('workflowRuns'),
+      id: v.id('automationRuns'),
       name: v.string(),
       version: v.number(),
       status: v.string(),
@@ -330,7 +330,7 @@ export const listTriggers = query({
       return row ? [toTriggerView(row)] : [];
     }
     const rows = await ctx.db
-      .query('workflowTriggers')
+      .query('automationTriggers')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .collect();
     return rows.sort((a, b) => a.name.localeCompare(b.name)).map(toTriggerView);
@@ -406,7 +406,7 @@ function successRatePct(
 /**
  * Org-wide run KPIs for the automation metrics page: window summary,
  * prior-window totals for deltas, a per-day series, and the top automations by
- * run count. One bounded newest-first walk over `workflowRuns` serves all four.
+ * run count. One bounded newest-first walk over `automationRuns` serves all four.
  */
 export const getOrgAutomationMetrics = query({
   args: {
@@ -456,7 +456,7 @@ export const getOrgAutomationMetrics = query({
     let scanned = 0;
     let capped = false;
     for await (const run of ctx.db
-      .query('workflowRuns')
+      .query('automationRuns')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .order('desc')) {
       // The `by_org` index is walked newest-first and `startedAt` is set to
@@ -622,13 +622,13 @@ export const getOrgAutomationMetrics = query({
 export const loadRunForStep = internalQuery({
   args: {
     organizationId: v.string(),
-    runId: v.id('workflowRuns'),
+    runId: v.id('automationRuns'),
   },
   returns: v.union(
     v.null(),
     v.object({
       run: v.object({
-        id: v.id('workflowRuns'),
+        id: v.id('automationRuns'),
         organizationId: v.string(),
         name: v.string(),
         version: v.number(),
@@ -672,10 +672,10 @@ export const loadRunForStep = internalQuery({
 
 /**
  * One saved version's document, org-scoped — how the stepper resolves a
- * `subworkflow` node. Returns the deployed version when none is named, matching
+ * `subautomation` node. Returns the deployed version when none is named, matching
  * the executor's own resolution rule.
  */
-export const loadWorkflowDocument = internalQuery({
+export const loadAutomationDocument = internalQuery({
   args: {
     organizationId: v.string(),
     name: v.string(),
@@ -696,7 +696,7 @@ export const loadWorkflowDocument = internalQuery({
 
 // --------------------------------------------------- the store, from an action
 //
-// `dispatch()` runs in an action (it executes workflows, which needs the code
+// `dispatch()` runs in an action (it executes automations, which needs the code
 // sandbox), and an action has no database handle. These three reads are the
 // action-side half of `StoreAdapter`; `store.ts` composes them, and the write
 // half lives in `mutations.ts`, so the semantics stay in exactly one place.
@@ -721,7 +721,7 @@ export const storeGet = internalQuery({
     v.null(),
     v.object({
       meta: v.object({ version: v.number() }),
-      workflow: v.any(),
+      automation: v.any(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -732,7 +732,7 @@ export const storeGet = internalQuery({
       args.version,
     );
     return row
-      ? { meta: { version: row.version }, workflow: row.document }
+      ? { meta: { version: row.version }, automation: row.document }
       : null;
   },
 });
@@ -744,5 +744,124 @@ export const storeDeployedVersion = internalQuery({
   handler: async (ctx, args) => {
     const row = await deploymentRow(ctx, args.organizationId, args.name);
     return row?.version ?? null;
+  },
+});
+
+// The management half of the action-side store: run history, version history,
+// and trigger listing. They answer the same data the public queries above serve
+// — through the same helpers — but keyed the way the engine's `DispatchStore`
+// addresses things: a run is a plain string handle (`runId`), because the engine
+// never learns what a host's identifier is made of.
+
+/** The engine's field name for a run handle; the public queries call it `id`. */
+const storeRunFields = {
+  runId: v.id('automationRuns'),
+  name: v.string(),
+  version: v.number(),
+  status: v.string(),
+  mode: v.string(),
+  startedBy: v.string(),
+  detail: v.optional(v.string()),
+  startedAt: v.number(),
+  finishedAt: v.optional(v.number()),
+};
+
+function toStoreRunSummary(row: Doc<'automationRuns'>) {
+  const { id, ...rest } = toRunSummary(row);
+  return { runId: id, ...rest };
+}
+
+/** Recent runs, newest first — of one automation, or of the whole org. */
+export const storeListRuns = internalQuery({
+  args: {
+    organizationId: v.string(),
+    name: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.object(storeRunFields)),
+  handler: async (ctx, args) => {
+    const limit = Math.min(
+      Math.max(1, args.limit ?? DEFAULT_RUN_LIMIT),
+      MAX_RUN_LIMIT,
+    );
+    const name = args.name;
+    const rows =
+      name !== undefined
+        ? await ctx.db
+            .query('automationRuns')
+            .withIndex('by_org_name', (q) =>
+              q.eq('organizationId', args.organizationId).eq('name', name),
+            )
+            .order('desc')
+            .take(limit)
+        : await ctx.db
+            .query('automationRuns')
+            .withIndex('by_org', (q) =>
+              q.eq('organizationId', args.organizationId),
+            )
+            .order('desc')
+            .take(limit);
+    return rows.map(toStoreRunSummary);
+  },
+});
+
+/**
+ * One run in full. The handle arrives as a plain string, so an id that is not
+ * even shaped like one reads as "no such run" instead of raising — a caller
+ * that mistyped a handle gets an answer it can act on, and learns nothing about
+ * whether the row exists in another organization.
+ */
+export const storeGetRun = internalQuery({
+  args: { organizationId: v.string(), runId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      ...storeRunFields,
+      input: v.optional(v.any()),
+      output: v.optional(v.any()),
+      trace: v.optional(v.any()),
+      effects: v.optional(v.any()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const runId = ctx.db.normalizeId('automationRuns', args.runId);
+    if (!runId) return null;
+    const row = await ctx.db.get(runId);
+    if (!row || row.organizationId !== args.organizationId) return null;
+    return {
+      ...toStoreRunSummary(row),
+      input: row.input,
+      ...(row.output !== undefined && { output: row.output }),
+      ...(row.trace !== undefined && { trace: row.trace }),
+      ...(row.effects !== undefined && { effects: row.effects }),
+    };
+  },
+});
+
+/** The immutable version history of one automation, oldest first. */
+export const storeListVersions = internalQuery({
+  args: { organizationId: v.string(), name: v.string() },
+  returns: v.array(versionSummaryValidator),
+  handler: async (ctx, args) => {
+    const rows = await versionsOf(ctx, args.organizationId, args.name);
+    return rows.map(toVersionSummary);
+  },
+});
+
+/** What starts the organization's automations — never the token verifier. */
+export const storeListTriggers = internalQuery({
+  args: { organizationId: v.string(), name: v.optional(v.string()) },
+  returns: v.array(triggerViewValidator),
+  handler: async (ctx, args) => {
+    const name = args.name;
+    if (name !== undefined) {
+      const row = await triggerRow(ctx, args.organizationId, name);
+      return row ? [toTriggerView(row)] : [];
+    }
+    const rows = await ctx.db
+      .query('automationTriggers')
+      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
+      .collect();
+    return rows.sort((a, b) => a.name.localeCompare(b.name)).map(toTriggerView);
   },
 });

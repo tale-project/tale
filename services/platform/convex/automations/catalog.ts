@@ -4,7 +4,7 @@
  * The node-type catalog the automations editor works against.
  *
  * The engine's registry is the authority on what a node may be and which
- * fields each type takes. Core types (`transform`, `llm`, `subworkflow`, …)
+ * fields each type takes. Core types (`transform`, `llm`, `subautomation`, …)
  * are registered at module scope in `lib/engine/core/slots.ts`; connector
  * types (`<connector>.<action>`) are registered from
  * `configs/platform/system/integrations/<slug>/connector.yml` by

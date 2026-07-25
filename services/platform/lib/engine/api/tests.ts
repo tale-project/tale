@@ -1,13 +1,13 @@
 /**
- * test_workflow: run a workflow's attached acceptance tests against the
+ * test_automation: run an automation's attached acceptance tests against the
  * deterministic mocks. Tests are first-class in the document itself because
  * authors that verify against tests before shipping measurably (roughly
- * twice as often) land working workflows — the fast feedback loop is the
+ * twice as often) land working automations — the fast feedback loop is the
  * product.
  */
 
 import { execute } from '../core/execute';
-import type { Workflow } from '../core/types';
+import type { Automation } from '../core/types';
 
 /** Deep-equality serialization independent of key order. */
 export function stableStringify(v: unknown): string {
@@ -34,20 +34,20 @@ export interface MissingTests {
   hint?: string;
 }
 
-export async function runWorkflowTests(
-  wf: Workflow,
+export async function runAutomationTests(
+  automation: Automation,
 ): Promise<TestReport | MissingTests> {
-  const tests = wf.tests ?? [];
+  const tests = automation.tests ?? [];
   if (tests.length === 0) {
     return {
-      error: 'the workflow has no tests',
+      error: 'the automation has no tests',
       hint: 'add a top-level tests: [{name, input, expect: {output?, effects?}}] block',
     };
   }
   const results: TestReport['results'] = [];
   let passed = 0;
   for (const t of tests) {
-    const r = await execute(wf, { input: t.input, mode: 'mock' });
+    const r = await execute(automation, { input: t.input, mode: 'mock' });
     let pass = r.status === 'success';
     let message = pass
       ? undefined

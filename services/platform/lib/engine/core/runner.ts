@@ -69,7 +69,7 @@ export function setCodeRunner(backend: CodeRunner): void {
 export function codeRunner(): CodeRunner {
   if (!runner) {
     throw new Error(
-      'no CodeRunner installed — call setCodeRunner() before validating or executing workflows',
+      'no CodeRunner installed — call setCodeRunner() before validating or executing automations',
     );
   }
   return runner;

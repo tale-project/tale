@@ -177,7 +177,7 @@ export const createTaskReviewRequest = internalMutation({
     // the insert path — the responded-replay path above never pauses.
     await ctx.scheduler.runAfter(
       0,
-      internal.sandbox.session_mutations.hibernateWorkflowScopedSession,
+      internal.sandbox.session_mutations.hibernateAutomationScopedSession,
       { executionId: String(args.wfExecutionId) },
     );
 

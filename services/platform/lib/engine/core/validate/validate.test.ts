@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../store/memory';
 import { registerNodeType, setCodeRunner, setStoreAdapter } from '../slots';
-import type { Issue, NodeDef, Workflow } from '../types';
+import type { Automation, Issue, NodeDef } from '../types';
 import { validate } from './index';
 
 beforeAll(() => {
@@ -79,7 +79,7 @@ beforeAll(() => {
 beforeEach(() => {
   setCodeRunner(nodeVmRunner());
   const store = memoryStore();
-  const noop: Workflow = {
+  const noop: Automation = {
     version: 1,
     name: 'send-digest',
     nodes: [{ id: 'noop', type: 'transform', code: 'return input;' }],
@@ -90,15 +90,18 @@ beforeEach(() => {
   setStoreAdapter(store);
 });
 
-function wf(nodes: NodeDef[], extra: Partial<Workflow> = {}): Workflow {
+function automationDoc(
+  nodes: NodeDef[],
+  extra: Partial<Automation> = {},
+): Automation {
   return { version: 1, name: 'test-flow', nodes, ...extra };
 }
 
 const codesOf = (issues: Issue[]) => issues.map((i) => i.code);
 
 describe('a realistic valid document', () => {
-  it('validates a 5-node workflow with zero issues', async () => {
-    const doc = wf(
+  it('validates a 5-node automation with zero issues', async () => {
+    const doc = automationDoc(
       [
         {
           id: 'fetch',
@@ -128,8 +131,8 @@ describe('a realistic valid document', () => {
         },
         {
           id: 'archive',
-          type: 'subworkflow',
-          workflow: 'send-digest@2',
+          type: 'subautomation',
+          automation: 'send-digest@2',
           input: { digest: '{{ nodes.format.output.text }}' },
         },
       ],
@@ -146,10 +149,13 @@ describe('a realistic valid document', () => {
   });
 
   it('is idempotent across repeated runs of the same document (schema $id reuse)', async () => {
-    const doc = wf([{ id: 'main', type: 'transform', code: 'return 1;' }], {
-      inputs: { $id: 'https://tale.test/wf-inputs', type: 'object' },
-      output: '{{ nodes.main.output }}',
-    });
+    const doc = automationDoc(
+      [{ id: 'main', type: 'transform', code: 'return 1;' }],
+      {
+        inputs: { $id: 'https://tale.test/automation-inputs', type: 'object' },
+        output: '{{ nodes.main.output }}',
+      },
+    );
     const first = await validate(doc);
     const second = await validate(doc);
     expect(first.errors).toEqual([]);
@@ -161,7 +167,7 @@ describe('document shape', () => {
   it('rejects non-object documents', async () => {
     for (const doc of [42, 'flow', null, ['nodes']]) {
       const { errors } = await validate(doc);
-      expect(codesOf(errors)).toEqual(['WF_NOT_OBJECT']);
+      expect(codesOf(errors)).toEqual(['AUTOMATION_NOT_OBJECT']);
     }
   });
 
@@ -175,7 +181,7 @@ describe('document shape', () => {
     ];
     for (const secret of secrets) {
       const { errors } = await validate(
-        wf(
+        automationDoc(
           [
             {
               id: 'main',
@@ -190,7 +196,7 @@ describe('document shape', () => {
       expect(codesOf(errors)).toContain('SECRET_IN_DOCUMENT');
     }
 
-    const prose = wf(
+    const prose = automationDoc(
       [
         {
           id: 'main',
@@ -207,7 +213,7 @@ describe('document shape', () => {
   });
 
   it('does not flag template values under credential-named keys', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'main',
@@ -225,7 +231,7 @@ describe('document shape', () => {
 
 describe('references', () => {
   it('suggests the closest node id on unknown references', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         { id: 'fetch', type: 'transform', code: 'return 1;' },
         {
@@ -242,7 +248,7 @@ describe('references', () => {
   });
 
   it('accepts a diamond dependency shape (no false cycle)', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         { id: 'a', type: 'transform', code: 'return 1;' },
         { id: 'b', type: 'transform', code: 'return nodes.a.output + 1;' },
@@ -260,7 +266,7 @@ describe('references', () => {
   });
 
   it('names the cycle path, including cycles through control-flow fields', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'a',
@@ -282,7 +288,7 @@ describe('references', () => {
   });
 
   it("allows reading the node's own output in repeatUntil", async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'main',
@@ -299,7 +305,7 @@ describe('references', () => {
   });
 
   it('accepts item/index under forEach and does not confuse input.index with the loop variable', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         { id: 'list', type: 'transform', code: 'return [1, 2];' },
         {
@@ -317,7 +323,7 @@ describe('references', () => {
   });
 
   it('warns on index without forEach', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'main',
@@ -339,7 +345,7 @@ describe('references', () => {
       model: 'test-model',
       prompt: 'Weather for {{ input.town }}',
     };
-    const open = wf([node], {
+    const open = automationDoc([node], {
       inputs: {
         type: 'object',
         properties: { city: { type: 'string' } },
@@ -347,7 +353,9 @@ describe('references', () => {
       },
       output: '{{ nodes.main.output.text }}',
     });
-    const bare = wf([node], { output: '{{ nodes.main.output.text }}' });
+    const bare = automationDoc([node], {
+      output: '{{ nodes.main.output.text }}',
+    });
     expect(codesOf((await validate(open)).warnings)).not.toContain(
       'INPUT_KEY_UNKNOWN',
     );
@@ -356,9 +364,9 @@ describe('references', () => {
     );
   });
 
-  it('does not check transform-code input keys against the workflow inputs schema', async () => {
+  it('does not check transform-code input keys against the automation inputs schema', async () => {
     // In code, `input` is the node's own input mapping — not the run input.
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'main',
@@ -379,7 +387,7 @@ describe('references', () => {
 
 describe('contracts', () => {
   it('skips value checks on template-valued fields, keeps them on literals', async () => {
-    const templated = wf(
+    const templated = automationDoc(
       [
         {
           id: 'w',
@@ -393,7 +401,7 @@ describe('contracts', () => {
       'INTEGRATION_INPUT_INVALID',
     );
 
-    const literal = wf(
+    const literal = automationDoc(
       [{ id: 'w', type: 'weather.current', input: { city: 42 } }],
       { output: '{{ nodes.w.output }}' },
     );
@@ -402,7 +410,7 @@ describe('contracts', () => {
   });
 
   it('always reports missing required integration fields', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [{ id: 'w', type: 'weather.current', input: { units: 'metric' } }],
       { output: '{{ nodes.w.output }}' },
     );
@@ -412,7 +420,7 @@ describe('contracts', () => {
   });
 
   it('treats an llm node with outputSchema as structured', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'gen',
@@ -443,12 +451,15 @@ describe('contracts', () => {
     ];
     expect(
       codesOf(
-        (await validate(wf(nodes, { output: '{{ nodes.main.output }}' })))
-          .errors,
+        (
+          await validate(
+            automationDoc(nodes, { output: '{{ nodes.main.output }}' }),
+          )
+        ).errors,
       ),
     ).not.toContain('REF_UNSTRUCTURED_PATH');
 
-    const bad = wf(
+    const bad = automationDoc(
       [
         {
           id: 'page',
@@ -471,7 +482,7 @@ describe('contracts', () => {
   });
 
   it('exempts effectful integrations, elseOf partners, and the final node from UNUSED_NODE', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         // Effectful: exempt even though nobody reads it.
         { id: 'notify', type: 'notes.append', input: { text: 'hi' } },
@@ -504,7 +515,7 @@ describe('contracts', () => {
 describe('degrading without optional backends', () => {
   it('skips syntax checks silently when no runner is installed', async () => {
     setCodeRunner(null as never);
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'main',
@@ -522,18 +533,18 @@ describe('degrading without optional backends', () => {
     expect(codesOf(errors)).toContain('REF_UNKNOWN_NODE');
   });
 
-  it('skips subworkflow resolution without a store, but still checks the reference syntax', async () => {
+  it('skips subautomation resolution without a store, but still checks the reference syntax', async () => {
     setStoreAdapter(null as never);
-    const doc = wf(
+    const doc = automationDoc(
       [
-        { id: 'ok', type: 'subworkflow', workflow: 'ghost-flow' },
-        { id: 'bad', type: 'subworkflow', workflow: 'Ghost Flow@next' },
+        { id: 'ok', type: 'subautomation', automation: 'ghost-flow' },
+        { id: 'bad', type: 'subautomation', automation: 'Ghost Flow@next' },
       ],
       { output: '{{ nodes.bad.output }}' },
     );
     const { errors } = await validate(doc);
-    expect(codesOf(errors)).not.toContain('SUBWORKFLOW_NOT_FOUND');
-    expect(codesOf(errors)).toContain('SUBWORKFLOW_REF_INVALID');
+    expect(codesOf(errors)).not.toContain('SUBAUTOMATION_NOT_FOUND');
+    expect(codesOf(errors)).toContain('SUBAUTOMATION_REF_INVALID');
   });
 
   it('survives a store whose list() rejects', async () => {
@@ -544,11 +555,11 @@ describe('degrading without optional backends', () => {
       get: async () => null,
       deployedVersion: async () => null,
     });
-    const doc = wf(
-      [{ id: 'sub', type: 'subworkflow', workflow: 'ghost-flow' }],
+    const doc = automationDoc(
+      [{ id: 'sub', type: 'subautomation', automation: 'ghost-flow' }],
       { output: '{{ nodes.sub.output }}' },
     );
     const { errors } = await validate(doc);
-    expect(codesOf(errors)).not.toContain('SUBWORKFLOW_NOT_FOUND');
+    expect(codesOf(errors)).not.toContain('SUBAUTOMATION_NOT_FOUND');
   });
 });

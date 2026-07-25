@@ -2,13 +2,20 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
- * The automation store — the Convex host behind the workflow engine's
+ * The automation store — the Convex host behind the automation engine's
  * `DispatchStore`. Four tables, each answering one question:
  *
- *  - `workflows`           — what versions exist (immutable history)
- *  - `workflowDeployments` — which single version triggers run
- *  - `workflowTriggers`    — what starts a run
- *  - `workflowRuns`        — what happened, step by step
+ *  - `automations`           — what versions exist (immutable history)
+ *  - `automationDeployments` — which single version triggers run
+ *  - `automationTriggers`    — what starts a run
+ *  - `automationRuns`        — what happened, step by step
+ *
+ * The tables were minted under the engine's original workflow names and were
+ * renamed to the automation noun before the store ever shipped a release, so
+ * one word now runs from the table a row lives in through to the API a caller
+ * sees. The rename carries no migration on purpose: nothing outside a
+ * development deployment had written those tables, and rows left behind in the
+ * old names are deliberately orphaned rather than moved.
  *
  * Versions are IMMUTABLE. The retired model kept one mutable document per
  * automation, so editing a live automation changed what was already running
@@ -18,10 +25,10 @@ import { v } from 'convex/values';
  * meaningful: a version is promoted only once its own tests pass.
  */
 
-/** A stored workflow version. The document itself is the engine's v1 shape,
+/** A stored automation version. The document itself is the engine's v1 shape,
  * validated by the engine rather than re-declared here — Convex would have to
  * mirror the whole node grammar to type it, and the two would drift. */
-export const workflowsTable = defineTable({
+export const automationsTable = defineTable({
   organizationId: v.string(),
   /** Automation slug — a `/`-separated path, unique per organization. */
   name: v.string(),
@@ -34,7 +41,7 @@ export const workflowsTable = defineTable({
    * and the org listing shows only project-less rows.
    */
   projectId: v.optional(v.id('projects')),
-  /** The v1 workflow document as authored. */
+  /** The v1 automation document as authored. */
   document: v.any(),
   /** Author-supplied note for the version list. */
   message: v.optional(v.string()),
@@ -50,11 +57,11 @@ export const workflowsTable = defineTable({
   .index('by_org_project', ['organizationId', 'projectId']);
 
 /**
- * The one live-eligible version per automation. Separate from `workflows` so
+ * The one live-eligible version per automation. Separate from `automations` so
  * that promoting and rolling back are single writes that never touch history,
  * and so a deployment can be absent — an automation may exist as drafts only.
  */
-export const workflowDeploymentsTable = defineTable({
+export const automationDeploymentsTable = defineTable({
   organizationId: v.string(),
   name: v.string(),
   version: v.number(),
@@ -71,12 +78,15 @@ export const workflowDeploymentsTable = defineTable({
  *  - `schedule` — a cron expression in a named timezone
  *  - `webhook`  — an inbound URL guarded by a token
  *  - `event`    — a platform event name
- *  - `api-key`  — an explicit programmatic call
+ *  - `api-key`  — RETIRED. Every write path refuses it (a programmatic start is
+ *    what the REST and MCP surfaces are for, so the kind never had a delivery
+ *    path of its own); the value stays in the union only so rows written before
+ *    it was retired are still readable.
  *
  * The trigger binds to the automation NAME, not to a version, so redeploying
  * never invalidates a webhook URL or a schedule someone else depends on.
  */
-export const workflowTriggersTable = defineTable({
+export const automationTriggersTable = defineTable({
   organizationId: v.string(),
   name: v.string(),
   kind: v.union(
@@ -117,11 +127,11 @@ export const workflowTriggersTable = defineTable({
  * canvas can overlay the last run and so an effect is auditable after the
  * fact.
  */
-export const workflowRunsTable = defineTable({
+export const automationRunsTable = defineTable({
   organizationId: v.string(),
   name: v.string(),
   version: v.number(),
-  /** Denormalized from the workflow version's owner, so a project's run log
+  /** Denormalized from the automation version's owner, so a project's run log
    * is one index read — never a join over names. */
   projectId: v.optional(v.id('projects')),
   status: v.union(

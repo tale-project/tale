@@ -8,7 +8,7 @@
  * that does not resolve must be indistinguishable from one that resolves to a
  * disabled trigger, and neither may start anything.
  *
- * The loop-safety invariant has its own test: an event a workflow run produced
+ * The loop-safety invariant has its own test: an event an automation run produced
  * never fires a trigger. Without that rule an automation that writes a record
  * which raises an event that starts the same automation is an unbounded loop,
  * and every iteration looks legitimate from inside.
@@ -17,7 +17,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import type { Workflow } from '../../lib/engine/core/types';
+import type { Automation } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
@@ -54,7 +54,7 @@ function newWorld(): T {
   return t;
 }
 
-function workflow(name: string): Workflow {
+function automation(name: string): Automation {
   return {
     version: 1,
     name,
@@ -72,7 +72,7 @@ async function publish(
 ): Promise<void> {
   await t.run(async (ctx) => {
     const store = automationStore(ctx, { organizationId, actor: ACTOR });
-    const saved = await store.save(workflow(name));
+    const saved = await store.save(automation(name));
     await store.deploy(saved.name, saved.version);
     if (trigger) await store.setTrigger(name, trigger);
   });
@@ -85,7 +85,7 @@ async function publish(
  */
 async function backdate(t: T, name: string, ms: number): Promise<void> {
   await t.run(async (ctx) => {
-    for (const row of await ctx.db.query('workflowTriggers').collect()) {
+    for (const row of await ctx.db.query('automationTriggers').collect()) {
       if (row.name === name) {
         await ctx.db.patch(row._id, { createdAt: Date.now() - ms });
       }
@@ -97,7 +97,7 @@ async function runsOf(t: T, organizationId: string) {
   return await t.run(
     async (ctx) =>
       await ctx.db
-        .query('workflowRuns')
+        .query('automationRuns')
         .withIndex('by_org', (q) => q.eq('organizationId', organizationId))
         .collect(),
   );
@@ -302,7 +302,7 @@ describe('webhook triggers', () => {
       tokenHash: await hashWebhookToken(token),
     });
     const rows = await t.run(
-      async (ctx) => await ctx.db.query('workflowTriggers').collect(),
+      async (ctx) => await ctx.db.query('automationTriggers').collect(),
     );
     expect(JSON.stringify(rows)).not.toContain(token);
   });
@@ -336,7 +336,7 @@ describe('event triggers — loop safety', () => {
     expect(await runsOf(t, OTHER_ORG)).toHaveLength(0);
   });
 
-  it("refuses an event raised by a workflow's own writes", async () => {
+  it("refuses an event raised by an automation's own writes", async () => {
     const t = newWorld();
     await publish(t, ORG, 'ops/on-ticket', {
       kind: 'event',
@@ -349,7 +349,7 @@ describe('event triggers — loop safety', () => {
         organizationId: ORG,
         event: 'ticket.created',
         payload: { id: 7 },
-        origin: 'workflow',
+        origin: 'automation',
       },
     );
     // This is THE loop-safety invariant: a run's own writes cannot start runs,
@@ -377,48 +377,11 @@ describe('event triggers — loop safety', () => {
   });
 });
 
-describe('api-key triggers', () => {
-  it('runs only an automation the organization exposed', async () => {
-    const t = newWorld();
-    await publish(t, ORG, 'ops/callable', { kind: 'api-key' });
-    await publish(t, ORG, 'ops/internal-only');
-
-    const allowed = await t.mutation(
-      internal.automations.triggers.fireApiKeyTrigger,
-      {
-        organizationId: ORG,
-        name: 'ops/callable',
-        input: { from: 'api' },
-        callerRef: 'key_1',
-      },
-    );
-    expect(allowed?.version).toBe(1);
-
-    const refused = await t.mutation(
-      internal.automations.triggers.fireApiKeyTrigger,
-      {
-        organizationId: ORG,
-        name: 'ops/internal-only',
-        callerRef: 'key_1',
-      },
-    );
-    expect(refused).toBeNull();
-
-    // A key for one organization cannot reach another organization's
-    // automation, even by name.
-    const crossOrg = await t.mutation(
-      internal.automations.triggers.fireApiKeyTrigger,
-      {
-        organizationId: OTHER_ORG,
-        name: 'ops/callable',
-        callerRef: 'key_1',
-      },
-    );
-    expect(crossOrg).toBeNull();
-    expect(await runsOf(t, ORG)).toHaveLength(1);
-    expect(await runsOf(t, OTHER_ORG)).toHaveLength(0);
-  });
-});
+// The `api-key` trigger kind is retired: a programmatic start is what the REST
+// and MCP surfaces are for, so the kind never had a delivery path of its own and
+// the write paths now refuse it (see `store.test.ts` for that refusal). Rows
+// written before it was retired stay readable, which is why the stored union
+// still allows the value.
 
 describe('run recovery', () => {
   it('re-enters a run left running with no continuation', async () => {
@@ -426,7 +389,7 @@ describe('run recovery', () => {
     await publish(t, ORG, 'ops/nightly');
     const stale = Date.now() - 60 * 60 * 1000;
     await t.run(async (ctx) => {
-      await ctx.db.insert('workflowRuns', {
+      await ctx.db.insert('automationRuns', {
         organizationId: ORG,
         name: 'ops/nightly',
         version: 1,
@@ -437,7 +400,7 @@ describe('run recovery', () => {
         checkpoints: { nodes: {}, executions: 0 },
         startedAt: stale,
       });
-      await ctx.db.insert('workflowRuns', {
+      await ctx.db.insert('automationRuns', {
         organizationId: ORG,
         name: 'ops/nightly',
         version: 1,

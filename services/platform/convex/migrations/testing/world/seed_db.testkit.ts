@@ -216,7 +216,7 @@ export async function seedWorldDb(
   });
 
   // --- Automations (the 0.4 automation store) ------------------------------
-  await ctx.db.insert('workflows', {
+  await ctx.db.insert('automations', {
     organizationId: alpha,
     name: 'ops/daily-digest',
     version: 1,
@@ -227,14 +227,14 @@ export async function seedWorldDb(
     createdBy: WORLD_USERS.alphaOwner,
     createdAt: T0 + 6_000,
   });
-  await ctx.db.insert('workflowDeployments', {
+  await ctx.db.insert('automationDeployments', {
     organizationId: alpha,
     name: 'ops/daily-digest',
     version: 1,
     deployedBy: WORLD_USERS.alphaOwner,
     deployedAt: T0 + 6_500,
   });
-  await ctx.db.insert('workflowTriggers', {
+  await ctx.db.insert('automationTriggers', {
     organizationId: alpha,
     name: 'ops/daily-digest',
     kind: 'schedule',
@@ -243,7 +243,7 @@ export async function seedWorldDb(
     createdAt: T0 + 6_600,
     updatedAt: T0 + 6_600,
   });
-  await ctx.db.insert('workflowRuns', {
+  await ctx.db.insert('automationRuns', {
     organizationId: alpha,
     name: 'ops/daily-digest',
     version: 1,

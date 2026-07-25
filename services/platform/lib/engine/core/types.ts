@@ -1,7 +1,7 @@
 /**
- * Core data model — the stable public types of the workflow engine.
+ * Core data model — the stable public types of the automation engine.
  *
- * A workflow is a single document: a DAG of typed nodes. Edges are DERIVED
+ * An automation is a single document: a DAG of typed nodes. Edges are DERIVED
  * from `{{ nodes.<id>.output }}` references, never declared — one source of
  * truth that maps 1:1 onto a visual canvas (node = box, reference = edge,
  * control-flow fields = badges). No logic exists outside nodes.
@@ -20,15 +20,15 @@ export type Json =
 
 /**
  * One node of the graph. Exactly one behavior per `type`:
- *  - `transform`   — sandboxed JavaScript over its resolved `input`
- *  - `llm`         — language-model call with a templated prompt and an
- *                    explicit, caller-chosen model
- *  - `subworkflow` — run a saved workflow as a node
+ *  - `transform`      — sandboxed JavaScript over its resolved `input`
+ *  - `llm`            — language-model call with a templated prompt and an
+ *                       explicit, caller-chosen model
+ *  - `subautomation`  — run a saved automation as a node
  *  - any registered capability name (integration actions, platform natives
  *    such as knowledge search) — an external connector
  */
 export interface NodeDef {
-  /** Unique within the workflow; `^[a-z][a-z0-9_]{0,49}$`. */
+  /** Unique within the automation; `^[a-z][a-z0-9_]{0,49}$`. */
   id: string;
   type: string;
 
@@ -72,12 +72,12 @@ export interface NodeDef {
    * sanctioned bridge from unstructured text to structured data.
    */
   outputSchema?: Record<string, unknown>;
-  /** subworkflow: a saved reference, `"name"` or `"name@version"`. */
-  workflow?: string;
+  /** subautomation: a saved reference, `"name"` or `"name@version"`. */
+  automation?: string;
 }
 
-/** A first-class acceptance test stored with the workflow. */
-export interface WorkflowTest {
+/** A first-class acceptance test stored with the automation. */
+export interface AutomationTest {
   name: string;
   input: Json;
   expect?: {
@@ -88,7 +88,7 @@ export interface WorkflowTest {
   };
 }
 
-export interface Workflow {
+export interface Automation {
   /** Document schema version; v1 documents declare `version: 1`. */
   version?: number;
   /** Kebab-case; also the store identity. */
@@ -97,9 +97,9 @@ export interface Workflow {
   /** JSON Schema for the runtime input. */
   inputs?: Record<string, unknown>;
   nodes: NodeDef[];
-  /** The workflow's return value; templates allowed anywhere inside. */
+  /** The automation's return value; templates allowed anywhere inside. */
   output?: unknown;
-  tests?: WorkflowTest[];
+  tests?: AutomationTest[];
   /** Canvas metadata (e.g. `{positions}`); ignored by the engine. */
   ui?: Record<string, unknown>;
 }

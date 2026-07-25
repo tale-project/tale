@@ -23,7 +23,8 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import type { RunResult, Workflow } from '../../lib/engine/core/types';
+import type { Automation, RunResult } from '../../lib/engine/core/types';
+import { defineAbilityFor } from '../../lib/permissions/ability';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -45,16 +46,21 @@ import {
 import { hashWebhookToken, mintWebhookToken } from './webhook_token';
 
 /** How a run is addressed once it exists. */
-export type RunId = Id<'workflowRuns'>;
+export type RunId = Id<'automationRuns'>;
 
 const runModeValidator = v.union(v.literal('mock'), v.literal('live'));
 
+/**
+ * What a caller may bind. `api-key` is deliberately NOT accepted: the kind
+ * carried no behavior of its own — a programmatic start is what the API is for —
+ * so it is refused at every write path. The stored union still allows the value
+ * (see the schema) so rows written before it was retired stay readable.
+ */
 const triggerInputValidator = v.object({
   kind: v.union(
     v.literal('schedule'),
     v.literal('webhook'),
     v.literal('event'),
-    v.literal('api-key'),
   ),
   cron: v.optional(v.string()),
   timezone: v.optional(v.string()),
@@ -79,10 +85,10 @@ function asStoreError(error: unknown, code: string): never {
  * and `testsPassed` records what that layer observed so the deploy gate can
  * read a fact instead of re-running the tests.
  */
-export const saveWorkflow = mutation({
+export const saveAutomation = mutation({
   args: {
     organizationId: v.string(),
-    workflow: v.any(),
+    automation: v.any(),
     message: v.optional(v.string()),
     testsPassed: v.optional(v.boolean()),
     /** Owning project for a NEW automation; an existing name keeps its
@@ -99,7 +105,7 @@ export const saveWorkflow = mutation({
     });
     try {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine owns the document grammar; the store only records it
-      return await store.save(args.workflow as Workflow, args.message, {
+      return await store.save(args.automation as Automation, args.message, {
         ...(args.testsPassed !== undefined && {
           testsPassed: args.testsPassed,
         }),
@@ -111,7 +117,7 @@ export const saveWorkflow = mutation({
 });
 
 /** Promote one version to the single live version of the automation. */
-export const deployWorkflow = mutation({
+export const deployAutomation = mutation({
   args: {
     organizationId: v.string(),
     name: v.string(),
@@ -203,7 +209,7 @@ export const startRun = mutation({
     mode: v.optional(runModeValidator),
     version: v.optional(v.number()),
   },
-  returns: v.object({ runId: v.id('workflowRuns'), version: v.number() }),
+  returns: v.object({ runId: v.id('automationRuns'), version: v.number() }),
   handler: async (ctx, args) => {
     const mode = args.mode ?? 'mock';
     let actor: string;
@@ -245,32 +251,46 @@ export const startRun = mutation({
  * starting the next node. Work already performed is not undone — it cannot be.
  */
 export const cancelRun = mutation({
-  args: { organizationId: v.string(), runId: v.id('workflowRuns') },
+  args: { organizationId: v.string(), runId: v.id('automationRuns') },
   returns: v.object({ cancelled: v.boolean() }),
   handler: async (ctx, args) => {
     await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    const row = await ctx.db.get(args.runId);
-    if (!row || row.organizationId !== args.organizationId) {
-      throw new ConvexError({
-        code: 'AUTOMATION_RUN_NOT_FOUND',
-        message: 'No such run for this organization.',
-      });
-    }
-    if (
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.status === 'cancelled'
-    ) {
-      return { cancelled: false };
-    }
-    await ctx.db.patch(args.runId, {
-      status: 'cancelled',
-      detail: 'cancelled by an operator',
-      finishedAt: Date.now(),
-    });
-    return { cancelled: true };
+    return await cancelRunRow(ctx, args.organizationId, args.runId);
   },
 });
+
+/**
+ * Mark a run cancelled. The rule lives here rather than in the mutation above
+ * because two authorized callers need it — a person on the runs page and an API
+ * client at the MCP endpoint — and "already settled means nothing to cancel"
+ * must read the same way to both.
+ */
+async function cancelRunRow(
+  ctx: MutationCtx,
+  organizationId: string,
+  runId: RunId,
+): Promise<{ cancelled: boolean }> {
+  const row = await ctx.db.get(runId);
+  if (!row || row.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: 'AUTOMATION_RUN_NOT_FOUND',
+      message: 'No such run for this organization.',
+    });
+  }
+  if (
+    row.status === 'success' ||
+    row.status === 'failed' ||
+    row.status === 'cancelled'
+  ) {
+    return { cancelled: false };
+  }
+  await ctx.db.patch(runId, {
+    status: 'cancelled',
+    detail: 'cancelled by an operator',
+    finishedAt: Date.now(),
+  });
+  return { cancelled: true };
+}
 
 // ------------------------------------------------------------- run lifecycle
 
@@ -304,7 +324,7 @@ export async function beginRun(
   const row = await versionRow(ctx, args.organizationId, args.name, version);
   if (!row) return null;
 
-  const runId = await ctx.db.insert('workflowRuns', {
+  const runId = await ctx.db.insert('automationRuns', {
     organizationId: args.organizationId,
     name: args.name,
     version,
@@ -328,17 +348,20 @@ export async function beginRun(
 // -------------------------------------------------- the store, from an action
 //
 // `dispatch()` runs in an action and has no database handle, so the authoring
-// loop reaches the store through these. They are INTERNAL: authorization is the
-// caller's job (a builder session proves the developer capability when it
-// starts, not once per tool call), and they are unreachable from a client.
-// Every one of them still takes — and scopes to — the organization.
+// loop reaches the store through these. They are INTERNAL: for the AUTHORING
+// writes, authorization is the caller's job (a builder session proves the
+// developer capability when it starts, not once per tool call), and they are
+// unreachable from a client. The RUN-CONTROL ones are different and authorize
+// themselves — they are the path an org API key takes through the MCP endpoint,
+// where no session has vouched for the caller yet. Every one of them still
+// takes — and scopes to — the organization.
 
 /** Append a version on behalf of an action-side caller. */
 export const storeSave = internalMutation({
   args: {
     organizationId: v.string(),
     actor: v.string(),
-    workflow: v.any(),
+    automation: v.any(),
     message: v.optional(v.string()),
     testsPassed: v.optional(v.boolean()),
     /** Owning project for a NEW automation; an existing name keeps its
@@ -353,7 +376,7 @@ export const storeSave = internalMutation({
       ...(args.projectId !== undefined && { projectId: args.projectId }),
     });
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine owns the document grammar; the store only records it
-    return await store.save(args.workflow as Workflow, args.message, {
+    return await store.save(args.automation as Automation, args.message, {
       ...(args.testsPassed !== undefined && { testsPassed: args.testsPassed }),
     });
   },
@@ -397,6 +420,147 @@ export const storeSetTrigger = internalMutation({
     });
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store validates the kind and its required fields
     await store.setTrigger(args.name, args.trigger as StoredTrigger);
+    return null;
+  },
+});
+
+/**
+ * The user an action-side actor string names. A write is attributed as
+ * `api-key:<userId>` at the MCP endpoint and as a bare user id inside a builder
+ * session, so the prefix — when there is one — is stripped to get back to the
+ * person whose role decides what the call may do.
+ */
+function actorUserId(actor: string): string {
+  const separator = actor.indexOf(':');
+  return separator === -1 ? actor : actor.slice(separator + 1);
+}
+
+/**
+ * Authorize an action-side actor for a run-control call.
+ *
+ * The public `startRun`/`cancelRun` above read the caller's role from the Convex
+ * auth identity. An API key has no identity to read — it is verified by the REST
+ * gateway, which then hands the actor string down — so the role is resolved from
+ * the (organization, user) pair explicitly and the SAME capability is applied:
+ * `read developerSettings`, exactly as `requireOrgAdminOrDeveloper` does. This
+ * is the pattern the OAuth callback handler uses for the same reason.
+ *
+ * `mock` needs membership only — a mock run reaches nothing outside the process,
+ * which is the rule the public mutation states as well.
+ */
+async function authorizeActorRun(
+  ctx: MutationCtx,
+  organizationId: string,
+  actor: string,
+  need: 'membership' | 'developer',
+): Promise<void> {
+  const userId = actorUserId(actor);
+  if (userId === '') {
+    throw new ConvexError({
+      code: 'UNAUTHENTICATED',
+      message: 'The caller could not be identified.',
+    });
+  }
+  let role: string;
+  try {
+    const member = await getOrganizationMember(ctx, organizationId, { userId });
+    role = member.role;
+  } catch (error) {
+    // The reason is logged but not returned: "no such organization" and "not
+    // your organization" must read identically to a caller probing org ids,
+    // while an infrastructure failure still has to be diagnosable here.
+    console.warn(
+      '[automations] run control refused — membership could not be resolved',
+      error instanceof Error ? error.message : error,
+    );
+    throw new ConvexError({
+      code: 'ORG_FORBIDDEN',
+      message: 'The caller is not a member of this organization.',
+    });
+  }
+  if (
+    need === 'developer' &&
+    defineAbilityFor(role).cannot('read', 'developerSettings')
+  ) {
+    throw new ConvexError({
+      code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+      message: `Role "${role}" lacks the developer-settings capability required to perform this action.`,
+    });
+  }
+}
+
+/**
+ * Start a durable run on behalf of an action-side caller.
+ *
+ * Unlike the other `store*` mutations, this one authorizes: the rest are reached
+ * only after a session has already proved the developer capability, while this
+ * is the path an org API key takes through the MCP endpoint, where the role
+ * check has not happened yet. Starting a LIVE run may send mail on the
+ * organization's behalf, so it is gated exactly as the public `startRun` is.
+ */
+export const storeStartRun = internalMutation({
+  args: {
+    organizationId: v.string(),
+    actor: v.string(),
+    name: v.string(),
+    input: v.optional(v.any()),
+    mode: runModeValidator,
+    version: v.optional(v.number()),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({ runId: v.id('automationRuns'), version: v.number() }),
+  ),
+  handler: async (ctx, args) => {
+    await authorizeActorRun(
+      ctx,
+      args.organizationId,
+      args.actor,
+      args.mode === 'live' ? 'developer' : 'membership',
+    );
+    return await beginRun(ctx, {
+      organizationId: args.organizationId,
+      name: args.name,
+      ...(args.version !== undefined && { version: args.version }),
+      input: args.input ?? {},
+      mode: args.mode,
+      startedBy: args.actor,
+    });
+  },
+});
+
+/** Stop a run on behalf of an action-side caller. Cancelling live work is an
+ * operator act, so it needs the developer capability the public mutation needs.
+ * An unusable handle reads as "no such run" rather than raising. */
+export const storeCancelRun = internalMutation({
+  args: {
+    organizationId: v.string(),
+    actor: v.string(),
+    runId: v.string(),
+  },
+  returns: v.union(v.null(), v.object({ cancelled: v.boolean() })),
+  handler: async (ctx, args) => {
+    await authorizeActorRun(ctx, args.organizationId, args.actor, 'developer');
+    const runId = ctx.db.normalizeId('automationRuns', args.runId);
+    if (!runId) return null;
+    return await cancelRunRow(ctx, args.organizationId, runId);
+  },
+});
+
+/** Unbind a trigger on behalf of an action-side caller. Binding and unbinding
+ * are the same authoring capability, so this is gated like the public
+ * `deleteTrigger`. */
+export const storeDeleteTrigger = internalMutation({
+  args: {
+    organizationId: v.string(),
+    actor: v.string(),
+    name: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await authorizeActorRun(ctx, args.organizationId, args.actor, 'developer');
+    const row = await triggerRow(ctx, args.organizationId, args.name);
+    if (row) await ctx.db.delete(row._id);
     return null;
   },
 });
@@ -509,7 +673,7 @@ async function requireRun(
 export const claimRun = internalMutation({
   args: {
     organizationId: v.string(),
-    runId: v.id('workflowRuns'),
+    runId: v.id('automationRuns'),
   },
   returns: v.object({ claimed: v.boolean(), status: v.string() }),
   handler: async (ctx, args) => {
@@ -542,7 +706,7 @@ export const claimRun = internalMutation({
 export const recordProgress = internalMutation({
   args: {
     organizationId: v.string(),
-    runId: v.id('workflowRuns'),
+    runId: v.id('automationRuns'),
     nodeId: v.optional(v.string()),
     checkpoint: v.optional(v.any()),
     cursor: v.optional(v.any()),
@@ -580,7 +744,7 @@ export const recordProgress = internalMutation({
 export const suspendRun = internalMutation({
   args: {
     organizationId: v.string(),
-    runId: v.id('workflowRuns'),
+    runId: v.id('automationRuns'),
     detail: v.string(),
     cursor: v.optional(v.any()),
     executions: v.number(),
@@ -615,7 +779,7 @@ export const suspendRun = internalMutation({
 export const continueRun = internalMutation({
   args: {
     organizationId: v.string(),
-    runId: v.id('workflowRuns'),
+    runId: v.id('automationRuns'),
     resumeInMs: v.number(),
   },
   returns: v.object({ scheduled: v.boolean() }),
@@ -638,7 +802,7 @@ export const continueRun = internalMutation({
 export const finishRun = internalMutation({
   args: {
     organizationId: v.string(),
-    runId: v.id('workflowRuns'),
+    runId: v.id('automationRuns'),
     status: v.union(v.literal('success'), v.literal('failed')),
     output: v.optional(v.any()),
     trace: v.any(),

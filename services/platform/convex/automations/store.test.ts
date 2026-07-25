@@ -13,9 +13,11 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import type { Workflow } from '../../lib/engine/core/types';
+import type { Automation } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
+import type { StoredTrigger } from './store';
 import { automationStore, automationReadStore } from './store';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'automations';
@@ -40,7 +42,7 @@ const ACTOR = 'user_store_1';
 
 type T = TestConvex<typeof schema>;
 
-function workflow(name: string, code: string): Workflow {
+function automation(name: string, code: string): Automation {
   return {
     version: 1,
     name,
@@ -52,7 +54,7 @@ function workflow(name: string, code: string): Workflow {
 async function save(
   t: T,
   organizationId: string,
-  wf: Workflow,
+  wf: Automation,
   options?: { message?: string; testsPassed?: boolean },
 ): Promise<{ name: string; version: number }> {
   return await t.run(
@@ -86,11 +88,16 @@ describe('automation store — versions', () => {
   it('appends contiguous versions and never rewrites one', async () => {
     const t = convexTest(schema, modules);
 
-    const first = await save(t, ORG, workflow('billing/dunning', 'return 1'));
-    const second = await save(t, ORG, workflow('billing/dunning', 'return 2'), {
-      message: 'second pass',
-    });
-    const third = await save(t, ORG, workflow('billing/dunning', 'return 3'));
+    const first = await save(t, ORG, automation('billing/dunning', 'return 1'));
+    const second = await save(
+      t,
+      ORG,
+      automation('billing/dunning', 'return 2'),
+      {
+        message: 'second pass',
+      },
+    );
+    const third = await save(t, ORG, automation('billing/dunning', 'return 3'));
 
     expect([first.version, second.version, third.version]).toEqual([1, 2, 3]);
 
@@ -106,10 +113,10 @@ describe('automation store — versions', () => {
 
     // Version 1 still holds exactly what was saved as version 1 — saving twice
     // more did not touch it.
-    expect(stored.v1?.workflow).toMatchObject({
+    expect(stored.v1?.automation).toMatchObject({
       nodes: [{ code: 'return 1' }],
     });
-    expect(stored.v2?.workflow).toMatchObject({
+    expect(stored.v2?.automation).toMatchObject({
       nodes: [{ code: 'return 2' }],
     });
     expect(stored.latest?.meta.version).toBe(3);
@@ -118,9 +125,9 @@ describe('automation store — versions', () => {
 
   it('numbers each automation independently and reports an unknown one as null', async () => {
     const t = convexTest(schema, modules);
-    await save(t, ORG, workflow('one', 'return 1'));
-    await save(t, ORG, workflow('one', 'return 1'));
-    await save(t, ORG, workflow('two', 'return 2'));
+    await save(t, ORG, automation('one', 'return 1'));
+    await save(t, ORG, automation('one', 'return 1'));
+    await save(t, ORG, automation('two', 'return 2'));
 
     const seen = await t.run(async (ctx) => {
       const store = automationReadStore(ctx, ORG);
@@ -141,7 +148,7 @@ describe('automation store — versions', () => {
   it('refuses a name that is not a slug path', async () => {
     const t = convexTest(schema, modules);
     await expect(
-      save(t, ORG, workflow('Not A Slug', 'return 1')),
+      save(t, ORG, automation('Not A Slug', 'return 1')),
     ).rejects.toThrow(/not a valid automation name/);
   });
 });
@@ -149,8 +156,8 @@ describe('automation store — versions', () => {
 describe('automation store — deploy', () => {
   it('promotes a version and replaces the previous deployment in place', async () => {
     const t = convexTest(schema, modules);
-    await save(t, ORG, workflow('reports/weekly', 'return 1'));
-    await save(t, ORG, workflow('reports/weekly', 'return 2'));
+    await save(t, ORG, automation('reports/weekly', 'return 1'));
+    await save(t, ORG, automation('reports/weekly', 'return 2'));
 
     await deploy(t, ORG, 'reports/weekly', 1);
     await deploy(t, ORG, 'reports/weekly', 2);
@@ -159,8 +166,8 @@ describe('automation store — deploy', () => {
       deployed: await automationReadStore(ctx, ORG).deployedVersion(
         'reports/weekly',
       ),
-      rows: await ctx.db.query('workflowDeployments').collect(),
-      history: await ctx.db.query('workflows').collect(),
+      rows: await ctx.db.query('automationDeployments').collect(),
+      history: await ctx.db.query('automations').collect(),
     }));
     expect(state.deployed).toBe(2);
     // One deployment row, and the history is untouched by promoting.
@@ -170,7 +177,7 @@ describe('automation store — deploy', () => {
 
   it('refuses an unknown version', async () => {
     const t = convexTest(schema, modules);
-    await save(t, ORG, workflow('reports/weekly', 'return 1'));
+    await save(t, ORG, automation('reports/weekly', 'return 1'));
     await expect(deploy(t, ORG, 'reports/weekly', 7)).rejects.toThrow(
       'cannot deploy unknown version reports/weekly@7',
     );
@@ -178,7 +185,7 @@ describe('automation store — deploy', () => {
 
   it('refuses a version whose tests failed — the deploy gate', async () => {
     const t = convexTest(schema, modules);
-    await save(t, ORG, workflow('reports/weekly', 'return 1'), {
+    await save(t, ORG, automation('reports/weekly', 'return 1'), {
       testsPassed: false,
     });
     await expect(deploy(t, ORG, 'reports/weekly', 1)).rejects.toThrow(
@@ -187,7 +194,7 @@ describe('automation store — deploy', () => {
 
     // The gate is about the RECORDED result: a version saved with passing
     // tests promotes.
-    await save(t, ORG, workflow('reports/weekly', 'return 2'), {
+    await save(t, ORG, automation('reports/weekly', 'return 2'), {
       testsPassed: true,
     });
     await expect(deploy(t, ORG, 'reports/weekly', 2)).resolves.toEqual({
@@ -200,9 +207,9 @@ describe('automation store — deploy', () => {
 describe('automation store — tenant isolation', () => {
   it('keeps two organizations that use the same automation name apart', async () => {
     const t = convexTest(schema, modules);
-    await save(t, ORG, workflow('shared/name', 'return "a"'));
-    await save(t, OTHER_ORG, workflow('shared/name', 'return "b1"'));
-    await save(t, OTHER_ORG, workflow('shared/name', 'return "b2"'));
+    await save(t, ORG, automation('shared/name', 'return "a"'));
+    await save(t, OTHER_ORG, automation('shared/name', 'return "b1"'));
+    await save(t, OTHER_ORG, automation('shared/name', 'return "b2"'));
 
     const view = await t.run(async (ctx) => ({
       a: await automationReadStore(ctx, ORG).get('shared/name'),
@@ -214,8 +221,10 @@ describe('automation store — tenant isolation', () => {
     // Versions are numbered per organization, and each side reads its own.
     expect(view.a?.meta.version).toBe(1);
     expect(view.b?.meta.version).toBe(2);
-    expect(view.a?.workflow).toMatchObject({ nodes: [{ code: 'return "a"' }] });
-    expect(view.b?.workflow).toMatchObject({
+    expect(view.a?.automation).toMatchObject({
+      nodes: [{ code: 'return "a"' }],
+    });
+    expect(view.b?.automation).toMatchObject({
       nodes: [{ code: 'return "b2"' }],
     });
     expect(view.aList).toEqual([{ name: 'shared/name', latest: 1 }]);
@@ -224,8 +233,8 @@ describe('automation store — tenant isolation', () => {
 
   it('cannot deploy or read across the boundary, in either direction', async () => {
     const t = convexTest(schema, modules);
-    await save(t, ORG, workflow('a-only', 'return 1'));
-    await save(t, OTHER_ORG, workflow('b-only', 'return 1'));
+    await save(t, ORG, automation('a-only', 'return 1'));
+    await save(t, OTHER_ORG, automation('b-only', 'return 1'));
 
     // B cannot promote A's automation, and A cannot promote B's.
     await expect(deploy(t, OTHER_ORG, 'a-only', 1)).rejects.toThrow(
@@ -252,11 +261,11 @@ describe('automation store — tenant isolation', () => {
 
   it('refuses to load another organization run or document through the internal reads', async () => {
     const t = convexTest(schema, modules);
-    await save(t, ORG, workflow('a-only', 'return 1'));
+    await save(t, ORG, automation('a-only', 'return 1'));
     await deploy(t, ORG, 'a-only', 1);
     const runId = await t.run(
       async (ctx) =>
-        await ctx.db.insert('workflowRuns', {
+        await ctx.db.insert('automationRuns', {
           organizationId: ORG,
           name: 'a-only',
           version: 1,
@@ -282,7 +291,7 @@ describe('automation store — tenant isolation', () => {
     expect(asOther).toBeNull();
 
     const docAsOther = await t.query(
-      internal.automations.queries.loadWorkflowDocument,
+      internal.automations.queries.loadAutomationDocument,
       { organizationId: OTHER_ORG, name: 'a-only' },
     );
     expect(docAsOther).toBeNull();
@@ -309,7 +318,7 @@ describe('automation store — triggers', () => {
     });
 
     const rows = await t.run(
-      async (ctx) => await ctx.db.query('workflowTriggers').collect(),
+      async (ctx) => await ctx.db.query('automationTriggers').collect(),
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -322,6 +331,29 @@ describe('automation store — triggers', () => {
       tokenHash: 'hash-1',
       enabled: true,
     });
+  });
+
+  /**
+   * The `api-key` kind is retired: a programmatic start is what the REST and
+   * MCP surfaces are for, so it never had a delivery path of its own. The
+   * refusal has to hold at RUNTIME, not only in the type — the action-side
+   * `storeSetTrigger` takes the spec as `v.any()`, so an agent or an API client
+   * can present the retired kind however it likes.
+   */
+  it('refuses the retired api-key kind', async () => {
+    const t = convexTest(schema, modules);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- deliberately presenting a kind the type no longer allows
+    const retired = { kind: 'api-key' } as unknown as StoredTrigger;
+    await expect(
+      t.run(async (ctx) => {
+        await automationStore(ctx, {
+          organizationId: ORG,
+          actor: ACTOR,
+        }).setTrigger('nightly', retired);
+      }),
+    ).rejects.toThrow(
+      /unknown trigger kind "api-key" — one of schedule, webhook, event/,
+    );
   });
 
   it('refuses a trigger that cannot fire', async () => {
@@ -357,7 +389,7 @@ describe('automation store — the action-side surface', () => {
     const saved = await t.mutation(internal.automations.mutations.storeSave, {
       organizationId: ORG,
       actor: ACTOR,
-      workflow: workflow('agent/authored', 'return 1'),
+      automation: automation('agent/authored', 'return 1'),
       message: 'from the builder',
       testsPassed: true,
     });
@@ -426,7 +458,7 @@ describe('automation store — the action-side surface', () => {
     ).toBeNull();
 
     const runs = await t.run(
-      async (ctx) => await ctx.db.query('workflowRuns').collect(),
+      async (ctx) => await ctx.db.query('automationRuns').collect(),
     );
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({
@@ -435,5 +467,213 @@ describe('automation store — the action-side surface', () => {
       mode: 'mock',
       output: { ok: true },
     });
+  });
+});
+
+/**
+ * Run control from an action — the path an organization API key takes through
+ * the MCP endpoint.
+ *
+ * The rule under test is authorization, and it matters here more than anywhere
+ * else in the store: an API key proves WHO is calling, and starting a live run
+ * may send mail on the organization's behalf, so the caller's ROLE has to decide
+ * whether the call proceeds. A mock run reaches nothing and needs only
+ * membership, which is what keeps the authoring loop usable.
+ */
+describe('automation store — run control by actor', () => {
+  const DEVELOPER = 'user_dev_1';
+  const PLAIN_MEMBER = 'user_member_1';
+  const STRANGER = 'user_outsider_1';
+
+  async function world(): Promise<T> {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: 'ba_member_dev',
+        userId: DEVELOPER,
+        organizationId: ORG,
+        role: 'developer',
+        createdAt: 0,
+      });
+      await ctx.db.insert('memberMirror', {
+        memberId: 'ba_member_plain',
+        userId: PLAIN_MEMBER,
+        organizationId: ORG,
+        role: 'member',
+        createdAt: 0,
+      });
+      const store = automationStore(ctx, {
+        organizationId: ORG,
+        actor: DEVELOPER,
+      });
+      const saved = await store.save(automation('ops/nightly', 'return 1'));
+      await store.deploy(saved.name, saved.version);
+    });
+    return t;
+  }
+
+  function start(
+    t: T,
+    actor: string,
+    mode: 'mock' | 'live',
+  ): Promise<{ runId: Id<'automationRuns'>; version: number } | null> {
+    return t.mutation(internal.automations.mutations.storeStartRun, {
+      organizationId: ORG,
+      actor,
+      name: 'ops/nightly',
+      input: {},
+      mode,
+    });
+  }
+
+  it('starts a live run for a developer, addressed as an api key', async () => {
+    const t = await world();
+    const started = await start(t, `api-key:${DEVELOPER}`, 'live');
+    expect(started?.version).toBe(1);
+
+    const runs = await t.run(
+      async (ctx) => await ctx.db.query('automationRuns').collect(),
+    );
+    expect(runs).toHaveLength(1);
+    // The run log names the key, not just the person behind it.
+    expect(runs[0]).toMatchObject({
+      mode: 'live',
+      startedBy: `api-key:${DEVELOPER}`,
+    });
+  });
+
+  it('refuses a live run for a member, and allows the same run as a mock', async () => {
+    const t = await world();
+    await expect(start(t, `api-key:${PLAIN_MEMBER}`, 'live')).rejects.toThrow(
+      /developer-settings capability/,
+    );
+    expect(
+      await t.run(
+        async (ctx) => await ctx.db.query('automationRuns').collect(),
+      ),
+    ).toEqual([]);
+
+    const mock = await start(t, `api-key:${PLAIN_MEMBER}`, 'mock');
+    expect(mock?.version).toBe(1);
+  });
+
+  it('refuses a caller who is not a member at all', async () => {
+    const t = await world();
+    await expect(start(t, `api-key:${STRANGER}`, 'mock')).rejects.toThrow(
+      /not a member of this organization/,
+    );
+  });
+
+  it('refuses to cancel or unbind without the developer capability', async () => {
+    const t = await world();
+    const started = await start(t, `api-key:${DEVELOPER}`, 'live');
+    const runId = started?.runId;
+    if (!runId) throw new Error('the run was not started');
+
+    await expect(
+      t.mutation(internal.automations.mutations.storeCancelRun, {
+        organizationId: ORG,
+        actor: `api-key:${PLAIN_MEMBER}`,
+        runId,
+      }),
+    ).rejects.toThrow(/developer-settings capability/);
+    await expect(
+      t.mutation(internal.automations.mutations.storeDeleteTrigger, {
+        organizationId: ORG,
+        actor: `api-key:${PLAIN_MEMBER}`,
+        name: 'ops/nightly',
+      }),
+    ).rejects.toThrow(/developer-settings capability/);
+  });
+
+  it('cancels a run in flight and reports a handle that is not one', async () => {
+    const t = await world();
+    const started = await start(t, `api-key:${DEVELOPER}`, 'live');
+    const runId = started?.runId;
+    if (!runId) throw new Error('the run was not started');
+
+    expect(
+      await t.mutation(internal.automations.mutations.storeCancelRun, {
+        organizationId: ORG,
+        actor: `api-key:${DEVELOPER}`,
+        runId,
+      }),
+    ).toEqual({ cancelled: true });
+    // Cancelling a settled run is not an error — there is simply nothing left.
+    expect(
+      await t.mutation(internal.automations.mutations.storeCancelRun, {
+        organizationId: ORG,
+        actor: `api-key:${DEVELOPER}`,
+        runId,
+      }),
+    ).toEqual({ cancelled: false });
+    // An unusable handle reads as a miss rather than raising.
+    expect(
+      await t.mutation(internal.automations.mutations.storeCancelRun, {
+        organizationId: ORG,
+        actor: `api-key:${DEVELOPER}`,
+        runId: 'not-an-id',
+      }),
+    ).toBeNull();
+  });
+
+  it('reads runs, versions and triggers the way the engine addresses them', async () => {
+    const t = await world();
+    await start(t, `api-key:${DEVELOPER}`, 'live');
+    await t.run(async (ctx) => {
+      await automationStore(ctx, {
+        organizationId: ORG,
+        actor: DEVELOPER,
+      }).setTrigger('ops/nightly', { kind: 'webhook', tokenHash: 'hash-1' });
+    });
+
+    const runs = await t.query(internal.automations.queries.storeListRuns, {
+      organizationId: ORG,
+      name: 'ops/nightly',
+    });
+    expect(runs).toHaveLength(1);
+    // `runId`, not `id`: the engine's own field name for a run handle.
+    expect(runs[0].runId).toBeDefined();
+
+    const detail = await t.query(internal.automations.queries.storeGetRun, {
+      organizationId: ORG,
+      runId: runs[0].runId,
+    });
+    expect(detail).toMatchObject({ name: 'ops/nightly', version: 1 });
+
+    // Another organization's key cannot read the run, even with its handle.
+    expect(
+      await t.query(internal.automations.queries.storeGetRun, {
+        organizationId: OTHER_ORG,
+        runId: runs[0].runId,
+      }),
+    ).toBeNull();
+    expect(
+      await t.query(internal.automations.queries.storeGetRun, {
+        organizationId: ORG,
+        runId: 'not-an-id',
+      }),
+    ).toBeNull();
+
+    expect(
+      await t.query(internal.automations.queries.storeListVersions, {
+        organizationId: ORG,
+        name: 'ops/nightly',
+      }),
+    ).toMatchObject([{ version: 1, createdBy: DEVELOPER }]);
+
+    const triggers = await t.query(
+      internal.automations.queries.storeListTriggers,
+      { organizationId: ORG },
+    );
+    // The verifier for the webhook secret never leaves the server.
+    expect(triggers).toEqual([
+      {
+        name: 'ops/nightly',
+        kind: 'webhook',
+        hasToken: true,
+        enabled: true,
+      },
+    ]);
   });
 });

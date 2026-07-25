@@ -1,5 +1,5 @@
 /**
- * Converting an org's step-graph automation into a v1 workflow document.
+ * Converting an org's step-graph automation into a v1 automation document.
  *
  * Automations authored against the imperative step runner are a graph of
  * steps that name their own successors (`nextSteps`), with dedicated
@@ -40,7 +40,7 @@
  * against a corpus and reused by whatever writes the converted documents.
  */
 
-import type { NodeDef, Workflow } from '../engine/core/types';
+import type { NodeDef, Automation } from '../engine/core/types';
 import { isRecord } from '../utils/type-utils';
 import type { ExpressionScope, StepOutputKind } from './expression';
 import {
@@ -63,9 +63,9 @@ export interface SourceStep {
   readonly nextSteps?: Record<string, string>;
 }
 
-/** A source automation's workflow: its step graph plus its declared
- * constants. */
-export interface SourceWorkflow {
+/** What the converter reads: a step-graph automation as it was authored — its
+ * steps plus its declared constants. */
+export interface SourceAutomation {
   readonly config?: { readonly variables?: Record<string, unknown> };
   readonly steps: readonly SourceStep[];
 }
@@ -93,7 +93,7 @@ export interface ReviewNote {
 }
 
 export interface Conversion {
-  readonly workflow: Workflow;
+  readonly automation: Automation;
   /** Empty means the document is a faithful conversion. */
   readonly needsReview: ReviewNote[];
 }
@@ -119,8 +119,8 @@ function toNodeId(slug: string, taken: ReadonlySet<string>): string {
   }
 }
 
-/** A workflow name the engine accepts: `^[a-z0-9][a-z0-9-]{0,63}$`. */
-export function toWorkflowName(slug: string): string {
+/** An automation name the engine accepts: `^[a-z0-9][a-z0-9-]{0,63}$`. */
+export function toAutomationName(slug: string): string {
   const name =
     slug
       .toLowerCase()
@@ -280,8 +280,8 @@ function readsItem(expression: string, itemVariable?: string): boolean {
 
 // ------------------------------------------------------------------ converter
 
-export function convertWorkflow(
-  source: SourceWorkflow,
+export function convertAutomation(
+  source: SourceAutomation,
   options: ConvertOptions,
 ): Conversion {
   const notes: ReviewNote[] = [];
@@ -427,7 +427,7 @@ export function convertWorkflow(
         if (nested) {
           note(
             slug,
-            `loop step "${slug}" iterates inside another loop; nested iteration has to be re-authored as a saved workflow called per item`,
+            `loop step "${slug}" iterates inside another loop; nested iteration has to be re-authored as a saved automation called per item`,
           );
         }
         if (typeof config.maxIterations === 'number') {
@@ -828,25 +828,25 @@ export function convertWorkflow(
     for (const [, node] of inCycle) {
       note(
         node.id,
-        `steps "${cycle.from}" and "${cycle.to}" formed a repeat loop across several steps; a node repeats only itself, so re-author the repeat (a saved workflow called per page, for example)`,
+        `steps "${cycle.from}" and "${cycle.to}" formed a repeat loop across several steps; a node repeats only itself, so re-author the repeat (a saved automation called per page, for example)`,
       );
     }
   }
 
   // ---- the document.
 
-  const workflow: Workflow = {
+  const automation: Automation = {
     version: 1,
-    name: toWorkflowName(options.name),
+    name: toAutomationName(options.name),
     nodes,
   };
   if (options.description !== undefined && options.description !== '') {
-    workflow.description = options.description;
+    automation.description = options.description;
   }
 
   const inputSchema = recordField(startStep?.config, 'inputSchema');
   if (inputSchema !== undefined) {
-    workflow.inputs = { type: 'object', ...inputSchema };
+    automation.inputs = { type: 'object', ...inputSchema };
   }
 
   const outputStep = source.steps.find(
@@ -855,23 +855,23 @@ export function convertWorkflow(
   const mapping = recordField(outputStep?.config, 'mapping');
   if (mapping !== undefined) {
     const { value, issues } = translateValue(mapping, scopeFor(undefined));
-    workflow.output = value;
+    automation.output = value;
     for (const issue of issues) {
       note(outputStep?.stepSlug ?? 'output', issue);
     }
   } else {
     const last = nodes.at(-1);
-    if (last !== undefined) workflow.output = `{{ nodes.${last.id}.output }}`;
+    if (last !== undefined) automation.output = `{{ nodes.${last.id}.output }}`;
   }
 
   if (nodes.length > MAX_NODES) {
     note(
-      workflow.name,
-      `the automation converts to ${nodes.length} nodes, above the ${MAX_NODES} a document may hold; split it into saved workflows called as subworkflow nodes`,
+      automation.name,
+      `the automation converts to ${nodes.length} nodes, above the ${MAX_NODES} a document may hold; split it into saved automations called as subautomation nodes`,
     );
   }
 
-  return { workflow, needsReview: notes };
+  return { automation, needsReview: notes };
 }
 
 /** Node ids a node already references — an ordering reference is only added

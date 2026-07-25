@@ -89,7 +89,7 @@ export type Capability =
     });
 
 /** A capability with no declared output schema returns whatever its backend
- * returns. Chat is fine with that; a workflow that needs typing declares one. */
+ * returns. Chat is fine with that; an automation that needs typing declares one. */
 export function isUnstructured(capability: Capability): boolean {
   return capability.outputSchema === undefined;
 }
@@ -259,8 +259,13 @@ export interface CapabilityBackends {
 export interface KnowledgeRequest {
   readonly organizationId: string;
   readonly query: string;
-  /** Which corpus to search — private org knowledge or crawled public web. */
-  readonly scope?: 'private' | 'public-web' | 'all';
+  /** Which corpus to search — private org knowledge or crawled public web.
+   * Named for the corpora themselves (`private_knowledge` / `public_web`), so
+   * the chat surface, the MCP tool, and the retrieval pipeline all say
+   * "corpus" for the same choice. */
+  readonly corpus?: 'private' | 'public-web' | 'all';
+  /** Passages to return. The retrieval pipeline caps and defaults it. */
+  readonly limit?: number;
 }
 
 export interface KnowledgePassage {
@@ -409,7 +414,8 @@ export interface InvokeCapabilityParams {
 
 export interface GetKnowledgeParams {
   readonly query: string;
-  readonly scope?: KnowledgeRequest['scope'];
+  readonly corpus?: KnowledgeRequest['corpus'];
+  readonly limit?: number;
 }
 
 export interface MemorySaveParams {
@@ -639,7 +645,8 @@ export function createCapabilitySurface(
     return deps.knowledge.search({
       organizationId,
       query: params.query,
-      scope: params.scope,
+      corpus: params.corpus,
+      limit: params.limit,
     });
   };
 
@@ -739,12 +746,13 @@ export function createCapabilitySurface(
       case 'get_knowledge':
         return getKnowledge({
           query: asString(p.query),
-          scope:
-            p.scope === 'private' ||
-            p.scope === 'public-web' ||
-            p.scope === 'all'
-              ? p.scope
+          corpus:
+            p.corpus === 'private' ||
+            p.corpus === 'public-web' ||
+            p.corpus === 'all'
+              ? p.corpus
               : undefined,
+          limit: typeof p.limit === 'number' ? p.limit : undefined,
         });
       case 'memory.save':
         return saveMemory({

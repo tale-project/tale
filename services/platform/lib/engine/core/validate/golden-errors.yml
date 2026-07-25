@@ -6,8 +6,8 @@
 #   GOLDEN_UPDATE=1 bunx vitest --run --project server lib/engine/core/validate/golden-errors
 not-an-object:
   errors:
-    - code: WF_NOT_OBJECT
-      message: 'the workflow document must be a mapping/object: {version, name, inputs?, nodes, output?}'
+    - code: AUTOMATION_NOT_OBJECT
+      message: 'the automation document must be a mapping/object: {version, name, inputs?, nodes, output?}'
   warnings: []
 unknown-top-field:
   errors:
@@ -57,26 +57,26 @@ nodes-too-many:
   errors:
     - code: NODES_TOO_MANY
       path: nodes
-      message: workflow has 41 nodes — at most 40 per workflow
-      hint: extract cohesive groups into saved workflows and call them with subworkflow nodes
+      message: automation has 41 nodes — at most 40 per automation
+      hint: extract cohesive groups into saved automations and call them with subautomation nodes
   warnings: []
 secret-api-key:
   errors:
     - code: SECRET_IN_DOCUMENT
       path: nodes[0].prompt
       message: the document appears to contain a credential (API key (sk-…))
-      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in workflows
+      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in automations
   warnings: []
 secret-injected-values:
   errors:
     - code: SECRET_IN_DOCUMENT
       path: nodes[0].input.authorization
       message: the document appears to contain a credential (bearer token)
-      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in workflows
+      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in automations
     - code: SECRET_IN_DOCUMENT
       path: nodes[0].input.api_key
       message: the document appears to contain a credential (credential-looking value under "api_key")
-      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in workflows
+      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in automations
   warnings: []
 tests-invalid:
   errors:
@@ -112,14 +112,14 @@ unknown-node-type:
     - code: UNKNOWN_NODE_TYPE
       nodeId: main
       message: unknown node type "transfrom"
-      hint: 'did you mean "transform"? registered types include: transform, llm, subworkflow, weather.current, web.fetch_text — search the catalog for the full list'
+      hint: 'did you mean "transform"? registered types include: transform, llm, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
   warnings: []
 unknown-node-type-keyword:
   errors:
     - code: UNKNOWN_NODE_TYPE
       nodeId: fetch
       message: unknown node type "integration"
-      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, subworkflow, weather.current, web.fetch_text — search the catalog for the full list'
+      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
   warnings: []
 node-unknown-field:
   errors:
@@ -208,25 +208,25 @@ onerror-invalid:
       nodeId: main
       message: 'node "main": "onError" must be "fail" or "continue"'
   warnings: []
-subworkflow-ref-invalid:
+subautomation-ref-invalid:
   errors:
-    - code: SUBWORKFLOW_REF_INVALID
+    - code: SUBAUTOMATION_REF_INVALID
       nodeId: sub
-      message: 'node "sub": "workflow" must be "name" or "name@version" (got "Daily Digest@next")'
-      hint: 'e.g. "workflow": "daily-digest" or "daily-digest@2"'
+      message: 'node "sub": "automation" must be "name" or "name@version" (got "Daily Digest@next")'
+      hint: 'e.g. "automation": "daily-digest" or "daily-digest@2"'
   warnings: []
-subworkflow-not-found:
+subautomation-not-found:
   errors:
-    - code: SUBWORKFLOW_NOT_FOUND
+    - code: SUBAUTOMATION_NOT_FOUND
       nodeId: sub
-      message: 'node "sub": no saved workflow named "daily-digest"'
-      hint: 'saved workflows: send-digest, weekly-report'
+      message: 'node "sub": no saved automation named "daily-digest"'
+      hint: 'saved automations: send-digest, weekly-report'
   warnings: []
-subworkflow-version-not-found:
+subautomation-version-not-found:
   errors:
-    - code: SUBWORKFLOW_NOT_FOUND
+    - code: SUBAUTOMATION_NOT_FOUND
       nodeId: sub
-      message: 'node "sub": workflow "send-digest" has no version 9'
+      message: 'node "sub": automation "send-digest" has no version 9'
       hint: 'latest version: 2'
   warnings: []
 expr-syntax-prompt:
@@ -272,7 +272,7 @@ ref-cycle:
   errors:
     - code: REF_CYCLE
       message: 'circular reference between nodes: a → b → a'
-      hint: workflows must be acyclic — a node may not read, directly or transitively, from its own output
+      hint: automations must be acyclic — a node may not read, directly or transitively, from its own output
   warnings: []
 ref-unstructured-path:
   errors:
@@ -322,12 +322,12 @@ output-missing:
   errors: []
   warnings:
     - code: OUTPUT_MISSING
-      message: workflow has no "output" — it will return null
+      message: automation has no "output" — it will return null
       hint: 'e.g. "output": "{{ nodes.<id>.output }}"'
 unused-node:
   errors: []
   warnings:
     - code: UNUSED_NODE
       nodeId: stale
-      message: output of node "stale" is never used (not referenced by any node or by the workflow output)
+      message: output of node "stale" is never used (not referenced by any node or by the automation output)
       hint: reference nodes.stale.output somewhere, or remove the node

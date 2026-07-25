@@ -96,7 +96,7 @@ export function sessionIdForWorkflowExecution(executionId: string): string {
 
 /** Composite owner key for a workflow-scoped sandbox (sandboxSessions
  * `ownerId`). Stays inside the `${executionId}:` range that
- * `listWorkflowRunSessionsForExecution` sweeps; the `@` keeps it disjoint
+ * `listAutomationRunSessionsForExecution` sweeps; the `@` keeps it disjoint
  * from every `${executionId}:<stepSlug>` step owner (slugs never contain `@`). */
 export function workflowExecutionOwnerId(executionId: string): string {
   return `${executionId}:@workflow`;

@@ -1,5 +1,5 @@
 /**
- * The automation builder agent: an autonomous session that authors a workflow
+ * The automation builder agent: an autonomous session that authors an automation
  * document by talking to the engine's dispatch table.
  *
  * The protocol is text, not native tool calling and not a coding harness. One
@@ -9,7 +9,7 @@
  * (arguments are still JSON text, several small models have no tool support,
  * some silently ignore the tools parameter) without removing any, and
  * grammar-constrained decoding fixes syntax at the cost of the reasoning that
- * produces correct workflows.
+ * produces correct automations.
  *
  * This module is deliberately pure — no Convex, no filesystem, no network,
  * no clock it did not receive. The dispatch surface, the model call, the
@@ -282,7 +282,7 @@ function enforceHistoryBudget(attempt: Attempt, maxChars: number): number {
   attempt.droppedMessages += dropped;
   const notice: BuilderMessage = {
     role: 'user',
-    content: `${HISTORY_NOTICE_PREFIX} ${attempt.droppedMessages} earlier message(s) were dropped to fit the context window. Nothing was summarized and nothing was rewritten — the turns that remain are verbatim. Re-read the latest result below, and call get_workflow or run_workflow again if you need something that is gone.`,
+    content: `${HISTORY_NOTICE_PREFIX} ${attempt.droppedMessages} earlier message(s) were dropped to fit the context window. Nothing was summarized and nothing was rewritten — the turns that remain are verbatim. Re-read the latest result below, and call get_automation or run_automation again if you need something that is gone.`,
   };
   if (hasNotice()) attempt.messages[attempt.seedLength] = notice;
   else attempt.messages.splice(attempt.seedLength, 0, notice);
@@ -295,9 +295,11 @@ function actionKey(method: string, params: unknown): string {
 }
 
 /** The document an action carries, as a comparable signature. */
-function workflowSignature(params: unknown): string {
+function automationSignature(params: unknown): string {
   const record = asRecord(params);
-  return record?.workflow === undefined ? '' : stableStringify(record.workflow);
+  return record?.automation === undefined
+    ? ''
+    : stableStringify(record.automation);
 }
 
 interface PerformedAction {
@@ -310,7 +312,7 @@ interface PerformedAction {
  * the loop keeps no second copy of the method table — except for the one rule
  * that belongs to the session rather than the engine: a document is saved
  * only after ITS OWN tests have passed. Authors that verify against tests
- * before shipping land working workflows roughly twice as often, and pinning
+ * before shipping land working automations roughly twice as often, and pinning
  * the gate to the tested document (not merely to "some test passed earlier")
  * closes the obvious hole of testing one draft and saving another.
  */
@@ -319,21 +321,21 @@ async function performAction(
   attempt: Attempt,
   dispatch: BuilderDispatch,
 ): Promise<PerformedAction> {
-  if (action.method === 'test_workflow') {
+  if (action.method === 'test_automation') {
     const result = await dispatch(action.method, action.params);
     if (resultFacts(result).testsPassed) {
-      attempt.testsGreenFor = workflowSignature(action.params);
+      attempt.testsGreenFor = automationSignature(action.params);
     }
     return { result };
   }
 
-  if (action.method === 'save_workflow') {
-    const signature = workflowSignature(action.params);
+  if (action.method === 'save_automation') {
+    const signature = automationSignature(action.params);
     if (attempt.testsGreenFor === null) {
       return {
         result: {
           error: 'save rejected — this document has not passed its own tests',
-          hint: 'add a tests: block, call test_workflow until every test passes, then save that exact document',
+          hint: 'add a tests: block, call test_automation until every test passes, then save that exact document',
         },
       };
     }
@@ -342,7 +344,7 @@ async function performAction(
         result: {
           error:
             'save rejected — the document changed since the last passing test run',
-          hint: 'call test_workflow on the document you are about to save, then save it unchanged',
+          hint: 'call test_automation on the document you are about to save, then save it unchanged',
         },
       };
     }

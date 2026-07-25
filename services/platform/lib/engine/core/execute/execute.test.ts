@@ -8,7 +8,7 @@ import {
   setLlmService,
   setStoreAdapter,
 } from '../slots';
-import type { NodeDef, Workflow } from '../types';
+import type { Automation, NodeDef } from '../types';
 import { execute } from './index';
 
 beforeAll(() => {
@@ -65,13 +65,16 @@ beforeEach(() => {
   setLlmService(null as never);
 });
 
-function wf(nodes: NodeDef[], extra: Partial<Workflow> = {}): Workflow {
+function automationDoc(
+  nodes: NodeDef[],
+  extra: Partial<Automation> = {},
+): Automation {
   return { version: 1, name: 'test-flow', nodes, ...extra };
 }
 
 describe('a realistic mock run', () => {
   it('produces trace, effects, and output end to end', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'shape',
@@ -123,7 +126,7 @@ describe('a realistic mock run', () => {
   });
 
   it('is deterministic: two runs of one document are identical', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'summary',
@@ -147,7 +150,7 @@ describe('a realistic mock run', () => {
 
 describe('when / elseOf', () => {
   const branchy = () =>
-    wf(
+    automationDoc(
       [
         {
           id: 'main',
@@ -192,7 +195,7 @@ describe('when / elseOf', () => {
 
 describe('forEach', () => {
   it('runs per item with item/index in scope and collects outputs + effects', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'fan',
         type: 'notes.append',
@@ -210,7 +213,7 @@ describe('forEach', () => {
   });
 
   it('empty array → zero runs, empty output', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'fan',
         type: 'notes.append',
@@ -225,7 +228,7 @@ describe('forEach', () => {
   });
 
   it('non-array → a guided error', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'fan',
         type: 'notes.append',
@@ -260,7 +263,7 @@ describe('repeatUntil', () => {
         mock: () => ({ status: ++polls >= 3 ? 'done' : 'pending' }),
       },
     });
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'wait',
         type: 'jobs.poll',
@@ -277,7 +280,7 @@ describe('repeatUntil', () => {
   });
 
   it('cap exhaustion is visible in the note', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'never',
         type: 'transform',
@@ -300,7 +303,7 @@ describe('onError', () => {
   };
 
   it('fail (default) halts with nodeId, message, and a property hint', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       failing,
       { id: 'after', type: 'transform', code: 'return 1;' },
     ]);
@@ -314,7 +317,7 @@ describe('onError', () => {
   });
 
   it('continue records the error and skips dependents only', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         { ...failing, onError: 'continue' },
         {
@@ -337,12 +340,12 @@ describe('onError', () => {
   });
 });
 
-describe('subworkflow', () => {
+describe('subautomation', () => {
   function installStoreWithChild() {
     const store = memoryStore();
     store.save(
       'child',
-      wf(
+      automationDoc(
         [
           {
             id: 'double',
@@ -359,14 +362,14 @@ describe('subworkflow', () => {
     return store;
   }
 
-  it('runs the referenced workflow and folds its effects under the parent node', async () => {
+  it('runs the referenced automation and folds its effects under the parent node', async () => {
     installStoreWithChild();
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'call',
-          type: 'subworkflow',
-          workflow: 'child',
+          type: 'subautomation',
+          automation: 'child',
           input: { n: 21 },
         },
       ],
@@ -388,17 +391,17 @@ describe('subworkflow', () => {
     const store = installStoreWithChild();
     store.save(
       'child',
-      wf([{ id: 'v2', type: 'transform', code: 'return "v2";' }], {
+      automationDoc([{ id: 'v2', type: 'transform', code: 'return "v2";' }], {
         name: 'child',
         output: '{{ nodes.v2.output }}',
       }),
     );
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'call',
-          type: 'subworkflow',
-          workflow: 'child@1',
+          type: 'subautomation',
+          automation: 'child@1',
           input: { n: 1 },
         },
       ],
@@ -411,31 +414,40 @@ describe('subworkflow', () => {
   it('missing reference and missing store both fail with guidance', async () => {
     installStoreWithChild();
     const missing = await execute(
-      wf([{ id: 'call', type: 'subworkflow', workflow: 'ghost' }]),
+      automationDoc([
+        { id: 'call', type: 'subautomation', automation: 'ghost' },
+      ]),
       { input: {} },
     );
     expect(missing.status).toBe('error');
-    expect(missing.error?.message).toContain('save_workflow it first');
+    expect(missing.error?.message).toContain('save_automation it first');
 
     setStoreAdapter(null as never);
     const storeless = await execute(
-      wf([{ id: 'call', type: 'subworkflow', workflow: 'child' }]),
+      automationDoc([
+        { id: 'call', type: 'subautomation', automation: 'child' },
+      ]),
       { input: {} },
     );
-    expect(storeless.error?.message).toContain('no workflow store');
+    expect(storeless.error?.message).toContain('no automation store');
   });
 
   it('caps nesting at three levels', async () => {
     const store = memoryStore();
     store.save(
       'loop',
-      wf([{ id: 'again', type: 'subworkflow', workflow: 'loop', input: {} }], {
-        name: 'loop',
-      }),
+      automationDoc(
+        [{ id: 'again', type: 'subautomation', automation: 'loop', input: {} }],
+        {
+          name: 'loop',
+        },
+      ),
     );
     setStoreAdapter(store);
     const result = await execute(
-      wf([{ id: 'start', type: 'subworkflow', workflow: 'loop' }]),
+      automationDoc([
+        { id: 'start', type: 'subautomation', automation: 'loop' },
+      ]),
       { input: {} },
     );
     expect(result.status).toBe('error');
@@ -445,7 +457,7 @@ describe('subworkflow', () => {
 
 describe('llm structured output', () => {
   it('outputSchema in mock mode yields a deterministic schema stub', async () => {
-    const doc = wf(
+    const doc = automationDoc(
       [
         {
           id: 'extract',
@@ -470,7 +482,7 @@ describe('llm structured output', () => {
 
   it('live mode requires structured replies for schema nodes', async () => {
     setLlmService(async () => ({ text: 'not structured' }));
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'extract',
         type: 'llm',
@@ -487,7 +499,7 @@ describe('llm structured output', () => {
   it('live mode calls the installed service with the node model', async () => {
     const service = vi.fn(async () => ({ text: 'live reply' }));
     setLlmService(service);
-    const doc = wf(
+    const doc = automationDoc(
       [{ id: 's', type: 'llm', model: 'the-model', prompt: 'p' }],
       { output: '{{ nodes.s.output.text }}' },
     );
@@ -521,7 +533,7 @@ describe('live integrations', () => {
 
   it('falls back to the mock when live mode has no integration host', async () => {
     const result = await execute(
-      wf([{ id: 'n', type: 'notes.append', input: { text: 'hi' } }]),
+      automationDoc([{ id: 'n', type: 'notes.append', input: { text: 'hi' } }]),
       {
         input: {},
         mode: 'live',
@@ -535,7 +547,7 @@ describe('live integrations', () => {
   });
 
   it('passes per-integration secrets and stable idempotency keys', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'fan',
         type: 'notes.append',
@@ -563,20 +575,23 @@ describe('live integrations', () => {
 
 describe('guards and contracts', () => {
   it('rejects run input that misses the inputs schema', async () => {
-    const doc = wf([{ id: 'a', type: 'transform', code: 'return 1;' }], {
-      inputs: {
-        type: 'object',
-        properties: { n: { type: 'number' } },
-        required: ['n'],
+    const doc = automationDoc(
+      [{ id: 'a', type: 'transform', code: 'return 1;' }],
+      {
+        inputs: {
+          type: 'object',
+          properties: { n: { type: 'number' } },
+          required: ['n'],
+        },
       },
-    });
+    );
     const result = await execute(doc, { input: {} });
     expect(result.status).toBe('error');
     expect(result.error?.message).toContain('"inputs" schema');
   });
 
   it('rejects integration input that misses the connector schema', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       { id: 'bad', type: 'notes.append', input: { wrong: true } },
     ]);
     const result = await execute(doc, { input: {} });
@@ -587,7 +602,7 @@ describe('guards and contracts', () => {
   });
 
   it('stops a runaway document at the execution guard', async () => {
-    const doc = wf([
+    const doc = automationDoc([
       {
         id: 'fan',
         type: 'notes.append',
@@ -604,7 +619,9 @@ describe('guards and contracts', () => {
   });
 
   it('transform returning nothing is a guided error', async () => {
-    const doc = wf([{ id: 'a', type: 'transform', code: 'const x = 1;' }]);
+    const doc = automationDoc([
+      { id: 'a', type: 'transform', code: 'const x = 1;' },
+    ]);
     const result = await execute(doc, { input: {} });
     expect(result.error?.message).toContain('must return a value');
   });

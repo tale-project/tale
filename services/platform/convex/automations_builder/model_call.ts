@@ -37,7 +37,7 @@ export interface BuilderModelTarget {
   modelId: string;
 }
 
-/** An authoring turn writes a whole workflow document; a reply cut in half
+/** An authoring turn writes a whole automation document; a reply cut in half
  * costs a turn to rediscover. */
 const MAX_REPLY_TOKENS = 8000;
 /** Authoring turns are long: reasoning plus a full document. */

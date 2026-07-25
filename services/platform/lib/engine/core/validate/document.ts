@@ -25,8 +25,8 @@ const TOP_FIELDS = [
   'ui',
 ];
 
-/** Workflow names are kebab-case — the store identity and the subworkflow
- * `workflow` reference syntax both build on this shape. */
+/** Automation names are kebab-case — the store identity and the subautomation
+ * `automation` reference syntax both build on this shape. */
 export const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 const SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
@@ -46,10 +46,10 @@ const CREDENTIAL_KEY_RE =
 const OPAQUE_VALUE_RE = /^[A-Za-z0-9+/=_.-]{16,}$/;
 
 export function validateDocument(
-  wf: Record<string, unknown>,
+  doc: Record<string, unknown>,
   issues: Issue[],
 ): void {
-  for (const k of Object.keys(wf)) {
+  for (const k of Object.keys(doc)) {
     if (!TOP_FIELDS.includes(k)) {
       issues.push(
         err('UNKNOWN_TOP_FIELD', `unknown top-level field "${k}"`, {
@@ -63,24 +63,24 @@ export function validateDocument(
     }
   }
 
-  if (wf.version === undefined) {
+  if (doc.version === undefined) {
     issues.push(
       warn('VERSION_MISSING', 'document has no "version" field', {
         path: 'version',
         hint: 'add version: 1',
       }),
     );
-  } else if (wf.version !== 1) {
+  } else if (doc.version !== 1) {
     issues.push(
       err(
         'VERSION_UNSUPPORTED',
-        `unsupported document version ${JSON.stringify(wf.version)} — this engine supports version 1`,
+        `unsupported document version ${JSON.stringify(doc.version)} — this engine supports version 1`,
         { path: 'version' },
       ),
     );
   }
 
-  if (typeof wf.name !== 'string' || !NAME_RE.test(wf.name)) {
+  if (typeof doc.name !== 'string' || !NAME_RE.test(doc.name)) {
     issues.push(
       err(
         'NAME_INVALID',
@@ -90,8 +90,8 @@ export function validateDocument(
     );
   }
 
-  if (wf.inputs !== undefined) {
-    if (!isRecord(wf.inputs)) {
+  if (doc.inputs !== undefined) {
+    if (!isRecord(doc.inputs)) {
       issues.push(
         err('INPUTS_SCHEMA_INVALID', '"inputs" must be a JSON Schema object', {
           path: 'inputs',
@@ -99,7 +99,7 @@ export function validateDocument(
       );
     } else {
       try {
-        compileSchema(wf.inputs);
+        compileSchema(doc.inputs);
       } catch (e) {
         issues.push(
           err(
@@ -112,9 +112,9 @@ export function validateDocument(
     }
   }
 
-  if (wf.tests !== undefined) validateTests(wf.tests, issues);
+  if (doc.tests !== undefined) validateTests(doc.tests, issues);
 
-  scanForSecrets(wf, issues);
+  scanForSecrets(doc, issues);
 }
 
 function validateTests(tests: unknown, issues: Issue[]): void {
@@ -161,7 +161,7 @@ function validateTests(tests: unknown, issues: Issue[]): void {
   }
 }
 
-function scanForSecrets(wf: Record<string, unknown>, issues: Issue[]): void {
+function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
   const hits: Array<{ path: string; label: string }> = [];
 
   const scanString = (value: string, path: string, key?: string): void => {
@@ -191,7 +191,7 @@ function scanForSecrets(wf: Record<string, unknown>, issues: Issue[]): void {
       }
     }
   };
-  walk(wf, '');
+  walk(doc, '');
 
   for (const { path, label } of hits.slice(0, 5)) {
     issues.push(
@@ -200,7 +200,7 @@ function scanForSecrets(wf: Record<string, unknown>, issues: Issue[]): void {
         `the document appears to contain a credential (${label})`,
         {
           path,
-          hint: 'remove it — secrets are configured on the integration and injected at runtime, never stored in workflows',
+          hint: 'remove it — secrets are configured on the integration and injected at runtime, never stored in automations',
         },
       ),
     );

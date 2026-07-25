@@ -49,10 +49,10 @@ export const baselineTables: string[] = [
   'generations',
   'memories',
   // Automations (the 0.4 automation store)
-  'workflows',
-  'workflowDeployments',
-  'workflowTriggers',
-  'workflowRuns',
+  'automations',
+  'automationDeployments',
+  'automationTriggers',
+  'automationRuns',
   // External conversations + contacts
   'conversations',
   'conversationMessages',

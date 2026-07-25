@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { registerNodeType, setCodeRunner } from '../core/slots';
-import type { Workflow } from '../core/types';
+import type { Automation } from '../core/types';
 import { nodeVmRunner } from '../runners/node-vm';
-import { runWorkflowTests, stableStringify } from './tests';
+import { runAutomationTests, stableStringify } from './tests';
 
 beforeAll(() => {
   setCodeRunner(nodeVmRunner());
@@ -25,7 +25,7 @@ beforeAll(() => {
   });
 });
 
-const DOUBLER: Workflow = {
+const DOUBLER: Automation = {
   version: 1,
   name: 'doubler',
   nodes: [
@@ -58,18 +58,18 @@ describe('stableStringify', () => {
   });
 });
 
-describe('runWorkflowTests', () => {
+describe('runAutomationTests', () => {
   it('reports pass counts for green tests', async () => {
-    const report = await runWorkflowTests(DOUBLER);
+    const report = await runAutomationTests(DOUBLER);
     expect(report).toMatchObject({ passed: 2, failed: 0 });
   });
 
   it('reports output mismatches with both sides', async () => {
-    const wf: Workflow = {
+    const automation: Automation = {
       ...DOUBLER,
       tests: [{ name: 'wrong', input: { n: 3 }, expect: { output: 7 } }],
     };
-    const report = await runWorkflowTests(wf);
+    const report = await runAutomationTests(automation);
     if ('results' in report) {
       expect(report.failed).toBe(1);
       expect(report.results[0]?.message).toContain('expected 7 but got 6');
@@ -79,7 +79,7 @@ describe('runWorkflowTests', () => {
   });
 
   it('reports missing effects naming the actual ones', async () => {
-    const wf: Workflow = {
+    const automation: Automation = {
       ...DOUBLER,
       tests: [
         {
@@ -89,7 +89,7 @@ describe('runWorkflowTests', () => {
         },
       ],
     };
-    const report = await runWorkflowTests(wf);
+    const report = await runAutomationTests(automation);
     if ('results' in report) {
       expect(report.results[0]?.message).toContain('mail.send');
       expect(report.results[0]?.message).toContain('ping.send');
@@ -98,21 +98,21 @@ describe('runWorkflowTests', () => {
     }
   });
 
-  it('guides when the workflow ships no tests', async () => {
-    const report = await runWorkflowTests({ ...DOUBLER, tests: [] });
+  it('guides when the automation ships no tests', async () => {
+    const report = await runAutomationTests({ ...DOUBLER, tests: [] });
     expect(report).toMatchObject({
-      error: 'the workflow has no tests',
+      error: 'the automation has no tests',
       hint: expect.stringContaining('tests:'),
     });
   });
 
   it('surfaces run failures as test failures', async () => {
-    const wf: Workflow = {
+    const automation: Automation = {
       ...DOUBLER,
       tests: [{ name: 'boom', input: {}, expect: { output: 1 } }],
     };
     // input.n missing → transform multiplies undefined → run error.
-    const report = await runWorkflowTests(wf);
+    const report = await runAutomationTests(automation);
     if ('results' in report) {
       expect(report.results[0]?.pass).toBe(false);
       expect(report.results[0]?.message).toContain('run error');

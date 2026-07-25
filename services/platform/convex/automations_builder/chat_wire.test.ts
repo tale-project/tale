@@ -75,13 +75,13 @@ describe('the Anthropic shape', () => {
       parseChatReply('anthropic', {
         content: [
           { type: 'text', text: 'CAUSE: the node had no code.\n' },
-          { type: 'text', text: '```yaml\nmethod: run_workflow\n```' },
+          { type: 'text', text: '```yaml\nmethod: run_automation\n```' },
         ],
         usage: { input_tokens: 900, output_tokens: 210 },
       }),
     ).toEqual({
       content:
-        'CAUSE: the node had no code.\n```yaml\nmethod: run_workflow\n```',
+        'CAUSE: the node had no code.\n```yaml\nmethod: run_automation\n```',
       usage: { prompt: 900, completion: 210 },
     });
   });

@@ -71,17 +71,17 @@ describe('parseAgentReply', () => {
     const reply = [
       'Let me validate that.',
       '```yaml',
-      'method: validate_workflow',
+      'method: validate_automation',
       'params:',
-      '  workflow:',
+      '  automation:',
       '    name: my-flow',
       '```',
     ].join('\n');
     const parsed = parseAgentReply(reply);
     expect(isParseFailure(parsed)).toBe(false);
     if (!isParseFailure(parsed)) {
-      expect(parsed.method).toBe('validate_workflow');
-      expect(parsed.params).toEqual({ workflow: { name: 'my-flow' } });
+      expect(parsed.method).toBe('validate_automation');
+      expect(parsed.params).toEqual({ automation: { name: 'my-flow' } });
       expect(parsed.lenient).toBeUndefined();
     }
   });
@@ -102,35 +102,37 @@ describe('parseAgentReply', () => {
   });
 
   it('accepts bare JSON and auto-repairs malformed JSON, marking leniency', () => {
-    const parsed = parseAgentReply('{"method": "list_workflows", "params": {}');
+    const parsed = parseAgentReply(
+      '{"method": "list_automations", "params": {}',
+    );
     expect(isParseFailure(parsed)).toBe(false);
     if (!isParseFailure(parsed)) {
-      expect(parsed.method).toBe('list_workflows');
+      expect(parsed.method).toBe('list_automations');
       expect(parsed.lenient).toBe('auto-repaired malformed JSON');
     }
   });
 
   it('recovers known methods under non-standard keys', () => {
     const parsed = parseAgentReply(
-      '{"tool": "run_workflow", "arguments": {"input": {}}}',
+      '{"tool": "run_automation", "arguments": {"input": {}}}',
     );
     if (!isParseFailure(parsed)) {
-      expect(parsed.method).toBe('run_workflow');
+      expect(parsed.method).toBe('run_automation');
       expect(parsed.lenient).toBe('used a non-standard action key');
     }
   });
 
-  it('treats a bare workflow document as run_workflow', () => {
+  it('treats a bare automation document as run_automation', () => {
     const parsed = parseAgentReply(
       ['name: my-flow', 'nodes:', '  - id: a', '    type: transform'].join(
         '\n',
       ),
     );
     if (!isParseFailure(parsed)) {
-      expect(parsed.method).toBe('run_workflow');
-      expect(parsed.lenient).toBe('sent a bare workflow');
+      expect(parsed.method).toBe('run_automation');
+      expect(parsed.lenient).toBe('sent a bare automation');
       expect(parsed.params).toMatchObject({
-        workflow: { name: 'my-flow' },
+        automation: { name: 'my-flow' },
         input: {},
       });
     }

@@ -87,10 +87,10 @@ export const BUILDER_POLICY: BuilderPolicy = {
 const FINISH_DOCS = `
 
 ## Finishing this job (there is no "submit" here)
-1. When run_workflow's output and effects are exactly right, add a top-level tests: block covering at least one realistic input.
-2. Call test_workflow — every test must pass.
-3. Then call save_workflow with a short message. A successful save completes the job.
-save_workflow is REJECTED until test_workflow has passed for that exact document — edit the document after testing and you must test it again.`;
+1. When run_automation's output and effects are exactly right, add a top-level tests: block covering at least one realistic input.
+2. Call test_automation — every test must pass.
+3. Then call save_automation with a short message. A successful save completes the job.
+save_automation is REJECTED until test_automation has passed for that exact document — edit the document after testing and you must test it again.`;
 
 /** The system prompt: the generated engine guide plus the finish rule. */
 export function builderSystemPrompt(): string {
@@ -99,7 +99,7 @@ export function builderSystemPrompt(): string {
 
 /** The opening message: the job, and the instruction to start working. */
 export function builderTaskPrompt(goal: string): string {
-  return `# Job\n${goal}\n\nBuild the workflow, run it with a realistic test input, attach tests, verify with test_workflow, then save_workflow. Start now.`;
+  return `# Job\n${goal}\n\nBuild the automation, run it with a realistic test input, attach tests, verify with test_automation, then save_automation. Start now.`;
 }
 
 /**
@@ -139,28 +139,28 @@ export function nudgeFor(method: string, result: unknown): string {
   switch (method) {
     case 'get_docs':
     case 'get_catalog':
-      return 'Now draft the complete workflow and call run_workflow with a realistic test input.';
+      return 'Now draft the complete automation and call run_automation with a realistic test input.';
     case 'search_catalog':
       return facts.matches > 0
-        ? 'Pick the best-matching capability (use its exact type and input schema), then draft the workflow and run it.'
+        ? 'Pick the best-matching capability (use its exact type and input schema), then draft the automation and run it.'
         : 'No matches — call search_catalog again with different capability keywords (verbs + objects).';
-    case 'validate_workflow':
+    case 'validate_automation':
       return facts.valid === true
-        ? 'No errors. Next: run_workflow with a realistic test input.'
-        : 'Fix every error above, then call run_workflow.';
-    case 'run_workflow':
+        ? 'No errors. Next: run_automation with a realistic test input.'
+        : 'Fix every error above, then call run_automation.';
+    case 'run_automation':
       if (facts.status === 'success') {
-        return 'Execution succeeded. Compare output and effects against the job character by character. If they match → attach tests and call test_workflow. If not → fix and re-run.';
+        return 'Execution succeeded. Compare output and effects against the job character by character. If they match → attach tests and call test_automation. If not → fix and re-run.';
       }
       if (facts.status === 'invalid') {
-        return 'Validation failed — nothing executed. Fix every error in validation.errors, then call run_workflow again.';
+        return 'Validation failed — nothing executed. Fix every error in validation.errors, then call run_automation again.';
       }
-      return 'Execution failed. Use error, hint and trace to fix the workflow, then call run_workflow again.';
-    case 'test_workflow':
+      return 'Execution failed. Use error, hint and trace to fix the automation, then call run_automation again.';
+    case 'test_automation':
       return facts.testsPassed
-        ? 'All tests pass — call save_workflow with the SAME document to finish.'
-        : 'Fix the workflow (or the tests) until every test passes.';
-    case 'save_workflow':
+        ? 'All tests pass — call save_automation with the SAME document to finish.'
+        : 'Fix the automation (or the tests) until every test passes.';
+    case 'save_automation':
       return facts.saved
         ? 'Saved.'
         : 'The save was refused. Read the error, fix what it names, then try again.';
@@ -172,7 +172,7 @@ export function nudgeFor(method: string, result: unknown): string {
 /** The two moments where an agent may wrongly believe the job is done. */
 export function invitesFinish(method: string, result: unknown): boolean {
   const facts = resultFacts(result);
-  if (method === 'run_workflow') return facts.status === 'success';
-  if (method === 'test_workflow') return facts.testsPassed;
+  if (method === 'run_automation') return facts.status === 'success';
+  if (method === 'test_automation') return facts.testsPassed;
   return false;
 }

@@ -23,10 +23,10 @@ import {
   auditLogsTable,
 } from './audit_logs/schema';
 import {
-  workflowDeploymentsTable,
-  workflowRunsTable,
-  workflowTriggersTable,
-  workflowsTable,
+  automationDeploymentsTable,
+  automationRunsTable,
+  automationsTable,
+  automationTriggersTable,
 } from './automations/schema';
 import { browserSessionsTable } from './browser_sessions/schema';
 import {
@@ -144,15 +144,15 @@ import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
 
 export default defineSchema({
-  // The automation store: immutable workflow versions, the single deployed
+  // The automation store: immutable automation versions, the single deployed
   // version per automation, what starts a run, and the durable run log whose
   // per-node `checkpoints` let an interrupted run resume instead of repeating
   // side effects. Tenant isolation: every row carries `organizationId` and
   // every read goes through a `by_org…` index. See `automations/schema.ts`.
-  workflows: workflowsTable,
-  workflowDeployments: workflowDeploymentsTable,
-  workflowTriggers: workflowTriggersTable,
-  workflowRuns: workflowRunsTable,
+  automations: automationsTable,
+  automationDeployments: automationDeploymentsTable,
+  automationTriggers: automationTriggersTable,
+  automationRuns: automationRunsTable,
   // Chat storage. `generations` is split out because it is the only hot-written
   // row during a turn — keeping it out of `threads` means a streaming turn does
   // not rewrite a row every thread list reads. `memories` are pending until a

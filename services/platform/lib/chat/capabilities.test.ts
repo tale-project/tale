@@ -497,16 +497,39 @@ describe('get_knowledge', () => {
     ).not.toContain('get_knowledge');
   });
 
-  it('passes the org and the scope to the backend once one is installed', async () => {
+  it('passes the org, the corpus and the limit to the backend once one is installed', async () => {
     const search = vi.fn().mockResolvedValue({ status: 'ok', passages: [] });
     const { surface: s } = surface({ knowledge: { search } });
 
-    await s.getKnowledge({ query: 'refund policy', scope: 'private' });
+    await s.getKnowledge({
+      query: 'refund policy',
+      corpus: 'private',
+      limit: 3,
+    });
 
     expect(search).toHaveBeenCalledWith({
       organizationId: ORG,
       query: 'refund policy',
-      scope: 'private',
+      corpus: 'private',
+      limit: 3,
+    });
+  });
+
+  it('reads the corpus and limit off a dispatched call', async () => {
+    const search = vi.fn().mockResolvedValue({ status: 'ok', passages: [] });
+    const { surface: s } = surface({ knowledge: { search } });
+
+    await s.dispatch('get_knowledge', {
+      query: 'refund policy',
+      corpus: 'public-web',
+      limit: 5,
+    });
+
+    expect(search).toHaveBeenCalledWith({
+      organizationId: ORG,
+      query: 'refund policy',
+      corpus: 'public-web',
+      limit: 5,
     });
   });
 });
@@ -640,8 +663,10 @@ describe('dispatch', () => {
 
   it('names the available methods when asked for one that does not exist', async () => {
     const { surface: s } = surface();
-    await expect(s.dispatch('run_workflow', {})).resolves.toMatchObject({
-      error: 'unknown method "run_workflow"',
+    // An engine method is not a chat capability method: the two surfaces are
+    // separate tables, and asking this one for the other's method fails.
+    await expect(s.dispatch('run_automation', {})).resolves.toMatchObject({
+      error: 'unknown method "run_automation"',
     });
   });
 });

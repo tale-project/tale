@@ -5,12 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { execute } from '../engine/core/execute';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeTypes } from '../engine/core/slots';
-import type { RunResult, Workflow } from '../engine/core/types';
+import type { RunResult, Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import { loadConnectors } from '../integrations/registry';
-import type { Conversion, SourceWorkflow } from './convert';
-import { convertWorkflow } from './convert';
+import type { Conversion, SourceAutomation } from './convert';
+import { convertAutomation } from './convert';
 
 const SYSTEM_ROOT = path.join(
   path.dirname(new URL(import.meta.url).pathname),
@@ -24,8 +24,8 @@ const MODEL = 'anthropic/claude-haiku-4-5';
 setCodeRunner(nodeVmRunner());
 loadConnectors(SYSTEM_ROOT);
 
-function convert(name: string, source: SourceWorkflow): Conversion {
-  return convertWorkflow(source, {
+function convert(name: string, source: SourceAutomation): Conversion {
+  return convertAutomation(source, {
     name,
     model: MODEL,
     knownTypes: new Set(nodeTypes().keys()),
@@ -35,17 +35,17 @@ function convert(name: string, source: SourceWorkflow): Conversion {
 /** Every converted document must be a document the engine accepts, and must
  * actually run against the deterministic mocks. */
 async function runConverted(
-  workflow: Workflow,
+  automation: Automation,
   input: unknown,
 ): Promise<RunResult> {
-  const { errors } = await validate(workflow);
+  const { errors } = await validate(automation);
   expect(errors).toEqual([]);
-  return await execute(workflow, { input, mode: 'mock' });
+  return await execute(automation, { input, mode: 'mock' });
 }
 
 // --------------------------------------------------------------- the corpus
 
-const fetchThenSummarize: SourceWorkflow = {
+const fetchThenSummarize: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -109,10 +109,10 @@ const fetchThenSummarize: SourceWorkflow = {
 };
 
 describe('a branch becomes a guard on the node it protected', () => {
-  const { workflow, needsReview } = convert('gmail/sync', fetchThenSummarize);
+  const { automation, needsReview } = convert('gmail/sync', fetchThenSummarize);
 
   it('produces exactly the expected document', () => {
-    expect(workflow).toEqual({
+    expect(automation).toEqual({
       version: 1,
       name: 'gmail-sync',
       inputs: {
@@ -160,13 +160,13 @@ describe('a branch becomes a guard on the node it protected', () => {
   });
 
   it('runs green against the mocks', async () => {
-    const result = await runConverted(workflow, { limit: 5 });
+    const result = await runConverted(automation, { limit: 5 });
     expect(result.status).toBe('success');
     expect(result.output).toEqual({ headline: 'mock' });
   });
 });
 
-const exclusiveBranches: SourceWorkflow = {
+const exclusiveBranches: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -221,11 +221,11 @@ const exclusiveBranches: SourceWorkflow = {
 };
 
 describe('an either-or branch becomes when + elseOf', () => {
-  const { workflow, needsReview } = convert(
+  const { automation, needsReview } = convert(
     'github/comment',
     exclusiveBranches,
   );
-  const byId = new Map(workflow.nodes.map((node) => [node.id, node]));
+  const byId = new Map(automation.nodes.map((node) => [node.id, node]));
 
   it('guards the first branch and makes the second its exclusive else', () => {
     expect(byId.get('record_skip')?.when).toBe('{{ input.dryRun == true }}');
@@ -238,7 +238,7 @@ describe('an either-or branch becomes when + elseOf', () => {
   });
 
   it('takes the else branch and records its effect', async () => {
-    const result = await runConverted(workflow, {
+    const result = await runConverted(automation, {
       owner: 'tale',
       repo: 'tale',
       dryRun: false,
@@ -250,7 +250,7 @@ describe('an either-or branch becomes when + elseOf', () => {
   });
 
   it('takes the guarded branch on the other input', async () => {
-    const result = await runConverted(workflow, {
+    const result = await runConverted(automation, {
       owner: 'tale',
       repo: 'tale',
       dryRun: true,
@@ -260,7 +260,7 @@ describe('an either-or branch becomes when + elseOf', () => {
   });
 });
 
-const singleStepLoop: SourceWorkflow = {
+const singleStepLoop: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -322,8 +322,10 @@ const singleStepLoop: SourceWorkflow = {
 };
 
 describe('a loop over one step becomes forEach on that node', () => {
-  const { workflow } = convert('github/comment-all', singleStepLoop);
-  const comment = workflow.nodes.find((node) => node.id === 'comment_on_issue');
+  const { automation } = convert('github/comment-all', singleStepLoop);
+  const comment = automation.nodes.find(
+    (node) => node.id === 'comment_on_issue',
+  );
 
   it('iterates the list the loop iterated, with the item in scope', () => {
     expect(comment?.forEach).toBe('{{ nodes.list_issues.output?.issues }}');
@@ -331,7 +333,7 @@ describe('a loop over one step becomes forEach on that node', () => {
   });
 
   it('runs once per item', async () => {
-    const result = await runConverted(workflow, {
+    const result = await runConverted(automation, {
       owner: 'tale',
       repo: 'tale',
     });
@@ -340,7 +342,7 @@ describe('a loop over one step becomes forEach on that node', () => {
   });
 });
 
-const perItemBranchInLoop: SourceWorkflow = {
+const perItemBranchInLoop: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -421,11 +423,11 @@ const perItemBranchInLoop: SourceWorkflow = {
 };
 
 describe('a per-item branch inside a multi-step loop is flagged, not guessed', () => {
-  const { workflow, needsReview } = convert(
+  const { automation, needsReview } = convert(
     'github/score',
     perItemBranchInLoop,
   );
-  const byId = new Map(workflow.nodes.map((node) => [node.id, node]));
+  const byId = new Map(automation.nodes.map((node) => [node.id, node]));
 
   it('never turns the per-item test into a node-level condition', () => {
     expect(byId.get('score')?.when).toBeUndefined();
@@ -462,7 +464,7 @@ describe('a per-item branch inside a multi-step loop is flagged, not guessed', (
   });
 
   it('still runs', async () => {
-    const result = await runConverted(workflow, {
+    const result = await runConverted(automation, {
       owner: 'tale',
       repo: 'tale',
     });
@@ -470,7 +472,7 @@ describe('a per-item branch inside a multi-step loop is flagged, not guessed', (
   });
 });
 
-const retiredCapability: SourceWorkflow = {
+const retiredCapability: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -497,7 +499,7 @@ const retiredCapability: SourceWorkflow = {
 };
 
 describe('a capability the engine has no node for stops the run instead of pretending', () => {
-  const { workflow, needsReview } = convert('tasks/load', retiredCapability);
+  const { automation, needsReview } = convert('tasks/load', retiredCapability);
 
   it('flags the step by the capability it used', () => {
     expect(needsReview).toContainEqual({
@@ -507,14 +509,14 @@ describe('a capability the engine has no node for stops the run instead of prete
   });
 
   it('fails loudly at exactly that node', async () => {
-    const result = await runConverted(workflow, { taskId: 'task-1' });
+    const result = await runConverted(automation, { taskId: 'task-1' });
     expect(result.status).toBe('error');
     expect(result.error?.nodeId).toBe('load_task');
     expect(result.error?.message).toContain('must be re-authored');
   });
 });
 
-const pollingOneStep: SourceWorkflow = {
+const pollingOneStep: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -549,8 +551,11 @@ const pollingOneStep: SourceWorkflow = {
 };
 
 describe('a one-node polling loop becomes repeatUntil with a cap', () => {
-  const { workflow, needsReview } = convert('shopify/products', pollingOneStep);
-  const fetch = workflow.nodes.find((node) => node.id === 'fetch_products');
+  const { automation, needsReview } = convert(
+    'shopify/products',
+    pollingOneStep,
+  );
+  const fetch = automation.nodes.find((node) => node.id === 'fetch_products');
 
   it('repeats until the condition stops holding', () => {
     expect(fetch?.repeatUntil).toBe(
@@ -567,12 +572,12 @@ describe('a one-node polling loop becomes repeatUntil with a cap', () => {
   });
 
   it('runs', async () => {
-    const result = await runConverted(workflow, {});
+    const result = await runConverted(automation, {});
     expect(result.status).toBe('success');
   });
 });
 
-const pollingAcrossSteps: SourceWorkflow = {
+const pollingAcrossSteps: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -613,13 +618,13 @@ const pollingAcrossSteps: SourceWorkflow = {
 };
 
 describe('a repeat spanning several steps is flagged rather than folded', () => {
-  const { workflow, needsReview } = convert(
+  const { automation, needsReview } = convert(
     'shopify/pages',
     pollingAcrossSteps,
   );
 
   it('leaves every node in the cycle unrepeated', () => {
-    for (const node of workflow.nodes) {
+    for (const node of automation.nodes) {
       expect(node.repeatUntil).toBeUndefined();
     }
   });
@@ -640,12 +645,12 @@ describe('a repeat spanning several steps is flagged rather than folded', () => 
   });
 
   it('runs the single pass it converted to', async () => {
-    const result = await runConverted(workflow, {});
+    const result = await runConverted(automation, {});
     expect(result.status).toBe('success');
   });
 });
 
-const constantsAndVariables: SourceWorkflow = {
+const constantsAndVariables: SourceAutomation = {
   config: { variables: { maxLoops: 3 } },
   steps: [
     {
@@ -707,11 +712,11 @@ const constantsAndVariables: SourceWorkflow = {
 };
 
 describe('declared constants and assigned variables become real nodes', () => {
-  const { workflow, needsReview } = convert(
+  const { automation, needsReview } = convert(
     'ops/budget',
     constantsAndVariables,
   );
-  const byId = new Map(workflow.nodes.map((node) => [node.id, node]));
+  const byId = new Map(automation.nodes.map((node) => [node.id, node]));
 
   it('carries the constants in one node the guards read', () => {
     expect(byId.get('constants')).toEqual({
@@ -730,17 +735,17 @@ describe('declared constants and assigned variables become real nodes', () => {
   });
 
   it('runs both ways', async () => {
-    const over = await runConverted(workflow, { tier: 5 });
+    const over = await runConverted(automation, { tier: 5 });
     expect(over.status).toBe('success');
     expect(over.output).toEqual({ verdict: 'exhausted' });
 
-    const under = await runConverted(workflow, { tier: 1 });
+    const under = await runConverted(automation, { tier: 1 });
     expect(under.status).toBe('success');
     expect(under.output).toEqual({ verdict: 'remaining' });
   });
 });
 
-const untranslatableExpressions: SourceWorkflow = {
+const untranslatableExpressions: SourceAutomation = {
   steps: [
     {
       stepSlug: 'start',
@@ -790,7 +795,7 @@ const untranslatableExpressions: SourceWorkflow = {
 };
 
 describe('everything untranslatable ends up in the review list', () => {
-  const { workflow, needsReview } = convert(
+  const { automation, needsReview } = convert(
     'ops/judge',
     untranslatableExpressions,
   );
@@ -808,7 +813,7 @@ describe('everything untranslatable ends up in the review list', () => {
   });
 
   it('keeps the original text for the parts it refused to rewrite', () => {
-    const stamp = workflow.nodes.find((node) => node.id === 'stamp');
+    const stamp = automation.nodes.find((node) => node.id === 'stamp');
     expect(stamp?.input).toMatchObject({
       seenAt: '{{ now }}',
       day: '{{ input.receivedAt | isoDate }}',
@@ -816,18 +821,18 @@ describe('everything untranslatable ends up in the review list', () => {
   });
 
   it('drops the unreachable step from the document', () => {
-    expect(workflow.nodes.map((node) => node.id)).not.toContain('orphan');
+    expect(automation.nodes.map((node) => node.id)).not.toContain('orphan');
   });
 
   it('still validates, and stops at the expression a human has to rewrite', async () => {
-    const result = await runConverted(workflow, {});
+    const result = await runConverted(automation, {});
     expect(result.status).toBe('error');
     expect(result.error?.nodeId).toBe('stamp');
   });
 });
 
 describe('ordering with no data between two steps', () => {
-  const source: SourceWorkflow = {
+  const source: SourceAutomation = {
     steps: [
       {
         stepSlug: 'start',
@@ -863,15 +868,15 @@ describe('ordering with no data between two steps', () => {
       },
     ],
   };
-  const { workflow } = convert('ops/announce', source);
+  const { automation } = convert('ops/announce', source);
 
   it('says the order in the one place the engine reads it', () => {
-    const second = workflow.nodes.find((node) => node.id === 'second');
+    const second = automation.nodes.find((node) => node.id === 'second');
     expect(second?.when).toBe('{{ nodes.first.output !== undefined }}');
   });
 
   it('keeps the two effects in the authored order', async () => {
-    const result = await runConverted(workflow, {});
+    const result = await runConverted(automation, {});
     expect(result.status).toBe('success');
     expect(result.effects.map((effect) => effect.node)).toEqual([
       'first',

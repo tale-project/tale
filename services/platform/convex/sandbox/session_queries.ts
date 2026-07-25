@@ -451,16 +451,16 @@ export const listSessionsToReconcile = internalQuery({
   },
 });
 
-/** Live `workflow_run` sessions belonging to ONE workflow execution. Every
+/** Live `workflow_run` sessions belonging to ONE automation run. Every
  * step's ephemeral sandbox is keyed `${executionId}:${stepSlug}` on `ownerId`
  * (see `workflowRunOwnerId`), so they all share the `${executionId}:` prefix —
  * scanned here via a range on the `by_owner` index. Used by the user-Stop
  * cascade to tear them ALL down at once: `cancelExecution` cancels the durable
- * workflow but never touches the sandbox, so without this a stopped run's agent
+ * run but never touches the sandbox, so without this a stopped run's agent
  * keeps running and its session keeps holding a per-org slot until the TTL
  * reaper — wedging the org's capacity queue. The org filter is defensive (the
  * executionId already makes the prefix globally unique). */
-export const listWorkflowRunSessionsForExecution = internalQuery({
+export const listAutomationRunSessionsForExecution = internalQuery({
   args: { organizationId: v.string(), executionId: v.string() },
   returns: v.array(v.object({ sessionId: v.string() })),
   handler: async (ctx, args) => {
@@ -489,7 +489,7 @@ export const listWorkflowRunSessionsForExecution = internalQuery({
  * down in its `finally`; this catches the rare hard-kill that skipped it.
  * Scans active/degraded/stopped (a stopped row still holds a workspace + a live
  * VK), ordered by the org+status index, bounded by `limit`. */
-export const listStaleWorkflowRunSessions = internalQuery({
+export const listStaleAutomationRunSessions = internalQuery({
   args: { organizationId: v.string(), limit: v.optional(v.number()) },
   returns: v.array(v.object({ sessionId: v.string() })),
   handler: async (ctx, args) => {
@@ -568,14 +568,14 @@ export const loadAgentCheckpoint = internalQuery({
 });
 
 /**
- * The accumulated cross-segment live transcript on a workflow-run op — the seed
+ * The accumulated cross-segment live transcript on an automation-run op — the seed
  * a durable run's NEXT segment carries forward so the op never blanks at a seam.
  * Read on the resume branch of `runSandboxAgent` (the op, not the bounded
  * checkpoint table, is the single store for the transcript). Returns the newest
  * `agent-run` op's `liveTimeline` (the deterministic id can be reused across
  * incarnations, so order desc + filter on `kind`), or `[]` when there is none.
  */
-export const loadWorkflowOpLiveTimeline = internalQuery({
+export const loadAutomationOpLiveTimeline = internalQuery({
   args: { sessionId: v.string() },
   returns: v.array(
     v.object({

@@ -479,6 +479,203 @@ tables:
       ft:
         type: string
       optional: true
+  automationDeployments:
+    deployedAt:
+      ft:
+        type: number
+      optional: false
+    deployedBy:
+      ft:
+        type: string
+      optional: false
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    version:
+      ft:
+        type: number
+      optional: false
+  automationRuns:
+    checkpoints:
+      ft:
+        type: any
+      optional: true
+    detail:
+      ft:
+        type: string
+      optional: true
+    effects:
+      ft:
+        type: any
+      optional: true
+    finishedAt:
+      ft:
+        type: number
+      optional: true
+    input:
+      ft:
+        type: any
+      optional: false
+    mode:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: mock
+          - type: literal
+            value: live
+      optional: false
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    output:
+      ft:
+        type: any
+      optional: true
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: true
+    startedAt:
+      ft:
+        type: number
+      optional: false
+    startedBy:
+      ft:
+        type: string
+      optional: false
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: queued
+          - type: literal
+            value: running
+          - type: literal
+            value: waiting
+          - type: literal
+            value: success
+          - type: literal
+            value: failed
+          - type: literal
+            value: cancelled
+      optional: false
+    trace:
+      ft:
+        type: any
+      optional: true
+    version:
+      ft:
+        type: number
+      optional: false
+  automations:
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    createdBy:
+      ft:
+        type: string
+      optional: false
+    document:
+      ft:
+        type: any
+      optional: false
+    message:
+      ft:
+        type: string
+      optional: true
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: true
+    testsPassed:
+      ft:
+        type: boolean
+      optional: true
+    version:
+      ft:
+        type: number
+      optional: false
+  automationTriggers:
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    createdBy:
+      ft:
+        type: string
+      optional: false
+    cron:
+      ft:
+        type: string
+      optional: true
+    enabled:
+      ft:
+        type: boolean
+      optional: false
+    event:
+      ft:
+        type: string
+      optional: true
+    kind:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: schedule
+          - type: literal
+            value: webhook
+          - type: literal
+            value: event
+          - type: literal
+            value: api-key
+      optional: false
+    lastFiredAt:
+      ft:
+        type: number
+      optional: true
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    timezone:
+      ft:
+        type: string
+      optional: true
+    tokenHash:
+      ft:
+        type: string
+      optional: true
+    updatedAt:
+      ft:
+        type: number
+      optional: false
   backendControl:
     drainExpiresAt:
       ft:
@@ -6504,200 +6701,3 @@ tables:
       ft:
         type: string
       optional: true
-  workflowDeployments:
-    deployedAt:
-      ft:
-        type: number
-      optional: false
-    deployedBy:
-      ft:
-        type: string
-      optional: false
-    name:
-      ft:
-        type: string
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    version:
-      ft:
-        type: number
-      optional: false
-  workflowRuns:
-    checkpoints:
-      ft:
-        type: any
-      optional: true
-    detail:
-      ft:
-        type: string
-      optional: true
-    effects:
-      ft:
-        type: any
-      optional: true
-    finishedAt:
-      ft:
-        type: number
-      optional: true
-    input:
-      ft:
-        type: any
-      optional: false
-    mode:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: mock
-          - type: literal
-            value: live
-      optional: false
-    name:
-      ft:
-        type: string
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    output:
-      ft:
-        type: any
-      optional: true
-    projectId:
-      ft:
-        tableName: projects
-        type: id
-      optional: true
-    startedAt:
-      ft:
-        type: number
-      optional: false
-    startedBy:
-      ft:
-        type: string
-      optional: false
-    status:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: queued
-          - type: literal
-            value: running
-          - type: literal
-            value: waiting
-          - type: literal
-            value: success
-          - type: literal
-            value: failed
-          - type: literal
-            value: cancelled
-      optional: false
-    trace:
-      ft:
-        type: any
-      optional: true
-    version:
-      ft:
-        type: number
-      optional: false
-  workflows:
-    createdAt:
-      ft:
-        type: number
-      optional: false
-    createdBy:
-      ft:
-        type: string
-      optional: false
-    document:
-      ft:
-        type: any
-      optional: false
-    message:
-      ft:
-        type: string
-      optional: true
-    name:
-      ft:
-        type: string
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    projectId:
-      ft:
-        tableName: projects
-        type: id
-      optional: true
-    testsPassed:
-      ft:
-        type: boolean
-      optional: true
-    version:
-      ft:
-        type: number
-      optional: false
-  workflowTriggers:
-    createdAt:
-      ft:
-        type: number
-      optional: false
-    createdBy:
-      ft:
-        type: string
-      optional: false
-    cron:
-      ft:
-        type: string
-      optional: true
-    enabled:
-      ft:
-        type: boolean
-      optional: false
-    event:
-      ft:
-        type: string
-      optional: true
-    kind:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: schedule
-          - type: literal
-            value: webhook
-          - type: literal
-            value: event
-          - type: literal
-            value: api-key
-      optional: false
-    lastFiredAt:
-      ft:
-        type: number
-      optional: true
-    name:
-      ft:
-        type: string
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    timezone:
-      ft:
-        type: string
-      optional: true
-    tokenHash:
-      ft:
-        type: string
-      optional: true
-    updatedAt:
-      ft:
-        type: number
-      optional: false

@@ -1,42 +1,82 @@
 /**
- * The platform MCP endpoint: the engine's 12-method dispatch, served as MCP
- * tools over streamable HTTP (JSON responses; no SSE stream is offered).
+ * The platform MCP endpoint: everything an outside agent can do here, served as
+ * MCP tools over streamable HTTP (JSON responses; no SSE stream is offered).
  *
  * POST /api/v1/mcp with `Authorization: Bearer <org API key>` — the same
- * credential and auth path as every /api/v1 REST surface. Each engine method
- * is one MCP tool; `tools/call` delegates to the `'use node'` internal action
- * (`run_session.dispatchEngineMethod`), which assembles the engine host and
- * drives `dispatch()` against the org's automation store — so an MCP call is
- * exactly a builder-session call with live execution enabled, never a second
- * implementation.
+ * credential and auth path as every /api/v1 REST surface. The tool inventory
+ * (`lib/mcp/tools.ts`) covers two surfaces, and `tools/call` routes by which one
+ * owns the name:
  *
- * Protocol notes: single JSON-RPC message per request (a batch answers
- * -32600), `initialize`/`ping`/`tools/*` only, and notifications get 202 with
- * no body as the streamable-HTTP transport specifies.
+ *  - the automation engine's dispatch table — author, validate, test, save,
+ *    deploy, run, and then manage what was persisted (runs, versions,
+ *    triggers) — through the `'use node'` internal action
+ *    (`run_session.dispatchEngineMethod`), which assembles the engine host and
+ *    drives `dispatch()` against the org's automation store, live execution
+ *    enabled. An MCP call is exactly a builder-session call, never a second
+ *    implementation;
+ *  - the organization's capability surface — search it, invoke one, retrieve
+ *    knowledge — through `chat.capabilities_action.dispatchCapabilityAs`, the
+ *    same registry and dispatcher a chat turn uses.
+ *
+ * Authorization beyond the key: tools that persist or rebind an automation
+ * (save, deploy, set_trigger) and tools that start or stop live work resolve
+ * the key holder's role and require the developer capability, exactly as the
+ * in-app mutations do. The key proves who is calling; the role decides what
+ * the call may do.
+ *
+ * A refusal is never a protocol error. The engine and the capability surface both
+ * answer refusals as DATA (`{error, hint}` / `{status: 'refused', reason}`), and
+ * those come back as an ordinary tool result so the caller's model can read and
+ * act on them; `isError` is reserved for a call that actually threw.
+ *
+ * Protocol notes: single JSON-RPC message per request (a batch answers -32600),
+ * `initialize`/`ping`/`tools/*` only, and notifications get 202 with no body as
+ * the streamable-HTTP transport specifies.
  */
 
-import { METHODS } from '../../lib/engine/api/dispatch';
+import { ConvexError } from 'convex/values';
+
+import { MCP_TOOLS, mcpToolKind } from '../../lib/mcp/tools';
 import { internal } from '../_generated/api';
-import { jsonError, withRestAuth } from '../lib/rest/helpers';
+import {
+  jsonError,
+  requireRestDeveloper,
+  withRestAuth,
+  type RestContext,
+} from '../lib/rest/helpers';
 
 /** MCP protocol revision this endpoint implements. */
 const PROTOCOL_VERSION = '2025-03-26';
 
-/** One-line tool descriptions; `get_docs` is the deep reference. */
-const METHOD_DESCRIPTIONS: Record<(typeof METHODS)[number], string> = {
-  get_docs: 'The workflow grammar and authoring guide, as text.',
-  get_catalog: 'Every node type this deployment can execute.',
-  search_catalog: 'Search the node-type catalog by keyword.',
-  validate_workflow: 'Validate a workflow document without saving it.',
-  run_workflow: 'Run a workflow document directly (mock or live mode).',
-  test_workflow: "Run a workflow's own acceptance tests.",
-  save_workflow: 'Save a workflow document as a new immutable version.',
-  get_workflow: 'Read one saved version (the latest when unversioned).',
-  list_workflows: "The organization's automations with their latest versions.",
-  deploy_workflow: 'Promote one saved version to be the live version.',
-  set_trigger: 'Bind what starts the automation (schedule/webhook/event).',
-  run_deployed: 'Run the deployed version of an automation, live.',
-};
+/**
+ * Tools that persist or rebind an automation. Their in-app equivalents sit
+ * behind the developer capability, so an API key meets the same bar here at
+ * the endpoint; the engine's own store deliberately leaves save/deploy
+ * unchecked because a builder session proves the capability when it starts.
+ */
+const DEVELOPER_TOOLS: ReadonlySet<string> = new Set([
+  'save_automation',
+  'deploy_automation',
+  'set_trigger',
+]);
+
+/** Null when the key holder may persist automations; otherwise the reason,
+ * taken from the same role check the in-app mutations apply. Anything that is
+ * not a role refusal (an infrastructure failure) re-throws. */
+async function developerRefusal(rc: RestContext): Promise<string | null> {
+  try {
+    await requireRestDeveloper(rc);
+    return null;
+  } catch (error) {
+    if (error instanceof ConvexError) {
+      const data: unknown = error.data;
+      return isRecord(data) && typeof data.message === 'string'
+        ? data.message
+        : 'the key holder lacks the developer capability';
+    }
+    throw error;
+  }
+}
 
 interface JsonRpcRequest {
   jsonrpc?: unknown;
@@ -65,7 +105,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export const mcpHandler = withRestAuth('rest:api', async (rc, request) => {
+/** A tool result the caller's model reads as text. Structured content is not
+ * offered: the tools answer arbitrary JSON (a run trace, a passage list), and
+ * pretty-printed JSON is what every MCP client renders faithfully. */
+function toolResult(id: unknown, result: unknown): Response {
+  return rpcResult(id, {
+    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    isError: false,
+  });
+}
+
+/**
+ * The endpoint's logic, after authentication. Exported so the protocol contract
+ * is testable directly — authentication and org resolution are the REST
+ * wrapper's job and are covered where they live (`lib/rest/helpers`).
+ */
+export async function handleMcpRequest(
+  rc: RestContext,
+  request: Request,
+): Promise<Response> {
   let message: unknown;
   try {
     message = await request.json();
@@ -100,8 +158,8 @@ export const mcpHandler = withRestAuth('rest:api', async (rc, request) => {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
         serverInfo: {
-          name: 'tale-automations',
-          title: 'Tale automations',
+          name: 'tale-platform',
+          title: 'Tale platform',
           version: '1.0.0',
         },
       });
@@ -111,12 +169,10 @@ export const mcpHandler = withRestAuth('rest:api', async (rc, request) => {
 
     case 'tools/list':
       return rpcResult(id, {
-        tools: METHODS.map((name) => ({
-          name,
-          description: METHOD_DESCRIPTIONS[name],
-          // The engine validates params itself and refuses with a hint;
-          // `get_docs` is the schema reference, so the wire schema stays open.
-          inputSchema: { type: 'object' },
+        tools: MCP_TOOLS.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
         })),
       });
 
@@ -125,11 +181,33 @@ export const mcpHandler = withRestAuth('rest:api', async (rc, request) => {
         return rpcError(id, -32602, 'tools/call needs a string `name`');
       }
       const name = params.name;
-      if (!(METHODS as readonly string[]).includes(name)) {
+      const kind = mcpToolKind(name);
+      if (kind === undefined) {
         return rpcError(id, -32602, `Unknown tool "${name}"`);
       }
       const args = isRecord(params.arguments) ? params.arguments : {};
       try {
+        if (DEVELOPER_TOOLS.has(name)) {
+          const refusal = await developerRefusal(rc);
+          if (refusal !== null) {
+            return toolResult(id, {
+              error: `${name} is refused for this key: ${refusal}`,
+              hint: 'saving, deploying and trigger binding need a key whose holder has the developer capability; every read and run tool remains available',
+            });
+          }
+        }
+        if (kind === 'capability') {
+          const result: unknown = await rc.ctx.runAction(
+            internal.chat.capabilities_action.dispatchCapabilityAs,
+            {
+              organizationId: rc.org.organizationId,
+              userId: rc.user.userId,
+              method: name,
+              params: args,
+            },
+          );
+          return toolResult(id, result);
+        }
         const result: unknown = await rc.ctx.runAction(
           internal.automations_builder.run_session.dispatchEngineMethod,
           {
@@ -139,14 +217,11 @@ export const mcpHandler = withRestAuth('rest:api', async (rc, request) => {
             params: args,
           },
         );
-        return rpcResult(id, {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-          isError: false,
-        });
+        return toolResult(id, result);
       } catch (error) {
-        // The engine refuses with structured messages; surface them as a tool
-        // error (isError) rather than a protocol error, so the client's model
-        // can read and act on the refusal.
+        // Only a THROWN failure lands here — a refusal is data and was returned
+        // above. Surface the message as a tool error rather than a protocol
+        // error, so the client's model can read it and adjust.
         const text = error instanceof Error ? error.message : String(error);
         return rpcResult(id, {
           content: [{ type: 'text', text }],
@@ -158,9 +233,15 @@ export const mcpHandler = withRestAuth('rest:api', async (rc, request) => {
     default:
       return rpcError(id, -32601, `Method "${method}" is not supported`);
   }
-});
+}
+
+export const mcpHandler = withRestAuth('rest:api', handleMcpRequest);
 
 /** GET is not served — this endpoint offers JSON responses, not an SSE stream. */
-export const mcpMethodNotAllowed = withRestAuth('rest:api', async () => {
+export function mcpGetNotAllowed(): Response {
   return jsonError('Use POST with a JSON-RPC message', 405);
-});
+}
+
+export const mcpMethodNotAllowed = withRestAuth('rest:api', async () =>
+  mcpGetNotAllowed(),
+);

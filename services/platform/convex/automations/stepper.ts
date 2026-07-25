@@ -3,13 +3,13 @@
 /**
  * The durable executor.
  *
- * `lib/engine/core/execute` runs a workflow in one call: it is synchronous from
+ * `lib/engine/core/execute` runs an automation in one call: it is synchronous from
  * the caller's point of view, holds every node's output in memory, and is what
  * the authoring loop and the acceptance tests want. A DEPLOYED run cannot work
  * that way. It outlives the time window of a single action, it performs real
  * side effects, and it waits — on a poll that is not finished, on a human who
  * has not decided yet. So a deployed run is stepped instead: one node at a
- * time, each completed node written into `workflowRuns.checkpoints` before the
+ * time, each completed node written into `automationRuns.checkpoints` before the
  * next one starts.
  *
  * That single rule is what makes re-entry safe. On resume the stepper rebuilds
@@ -29,7 +29,7 @@
  * audit). What this module owns is the part the in-memory executor has no
  * concept of: order, persistence, suspension, hand-off and cancellation.
  *
- * Continuation is `ctx.scheduler` — deliberately not a workflow component. A
+ * Continuation is `ctx.scheduler` — deliberately not an automation component. A
  * run's state lives in one row that operators can read, and the resume protocol
  * is the checkpoint format documented in `checkpoints.ts`.
  */
@@ -54,7 +54,7 @@ import type {
   Effect,
   NodeDef,
   NodeTrace,
-  Workflow,
+  Automation,
 } from '../../lib/engine/core/types';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
 import { findIntegrationConnector } from '../../lib/integrations/catalog';
@@ -102,14 +102,14 @@ const APPROVAL_POLL_MS = 30_000;
 // These mirror the in-memory executor's guards (`core/execute/index.ts`). They
 // are duplicated rather than imported because the executor keeps them private;
 // changing one means changing both, and the stepper tests pin the behaviour.
-const MAX_SUBWORKFLOW_DEPTH = 3;
+const MAX_SUBAUTOMATION_DEPTH = 3;
 const DEFAULT_MAX_REPEATS = 5;
 const REPEATS_HARD_CAP = 20;
 const DEFAULT_MAX_NODE_EXECUTIONS = 100;
 
 /** The three node types the engine implements itself; everything else is a
  * connector action addressed as `<connector>.<action>`. */
-const CORE_TYPES = new Set(['transform', 'llm', 'subworkflow']);
+const CORE_TYPES = new Set(['transform', 'llm', 'subautomation']);
 
 // -------------------------------------------------------------- approvals
 
@@ -120,11 +120,11 @@ const CORE_TYPES = new Set(['transform', 'llm', 'subworkflow']);
  * A seam rather than an inline call so the approvals domain stays out of this
  * module's imports and so a test can drive suspension and resume without it.
  * `stepRun` installs the real gate for the run it is stepping (see
- * {@link workflowApprovalGate}); with no gate installed a live node runs
+ * {@link automationApprovalGate}); with no gate installed a live node runs
  * ungated, which is why `startRun` requires the developer capability for a live
  * run.
  */
-export interface WorkflowApprovalGate {
+export interface AutomationApprovalGate {
   check(request: {
     organizationId: string;
     automation: string;
@@ -136,12 +136,12 @@ export interface WorkflowApprovalGate {
   >;
 }
 
-let approvalGate: WorkflowApprovalGate | null = null;
+let approvalGate: AutomationApprovalGate | null = null;
 
 /** Install the gate. `stepRun` installs the real one per turn; passing `null`
  * takes it back out (what a test does when it is finished with it). */
-export function setWorkflowApprovalGate(
-  gate: WorkflowApprovalGate | null,
+export function setAutomationApprovalGate(
+  gate: AutomationApprovalGate | null,
 ): void {
   approvalGate = gate;
 }
@@ -168,10 +168,10 @@ function nodeEffect(nodeType: string): 'read' | 'write' | 'unknown' {
  * checked against that as belt-and-braces, and a rejected approval fails the
  * node rather than looping.
  */
-function workflowApprovalGate(
+function automationApprovalGate(
   ctx: ActionCtx,
   organizationId: string,
-): WorkflowApprovalGate {
+): AutomationApprovalGate {
   return {
     check: async (request) => {
       if (request.organizationId !== organizationId) {
@@ -212,7 +212,7 @@ function workflowApprovalGate(
 // ------------------------------------------------------------------- sinks
 
 /** What the walk does with a finished node, a wait, and a spent budget. The
- * durable sink persists and reschedules; the inline sink (a `subworkflow`
+ * durable sink persists and reschedules; the inline sink (a `subautomation`
  * node's own nodes) keeps everything in memory and never suspends. */
 interface RunSink {
   /** Persist one finished node, or just the in-node cursor. Returns the run's
@@ -308,7 +308,7 @@ interface BodyArgs {
 /**
  * Run one node once, for one scope. Every branch delegates: transform code and
  * templates to the engine's evaluator, connector actions to the platform's
- * integration door, a subworkflow to a nested walk.
+ * integration door, a subautomation to a nested walk.
  */
 async function runNodeBody(args: BodyArgs): Promise<unknown> {
   const { run, node, extra, outputs, input, record, trace, effects } = args;
@@ -374,16 +374,16 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       : { text: mockLlmText(model, prompt) };
   }
 
-  if (node.type === 'subworkflow') {
-    const ref = node.workflow ?? '';
-    if (args.depth >= MAX_SUBWORKFLOW_DEPTH) {
+  if (node.type === 'subautomation') {
+    const ref = node.automation ?? '';
+    if (args.depth >= MAX_SUBAUTOMATION_DEPTH) {
       throw new Error(
-        `subworkflows nest at most ${MAX_SUBWORKFLOW_DEPTH} levels deep`,
+        `subautomations nest at most ${MAX_SUBAUTOMATION_DEPTH} levels deep`,
       );
     }
     const [subName, subVersion] = ref.split('@');
     const found = await run.ctx.runQuery(
-      internal.automations.queries.loadWorkflowDocument,
+      internal.automations.queries.loadAutomationDocument,
       {
         organizationId: run.organizationId,
         name: subName,
@@ -393,20 +393,22 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       },
     );
     if (!found) {
-      throw new Error(`no saved workflow "${ref}" — save and deploy it first`);
+      throw new Error(
+        `no saved automation "${ref}" — save and deploy it first`,
+      );
     }
     const resolved = await evalTemplates(node.input ?? {}, scope());
-    if (record) trace.input = { workflow: ref, input: resolved };
+    if (record) trace.input = { automation: ref, input: resolved };
     // A sub-run is ONE durable step of its parent: its nodes run inline and are
     // not individually checkpointed, so an interrupted sub-run restarts. Its
     // effects are folded into the parent's log under `<node>/<subnode>`, the
     // same addressing the in-memory executor uses.
     const subEffects: Effect[] = [];
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- documents are validated before they are saved
-    const sub = found.document as Workflow;
-    const result = await walkWorkflow({
+    const sub = found.document as Automation;
+    const result = await walkAutomation({
       run,
-      workflow: sub,
+      automation: sub,
       input: resolved,
       checkpoints: { nodes: {}, executions: 0 },
       sink: inlineSink,
@@ -422,7 +424,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     }
     if (result.kind !== 'done') {
       throw new Error(
-        `subworkflow "${ref}" ${result.kind}: ${result.kind === 'failed' ? result.message : 'did not complete'}`,
+        `subautomation "${ref}" ${result.kind}: ${result.kind === 'failed' ? result.message : 'did not complete'}`,
       );
     }
     return result.output;
@@ -436,7 +438,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   const separator = node.type.indexOf('.');
   if (separator <= 0 || separator === node.type.length - 1) {
     throw new Error(
-      `unknown node type "${node.type}" — expected transform, llm, subworkflow, or a connector action "<connector>.<action>"`,
+      `unknown node type "${node.type}" — expected transform, llm, subautomation, or a connector action "<connector>.<action>"`,
     );
   }
   const connector = node.type.slice(0, separator);
@@ -472,7 +474,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
 
 interface WalkArgs {
   run: RunContext;
-  workflow: Workflow;
+  automation: Automation;
   input: unknown;
   checkpoints: RunCheckpoints;
   sink: RunSink;
@@ -490,13 +492,13 @@ interface WalkArgs {
  * — so it behaves identically whether it starts on a fresh run or resumes one
  * with half its nodes already recorded.
  */
-async function walkWorkflow(args: WalkArgs): Promise<WalkResult> {
-  const { run, workflow, input, checkpoints, sink, depth } = args;
-  const ordered = topoSort(workflow.nodes);
+async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
+  const { run, automation, input, checkpoints, sink, depth } = args;
+  const ordered = topoSort(automation.nodes);
   if (!ordered) {
     return {
       kind: 'failed',
-      message: 'circular reference between nodes (see validate_workflow)',
+      message: 'circular reference between nodes (see validate_automation)',
     };
   }
 
@@ -537,9 +539,9 @@ async function walkWorkflow(args: WalkArgs): Promise<WalkResult> {
   // Every node is recorded: evaluate the document's output expression.
   try {
     const output =
-      workflow.output !== undefined
+      automation.output !== undefined
         ? await evalTemplates(
-            cloneData(workflow.output),
+            cloneData(automation.output),
             makeScope(input, outputsFrom(checkpoints)),
           )
         : null;
@@ -547,7 +549,7 @@ async function walkWorkflow(args: WalkArgs): Promise<WalkResult> {
   } catch (error) {
     return {
       kind: 'failed',
-      message: `failed to evaluate workflow "output": ${error instanceof Error ? error.message : String(error)}`,
+      message: `failed to evaluate automation "output": ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
@@ -826,7 +828,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
 export const stepRun = internalAction({
   args: {
     organizationId: v.string(),
-    runId: v.id('workflowRuns'),
+    runId: v.id('automationRuns'),
   },
   returns: v.object({ status: v.string() }),
   // The return type is written out because this action's own reference reaches
@@ -856,7 +858,7 @@ export const stepRun = internalAction({
     }
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- documents are validated before they are saved
-    const workflow = loaded.document as Workflow;
+    const automation = loaded.document as Automation;
     const checkpoints = readCheckpoints(loaded.run.checkpoints);
     const run: RunContext = {
       ctx,
@@ -871,7 +873,7 @@ export const stepRun = internalAction({
     // so a live effectful node consults the approvals domain for the run's own
     // organization. Re-installed every turn because the closure carries this
     // invocation's ctx, matching how the connector host is assembled per turn.
-    setWorkflowApprovalGate(workflowApprovalGate(ctx, args.organizationId));
+    setAutomationApprovalGate(automationApprovalGate(ctx, args.organizationId));
 
     const sink = durableSink(
       ctx,
@@ -879,15 +881,15 @@ export const stepRun = internalAction({
       args.runId,
       run.deadline,
     );
-    const order = (topoSort(workflow.nodes) ?? workflow.nodes).map(
+    const order = (topoSort(automation.nodes) ?? automation.nodes).map(
       (node) => node.id,
     );
     // Seeded with what earlier turns already did, so the finished run's effect
     // log is whole no matter how many turns produced it.
     const effects: Effect[] = effectsFrom(checkpoints, order);
-    const result = await walkWorkflow({
+    const result = await walkAutomation({
       run,
-      workflow,
+      automation,
       input: loaded.run.input,
       checkpoints,
       sink,
@@ -910,7 +912,7 @@ export const stepRun = internalAction({
     if (failedTrace) trace.push(failedTrace);
     for (const id of order) {
       if (checkpoints.nodes[id] || failedTrace?.node === id) continue;
-      const node = workflow.nodes.find((candidate) => candidate.id === id);
+      const node = automation.nodes.find((candidate) => candidate.id === id);
       if (node) trace.push({ node: id, type: node.type, status: 'not_run' });
     }
     const finished = await ctx.runMutation(
@@ -939,7 +941,7 @@ export const stepRun = internalAction({
 function durableSink(
   ctx: ActionCtx,
   organizationId: string,
-  runId: Id<'workflowRuns'>,
+  runId: Id<'automationRuns'>,
   deadline: number,
 ): RunSink {
   return {

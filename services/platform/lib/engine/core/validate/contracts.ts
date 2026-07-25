@@ -5,7 +5,7 @@
  * Integration inputs are checked statically against their JSON Schemas:
  * value judgments are skipped exactly where a template resolves at runtime,
  * while missing required fields and unknown properties are always decidable.
- * Subworkflow references must parse and, when a store is installed, resolve.
+ * Subautomation references must parse and, when a store is installed, resolve.
  *
  * The output-typing rule guards the one bridge from text to data: an
  * unstructured node exposes only `.output.text`, and an llm node becomes
@@ -47,7 +47,7 @@ const VALUE_KEYWORDS = new Set([
 const OUTPUT_PATH_RE =
   /\bnodes\s*\.\s*([A-Za-z_$][\w$]*)\s*\??\.\s*output\s*\??\.\s*([A-Za-z_$][\w$]*)/g;
 
-function parseWorkflowRef(
+function parseAutomationRef(
   ref: string,
 ): { name: string; version?: number } | null {
   const [name, version, ...rest] = ref.split('@');
@@ -120,7 +120,7 @@ function additionalProperty(e: ErrorObject): string | undefined {
 }
 
 export async function validateContracts(
-  wf: Record<string, unknown>,
+  doc: Record<string, unknown>,
   validNodes: NodeDef[],
   issues: Issue[],
 ): Promise<void> {
@@ -148,7 +148,7 @@ export async function validateContracts(
       names = await store.list();
     } catch (e) {
       console.warn(
-        '[engine] skipping subworkflow resolution (store list failed):',
+        '[engine] skipping subautomation resolution (store list failed):',
         e instanceof Error ? e.message : e,
       );
       names = null;
@@ -163,16 +163,16 @@ export async function validateContracts(
       checkIntegrationInput(n, n.input, def.integration, issues);
     }
 
-    if (n.type === 'subworkflow' && typeof n.workflow === 'string') {
-      const parsed = parseWorkflowRef(n.workflow);
+    if (n.type === 'subautomation' && typeof n.automation === 'string') {
+      const parsed = parseAutomationRef(n.automation);
       if (parsed === null) {
         issues.push(
           err(
-            'SUBWORKFLOW_REF_INVALID',
-            `node "${n.id}": "workflow" must be "name" or "name@version" (got ${JSON.stringify(n.workflow)})`,
+            'SUBAUTOMATION_REF_INVALID',
+            `node "${n.id}": "automation" must be "name" or "name@version" (got ${JSON.stringify(n.automation)})`,
             {
               nodeId: n.id,
-              hint: 'e.g. "workflow": "daily-digest" or "daily-digest@2"',
+              hint: 'e.g. "automation": "daily-digest" or "daily-digest@2"',
             },
           ),
         );
@@ -188,14 +188,14 @@ export async function validateContracts(
         );
         issues.push(
           err(
-            'SUBWORKFLOW_NOT_FOUND',
-            `node "${n.id}": no saved workflow named "${parsed.name}"`,
+            'SUBAUTOMATION_NOT_FOUND',
+            `node "${n.id}": no saved automation named "${parsed.name}"`,
             {
               nodeId: n.id,
               hint:
                 known.length > 0
-                  ? `${close === undefined ? '' : `did you mean "${close}"? `}saved workflows: ${known.map((w) => w.name).join(', ')}`
-                  : 'no workflows are saved yet',
+                  ? `${close === undefined ? '' : `did you mean "${close}"? `}saved automations: ${known.map((w) => w.name).join(', ')}`
+                  : 'no automations are saved yet',
             },
           ),
         );
@@ -205,15 +205,15 @@ export async function validateContracts(
           if (got === null) {
             issues.push(
               err(
-                'SUBWORKFLOW_NOT_FOUND',
-                `node "${n.id}": workflow "${parsed.name}" has no version ${parsed.version}`,
+                'SUBAUTOMATION_NOT_FOUND',
+                `node "${n.id}": automation "${parsed.name}" has no version ${parsed.version}`,
                 { nodeId: n.id, hint: `latest version: ${entry.latest}` },
               ),
             );
           }
         } catch (e) {
           console.warn(
-            '[engine] skipping subworkflow version check (store get failed):',
+            '[engine] skipping subautomation version check (store get failed):',
             e instanceof Error ? e.message : e,
           );
         }
@@ -227,8 +227,8 @@ export async function validateContracts(
     for (const { src } of exprSourcesOf(n))
       allSources.push({ src, nodeId: n.id });
   }
-  if (wf.output !== undefined) {
-    for (const e of templateExprsIn(wf.output)) allSources.push({ src: e });
+  if (doc.output !== undefined) {
+    for (const e of templateExprsIn(doc.output)) allSources.push({ src: e });
   }
 
   // The output-typing rule: pathing into an unstructured output beyond
@@ -260,11 +260,15 @@ export async function validateContracts(
   }
 
   // Document quality.
-  if (wf.output === undefined) {
+  if (doc.output === undefined) {
     issues.push(
-      warn('OUTPUT_MISSING', 'workflow has no "output" — it will return null', {
-        hint: 'e.g. "output": "{{ nodes.<id>.output }}"',
-      }),
+      warn(
+        'OUTPUT_MISSING',
+        'automation has no "output" — it will return null',
+        {
+          hint: 'e.g. "output": "{{ nodes.<id>.output }}"',
+        },
+      ),
     );
   }
 
@@ -287,7 +291,7 @@ export async function validateContracts(
     issues.push(
       warn(
         'UNUSED_NODE',
-        `output of node "${n.id}" is never used (not referenced by any node or by the workflow output)`,
+        `output of node "${n.id}" is never used (not referenced by any node or by the automation output)`,
         {
           nodeId: n.id,
           hint: `reference nodes.${n.id}.output somewhere, or remove the node`,

@@ -1,8 +1,8 @@
 /**
  * Dependency-inversion seams for the core.
  *
- * Core validates and executes against a node-type table, a workflow store
- * (for subworkflow nodes), and a language-model service — but core must not
+ * Core validates and executes against a node-type table, an automation store
+ * (for subautomation nodes), and a language-model service — but core must not
  * import the layers that provide them. Providers register here at assembly
  * time; the host's entry module wires everything, so importing the public
  * API yields a fully assembled engine while the dependency graph stays
@@ -214,15 +214,15 @@ const table = new Map<string, NodeTypeDef>([
     },
   ],
   [
-    'subworkflow',
+    'subautomation',
     {
-      type: 'subworkflow',
+      type: 'subautomation',
       kind: 'core',
       outputKind: 'structured',
       description:
-        'Run a saved workflow as a node. `workflow` is "name" or "name@version" (default: deployed/latest); `input` becomes its runtime input; output is its output. Nesting max 3.',
-      allowedFields: ['workflow', 'input'],
-      requiredFields: ['workflow'],
+        'Run a saved automation as a node. `automation` is "name" or "name@version" (default: deployed/latest); `input` becomes its runtime input; output is its output. Nesting max 3.',
+      allowedFields: ['automation', 'input'],
+      requiredFields: ['automation'],
     },
   ],
 ]);
@@ -242,7 +242,7 @@ export function typeNames(): string[] {
 // -------------------------------------------------------------------- store
 
 /**
- * Where saved workflows live. Async by contract: production stores sit
+ * Where saved automations live. Async by contract: production stores sit
  * behind a database. Versions are immutable; `deployedVersion` names the one
  * version triggers run.
  */
@@ -251,7 +251,7 @@ export interface StoreAdapter {
   get(
     name: string,
     version?: number,
-  ): Promise<{ meta: { version: number }; workflow: unknown } | null>;
+  ): Promise<{ meta: { version: number }; automation: unknown } | null>;
   deployedVersion(name: string): Promise<number | null>;
 }
 

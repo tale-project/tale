@@ -59,7 +59,7 @@ async function seed(t: T): Promise<Id<'projects'>> {
   });
 }
 
-const WORKFLOW = (name: string) => ({
+const AUTOMATION = (name: string) => ({
   version: 1 as const,
   name,
   nodes: [],
@@ -76,7 +76,7 @@ async function saveAs(
       actor: MEMBER,
       ...(projectId !== undefined && { projectId }),
     });
-    await store.save(WORKFLOW(name));
+    await store.save(AUTOMATION(name));
   });
 }
 
@@ -147,7 +147,7 @@ describe('project-scoped automations', () => {
     await saveAs(t, 'desk/prepare-return');
     const rows = await t.run(async (ctx) =>
       ctx.db
-        .query('workflows')
+        .query('automations')
         .withIndex('by_org_name', (q) =>
           q.eq('organizationId', ORG).eq('name', 'desk/prepare-return'),
         )

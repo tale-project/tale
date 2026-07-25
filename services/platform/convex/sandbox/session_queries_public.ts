@@ -103,17 +103,17 @@ export const getActiveSessionOp = query({
 });
 
 /**
- * The live `agent-run` op for a workflow `sandbox` step, so the operator view's
+ * The live `agent-run` op for an automation's `sandbox` step, so the operator view's
  * stream panel can render the agent's live progress WHILE the step runs (the
- * chat path renders its timeline from the persisted message; a workflow run has
+ * chat path renders its timeline from the persisted message; an automation run has
  * no message, so the op's `progressText` is the live source). Keyed by
- * (executionId, stepSlug) — the deterministic workflow-run session — and gated on
- * ORG membership: workflow ops are org-scoped via `ownerType:'workflow_run'`, not
+ * (executionId, stepSlug) — the deterministic automation-run session — and gated on
+ * ORG membership: automation ops are org-scoped via `ownerType:'workflow_run'`, not
  * thread RLS, so any org member who can see the app's runs can watch. Returns
  * null when the caller isn't a member, no op exists yet, or the step finished
  * (its op is torn down) — the UI then falls back to the step's persisted summary.
  */
-export const getWorkflowSandboxOp = query({
+export const getAutomationSandboxOp = query({
   args: {
     organizationId: v.string(),
     executionId: v.string(),

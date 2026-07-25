@@ -475,7 +475,7 @@ export const resumeStoppedSession = internalMutation({
  * pressure queues fairly instead of jumping to cap+1. Atomic with the status
  * read — the caller needs no pre-check of the row's current status.
  */
-export const resumeWorkflowSessionSlot = internalMutation({
+export const resumeAutomationSessionSlot = internalMutation({
   args: {
     organizationId: v.string(),
     sessionId: v.string(),
@@ -773,9 +773,9 @@ export const deleteAgentCheckpointsForSpawnerSession = internalMutation({
 });
 
 /**
- * Hibernate a workflow execution's WORKFLOW-SCOPED sandbox at a human-gate
+ * Hibernate an automation run's RUN-SCOPED sandbox at a human-gate
  * pause: flip its row to `stopped` so the (creating|active) in-flight count —
- * and with it a per-org workflow session slot — is freed for the whole time
+ * and with it a per-org automation session slot — is freed for the whole time
  * the run waits on a human, instead of pinning capacity for up to the row
  * TTL. The container itself is left to the spawner's idle sweep (workspace
  * preserved either way); the resume path re-creates against the preserved
@@ -783,7 +783,7 @@ export const deleteAgentCheckpointsForSpawnerSession = internalMutation({
  * rows and (defensively) a session that still has a RUNNING agent-run op.
  * Idempotent; returns whether a row flipped.
  */
-export const hibernateWorkflowScopedSession = internalMutation({
+export const hibernateAutomationScopedSession = internalMutation({
   args: { executionId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {

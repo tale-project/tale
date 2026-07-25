@@ -5,7 +5,7 @@
  * A connector is an external system the platform can act on (GitHub, Slack, a
  * mailbox, an org's WebDAV store). It declares its identity, the auth methods
  * it accepts (MULTIPLE, decoupled from the actions — a credential row picks
- * one), and its actions. Each action is a capability the workflow engine and
+ * one), and its actions. Each action is a capability the automation engine and
  * the chat tool surface invoke through one dispatcher; the action's shape maps
  * directly onto the engine's `IntegrationLike` node type.
  *

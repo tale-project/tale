@@ -408,7 +408,7 @@ async function main(): Promise<number> {
   );
   const spot = await convexRun<Record<string, Array<Record<string, unknown>>>>(
     'migrations/testing/support:dumpTables',
-    { tables: ['tasks', 'workflows', 'taskAgentRuns', 'wfExecutions'] },
+    { tables: ['tasks', 'automations', 'taskAgentRuns', 'wfExecutions'] },
   );
   check('corpus rows survive the chain', (spot.tasks ?? []).length > 0);
   check(

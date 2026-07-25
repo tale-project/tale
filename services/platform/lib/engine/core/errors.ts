@@ -13,14 +13,14 @@ import type { Issue } from './types';
 /** Every code the engine can emit, with the invariant it protects. */
 export const CODES = {
   // Document level.
-  WF_NOT_OBJECT: 'the document must be a mapping/object',
+  AUTOMATION_NOT_OBJECT: 'the document must be a mapping/object',
   UNKNOWN_TOP_FIELD: 'only the documented top-level fields exist',
   VERSION_UNSUPPORTED: 'this engine supports document version 1',
   VERSION_MISSING: 'documents should declare version: 1',
   NAME_INVALID: 'name is required, kebab-case',
   INPUTS_SCHEMA_INVALID: 'inputs must be a valid JSON Schema',
-  NODES_MISSING: 'a workflow is a non-empty array of nodes',
-  NODES_TOO_MANY: 'at most 40 nodes per workflow',
+  NODES_MISSING: 'an automation is a non-empty array of nodes',
+  NODES_TOO_MANY: 'at most 40 nodes per automation',
   SECRET_IN_DOCUMENT:
     'credentials never live in documents; secrets are injected at runtime',
   TESTS_INVALID: 'tests must be [{name, input, expect?}]',
@@ -30,7 +30,7 @@ export const CODES = {
   NODE_ID_INVALID: 'node ids are snake_case',
   NODE_ID_DUPLICATE: 'node ids are unique',
   UNKNOWN_NODE_TYPE:
-    'type must be transform | llm | subworkflow | a registered capability name',
+    'type must be transform | llm | subautomation | a registered capability name',
   NODE_UNKNOWN_FIELD: 'nodes accept only their documented fields',
   NODE_MISSING_FIELD: 'required per-type fields must be present',
   NODE_FIELD_TYPE: 'node fields have fixed types',
@@ -41,9 +41,9 @@ export const CODES = {
   ELSEOF_TARGET_INVALID: 'elseOf must name another node that has `when`',
   REPEAT_MAX_INVALID: 'maxRepeats is 1..20',
   ONERROR_INVALID: 'onError is "fail" or "continue"',
-  SUBWORKFLOW_REF_INVALID:
-    'subworkflow references are "name" or "name@version"',
-  SUBWORKFLOW_NOT_FOUND: 'subworkflow references must resolve in the store',
+  SUBAUTOMATION_REF_INVALID:
+    'subautomation references are "name" or "name@version"',
+  SUBAUTOMATION_NOT_FOUND: 'subautomation references must resolve in the store',
 
   // References & templates.
   EXPR_SYNTAX: 'template expressions must be valid JavaScript expressions',
@@ -61,7 +61,7 @@ export const CODES = {
   INTEGRATION_INPUT_INVALID: 'integration inputs must match their JSON Schema',
 
   // Document quality.
-  OUTPUT_MISSING: 'a workflow without output returns null',
+  OUTPUT_MISSING: 'an automation without output returns null',
   UNUSED_NODE:
     'a node whose output nobody reads and that has no effect is dead',
 } as const;

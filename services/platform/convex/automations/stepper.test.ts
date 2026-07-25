@@ -30,13 +30,13 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { v } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Workflow } from '../../lib/engine/core/types';
+import type { Automation } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import schema from '../schema';
 import { readCheckpoints } from './checkpoints';
-import { setWorkflowApprovalGate } from './stepper';
+import { setAutomationApprovalGate } from './stepper';
 import { automationStore } from './store';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'automations';
@@ -122,12 +122,12 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.TALE_AUTOMATION_STEP_BUDGET_MS;
-  setWorkflowApprovalGate(null);
+  setAutomationApprovalGate(null);
   vi.unstubAllGlobals();
 });
 
 /** Save + deploy one document, the way the authoring surface would. */
-async function publish(t: T, wf: Workflow): Promise<void> {
+async function publish(t: T, wf: Automation): Promise<void> {
   await t.run(async (ctx) => {
     const store = automationStore(ctx, {
       organizationId: ORG,
@@ -147,10 +147,10 @@ async function queueRun(
   name: string,
   input: unknown,
   mode: 'mock' | 'live' = 'live',
-): Promise<Id<'workflowRuns'>> {
+): Promise<Id<'automationRuns'>> {
   return await t.run(
     async (ctx) =>
-      await ctx.db.insert('workflowRuns', {
+      await ctx.db.insert('automationRuns', {
         organizationId: ORG,
         name,
         version: 1,
@@ -164,7 +164,7 @@ async function queueRun(
   );
 }
 
-async function turn(t: T, runId: Id<'workflowRuns'>): Promise<string> {
+async function turn(t: T, runId: Id<'automationRuns'>): Promise<string> {
   const result = await t.action(internal.automations.stepper.stepRun, {
     organizationId: ORG,
     runId,
@@ -172,7 +172,7 @@ async function turn(t: T, runId: Id<'workflowRuns'>): Promise<string> {
   return result.status;
 }
 
-async function runRow(t: T, runId: Id<'workflowRuns'>) {
+async function runRow(t: T, runId: Id<'automationRuns'>) {
   const row = await t.run(async (ctx) => await ctx.db.get(runId));
   if (!row) throw new Error('run row disappeared');
   return row;
@@ -184,7 +184,7 @@ async function runRow(t: T, runId: Id<'workflowRuns'>) {
  */
 async function drive(
   t: T,
-  runId: Id<'workflowRuns'>,
+  runId: Id<'automationRuns'>,
   maxTurns = 20,
 ): Promise<string> {
   for (let i = 0; i < maxTurns; i++) {
@@ -201,7 +201,7 @@ async function drive(
   throw new Error('run did not settle');
 }
 
-const notifyThenSummarize: Workflow = {
+const notifyThenSummarize: Automation = {
   version: 1,
   name: 'ops/notify',
   nodes: [

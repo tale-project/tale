@@ -46,9 +46,9 @@ export interface ExpressionScope {
   readonly outputKinds: ReadonlyMap<string, StepOutputKind>;
   /** Variable name → the node id whose output carries it. */
   readonly variables: ReadonlyMap<string, string>;
-  /** Node id holding the workflow's declared constants, when there is one. */
+  /** Node id holding the automation's declared constants, when there is one. */
   readonly constantsNodeId?: string;
-  /** Names declared as workflow constants. */
+  /** Names declared as automation constants. */
   readonly constants?: ReadonlySet<string>;
   /** True when the expression is evaluated once per item. */
   readonly iterating: boolean;

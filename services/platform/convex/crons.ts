@@ -1,7 +1,7 @@
 /**
  * Cron Jobs
  *
- * Includes workflow scheduling and other periodic tasks.
+ * Includes automation scheduling and other periodic tasks.
  * Uses Convex's native `cronJobs` API; sub-hourly jobs are suppressed in E2E
  * to prevent test flake (see the `E2E` constant below).
  */
@@ -59,7 +59,7 @@ cron(
 // knowledge/crawler rewrite lands; until then registered websites do not crawl.
 
 // Central retention cleanup - single entry point that dispatches to all
-// enabled categories (documents, chat history, audit logs, workflow logs,
+// enabled categories (documents, chat history, audit logs, automation logs,
 // usage ledger, login attempts, temp files) based on each org's
 // retention_policy config. Runs daily at 4 AM UTC.
 cron(
@@ -166,7 +166,7 @@ cron(
 );
 
 // Sandbox ADMISSION ticket reaper — park-on-capacity FIFO tickets whose owner's
-// poll-chain died (a cancelled/crashed workflow step or chat turn that stopped
+// poll-chain died (a cancelled/crashed automation step or chat turn that stopped
 // re-stamping `lastSeenAt`) would wedge the org's queue head forever. Under
 // indefinite-wait this staleness sweep is the ONLY guard against permanent
 // queue-head starvation, so it runs at the FASTER 2-min cadence (matching the

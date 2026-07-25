@@ -4,13 +4,15 @@
  *
  * A pack is a directory holding three files: `automation.yml` (everything
  * about the automation that is not its behaviour — display text, labels, the
- * connectors it needs, the triggers it wants), `workflow.yml` (the v1 workflow
- * document that actually runs) and `icon.svg`. The directory PATH is the slug,
- * so `gmail/triage-inbox` is both where the pack lives and what it is called;
- * a pack directory may sit at any depth up to {@link MAX_PACK_DEPTH}.
+ * connectors it needs, the triggers it wants), `workflow.yml` (the v1
+ * automation document that actually runs — the file name is the one every
+ * shipped and per-organization catalog on disk already uses, so it stays) and
+ * `icon.svg`. The directory PATH is the slug, so `gmail/triage-inbox` is both
+ * where the pack lives and what it is called; a pack directory may sit at any
+ * depth up to {@link MAX_PACK_DEPTH}.
  *
  * The manifest is validated here because it is this module's own grammar. The
- * WORKFLOW is not: the engine's `validate` is the single source of truth for
+ * DOCUMENT is not: the engine's `validate` is the single source of truth for
  * what a document may contain, and re-declaring the node grammar in a Zod
  * schema would create a second one that drifts. This reader only proves the
  * file parses and carries the two fields a document is addressed by; the pack
@@ -25,7 +27,7 @@ import path from 'node:path';
 
 import { z } from 'zod/v4';
 
-import type { Workflow } from '../engine/core/types';
+import type { Automation } from '../engine/core/types';
 import { parseYamlOrThrow } from '../shared/config/yaml';
 import { zodErrorMessage } from '../shared/schemas/format-error';
 import { isRecord } from '../utils/type-utils';
@@ -46,11 +48,14 @@ const MAX_PACK_BYTES = 256 * 1024;
 /**
  * What starts a pack's automation. The kinds mirror the trigger store: a pack
  * DECLARES what it wants and the host creates the binding once per
- * organization, so an organization's own edits always win afterwards.
+ * organization, so an organization's own edits always win afterwards. There is
+ * no `api-key` kind — a programmatic start is what the REST and MCP surfaces
+ * are for, and the store refuses the kind, so a pack that declared it would ask
+ * for a binding that cannot be created.
  */
 export const automationTriggerSchema = z
   .object({
-    kind: z.enum(['schedule', 'webhook', 'event', 'api-key']),
+    kind: z.enum(['schedule', 'webhook', 'event']),
     /** Cron expression, for `schedule`. */
     cron: z.string().min(1).optional(),
     /** IANA timezone the cron is read in, for `schedule`. */
@@ -105,7 +110,7 @@ export interface AutomationPack {
   readonly slug: string;
   readonly dir: string;
   readonly manifest: AutomationPackManifest;
-  readonly workflow: Workflow;
+  readonly automation: Automation;
 }
 
 export interface LoadPacksOptions {
@@ -163,18 +168,18 @@ function readYamlFile(file: string): unknown {
 /** The engine owns document validation; this only proves the file is a
  * document at all, so a packaging mistake is reported with its path instead
  * of surfacing later as a confusing validation error. */
-function asWorkflowDocument(value: unknown, file: string): Workflow {
+function asAutomationDocument(value: unknown, file: string): Automation {
   if (
     !isRecord(value) ||
     typeof value.name !== 'string' ||
     !Array.isArray(value.nodes)
   ) {
     throw new Error(
-      `[automations] ${file} is not a workflow document: it needs at least a "name" and a "nodes" list`,
+      `[automations] ${file} is not an automation document: it needs at least a "name" and a "nodes" list`,
     );
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the two addressing fields are checked above; the engine's validate() is the full contract and every shipped pack is run through it
-  return value as unknown as Workflow;
+  return value as unknown as Automation;
 }
 
 /** Read one pack directory. `slug` is its path below `automations/`. */
@@ -188,8 +193,8 @@ export function loadAutomationPack(dir: string, slug: string): AutomationPack {
       `[automations] manifest ${manifestFile} is invalid: ${zodErrorMessage('it', parsed.error)}`,
     );
   }
-  const workflowFile = path.join(dir, AUTOMATION_WORKFLOW_FILE);
-  if (!isFile(workflowFile)) {
+  const automationFile = path.join(dir, AUTOMATION_WORKFLOW_FILE);
+  if (!isFile(automationFile)) {
     throw new Error(
       `[automations] pack "${slug}" has no ${AUTOMATION_WORKFLOW_FILE} beside its manifest`,
     );
@@ -198,7 +203,10 @@ export function loadAutomationPack(dir: string, slug: string): AutomationPack {
     slug,
     dir,
     manifest: parsed.data,
-    workflow: asWorkflowDocument(readYamlFile(workflowFile), workflowFile),
+    automation: asAutomationDocument(
+      readYamlFile(automationFile),
+      automationFile,
+    ),
   };
 }
 

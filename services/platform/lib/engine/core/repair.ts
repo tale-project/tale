@@ -15,6 +15,7 @@
  */
 
 import { parseYaml } from '../../shared/config/yaml';
+import { METHODS } from '../api/dispatch';
 
 /** An action an agent asked the engine to perform. */
 export interface AgentAction {
@@ -178,21 +179,9 @@ export function jsonErrorDetail(src: string, e: unknown): string {
 // ------------------------------------------------------------ reply parsing
 
 /** The dispatch surface — a reply naming one of these under a non-standard
- * key is still recoverable. */
-const KNOWN_METHODS = new Set([
-  'get_docs',
-  'get_catalog',
-  'search_catalog',
-  'validate_workflow',
-  'run_workflow',
-  'test_workflow',
-  'save_workflow',
-  'get_workflow',
-  'list_workflows',
-  'deploy_workflow',
-  'set_trigger',
-  'run_deployed',
-]);
+ * key is still recoverable. Derived from the method table itself, so a method
+ * added there is recoverable here without a second edit. */
+const KNOWN_METHODS: ReadonlySet<string> = new Set(METHODS);
 
 function get(obj: Record<string, unknown>, ...keys: string[]): unknown {
   for (const k of keys) {
@@ -220,12 +209,12 @@ function normalizeAction(value: unknown): AgentAction | null {
       lenient: 'used a non-standard action key',
     };
   }
-  // A bare workflow document (name + nodes, no method) → run it.
+  // A bare automation document (name + nodes, no method) → run it.
   if (obj.nodes && obj.name) {
     return {
-      method: 'run_workflow',
-      params: { workflow: obj, input: {} },
-      lenient: 'sent a bare workflow',
+      method: 'run_automation',
+      params: { automation: obj, input: {} },
+      lenient: 'sent a bare automation',
     };
   }
   if (
@@ -280,7 +269,7 @@ function balancedJsonCandidates(text: string): string[] {
 }
 
 /** Agent replies are single actions, not multi-megabyte documents; anything
- * bigger than this is a runaway, not a workflow. */
+ * bigger than this is a runaway, not an automation. */
 const REPLY_MAX_BYTES = 1024 * 1024;
 
 /**

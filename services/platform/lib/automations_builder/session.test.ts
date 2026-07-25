@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { dispatch, type DispatchStore } from '../engine/api/dispatch';
 import { DOC_EXAMPLE } from '../engine/api/docs';
 import { setCodeRunner } from '../engine/core/slots';
-import type { RunResult, Workflow } from '../engine/core/types';
+import type { RunResult, Automation } from '../engine/core/types';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import { memoryStore } from '../engine/store/memory';
 import { stringifyYaml } from '../shared/config/yaml';
@@ -38,9 +38,9 @@ function realDispatch(): { dispatch: BuilderDispatch; store: DispatchStore } {
     list: () => mem.list(),
     get: (name, version) => mem.get(name, version),
     deployedVersion: (name) => mem.deployedVersion(name),
-    async save(workflow: Workflow) {
-      const { version } = mem.save(workflow.name, workflow);
-      return { name: workflow.name, version };
+    async save(automation: Automation) {
+      const { version } = mem.save(automation.name, automation);
+      return { name: automation.name, version };
     },
     async deploy(name: string, version: number) {
       mem.deploy(name, version);
@@ -84,14 +84,14 @@ describe('the happy path: author → validate → test → save', () => {
   it('saves the tested document and ends as succeeded', async () => {
     const engine = realDispatch();
     const { model, requests } = scriptedModel([
-      reply('validate_workflow', { workflow: DOC_EXAMPLE.workflow }),
-      reply('run_workflow', {
-        workflow: DOC_EXAMPLE.workflow,
+      reply('validate_automation', { automation: DOC_EXAMPLE.automation }),
+      reply('run_automation', {
+        automation: DOC_EXAMPLE.automation,
         input: DOC_EXAMPLE.input,
       }),
-      reply('test_workflow', { workflow: DOC_EXAMPLE.workflow }),
-      reply('save_workflow', {
-        workflow: DOC_EXAMPLE.workflow,
+      reply('test_automation', { automation: DOC_EXAMPLE.automation }),
+      reply('save_automation', {
+        automation: DOC_EXAMPLE.automation,
         message: 'first version',
       }),
     ]);
@@ -111,10 +111,10 @@ describe('the happy path: author → validate → test → save', () => {
     expect(session.usage).toEqual({ prompt: 40, completion: 20 });
     expect(requests).toHaveLength(4);
     expect(session.transcript.map((entry) => entry.method)).toEqual([
-      'validate_workflow',
-      'run_workflow',
-      'test_workflow',
-      'save_workflow',
+      'validate_automation',
+      'run_automation',
+      'test_automation',
+      'save_automation',
     ]);
     // The document really landed in the store, at version 1.
     expect(await engine.store.get('order-report')).toMatchObject({
@@ -125,12 +125,12 @@ describe('the happy path: author → validate → test → save', () => {
   it('injects the checklist where the agent could think it is done', async () => {
     const engine = realDispatch();
     const { model } = scriptedModel([
-      reply('run_workflow', {
-        workflow: DOC_EXAMPLE.workflow,
+      reply('run_automation', {
+        automation: DOC_EXAMPLE.automation,
         input: DOC_EXAMPLE.input,
       }),
-      reply('test_workflow', { workflow: DOC_EXAMPLE.workflow }),
-      reply('save_workflow', { workflow: DOC_EXAMPLE.workflow }),
+      reply('test_automation', { automation: DOC_EXAMPLE.automation }),
+      reply('save_automation', { automation: DOC_EXAMPLE.automation }),
     ]);
 
     const session = await runBuilderSession({
@@ -149,15 +149,15 @@ describe('the happy path: author → validate → test → save', () => {
 
   it('refuses to save a document whose own tests have not passed', async () => {
     const engine = realDispatch();
-    const edited: Workflow = {
-      ...DOC_EXAMPLE.workflow,
+    const edited: Automation = {
+      ...DOC_EXAMPLE.automation,
       description: 'edited after testing',
     };
     const { model } = scriptedModel([
-      reply('save_workflow', { workflow: DOC_EXAMPLE.workflow }),
-      reply('test_workflow', { workflow: DOC_EXAMPLE.workflow }),
-      reply('save_workflow', { workflow: edited }),
-      reply('save_workflow', { workflow: DOC_EXAMPLE.workflow }),
+      reply('save_automation', { automation: DOC_EXAMPLE.automation }),
+      reply('test_automation', { automation: DOC_EXAMPLE.automation }),
+      reply('save_automation', { automation: edited }),
+      reply('save_automation', { automation: DOC_EXAMPLE.automation }),
     ]);
 
     const session = await runBuilderSession({
@@ -188,12 +188,12 @@ describe('malformed replies', () => {
     // produce when a template-heavy document meets JSON structure.
     const broken = [
       '```json',
-      '{"method": "validate_workflow", "params": {"workflow": {"version": 1, "name": "draft", "nodes": []}}',
+      '{"method": "validate_automation", "params": {"automation": {"version": 1, "name": "draft", "nodes": []}}',
       '```',
     ].join('\n');
     const { model } = scriptedModel([
       broken,
-      reply('validate_workflow', { workflow: DOC_EXAMPLE.workflow }),
+      reply('validate_automation', { automation: DOC_EXAMPLE.automation }),
     ]);
 
     const session = await runBuilderSession({
@@ -205,7 +205,7 @@ describe('malformed replies', () => {
 
     const first = session.transcript[0];
     expect(first.kind).toBe('action');
-    expect(first.method).toBe('validate_workflow');
+    expect(first.method).toBe('validate_automation');
     expect(first.lenient).toBe('auto-repaired malformed JSON');
     // The agent is told it deviated, so it stops relying on the repair layer.
     expect(session.messages[3].content).toContain(
@@ -217,7 +217,7 @@ describe('malformed replies', () => {
     const engine = realDispatch();
     const { model, requests } = scriptedModel([
       'I think we should probably start by listing the orders somehow.',
-      reply('validate_workflow', { workflow: DOC_EXAMPLE.workflow }),
+      reply('validate_automation', { automation: DOC_EXAMPLE.automation }),
     ]);
 
     const session = await runBuilderSession({
@@ -239,7 +239,7 @@ describe('malformed replies', () => {
     // The session recovers rather than ending on the protocol slip.
     expect(session.transcript[1]).toMatchObject({
       kind: 'action',
-      method: 'validate_workflow',
+      method: 'validate_automation',
     });
   });
 });
@@ -247,15 +247,15 @@ describe('malformed replies', () => {
 describe('a failing result is fed back so the next turn can fix it', () => {
   it('puts the validation errors in front of the model verbatim', async () => {
     const engine = realDispatch();
-    const brokenWorkflow = {
+    const brokenAutomation = {
       version: 1,
       name: 'broken',
       nodes: [{ id: 'shape', type: 'transform' }],
     };
     const { model, requests } = scriptedModel([
-      reply('run_workflow', { workflow: brokenWorkflow, input: {} }),
-      reply('run_workflow', {
-        workflow: DOC_EXAMPLE.workflow,
+      reply('run_automation', { automation: brokenAutomation, input: {} }),
+      reply('run_automation', {
+        automation: DOC_EXAMPLE.automation,
         input: DOC_EXAMPLE.input,
       }),
     ]);
@@ -274,7 +274,7 @@ describe('a failing result is fed back so the next turn can fix it', () => {
     // The second turn's prompt carries those exact errors, plus the
     // reflection nudge that makes the model diagnose before it retries.
     const secondPrompt = requests[1].at(-1)?.content ?? '';
-    expect(secondPrompt).toContain('run_workflow result:');
+    expect(secondPrompt).toContain('run_automation result:');
     expect(secondPrompt).toContain(invalid.validation?.errors[0].code ?? '');
     expect(secondPrompt).toContain(REFLECTION_NUDGE);
 
@@ -285,7 +285,9 @@ describe('a failing result is fed back so the next turn can fix it', () => {
 
   it('lets the dispatch table answer an invented method — there is no second one', async () => {
     const engine = realDispatch();
-    const { model } = scriptedModel([reply('publish_workflow', { name: 'x' })]);
+    const { model } = scriptedModel([
+      reply('publish_automation', { name: 'x' }),
+    ]);
 
     const session = await runBuilderSession({
       goal: GOAL,
@@ -295,7 +297,7 @@ describe('a failing result is fed back so the next turn can fix it', () => {
     });
 
     expect(session.transcript[0].result).toMatchObject({
-      error: 'unknown method "publish_workflow"',
+      error: 'unknown method "publish_automation"',
     });
     expect(session.outcome.status).toBe('gave-up');
   });
@@ -346,8 +348,8 @@ describe('the fruitless-turn restart', () => {
   it('counts a repeated identical error as fruitless', async () => {
     const { model } = scriptedModel([
       (request) =>
-        reply('validate_workflow', {
-          workflow: { name: `draft-${request.turn}` },
+        reply('validate_automation', {
+          automation: { name: `draft-${request.turn}` },
         }),
     ]);
 
@@ -497,13 +499,13 @@ describe('history is kept whole', () => {
   it('never summarizes or rewrites: each turn sees the previous one verbatim', async () => {
     const engine = realDispatch();
     const { model, requests } = scriptedModel([
-      reply('validate_workflow', { workflow: DOC_EXAMPLE.workflow }),
-      reply('run_workflow', {
-        workflow: DOC_EXAMPLE.workflow,
+      reply('validate_automation', { automation: DOC_EXAMPLE.automation }),
+      reply('run_automation', {
+        automation: DOC_EXAMPLE.automation,
         input: DOC_EXAMPLE.input,
       }),
-      reply('test_workflow', { workflow: DOC_EXAMPLE.workflow }),
-      reply('save_workflow', { workflow: DOC_EXAMPLE.workflow }),
+      reply('test_automation', { automation: DOC_EXAMPLE.automation }),
+      reply('save_automation', { automation: DOC_EXAMPLE.automation }),
     ]);
 
     const session = await runBuilderSession({

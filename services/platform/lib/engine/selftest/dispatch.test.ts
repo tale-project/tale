@@ -3,35 +3,73 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { dispatch, METHODS, type DispatchStore } from '../api/dispatch';
 import { DOC_EXAMPLE } from '../api/docs';
 import { setCodeRunner } from '../core/slots';
-import type { RunResult, Workflow } from '../core/types';
+import type { Automation, RunResult } from '../core/types';
 import { nodeVmRunner } from '../runners/node-vm';
 import { memoryStore } from '../store/memory';
 
-/** A dispatch store for the selftest: the versioned in-memory store plus the
- * trigger/run-record hooks dispatch calls, kept in local maps. */
+/** A dispatch store for the selftest: the versioned in-memory store, which
+ * doubles as the reference HOST — it records runs and triggers, so the
+ * management methods answer from real state rather than from a stub. */
 function dispatchStore(): DispatchStore {
   const mem = memoryStore();
-  const triggers = new Map<string, unknown>();
-  const runs: Array<{ name: string; mode: string }> = [];
   return {
     list: () => mem.list(),
     get: (name, version) => mem.get(name, version),
     deployedVersion: (name) => mem.deployedVersion(name),
-    async save(workflow: Workflow) {
-      const { version } = mem.save(workflow.name, workflow);
-      return { name: workflow.name, version };
+    async save(automation: Automation, message?: string) {
+      const { version } = mem.save(automation.name, automation, message);
+      return { name: automation.name, version };
     },
     async deploy(name: string, version: number) {
       mem.deploy(name, version);
       return { name, version };
     },
-    async setTrigger(name, trigger) {
-      triggers.set(name, trigger);
+    setTrigger: (name, trigger) => mem.setTrigger(name, trigger),
+    recordRun: (name, version, result: RunResult, mode) =>
+      mem.recordRun(name, version, result, mode),
+    startRun: (name, input, mode, version) =>
+      mem.startRun(name, input, mode, version),
+    listRuns: (options) => mem.listRuns(options),
+    getRun: (runId) => mem.getRun(runId),
+    cancelRun: (runId) => mem.cancelRun(runId),
+    listVersions: (name) => mem.listVersions(name),
+    listTriggers: (name) => mem.listTriggers(name),
+    deleteTrigger: (name) => mem.deleteTrigger(name),
+  };
+}
+
+/** The minimum a store must implement: reads plus save/deploy. Every optional
+ * capability is absent, which is what the refusal messages are for. */
+function bareStore(): DispatchStore {
+  const mem = memoryStore();
+  return {
+    list: () => mem.list(),
+    get: (name, version) => mem.get(name, version),
+    deployedVersion: (name) => mem.deployedVersion(name),
+    async save(automation: Automation) {
+      const { version } = mem.save(automation.name, automation);
+      return { name: automation.name, version };
     },
-    async recordRun(name, _version, _result: RunResult, mode) {
-      runs.push({ name, mode });
+    async deploy(name: string, version: number) {
+      mem.deploy(name, version);
+      return { name, version };
     },
   };
+}
+
+/** Save the documented example and promote it, so a management method has a
+ * deployed version to act on. */
+async function deployedExample(store: DispatchStore): Promise<void> {
+  await dispatch(
+    'save_automation',
+    { automation: DOC_EXAMPLE.automation, message: 'first cut' },
+    { store },
+  );
+  await dispatch(
+    'deploy_automation',
+    { name: 'order-report', version: 1 },
+    { store },
+  );
 }
 
 beforeAll(() => {
@@ -39,10 +77,10 @@ beforeAll(() => {
 });
 
 describe('the documented example is honest', () => {
-  it('run_workflow succeeds on DOC_EXAMPLE and matches its own test expectation shape', async () => {
+  it('run_automation succeeds on DOC_EXAMPLE and matches its own test expectation shape', async () => {
     const result = (await dispatch(
-      'run_workflow',
-      { workflow: DOC_EXAMPLE.workflow, input: DOC_EXAMPLE.input },
+      'run_automation',
+      { automation: DOC_EXAMPLE.automation, input: DOC_EXAMPLE.input },
       { store: dispatchStore() },
     )) as RunResult;
     expect(result.status).toBe('success');
@@ -51,19 +89,19 @@ describe('the documented example is honest', () => {
     });
   });
 
-  it('test_workflow passes the example workflow attached tests', async () => {
+  it('test_automation passes the example automation attached tests', async () => {
     const report = await dispatch(
-      'test_workflow',
-      { workflow: DOC_EXAMPLE.workflow },
+      'test_automation',
+      { automation: DOC_EXAMPLE.automation },
       { store: dispatchStore() },
     );
     expect(report).toMatchObject({ passed: 1, failed: 0 });
   });
 
-  it('validate_workflow reports the example clean', async () => {
+  it('validate_automation reports the example clean', async () => {
     const result = (await dispatch(
-      'validate_workflow',
-      { workflow: DOC_EXAMPLE.workflow },
+      'validate_automation',
+      { automation: DOC_EXAMPLE.automation },
       { store: dispatchStore() },
     )) as { valid: boolean; errors: unknown[] };
     expect(result.valid).toBe(true);
@@ -81,7 +119,7 @@ describe('dispatch — the shared method table', () => {
       docs: string;
     };
     expect(docs).toContain('order-report');
-    expect(docs).toContain('method: run_workflow');
+    expect(docs).toContain('method: run_automation');
   });
 
   it('get_catalog lists the built-in node types with their output kind', async () => {
@@ -93,14 +131,14 @@ describe('dispatch — the shared method table', () => {
     const byType = new Map(node_types.map((t) => [t.type, t]));
     expect(byType.get('transform')?.outputKind).toBe('structured');
     expect(byType.get('llm')).toBeDefined();
-    expect(byType.get('subworkflow')).toBeDefined();
+    expect(byType.get('subautomation')).toBeDefined();
   });
 
   it('live mode is refused without host opt-in', async () => {
     const result = (await dispatch(
-      'run_workflow',
+      'run_automation',
       {
-        workflow: DOC_EXAMPLE.workflow,
+        automation: DOC_EXAMPLE.automation,
         input: DOC_EXAMPLE.input,
         mode: 'live',
       },
@@ -112,14 +150,14 @@ describe('dispatch — the shared method table', () => {
   it('save → deploy-gate → deploy → run_deployed round-trips', async () => {
     const store = dispatchStore();
     const saved = (await dispatch(
-      'save_workflow',
-      { workflow: DOC_EXAMPLE.workflow },
+      'save_automation',
+      { automation: DOC_EXAMPLE.automation },
       { store },
     )) as { name: string; version: number };
     expect(saved).toMatchObject({ name: 'order-report', version: 1 });
 
     const deployed = (await dispatch(
-      'deploy_workflow',
+      'deploy_automation',
       { name: 'order-report', version: 1 },
       { store },
     )) as { deployed?: unknown; error?: string };
@@ -137,26 +175,26 @@ describe('dispatch — the shared method table', () => {
 
   it('the deploy gate refuses a version whose tests fail', async () => {
     const store = dispatchStore();
-    const broken: Workflow = {
+    const broken: Automation = {
       version: 1,
       name: 'broken-flow',
       nodes: [{ id: 'a', type: 'transform', code: 'return 1;' }],
       output: '{{ nodes.a.output }}',
       tests: [{ name: 'wrong', input: {}, expect: { output: 999 } }],
     };
-    await dispatch('save_workflow', { workflow: broken }, { store });
+    await dispatch('save_automation', { automation: broken }, { store });
     const deployed = (await dispatch(
-      'deploy_workflow',
+      'deploy_automation',
       { name: 'broken-flow', version: 1 },
       { store },
     )) as { error?: string };
     expect(deployed.error).toContain('failing tests');
   });
 
-  it('save_workflow refuses an invalid document', async () => {
+  it('save_automation refuses an invalid document', async () => {
     const result = (await dispatch(
-      'save_workflow',
-      { workflow: { version: 1, name: 'bad', nodes: [] } },
+      'save_automation',
+      { automation: { version: 1, name: 'bad', nodes: [] } },
       { store: dispatchStore() },
     )) as { error?: string };
     expect(result.error).toContain('failed validation');
@@ -189,5 +227,206 @@ describe('dispatch — the shared method table', () => {
       { store: dispatchStore() },
     )) as { ok?: boolean };
     expect(result.ok).toBe(true);
+  });
+
+  it('set_trigger refuses the retired api-key kind', async () => {
+    const result = (await dispatch(
+      'set_trigger',
+      { name: 'order-report', trigger: { kind: 'api-key' } },
+      { store: dispatchStore() },
+    )) as { error?: string };
+    expect(result.error).toContain('unknown trigger kind "api-key"');
+    expect(result.error).toContain('schedule, webhook, event');
+  });
+});
+
+describe('dispatch — run and trigger management', () => {
+  it('start_run hands the run to the host and get_run reports its outcome', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+
+    const started = (await dispatch(
+      'start_run',
+      { name: 'order-report', input: DOC_EXAMPLE.input },
+      { store },
+    )) as { runId?: string; version?: number; mode?: string; note?: string };
+    expect(started.runId).toBe('run_1');
+    expect(started.version).toBe(1);
+    // A test session has no live opt-in, so the host runs against the mocks.
+    expect(started.mode).toBe('mock');
+    expect(started.note).toContain('get_run');
+
+    const polled = (await dispatch(
+      'get_run',
+      { runId: 'run_1' },
+      { store },
+    )) as {
+      run?: {
+        status: string;
+        output?: unknown;
+        trace?: unknown;
+        effects?: unknown;
+      };
+    };
+    expect(polled.run?.status).toBe('success');
+    expect(polled.run?.output).toMatchObject({ stats: { count: 1, sum: 250 } });
+    expect(polled.run?.trace).toBeDefined();
+    expect(polled.run?.effects).toBeDefined();
+
+    const listed = (await dispatch(
+      'list_runs',
+      { name: 'order-report' },
+      { store },
+    )) as { runs: Array<{ runId: string; name: string }> };
+    expect(listed.runs).toHaveLength(1);
+    expect(listed.runs[0]).toMatchObject({
+      runId: 'run_1',
+      name: 'order-report',
+      version: 1,
+    });
+
+    // The reference host finishes a run before it answers, so cancelling one
+    // reports that there was nothing left to stop — the same answer a real
+    // host gives for a run that already settled.
+    const cancelled = (await dispatch(
+      'cancel_run',
+      { runId: 'run_1' },
+      { store },
+    )) as { cancelled?: boolean; note?: string };
+    expect(cancelled.cancelled).toBe(false);
+    expect(cancelled.note).toContain('already finished');
+  });
+
+  it('start_run refuses a version that is not a number', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    const result = (await dispatch(
+      'start_run',
+      { name: 'order-report', version: 'latest' },
+      { store },
+    )) as { error?: string };
+    expect(result.error).toContain('must be a whole number');
+  });
+
+  it('start_run refuses an automation with nothing deployed', async () => {
+    const store = dispatchStore();
+    const result = (await dispatch(
+      'start_run',
+      { name: 'order-report' },
+      { store },
+    )) as { error?: string; hint?: string };
+    expect(result.error).toContain('has no version to run');
+    expect(result.hint).toContain('deploy_automation');
+  });
+
+  it('get_run and cancel_run answer for an unknown run instead of throwing', async () => {
+    const store = dispatchStore();
+    const missing = (await dispatch(
+      'get_run',
+      { runId: 'run_404' },
+      { store },
+    )) as { error?: string };
+    expect(missing.error).toContain('no run "run_404"');
+
+    const cancel = (await dispatch(
+      'cancel_run',
+      { runId: 'run_404' },
+      { store },
+    )) as { error?: string };
+    expect(cancel.error).toContain('no run "run_404"');
+  });
+
+  it('list_versions reports the immutable history with its messages', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    await dispatch(
+      'save_automation',
+      { automation: DOC_EXAMPLE.automation, message: 'second cut' },
+      { store },
+    );
+
+    const result = (await dispatch(
+      'list_versions',
+      { name: 'order-report' },
+      { store },
+    )) as { versions: Array<{ version: number; message?: string }> };
+    expect(result.versions.map((v) => v.version)).toEqual([1, 2]);
+    expect(result.versions.map((v) => v.message)).toEqual([
+      'first cut',
+      'second cut',
+    ]);
+  });
+
+  it('list_triggers shows the binding and delete_trigger removes it', async () => {
+    const store = dispatchStore();
+    await dispatch(
+      'set_trigger',
+      {
+        name: 'order-report',
+        trigger: { kind: 'schedule', cron: '0 9 * * *', timezone: 'UTC' },
+      },
+      { store },
+    );
+
+    const listed = (await dispatch('list_triggers', {}, { store })) as {
+      triggers: Array<{ name: string; kind: string; cron?: string }>;
+    };
+    expect(listed.triggers).toEqual([
+      {
+        name: 'order-report',
+        kind: 'schedule',
+        cron: '0 9 * * *',
+        timezone: 'UTC',
+        hasToken: false,
+        enabled: true,
+      },
+    ]);
+
+    const deleted = (await dispatch(
+      'delete_trigger',
+      { name: 'order-report' },
+      { store },
+    )) as { ok?: boolean; note?: string };
+    expect(deleted.ok).toBe(true);
+    expect(deleted.note).toContain('run history');
+
+    const after = (await dispatch('list_triggers', {}, { store })) as {
+      triggers: unknown[];
+    };
+    expect(after.triggers).toEqual([]);
+  });
+
+  it('a store without the capability refuses instead of throwing', async () => {
+    const store = bareStore();
+    const refusals = await Promise.all(
+      (
+        [
+          ['start_run', { name: 'order-report' }],
+          ['list_runs', {}],
+          ['get_run', { runId: 'run_1' }],
+          ['cancel_run', { runId: 'run_1' }],
+          ['list_versions', { name: 'order-report' }],
+          ['list_triggers', {}],
+          ['delete_trigger', { name: 'order-report' }],
+          ['set_trigger', { name: 'order-report', trigger: { kind: 'event' } }],
+        ] as const
+      ).map(([method, params]) => dispatch(method, params, { store })),
+    );
+    for (const refusal of refusals) {
+      expect(refusal).toMatchObject({
+        error: expect.stringContaining('not supported in this environment'),
+      });
+    }
+  });
+
+  it('every method in the table answers rather than falling through', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    for (const method of METHODS) {
+      const result = await dispatch(method, {}, { store });
+      expect(result).not.toMatchObject({
+        error: expect.stringContaining('unknown method'),
+      });
+    }
   });
 });

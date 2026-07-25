@@ -37,7 +37,7 @@ const STRING_FIELDS = [
   'prompt',
   'system',
   'model',
-  'workflow',
+  'automation',
 ] as const;
 
 /** Transform code runs data-only: no module loading, no network, no host
@@ -77,8 +77,8 @@ function requiredFieldHint(
       return 'e.g. "prompt": "Summarize {{ nodes.fetch.output }}"';
     case 'code':
       return 'e.g. "code": "return input.orders.filter(o => o.total > 100)"';
-    case 'workflow':
-      return 'e.g. "workflow": "my-saved-flow" or "my-saved-flow@2"';
+    case 'automation':
+      return 'e.g. "automation": "my-saved-flow" or "my-saved-flow@2"';
     case 'input':
       return def.integration
         ? `provide "input" matching the schema: ${JSON.stringify(def.integration.inputSchema)}`

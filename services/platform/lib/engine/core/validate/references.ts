@@ -67,7 +67,7 @@ const BARE_REF_RE = /\bnodes\s*\.\s*([A-Za-z_$][\w$]*)(?!\s*[?.[\w])/g;
 const ITER_VAR_RE = /(?<![.\w$])(item|index)\b/g;
 
 export async function validateReferences(
-  wf: Record<string, unknown>,
+  doc: Record<string, unknown>,
   validNodes: NodeDef[],
   ids: Set<string>,
   issues: Issue[],
@@ -141,11 +141,11 @@ export async function validateReferences(
   // inputs schema with properties.
   let declaredKeys: Set<string> | null = null;
   if (
-    isRecord(wf.inputs) &&
-    isRecord(wf.inputs.properties) &&
-    wf.inputs.additionalProperties !== true
+    isRecord(doc.inputs) &&
+    isRecord(doc.inputs.properties) &&
+    doc.inputs.additionalProperties !== true
   ) {
-    declaredKeys = new Set(Object.keys(wf.inputs.properties));
+    declaredKeys = new Set(Object.keys(doc.inputs.properties));
   }
 
   for (const n of validNodes) {
@@ -179,7 +179,7 @@ export async function validateReferences(
     for (const { src, where } of sources) {
       await checkSource(src, n.id, where);
       // In transform code `input` is the node's own input mapping, not the
-      // workflow input — only template expressions see the run input.
+      // automation input — only template expressions see the run input.
       if (declaredKeys === null || where === 'code') continue;
       for (const k of inputKeysInSource(src)) {
         if (declaredKeys.has(k)) continue;
@@ -198,8 +198,8 @@ export async function validateReferences(
     }
   }
 
-  if (wf.output !== undefined) {
-    for (const e of templateExprsIn(wf.output)) {
+  if (doc.output !== undefined) {
+    for (const e of templateExprsIn(doc.output)) {
       await checkSource(e, undefined, 'output');
     }
   }
@@ -222,7 +222,7 @@ export async function validateReferences(
           ? 'circular reference between nodes'
           : `circular reference between nodes: ${cycle.join(' → ')}`,
         {
-          hint: 'workflows must be acyclic — a node may not read, directly or transitively, from its own output',
+          hint: 'automations must be acyclic — a node may not read, directly or transitively, from its own output',
         },
       ),
     );

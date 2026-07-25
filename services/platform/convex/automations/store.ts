@@ -28,7 +28,7 @@
 
 import type { DispatchStore, TriggerSpec } from '../../lib/engine/api/dispatch';
 import type { StoreAdapter } from '../../lib/engine/core/slots';
-import type { RunResult, Workflow } from '../../lib/engine/core/types';
+import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server';
@@ -68,9 +68,16 @@ export interface StoredTrigger extends TriggerSpec {
   enabled?: boolean;
 }
 
+/**
+ * The authoring contract both Convex-backed stores satisfy. The engine's
+ * MANAGEMENT methods (`startRun`, `getRun`, `listTriggers`, …) stay optional as
+ * the engine declares them: only {@link automationActionStore} fills them in,
+ * because starting a durable run needs the scheduler and an authorization check
+ * that belongs to a registered function rather than to the transactional core.
+ */
 export interface ConvexAutomationStore extends DispatchStore {
   save(
-    workflow: Workflow,
+    automation: Automation,
     message?: string,
     options?: SaveOptions,
   ): Promise<{ name: string; version: number }>;
@@ -83,7 +90,13 @@ export interface ConvexAutomationStore extends DispatchStore {
   ): Promise<void>;
 }
 
-const TRIGGER_KINDS = ['schedule', 'webhook', 'event', 'api-key'] as const;
+/**
+ * The kinds a write may bind. `api-key` is absent on purpose: a programmatic
+ * start is what the REST and MCP surfaces are for, so the kind never had a
+ * delivery path of its own and is refused here. The stored union in the schema
+ * still ALLOWS the value, so a row written before it was retired stays readable.
+ */
+const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
 type TriggerKind = (typeof TRIGGER_KINDS)[number];
 
 function isTriggerKind(value: unknown): value is TriggerKind {
@@ -115,9 +128,9 @@ export async function versionsOf(
   ctx: QueryCtx,
   organizationId: string,
   name: string,
-): Promise<Array<Doc<'workflows'>>> {
+): Promise<Array<Doc<'automations'>>> {
   const rows = await ctx.db
-    .query('workflows')
+    .query('automations')
     .withIndex('by_org_name', (q) =>
       q.eq('organizationId', organizationId).eq('name', name),
     )
@@ -131,13 +144,13 @@ export async function versionRow(
   organizationId: string,
   name: string,
   version?: number,
-): Promise<Doc<'workflows'> | null> {
+): Promise<Doc<'automations'> | null> {
   if (version === undefined) {
     const rows = await versionsOf(ctx, organizationId, name);
     return rows.at(-1) ?? null;
   }
   return await ctx.db
-    .query('workflows')
+    .query('automations')
     .withIndex('by_org_name_version', (q) =>
       q
         .eq('organizationId', organizationId)
@@ -151,9 +164,9 @@ export async function deploymentRow(
   ctx: QueryCtx,
   organizationId: string,
   name: string,
-): Promise<Doc<'workflowDeployments'> | null> {
+): Promise<Doc<'automationDeployments'> | null> {
   return await ctx.db
-    .query('workflowDeployments')
+    .query('automationDeployments')
     .withIndex('by_org_name', (q) =>
       q.eq('organizationId', organizationId).eq('name', name),
     )
@@ -164,9 +177,9 @@ export async function triggerRow(
   ctx: QueryCtx,
   organizationId: string,
   name: string,
-): Promise<Doc<'workflowTriggers'> | null> {
+): Promise<Doc<'automationTriggers'> | null> {
   return await ctx.db
-    .query('workflowTriggers')
+    .query('automationTriggers')
     .withIndex('by_org_name', (q) =>
       q.eq('organizationId', organizationId).eq('name', name),
     )
@@ -181,7 +194,7 @@ export async function listAutomationsFor(
   /**
    * Surface filter: an id lists ONE project's automations, `null` lists the
    * org page's (project-less only), and `undefined` — the engine's view —
-   * lists everything, so subworkflow resolution and the chat capability
+   * lists everything, so subautomation resolution and the chat capability
    * registry see project automations too.
    */
   projectId?: Id<'projects'> | null,
@@ -189,11 +202,11 @@ export async function listAutomationsFor(
   const rows =
     projectId === undefined
       ? await ctx.db
-          .query('workflows')
+          .query('automations')
           .withIndex('by_org', (q) => q.eq('organizationId', organizationId))
           .collect()
       : await ctx.db
-          .query('workflows')
+          .query('automations')
           .withIndex('by_org_project', (q) =>
             q
               .eq('organizationId', organizationId)
@@ -211,7 +224,7 @@ export async function listAutomationsFor(
 
 /**
  * The read half of the store — everything the executor needs to resolve a
- * subworkflow reference. Usable from a plain query, and org-scoped like the
+ * subautomation reference. Usable from a plain query, and org-scoped like the
  * full store.
  */
 export function automationReadStore(
@@ -223,7 +236,7 @@ export function automationReadStore(
     async get(name, version) {
       const row = await versionRow(ctx, organizationId, name, version);
       if (!row) return null;
-      return { meta: { version: row.version }, workflow: row.document };
+      return { meta: { version: row.version }, automation: row.document };
     },
     async deployedVersion(name) {
       const row = await deploymentRow(ctx, organizationId, name);
@@ -258,8 +271,8 @@ export function automationStore(
      * serializes conflicting transactions and the loser retries against the
      * row it did not see.
      */
-    async save(workflow, message, options) {
-      const name = assertAutomationName(workflow.name ?? '');
+    async save(automation, message, options) {
+      const name = assertAutomationName(automation.name ?? '');
       const rows = await versionsOf(ctx, organizationId, name);
       const version = (rows.at(-1)?.version ?? 0) + 1;
       // Ownership is pinned by the first version: later saves inherit it,
@@ -275,12 +288,12 @@ export function automationStore(
           `"${name}" belongs to a different surface — it cannot be saved into another project`,
         );
       }
-      await ctx.db.insert('workflows', {
+      await ctx.db.insert('automations', {
         organizationId,
         name,
         version,
         ...(owner !== undefined && { projectId: owner }),
-        document: workflow,
+        document: automation,
         ...(message !== undefined && message !== '' && { message }),
         ...(options?.testsPassed !== undefined && {
           testsPassed: options.testsPassed,
@@ -315,7 +328,7 @@ export function automationStore(
       };
       if (existing) await ctx.db.patch(existing._id, patch);
       else
-        await ctx.db.insert('workflowDeployments', {
+        await ctx.db.insert('automationDeployments', {
           organizationId,
           name,
           ...patch,
@@ -360,7 +373,7 @@ export function automationStore(
         await ctx.db.patch(existing._id, fields);
         return;
       }
-      await ctx.db.insert('workflowTriggers', {
+      await ctx.db.insert('automationTriggers', {
         organizationId,
         name: automation,
         ...fields,
@@ -379,7 +392,7 @@ export function automationStore(
       // Denormalize the owning project from the version row so a project's
       // run log never joins over names.
       const versioned = await versionRow(ctx, organizationId, name, version);
-      await ctx.db.insert('workflowRuns', {
+      await ctx.db.insert('automationRuns', {
         organizationId,
         name,
         version,
@@ -409,11 +422,16 @@ export function automationStore(
  * The same store, for a caller that has no database handle.
  *
  * `dispatch()` — the one method table behind every authoring surface — runs in
- * an action, because executing a workflow needs the code sandbox. It is handed
+ * an action, because executing an automation needs the code sandbox. It is handed
  * one of these: every method forwards to the registered function that wraps the
  * transactional store above, so an agent editing an automation and a person
  * clicking Save go through identical rules, and the organization scope travels
  * with every call rather than being remembered somewhere.
+ *
+ * This is also the store that hosts DURABLE runs, which the transactional one
+ * cannot: `startRun` hands the run to the stepper through the scheduler, and its
+ * mutation authorizes the actor first — the MCP endpoint reaches this with an
+ * org API key, so "who may start a live run" is decided here rather than assumed.
  */
 export function automationActionStore(
   ctx: ActionCtx,
@@ -434,11 +452,11 @@ export function automationActionStore(
         organizationId,
         name,
       }),
-    save: (workflow, message, options) =>
+    save: (automation, message, options) =>
       ctx.runMutation(internal.automations.mutations.storeSave, {
         organizationId,
         actor,
-        workflow,
+        automation,
         // Ownership travels with the scope: an action-side save into a
         // project surface pins the project exactly as a transactional one.
         ...(scope.projectId !== undefined && { projectId: scope.projectId }),
@@ -472,5 +490,56 @@ export function automationActionStore(
         mode,
       });
     },
+
+    // The management half. Starting and cancelling go through mutations that
+    // authorize the ACTOR — an org API key reaching this through the MCP
+    // endpoint has proved who it is but not what its role may do, and a live
+    // run may touch real systems.
+    startRun: (name, input, mode, version) =>
+      ctx.runMutation(internal.automations.mutations.storeStartRun, {
+        organizationId,
+        actor,
+        name,
+        input,
+        mode,
+        ...(version !== undefined && { version }),
+      }),
+    cancelRun: async (runId) => {
+      const result = await ctx.runMutation(
+        internal.automations.mutations.storeCancelRun,
+        { organizationId, actor, runId },
+      );
+      // An unusable handle is reported as a miss, the same way `getRun` does.
+      if (result === null) throw new Error(`no run "${runId}"`);
+      return result;
+    },
+    deleteTrigger: async (name) => {
+      await ctx.runMutation(internal.automations.mutations.storeDeleteTrigger, {
+        organizationId,
+        actor,
+        name,
+      });
+    },
+    listRuns: (options) =>
+      ctx.runQuery(internal.automations.queries.storeListRuns, {
+        organizationId,
+        ...(options.name !== undefined && { name: options.name }),
+        ...(options.limit !== undefined && { limit: options.limit }),
+      }),
+    getRun: (runId) =>
+      ctx.runQuery(internal.automations.queries.storeGetRun, {
+        organizationId,
+        runId,
+      }),
+    listVersions: (name) =>
+      ctx.runQuery(internal.automations.queries.storeListVersions, {
+        organizationId,
+        name,
+      }),
+    listTriggers: (name) =>
+      ctx.runQuery(internal.automations.queries.storeListTriggers, {
+        organizationId,
+        ...(name !== undefined && { name }),
+      }),
   };
 }

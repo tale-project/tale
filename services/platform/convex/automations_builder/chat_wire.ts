@@ -13,7 +13,7 @@
  *    message, and rejects two messages of the same role in a row — a session
  *    restart seeds two user messages back to back, so they are merged here.
  *  - `max_tokens` is mandatory for Anthropic and merely wise for OpenAI: a
- *    builder reply carries a whole workflow document and a truncated one
+ *    builder reply carries a whole automation document and a truncated one
  *    costs a turn.
  */
 

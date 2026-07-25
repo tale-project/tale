@@ -1,5 +1,5 @@
 /**
- * The executor: run a validated workflow against an input, producing
+ * The executor: run a validated automation against an input, producing
  * `{status, output, trace, effects}`.
  *
  * The trace records every node's RESOLVED input and actual output — it is
@@ -15,7 +15,7 @@ import { Ajv } from 'ajv';
 import type { IntegrationHostCapabilities } from '../slots';
 import { llmService, nodeTypes, storeAdapter } from '../slots';
 import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
-import type { Effect, NodeTrace, RunResult, Workflow } from '../types';
+import type { Automation, Effect, NodeTrace, RunResult } from '../types';
 import { refsOf, topoSort } from './controlflow';
 import {
   cloneData,
@@ -37,7 +37,7 @@ function asPromptText(v: unknown): string {
 }
 
 export interface ExecuteOptions {
-  /** The runtime input, validated against the workflow's `inputs` schema. */
+  /** The runtime input, validated against the automation's `inputs` schema. */
   input?: unknown;
   /** `mock` (default): deterministic mocks. `live`: real side effects. */
   mode?: 'mock' | 'live';
@@ -57,17 +57,17 @@ export interface ExecuteOptions {
   /** Guard against runaway documents: total node EXECUTIONS including
    * forEach items (default 100). */
   maxNodes?: number;
-  /** Subworkflow nesting depth (internal; hosts leave it unset). */
+  /** Subautomation nesting depth (internal; hosts leave it unset). */
   nesting?: number;
 }
 
-const MAX_SUBWORKFLOW_DEPTH = 3;
+const MAX_SUBAUTOMATION_DEPTH = 3;
 const DEFAULT_MAX_REPEATS = 5;
 const REPEATS_HARD_CAP = 20;
 const DEFAULT_MAX_NODE_EXECUTIONS = 100;
 
 export async function execute(
-  wf: Workflow,
+  doc: Automation,
   opts: ExecuteOptions = {},
 ): Promise<RunResult> {
   const input = opts.input;
@@ -82,30 +82,30 @@ export async function execute(
 
   // Runtime input contract. An unparseable inputs schema is validation's
   // finding, not a run failure — skip the check rather than crash here.
-  if (wf.inputs) {
+  if (doc.inputs) {
     try {
-      const check = ajv.compile(cloneData(wf.inputs));
+      const check = ajv.compile(cloneData(doc.inputs));
       if (!check(input)) {
         const msg = (check.errors ?? [])
           .map((e) => `input${e.instancePath} ${e.message}`)
           .join('; ');
         return fail({
-          message: `run input does not match the workflow "inputs" schema: ${msg}`,
+          message: `run input does not match the automation "inputs" schema: ${msg}`,
           hint: `you passed: ${JSON.stringify(input)}`,
         });
       }
     } catch (err) {
       console.warn(
-        '[engine] skipping run-input check (unparseable inputs schema — validate_workflow reports it):',
+        '[engine] skipping run-input check (unparseable inputs schema — validate_automation reports it):',
         err instanceof Error ? err.message : err,
       );
     }
   }
 
-  const ordered = topoSort(wf.nodes);
+  const ordered = topoSort(doc.nodes);
   if (!ordered) {
     return fail({
-      message: 'circular reference between nodes (see validate_workflow)',
+      message: 'circular reference between nodes (see validate_automation)',
     });
   }
 
@@ -173,7 +173,7 @@ export async function execute(
         if (executions > maxExecutions) {
           throw new ExprError(
             n.id,
-            `run exceeded the ${maxExecutions}-execution guard — a forEach over a huge array or a runaway repeat; split the workflow or raise maxNodes deliberately`,
+            `run exceeded the ${maxExecutions}-execution guard — a forEach over a huge array or a runaway repeat; split the automation or raise maxNodes deliberately`,
           );
         }
         const scope = () => makeScope(input, nodeOutputs, extra);
@@ -244,13 +244,13 @@ export async function execute(
                 : { text: mockLlmText(model, prompt) };
           }
           effects.push({ node: n.id, integration: 'llm', input: llmInput });
-        } else if (n.type === 'subworkflow') {
-          const ref = n.workflow ?? '';
+        } else if (n.type === 'subautomation') {
+          const ref = n.automation ?? '';
           const store = storeAdapter();
           if (!store) {
             throw new ExprError(
-              'subworkflow',
-              'no workflow store is configured in this environment',
+              'subautomation',
+              'no automation store is configured in this environment',
             );
           }
           const [subName, subVerRaw] = ref.split('@');
@@ -260,29 +260,29 @@ export async function execute(
           const found = await store.get(subName, subVer);
           if (!found) {
             throw new ExprError(
-              'subworkflow',
-              `no saved workflow "${ref}" — save_workflow it first`,
+              'subautomation',
+              `no saved automation "${ref}" — save_automation it first`,
             );
           }
           const depth = opts.nesting ?? 0;
-          if (depth >= MAX_SUBWORKFLOW_DEPTH) {
+          if (depth >= MAX_SUBAUTOMATION_DEPTH) {
             throw new ExprError(
-              'subworkflow',
-              `subworkflows nest at most ${MAX_SUBWORKFLOW_DEPTH} levels deep`,
+              'subautomation',
+              `subautomations nest at most ${MAX_SUBAUTOMATION_DEPTH} levels deep`,
             );
           }
           const resolved = await evalTemplates(n.input ?? {}, scope());
-          if (record) entry.input = { workflow: ref, input: resolved };
+          if (record) entry.input = { automation: ref, input: resolved };
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
-          const sub = await execute(found.workflow as Workflow, {
+          const sub = await execute(found.automation as Automation, {
             ...opts,
             input: resolved,
             nesting: depth + 1,
           });
           if (sub.status !== 'success') {
             throw new ExprError(
-              'subworkflow',
-              `subworkflow "${ref}" ${sub.status}: ${sub.error?.message ?? 'see its validation errors'}`,
+              'subautomation',
+              `subautomation "${ref}" ${sub.status}: ${sub.error?.message ?? 'see its validation errors'}`,
             );
           }
           for (const ef of sub.effects) {
@@ -431,16 +431,16 @@ export async function execute(
 
   try {
     const output =
-      wf.output !== undefined
+      doc.output !== undefined
         ? await evalTemplates(
-            cloneData(wf.output),
+            cloneData(doc.output),
             makeScope(input, nodeOutputs),
           )
         : null;
     return { status: 'success', output, trace, effects };
   } catch (e) {
     return fail({
-      message: `failed to evaluate workflow "output": ${e instanceof Error ? e.message : String(e)}`,
+      message: `failed to evaluate automation "output": ${e instanceof Error ? e.message : String(e)}`,
     });
   }
 }

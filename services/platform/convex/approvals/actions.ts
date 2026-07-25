@@ -62,7 +62,7 @@ export const executeApprovedIntegrationOperation = action({
   },
 });
 
-export const executeApprovedWorkflowRun = action({
+export const executeApprovedAutomationRun = action({
   args: {
     approvalId: v.id('approvals'),
   },
@@ -87,7 +87,7 @@ export const executeApprovedWorkflowRun = action({
   },
 });
 
-export const executeApprovedWorkflowCreation = action({
+export const executeApprovedAutomationCreation = action({
   args: {
     approvalId: v.id('approvals'),
   },
@@ -162,7 +162,7 @@ export const executeApprovedKnowledgeWrite = action({
   },
 });
 
-export const executeApprovedWorkflowUpdate = action({
+export const executeApprovedAutomationUpdate = action({
   args: {
     approvalId: v.id('approvals'),
   },

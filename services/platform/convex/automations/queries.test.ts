@@ -70,7 +70,7 @@ interface RunSeed {
 async function seedRuns(t: T, runs: RunSeed[]): Promise<void> {
   await t.run(async (ctx) => {
     for (const run of runs) {
-      await ctx.db.insert('workflowRuns', {
+      await ctx.db.insert('automationRuns', {
         organizationId: run.organizationId ?? ORG,
         name: run.name,
         version: 1,

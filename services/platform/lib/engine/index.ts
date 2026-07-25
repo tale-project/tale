@@ -1,5 +1,5 @@
 /**
- * The workflow engine — public surface.
+ * The automation engine — public surface.
  *
  * A host assembles a working engine by installing the slots (a CodeRunner
  * for untrusted JS, optionally a StoreAdapter, an LlmService, and any
@@ -9,6 +9,8 @@
  */
 
 export type {
+  Automation,
+  AutomationTest,
   Effect,
   Issue,
   Json,
@@ -17,8 +19,6 @@ export type {
   NodeTrace,
   RunError,
   RunResult,
-  Workflow,
-  WorkflowTest,
 } from './core/types';
 export { CODES, type IssueCode } from './core/errors';
 export {
@@ -52,12 +52,16 @@ export { nodeVmRunner } from './runners/node-vm';
 export { memoryStore, type MemoryStore } from './store/memory';
 export { agentDocs, DOC_EXAMPLE } from './api/docs';
 export { searchCatalog, allIntegrations } from './api/catalog-search';
-export { runWorkflowTests, type TestReport } from './api/tests';
+export { runAutomationTests, type TestReport } from './api/tests';
 export {
   dispatch,
   METHODS,
   type DispatchContext,
   type DispatchStore,
   type Method,
+  type RunDetail,
+  type RunSummary,
   type TriggerSpec,
+  type TriggerView,
+  type VersionSummary,
 } from './api/dispatch';

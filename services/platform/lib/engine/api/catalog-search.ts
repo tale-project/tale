@@ -5,7 +5,7 @@
  * a plain keyword baseline while keeping exact matches ranked first.
  *
  * The scorer is exported as {@link rankFuzzy} because discovery is not unique
- * to the workflow catalog: chat's capability surface searches over the same
+ * to the automation catalog: chat's capability surface searches over the same
  * kind of "name + description + tags" documents, and a second matcher would
  * mean two different answers to the same query.
  */

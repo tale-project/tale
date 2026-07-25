@@ -177,6 +177,12 @@ export const buildAutomation = internalAction({
  * `dispatch()` the builder loop drives, against the production Convex-backed
  * store, with live execution enabled — the caller holds an org API key (the
  * deployment's own credential), not a builder test session.
+ *
+ * `allowLive` is what makes `start_run` and `run_deployed` real here, so the
+ * store this hands to `dispatch()` is also the one that authorizes: its
+ * run-control methods resolve the actor's role before starting or stopping live
+ * work (see `automations/mutations.ts`). The actor string carries the key
+ * holder's identity for exactly that reason.
  */
 export const dispatchEngineMethod = internalAction({
   args: {

@@ -24,7 +24,7 @@ import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../store/memory';
 import type { IssueCode } from '../errors';
 import { registerNodeType, setCodeRunner, setStoreAdapter } from '../slots';
-import type { Issue, Workflow } from '../types';
+import type { Automation, Issue } from '../types';
 import { validate } from './index';
 
 const GOLDEN_PATH = fileURLToPath(
@@ -43,7 +43,7 @@ beforeAll(() => {
   setCodeRunner(nodeVmRunner());
 
   const store = memoryStore();
-  const noop: Workflow = {
+  const noop: Automation = {
     version: 1,
     name: 'send-digest',
     nodes: [{ id: 'noop', type: 'transform', code: 'return input;' }],
@@ -272,16 +272,18 @@ const fixtures: Record<string, unknown> = {
       { id: 'main', type: 'transform', code: 'return 1;', onError: 'retry' },
     ],
   }),
-  'subworkflow-ref-invalid': flow({
-    nodes: [{ id: 'sub', type: 'subworkflow', workflow: 'Daily Digest@next' }],
+  'subautomation-ref-invalid': flow({
+    nodes: [
+      { id: 'sub', type: 'subautomation', automation: 'Daily Digest@next' },
+    ],
     output: '{{ nodes.sub.output }}',
   }),
-  'subworkflow-not-found': flow({
-    nodes: [{ id: 'sub', type: 'subworkflow', workflow: 'daily-digest' }],
+  'subautomation-not-found': flow({
+    nodes: [{ id: 'sub', type: 'subautomation', automation: 'daily-digest' }],
     output: '{{ nodes.sub.output }}',
   }),
-  'subworkflow-version-not-found': flow({
-    nodes: [{ id: 'sub', type: 'subworkflow', workflow: 'send-digest@9' }],
+  'subautomation-version-not-found': flow({
+    nodes: [{ id: 'sub', type: 'subautomation', automation: 'send-digest@9' }],
     output: '{{ nodes.sub.output }}',
   }),
   'expr-syntax-prompt': flow({
@@ -413,7 +415,7 @@ const fixtures: Record<string, unknown> = {
 /** Every code the validator can emit; the corpus must cover each at least
  * once, and only codes from the catalog may appear. */
 const VALIDATION_CODES: IssueCode[] = [
-  'WF_NOT_OBJECT',
+  'AUTOMATION_NOT_OBJECT',
   'UNKNOWN_TOP_FIELD',
   'VERSION_UNSUPPORTED',
   'VERSION_MISSING',
@@ -437,8 +439,8 @@ const VALIDATION_CODES: IssueCode[] = [
   'ELSEOF_TARGET_INVALID',
   'REPEAT_MAX_INVALID',
   'ONERROR_INVALID',
-  'SUBWORKFLOW_REF_INVALID',
-  'SUBWORKFLOW_NOT_FOUND',
+  'SUBAUTOMATION_REF_INVALID',
+  'SUBAUTOMATION_NOT_FOUND',
   'EXPR_SYNTAX',
   'REF_UNKNOWN_NODE',
   'REF_SELF',

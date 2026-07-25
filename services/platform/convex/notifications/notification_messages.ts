@@ -303,9 +303,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'A review on "{title}" has been waiting for over a day.',
     agentEscalation: 'Agent escalation',
     agentEscalationBody: '{agent} escalated: {reason}',
-    humanInputEscalated: 'Workflow waiting on input',
+    humanInputEscalated: 'Automation waiting on input',
     humanInputEscalatedBody:
-      'A workflow has been waiting on human input for {ageHours} hours.',
+      'An automation has been waiting on human input for {ageHours} hours.',
     taskSlaEscalated: 'Overdue task escalated',
     taskSlaEscalatedBody:
       '"{title}" is significantly overdue and needs attention.',
@@ -346,9 +346,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Ein Review zu "{title}" wartet seit über einem Tag.',
     agentEscalation: 'Agenten-Eskalation',
     agentEscalationBody: '{agent} hat eskaliert: {reason}',
-    humanInputEscalated: 'Workflow wartet auf Eingabe',
+    humanInputEscalated: 'Automatisierung wartet auf Eingabe',
     humanInputEscalatedBody:
-      'Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.',
+      'Eine Automatisierung wartet seit {ageHours} Stunden auf menschliche Eingabe.',
     taskSlaEscalated: 'Überfällige Aufgabe eskaliert',
     taskSlaEscalatedBody:
       '"{title}" ist deutlich überfällig und braucht Aufmerksamkeit.',
@@ -389,9 +389,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       "Une revue sur « {title} » attend depuis plus d'un jour.",
     agentEscalation: "Escalade d'agent",
     agentEscalationBody: '{agent} a escaladé : {reason}',
-    humanInputEscalated: "Workflow en attente d'une saisie",
+    humanInputEscalated: "Automatisation en attente d'une saisie",
     humanInputEscalatedBody:
-      'Un workflow attend une saisie humaine depuis {ageHours} heures.',
+      'Une automatisation attend une saisie humaine depuis {ageHours} heures.',
     taskSlaEscalated: 'Tâche en retard escaladée',
     taskSlaEscalatedBody:
       '« {title} » est nettement en retard et demande votre attention.',

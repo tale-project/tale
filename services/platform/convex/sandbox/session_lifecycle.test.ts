@@ -589,7 +589,7 @@ describe('revokeTokensForSession', () => {
   });
 });
 
-describe('listWorkflowRunSessionsForExecution (user-Stop teardown enumeration)', () => {
+describe('listAutomationRunSessionsForExecution (user-Stop teardown enumeration)', () => {
   async function insertWfRunSession(
     t: T,
     opts: {
@@ -655,7 +655,7 @@ describe('listWorkflowRunSessionsForExecution (user-Stop teardown enumeration)',
     });
 
     const live = await t.query(
-      internal.sandbox.session_queries.listWorkflowRunSessionsForExecution,
+      internal.sandbox.session_queries.listAutomationRunSessionsForExecution,
       { organizationId: ORG, executionId: 'execA' },
     );
     expect(live.map((s) => s.sessionId).sort()).toEqual([

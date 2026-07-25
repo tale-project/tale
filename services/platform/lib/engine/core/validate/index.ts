@@ -1,5 +1,5 @@
 /**
- * Static validation — four passes over a workflow document, each pass only
+ * Static validation — four passes over an automation document, each pass only
  * seeing what the previous one proved.
  *
  * Returns `{errors, warnings}` where every Issue carries a machine-readable
@@ -10,7 +10,7 @@
  *
  * Order: document shape → per-node structure → references and templates →
  * integration/store contracts and document quality. Validation is async end
- * to end: syntax checks ride the CodeRunner and subworkflow resolution rides
+ * to end: syntax checks ride the CodeRunner and subautomation resolution rides
  * the async store; with no runner installed, syntax checks are skipped
  * silently and re-run once a backend is wired.
  */
@@ -32,8 +32,8 @@ export async function validate(
     return {
       errors: [
         err(
-          'WF_NOT_OBJECT',
-          'the workflow document must be a mapping/object: {version, name, inputs?, nodes, output?}',
+          'AUTOMATION_NOT_OBJECT',
+          'the automation document must be a mapping/object: {version, name, inputs?, nodes, output?}',
         ),
       ],
       warnings: [],
@@ -59,10 +59,10 @@ export async function validate(
     issues.push(
       err(
         'NODES_TOO_MANY',
-        `workflow has ${doc.nodes.length} nodes — at most ${MAX_NODES} per workflow`,
+        `automation has ${doc.nodes.length} nodes — at most ${MAX_NODES} per automation`,
         {
           path: 'nodes',
-          hint: 'extract cohesive groups into saved workflows and call them with subworkflow nodes',
+          hint: 'extract cohesive groups into saved automations and call them with subautomation nodes',
         },
       ),
     );

@@ -1,10 +1,10 @@
 /**
  * What starts an automation, and the rules that decide whether it may.
  *
- * Four kinds, one lifecycle: each resolves to `beginRun`, so a scheduled run, a
- * webhook run, an event run and an API-key run are the same durable object with
- * the same history. What differs is only the proof that the caller is entitled
- * to start it:
+ * Three kinds, one lifecycle: each resolves to `beginRun`, so a scheduled run, a
+ * webhook run and an event run are the same durable object with the same
+ * history. What differs is only the proof that the caller is entitled to start
+ * it:
  *
  *  - `schedule` — the platform's own minutely scan; the only cross-organization
  *    read in this module, and every run it starts is scoped to the trigger's
@@ -12,10 +12,15 @@
  *  - `webhook`  — a bearer token in the URL, verified against the stored SHA-256
  *    with a constant-time compare; the plaintext exists only in the response
  *    that minted it;
- *  - `event`    — a platform event, dispatched per organization;
- *  - `api-key`  — an explicit programmatic call, authenticated upstream.
+ *  - `event`    — a platform event, dispatched per organization.
  *
- * LOOP SAFETY. A workflow's own writes must never re-enter the engine. Event
+ * A PROGRAMMATIC run needs no trigger row at all. `POST
+ * /api/v1/automations/:name/runs` (and the MCP run tools) authenticate an
+ * organization API key and check the developer capability at the request
+ * boundary, which is a stronger and more revocable proof than a stored row —
+ * so nothing here has to be provisioned before an automation is callable.
+ *
+ * LOOP SAFETY. An automation's own writes must never re-enter the engine. Event
  * dispatch therefore takes the ORIGIN of the event and refuses to fire triggers
  * for anything a run itself produced: an automation that writes a record which
  * raises an event that starts the same automation is an unbounded loop that no
@@ -57,10 +62,10 @@ const STUCK_RUN_MS = 15 * 60 * 1000;
 /** Runs re-entered per recovery sweep. */
 const RECOVERY_LIMIT = 20;
 
-/** Where an event came from. `workflow` is refused — see the module note. */
+/** Where an event came from. `automation` is refused — see the module note. */
 export const eventOriginValidator = v.union(
   v.literal('platform'),
-  v.literal('workflow'),
+  v.literal('automation'),
 );
 
 // ----------------------------------------------------------------- schedule
@@ -78,7 +83,7 @@ export const scanScheduledTriggers = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
     const triggers = await ctx.db
-      .query('workflowTriggers')
+      .query('automationTriggers')
       .withIndex('by_kind_enabled', (q) =>
         q.eq('kind', 'schedule').eq('enabled', true),
       )
@@ -143,7 +148,7 @@ export const recoverStuckRuns = internalMutation({
     let resumed = 0;
     for (const status of ['queued', 'running'] as const) {
       const rows = await ctx.db
-        .query('workflowRuns')
+        .query('automationRuns')
         .withIndex('by_status', (q) => q.eq('status', status))
         .take(RECOVERY_LIMIT);
       for (const row of rows) {
@@ -172,7 +177,7 @@ export const resolveWebhookTrigger = internalQuery({
   returns: v.union(
     v.null(),
     v.object({
-      triggerId: v.id('workflowTriggers'),
+      triggerId: v.id('automationTriggers'),
       organizationId: v.string(),
       name: v.string(),
       tokenHash: v.string(),
@@ -181,10 +186,10 @@ export const resolveWebhookTrigger = internalQuery({
   ),
   handler: async (ctx, args) => {
     const rows = await ctx.db
-      .query('workflowTriggers')
+      .query('automationTriggers')
       .withIndex('by_token_hash', (q) => q.eq('tokenHash', args.tokenHash))
       .take(2);
-    const row: Doc<'workflowTriggers'> | undefined = rows[0];
+    const row: Doc<'automationTriggers'> | undefined = rows[0];
     if (!row || row.kind !== 'webhook' || row.tokenHash === undefined) {
       return null;
     }
@@ -202,10 +207,10 @@ export const resolveWebhookTrigger = internalQuery({
 export const fireWebhookTrigger = internalMutation({
   args: {
     organizationId: v.string(),
-    triggerId: v.id('workflowTriggers'),
+    triggerId: v.id('automationTriggers'),
     payload: v.any(),
   },
-  returns: v.union(v.null(), v.object({ runId: v.id('workflowRuns') })),
+  returns: v.union(v.null(), v.object({ runId: v.id('automationRuns') })),
   handler: async (ctx, args) => {
     const trigger = await ctx.db.get(args.triggerId);
     if (
@@ -305,7 +310,7 @@ export const automationWebhookHandler = httpAction(async (ctx, request) => {
 /**
  * Start every automation of one organization listening for `event`.
  *
- * `origin: 'workflow'` is refused — see the loop-safety note at the top of the
+ * `origin: 'automation'` is refused — see the loop-safety note at the top of the
  * module. The refusal is deliberately not an error: the caller did nothing
  * wrong, the platform simply does not let a run's own writes start more runs.
  */
@@ -317,18 +322,18 @@ export const dispatchAutomationEvent = internalMutation({
     origin: eventOriginValidator,
   },
   returns: v.object({
-    started: v.array(v.id('workflowRuns')),
+    started: v.array(v.id('automationRuns')),
     refused: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    if (args.origin === 'workflow') {
+    if (args.origin === 'automation') {
       console.warn(
-        `[automations] event "${args.event}" raised by a workflow run does not fire triggers (loop safety)`,
+        `[automations] event "${args.event}" raised by an automation run does not fire triggers (loop safety)`,
       );
       return { started: [], refused: true };
     }
     const triggers = await ctx.db
-      .query('workflowTriggers')
+      .query('automationTriggers')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .collect();
     const started = [];
@@ -351,44 +356,5 @@ export const dispatchAutomationEvent = internalMutation({
       if (run) started.push(run.runId);
     }
     return { started, refused: false };
-  },
-});
-
-// ------------------------------------------------------------------ api-key
-
-/**
- * Start a run the way an API client asks for it. The key itself is
- * authenticated by the gateway; what is checked here is that the organization
- * actually exposed this automation programmatically — an automation without an
- * enabled `api-key` trigger is not callable, however valid the key.
- */
-export const fireApiKeyTrigger = internalMutation({
-  args: {
-    organizationId: v.string(),
-    name: v.string(),
-    input: v.optional(v.any()),
-    /** Who the gateway authenticated, for the run log. */
-    callerRef: v.string(),
-  },
-  returns: v.union(
-    v.null(),
-    v.object({ runId: v.id('workflowRuns'), version: v.number() }),
-  ),
-  handler: async (ctx, args) => {
-    const trigger = await ctx.db
-      .query('workflowTriggers')
-      .withIndex('by_org_name', (q) =>
-        q.eq('organizationId', args.organizationId).eq('name', args.name),
-      )
-      .unique();
-    if (!trigger || trigger.kind !== 'api-key' || !trigger.enabled) return null;
-    await ctx.db.patch(trigger._id, { lastFiredAt: Date.now() });
-    return await beginRun(ctx, {
-      organizationId: args.organizationId,
-      name: args.name,
-      input: args.input ?? {},
-      mode: 'live',
-      startedBy: `api-key:${args.callerRef}`,
-    });
   },
 });
