@@ -184,11 +184,24 @@ export async function seedWorldDb(
     sequence: 2,
     createdAt: T0 + 4_200,
   });
+  // External-lane on purpose: recoverStaleDirectGenerations (a 2-minute cron
+  // in the LIVE stack the container e2e boots) deletes any direct-lane row
+  // whose heartbeat went stale — which this frozen world row always is — and
+  // reaped it mid-test between the seeded and post-down world digests. An
+  // external-lane generation is settled only through its agent-run op row,
+  // and the world seeds none, so this row is sweep-proof at rest.
   await ctx.db.insert('generations', {
     organizationId: alpha,
     threadId: String(alphaChatThread),
     status: 'queued',
     streamId: 'world-stream-alpha-1',
+    external: {
+      execId: 'world-exec-alpha-1',
+      lastSeq: 0,
+      harness: 'claude-code',
+      providerSlug: 'anthropic',
+      gatewayModel: 'claude-sonnet-5',
+    },
     startedAt: T0 + 4_150,
     heartbeatAt: T0 + 4_150,
   });
