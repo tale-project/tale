@@ -35,6 +35,11 @@ vi.mock('../hooks/queries', () => ({
     'catalogs',
     organizationId,
   ],
+  harnessStatusQueryKey: (organizationId: string) => [
+    'providers',
+    'harness-status',
+    organizationId,
+  ],
   useProviderCatalogs: () => ({
     data: fixtures.catalogs,
     isPending: false,
@@ -43,6 +48,20 @@ vi.mock('../hooks/queries', () => ({
   }),
   useProviderCredentials: () => ({
     data: fixtures.credentials,
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  // The harness status section carries its own component test; the page test
+  // only needs it to render quietly.
+  useHarnessStatus: () => ({
+    data: [],
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useHarnessHealth: () => ({
+    data: [],
     isPending: false,
     isError: false,
     error: null,

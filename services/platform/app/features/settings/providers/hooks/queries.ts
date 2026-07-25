@@ -47,3 +47,31 @@ export function useProviderCatalogs(organizationId: string) {
     { organizationId },
   );
 }
+
+/** One shipped harness with its resolved status for this org. */
+export type HarnessStatus = FunctionReturnType<
+  typeof api.lib.providers.harness_status.listHarnessStatus
+>[number];
+
+/** React-query key of the harness status listing. */
+export function harnessStatusQueryKey(organizationId: string) {
+  return ['providers', 'harness-status', organizationId] as const;
+}
+
+/** How each shipped third-party agent (sandbox harness) would run for this
+ * org — resolved server-side from the credentials and harness facts. */
+export function useHarnessStatus(organizationId: string) {
+  return useActionQuery(
+    harnessStatusQueryKey(organizationId),
+    api.lib.providers.harness_status.listHarnessStatus,
+    { organizationId },
+  );
+}
+
+/** Per-harness recent-failure signal — the same reactive health read the
+ * chat composer's circuit-breaker hint consumes. */
+export function useHarnessHealth(organizationId: string) {
+  return useConvexQuery(api.sandbox.session_queries_public.getHarnessHealth, {
+    organizationId,
+  });
+}

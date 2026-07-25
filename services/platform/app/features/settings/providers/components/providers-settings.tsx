@@ -22,6 +22,7 @@ import {
 } from '../hooks/queries';
 import { mapProviderError } from '../provider-errors';
 import { ConnectorSection } from './connector-section';
+import { HarnessStatusSection } from './harness-status-section';
 
 /** One line of the per-connector refresh report. */
 interface RefreshOutcome {
@@ -187,6 +188,10 @@ export function ProvidersSettings({
           />
         ))
       )}
+      <HarnessStatusSection
+        organizationId={organizationId}
+        displayNames={displayNames}
+      />
     </SettingsPage>
   );
 }

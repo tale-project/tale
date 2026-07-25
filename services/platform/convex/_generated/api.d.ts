@@ -457,6 +457,8 @@ import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
 import type * as lib_providers_catalog_actions from "../lib/providers/catalog_actions.js";
 import type * as lib_providers_catalog_fetch from "../lib/providers/catalog_fetch.js";
+import type * as lib_providers_credential_auth from "../lib/providers/credential_auth.js";
+import type * as lib_providers_harness_status from "../lib/providers/harness_status.js";
 import type * as lib_providers_load_system_config from "../lib/providers/load_system_config.js";
 import type * as lib_providers_org_connectors from "../lib/providers/org_connectors.js";
 import type * as lib_providers_resolve_vision_model from "../lib/providers/resolve_vision_model.js";
@@ -1288,6 +1290,8 @@ declare const fullApi: ApiFromModules<{
   "lib/pagination/types": typeof lib_pagination_types;
   "lib/providers/catalog_actions": typeof lib_providers_catalog_actions;
   "lib/providers/catalog_fetch": typeof lib_providers_catalog_fetch;
+  "lib/providers/credential_auth": typeof lib_providers_credential_auth;
+  "lib/providers/harness_status": typeof lib_providers_harness_status;
   "lib/providers/load_system_config": typeof lib_providers_load_system_config;
   "lib/providers/org_connectors": typeof lib_providers_org_connectors;
   "lib/providers/resolve_vision_model": typeof lib_providers_resolve_vision_model;

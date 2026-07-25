@@ -6503,6 +6503,24 @@ settings:
         gibt es nichts zu aktualisieren.
       refreshFailed: 'Konnte die Kataloge nicht aktualisieren: {error}'
       listFailed: 'Konnte die Anbieter-Connectoren nicht laden: {error}'
+    harnesses:
+      title: Drittanbieter-Agenten
+      description:
+        Wie jeder dieser Agenten für diese Organisation läuft — welche direkt
+        bereitgestellten Modelle er bekommt und welche Anbieter-Abos an ihn
+        gebunden sind. Diese Ansicht zeigt nur das Ergebnis; konfiguriert
+        wird über die Zugangsdaten oben.
+      managed: Verwaltet
+      modelPool: '{count, plural, one {# Modell} other {# Modelle}} · Standard: {model}'
+      byoOnly: Braucht eigene Anbieter-Zugangsdaten — mit plattformverwalteten
+        Schlüsseln läuft er nicht.
+      noDirectCredential:
+        Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
+        API-Schlüssel oder eine Umgebungsvariable hinzu.
+      degraded: Zuletzt fehlerhaft
+      subscriptionVia: Abo · {provider}
+      subscriptionInert: Abo · {provider} — nicht nutzbar, dieser Agent läuft nur mit verwalteten Zugangsdaten
+      listFailed: 'Konnte den Agenten-Status nicht laden: {error}'
     apiFormat:
       openai: OpenAI-kompatible API
       anthropic: Anthropic-Messages-API

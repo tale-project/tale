@@ -6601,6 +6601,25 @@ settings:
         rien à actualiser.
       refreshFailed: "Impossible d'actualiser les catalogues : {error}"
       listFailed: 'Impossible de charger les connecteurs de fournisseurs : {error}'
+    harnesses:
+      title: Agents tiers
+      description:
+        Comment chaque agent tiers s'exécute pour cette organisation — les
+        modèles que la plateforme lui fournit directement et les abonnements
+        fournisseur qui lui sont liés. Cette vue montre seulement la
+        résolution ; la configuration passe par les identifiants ci-dessus.
+      managed: Géré
+      modelPool: '{count, plural, one {# modèle} other {# modèles}} · {model} par défaut'
+      byoOnly:
+        Exige les identifiants de son propre fournisseur — les clés gérées
+        par la plateforme ne le font pas tourner.
+      noDirectCredential:
+        Aucun identifiant de fournisseur directement utilisable — ajoute une
+        clé API ou une variable d'environnement ci-dessus.
+      degraded: En échec récemment
+      subscriptionVia: Abonnement · {provider}
+      subscriptionInert: Abonnement · {provider} — inutilisable, cet agent ne tourne qu'avec des identifiants gérés
+      listFailed: "Impossible de charger l'état des agents : {error}"
     apiFormat:
       openai: API compatible OpenAI
       anthropic: API Anthropic Messages

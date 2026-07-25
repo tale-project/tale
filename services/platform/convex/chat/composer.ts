@@ -22,12 +22,11 @@
 import { v, type Infer } from 'convex/values';
 
 import { loadIntegrationConnectors } from '../../lib/integrations/catalog';
-import type { CredentialAuth } from '../../lib/shared/providers/resolve_execution';
-import type { ProviderConnector } from '../../lib/shared/schemas/providers';
 import { api } from '../_generated/api';
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
+import { credentialAuthFor } from '../lib/providers/credential_auth';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
 
@@ -70,40 +69,6 @@ const composerExternalAgentValidator = v.object({
 type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
 type ComposerExternalAgentOption = Infer<typeof composerExternalAgentValidator>;
 type CredentialAuthMethod = ComposerModelOption['credential']['authMethod'];
-
-/**
- * The credential's auth shape as `resolveExecution` reads it, taken from the
- * connector's own declaration of that method (subscription constraints live on
- * the connector, not the credential row). Returns `null` when the connector
- * does not offer the method the credential names — a stale credential for a
- * method the connector dropped — so the model is simply not listed.
- */
-function credentialAuthFor(
-  connector: ProviderConnector,
-  authMethod: CredentialAuthMethod,
-): CredentialAuth | null {
-  const entry = connector.auth.find(
-    (candidate) => candidate.method === authMethod,
-  );
-  if (!entry) return null;
-  switch (entry.method) {
-    case 'api-key':
-      return { authMethod: 'api-key' };
-    case 'env':
-      return { authMethod: 'env' };
-    case 'subscription-key':
-      return { authMethod: 'subscription-key', constraints: entry.constraints };
-    case 'subscription-broker':
-      return {
-        authMethod: 'subscription-broker',
-        constraints: entry.constraints,
-      };
-    default: {
-      const _exhaustive: never = entry;
-      return _exhaustive;
-    }
-  }
-}
 
 /** Rank a credential's method so direct-capable ones (api-key/env) sort first:
  * a model served by both a direct and a subscription credential should resolve
