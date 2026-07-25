@@ -530,6 +530,16 @@ export function FeatureFlagsEditor({
             sits under the table, where Model access has it. */}
         {(loading || enabled) && (
           <Stack gap={4}>
+            <Row justify="end">
+              <Button
+                variant="primary"
+                onClick={onAddRule}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('featureFlags.addRule')}
+              </Button>
+            </Row>
             <Card padding="none" className="overflow-hidden">
               <Table aria-label={t('featureFlags.title')}>
                 <TableCaption className="sr-only">
@@ -663,16 +673,6 @@ export function FeatureFlagsEditor({
                 </TableBody>
               </Table>
             </Card>
-            <Row justify="end">
-              <Button
-                variant="primary"
-                onClick={onAddRule}
-                disabled={cannotManage}
-              >
-                <Plus className="mr-1.5 size-4" />
-                {t('featureFlags.addRule')}
-              </Button>
-            </Row>
           </Stack>
         )}
 

@@ -140,7 +140,9 @@ function CategoryRow({
         </Stack>
         {enabledKey ? (
           <Switch
-            label={t('retentionPolicy.enabled', 'Enabled')}
+            // No visible "Enabled" label — the switch position already says
+            // it; the category row's own title names what it enables.
+            aria-label={t('retentionPolicy.enabled', 'Enabled')}
             checked={enabled}
             onCheckedChange={(checked) =>
               onChange({

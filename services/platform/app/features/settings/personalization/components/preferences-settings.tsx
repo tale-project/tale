@@ -197,10 +197,8 @@ function CustomInstructionsSection({
 
   const {
     register,
-    watch,
     formState: { errors },
   } = editor.form;
-  const value = watch('customInstructions') ?? '';
 
   const description = useGateHint(
     gate,
@@ -242,14 +240,9 @@ function CustomInstructionsSection({
               rows={5}
               disabled={editor.isSaving}
               errorMessage={errors.customInstructions?.message}
+              counterMax={CUSTOM_INSTRUCTIONS_MAX_CHARS}
               {...register('customInstructions')}
             />
-            <Text variant="muted" className="text-xs">
-              {t('page.customInstructions.counter', {
-                count: value.length,
-                max: CUSTOM_INSTRUCTIONS_MAX_CHARS,
-              })}
-            </Text>
           </Stack>
         </form>
       )}

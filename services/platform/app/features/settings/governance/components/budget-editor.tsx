@@ -710,6 +710,16 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
               {t('budgets.overrideHint')}
             </Text>
 
+            <Row justify="end">
+              <Button
+                variant="primary"
+                onClick={onAddRule}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('budgets.addRule')}
+              </Button>
+            </Row>
             <Card padding="none" className="overflow-hidden">
               <Table>
                 <TableCaption className="sr-only">
@@ -850,17 +860,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
               </Table>
             </Card>
 
-            {/* Add rule sits under the table, where Model access has it. */}
-            <Row justify="end">
-              <Button
-                variant="primary"
-                onClick={onAddRule}
-                disabled={cannotManage}
-              >
-                <Plus className="mr-1.5 size-4" />
-                {t('budgets.addRule')}
-              </Button>
-            </Row>
+            {/* Add rule sits right-aligned above the table, like every table toolbar. */}
           </Stack>
         )}
 

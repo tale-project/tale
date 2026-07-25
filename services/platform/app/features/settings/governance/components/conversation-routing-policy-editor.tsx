@@ -476,6 +476,16 @@ export function ConversationRoutingPolicyEditor({
             it. */}
         {(loading || enabled) && (
           <Stack gap={4}>
+            <Row justify="end">
+              <Button
+                variant="primary"
+                onClick={openAddDialog}
+                disabled={cannotManage || isPending}
+              >
+                <Signpost className="mr-1.5 size-4" />
+                {t('conversationRouting.addRule')}
+              </Button>
+            </Row>
             <Card padding="none" className="overflow-hidden">
               <Table aria-label={t('conversationRouting.title')}>
                 <TableCaption className="sr-only">
@@ -559,16 +569,6 @@ export function ConversationRoutingPolicyEditor({
                 </TableBody>
               </Table>
             </Card>
-            <Row justify="end">
-              <Button
-                variant="primary"
-                onClick={openAddDialog}
-                disabled={cannotManage || isPending}
-              >
-                <Signpost className="mr-1.5 size-4" />
-                {t('conversationRouting.addRule')}
-              </Button>
-            </Row>
           </Stack>
         )}
 

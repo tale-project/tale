@@ -599,6 +599,16 @@ export function DefaultModelEditor({
             sits under the table, where Model access has it. */}
         {(loading || enabled) && (
           <Stack gap={4}>
+            <Row justify="end">
+              <Button
+                variant="primary"
+                onClick={openAddDialog}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('defaultModels.addRule')}
+              </Button>
+            </Row>
             <Card padding="none" className="overflow-hidden">
               <Table>
                 <TableCaption className="sr-only">
@@ -702,16 +712,6 @@ export function DefaultModelEditor({
                 </TableBody>
               </Table>
             </Card>
-            <Row justify="end">
-              <Button
-                variant="primary"
-                onClick={openAddDialog}
-                disabled={cannotManage}
-              >
-                <Plus className="mr-1.5 size-4" />
-                {t('defaultModels.addRule')}
-              </Button>
-            </Row>
           </Stack>
         )}
 

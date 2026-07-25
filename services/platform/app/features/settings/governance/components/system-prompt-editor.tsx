@@ -1,7 +1,6 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
@@ -180,10 +179,8 @@ export function SystemPromptEditor({
 
   const {
     register,
-    watch,
     formState: { errors },
   } = editor.form;
-  const instructionsValue = watch('mandatoryInstructions') ?? '';
 
   return (
     <Skeletonize loading={isLoading} label={t('systemPrompt.title')}>
@@ -212,16 +209,9 @@ export function SystemPromptEditor({
                   rows={4}
                   aria-label={t('systemPrompt.title')}
                   errorMessage={errors.mandatoryInstructions?.message}
+                  counterMax={MAX_CHARS}
                   {...register('mandatoryInstructions')}
                 />
-                <Text variant="muted" className="text-xs">
-                  <SkeletonBox>
-                    {t('systemPrompt.charCount', {
-                      count: instructionsValue.length,
-                      max: MAX_CHARS,
-                    })}
-                  </SkeletonBox>
-                </Text>
               </Stack>
             </fieldset>
           </form>

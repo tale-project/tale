@@ -615,6 +615,16 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
               </SettingsFieldRow>
             </SettingsFieldList>
 
+            <HStack justify="end">
+              <Button
+                variant="primary"
+                onClick={openAddDialog}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('modelAccess.addRule')}
+              </Button>
+            </HStack>
             <Card padding="none" className="overflow-hidden">
               <Table aria-label={t('modelAccess.title')}>
                 <TableCaption className="sr-only">
@@ -715,17 +725,6 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                 </TableBody>
               </Table>
             </Card>
-
-            <HStack justify="end">
-              <Button
-                variant="primary"
-                onClick={openAddDialog}
-                disabled={cannotManage}
-              >
-                <Plus className="mr-1.5 size-4" />
-                {t('modelAccess.addRule')}
-              </Button>
-            </HStack>
           </Stack>
         )}
 

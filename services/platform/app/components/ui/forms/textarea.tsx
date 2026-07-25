@@ -15,6 +15,13 @@ interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
   label?: string;
   description?: React.ReactNode;
   errorMessage?: string;
+  /**
+   * Render a `used / max` character counter under the control, owned by the
+   * field itself so every surface places it identically. Display-only — it
+   * does not cap input (pair with validation); the count turns destructive
+   * past the max.
+   */
+  counterMax?: number;
 }
 
 // Plain control — the real textarea field. No skeleton logic of its own.
@@ -26,6 +33,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       description,
       required,
       errorMessage,
+      counterMax,
       id: providedId,
       ...props
     },
@@ -34,6 +42,17 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     const generatedId = React.useId();
     const id = providedId ?? generatedId;
     const errorId = `${id}-error`;
+
+    // The live character count for the counter. Reconciled from the DOM
+    // after every render (not just onChange) because form libraries reset
+    // values programmatically without firing events; the state-equality
+    // bail-out keeps this loop-free.
+    const innerRef = React.useRef<HTMLTextAreaElement | null>(null);
+    const [charCount, setCharCount] = React.useState(0);
+    React.useEffect(() => {
+      if (counterMax === undefined) return;
+      setCharCount(innerRef.current?.value.length ?? 0);
+    });
     const descriptionId = `${id}-description`;
     const hasError = !!errorMessage;
     const describedBy =
@@ -94,13 +113,30 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             showShake && 'animate-shake',
             className,
           )}
-          ref={ref}
+          ref={(node) => {
+            innerRef.current = node;
+            if (typeof ref === 'function') {
+              ref(node);
+            } else if (ref) {
+              ref.current = node;
+            }
+          }}
           required={required}
           aria-invalid={hasError || undefined}
           aria-describedby={describedBy}
           aria-errormessage={hasError ? errorId : undefined}
           {...props}
         />
+        {counterMax !== undefined && (
+          <p
+            className={cn(
+              'text-muted-foreground text-xs',
+              charCount > counterMax && 'text-destructive',
+            )}
+          >
+            {charCount} / {counterMax}
+          </p>
+        )}
       </FieldShell>
     );
   },

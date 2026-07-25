@@ -559,9 +559,11 @@ function CategoryEditForm({
             />
           </FormSection>
 
-          <FormSection label={t('contentSafety.enabled')}>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-          </FormSection>
+          <Switch
+            aria-label={t('contentSafety.enabled')}
+            checked={enabled}
+            onCheckedChange={setEnabled}
+          />
 
           <FormSection
             label={t('contentSafety.categoryMode')}
