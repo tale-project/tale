@@ -39,7 +39,7 @@ interface SectionConfig {
 /**
  * Shared section catalog for the mobile settings overviews. The personal
  * scope shows only `you`-group entries (account, personalization); the
- * workspace scope shows the organization + development groups. Permission
+ * workspace scope shows the organization + advanced groups. Permission
  * gates filter each list against the current member's ability before render.
  */
 export function useSettingsMenuGroups(
@@ -125,6 +125,15 @@ export function useSettingsMenuGroups(
         path: 'metrics',
         can: ['read', 'orgSettings'],
       },
+    ];
+
+    const advancedConfig: SectionConfig[] = [
+      {
+        key: 'api',
+        icon: KeyRound,
+        path: 'api',
+        can: ['read', 'developerSettings'],
+      },
       {
         key: 'enterpriseSso',
         icon: IdCard,
@@ -136,15 +145,6 @@ export function useSettingsMenuGroups(
         icon: Database,
         path: 'data-residency',
         can: ['read', 'orgSettings'],
-      },
-    ];
-
-    const developmentConfig: SectionConfig[] = [
-      {
-        key: 'api',
-        icon: KeyRound,
-        path: 'api',
-        can: ['read', 'developerSettings'],
       },
     ];
 
@@ -179,9 +179,9 @@ export function useSettingsMenuGroups(
               items: filter(organizationConfig),
             },
             {
-              key: 'development',
-              label: tSettings('menu.groups.development'),
-              items: filter(developmentConfig),
+              key: 'advanced',
+              label: tSettings('menu.groups.advanced'),
+              items: filter(advancedConfig),
             },
           ];
 

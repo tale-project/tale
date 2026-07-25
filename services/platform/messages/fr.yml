@@ -5332,11 +5332,11 @@ settings:
     groups:
       you: Toi
       organization: Organisation
-      development: Développement
+      advanced: Avancé
     railSections:
       personal: Personnel
       organization: Organisation
-      development: Développement
+      advanced: Avancé
     account:
       description: Ton profil, ta connexion et ta sécurité.
     personalization:

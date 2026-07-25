@@ -60,13 +60,13 @@ interface RailSection {
   /** Stable React key for the section. */
   key: string;
   /** i18n key under `settings.menu.railSections`. */
-  labelKey: 'personal' | 'organization' | 'development';
+  labelKey: 'personal' | 'organization' | 'advanced';
   items: RailItem[];
 }
 
 /**
  * Left-rail settings navigation (replaces the horizontal tab strip). Renders
- * grouped sections — PERSONAL / ORGANIZATION / DEVELOPMENT — with indented
+ * grouped sections — PERSONAL / ORGANIZATION / ADVANCED — with indented
  * rows. The two rows that own sub-routes (Governance, API) are expandable:
  * their children render inline and indented while the current path is within
  * that section, and collapse to a single chevroned row otherwise. This mirrors
@@ -164,6 +164,19 @@ export function SettingsRail({
           label: tMetrics(`groups.${item.labelKey}`),
         })),
       },
+    ];
+
+    const advanced: RailItem[] = [
+      {
+        kind: 'group',
+        labelKey: 'api',
+        path: 'api',
+        can: ['read', 'developerSettings'],
+        children: API_NAV_ITEMS.map((item) => ({
+          slug: item.slug,
+          label: tNav(item.labelKey),
+        })),
+      },
       {
         kind: 'leaf',
         labelKey: 'enterpriseSso',
@@ -179,23 +192,10 @@ export function SettingsRail({
       },
     ];
 
-    const development: RailItem[] = [
-      {
-        kind: 'group',
-        labelKey: 'api',
-        path: 'api',
-        can: ['read', 'developerSettings'],
-        children: API_NAV_ITEMS.map((item) => ({
-          slug: item.slug,
-          label: tNav(item.labelKey),
-        })),
-      },
-    ];
-
     return [
       { key: 'personal', labelKey: 'personal', items: personal },
       { key: 'organization', labelKey: 'organization', items: organization },
-      { key: 'development', labelKey: 'development', items: development },
+      { key: 'advanced', labelKey: 'advanced', items: advanced },
     ];
   }, [showAccountTab, tNav, tGov, tMetrics]);
 

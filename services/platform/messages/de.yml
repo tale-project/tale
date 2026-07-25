@@ -5266,11 +5266,11 @@ settings:
     groups:
       you: Du
       organization: Organisation
-      development: Entwicklung
+      advanced: Erweitert
     railSections:
       personal: Persönlich
       organization: Organisation
-      development: Entwicklung
+      advanced: Erweitert
     account:
       description: Profil, Anmeldung und Sicherheit.
     personalization:

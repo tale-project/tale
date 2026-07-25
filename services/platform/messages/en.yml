@@ -5351,11 +5351,11 @@ settings:
     groups:
       you: You
       organization: Organization
-      development: Development
+      advanced: Advanced
     railSections:
       personal: Personal
       organization: Organization
-      development: Development
+      advanced: Advanced
     account:
       description: Your profile, sign-in, and security.
     personalization:

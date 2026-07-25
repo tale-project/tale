@@ -39,6 +39,12 @@ function detectRetentionShortening(
   ];
   const reduced: string[] = [];
   for (const [key, label] of checks) {
+    // A category that is DISABLED in the new config deletes nothing — its
+    // days value is dormant, so a smaller number is not a shortening. This
+    // is what lets the shipped default policy (categories mostly disabled)
+    // apply without tripping the cooldown.
+    const enabledKey = key.replace(/Retention(Days|Hours)$/, 'Enabled');
+    if (enabledKey !== key && newConfig[enabledKey] === false) continue;
     const oldVal = oldConfig[key];
     const newVal = newConfig[key];
     if (typeof oldVal !== 'number' || typeof newVal !== 'number') continue;
