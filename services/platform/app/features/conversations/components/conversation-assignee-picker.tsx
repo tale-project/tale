@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Check, UserPlus, Users } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { Check, Settings, UserPlus, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 import {
@@ -284,30 +285,38 @@ export function ConversationAssigneePicker({
         return null;
       }}
       footer={
-        assigneeUserId || assigneeTeamId ? (
-          <div className="flex flex-col">
-            {assigneeUserId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => handleValueChange(UNASSIGN_USER)}
-              >
-                {t('header.unassign')}
-              </Button>
-            )}
-            {assigneeTeamId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => handleValueChange(UNASSIGN_TEAM)}
-              >
-                {t('header.unassignTeam')}
-              </Button>
-            )}
-          </div>
-        ) : undefined
+        <div className="flex flex-col">
+          {assigneeUserId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => handleValueChange(UNASSIGN_USER)}
+            >
+              {t('header.unassign')}
+            </Button>
+          )}
+          {assigneeTeamId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => handleValueChange(UNASSIGN_TEAM)}
+            >
+              {t('header.unassignTeam')}
+            </Button>
+          )}
+          <Link
+            to="/dashboard/$id/settings/governance/policies-limits"
+            params={{ id: organizationId }}
+            hash="conversation-routing"
+            className="hover:bg-muted flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-sm"
+            onClick={() => setOpen(false)}
+          >
+            <Settings className="size-4 shrink-0" aria-hidden="true" />
+            {t('header.autoAssignSettings')}
+          </Link>
+        </div>
       }
     />
   );

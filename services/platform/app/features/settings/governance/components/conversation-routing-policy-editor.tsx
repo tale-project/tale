@@ -437,6 +437,7 @@ export function ConversationRoutingPolicyEditor({
   return (
     <Skeletonize loading={loading} label={t('conversationRouting.title')}>
       <SettingsSection
+        id="conversation-routing"
         title={t('conversationRouting.title')}
         description={t('conversationRouting.description')}
         action={

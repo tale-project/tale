@@ -2241,7 +2241,8 @@
       "peopleSection": "Personnes",
       "teamsSection": "Équipe",
       "assignSearchAll": "Rechercher des personnes et des équipes",
-      "noAssignees": "Aucune personne ou équipe trouvée"
+      "noAssignees": "Aucune personne ou équipe trouvée",
+      "autoAssignSettings": "Assignation auto"
     },
     "editor": {
       "noContent": "Aucun contenu à améliorer",
