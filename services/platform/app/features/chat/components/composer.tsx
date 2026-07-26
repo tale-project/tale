@@ -180,7 +180,10 @@ export function Composer({
           // with it.
           className="text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]"
         />
-        {text.length === 0 && !disabled && (
+        {/* Shown even while disabled: an empty field with no invitation reads
+            as broken chrome, and the disabled styling already says the field
+            is not taking input yet. */}
+        {text.length === 0 && (
           <Text
             as="div"
             variant="muted"

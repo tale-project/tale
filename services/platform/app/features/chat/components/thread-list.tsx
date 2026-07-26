@@ -18,6 +18,7 @@
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Stack } from '@tale/ui/layout';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -34,7 +35,10 @@ import {
 import { useMemo, useState, type ReactNode } from 'react';
 
 import { useOptionalSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
-import { ChatHistorySkeleton } from '@/app/components/layout/chat-history-skeleton';
+import {
+  ChatRowsSkeleton,
+  ProjectRowsSkeleton,
+} from '@/app/components/layout/chat-history-skeleton';
 import {
   SUB_PANEL_ROW_CLASS,
   SubPanelDisclosureBody,
@@ -173,23 +177,56 @@ export function ThreadList({
     </Tooltip>
   ) : undefined;
 
-  // Wait for BOTH async sections (threads + project folders) before swapping
-  // the skeleton for real content, so project rows never pop in after first
-  // paint. The skeleton is the same geometry the boot shell masks with.
-  const showSkeleton = !available || projectsQuery.status === 'loading';
-  const isEmpty = threads.length === 0 && sortedProjects.length === 0;
+  // Each async section masks only ITS OWN rows — the section headers, the
+  // "new project" and search affordances, and the divider are known at mount
+  // and render real immediately, so loading reveals the panel granularly
+  // instead of holding one whole-panel mask. The row masks reuse the boot
+  // shell's exact geometry, so each reveal is a mask swap, not a layout
+  // change.
+  const projectsLoading = projectsQuery.status === 'loading';
+  const threadsLoading = !available;
+  const isEmpty =
+    !projectsLoading &&
+    !threadsLoading &&
+    threads.length === 0 &&
+    sortedProjects.length === 0;
 
   return (
     <Stack gap={0} className="min-h-0 flex-1 px-2.5 pt-2.5 pb-3.5">
       <Stack gap={0} className="min-h-0 flex-1 gap-0.5 overflow-y-auto">
-        {showSkeleton ? (
-          <ChatHistorySkeleton />
-        ) : isEmpty ? (
-          <>
-            <SubPanelSectionHeader
-              label={t('projectsSection')}
-              action={newProjectButton}
-            />
+        <ThreadDndProvider organizationId={organizationId}>
+          {/* PROJECTS — always rendered (even empty) so the section never
+              appears/disappears on drag and the "new project" action always
+              has a home. Each folder is a drop target. */}
+          <SubPanelSectionHeader
+            sticky
+            label={t('projectsSection')}
+            action={newProjectButton}
+          />
+          {projectsLoading ? (
+            <Skeletonize loading className="flex shrink-0 flex-col gap-0.5">
+              <ProjectRowsSkeleton />
+            </Skeletonize>
+          ) : (
+            sortedProjects.map((project) => (
+              <ProjectFolder
+                key={project.id}
+                project={project}
+                organizationId={organizationId}
+                threads={byProject.get(project.id) ?? []}
+                activeThreadId={activeThreadId}
+                explicitCollapsed={collapsedProjects[project.id]}
+                onSetCollapsed={(collapsed) =>
+                  setProjectCollapsed(project.id, collapsed)
+                }
+              />
+            ))
+          )}
+
+          {isEmpty ? (
+            // Both sections answered and both are empty: one combined hint
+            // replaces the CHATS section entirely — a "Chats" header over
+            // nothing would read as a second, redundant empty state.
             <Stack
               gap={1}
               align="center"
@@ -211,53 +248,37 @@ export function ThreadList({
                 {t('history.emptySubtitle')}
               </Text>
             </Stack>
-          </>
-        ) : (
-          <ThreadDndProvider organizationId={organizationId}>
-            {/* PROJECTS — always rendered (even empty) so the section never
-                appears/disappears on drag and the "new project" action always
-                has a home. Each folder is a drop target. */}
-            <SubPanelSectionHeader
-              sticky
-              label={t('projectsSection')}
-              action={newProjectButton}
-            />
-            {sortedProjects.map((project) => (
-              <ProjectFolder
-                key={project.id}
-                project={project}
-                organizationId={organizationId}
-                threads={byProject.get(project.id) ?? []}
-                activeThreadId={activeThreadId}
-                explicitCollapsed={collapsedProjects[project.id]}
-                onSetCollapsed={(collapsed) =>
-                  setProjectCollapsed(project.id, collapsed)
-                }
+          ) : (
+            <>
+              {/* CHATS — loose chats not filed under any project. Also a drop
+                  target: a chat dragged here (from a project) is moved back
+                  out to "Chats". Always rendered so that target exists even
+                  when every chat currently lives in a project. */}
+              <div aria-hidden className="border-border mt-1.5 mb-2 border-t" />
+              <SubPanelSectionHeader
+                sticky
+                label={t('chatsSection')}
+                action={searchChatButton}
               />
-            ))}
-
-            {/* CHATS — loose chats not filed under any project. Also a drop
-                target: a chat dragged here (from a project) is moved back out
-                to "Chats". Always rendered so that target exists even when
-                every chat currently lives in a project. */}
-            <div aria-hidden className="border-border mt-1.5 mb-2 border-t" />
-            <SubPanelSectionHeader
-              sticky
-              label={t('chatsSection')}
-              action={searchChatButton}
-            />
-            <LooseThreadsDropZone hasThreads={looseThreads.length > 0}>
-              {looseThreads.map((thread) => (
-                <ThreadRow
-                  key={thread.id}
-                  thread={thread}
-                  organizationId={organizationId}
-                  activeThreadId={activeThreadId}
-                />
-              ))}
-            </LooseThreadsDropZone>
-          </ThreadDndProvider>
-        )}
+              {threadsLoading ? (
+                <Skeletonize loading className="flex shrink-0 flex-col gap-0.5">
+                  <ChatRowsSkeleton />
+                </Skeletonize>
+              ) : (
+                <LooseThreadsDropZone hasThreads={looseThreads.length > 0}>
+                  {looseThreads.map((thread) => (
+                    <ThreadRow
+                      key={thread.id}
+                      thread={thread}
+                      organizationId={organizationId}
+                      activeThreadId={activeThreadId}
+                    />
+                  ))}
+                </LooseThreadsDropZone>
+              )}
+            </>
+          )}
+        </ThreadDndProvider>
       </Stack>
 
       {/* Mounted on demand so a render without the app's data providers (a

@@ -23,7 +23,6 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
-import { Spinner } from '@tale/ui/spinner';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Cpu, PanelLeftClose, PanelLeftOpen, PlugZap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -55,6 +54,7 @@ import {
   resolveSelectionSandbox,
   withDefaultModel,
 } from './composer-model-picker';
+import { ConversationSkeleton } from './conversation-skeleton';
 import { MessageThread } from './message-thread';
 import { ThreadList } from './thread-list';
 
@@ -122,17 +122,22 @@ export function ChatSurface({
     true,
   );
 
-  // Keep the pre-hydration `boot-chat-panel-open` marker (set by the inline
-  // script in index.html from the persisted state) an honest live mirror of
-  // "a chat surface with the panel open is on screen": it gates every
-  // ChatSubPanelPlaceholder (boot shell, access-resolving layout), so a
-  // placeholder rendered after a runtime toggle or an org switch must
-  // reflect the current state, not the page-load snapshot. Removed on
-  // unmount — non-chat surfaces render no panel.
+  // Keep the pre-hydration `boot-chat` / `boot-chat-panel-open` markers (set
+  // by the inline script in index.html) honest live mirrors of "a chat
+  // surface is on screen" / "…with the panel open": they gate every chat
+  // placeholder (boot shell, access-resolving layout) — the composer
+  // stand-in and the sub-panel stand-in respectively — so a placeholder
+  // rendered after a runtime toggle or an org switch must reflect the
+  // current state, not the page-load snapshot. Removed on unmount —
+  // non-chat surfaces render neither.
   useEffect(() => {
     const root = document.documentElement;
+    root.classList.add('boot-chat');
     root.classList.toggle('boot-chat-panel-open', isHistoryPanelOpen);
-    return () => root.classList.remove('boot-chat-panel-open');
+    return () => {
+      root.classList.remove('boot-chat');
+      root.classList.remove('boot-chat-panel-open');
+    };
   }, [isHistoryPanelOpen]);
 
   const models =
@@ -242,13 +247,16 @@ export function ChatSurface({
   const generationInFlight =
     generation.status === 'ready' && generation.data !== null;
 
-  // The composer locks only while nothing behind it could serve: the seam is
-  // unreachable, an open thread hasn't loaded, or there is no provider to
-  // send through. An index with no thread selected is NOT such a state.
+  // The composer locks only while nothing behind it could EVER serve: the
+  // seam is unreachable, the backend answered unavailable, or there is no
+  // provider to send through. Reads that are merely still loading do NOT
+  // lock it — the field renders ready and takes text immediately; only
+  // sending waits for them (below), so a navigation never flashes a dead
+  // composer.
   const composerDisabled =
     !chatSend.available ||
-    !threadsAvailable ||
-    (threadId !== undefined && !messagesAvailable) ||
+    threads.status === 'unavailable' ||
+    (threadId !== undefined && messages.status === 'unavailable') ||
     needsProviderSetup;
 
   // Stop is wired for external turns only — the harness runs independently in the
@@ -424,16 +432,13 @@ export function ChatSurface({
               className="min-h-0 flex-1"
             />
           ) : (
-            // The open thread's messages are on their way — a quiet spinner,
-            // never an outage notice for an answer that is merely in flight.
-            <Stack
-              align="center"
-              justify="center"
-              className="min-h-0 flex-1"
-              gap={0}
-            >
-              <Spinner size="lg" label={t('loadingConversation')} />
-            </Stack>
+            // The open thread's messages are on their way — message-shaped
+            // masks in place, never an outage notice (or a bare spinner) for
+            // an answer that is merely in flight.
+            <ConversationSkeleton
+              label={t('loadingConversation')}
+              className="md:pt-13"
+            />
           )
         ) : needsProviderSetup ? (
           <EmptyState
@@ -509,13 +514,20 @@ export function ChatSurface({
             // is a new chat — so the agent picker locks once a thread exists.
             lockAgent={activeThread !== undefined}
             // Send waits for the kind's prerequisites (a model; a harness
-            // plus a direct-served model) and for the running turn to settle;
-            // typing and the pickers stay usable through both.
+            // plus a direct-served model), for the running turn to settle,
+            // and for the reads a correct send needs: the thread list (an
+            // open sandbox thread pins its agent from its row — sending
+            // before the row loads would run the wrong lane) and the open
+            // thread's messages. Typing and the pickers stay usable
+            // throughout.
             sendDisabled={
               (selection.agentKind === 'platform'
                 ? selection.modelId === undefined
                 : selection.harness === undefined ||
-                  externalModelId === undefined) || generationInFlight
+                  externalModelId === undefined) ||
+              generationInFlight ||
+              !threadsAvailable ||
+              (threadId !== undefined && !messagesAvailable)
             }
           />
         </div>

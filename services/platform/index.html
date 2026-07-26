@@ -55,13 +55,13 @@
     </script>
     <!-- Pre-hydration boot-shell state: when the navigation targets a chat
          route (shared-view routes excluded — they render no panel) or an
-         org root (which always redirects to chat) and the persisted chat
-         sub-panel state is open, reveal the panel skeleton baked into the
-         served boot shell before any JS or CSS runs. Key mirrors
-         ChatLayoutProvider's `chat-history-panel-open-<orgId>`
-         (org-scoped precisely so this script can read it pre-auth); the
-         class is consumed by ChatSubPanelPlaceholder's
-         `[.boot-chat-panel-open_&]` variant. -->
+         org root (which always redirects to chat), reveal the chat layout
+         pieces baked into the served boot shell before any JS or CSS runs.
+         `boot-chat` gates the composer stand-in (ChatComposerPlaceholder);
+         `boot-chat-panel-open` additionally gates the sub-panel skeleton
+         (ChatSubPanelPlaceholder) on the persisted panel state. Key mirrors
+         ChatLayoutProvider's `chat-history-panel-open-<orgId>` (org-scoped
+         precisely so this script can read it pre-auth). -->
     <script>
       (function () {
         try {
@@ -71,6 +71,7 @@
           // `switching` is the only literal (non-org) segment under
           // /dashboard/ — the org-switch interstitial renders no panel.
           if (!match || match[1] === 'switching') return;
+          document.documentElement.classList.add('boot-chat');
           var stored = localStorage.getItem(
             'chat-history-panel-open-' + match[1],
           );

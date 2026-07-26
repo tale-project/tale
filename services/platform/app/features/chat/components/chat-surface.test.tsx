@@ -206,6 +206,78 @@ describe('ChatSurface when the model listing answers and is empty', () => {
 });
 
 /**
+ * The reads are merely still LOADING (a navigation just mounted the surface):
+ * the composer must render ready — placeholder shown, text accepted — with
+ * only SEND held back, and an open thread masks its conversation in place
+ * instead of blanking the column.
+ */
+describe('ChatSurface while its reads are still loading', () => {
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'loading' as const });
+    vi.mocked(useChatMessages).mockReturnValue({ status: 'loading' as const });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready' as const,
+      data: {
+        models: [
+          {
+            id: 'deepseek-chat',
+            label: 'deepseek-chat',
+            providerSlug: 'deepseek',
+            credential: { authMethod: 'api-key' as const },
+          },
+        ],
+        externalAgents: [],
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: () =>
+        Promise.resolve({
+          threadId: 't-new',
+          outcome: Promise.resolve({ status: 'completed' as const }),
+        }),
+      stop: () => Promise.resolve(),
+    });
+  });
+
+  it('takes text immediately and holds only the send button', async () => {
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    expect(input).toBeEnabled();
+    expect(screen.getByText(/type your message/i)).toBeInTheDocument();
+
+    await user.type(input, 'draft while the list loads');
+    expect(input).toHaveValue('draft while the list loads');
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('masks the open conversation in place instead of blanking the column', () => {
+    render(<ChatSurface organizationId="org-1" threadId="t1" />);
+
+    expect(
+      screen.getByRole('status', { name: /loading conversation/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: "Chat isn't connected yet" }),
+    ).toBeNull();
+  });
+
+  it('enables send once the reads settle', () => {
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready' as const,
+      data: [],
+    });
+    render(<ChatSurface organizationId="org-1" />);
+
+    // Still disabled only because the field is empty — not because of a
+    // loading read.
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    expect(input).toBeEnabled();
+  });
+});
+
+/**
  * The backend is live: threads answer, the listing carries a model, sending
  * is available. The index welcomes instead of alarming, the default model is
  * seeded so sending needs no menu visit, and a send starts the turn and

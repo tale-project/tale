@@ -11,7 +11,9 @@ import {
   useChatMessages,
   useChatThreads,
   useComposerCapabilities,
+  useComposerModels,
 } from './chat-backend';
+import { storeComposerCatalog } from './composer-catalog-store';
 
 /**
  * The one seam invariant a component can't pin: a live read holds ONE watch
@@ -183,6 +185,48 @@ function CapabilitiesProbe({ org }: { org: string }) {
     </output>
   );
 }
+
+function ModelsProbe({ org }: { org: string }) {
+  const catalog = useComposerModels(org);
+  return (
+    <output>
+      {catalog.status === 'ready'
+        ? `ready:${catalog.data.models.length}`
+        : catalog.status}
+    </output>
+  );
+}
+
+describe('useComposerModels device store', () => {
+  it('starts ready from the stored catalog on a fresh session', () => {
+    // A previous SESSION persisted this org's catalog; the in-memory session
+    // cache knows nothing about it (fresh org key), the way a reload starts.
+    storeComposerCatalog('org-reload', {
+      models: [
+        {
+          id: 'deepseek-chat',
+          label: 'deepseek-chat',
+          providerSlug: 'deepseek',
+          credential: { authMethod: 'api-key' },
+        },
+      ],
+      externalAgents: [],
+    });
+    // The refresh action never answers in this test — first paint must not
+    // depend on it.
+    const action = vi.fn(() => new Promise(() => {}));
+    const client = { action } as unknown as ConvexReactClient;
+
+    render(
+      <ConvexProvider client={client}>
+        <ModelsProbe org="org-reload" />
+      </ConvexProvider>,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('ready:1');
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('useComposerCapabilities session cache', () => {
   it('serves the cached catalog on remount and keeps it through a failed refresh', async () => {

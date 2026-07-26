@@ -186,12 +186,22 @@ describe('ThreadList', () => {
     expect(setPinnedMock).toHaveBeenCalledWith('p1', true);
   });
 
-  it('holds the skeleton while the backend has not answered', () => {
+  it('renders the chrome immediately and masks only the unanswered rows', () => {
     render(
       <ThreadList organizationId="org-1" threads={[]} available={false} />,
     );
 
-    expect(screen.queryByText('Projects')).toBeNull();
+    // Section headers and their affordances are known at mount — they render
+    // real, not masked, so the panel is usable while the rows load.
+    expect(screen.getByText('Projects')).toBeInTheDocument();
+    expect(screen.getByText('Chats')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'New project' }),
+    ).toBeInTheDocument();
+
+    // The unanswered rows hold masked stand-ins; no real row, no premature
+    // empty state.
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
     expect(screen.queryByText('No conversations yet')).toBeNull();
     expect(screen.queryByRole('listitem')).toBeNull();
   });

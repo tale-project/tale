@@ -16,6 +16,7 @@ import {
 import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
 import { AppSidebarPlaceholder } from '@/app/components/layout/app-sidebar/app-sidebar-placeholder';
 import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-context';
+import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-placeholder';
 import { ChatSubPanelPlaceholder } from '@/app/components/layout/chat-sub-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { DirtyBlockerProvider } from '@/app/components/ui/editor';
@@ -306,14 +307,27 @@ function DashboardLayout() {
                         as="main"
                         tabIndex={-1}
                         gap={0}
-                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
+                        // outline-none: as the skip-link target this region is
+                        // focused programmatically (tabIndex -1, never in the
+                        // tab order), so the browser's focus-visible ring would
+                        // outline the whole content area without conveying
+                        // anything actionable.
+                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
                       >
                         {hasRole && <ChangelogToastTrigger />}
                         {!hasRole && (
-                          // While access resolves, hold the chat sub-panel's
-                          // slot (CSS-gated to open-panel chat navigations)
-                          // so the real panel slots in without a late pop.
-                          <ChatSubPanelPlaceholder />
+                          // While access resolves, hold the chat layout's
+                          // slots (CSS-gated to chat navigations) — the
+                          // sub-panel and the composer at the message
+                          // column's foot — so the real chat slots in
+                          // without a late pop. Mirrors the boot shell's
+                          // frame exactly.
+                          <div className="flex min-h-0 flex-1 flex-row">
+                            <ChatSubPanelPlaceholder />
+                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                              <ChatComposerPlaceholder />
+                            </div>
+                          </div>
                         )}
                         {hasRole ? (
                           isSwitching ? (

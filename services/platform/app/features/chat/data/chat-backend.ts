@@ -55,9 +55,12 @@ import type {
   ChatProjectSummary,
   ChatThreadSummary,
   ComposerCapabilityOption,
-  ComposerModelOption,
-  ComposerExternalAgentOption,
 } from '../types';
+import {
+  readStoredComposerCatalog,
+  storeComposerCatalog,
+  type ComposerCatalog,
+} from './composer-catalog-store';
 
 /**
  * Every read through this seam reports whether the backend answered. `ready`
@@ -294,18 +297,29 @@ export function useHarnessHealth(organizationId: string): ChatQuery<
   });
 }
 
-interface ComposerCatalog {
-  readonly models: readonly ComposerModelOption[];
-  readonly externalAgents: readonly ComposerExternalAgentOption[];
-}
-
 /**
  * The last catalog each org answered with, kept for the session. A remount
  * starts from this answer and refreshes in the background instead of dropping
  * back to `loading` — the loading gap is what flipped the chat index between
- * its welcome and the provider-setup notice on every navigation.
+ * its welcome and the provider-setup notice on every navigation. Backed by
+ * the device store below, so a RELOAD starts warm too.
  */
 const composerCatalogCache = new Map<string, ComposerCatalog>();
+
+/**
+ * The org's last catalog: this session's answer when there is one, else the
+ * device store's (promoted into the session cache so the read happens once).
+ */
+function recallComposerCatalog(
+  organizationId: string,
+): ComposerCatalog | undefined {
+  const cached = composerCatalogCache.get(organizationId);
+  if (cached) return cached;
+  const stored = readStoredComposerCatalog(organizationId);
+  if (!stored) return undefined;
+  composerCatalogCache.set(organizationId, stored);
+  return stored;
+}
 
 /**
  * What the composer's model picker offers. The model catalog and sandbox
@@ -323,14 +337,14 @@ export function useComposerModels(
 ): ChatQuery<ComposerCatalog> {
   const convex = useConvex();
   const [state, setState] = useState<ChatQuery<ComposerCatalog>>(() => {
-    const cached = composerCatalogCache.get(organizationId);
+    const cached = recallComposerCatalog(organizationId);
     return cached ? { status: 'ready', data: cached } : { status: 'loading' };
   });
 
   useEffect(() => {
     if (!convex || !organizationId) return () => {};
     let cancelled = false;
-    const cached = composerCatalogCache.get(organizationId);
+    const cached = recallComposerCatalog(organizationId);
     setState(
       cached ? { status: 'ready', data: cached } : { status: 'loading' },
     );
@@ -340,6 +354,7 @@ export function useComposerModels(
         (data) => {
           if (cancelled) return;
           composerCatalogCache.set(organizationId, data);
+          storeComposerCatalog(organizationId, data);
           setState({ status: 'ready', data });
         },
         (error: unknown) => {
