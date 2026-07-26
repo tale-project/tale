@@ -180,11 +180,11 @@ export const threadMetadataTable = defineTable({
   /**
    * Task comments and automation threads reuse this store; `kind`
    * distinguishes them. `'project_discussion'` is RETIRED (the Discussions
-   * surface is gone): nothing writes it anymore, and the
-   * `0.4.1/01_purge_project_discussions` migration deletes the rows — the
-   * literal stays admitted only so pre-purge rows validate until the purge
-   * has run. Drop it (with the three retired fields below) in the release
-   * AFTER the purge ships.
+   * surface is gone): nothing writes it anymore, and no released deployment
+   * ever carried the surface — only pre-release dev databases may still hold
+   * such rows. The literal stays admitted only so those rows keep validating
+   * on schema push; drop it (with the three retired fields below) once
+   * pre-release dev data no longer needs to survive.
    */
   kind: v.optional(
     v.union(
