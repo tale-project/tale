@@ -41,7 +41,7 @@ function ApiDocsLink() {
 
 export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
   const { t: tEmpty } = useT('emptyStates');
-  const { columns, searchPlaceholder, stickyLayout, pageSize } =
+  const { columns, stickyLayout, pageSize } =
     useApiKeysTableConfig(organizationId);
 
   const { t: tSettings } = useT('settings');
@@ -64,10 +64,11 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
     [revokeApiKey],
   );
 
+  // No search box: an org holds a handful of keys, named deliberately —
+  // the list is scannable at a glance and a query field would be chrome.
   const list = useListPage<ApiKey>({
     dataSource: { type: 'query', data: apiKeys },
     pageSize,
-    search: { fields: ['name'], placeholder: searchPlaceholder },
     getRowId: (row) => row.id,
     entityLabel: {
       one: tSettings('apiKeys.entityLabelOne'),

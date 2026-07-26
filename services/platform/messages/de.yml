@@ -4628,6 +4628,9 @@ metadata:
   teams:
     title: Teams
     description: Teams innerhalb deiner Organisation verwalten.
+  members:
+    title: Mitglieder
+    description: Die Mitglieder deiner Organisation verwalten.
   people:
     title: Personen
     description: Mitglieder und Teams in deiner Organisation verwalten.
@@ -4743,6 +4746,7 @@ navigation:
   notifications: Benachrichtigungen
   organization: Organisation
   teams: Teams
+  members: Mitglieder
   integrations: Integrationen
   providers: KI-Anbieter
   apiKeys: API-Schlüssel
@@ -5369,7 +5373,9 @@ settings:
       description: Umgebungsvariablen und Geheimnisse, die in deine Sandboxes
         eingespeist werden.
     organization:
-      description: Name des Arbeitsbereichs, Mitglieder und Identifikatoren.
+      description: Name des Arbeitsbereichs und Identifikatoren.
+    members:
+      description: Personen, die Zugriff auf diese Organisation haben.
     teams:
       description: Teams und ihre Mitglieder.
     branding:
@@ -5459,7 +5465,6 @@ settings:
     organizationId: Organisations-ID
     organizationIdDescription: Die eindeutige Kennung deiner Organisation.
     copyOrganizationId: Organisations-ID kopieren
-    membersSectionTitle: Mitglieder
     membersDescription: Personen, die Zugriff auf diese Organisation haben.
     membersEntityLabel: Mitglieder
     memberEntityLabel: Mitglied
@@ -6753,7 +6758,6 @@ settings:
     entityLabelOne: Schlüssel
     createKey: API-Schlüssel erstellen
     createKeySubmit: Schlüssel erstellen
-    searchKeys: API-Schlüssel suchen…
     keyCreated: API-Schlüssel erstellt
     keyCreatedDescription: Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
     yourApiKey: Dein API-Schlüssel

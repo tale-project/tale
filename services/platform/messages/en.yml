@@ -4434,6 +4434,9 @@ metadata:
   teams:
     title: Teams
     description: Manage teams within your organization.
+  members:
+    title: Members
+    description: Manage the members of your organization.
   people:
     title: People
     description: Manage members and teams in your organization.
@@ -4548,6 +4551,7 @@ navigation:
   notifications: Notifications
   organization: Organization
   teams: Teams
+  members: Members
   integrations: Integrations
   providers: AI providers
   apiKeys: API keys
@@ -5484,7 +5488,9 @@ settings:
     environment:
       description: Environment variables and secrets injected into your sandboxes.
     organization:
-      description: Workspace name, members, and identifiers.
+      description: Workspace name and identifiers.
+    members:
+      description: People who have access to this organization.
     teams:
       description: Teams and their members.
     branding:
@@ -5572,7 +5578,6 @@ settings:
     organizationId: Organization ID
     organizationIdDescription: The unique identifier for your organization.
     copyOrganizationId: Copy organization ID
-    membersSectionTitle: Members
     membersDescription: People who have access to this organization.
     membersEntityLabel: members
     memberEntityLabel: member
@@ -6808,7 +6813,6 @@ settings:
     entityLabelOne: key
     createKey: Create API key
     createKeySubmit: Create key
-    searchKeys: Search API keys…
     keyCreated: API key created
     keyCreatedDescription: Make sure to copy your API key now. You won't be able to see it again.
     yourApiKey: Your API key

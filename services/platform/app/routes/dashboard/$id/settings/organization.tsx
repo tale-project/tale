@@ -15,13 +15,6 @@ export const Route = createFileRoute('/dashboard/$id/settings/organization')({
         id: params.id,
       }),
     );
-    // The page now embeds the Members section, so warm its list alongside
-    // the org details for an instant table on first paint.
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.members.queries.listByOrganization, {
-        organizationId: params.id,
-      }),
-    );
   },
   component: OrganizationSettingsPage,
 });

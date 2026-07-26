@@ -94,6 +94,9 @@ export function SettingsRail({
     ];
     if (!showAccountTab) personal.shift();
 
+    // Order is the designer's reading sequence: who we are (organization,
+    // members, teams), then what the workspace runs on (providers, skills,
+    // integrations), then the rest.
     const organization: RailItem[] = [
       {
         kind: 'leaf',
@@ -101,14 +104,11 @@ export function SettingsRail({
         path: 'organization',
         can: ['read', 'orgSettings'],
       },
-      // Day-1 recovery after skip-provider: AI providers first among the
-      // remaining org settings so "Settings → AI providers" is easy to find.
       {
         kind: 'leaf',
-        labelKey: 'providers',
-        path: 'providers',
-        matchMode: 'startsWith',
-        can: ['read', 'developerSettings'],
+        labelKey: 'members',
+        path: 'members',
+        can: ['read', 'orgSettings'],
       },
       {
         kind: 'leaf',
@@ -116,6 +116,13 @@ export function SettingsRail({
         path: 'teams',
         matchMode: 'startsWith',
         can: ['read', 'orgSettings'],
+      },
+      {
+        kind: 'leaf',
+        labelKey: 'providers',
+        path: 'providers',
+        matchMode: 'startsWith',
+        can: ['read', 'developerSettings'],
       },
       {
         kind: 'leaf',

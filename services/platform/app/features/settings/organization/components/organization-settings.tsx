@@ -27,8 +27,6 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { MembersSettings } from '@/app/features/settings/organization/components/members-settings';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { authClient } from '@/lib/auth-client';
@@ -43,17 +41,6 @@ type Organization = {
   slug?: string;
   metadata?: unknown;
 } | null;
-
-type MemberContext = {
-  memberId?: string;
-  organizationId?: string;
-  userId?: string;
-  role?: string | null;
-  createdAt?: number;
-  displayName?: string;
-  isAdmin?: boolean;
-  canManageMembers?: boolean;
-};
 
 interface OrganizationFormData {
   name: string;
@@ -118,14 +105,12 @@ export function OrganizationSettingsView({
   controller,
   organization,
   organizationId,
-  memberContext,
   canDelete,
   isCurrentOrganization,
 }: {
   controller: OrganizationController;
   organization: Organization;
   organizationId: string;
-  memberContext: MemberContext | null;
   /** Owner of a non-default org — gates the danger zone. */
   canDelete: boolean;
   /** Whether this is the org the user is currently viewing (drives post-delete nav). */
@@ -232,21 +217,6 @@ export function OrganizationSettingsView({
             </SettingsFieldList>
           </fieldset>
         </Form>
-      </SettingsSection>
-
-      {/* Light full-width divider marks the boundary between the
-          organization-details block and the Members section — the within-block
-          rows already use dividers, so without it the two groups blur together
-          across the gap. `pt-8` keeps the heading off the line. */}
-      <SettingsSection
-        title={tSettings('organization.membersSectionTitle')}
-        description={tSettings('organization.membersDescription')}
-        gap={5}
-      >
-        <MembersSettings
-          organizationId={organizationId}
-          memberContext={memberContext}
-        />
       </SettingsSection>
 
       {canDelete && (
@@ -360,14 +330,6 @@ export function OrganizationSettings({
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
   const { data: memberContext } = useCurrentMemberContext(organizationId);
-  // Fold the members list into the page-level loading gate so the whole page
-  // reveals in a single pass. Without this the org details resolve first and
-  // unmask the top sections while the embedded members table is still showing
-  // its own DataTable skeleton — the user sees one skeleton swap to a second
-  // before the real content lands. Same query key as `MembersSettings`'
-  // `useMembers`, so this dedupes in the query cache (no extra request) and is
-  // already warmed by the route loader for an instant table on warm entry.
-  const { isLoading: isMembersLoading } = useMembers(organizationId);
 
   const existingMetadata = useMemo(
     () => parseMetadata(organization?.metadata),
@@ -459,12 +421,11 @@ export function OrganizationSettings({
   }
 
   return (
-    <Skeletonize loading={abilityLoading || isOrgLoading || isMembersLoading}>
+    <Skeletonize loading={abilityLoading || isOrgLoading}>
       <OrganizationSettingsView
         controller={editor}
         organization={organization ?? null}
         organizationId={organizationId}
-        memberContext={memberContext ?? null}
         canDelete={canDelete}
         // The settings route is always scoped to the org the user is currently
         // in (`/dashboard/$id/...`), so deleting it must route them elsewhere.

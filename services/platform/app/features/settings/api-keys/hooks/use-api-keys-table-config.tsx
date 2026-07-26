@@ -17,7 +17,6 @@ import type { ApiKey } from '../types';
 
 interface ApiKeysTableConfig {
   columns: ColumnDef<ApiKey>[];
-  searchPlaceholder: string;
   stickyLayout: boolean;
   pageSize: number;
   infiniteScroll: boolean;
@@ -108,7 +107,6 @@ export function useApiKeysTableConfig(
 
   return {
     columns,
-    searchPlaceholder: tSettings('apiKeys.searchKeys'),
     // Non-sticky (like skills/providers): this table renders under
     // `SettingsPage` without `fitToContainer`, so there's no bounded-height
     // ancestor to drive a sticky inner scroll container. With `stickyLayout`,

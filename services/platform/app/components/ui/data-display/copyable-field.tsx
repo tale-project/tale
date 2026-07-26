@@ -1,9 +1,11 @@
 'use client';
 
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Description } from '@tale/ui/description';
 import { HStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
+import { TooltipContent } from '@tale/ui/tooltip';
 import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 
@@ -64,49 +66,87 @@ const CopyableFieldBase = React.memo(function CopyableFieldBase({
     onError: onCopyError,
   });
 
+  // The pill truncates; only then is there hidden content worth a tooltip.
+  // Measured on hover/focus (the only moments a tooltip can open) rather
+  // than observed continuously — a resize while pointing at the pill is not
+  // a case worth a ResizeObserver.
+  const valueTextRef = React.useRef<HTMLSpanElement | null>(null);
+  const [overflowing, setOverflowing] = React.useState(false);
+  const syncOverflow = React.useCallback(() => {
+    const el = valueTextRef.current;
+    if (el) setOverflowing(el.scrollWidth > el.clientWidth + 1);
+  }, []);
+
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       {label && <Label id={labelId}>{label}</Label>}
-      <button
-        id={valueId}
-        type="button"
-        onClick={onClick}
-        aria-labelledby={label ? `${labelId} ${valueTextId}` : valueTextId}
-        aria-label={copyAriaLabel}
-        aria-describedby={
-          [description ? descriptionId : null, copied ? statusId : null]
-            .filter(Boolean)
-            .join(' ') || undefined
-        }
-        className={cn(
-          'ring-border bg-muted/40 hover:bg-muted/60',
-          'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-          'flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.25 text-left transition-colors',
-          inputClassName,
-        )}
-      >
-        <span
-          id={valueTextId}
-          className={cn(
-            'text-muted-foreground flex-1 truncate text-sm',
-            mono && 'font-mono',
+      <TooltipPrimitive.Provider delayDuration={300} disableHoverableContent>
+        {/* Uncontrolled on purpose: gating happens by withholding the CONTENT
+          below — flipping Radix between controlled and uncontrolled on the
+          first hover leaves it stuck closed. */}
+        <TooltipPrimitive.Root>
+          <TooltipPrimitive.Trigger asChild>
+            <button
+              id={valueId}
+              type="button"
+              onClick={onClick}
+              onPointerEnter={syncOverflow}
+              onFocus={syncOverflow}
+              aria-labelledby={
+                label ? `${labelId} ${valueTextId}` : valueTextId
+              }
+              aria-label={copyAriaLabel}
+              aria-describedby={
+                [description ? descriptionId : null, copied ? statusId : null]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              className={cn(
+                'ring-border bg-muted/40 hover:bg-muted/60',
+                'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+                'flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.25 text-left transition-colors',
+                inputClassName,
+              )}
+            >
+              <span
+                id={valueTextId}
+                ref={valueTextRef}
+                className={cn(
+                  'text-muted-foreground flex-1 truncate text-sm',
+                  mono && 'font-mono',
+                )}
+              >
+                {value}
+              </span>
+              {copied ? (
+                <Check
+                  className="size-4 shrink-0 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Copy
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+          </TooltipPrimitive.Trigger>
+          {overflowing && (
+            <TooltipPrimitive.Portal>
+              <TooltipContent
+                side="top"
+                collisionPadding={8}
+                className={cn(
+                  'max-w-[min(90vw,40rem)] break-all',
+                  mono && 'font-mono',
+                )}
+              >
+                {value}
+              </TooltipContent>
+            </TooltipPrimitive.Portal>
           )}
-          title={value}
-        >
-          {value}
-        </span>
-        {copied ? (
-          <Check
-            className="size-4 shrink-0 text-green-600 dark:text-green-400"
-            aria-hidden="true"
-          />
-        ) : (
-          <Copy
-            className="text-muted-foreground size-4 shrink-0"
-            aria-hidden="true"
-          />
-        )}
-      </button>
+        </TooltipPrimitive.Root>
+      </TooltipPrimitive.Provider>
       {description && (
         <Description id={descriptionId}>{description}</Description>
       )}

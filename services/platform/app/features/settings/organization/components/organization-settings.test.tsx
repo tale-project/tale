@@ -44,7 +44,6 @@ function Harness() {
       controller={editor}
       organization={{ _id: 'org1', name: 'Acme' }}
       organizationId="org1"
-      memberContext={null}
       canDelete={false}
       isCurrentOrganization
     />
@@ -69,7 +68,6 @@ function LoadHarness({ orgName }: { orgName: string }) {
       controller={editor}
       organization={{ _id: 'org1', name: orgName }}
       organizationId="org1"
-      memberContext={null}
       canDelete={false}
       isCurrentOrganization
     />
@@ -123,7 +121,6 @@ function ValidationHarness({ orgName }: { orgName: string }) {
       controller={editor}
       organization={{ _id: 'org1', name: orgName }}
       organizationId="org1"
-      memberContext={null}
       canDelete={false}
       isCurrentOrganization
     />

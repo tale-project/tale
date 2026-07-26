@@ -46,6 +46,7 @@ import { Route as DashboardIdSettingsPersonalRouteImport } from './routes/dashbo
 import { Route as DashboardIdSettingsPeopleRouteImport } from './routes/dashboard/$id/settings/people';
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization';
 import { Route as DashboardIdSettingsNotificationsRouteImport } from './routes/dashboard/$id/settings/notifications';
+import { Route as DashboardIdSettingsMembersRouteImport } from './routes/dashboard/$id/settings/members';
 import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers';
 import { Route as DashboardIdSettingsMcpRouteImport } from './routes/dashboard/$id/settings/mcp';
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs';
@@ -316,6 +317,12 @@ const DashboardIdSettingsNotificationsRoute =
   DashboardIdSettingsNotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsMembersRoute =
+  DashboardIdSettingsMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsMcpServersRoute =
@@ -807,6 +814,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/members': typeof DashboardIdSettingsMembersRoute;
   '/dashboard/$id/settings/notifications': typeof DashboardIdSettingsNotificationsRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
@@ -907,6 +915,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/members': typeof DashboardIdSettingsMembersRoute;
   '/dashboard/$id/settings/notifications': typeof DashboardIdSettingsNotificationsRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
@@ -1017,6 +1026,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/members': typeof DashboardIdSettingsMembersRoute;
   '/dashboard/$id/settings/notifications': typeof DashboardIdSettingsNotificationsRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
@@ -1129,6 +1139,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
+    | '/dashboard/$id/settings/members'
     | '/dashboard/$id/settings/notifications'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
@@ -1229,6 +1240,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
+    | '/dashboard/$id/settings/members'
     | '/dashboard/$id/settings/notifications'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
@@ -1338,6 +1350,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
+    | '/dashboard/$id/settings/members'
     | '/dashboard/$id/settings/notifications'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
@@ -1671,6 +1684,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications';
       fullPath: '/dashboard/$id/settings/notifications';
       preLoaderRoute: typeof DashboardIdSettingsNotificationsRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/members': {
+      id: '/dashboard/$id/settings/members';
+      path: '/members';
+      fullPath: '/dashboard/$id/settings/members';
+      preLoaderRoute: typeof DashboardIdSettingsMembersRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/mcp-servers': {
@@ -2458,6 +2478,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute;
   DashboardIdSettingsMcpRoute: typeof DashboardIdSettingsMcpRoute;
   DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute;
+  DashboardIdSettingsMembersRoute: typeof DashboardIdSettingsMembersRoute;
   DashboardIdSettingsNotificationsRoute: typeof DashboardIdSettingsNotificationsRoute;
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute;
   DashboardIdSettingsPeopleRoute: typeof DashboardIdSettingsPeopleRoute;
@@ -2489,6 +2510,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsMcpRoute: DashboardIdSettingsMcpRoute,
   DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,
+  DashboardIdSettingsMembersRoute: DashboardIdSettingsMembersRoute,
   DashboardIdSettingsNotificationsRoute: DashboardIdSettingsNotificationsRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
   DashboardIdSettingsPeopleRoute: DashboardIdSettingsPeopleRoute,
