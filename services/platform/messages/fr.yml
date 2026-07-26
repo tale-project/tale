@@ -8313,10 +8313,41 @@ projects:
     modelsHeading: Modèles
     integrationsHeading: Intégrations
     sectionDescription:
-      Équipe chaque agent des compétences et connecteurs avec lesquels il
-      travaille dans ce projet. Tout le monde ici voit l'agent pré-équipé de ce
-      que tu choisis.
-    noExternalAgents: Aucun agent tiers n'est encore disponible.
+      Crée les agents qui travaillent dans ce projet — choisis le harness sur
+      lequel chacun tourne, équipe-le de skills et de connecteurs, et donne-lui
+      des instructions permanentes. Tout le monde ici voit les mêmes agents, et
+      les tâches peuvent leur être assignées.
+    newAgent: Nouvel agent
+    emptyTitle: Pas encore d'agents
+    emptyBody:
+      Crée un premier agent — un exécutant nommé de ce projet, avec son propre
+      équipement et ses propres instructions.
+    equippedCount: '{count, plural, one {# équipé} other {# équipés}}'
+    rowEdit: Modifier l'agent
+    rowDelete: Supprimer l'agent
+    dialogCreateTitle: Nouvel agent
+    dialogEditTitle: Modifier l'agent
+    nameLabel: Nom
+    namePlaceholder: p. ex. Relecteur de PR
+    harnessLabel: Harness
+    harnessPlaceholder: Choisis le harness sur lequel il tourne
+    equipmentLabel: Skills & connecteurs
+    instructionsLabel: Instructions
+    instructionsPlaceholder:
+      Ce que cet agent prend en charge, comment il doit travailler et les
+      limites à respecter.
+    instructionsHint: Accompagne chaque exécution de cet agent comme instruction permanente.
+    createSubmit: Créer l'agent
+    createSubmitting: Création…
+    editSubmit: Enregistrer les modifications
+    editSubmitting: Enregistrement…
+    createSuccess: Agent créé
+    editSuccess: Agent mis à jour
+    deleteSuccess: Agent supprimé
+    deleteError: Impossible de supprimer l'agent
+    mutationError: Impossible d'enregistrer l'agent
+    deleteTitle: Supprimer l'agent
+    deleteBody: 'Supprimer « {name} » ? Les tâches qui y faisaient référence gardent leur historique.'
     modeRecommended: Recommandés
     modeRecommendedDescription: Épingle les éléments ci-dessous en haut. Les autres restent disponibles.
     modeRestricted: Restreints
@@ -8339,8 +8370,6 @@ projects:
     emptyModelsMemberBody:
       Tes administrateurs de projet ont restreint l'accès aux
       modèles. Contacte-les pour demander accès.
-    saveSuccess: Enregistré
-    saveError: Impossible d'enregistrer les paramètres
     lockoutWarning: Certains membres pourraient ne plus avoir aucun agent/modèle
       utilisable après ces restrictions. Ils verront un chat vide.
     recommendedBadge: Recommandé
@@ -8453,6 +8482,13 @@ projects:
     PROJECT_DESCRIPTION_INVALID: La description est trop longue.
     PROJECT_INSTRUCTIONS_TOO_LONG: Les instructions dépassent la limite de {cap}
       caractères. Raccourcis-les avant d'enregistrer.
+    PROJECT_AGENT_NAME_INVALID: Le nom de l'agent doit faire entre 1 et 120 caractères.
+    PROJECT_AGENT_NAME_TAKEN: Un autre agent de ce projet porte déjà ce nom.
+    PROJECT_AGENT_HARNESS_INVALID: Ce harness ne peut pas être utilisé pour les agents de projet.
+    PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Les instructions dépassent la limite de
+      20 000 caractères. Raccourcis-les avant d'enregistrer.
+    PROJECT_AGENT_LIMIT: Ce projet a atteint sa limite d'agents.
+    PROJECT_AGENT_NOT_FOUND: Impossible de trouver cet agent. Il a peut-être été supprimé.
     PROJECT_RECOMMENDED_NOT_SUBSET: Les éléments recommandés doivent tous figurer dans la liste autorisée.
     PROJECT_ORG_MISMATCH: Ce projet appartient à une autre organisation.
     RATE_LIMITED: Tu fais ça trop souvent. Réessaie dans un instant.

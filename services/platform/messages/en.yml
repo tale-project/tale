@@ -5257,9 +5257,40 @@ projects:
     modelsHeading: Models
     integrationsHeading: Integrations
     sectionDescription:
-      Equip each agent with the skills and connectors it runs with in this
-      project. Everyone here sees the agent pre-equipped with what you pick.
-    noExternalAgents: No third-party agents are available yet.
+      Create the agents that work in this project — pick the harness each one
+      runs on, equip it with skills and connectors, and give it standing
+      instructions. Everyone here sees the same agents, and tasks can be
+      assigned to them.
+    newAgent: New agent
+    emptyTitle: No agents yet
+    emptyBody: Create an agent to give this project a named worker with its own
+      equipment and instructions.
+    equippedCount: '{count} equipped'
+    rowEdit: Edit agent
+    rowDelete: Delete agent
+    dialogCreateTitle: New agent
+    dialogEditTitle: Edit agent
+    nameLabel: Name
+    namePlaceholder: e.g. PR reviewer
+    harnessLabel: Harness
+    harnessPlaceholder: Choose the harness it runs on
+    equipmentLabel: Skills & connectors
+    instructionsLabel: Instructions
+    instructionsPlaceholder:
+      What this agent owns, how it should work, and the boundaries it must
+      respect.
+    instructionsHint: Rides along as a standing instruction on every run of this agent.
+    createSubmit: Create agent
+    createSubmitting: Creating…
+    editSubmit: Save changes
+    editSubmitting: Saving…
+    createSuccess: Agent created
+    editSuccess: Agent updated
+    deleteSuccess: Agent deleted
+    deleteError: Couldn't delete the agent
+    mutationError: Couldn't save the agent
+    deleteTitle: Delete agent
+    deleteBody: 'Delete "{name}"? Tasks that referenced it keep their history.'
     modeRecommended: Recommended
     modeRecommendedDescription: Pin the items below to the top. Others remain available.
     modeRestricted: Restricted
@@ -5280,8 +5311,6 @@ projects:
     emptyModelsMemberBody:
       Your project admin has restricted model access. Contact
       them to request access.
-    saveSuccess: Saved
-    saveError: Couldn't save settings
     lockoutWarning: Some members may have no usable agents/models after these
       restrictions are applied. They'll see an empty state in the chat.
     recommendedBadge: Recommended
@@ -5385,6 +5414,12 @@ projects:
     PROJECT_KEY_TAKEN: That key is already used by another project. Pick a different one.
     PROJECT_DESCRIPTION_INVALID: Description is too long.
     PROJECT_INSTRUCTIONS_TOO_LONG: Instructions exceed the {cap}-character limit. Trim before saving.
+    PROJECT_AGENT_NAME_INVALID: Agent name must be 1–120 characters.
+    PROJECT_AGENT_NAME_TAKEN: Another agent in this project already has that name.
+    PROJECT_AGENT_HARNESS_INVALID: That harness can't be used for project agents.
+    PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Instructions exceed the 20,000-character limit. Trim before saving.
+    PROJECT_AGENT_LIMIT: This project has reached its agent limit.
+    PROJECT_AGENT_NOT_FOUND: We couldn't find that agent. It may have been deleted.
     PROJECT_LEGAL_HOLD: This project is under legal hold and cannot be deleted.
     PROJECT_CONFIRM_PHRASE_MISMATCH: Type the project name exactly to confirm.
     PROJECT_SHARING_INVALID: Sharing settings are invalid.

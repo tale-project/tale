@@ -8200,10 +8200,42 @@ projects:
     agentsHeading: Agenten
     modelsHeading: Modelle
     integrationsHeading: Integrationen
-    sectionDescription: Rüste jeden Agenten mit den Skills und Konnektoren aus,
-      mit denen er in diesem Projekt arbeitet. Alle hier sehen den Agenten
-      vorausgerüstet mit dem, was du auswählst.
-    noExternalAgents: Es sind noch keine Drittanbieter-Agenten verfügbar.
+    sectionDescription:
+      Erstelle die Agenten, die in diesem Projekt arbeiten — wähle das Harness,
+      auf dem jeder läuft, rüste ihn mit Skills und Connectors aus und gib ihm
+      feste Anweisungen. Alle hier sehen dieselben Agenten, und Aufgaben lassen
+      sich ihnen zuweisen.
+    newAgent: Neuer Agent
+    emptyTitle: Noch keine Agenten
+    emptyBody:
+      Erstelle den ersten Agenten — einen benannten Mitarbeiter dieses Projekts
+      mit eigener Ausrüstung und eigenen Anweisungen.
+    equippedCount: '{count} ausgerüstet'
+    rowEdit: Agent bearbeiten
+    rowDelete: Agent löschen
+    dialogCreateTitle: Neuer Agent
+    dialogEditTitle: Agent bearbeiten
+    nameLabel: Name
+    namePlaceholder: z. B. PR-Reviewer
+    harnessLabel: Harness
+    harnessPlaceholder: Wähle das Harness, auf dem er läuft
+    equipmentLabel: Skills & Connectors
+    instructionsLabel: Anweisungen
+    instructionsPlaceholder:
+      Was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er
+      einhalten muss.
+    instructionsHint: Läuft bei jedem Einsatz dieses Agenten als feste Anweisung mit.
+    createSubmit: Agent erstellen
+    createSubmitting: Erstellt…
+    editSubmit: Änderungen speichern
+    editSubmitting: Speichert…
+    createSuccess: Agent erstellt
+    editSuccess: Agent aktualisiert
+    deleteSuccess: Agent gelöscht
+    deleteError: Agent konnte nicht gelöscht werden
+    mutationError: Agent konnte nicht gespeichert werden
+    deleteTitle: Agent löschen
+    deleteBody: '"{name}" löschen? Aufgaben, die auf ihn verwiesen haben, behalten ihre Historie.'
     modeRecommended: Empfohlen
     modeRecommendedDescription: Pinne die Einträge unten oben an. Der Rest bleibt verfügbar.
     modeRestricted: Eingeschränkt
@@ -8227,8 +8259,6 @@ projects:
     emptyModelsMemberTitle: Keine Modelle in diesem Projekt verfügbar
     emptyModelsMemberBody: Deine Projektadmins haben den Modellzugriff
       eingeschränkt. Kontaktiere sie, um Zugang anzufragen.
-    saveSuccess: Gespeichert
-    saveError: Einstellungen konnten nicht gespeichert werden
     lockoutWarning: Manche Mitglieder haben nach diesen Einschränkungen
       möglicherweise keine nutzbaren Agenten/Modelle. Sie sehen einen leeren
       Chat.
@@ -8347,6 +8377,13 @@ projects:
     PROJECT_DESCRIPTION_INVALID: Beschreibung ist zu lang.
     PROJECT_INSTRUCTIONS_TOO_LONG: Anweisungen überschreiten das Limit von {cap}
       Zeichen. Kürze sie vor dem Speichern.
+    PROJECT_AGENT_NAME_INVALID: Der Agentenname muss 1–120 Zeichen lang sein.
+    PROJECT_AGENT_NAME_TAKEN: Ein anderer Agent in diesem Projekt trägt diesen Namen bereits.
+    PROJECT_AGENT_HARNESS_INVALID: Dieses Harness lässt sich nicht für Projekt-Agenten verwenden.
+    PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Anweisungen überschreiten das Limit von
+      20.000 Zeichen. Kürze sie vor dem Speichern.
+    PROJECT_AGENT_LIMIT: Dieses Projekt hat sein Agenten-Limit erreicht.
+    PROJECT_AGENT_NOT_FOUND: Wir konnten diesen Agenten nicht finden. Er wurde möglicherweise gelöscht.
     PROJECT_LEGAL_HOLD: Dieses Projekt unterliegt einem Legal Hold und kann nicht gelöscht werden.
     PROJECT_CONFIRM_PHRASE_MISMATCH: Tippe den Projektnamen exakt, um zu bestätigen.
     PROJECT_SHARING_INVALID: Freigabeeinstellungen sind ungültig.

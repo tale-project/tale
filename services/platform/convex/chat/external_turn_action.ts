@@ -335,27 +335,13 @@ export async function runExternalTurnStart(
       return;
     }
 
-    // A project thread runs its agent pre-equipped with the project's
-    // per-agent binding (the persistent baseline), unioned with the picks
-    // this conversation made in the composer — selecting one must never drop
-    // the other. The binding is keyed by harness slug. Resolved BEFORE the
-    // token mint: the connector union is the token's integration grant set.
-    const projectBinding = await ctx.runQuery(
-      internal.projects.internal_queries.getProjectAgentCapabilitiesForThread,
-      { threadId: args.threadId, agentId: args.harness },
-    );
-    const skillSlugs = [
-      ...new Set([
-        ...projectBinding.skills,
-        ...(thread.capabilities?.skills ?? []),
-      ]),
-    ];
-    const connectorSlugs = [
-      ...new Set([
-        ...projectBinding.connectors,
-        ...(thread.capabilities?.connectors ?? []),
-      ]),
-    ];
+    // The conversation's own composer picks are the turn's equipment.
+    // (Project-level equipment now lives on `projectAgents` instances, which
+    // task runs consume — a chat thread carries only what its composer
+    // assembled.) Resolved BEFORE the token mint: the connector set is the
+    // token's integration grant set.
+    const skillSlugs = [...new Set(thread.capabilities?.skills ?? [])];
+    const connectorSlugs = [...new Set(thread.capabilities?.connectors ?? [])];
     // First-party workspace reads (knowledge + Documents hub) are granted to
     // every managed external turn: they read only the org's OWN data, run as
     // the turn's user, org-scoped and audited — so a default read grant is

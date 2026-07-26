@@ -16,6 +16,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { isHarnessSlug } from '../../lib/harnesses/types';
 import {
   deriveProjectKey,
   isValidProjectKey,
@@ -737,71 +738,160 @@ export const updateProjectAgentSettings = mutation({
   },
 });
 
-/** A project may equip an agent with at most this many skills / connectors —
+/** An agent may be equipped with at most this many skills / connectors —
  * mirrors the per-persona `MAX_AGENT_SKILL_BINDINGS`; a generous ceiling, not a
  * curation limit. */
 const MAX_PROJECT_AGENT_SKILLS = 25;
 const MAX_PROJECT_AGENT_CONNECTORS = 25;
+/** A generous runaway guard, not a product limit. */
+const MAX_PROJECT_AGENTS = 50;
+const PROJECT_AGENT_NAME_MAX = 120;
+/** Matches the governance `system_prompt` policy's instruction cap. */
+const PROJECT_AGENT_INSTRUCTIONS_MAX = 20_000;
+/**
+ * Harness slugs an agent cannot be created on. Cursor is byo-only (no managed
+ * lane) and drops composed instructions by design — no channel. The composer
+ * roster already offers managed harnesses only; this guards direct API calls.
+ */
+const PROJECT_AGENT_INELIGIBLE_HARNESSES = new Set(['cursor']);
+
+interface ProjectAgentFields {
+  name: string;
+  harness: string;
+  skills: string[];
+  connectors: string[];
+  instructions: string | undefined;
+}
 
 /**
- * Bind the skills + connectors one agent may use IN THIS PROJECT — the
- * persistent, project-scoped analog of a chat thread's `capabilities`. Sets
- * the whole per-agent entry at once; an entry that ends up empty
- * ({skills:[], connectors:[]}) is removed so the agent falls back to its
- * default rather than being pinned to "nothing".
+ * Validate + normalize the writable fields of a project agent: trimmed
+ * bounded name, shipped managed harness slug, deduped capability sets within
+ * the caps, bounded instructions (empty → undefined). Shared by create and
+ * update so the two can never drift.
  */
-export const setProjectAgentCapabilities = mutation({
+function validateProjectAgentFields(args: {
+  name: string;
+  harness: string;
+  skills: string[];
+  connectors: string[];
+  instructions?: string;
+}): ProjectAgentFields {
+  const name = args.name.trim();
+  if (name.length === 0 || name.length > PROJECT_AGENT_NAME_MAX) {
+    throw new ConvexError({ code: 'PROJECT_AGENT_NAME_INVALID' });
+  }
+  if (
+    !isHarnessSlug(args.harness) ||
+    PROJECT_AGENT_INELIGIBLE_HARNESSES.has(args.harness)
+  ) {
+    throw new ConvexError({ code: 'PROJECT_AGENT_HARNESS_INVALID' });
+  }
+  if (
+    args.skills.length > MAX_PROJECT_AGENT_SKILLS ||
+    args.connectors.length > MAX_PROJECT_AGENT_CONNECTORS
+  ) {
+    throw new ConvexError({
+      code: 'too_many_bindings',
+      message: `An agent may be equipped with at most ${MAX_PROJECT_AGENT_SKILLS} skills and ${MAX_PROJECT_AGENT_CONNECTORS} connectors.`,
+    });
+  }
+  // Dedupe, drop empties — the equipment is a set, not an ordered list.
+  const skills = [...new Set(args.skills.filter((s) => s.length > 0))];
+  const connectors = [...new Set(args.connectors.filter((c) => c.length > 0))];
+  const instructions = args.instructions?.trim();
+  if (instructions !== undefined) {
+    if (instructions.length > PROJECT_AGENT_INSTRUCTIONS_MAX) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' });
+    }
+  }
+  return {
+    name,
+    harness: args.harness,
+    skills,
+    connectors,
+    instructions: instructions === '' ? undefined : instructions,
+  };
+}
+
+/** The audit-safe projection of an agent row — instructions ride as a length
+ * (a 20k prompt does not belong in an audit row). */
+function auditProjectAgentState(fields: ProjectAgentFields) {
+  return {
+    name: fields.name,
+    harness: fields.harness,
+    skills: fields.skills,
+    connectors: fields.connectors,
+    instructionsLength: fields.instructions?.length ?? 0,
+  };
+}
+
+/** A sibling agent already holding this name (case-folded), excluding
+ * `excludeId` so update can keep its own name. */
+async function projectAgentNameTaken(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+  name: string,
+  excludeId?: Id<'projectAgents'>,
+): Promise<boolean> {
+  const siblings = await ctx.db
+    .query('projectAgents')
+    .withIndex('by_project', (q) => q.eq('projectId', projectId))
+    .collect();
+  const folded = name.toLowerCase();
+  return siblings.some(
+    (row) => row._id !== excludeId && row.name.toLowerCase() === folded,
+  );
+}
+
+/**
+ * Create a named agent in a project: one harness plus the skills/connectors
+ * it runs pre-equipped with and an optional instructions addendum (delivered
+ * through the harness's system-prompt channel by the run lane). Tasks assign
+ * work to these rows.
+ */
+export const createProjectAgent = mutation({
   args: {
     projectId: v.id('projects'),
-    agentId: v.string(),
+    name: v.string(),
+    harness: v.string(),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
+    instructions: v.optional(v.string()),
   },
-  returns: v.null(),
+  returns: v.id('projectAgents'),
   handler: async (ctx, args) => {
     const project = await loadProjectOrThrow(ctx, args.projectId);
     const auth = await getAuthContext(ctx, project.organizationId);
     assertWritable(project, auth);
 
-    if (args.agentId.length === 0 || args.agentId.length > 128) {
-      throw new ConvexError({
-        code: 'invalid_agent',
-        message: 'An agent id is a short identifier.',
-      });
+    const fields = validateProjectAgentFields(args);
+    const existing = await ctx.db
+      .query('projectAgents')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+      .collect();
+    if (existing.length >= MAX_PROJECT_AGENTS) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_LIMIT' });
     }
-    if (
-      args.skills.length > MAX_PROJECT_AGENT_SKILLS ||
-      args.connectors.length > MAX_PROJECT_AGENT_CONNECTORS
-    ) {
-      throw new ConvexError({
-        code: 'too_many_bindings',
-        message: `An agent may be equipped with at most ${MAX_PROJECT_AGENT_SKILLS} skills and ${MAX_PROJECT_AGENT_CONNECTORS} connectors.`,
-      });
-    }
-    // Dedupe, drop empties — the binding is a set, not an ordered list.
-    const skills = [...new Set(args.skills.filter((s) => s.length > 0))];
-    const connectors = [
-      ...new Set(args.connectors.filter((c) => c.length > 0)),
-    ];
-
-    const current = project.agentCapabilities ?? {};
-    const previousEntry = current[args.agentId] ?? {
-      skills: [],
-      connectors: [],
-    };
-    const next: Record<string, { skills: string[]; connectors: string[] }> = {
-      ...current,
-    };
-    if (skills.length === 0 && connectors.length === 0) {
-      delete next[args.agentId];
-    } else {
-      next[args.agentId] = { skills, connectors };
+    if (await projectAgentNameTaken(ctx, args.projectId, fields.name)) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NAME_TAKEN' });
     }
 
-    await ctx.db.patch(args.projectId, {
-      agentCapabilities: Object.keys(next).length > 0 ? next : undefined,
-      updatedAt: Date.now(),
+    const now = Date.now();
+    const agentId = await ctx.db.insert('projectAgents', {
+      organizationId: project.organizationId,
+      projectId: args.projectId,
+      name: fields.name,
+      harness: fields.harness,
+      skills: fields.skills,
+      connectors: fields.connectors,
+      ...(fields.instructions !== undefined
+        ? { instructions: fields.instructions }
+        : {}),
+      createdBy: auth.userId,
+      createdAt: now,
+      updatedAt: now,
     });
+    await ctx.db.patch(args.projectId, { updatedAt: now });
 
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
@@ -813,14 +903,134 @@ export const setProjectAgentCapabilities = mutation({
       resourceType: PROJECT_RESOURCE_TYPE,
       resourceId: String(args.projectId),
       resourceName: project.name,
-      previousState: previousEntry,
-      newState: { skills, connectors },
-      changedFields: diff(previousEntry, { skills, connectors }),
-      metadata: {
-        agentId: args.agentId,
-        skillsDiff: arrayDiff(previousEntry.skills, skills),
-        connectorsDiff: arrayDiff(previousEntry.connectors, connectors),
-      },
+      newState: auditProjectAgentState(fields),
+      metadata: { op: 'create', projectAgentId: String(agentId) },
+      status: 'success',
+    });
+
+    return agentId;
+  },
+});
+
+/**
+ * Replace a project agent's writable fields wholesale — the edit dialog
+ * always submits the full shape (CRUD, not per-field modes).
+ */
+export const updateProjectAgent = mutation({
+  args: {
+    agentId: v.id('projectAgents'),
+    name: v.string(),
+    harness: v.string(),
+    skills: v.array(v.string()),
+    connectors: v.array(v.string()),
+    instructions: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NOT_FOUND' });
+    }
+    const project = await loadProjectOrThrow(ctx, agent.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const fields = validateProjectAgentFields(args);
+    if (
+      await projectAgentNameTaken(
+        ctx,
+        agent.projectId,
+        fields.name,
+        args.agentId,
+      )
+    ) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NAME_TAKEN' });
+    }
+
+    const now = Date.now();
+    await ctx.db.replace(args.agentId, {
+      organizationId: agent.organizationId,
+      projectId: agent.projectId,
+      name: fields.name,
+      harness: fields.harness,
+      skills: fields.skills,
+      connectors: fields.connectors,
+      ...(fields.instructions !== undefined
+        ? { instructions: fields.instructions }
+        : {}),
+      createdBy: agent.createdBy,
+      createdAt: agent.createdAt,
+      updatedAt: now,
+    });
+    await ctx.db.patch(agent.projectId, { updatedAt: now });
+
+    const previous = auditProjectAgentState({
+      name: agent.name,
+      harness: agent.harness,
+      skills: agent.skills,
+      connectors: agent.connectors,
+      instructions: agent.instructions,
+    });
+    const next = auditProjectAgentState(fields);
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.agentsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(agent.projectId),
+      resourceName: project.name,
+      previousState: previous,
+      newState: next,
+      changedFields: diff(previous, next),
+      metadata: { op: 'update', projectAgentId: String(args.agentId) },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Delete a project agent. Tasks that referenced it keep their assignee id
+ * and resolve it as a historical actor (raw id fallback) — deletion never
+ * rewrites task history.
+ */
+export const deleteProjectAgent = mutation({
+  args: { agentId: v.id('projectAgents') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NOT_FOUND' });
+    }
+    const project = await loadProjectOrThrow(ctx, agent.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    await ctx.db.delete(args.agentId);
+    await ctx.db.patch(agent.projectId, { updatedAt: Date.now() });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.agentsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(agent.projectId),
+      resourceName: project.name,
+      previousState: auditProjectAgentState({
+        name: agent.name,
+        harness: agent.harness,
+        skills: agent.skills,
+        connectors: agent.connectors,
+        instructions: agent.instructions,
+      }),
+      metadata: { op: 'delete', projectAgentId: String(args.agentId) },
       status: 'success',
     });
 

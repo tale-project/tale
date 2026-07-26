@@ -98,7 +98,7 @@ import { notificationsTable } from './notifications/schema';
 import { objectStorageBackfillRunsTable } from './object_storage/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
-import { projectsTable } from './projects/schema';
+import { projectAgentsTable, projectsTable } from './projects/schema';
 import {
   agentSecretAccessTable,
   projectSecretsTable,
@@ -249,6 +249,7 @@ export default defineSchema({
   userPasswordMetadata: userPasswordMetadataTable,
   userPreferences: userPreferencesTable,
   products: productsTable,
+  projectAgents: projectAgentsTable,
   projects: projectsTable,
   // AI-provider credentials (rewrite): org-scoped, multiple per provider
   // connector, secrets encrypted via lib/secret_box. Tenant isolation: every

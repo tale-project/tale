@@ -68,6 +68,10 @@ const projectRowValidator = v.object({
   agentMode: v.optional(projectModeValidator),
   recommendedAgentSlugs: v.optional(v.array(v.string())),
   allowedAgentSlugs: v.optional(v.array(v.string())),
+  // DEPRECATED (never released) — Phase A per-harness binding, replaced by
+  // `projectAgents` rows. Kept ONLY because these handlers spread whole docs
+  // and dev deployments still carry the field; no client reads it. Drops with
+  // the schema field in the roster-retirement cleanup.
   agentCapabilities: v.optional(
     v.record(
       v.string(),
@@ -227,6 +231,48 @@ export const getProject = query({
       canEdit: access.canEdit,
       canAdminister: access.canAdminister,
     };
+  },
+});
+
+const projectAgentRowValidator = v.object({
+  _id: v.id('projectAgents'),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  projectId: v.id('projects'),
+  name: v.string(),
+  harness: v.string(),
+  skills: v.array(v.string()),
+  connectors: v.array(v.string()),
+  instructions: v.optional(v.string()),
+  createdBy: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+});
+
+/**
+ * The project's user-created agents, name-sorted, for the Agents tab and the
+ * task assignee picker. Fails closed to an empty list when the project is
+ * missing, in another org, or unreadable — same posture as
+ * `listAccessibleUserIds` (the tab renders under an access-gated shell; a
+ * reactive race must not throw).
+ */
+export const listProjectAgents = query({
+  args: { projectId: v.id('projects'), organizationId: v.string() },
+  returns: v.array(projectAgentRowValidator),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return [];
+    }
+    const auth = await getAuthContext(ctx, args.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) {
+      return [];
+    }
+    const agents = await ctx.db
+      .query('projectAgents')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+      .collect();
+    return agents.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

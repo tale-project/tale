@@ -1,45 +1,41 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { EmptyState } from '@tale/ui/empty-state';
 import { Row, Stack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
-import { useCallback } from 'react';
+import { Bot, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useSetProjectAgentCapabilities } from '../hooks/mutations';
+import { useDeleteProjectAgent } from '../hooks/mutations';
 import {
+  type ProjectAgentRow,
   useProject,
+  useProjectAgents,
   useProjectCapabilityCatalog,
   useProjectExternalAgents,
 } from '../hooks/queries';
-import {
-  type AgentCapabilityBinding,
-  ProjectAgentCapabilityMenu,
-} from './project-agent-capability-menu';
+import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 
 interface ProjectAgentsTabProps {
   organizationId: string;
   projectId: Id<'projects'>;
 }
 
-const EMPTY_BINDING: AgentCapabilityBinding = { skills: [], connectors: [] };
-
 /**
- * The project's per-agent equipment. The agent set is fixed — the same
- * third-party agents (sandbox harnesses) chat offers — and this page
- * binds each one to the skills and connectors it runs with IN THIS PROJECT.
- * The persistent, project-scoped analog of the chat composer's per-turn
- * capability assembly: what a member picks here is what that agent shows up
- * pre-equipped with for everyone in the project.
- *
- * The catalog (which skills/connectors exist, connectors gated on an active
- * org credential) comes from the same org-scoped composer actions chat reads,
- * so the two surfaces can never drift. Each change saves immediately, one
- * agent at a time — there is no staged Save/Discard here.
+ * The project's agents — user-created, named workers. Each one runs on a
+ * sandbox harness with the skills/connectors and instructions picked at
+ * creation; tasks assign work to them. The harness roster and the capability
+ * catalog come from the same org-scoped composer actions chat reads, so the
+ * surfaces can never drift. (The fixed per-harness equipment list this tab
+ * used to be is retired — equipment now travels with the agent instance.)
  */
 export function ProjectAgentsTab({
   organizationId,
@@ -47,73 +43,171 @@ export function ProjectAgentsTab({
 }: ProjectAgentsTabProps) {
   const { t } = useT('projects');
   const { project } = useProject(projectId);
-  const agentsQuery = useProjectExternalAgents(organizationId);
+  const rosterQuery = useProjectExternalAgents(organizationId);
   const catalogQuery = useProjectCapabilityCatalog(organizationId);
-  const { mutateAsync: setCapabilities } = useSetProjectAgentCapabilities();
+  const { agents } = useProjectAgents(projectId);
+  const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
 
-  const save = useCallback(
-    async (agentId: string, next: AgentCapabilityBinding) => {
-      try {
-        await setCapabilities({
-          projectId,
-          agentId,
-          skills: [...next.skills],
-          connectors: [...next.connectors],
-        });
-        toast({ title: t('agents.saveSuccess'), variant: 'success' });
-      } catch (error) {
-        console.error('setProjectAgentCapabilities failed', error);
-        toast({ title: t('agents.saveError'), variant: 'destructive' });
-      }
-    },
-    [projectId, setCapabilities, t],
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<ProjectAgentRow | undefined>(
+    undefined,
   );
+  const [deleting, setDeleting] = useState<ProjectAgentRow | undefined>(
+    undefined,
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const externalAgents = rosterQuery.data?.externalAgents;
+  const harnesses: readonly HarnessOption[] = useMemo(
+    () => externalAgents ?? [],
+    [externalAgents],
+  );
+  const harnessBySlug = useMemo(() => {
+    const map = new Map<string, HarnessOption>();
+    for (const option of harnesses) map.set(option.harness, option);
+    return map;
+  }, [harnesses]);
 
   if (!project) return null;
 
-  const agents = agentsQuery.data?.externalAgents ?? [];
   const skills = catalogQuery.data?.skills ?? [];
   const connectors = catalogQuery.data?.connectors ?? [];
-  const bindings = project.agentCapabilities ?? {};
   const canEdit = project.canEdit;
+
+  const openCreate = () => {
+    setEditing(undefined);
+    setDialogOpen(true);
+  };
+  const openEdit = (agent: ProjectAgentRow) => {
+    setEditing(agent);
+    setDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteAgent({ agentId: deleting._id });
+      toast({ title: t('agents.deleteSuccess'), variant: 'success' });
+      setDeleting(undefined);
+    } catch (error) {
+      console.error('deleteProjectAgent failed', error);
+      toast({ title: t('agents.deleteError'), variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const newAgentButton = (
+    <Button size="sm" onClick={openCreate}>
+      <Plus aria-hidden className="size-4" />
+      {t('agents.newAgent')}
+    </Button>
+  );
 
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
         title={t('agents.agentsHeading')}
         description={t('agents.sectionDescription')}
+        action={canEdit ? newAgentButton : undefined}
       />
 
       {agents.length === 0 ? (
-        <Text variant="caption" className="text-muted-foreground">
-          {t('agents.noExternalAgents')}
-        </Text>
+        <EmptyState
+          icon={Bot}
+          title={t('agents.emptyTitle')}
+          description={t('agents.emptyBody')}
+        />
       ) : (
         <Stack as="ul" gap={2}>
           {agents.map((agent) => {
-            const binding = bindings[agent.harness] ?? EMPTY_BINDING;
+            const option = harnessBySlug.get(agent.harness);
+            const equipped = agent.skills.length + agent.connectors.length;
             return (
-              <li key={agent.harness}>
+              <li key={agent._id}>
                 <Row
                   justify="between"
                   align="center"
                   gap={3}
                   className="rounded-md border p-3"
                 >
-                  <Text className="truncate font-medium">{agent.label}</Text>
-                  <ProjectAgentCapabilityMenu
-                    skills={skills}
-                    connectors={connectors}
-                    value={binding}
-                    onChange={(next) => void save(agent.harness, next)}
-                    disabled={!canEdit}
-                  />
+                  <Row align="center" gap={3} className="min-w-0">
+                    {option?.iconUrl !== undefined ? (
+                      <img
+                        src={option.iconUrl}
+                        alt=""
+                        className="size-6 shrink-0 rounded-sm"
+                      />
+                    ) : (
+                      <Bot
+                        aria-hidden
+                        className="text-muted-foreground size-6 shrink-0"
+                      />
+                    )}
+                    <Stack gap={1} className="min-w-0">
+                      <Text className="truncate font-medium">{agent.name}</Text>
+                      <Text
+                        variant="caption"
+                        className="text-muted-foreground truncate"
+                      >
+                        {option?.label ?? agent.harness}
+                        {equipped > 0
+                          ? ` · ${t('agents.equippedCount', { count: equipped })}`
+                          : ''}
+                      </Text>
+                    </Stack>
+                  </Row>
+                  {canEdit ? (
+                    <Row gap={1} className="shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('agents.rowEdit')}
+                        onClick={() => openEdit(agent)}
+                      >
+                        <Pencil aria-hidden className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('agents.rowDelete')}
+                        onClick={() => setDeleting(agent)}
+                      >
+                        <Trash2 aria-hidden className="size-4" />
+                      </Button>
+                    </Row>
+                  ) : null}
                 </Row>
               </li>
             );
           })}
         </Stack>
       )}
+
+      <ProjectAgentDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(undefined);
+        }}
+        projectId={projectId}
+        harnesses={harnesses}
+        skills={skills}
+        connectors={connectors}
+        {...(editing !== undefined ? { agent: editing } : {})}
+      />
+
+      <DeleteDialog
+        open={deleting !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(undefined);
+        }}
+        title={t('agents.deleteTitle')}
+        description={t('agents.deleteBody', { name: deleting?.name ?? '' })}
+        isDeleting={isDeleting}
+        onDelete={() => void handleDelete()}
+      />
     </ContentArea>
   );
 }

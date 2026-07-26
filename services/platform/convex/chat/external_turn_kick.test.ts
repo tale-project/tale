@@ -133,9 +133,6 @@ function createCtx(overrides: CtxOverrides = {}) {
           : overrides.activeSession,
       );
     }
-    if (name.endsWith('getProjectAgentCapabilitiesForThread')) {
-      return Promise.resolve({ skills: [], connectors: [] });
-    }
     if (name.endsWith('getSessionOwnerIdentity')) {
       return Promise.resolve(overrides.ownerIdentity ?? null);
     }

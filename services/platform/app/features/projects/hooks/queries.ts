@@ -32,6 +32,20 @@ export type ProjectListItem = ConvexItemOf<
   typeof api.projects.queries.listProjects
 >;
 
+export type ProjectAgentRow = ConvexItemOf<
+  typeof api.projects.queries.listProjectAgents
+>;
+
+/** The project's user-created agents (name-sorted). */
+export function useProjectAgents(projectId: Id<'projects'> | undefined) {
+  const organizationId = useOrganizationId();
+  const { data, isLoading } = useConvexQuery(
+    api.projects.queries.listProjectAgents,
+    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  );
+  return { agents: data ?? [], isLoading };
+}
+
 export function useProjects(
   organizationId: string,
   options?: { includeArchived?: boolean },

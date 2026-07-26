@@ -35,8 +35,16 @@ export function useUpdateProjectIntegrationSettings() {
   );
 }
 
-export function useSetProjectAgentCapabilities() {
-  return useConvexMutation(api.projects.mutations.setProjectAgentCapabilities);
+export function useCreateProjectAgent() {
+  return useConvexMutation(api.projects.mutations.createProjectAgent);
+}
+
+export function useUpdateProjectAgent() {
+  return useConvexMutation(api.projects.mutations.updateProjectAgent);
+}
+
+export function useDeleteProjectAgent() {
+  return useConvexMutation(api.projects.mutations.deleteProjectAgent);
 }
 
 export function useDetachDocumentFromProject() {
