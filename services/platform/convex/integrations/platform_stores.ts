@@ -138,12 +138,38 @@ export function workflowDocumentStore(ctx: ActionCtx): WorkflowDocumentStore {
         );
         fileId = String(stored.fileStorageId);
       }
+      // Same folder + same file name = the same document, WHOEVER wrote it
+      // first (an upload, a seed, an earlier run): publishing refreshes that
+      // document's blob instead of parking a same-named sibling next to it.
+      const existing = await ctx.runQuery(
+        internal.documents.internal_queries.findDocumentInFolderByTitle,
+        {
+          organizationId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a wrong id reads as no match and falls through to the upsert's own check
+          folderId: folderId as Id<'folders'>,
+          name,
+        },
+      );
+      if (existing !== null) {
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocument,
+          {
+            documentId: existing.documentId,
+            callerOrgId: organizationId,
+            fileId,
+            ...(contentType !== undefined ? { mimeType: contentType } : {}),
+            ...(extension !== undefined ? { extension } : {}),
+            sourceProvider: 'agent',
+          },
+        );
+        return { documentId: String(existing.documentId), action: 'updated' };
+      }
       const upserted = await ctx.runMutation(
         internal.documents.internal_mutations.upsertDocumentByExternalId,
         {
           organizationId,
-          // Idempotent per (folder, name) by default: a re-run of the same
-          // node refreshes the artifact instead of duplicating it.
+          // Idempotent per (folder, name) for fresh files too: a re-run of
+          // the same node refreshes the artifact instead of duplicating it.
           externalItemId: externalItemId ?? `workflow:${folderId}:${name}`,
           title: name,
           fileId,
