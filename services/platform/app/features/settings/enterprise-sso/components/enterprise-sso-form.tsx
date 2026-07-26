@@ -8,7 +8,7 @@ import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
+import { AlertTriangle, Copy, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Controller,
@@ -18,6 +18,7 @@ import {
 } from 'react-hook-form';
 import { z } from 'zod';
 
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   useFormEditor,
@@ -859,7 +860,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     label={t('integrations.enterpriseSso.redirectUrlLabel')}
                     value={config?.oidcCallbackUrl ?? ''}
                     helpText={t('integrations.enterpriseSso.redirectUrlHelp')}
-                    onCopy={copy}
                   />
                   <Input
                     id="sso-issuer"
@@ -1040,12 +1040,10 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   <ReadOnlyCopy
                     label={t('integrations.enterpriseSso.spMetadataLabel')}
                     value={config?.samlSpMetadataUrl ?? ''}
-                    onCopy={copy}
                   />
                   <ReadOnlyCopy
                     label={t('integrations.enterpriseSso.acsUrlLabel')}
                     value={config?.samlAcsUrl ?? ''}
-                    onCopy={copy}
                   />
                 </>
               )}
@@ -1067,7 +1065,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                         'integrations.enterpriseSso.guide.redirectLabel',
                       )}
                       value={config?.oidcCallbackUrl ?? ''}
-                      onCopy={copy}
                     />
                   )}
                   <Text variant="muted" className="text-sm">
@@ -1232,7 +1229,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 <ReadOnlyCopy
                   label={t('integrations.enterpriseSso.scim.baseUrlLabel')}
                   value={config.scim.baseUrl}
-                  onCopy={copy}
                 />
               )}
             </Stack>
@@ -1326,40 +1322,27 @@ function ReadOnlyCopy({
   label,
   value,
   helpText,
-  onCopy,
 }: {
   label: string;
   value: string;
   helpText?: string;
-  onCopy: (value: string) => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  // A settings field like any other: label + help on the left, the copyable
-  // value pinned right in the shared control column.
+  // A settings field like any other: label + help on the left, the value
+  // pinned right in the shared control column — as the standard copyable
+  // pill (full value on hover, inline copied feedback), not a hand-rolled
+  // code block + button.
   return (
     <SettingsFieldRow
       label={label}
       {...(helpText !== undefined ? { description: helpText } : {})}
     >
-      <HStack gap={2} align="center" className="w-full">
-        <code className="bg-muted block min-w-0 flex-1 truncate rounded-md p-2 font-mono text-xs">
-          {value || '—'}
-        </code>
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon-sm"
-          aria-label={label}
-          disabled={!value}
-          onClick={() => {
-            onCopy(value);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
-        >
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-        </Button>
-      </HStack>
+      {value ? (
+        <CopyableField value={value} copyAriaLabel={label} />
+      ) : (
+        <Text as="span" variant="muted">
+          —
+        </Text>
+      )}
     </SettingsFieldRow>
   );
 }

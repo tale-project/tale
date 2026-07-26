@@ -17,6 +17,7 @@ import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -320,31 +321,27 @@ export function ChatFilterConfigView({
         {enabled && (
           <>
             {/* One divided list for the section's settings — label + hint
-                left, control right, like every other section. */}
-            <SettingsFieldList>
+                left, control right, like every other section. Marked so the
+                shared divider rule draws its hairline between this block and
+                the Categories block below it. */}
+            <SettingsFieldList data-settings-section="">
               <SettingsFieldRow
                 label={t('contentSafety.applyTo')}
                 description={t('contentSafety.applyToDescription')}
               >
                 <Stack gap={2}>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={appliesToInput}
-                      disabled={cannotManage}
-                      onChange={(e) => handleAppliesToInput(e.target.checked)}
-                    />
-                    <span>{t('contentSafety.userInput')}</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={appliesToOutput}
-                      disabled={cannotManage}
-                      onChange={(e) => handleAppliesToOutput(e.target.checked)}
-                    />
-                    <span>{t('contentSafety.modelOutput')}</span>
-                  </label>
+                  <Checkbox
+                    label={t('contentSafety.userInput')}
+                    checked={appliesToInput}
+                    disabled={cannotManage}
+                    onCheckedChange={(v) => handleAppliesToInput(Boolean(v))}
+                  />
+                  <Checkbox
+                    label={t('contentSafety.modelOutput')}
+                    checked={appliesToOutput}
+                    disabled={cannotManage}
+                    onCheckedChange={(v) => handleAppliesToOutput(Boolean(v))}
+                  />
                 </Stack>
               </SettingsFieldRow>
 
@@ -375,6 +372,7 @@ export function ChatFilterConfigView({
             <FormSection
               label={t('contentSafety.categoriesTitle')}
               description={t('contentSafety.categoriesDescription')}
+              data-settings-section=""
             >
               <CategoryList
                 categories={categories}

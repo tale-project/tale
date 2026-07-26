@@ -200,6 +200,9 @@ export function SystemPromptEditor({
                   placeholder={t('systemPrompt.instructionsPlaceholder')}
                   rows={4}
                   aria-label={t('systemPrompt.title')}
+                  // The textarea IS the section body — without this it sits
+                  // in the 20rem control column instead of spanning the row.
+                  wideControl
                   errorMessage={errors.mandatoryInstructions?.message}
                   counterMax={MAX_CHARS}
                   {...register('mandatoryInstructions')}

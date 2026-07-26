@@ -22,6 +22,11 @@ interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
    * past the max.
    */
   counterMax?: number;
+  /**
+   * Span the full row in the settings row layout instead of the standard
+   * control column — for a tall textarea that IS the section's whole body.
+   */
+  wideControl?: boolean;
 }
 
 // Plain control — the real textarea field. No skeleton logic of its own.
@@ -34,6 +39,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       required,
       errorMessage,
       counterMax,
+      wideControl,
       id: providedId,
       ...props
     },
@@ -74,6 +80,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 
     return (
       <FieldShell
+        {...(wideControl !== undefined ? { wideControl } : {})}
         {...(label !== undefined
           ? {
               label: (
@@ -109,7 +116,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           id={id}
           className={cn(
-            'border-(--color-border-input) bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+            'border-(--color-border-input) bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[120px] w-full rounded-md border px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
             hasError && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className,

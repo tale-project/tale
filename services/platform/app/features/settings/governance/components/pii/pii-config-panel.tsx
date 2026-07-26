@@ -29,7 +29,6 @@
  */
 
 import { Button } from '@tale/ui/button';
-import { Checkbox } from '@tale/ui/checkbox';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Grid, Row, Stack } from '@tale/ui/layout';
@@ -37,6 +36,7 @@ import type { TFunction } from 'i18next';
 import { Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import {
   SettingsFieldList,
@@ -126,7 +126,11 @@ interface SectionProps {
 
 function Section({ title, description, children }: SectionProps): ReactNode {
   return (
-    <Stack as="section" gap={3}>
+    // Carries the settings-section marker so the shared divider rule draws
+    // the same hairline between these sub-blocks as between page sections —
+    // the panel renders inside `SettingsPage`'s subtree, whose descendant
+    // rule picks the marker up at any depth.
+    <Stack as="section" gap={3} data-settings-section="">
       <Stack as="header" gap={1}>
         <h3 className="text-sm font-semibold text-[color:var(--color-fg-base)]">
           {title}
@@ -185,21 +189,25 @@ function ModeSection({
     },
   ];
   // A settings field like any other: label on the left, the options on the
-  // right — the same row shape run-code's Default mode uses.
+  // right — the same row shape run-code's Default mode uses. The wrapper
+  // carries the settings-section marker so the shared divider rule draws its
+  // hairline between this block and the pattern sections below it.
   return (
-    <SettingsFieldList>
-      <SettingsFieldRow label={tPiiConfigPanel('modeLabel')}>
-        <RadioGroup
-          aria-label={tPiiConfigPanel('modeLabel')}
-          value={value.mode}
-          onValueChange={(mode) => {
-            const item = items.find((i) => i.value === mode);
-            if (item) onChange({ ...value, mode: item.value });
-          }}
-          options={items}
-        />
-      </SettingsFieldRow>
-    </SettingsFieldList>
+    <div data-settings-section="">
+      <SettingsFieldList>
+        <SettingsFieldRow label={tPiiConfigPanel('modeLabel')}>
+          <RadioGroup
+            aria-label={tPiiConfigPanel('modeLabel')}
+            value={value.mode}
+            onValueChange={(mode) => {
+              const item = items.find((i) => i.value === mode);
+              if (item) onChange({ ...value, mode: item.value });
+            }}
+            options={items}
+          />
+        </SettingsFieldRow>
+      </SettingsFieldList>
+    </div>
   );
 }
 

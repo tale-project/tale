@@ -241,6 +241,9 @@ function CustomInstructionsSection({
               aria-label={t('page.customInstructions.title')}
               placeholder={t('page.customInstructions.placeholder')}
               rows={5}
+              // The textarea IS the section body — without this it sits in
+              // the 20rem control column and dangles off the row's left edge.
+              wideControl
               disabled={editor.isSaving}
               errorMessage={errors.customInstructions?.message}
               counterMax={CUSTOM_INSTRUCTIONS_MAX_CHARS}

@@ -1,11 +1,11 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
-import { useId, type ReactNode } from 'react';
+import { useId, type HTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-interface FormSectionProps {
+interface FormSectionProps extends HTMLAttributes<HTMLDivElement> {
   label?: string;
   description?: ReactNode;
   children?: ReactNode;
@@ -17,6 +17,7 @@ export function FormSection({
   description,
   children,
   className,
+  ...props
 }: FormSectionProps) {
   const id = useId();
 
@@ -26,6 +27,7 @@ export function FormSection({
       aria-labelledby={label ? `${id}-label` : undefined}
       aria-describedby={description ? `${id}-desc` : undefined}
       className={cn('flex flex-col gap-3', className)}
+      {...props}
     >
       {(label || description) && (
         <div className="flex flex-col gap-1">

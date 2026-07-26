@@ -11,7 +11,6 @@
  * step-level, and per-agent surfaces, each wiring its own store.
  */
 import { Button } from '@tale/ui/button';
-import { Checkbox } from '@tale/ui/checkbox';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Table, TableBody, TableCell, TableRow } from '@tale/ui/table';
@@ -20,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { useRegisterDirtySource } from '@/app/components/ui/editor/use-dirty-source';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -21,12 +21,15 @@ import { SettingsRow } from './settings-row';
 export function SettingsFieldList({
   children,
   className,
+  ...props
 }: {
   children: ReactNode;
   className?: string;
-}) {
+} & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('divide-border divide-y', className)}>{children}</div>
+    <div className={cn('divide-border divide-y', className)} {...props}>
+      {children}
+    </div>
   );
 }
 

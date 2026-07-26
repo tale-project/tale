@@ -7,6 +7,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -510,28 +511,23 @@ export function ModerationProviderConfigView({
             )}
 
             {/* One divided list for the section's settings — label + hint
-                left, control right, like every other section. */}
-            <SettingsFieldList>
+                left, control right, like every other section. Marked so the
+                shared divider rule separates it from the mappings block. */}
+            <SettingsFieldList data-settings-section="">
               <SettingsFieldRow label={t('moderationProvider.applyTo')}>
                 <Stack gap={2}>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={appliesToInput}
-                      disabled={cannotManage}
-                      onChange={(e) => handleAppliesToInput(e.target.checked)}
-                    />
-                    <span>{t('moderationProvider.userInput')}</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={appliesToOutput}
-                      disabled={cannotManage}
-                      onChange={(e) => handleAppliesToOutput(e.target.checked)}
-                    />
-                    <span>{t('moderationProvider.modelOutput')}</span>
-                  </label>
+                  <Checkbox
+                    label={t('moderationProvider.userInput')}
+                    checked={appliesToInput}
+                    disabled={cannotManage}
+                    onCheckedChange={(v) => handleAppliesToInput(Boolean(v))}
+                  />
+                  <Checkbox
+                    label={t('moderationProvider.modelOutput')}
+                    checked={appliesToOutput}
+                    disabled={cannotManage}
+                    onCheckedChange={(v) => handleAppliesToOutput(Boolean(v))}
+                  />
                 </Stack>
               </SettingsFieldRow>
 
@@ -661,6 +657,7 @@ export function ModerationProviderConfigView({
             <FormSection
               label={t('moderationProvider.categoryMappings')}
               description={t('moderationProvider.categoryMappingsDescription')}
+              data-settings-section=""
             >
               {mappings.length === 0 && (
                 <Alert

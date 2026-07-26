@@ -190,7 +190,10 @@ export function GuardrailsOverview({
         title={t('guardrailsOverview.title')}
         description={t('guardrailsOverview.description')}
       >
-        <Grid md={3}>
+        {/* Marked so the shared divider rule separates the two sub-blocks
+            of this section (cards, then the events table) with the same
+            hairline every settings surface uses. */}
+        <Grid md={3} data-settings-section="">
           <StatusCard
             title={t('guardrailsOverview.statusCards.contentSafety.title')}
             description={t(
@@ -277,7 +280,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
   );
 
   return (
-    <Stack as="section" className="mt-8">
+    <Stack as="section" data-settings-section="">
       <Row gap={3} align="start" justify="between" wrap>
         <SectionHeader
           as="h2"
