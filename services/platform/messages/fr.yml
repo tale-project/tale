@@ -7377,6 +7377,9 @@ projects:
   entityLabel: projets
   entityLabelOne: projet
   switcher:
+    title: Changer de projet
+    searchPlaceholder: Rechercher des projets
+    empty: Aucun projet trouvé
     ariaLabel: 'Changer de projet, actuel : {name}'
   navigation:
     list: Tous les projets

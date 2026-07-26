@@ -4505,6 +4505,9 @@ projects:
   entityLabel: projects
   entityLabelOne: project
   switcher:
+    title: Switch project
+    searchPlaceholder: Search projects
+    empty: No projects found
     ariaLabel: 'Switch project, current: {name}'
   navigation:
     list: All projects
