@@ -75,7 +75,7 @@ Ersetzen und Löschen wirken sofort, und es gibt kein Festschreiben einer Versio
 
 ## Was im Bundle liegt
 
-Die Seite des Skills zeigt **Bundle** — den Dateibaum, wie er auf der Platte liegt, mit der `SKILL.md` oben angepinnt — und jede angeklickte Datei öffnet sich schreibgeschützt neben dem Baum: Code mit Syntax-Hervorhebung, Markdown gerendert, und ein klarer Hinweis bei einem Bild oder einer Binärdatei, die der Browser nicht anzeigen kann. Die `SKILL.md` selbst bringt das Bearbeitungsformular zurück. Der kleinste brauchbare Skill besteht aus einer einzigen Datei, und die meisten wachsen Ordner für Ordner.
+Die Seite des Skills zeigt **Bundle** — den Dateibaum, wie er auf der Platte liegt, mit der `SKILL.md` oben angepinnt — und jede angeklickte Datei öffnet sich schreibgeschützt neben dem Baum: Code mit Syntax-Hervorhebung, Markdown gerendert, und ein klarer Hinweis bei einem Bild oder einer Binärdatei, die der Browser nicht anzeigen kann. Die `SKILL.md` selbst bringt das Bearbeitungsformular zurück; der Body trägt einen **Bearbeiten**/**Vorschau**-Umschalter — die Vorschau rendert das Markdown genau so, wie eine Leserin es sieht. Der kleinste brauchbare Skill besteht aus einer einzigen Datei, und die meisten wachsen Ordner für Ordner.
 
 ```text
 release-notes/

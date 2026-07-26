@@ -75,7 +75,7 @@ Replacing and deleting both take effect immediately, and there is no version pin
 
 ## What sits in the bundle
 
-The skill's page shows **Bundle** — the file tree as it exists on disk, with `SKILL.md` pinned at the top — and clicking any file opens it read-only beside the tree: code with syntax highlighting, markdown rendered, and a plain notice for an image or a binary the browser cannot preview. `SKILL.md` itself brings back the editing form. The smallest useful skill is a single file, and most grow one folder at a time.
+The skill's page shows **Bundle** — the file tree as it exists on disk, with `SKILL.md` pinned at the top — and clicking any file opens it read-only beside the tree: code with syntax highlighting, markdown rendered, and a plain notice for an image or a binary the browser cannot preview. `SKILL.md` itself brings back the editing form, whose body offers an **Edit** / **Preview** toggle — preview renders the markdown exactly as a reader sees it. The smallest useful skill is a single file, and most grow one folder at a time.
 
 ```text
 release-notes/

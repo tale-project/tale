@@ -75,7 +75,7 @@ Remplacer et supprimer prennent effet immédiatement, et rien ne fige une versio
 
 ## Ce qu'il y a dans le bundle
 
-La page du skill affiche **Bundle** — l'arborescence telle qu'elle existe sur le disque, avec la `SKILL.md` épinglée en haut — et chaque fichier cliqué s'ouvre en lecture seule à côté de l'arbre : le code avec coloration syntaxique, le markdown rendu, et un message clair pour une image ou un binaire que le navigateur ne sait pas afficher. La `SKILL.md` elle-même ramène le formulaire d'édition. Le skill utile le plus petit tient en un seul fichier, et la plupart grandissent un dossier à la fois.
+La page du skill affiche **Bundle** — l'arborescence telle qu'elle existe sur le disque, avec la `SKILL.md` épinglée en haut — et chaque fichier cliqué s'ouvre en lecture seule à côté de l'arbre : le code avec coloration syntaxique, le markdown rendu, et un message clair pour une image ou un binaire que le navigateur ne sait pas afficher. La `SKILL.md` elle-même ramène le formulaire d'édition, dont le corps porte une bascule **Modifier**/**Aperçu** — l'aperçu rend le markdown exactement comme un lecteur le voit. Le skill utile le plus petit tient en un seul fichier, et la plupart grandissent un dossier à la fois.
 
 ```text
 release-notes/
