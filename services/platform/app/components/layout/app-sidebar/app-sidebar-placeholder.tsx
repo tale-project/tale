@@ -10,9 +10,10 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 
 // The real list is CASL-gated down to a few items and the gated count isn't
 // known until access resolves, so the placeholder optimistically renders the
-// whole set — a pixel match for the common admin/owner case that only
-// over-draws a slot or two for limited members.
-const PLACEHOLDER_NAV_ITEMS = 7;
+// whole set — a pixel match for the common admin/owner case (six primary
+// tiles today) that only over-draws a slot for limited members. Keep this in
+// step with the `primary` list in `use-navigation-items.ts`.
+const PLACEHOLDER_NAV_ITEMS = 6;
 
 /** One masked 36×36 icon tile (logo/nav/bell slots). */
 function TileSkeleton() {

@@ -69,6 +69,10 @@ export function MetricsPeriodSelect({
 
   return (
     <DataTableFilters
+      // Metrics toolbars sit at the right edge of a full-width header, so the
+      // panel pins to the button's bottom-right corner instead of spilling
+      // toward (or past) the viewport edge.
+      align="end"
       filters={[
         ...(extraFilters ?? []),
         {

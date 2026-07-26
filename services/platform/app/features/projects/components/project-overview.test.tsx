@@ -153,14 +153,16 @@ describe('ProjectOverview', () => {
     expect(screen.queryByText('Get started')).not.toBeInTheDocument();
   });
 
-  // The page is a configuration surface: both blocks are settings sections, so
-  // the shared marker-driven divider rule draws the hairline between them. Lose
-  // the marker and the page silently reads as one undivided run of fields.
-  it('frames Project and Sharing as settings sections', () => {
+  // The page is a configuration surface: all three blocks are settings
+  // sections, so the shared marker-driven divider rule draws the hairline
+  // between each pair — including the one separating Description from
+  // Instructions. Lose a marker and the page silently reads as one undivided
+  // run of fields.
+  it('frames Project, Instructions, and Sharing as settings sections', () => {
     const { container } = renderOverview();
 
     expect(container.querySelectorAll('[data-settings-section]')).toHaveLength(
-      2,
+      3,
     );
     // The Sharing section keeps its anchor so deep links still land on it.
     expect(container.querySelector('#project-sharing')).toHaveAttribute(

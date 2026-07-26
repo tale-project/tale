@@ -3,9 +3,10 @@
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import {
-  ArrowDownUp,
+  ArrowDownWideNarrow,
   CheckCheck,
   ChevronLeft,
+  ClockArrowDown,
   Inbox,
   Loader2,
   Maximize2,
@@ -65,6 +66,9 @@ interface NotificationListPanelProps {
 }
 
 const LOAD_MORE_NUM_ITEMS = 25;
+
+/** How long the sort toggle's tooltip stays open after a click flips the order. */
+const SORT_TIP_HOLD_MS = 1500;
 
 // How long the arrival announcement stays in the live region before it is
 // cleared, so a subsequent arrival re-announces even when the text is
@@ -280,16 +284,66 @@ export function NotificationListPanel({
     if (myStatus === 'CanLoadMore') loadMoreMy(LOAD_MORE_NUM_ITEMS);
   }, [status, loadMore, myStatus, loadMoreMy]);
 
+  // Radix force-closes a tooltip the moment its trigger is clicked — which is
+  // exactly when this toggle's tip starts announcing the NEW order. And once
+  // an outside force-close desyncs its hover tracking, it can stop requesting
+  // opens altogether. So this tip's state is OURS end to end: Radix only
+  // renders `open`; our pointer/focus/click handlers decide it. A click flips
+  // the sort, swaps the icon, and holds the re-labelled tip open for a fixed
+  // beat during which nothing else may close it; hover opens after the shared
+  // 300ms tooltip delay and closes on leave; focus/blur mirror that for
+  // keyboard users.
+  const [sortTipOpen, setSortTipOpen] = useState(false);
+  const sortTipHoldUntil = useRef(0);
+  // One pending op at a time: either the delayed hover-open or the hold-close.
+  const sortTipTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(sortTipTimer.current), []);
+  const handleSortPointerEnter = useCallback(() => {
+    if (Date.now() < sortTipHoldUntil.current) return;
+    window.clearTimeout(sortTipTimer.current);
+    sortTipTimer.current = window.setTimeout(() => setSortTipOpen(true), 300);
+  }, []);
+  const handleSortPointerLeave = useCallback(() => {
+    if (Date.now() < sortTipHoldUntil.current) return;
+    window.clearTimeout(sortTipTimer.current);
+    setSortTipOpen(false);
+  }, []);
+  const handleSortFocus = useCallback(() => {
+    if (Date.now() < sortTipHoldUntil.current) return;
+    setSortTipOpen(true);
+  }, []);
+  const handleSortBlur = useCallback(() => {
+    window.clearTimeout(sortTipTimer.current);
+    sortTipHoldUntil.current = 0;
+    setSortTipOpen(false);
+  }, []);
+  const handleSortClick = useCallback(() => {
+    setSort((prev) => (prev === 'priority' ? 'recent' : 'priority'));
+    sortTipHoldUntil.current = Date.now() + SORT_TIP_HOLD_MS;
+    window.clearTimeout(sortTipTimer.current);
+    setSortTipOpen(true);
+    sortTipTimer.current = window.setTimeout(() => {
+      setSortTipOpen(false);
+    }, SORT_TIP_HOLD_MS);
+  }, []);
+
+  const sortLabel = `${t('sortLabel')}: ${sort === 'priority' ? t('sortPriority') : t('sortRecent')}`;
   const sortButton = (
     <IconButton
       variant="ghost"
       size="sm"
-      icon={ArrowDownUp}
+      // The icon names the CURRENT order — time-descending for "Most recent",
+      // magnitude-descending for "Priority" — so it flips together with the
+      // label and the held-open tip.
+      icon={sort === 'priority' ? ArrowDownWideNarrow : ClockArrowDown}
       aria-pressed={sort === 'priority'}
-      aria-label={`${t('sortLabel')}: ${sort === 'priority' ? t('sortPriority') : t('sortRecent')}`}
-      onClick={() =>
-        setSort((prev) => (prev === 'priority' ? 'recent' : 'priority'))
-      }
+      aria-label={sortLabel}
+      tooltipOpen={sortTipOpen}
+      onClick={handleSortClick}
+      onPointerEnter={handleSortPointerEnter}
+      onPointerLeave={handleSortPointerLeave}
+      onFocus={handleSortFocus}
+      onBlur={handleSortBlur}
     />
   );
 

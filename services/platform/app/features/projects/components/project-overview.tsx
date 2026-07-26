@@ -184,9 +184,9 @@ function ProjectOverviewContent({
   return (
     // This page is a configuration surface built from `SettingsSection`, so it
     // carries the shared section-divider rule instead of hand-rolled borders on
-    // individual sections: the rule keys on each section's marker, which is what
-    // keeps one hairline between Project and Sharing — and none around the
-    // instructions field, which is deliberately not a section of its own.
+    // individual sections: the rule keys on each section's marker, which is
+    // what draws exactly one hairline between each pair of neighbours —
+    // Project, Instructions, Sharing — and nothing after the last one.
     <ContentArea variant="narrow" gap={6} className={SECTION_DIVIDER_CLASS}>
       {isViewerOnly ? <ProjectReadOnlyBanner /> : null}
 

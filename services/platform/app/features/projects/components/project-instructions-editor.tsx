@@ -10,6 +10,7 @@ import {
 } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@/lib/shared/schemas/projects';
@@ -29,10 +30,10 @@ interface InstructionsForm {
 const FORM_ID = 'project-instructions-form';
 
 /**
- * The project's standing instructions — one field of the project's general
- * page, not a section or a tab of its own: they are a property of the project,
- * like its name. Saving runs through the page's grouped Save/Discard cluster,
- * together with the identity form.
+ * The project's standing instructions — a titled section of the project's
+ * general page: a property of the project like its name, so it lives here
+ * rather than on a tab of its own. Saving runs through the page's grouped
+ * Save/Discard cluster, together with the identity form.
  */
 export function ProjectInstructionsEditor({
   projectId,
@@ -111,46 +112,54 @@ export function ProjectInstructionsEditor({
 
   if (!project) return null;
 
-  // No section of its own: the field renders as part of the project's
-  // general block — its row label names it, and the page's Sharing section
-  // below draws the next divider.
+  // A settings section like Project and Sharing around it: the section header
+  // carries the label + hint (so the textarea only needs an accessible name),
+  // and the shared marker-driven divider rule draws the hairline above it.
   return (
     <form id={FORM_ID} onSubmit={editor.submit}>
       <fieldset disabled={!canEdit || editor.isLoading} className="contents">
-        <FormSection>
-          <Textarea
-            id="project-instructions"
-            label={t('instructions.label')}
-            description={t('instructions.hint')}
-            placeholder={t('instructions.placeholder')}
-            rows={12}
-            {...editor.form.register('instructions')}
-            errorMessage={editor.form.formState.errors.instructions?.message}
-          />
-          <Text
-            variant="caption"
-            className={cn(
-              overLimit && 'text-destructive',
-              nearLimit && 'text-amber-600',
-            )}
-          >
-            {t('instructions.charCount', {
-              count: charCount,
-              max: PROJECT_INSTRUCTIONS_MAX_CHARS,
-            })}
-            {overLimit
-              ? ' — ' +
-                t('instructions.tokenCapError', {
-                  cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
-                })
-              : nearLimit
+        <SettingsSection
+          title={t('instructions.label')}
+          description={t('instructions.hint')}
+        >
+          <FormSection>
+            <Textarea
+              id="project-instructions"
+              aria-label={t('instructions.label')}
+              placeholder={t('instructions.placeholder')}
+              rows={12}
+              // The section IS this one control: span the full row instead of
+              // the 20rem control column the page's row layout would pin an
+              // (unlabelled) field to.
+              wideControl
+              {...editor.form.register('instructions')}
+              errorMessage={editor.form.formState.errors.instructions?.message}
+            />
+            <Text
+              variant="caption"
+              className={cn(
+                overLimit && 'text-destructive',
+                nearLimit && 'text-amber-600',
+              )}
+            >
+              {t('instructions.charCount', {
+                count: charCount,
+                max: PROJECT_INSTRUCTIONS_MAX_CHARS,
+              })}
+              {overLimit
                 ? ' — ' +
-                  t('instructions.tokenCapWarning', {
+                  t('instructions.tokenCapError', {
                     cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
                   })
-                : ''}
-          </Text>
-        </FormSection>
+                : nearLimit
+                  ? ' — ' +
+                    t('instructions.tokenCapWarning', {
+                      cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
+                    })
+                  : ''}
+            </Text>
+          </FormSection>
+        </SettingsSection>
       </fieldset>
     </form>
   );

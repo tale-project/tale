@@ -130,6 +130,13 @@ export interface DataTableFiltersProps {
    * baseline instead of every caller re-building the row.
    */
   actions?: ReactNode;
+  /**
+   * Which edge of the filter button the panel pins to. Keep the default
+   * `'start'` for left-anchored toolbars; pass `'end'` when the button sits
+   * at the right edge of the page (the metrics headers), so the panel hangs
+   * from the button's bottom-right corner instead of running off-viewport.
+   */
+  align?: 'start' | 'end';
   /** Additional class name */
   className?: string;
 }
@@ -153,6 +160,7 @@ export function DataTableFilters({
   onClearAll,
   children,
   actions,
+  align = 'start',
   className,
 }: DataTableFiltersProps) {
   const { t } = useT('common');
@@ -243,7 +251,7 @@ export function DataTableFilters({
               open={isFilterOpen}
               onOpenChange={setIsFilterOpen}
               modal={false}
-              align="start"
+              align={align}
               onOpenAutoFocus={(e) => e.preventDefault()}
               contentClassName="bg-card flex max-h-[min(32rem,calc(100dvh-2rem))] flex-col overflow-hidden p-0"
               trigger={
