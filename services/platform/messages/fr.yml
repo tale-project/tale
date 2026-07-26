@@ -7578,7 +7578,11 @@ tasks:
     cancelled: "L'exécution a été annulée."
     missingInput: "Dépose d'abord les fichiers d'entrée de la tâche — le dossier lié est encore vide."
     working: '{name} travaille sur cette tâche.'
-    viewRun: "Voir l'exécution"
+    details: Détails
+    detailsTitle: "{name} — avancement de l'exécution"
+    noProgressYet: "L'exécution n'a encore atteint aucune étape."
+    effectsTitle: Actions effectuées
+    noEffectsYet: Rien d'effectué pour l'instant.
   automation:
     hint: 'Opérée par {name} — les changements de statut passent par son workflow.'
     will:

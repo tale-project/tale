@@ -7467,7 +7467,11 @@ tasks:
     cancelled: Der Lauf wurde abgebrochen.
     missingInput: Lege zuerst die Eingabedateien der Aufgabe ab — der gebundene Ordner ist noch leer.
     working: '{name} arbeitet an dieser Aufgabe.'
-    viewRun: Lauf ansehen
+    details: Details
+    detailsTitle: '{name} — Lauf-Fortschritt'
+    noProgressYet: Der Lauf hat noch keinen Schritt erreicht.
+    effectsTitle: Ausgeführte Aktionen
+    noEffectsYet: Noch nichts ausgeführt.
   automation:
     hint: 'Betrieben von {name} — Statusänderungen laufen über dessen Workflow.'
     will:

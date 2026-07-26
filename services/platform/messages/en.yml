@@ -7463,7 +7463,11 @@ tasks:
     cancelled: The run was cancelled.
     missingInput: Add the task's input files first — the folder this task is bound to is still empty.
     working: '{name} is working on this task.'
-    viewRun: View the run
+    details: Details
+    detailsTitle: '{name} — run progress'
+    noProgressYet: The run has not reached any node yet.
+    effectsTitle: Actions performed
+    noEffectsYet: Nothing performed yet.
   automation:
     hint: 'Operated by {name} — status changes route through its workflow.'
     will:
