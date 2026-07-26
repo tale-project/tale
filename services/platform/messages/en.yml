@@ -870,187 +870,25 @@ chat:
   imageCounter: '{current} of {total}'
   newChat: New chat
   moreActions: More actions
-  tryAgain: Try again
-  regenerateFailed: Couldn't regenerate response
-  speakOutLoud: Speak out loud
-  pinChat: Pin chat
-  unpinChat: Unpin chat
   pinProject: Pin project
   unpinProject: Unpin project
   pinned: Pinned
   pinFailed: Couldn't update pin
-  newResponse: New response
   projectsSection: Projects
   chatsSection: Chats
-  quote:
-    button: Quote
-    label: Quoted
-    remove: Remove quote
-  deleteChat: Delete chat
-  deleteConfirmation: Are you sure you want to delete {title}?
-  deletePermanentMessage: Move chat to Trash. You can restore it for the org's
-    grace period; after that retention permanently deletes the chat and its
-    messages.
-  deleteFailed: Failed to delete chat
-  archive: Archive
-  unarchive: Unarchive
-  archiveSuccess: Chat archived
-  archiveFailed: Failed to archive chat
-  unarchiveSuccess: Chat unarchived
-  unarchiveFailed: Failed to unarchive chat
-  removeFromProject: Remove from project
-  removeFromProjectFailed: Failed to remove chat from project
-  archived:
-    title: Archived
   welcomeEmpty: What are we working on?
-  welcomeSuffix: here, what are we working on?
   toast:
     sendFailed: Failed to send message
-    arenaRequiresAgent:
-      Arena mode needs a specific agent — pick one instead of Auto
-      to compare models.
-    piiBlocked: Message blocked by PII policy
-    policyViolation: Message blocked by content policy
-    modelAccessDenied: Model not available
-    budgetExceeded: Usage limit reached
-    kbRefInvalid: A referenced document is no longer available. Remove it and try again.
-    kbRefNotIndexed: '"{fileName}" isn''t indexed yet. Remove it or wait for
-      indexing to finish, then try again.'
-    kbRefUnsupported: '"{fileName}" can''t be indexed — this file type isn''t
-      supported. Remove it to send your message.'
-    backendRestarting: Server is restarting
-    backendRestartingDescription:
-      The server is briefly restarting for an update.
-      Please send your message again in a moment.
-  blockedNotice:
-    body: This response was blocked by your organization's content policy.
-  thinking:
-    reading: Reading {hostname}
-    searchingKnowledgeBase: Searching knowledge base for "{query}"
-    delegating: Asking {agent}
-    redacted: Thought about this privately
-  thoughtProcess:
-    thinking: Thinking
-    routingPhase: Routing
-    seconds: '{seconds}s'
-    durationLabel: Thought for {seconds}s
-    toolsCount: '{count, plural, one {# tool} other {# tools}}'
-    skillsCount: '{count, plural, one {# skill} other {# skills}}'
-    tokensCount: '{count, plural, one {# token} other {# tokens}}'
-    summaryReasoningOnly: Showed its reasoning
-    responding: Responding
-    queuedForCapacity: Queued for capacity
-  routing:
-    routedTo: Routed to {agent}
-    reason:
-      single-candidate: Only matching assistant
-      trivial: Simple message — used the default assistant
-      cached: Reused a recent routing decision
-      classified: Best match for this request
-      fallback: Defaulted after routing was inconclusive
-  tools:
-    contactRead: Contact data
-    productRead: Product catalog
-    ragSearch: Knowledge base
-    knowledgeWrite: Knowledge entry
-    web: Web content
-    pdf: PDF
-    image: Images
-    pptx: Presentation
-    docx: Document
-    workflowRead: Automation
-    updateWorkflowStep: Automation step
-    saveWorkflowDefinition: Saving automation
-    validateWorkflowDefinition: Validating automation
-    excel: Excel file
-    contactWrite: Update contact
-    productWrite: Update product
-    websiteRead: Read website
-    websiteWrite: Update website
-    conversationRead: Read conversation
-    conversationWrite: Reply to conversation
-    agentRead: Read agents
-    agentWrite: Manage agents
-    metricsRead: Read metrics
-    taskRead: Read tasks
-    taskWrite: Update task
-    projectRead: Read projects
-    projectWrite: Update project
-    fileRead: Read file
-    fileWrite: Write file
-    fileEdit: Edit file
-    fileList: List files
-    fileDelete: Delete file
-    runCode: Run code
-    generateImage: Generate image
-    text: Text file
-    workflowSyntax: Automation syntax
-    createWorkflow: Create automation
-    runWorkflow: Run automation
-    integration: Integration
-    integrationBatch: Batch integration
-    integrationIntrospect: Inspect integration
-    databaseSchema: Database schema
-    documentFind: Find documents
-    documentRetrieve: Retrieve document
-    documentWrite: Write document
-    requestHumanInput: Ask a human
-    requestUserLocation: Request location
-    updateTodos: To-do list
-    proposeMemory: Propose memory
-    secretRead: Read secret
-    automationSearch: Automation search
   agentSelector:
     label: Select agent
     sectionThirdParty: Agents · run in a sandbox
     degraded: recently failing
-    auto: Auto
-    autoDescription: Let Tale pick the best agent for each message based on what you ask.
-    viewDetails: View agent details
-    noAgents: No agents
     defaultAgent: Chat
-    searchPlaceholder: Search agents
-    noResults: No agents found
-    lockedExternal:
-      This chat runs in a sandbox and keeps its agent — start a new chat to
-      use a different one.
-    lockedExternalLabel: 'Agent: {agent} (pinned for this sandbox chat)'
-    browseAutomations: Browse automations
-    sectionAgents: Agents
-    sectionImageAgents: Image agents
   modelSelector:
     label: Select model
-    searchPlaceholder: Search models
-    noResults: No models found
-    addModel: Add model
-    auto: Auto
-    autoDescription: Let Tale pick the best model for each message — balances
-      quality, speed, and cost.
-    byoDefault: Default model
-    byoTooltip: This agent uses your own credentials (BYO) — model, billing, and
-      limits are yours.
     noModelsAvailable: No models available
-    noModelsAdminHint: No AI provider is set up yet. Click to open Settings → AI
-      providers and add one to start chatting.
-    noModelsAgentHint:
-      This assistant has no usable model. Check that its allowed
-      models match a configured provider — click to open AI providers.
-    noModelsMemberHint:
-      No AI models are available yet. Ask your workspace admin to
-      set up an AI provider so you can start chatting.
-    noModelsRestricted:
-      No models are available to you here. This project's model
-      restrictions exclude every model you can access — contact your admin to
-      request access.
-    recommended: Recommended
     viewProvider: View provider settings
     viewInfo: Model details
-    noApiKey:
-      No API key configured for this model's provider — add one in Settings
-      → AI providers.
-    noProviderKey:
-      No AI provider is connected yet — add an API key in Settings → AI
-      providers to start chatting.
     info:
       provider: Provider
       type: Type
@@ -1077,35 +915,7 @@ chat:
       transcription: Transcription
       vision: Vision
   voice:
-    voiceOutputSpeaking: Speaking
-    voiceOutputStopped: Stopped
-    voiceOutputPlay: Play voice output
-    voiceOutputStop: Stop voice output
-    voiceOutputLoading: Preparing voice…
-    voiceOutputBlocked: Voice playback blocked — tap to play
-    voiceOutputError: Voice output failed
-    voiceOutputErrorRateLimited: Voice rate limit hit — retrying
-    voiceOutputErrorBudget: Voice budget reached for this period
-    voiceOutputErrorTransient: Voice service unavailable — retrying
-    voiceOutputErrorDecode: Could not play voice audio — tap to retry
-    voiceOutputErrorAuthExpired: Session expired — sign in again to keep voice playing
-    voiceOutputErrorInvalidResponse: Voice provider returned invalid audio — tap to retry
-    voiceOutputErrorMessageCharLimit: Reply too long for voice — stopping here
-    voiceOutputErrorForbidden: Voice provider blocked by host policy
-    voiceOutputErrorChunkLimit: Voice limit reached for this reply
-    voiceOutputErrorQueueOverflow: Voice is falling behind — pausing further sentences
-    voiceOutputErrorNetwork: Voice request failed — check your connection and retry
-    voiceOutputErrorConfig: Voice provider unavailable — ask an admin to add a text-to-speech model
-    voiceOutputErrorOpenSettings: Open settings
-    voiceOutputAnnounceSpeaking: Voice output speaking
-    voiceOutputAnnounceStopped: Voice output stopped
-    voiceOutputAnnounceBlocked: Voice output blocked — activate the player to listen
-    voiceOutputAnnounceError: Voice output failed
-    voiceOutputThreadSwitchLabel: Voice output for this thread
-    voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
-    voiceModeLabel: Voice mode
     voiceModeEnable: Read replies aloud
-    voiceModeDisable: Stop reading replies aloud
   searchChat: Search chat
   showHistory: Show chats
   hideHistory: Hide chats
@@ -1113,112 +923,8 @@ chat:
   typeMessageHere: Type your message here…
   send: Send message
   stopGenerating: Stop generating
-  generationStopped: Generation stopped
-  queue:
-    placeholder: The agent is working — new messages are queued for it…
-    placeholderIdle: The agent finished — your message goes through now…
-    full: Message queue is full
-    status:
-      queued: Queued — will be picked up after the current step
-      waitingMedia: Waiting for attachments to finish processing — sends automatically
-      delivered: Delivered — waiting for the agent to respond
-      deliversNow: Delivering now
-      consumed: Picked up
-    tray:
-      label: Queued messages
-      remove: Remove queued message
-      removeFailed: Couldn't remove the queued message
-  errorGenerating: Something went wrong
-  errorDetailsSummary: Technical details
-  retryGeneration: Try again
-  openProviderSettings: Open provider settings
-  askAdminProviderKey: Ask an admin to add an API key in Settings → AI providers.
-  showMore: Show more
-  showLess: Show less
-  editMessage: Edit message
-  editSend: Send
-  noAgentsAvailable: No agents available. Please publish an agent first.
-  pendingApprovalDisabled: Respond to the pending request above to continue
-  archivedDisabled: This chat is archived. Unarchive it to continue the conversation.
-  archivedBanner: This conversation was archived
-  budgetExceededDetail: '{type} limit reached for this {period} period ({used} /
-    {limit}). Please contact your administrator.'
-  budgetExceededDefault:
-    Your usage limit has been reached for this period. Please
-    contact your administrator.
-  budgetWarning: You have used {percent}% of your {period} {type} limit ({used} / {limit})
-  budgetWarningDismiss: Dismiss
-  budgetWarningTypeTokens: token
-  budgetWarningTypeCost: cost
-  budgetWarningTypeRequests: request
-  placeholder: Ask about contacts, products, or documents…
-  planMode:
-    label: Plan or act mode
-    plan: Plan
-    act: Act
-    planTooltip:
-      'Plan mode: the agent explores read-only and proposes a plan for
-      your approval'
-    actTooltip: 'Act mode: the agent executes directly'
-    toggleFailed: Couldn't switch mode
-  workdir:
-    label: Working directory
-    placeholder: e.g. tale
-    helper:
-      Relative to the workspace root. Applies from your next message; while
-      the folder doesn't exist yet, the agent runs at the workspace root.
-    save: Save
-    reset: Reset to root
-    missingWarning:
-      That folder doesn't exist in the workspace yet — the agent runs
-      at the workspace root until it's created.
-    saveFailed: Couldn't update the working directory
-    errors:
-      absolute: Use a path relative to the workspace, not an absolute one
-      tooLong: That path is too long
-      badSegment:
-        Only letters, digits, dots, dashes and underscores — ".." segments
-        aren't allowed
   sandbox:
     label: Sandbox
-    tooltip:
-      Runs in an isolated sandbox VM with its own persistent workspace — it
-      can run real commands and install packages, safely separated from your
-      computer.
-    settingsTitle: Sandbox settings
-    settingsHint: Click to change this conversation's sandbox settings.
-    working: Working
-    workingTooltip: The agent is running a task in its sandbox right now.
-    sleeping: Sleeping
-    sleepingTooltip:
-      The sandbox is asleep — your files are saved and it wakes on
-      your next message (takes a few seconds).
-    starting: Starting
-    startingTooltip: The sandbox is starting up.
-    recovering: Recovering
-    recoveringTooltip: The sandbox hit a problem and is recovering — your next message will retry.
-    ready: Ready
-    readyTooltip: The sandbox is warm and ready — your next message starts instantly.
-    pinned: Always on
-    pinnedTooltip: This sandbox is pinned to stay always-on.
-  workspaceFiles:
-    title: Workspace files
-    toggleLabel: Workspace files
-    showHidden: Show hidden files
-    refresh: Refresh
-    download: Download
-    preview: Preview
-    previewHint: Select Preview to view this file.
-    previewUnavailable: This file type can’t be previewed — use Download.
-    emptyDir: This folder is empty.
-    selectFile: Select a file to preview.
-    sessionStopped: Workspace not running
-    resumeHint: Send a message to resume the session and browse files.
-    tooLarge: Can’t preview this file (missing or too large) — download it instead.
-    error: Could not load this file.
-    retry: Retry
-    truncated: … more items hidden (list truncated)
-    ariaTree: Workspace files
   invalidFiles: Invalid files
   fileSizeExceededMultiple: '{names} exceeded the {maxSize}MB file size limit.'
   audioDurationExceeded:
@@ -1238,15 +944,6 @@ chat:
     Remove some files and try again.
   duplicateFile: Duplicate file
   duplicateFileDescription: '{filename} is already attached.'
-  removeAttachment: Remove attachment
-  cancelUpload: Cancel upload
-  uploadingFile: Uploading file
-  indexing: Indexing...
-  indexingFailed: Index failed
-  indexingFailedDescription: '{filename} could not be indexed for search.'
-  indexingUnsupported: Format not supported
-  indexingUnsupportedDescription: "{filename} can't be indexed — this file type has no text extractor."
-  viewImage: View image
   fileTypes:
     image: IMG
     pdf: PDF
@@ -1259,163 +956,29 @@ chat:
     video: VIDEO
     file: FILE
   transcription:
-    inProgressTooltip: Transcribing audio…
-    transcribing: Transcribing…
-    indexing: Indexing…
-    indexed: Indexed
-    transcribed: Transcribed
-    indexingFailed: Indexing failed
-    couldNotTranscribe: Could not be transcribed
     viewTranscript: View transcript
     previewSubtitle: '{seconds}s transcribed'
-    retry: Try again
-    failedSendBlockedTooltip: Transcription failed — retry it or remove the attachment before sending
   videoLink:
     statuses:
-      queued: Queued
-      retrying: Retrying…
       attemptNumber: Attempt {n}
-      fetching_metadata: Reading video info…
-      fetching_captions: Fetching captions…
-      extracting_audio: Extracting audio…
-      transcribing_handoff: Transcribing…
-      indexing: Indexing…
-      completed: Ready
-      failed: Failed
-      skipped: Cancelled
-    errors:
-      generic: Couldn't analyze this video
-      privateOrAgeGated: Video is private or age-restricted
-      unavailable: Video is no longer available
-      geoblocked: Video isn't available in this region
-      unsupported: This site isn't supported
-      transient: Temporary issue — try again
-      botDetection:
-        Video platform blocked automated access — try again later or use
-        another platform
-      rateLimited: Video platform is rate-limiting — wait a few minutes and retry
-      forbidden: Video platform refused access (403) — try again later
-      liveStream: Live streams aren't supported
-      premiere: Premiere/upcoming video not yet available
-      memberOnly: Members-only video
-      jsRuntimeMissing: Video processing isn't fully configured — contact your administrator
-      binaryNotInstalled: Video processing is not enabled yet — contact your administrator
-      retryCooldown:
-        This video was just rate-limited — please wait a few minutes
-        before retrying
-      timeout: Took too long to fetch — try again
-      outputValidationFailed: Couldn't validate the downloaded video file
-      videoTooLong: Video exceeds the 4h length limit
-      whisperFailed: Transcription failed
-      invalidUrl: URL is malformed
-      unsupportedProtocol: Only https:// links are accepted
-      credentialedUrl: Links with embedded credentials aren't accepted
-      ipLiteral: Bare IP and localhost links aren't accepted
-      playlist: Playlists aren't supported — paste a single video link
-      dnsResolutionFailed: Couldn't resolve the host
-      privateIpResolved: This link points to a private/internal address
-      inFlightCap: Too many videos processing — wait for one to finish
-      budgetExceeded: Usage limit reached — contact your administrator
-    actions:
-      removeLink: Remove
-      retry: Try again
-    chip:
-      fallbackTitle: Video link
-      ariaLabel: 'Video attachment: {title}'
-      inProgressTooltip: Wait for video to finish — or remove the chip to send without it
-      failedSendBlockedTooltip: A video failed — retry it or remove the chip before sending
-    toast:
-      ingestFailedTitle: Couldn't add this video
-      retryFailedTitle: Couldn't retry this video
-      bindFailedDescription: Couldn't attach the video transcript — please retry
   fallback:
     image: Image
     file: File
   imageEdit:
     editThis: Edit this image
-    previewReference: Preview reference image
-    editingLatest: Editing last image
-    dismiss: Don't reference this image
-    change: Change
-    placeholder: Describe the edit…
-    placeholderCreate: Describe an image to create…
-    modelCannotEdit:
-      This model creates new images only. Switch to an editing model
-      to apply changes.
-    pickAnImage: Pick an image to edit
-    noOtherImages: No other images in this thread.
   downloadFile: Download file
-  messageInfo:
-    title: Message information
-    description: Details about this AI response
-    timestamp: Timestamp
-    messageId: Message ID
-    model: Model
-    routing: Routing
-    tokenUsage: Token usage
-    input: Input
-    output: Output
-    total: Total
-    reasoning: Reasoning
-    cached: Cached
-    performance: Performance
-    duration: Duration
-    timeToFirstToken: Time to first token
-    timeToFirstReasoning: Time to first reasoning
-    setupBeforeModel: Setup before model
-    ttftDetailsTitle: Time to first token — details
-    ttftDetailsDescription:
-      How the wait before the first token breaks down, plus a
-      dev tool to compare against the model's own floor.
-    ttftBreakdown: Breakdown
-    ttftBreakdownHint: All measured from when you sent the message; Setup before
-      model is the backend wait before the model starts generating.
-    toolCalls: Tool calls
-    voiceOutput: Voice output
-    voice: Voice
-    voiceCharacters: Characters
-    noMetadata: Token usage and model information are not available for this message.
-    contextWindow: Context (est.)
-    contextWindowDescription: The full context sent to the AI model
-    contextTokens: Tokens
-    contextMessages: Messages
-    contextApprovals: Approvals
-    showContext: Show context window
-    throughput: Throughput
-    tokensPerSecond: '{value} tok/s'
-    cachedPercent: '{percent}% cached'
-    copyId: Copy message ID
-  toolDetails:
-    title: '{tool} details'
-    input: Input
-    output: Output
-  loadOlderMessages: Load older messages
   loadingConversation: Loading conversation…
   history:
-    loading: Loading chats...
     empty: No conversations yet
     emptySubtitle: Start a new chat to begin
     untitled: Untitled chat
-    renameChat: Rename chat
-    loadMore: Load more
-    loadingMore: Loading...
     generating: Generating response
-    awaitingInput: Awaiting your input
     dropHereToAdd: Drop a chat here
     dropToChatsHint: Drop here to move to Chats
-    legalHold:
-      heading: On legal hold
-      body: Preserved for compliance — cannot be deleted, archived, or renamed.
-      reasonLabel: Reason
-      matterLabel: Matter
-      placedByLabel: Placed by
-      placedAtLabel: Placed
     toast:
-      renameFailed: Failed to rename chat
       moveFailed: Failed to move chat
   aria:
     messageHistory: Message history
-    scrollToBottom: Scroll to bottom
     chatRegion: Chat
     chatInput: Message input
   structured:
@@ -1423,82 +986,28 @@ chat:
   dictation:
     start: Start dictation
     stop: Stop dictation
-    transcribing: Transcribing…
     level: Microphone level
     notSupported: Speech recognition is not supported in this browser
-    notConfigured: Dictation unavailable — ask an admin to add a transcription model
     permissionDenied:
       Microphone access was denied. Please allow microphone access
       in your browser settings.
-    transcriptionFailedShort: Transcription failed
-    retry: Try again
-    discard: Discard recording
   citations:
     source: Source {number}
     page: Page {page}
     relevance: 'Relevance: {score}%'
     viewDocument: View in document
     visitPage: Visit page
-    showAllSources: Show all {count} sources
-    hideSources: Hide sources
-    chunkCount: '{count, plural, one {# chunk} other {# chunks}}'
-  feedback:
-    thumbsUp: Helpful
-    thumbsDown: Not helpful
-    commentPlaceholder: What could be improved?
-    submitComment: Submit
-    cancel: Cancel
-  shareBoundary: Messages above are from a shared chat
-  forkBoundary: Forked from your own chat
-  notFound: This chat is not available.
-  forkChat: Fork chat
-  forkSuccess: Chat forked successfully
-  forkFailed: Failed to fork chat
   share:
     title: Share chat
     button: Share
-    description: Share this chat with others in your organization via a link.
-    enableSharing: Enable sharing
-    enableSharingDescription: Anyone in your organization with the link can view this chat.
-    copyLink: Copy link
     copied: Link copied
-    copyFailed: Failed to copy link
-    linkLabel: Share link
-    linkHint: Anyone in your organization with this link can view the chat.
-    preview: Preview
     shareFailed: Failed to share chat
-    cannotShareArena: Arena chats can't be shared.
-    cannotShareBranch: Branch chats can't be shared.
-    cannotShareArchived: Archived chats can't be shared.
-    notShareable: This chat can't be shared.
     unshare: Stop sharing
     unshared: Sharing stopped
     unshareFailed: Failed to stop sharing
     sharedChat: Shared chat
     byline: Shared by {name} on {date}
-    forkChat: Fork this chat
-    forkSuccess: Chat forked successfully
-    forkFailed: Failed to fork chat
-    readOnlyBanner: You are viewing a shared chat in read-only mode
-    sharedIndicator: Shared
     notFound: This shared chat is no longer available.
-    backToChat: Back to chat
-    inputPlaceholder: Send a message to continue this conversation...
-    inputHint: Sending a message will create your own copy of this chat
-  export:
-    button: Export
-    title: Export chat
-    description: Select messages and download in your preferred format.
-    selectAll: Select all
-    deselectAll: Deselect all
-    messagesCount:
-      '{count, plural, one {# of {total} message selected} other {# of
-      {total} messages selected}}'
-    downloadPdf: Print to PDF
-    downloadMarkdown: Download Markdown
-    noMessages: No messages to export
-    you: You
-    assistant: Assistant
   arena:
     label: Arena Mode
     enable: Enable Arena Mode
@@ -1517,23 +1026,6 @@ chat:
     verdictRecorded: Verdict recorded
     verdictError: Failed to record verdict
   canvas:
-    title: Canvas
-    error: Could not load this file.
-    noFile: No file selected
-    stripOpen: Open canvas
-    download: Download
-    mermaidError: Failed to render diagram
-    viewSource: Source
-    viewPreview: Preview
-    copy: Copy
-    copied: Copied
-    toggleWrap: Toggle line wrap
-    fileActionsAriaLabel: File actions
-    fileSizeAriaLabel: File size
-    sourceRunOutput: Code output
-    sourceAgentWrite: AI files
-    sourceUserUpload: Uploaded
-    writing: Writing…
     runStatus:
       queued: Queued
       installing: Installing dependencies
@@ -1633,19 +1125,6 @@ chat:
     humanInputPending: Your answer is needed
     humanInputAnswered: Answered
     blocked: 'Stopped by a guardrail: {reason}'
-  branchNavigator:
-    previous: Previous branch
-    next: Next branch
-  skeleton:
-    loadingWelcome: Loading welcome
-    loadingMessage: Loading message
-  promptLibrary: Prompt library
-  savePrompt: Save prompt
-  savePromptDraft: Save prompt draft
-  savePromptMenu: Save options
-  unsavePrompt: Unsave prompt
-  unsavePromptConfirm: This will remove the saved prompt. You can always save it again later.
-  unsavePromptAction: Unsave
   errorGeneratingDescription: There was an error generating a response. Please try again.
   errorHintAuthError: The API key is invalid or does not have access to this
     model. Contact your administrator.
@@ -1688,54 +1167,6 @@ chat:
     The selected model was not found on {provider}. It
     may have been renamed or removed.
   errorHintRateLimitedNamed: Rate limit reached on {provider}. Please wait a moment and try again.
-  errorTriedModels: Tried {count} models before giving up.
-  modelFallbackNotice: '{from} was unavailable — switched to {to}.'
-  modelFallbackDefaultModel: the default model
-  modelFallbackUnknown: the previous model
-  generationIncomplete: The response couldn't be completed. Please try again.
-  generationIncompleteWithTools: The response couldn't be completed after running {tools}. Please try again.
-  stepLimitContinued: Step limit for this round reached — continuing automatically.
-  stepLimitContinuedRound: Step limit for this round reached — continuing automatically (round {round}).
-  stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
-  liveBrowser:
-    title: Live browser
-    toggleLabel: Live browser
-    connecting: Connecting…
-    streaming: Live
-    disconnected: Stream ended
-    reconnect: Reconnect
-    error: Couldn’t connect to the live view.
-    retry: Retry
-    emptyTitle: The agent isn’t browsing right now
-    emptyHint: Start a turn — when the agent opens a browser you’ll see it here, live.
-    ariaLabel: Live view of the agent’s browser (read-only)
-    ariaLabelControl: Live browser — you are controlling it
-    takeControl: Take control
-    releaseControl: Release control
-    reset: Reset browser (clears logins)
-    resetConfirmTitle: Reset browser?
-    resetConfirmBody: Restarts the browser with a clean profile and signs out of
-      every site the agent logged into. Use this only if the browser is stuck
-      and won’t recover on its own.
-    resetConfirmAction: Reset browser
-  chatPanel:
-    stripAria: Chat panel
-    tablistAria: Open panel
-    ariaLabel: Chat panel
-    minimize: Minimize chat panel
-    resizeAria: Resize chat panel
-    fullscreen: Expand to full screen
-    exitFullscreen: Exit full screen
-  kbFolderChipFiles: '{count, plural, one {# file} other {# files}}'
-  kbFolderChipFilesSkipped: '{resolved}/{count, plural, one {# file} other {#
-    files}} — {skipped, plural, one {# not indexed} other {# not indexed}}'
-  embedded:
-    analyzeAttachments: Please analyze the attached files.
-  errors:
-    PROJECT_MISMATCH: This conversation belongs to a different project.
-    PROJECT_FORBIDDEN: You don't have access to this conversation's project.
-    PROJECT_NOT_FOUND: This conversation's project no longer exists.
-    PROJECT_ORG_MISMATCH: This conversation's project belongs to a different organization.
 common:
   optional: optional
   or: or
@@ -1995,30 +1426,6 @@ composer:
   openMenu: Open chat menu
   addFiles: Add photos & files
   modeHeader: Modes
-  capabilityHeader: Capabilities
-  capabilityDisable: Disable {name}
-  requiresIntegration: Requires {name}
-  mention:
-    title: Mentions
-    sectionAgents: Agents
-    sectionTeammates: Teammates
-    sectionDocuments: Documents
-    loading: Searching documents…
-    noMatches: No matches
-    emptyAgents: No agents in this project yet
-    emptyTeammates: No teammates to mention yet
-    emptyDocuments: No indexed documents yet
-    actionBrowseAgents: Browse agents
-    actionInviteTeammates: Invite teammates
-    actionUploadDocuments: Upload documents
-    documentChipLabel: Knowledge
-    agentChipLabel: Agent
-    teammateChipLabel: Teammate
-    removeDocumentMention: Remove reference to {title}
-    removeActorMention: Remove mention of {name}
-    limitReached: You can reference up to {max} documents per message
-    sectionFolders: Folders
-    folderChipLabel: Folder
 connectivity:
   tabTitle: Reconnecting
   deviceTitle: You're offline
@@ -4686,7 +4093,6 @@ notifications:
 personalization:
   page:
     title: User preferences
-    privacyLink: Privacy notice
     enable:
       orgStateOn: on
       orgStateOff: off
@@ -4702,31 +4108,17 @@ personalization:
         yourself across chats.
     customInstructions:
       title: Custom instructions
-      description:
-        Things you want the assistant to keep in mind in every reply. Max
-        5000 characters.
       placeholder: e.g. Reply concisely. Default to TypeScript when discussing code.
-      counter: '{count} / {max}'
     memories:
       title: Saved memories
       empty: Memories appear here after the assistant proposes them and you save.
-      delete: Delete
-      deleteConfirm: Delete this memory? This can't be undone.
     pending:
       title: Pending suggestions
       empty: No suggestions waiting.
-  card:
-    label: Suggested memory
-    save: Save
-    edit: Edit & save
-    discard: Discard
   errors:
     saveFailed: Couldn't save. Please try again.
     tooLong: Custom instructions exceed {max} characters.
-    illegalChars: Remove angle brackets, backticks, and control characters.
   toasts:
-    discarded: Discarded.
-    deleted: Deleted.
     preferencesUpdated: Preferences updated.
 userEnv:
   page:
@@ -4763,34 +4155,6 @@ piiConfigPanel:
   removeCustomPattern: Remove
   saveCustomPattern: Save pattern
   cancelCustomPattern: Cancel
-  previewTitle: Live preview
-  previewDescription: Try the active configuration against real text. Detection
-    runs on every keystroke.
-  inputTitle: Your text
-  inputHint: Type or paste any sentence — PII is detected live.
-  detectedTitle: Detected
-  detectedHint: Hover each highlight to see what type of data the detector identified.
-  tokenizedTitle: Sent to the AI
-  tokenizedHint: PII replaced with indexed tokens. This is the only version the
-    upstream model sees.
-  maskedTitle: Masked output
-  maskedHint: PII replaced with generic placeholders. This is what gets sent and stored.
-  aiTitle: AI response (mock)
-  aiHint: Editable — try moving tokens around to test the round-trip.
-  restoredTitle: Restored response
-  restoredHint: Tokens swapped back to your original details. Green spans show
-    what was restored.
-  blockTitle: Message blocked
-  blockHint: PII detected — the message would be rejected and never reach the AI.
-  blockBody: Your input contains data that the policy does not allow. Remove the
-    highlighted items and try again.
-  blockPassTitle: No PII detected
-  blockPassBody: The text would be sent through unchanged.
-  detectionCount: detections
-  noPii: No PII detected — the text would be sent through unchanged.
-  noPatternsEnabled:
-    No detection patterns are enabled. Turn at least one on above
-    to see detections.
 piiTypes:
   email: Email
   phone: Phone
@@ -7439,10 +6803,6 @@ inbox:
   taskReviewApprovedBody: '"{taskTitle}" was approved and completed.'
   taskReviewChangesRequested: Changes requested
   taskReviewChangesRequestedBody: Changes were requested on "{taskTitle}".
-  taskUnblocked: Task unblocked
-  taskUnblockedBody: All blockers for "{title}" are done — it's ready to start.
-  taskDueSoon: Due soon
-  taskDueSoonBody: '"{title}" is due within 24 hours.'
   taskSlaEscalated: Overdue task escalated
   taskSlaEscalatedBody: '"{title}" is significantly overdue and needs attention.'
   taskReviewReminder: Review reminder
@@ -7451,10 +6811,6 @@ inbox:
   taskReviewEscalatedBody: A review on "{title}" has been waiting for over a day.
   humanInputEscalated: Automation waiting on input
   humanInputEscalatedBody: An automation has been waiting on human input for {ageHours} hours.
-  workforceDigest: Daily workforce digest
-  workforceDigestBody: '{created} created · {completed} completed · {runs} agent
-    runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued
-    · {breakers} paused.'
   conversationInboundMessage: New conversation message
   conversationInboundMessageBody: 'From {sender}: "{subject}" — open your Inbox to reply.'
   conversationAssigned: Conversation assigned to you
@@ -8027,65 +7383,6 @@ websites:
   delete:
     confirmation: Are you sure you want to delete this website? This action cannot be undone.
     title: Delete website
-workflowCreationApproval:
-  approve: Create automation
-  approveTooltip: Approve and create this automation
-  rejectTooltip: Cancel automation creation
-  stepsCount: '{count} steps'
-  copyAriaLabel: Copy automation configuration
-  createdSuccessfully: Automation created successfully
-  statusExecuting: Automation creation in progress...
-  statusCompletedFailed: Automation creation was approved but failed.
-  statusCompletedSuccess: Automation was created successfully.
-  statusRejected: Automation creation was cancelled.
-  errorCreateFailed: Failed to create automation
-workflowRunApproval:
-  approve: Run automation
-  approveTooltip: Approve and run this automation
-  rejectTooltip: Cancel the automation run
-  statusExecuting: Executing...
-  statusCompleted: Completed
-  statusRejected: Rejected
-  showParameters: Show parameters
-  hideParameters: Hide parameters
-  executionRunning: Running...
-  executionRunningStep: 'Running step: {step}'
-  executionRunningStepWithProgress: 'Running step: {step} (iteration {current}/{total})'
-  executionElapsed: Running for {duration}
-  executionCompleted: Completed successfully
-  executionFailed: Execution failed
-  viewDetails: View execution details
-  showOutput: Show output
-  hideOutput: Hide output
-  stopExecution: Stop
-  stopTooltip: Stop the automation run
-  errorRunFailed: Failed to run automation
-  errorStopFailed: Failed to stop execution
-  submitResponse: Submit response
-  copyQuestions: Copy questions
-  pushback: Reply differently
-  pushbackPlaceholder: Tell the AI what you'd like instead...
-  sendFeedback: Send feedback
-  backToForm: Back to form
-  errorFillRequiredFields: Please fill in all required fields
-  errorSelectRequired: Please make a selection
-  errorFeedbackRequired: Please enter your feedback
-workflowUpdateApproval:
-  approve: Apply update
-  approveTooltip: Approve and apply this update
-  rejectTooltip: Cancel automation update
-  badgeFullSave: Update automation
-  badgeMultiStep: Update {count} steps
-  badgeStepPatch: Update step
-  versionLabel: 'Version:'
-  slugLabel: 'Slug:'
-  copyAriaLabel: Copy update configuration
-  updatedSuccessfully: Automation updated successfully
-  statusExecuting: Applying update...
-  statusCompletedFailed: Update was approved but failed to apply.
-  statusCompletedSuccess: Automation was updated successfully.
-  statusRejected: Automation update was cancelled.
-  errorApplyFailed: Failed to apply update
 webdav:
   description: Mount Tale documents as a network drive in Finder, File Explorer,
     or any WebDAV client.
@@ -8130,69 +7427,6 @@ webdav:
       locks released.
     confirm: Revoke
     cancel: Cancel
-catalogSync:
-  button:
-    agents: Update built-in agents
-    workflows: Update built-in automations
-    integrations: Update built-in integrations
-    automations: Update built-in automations
-    skills: Update built-in skills
-  confirm:
-    title: Update from the built-in catalog
-    description:
-      Replaces this page's built-in entries with the latest versions from
-      the catalog — including any you changed. The previous version of each
-      changed entry is saved to its history; entries you created yourself stay
-      untouched.
-    action: Update
-    loading: Updating…
-  toast:
-    updated:
-      '{count, plural, one {Updated 1 entry from the catalog} other {Updated
-      {count} entries from the catalog}}'
-    upToDate: Already up to date
-    failed: Could not update from the catalog
-agentCatalog:
-  folders:
-    chat: Chat
-    general: General
-  loadError:
-    title: Couldn't load the catalog
-    description: The agent catalog couldn't be loaded. Check your connection and try again.
-    retry: Try again
-  noResults:
-    title: No matching agents
-    description: No agents match your search. Try a different term.
-  title: Agent catalog
-  searchPlaceholder: Search agents
-  categoryFilter:
-    title: Category
-    all: All
-    agent: Agents
-    codingAgent: Coding agents
-    imageAgent: Image
-  categoryBadge:
-    agent: Agent
-    codingAgent: Coding agent
-    imageAgent: Image
-  install: Install
-  enable: Enable
-  disable: Disable
-  uninstall: Uninstall
-  installed: Agent installed
-  enabled: Agent enabled
-  disabled: Agent disabled
-  uninstalled: Agent uninstalled
-  status:
-    enabled: Enabled
-    disabled: Disabled
-    available: Available
-  error: Couldn't update the agent
-  empty:
-    title: No agents available
-    description: The catalog has no agents to install right now.
-  installedByIntegration: Installed by {integration}
-  requiresIntegration: Requires {integration}
 sandboxes:
   title: Sandboxes
   description:
@@ -8263,308 +7497,3 @@ envEditor:
   badKey: '"{key}" isn''t a valid env var name (letters, digits, underscore; not
     starting with a digit).'
   dupKey: Duplicate variable name — each NAME must be unique.
-workflows:
-  aria:
-    openNamed: Open {name}
-    openLoop: Open loop
-  emptyState:
-    noSteps: No automation steps to display
-    createStepsHint: Create steps to see the automation overview, or use the AI
-      assistant to help you get started.
-  history:
-    noDifferences: No differences found
-  configuration:
-    timeout: Timeout (ms)
-    timeoutHelp: Maximum execution time in milliseconds
-    maxRetries: Max retries
-    maxRetriesHelp: Number of retry attempts on failure
-    backoff: Backoff (ms)
-    backoffHelp: Delay between retry attempts in milliseconds
-    variables: Variables (JSON)
-    variablesHelp: These variables will be available to all steps in the automation
-    validation:
-      invalidJson: Invalid JSON in variables field
-    env: Environment & secrets
-    envHelp:
-      Variables injected into every sandbox step of this automation. Mark a
-      value as a secret to encrypt it; secrets are write-only. A step can
-      override any of these.
-  triggers:
-    errors:
-      unauthenticated: You're not signed in. Refresh the page and try again.
-      invalidSlug: This automation's identifier is invalid.
-      notInstalled: This automation isn't installed yet.
-      notFound: That trigger could no longer be found. It may have been deleted.
-      automationOwnedWorkflow:
-        An automation owned by a pack runs only from within
-        that pack, so it can't subscribe to events.
-      invalidEventType: That event type isn't valid.
-      duplicateSubscription: This automation already has a trigger for that event.
-    schedules:
-      title: Schedules
-      createButton: Add schedule
-      emptyTitle: No schedules
-      emptyDescription:
-        Create a schedule to automatically trigger this automation on a
-        recurring basis.
-      columns:
-        cronExpression: Cron expression
-        project: Project
-        active: Active
-        lastTriggered: Last triggered
-        createdBy: Created by
-      unboundProject: No project
-      needsConfiguration: Needs configuration
-      needsConfigurationDetail: 'Missing required variables: {fields}'
-      form:
-        title: Create schedule
-        editTitle: Edit schedule
-        cronExpression: Cron expression
-        cronPlaceholder: 0 * * * *
-        cronHelp: 'Standard 5-field cron format: minute hour day month weekday'
-        timezoneLabel: Timezone
-        variablesLabel: Automation variables
-        variablesDescription:
-          Input parameters passed to each scheduled run. Pre-filled
-          from the automation's input schema.
-        variablesInvalid: Variables must be valid JSON object
-        projectLabel: Project
-        projectPlaceholder: Select a project
-        repoLabel: GitHub repository
-        repoPlaceholder: owner/repo or https://github.com/owner/repo
-        repoInvalid: Enter as owner/repo or a GitHub URL
-        useFormToggle: Use form
-        editAsJsonToggle: Edit as JSON
-        validation:
-          cronRequired: Cron expression is required
-          cronInvalid: Must be a valid 5-field cron expression
-          missingRequired: 'Configure required field(s) before saving: {fields}'
-        presets:
-          every5Minutes: Every 5 minutes
-          hourly: Every hour
-          daily: Every day
-          weekly: Every week
-          monthly: Every month
-        ai:
-          label: Describe your schedule
-          placeholder: e.g., every weekday at 9am, twice a day at 8am and 6pm
-          generateButton: Generate
-          generateError:
-            Could not generate cron expression. Please try again or enter
-            manually.
-      toast:
-        created: Schedule created
-        updated: Schedule updated
-        deleted: Schedule deleted
-        enabled: Schedule enabled
-        disabled: Schedule disabled
-        toggleError: Failed to toggle schedule
-        deleteError: Failed to delete schedule
-      deleteTitle: Delete schedule
-      deleteDescription: This will permanently delete this schedule. This action cannot be undone.
-    webhooks:
-      title: Webhooks
-      createButton: Add webhook
-      emptyTitle: No webhooks
-      emptyDescription: Create a webhook to trigger this automation via HTTP POST requests.
-      columns:
-        url: Webhook URL
-        active: Active
-        lastTriggered: Last triggered
-      createdTitle: Webhook created
-      urlWarning: Save this webhook URL. The token in the URL acts as the
-        authentication credential.
-      webhookUrl: Webhook URL
-      deleteTitle: Delete webhook
-      deleteDescription: This will permanently delete this webhook endpoint. Any
-        integrations using this URL will stop working.
-      deleteWebhook: Delete webhook
-      toast:
-        created: Webhook created
-        deleted: Webhook deleted
-        enabled: Webhook enabled
-        disabled: Webhook disabled
-        urlCopied: Webhook URL copied
-        createFailed: Failed to create webhook
-        toggleFailed: Failed to toggle webhook
-        deleteFailed: Failed to delete webhook
-    events:
-      title: Events
-      createButton: Add event trigger
-      emptyTitle: No event triggers
-      emptyDescription: Subscribe to system events to automatically trigger this
-        automation when specific actions occur.
-      columns:
-        eventType: Event type
-        active: Active
-        lastTriggered: Last triggered
-        createdBy: Created by
-      form:
-        title: Add event trigger
-        editTitle: Edit event trigger
-        eventType: Event type
-        eventTypePlaceholder: Select an event type
-        filtersLabel: Filters
-        filterAll: All (no filter)
-        filterAllPlaceholder: Select a filter value
-      toast:
-        created: Event trigger created
-        updated: Event trigger updated
-        deleted: Event trigger deleted
-        enabled: Event trigger enabled
-        disabled: Event trigger disabled
-        toggleError: Failed to toggle event subscription
-        deleteError: Failed to delete event subscription
-      editTitle: Edit event trigger
-      deleteTitle: Delete event trigger
-      deleteDescription:
-        This will permanently delete this event trigger. The automation
-        will no longer be triggered by this event.
-    common:
-      never: Never
-      copied: Copied
-      copyFailed: Copy failed
-  executions:
-    entityLabel: executions
-    entityLabelOne: execution
-    searchPlaceholder: Search by execution ID
-    viewOnCanvas: View on canvas
-  steps:
-    banners:
-      hasActiveTriggers: This automation is active — saved changes apply to new runs.
-      hasActiveTriggersScheduleGap:
-        This automation is active, but an active schedule is
-        missing required variables ({fields}) — those runs will fail until
-        they're set.
-    toolbar:
-      testWorkflow: Test automation
-      addStepUnavailable:
-        Editing steps on the canvas isn't available yet — use the AI
-        assistant or edit the automation configuration.
-    execution:
-      viewingRun: Viewing run {id}
-      clear: Hide run results
-      nodeBadgeLabel: 'Execution status: {status}'
-      duration: 'Duration: {duration}'
-      attempts: '{count, plural, one {# attempt} other {# attempts}}'
-      loopProgress: Iteration {current} of {total}
-      output: Output
-      error: Error
-      outputTruncated: Output preview truncated
-      outputUnavailable: Output too large to preview
-      status:
-        pending: Pending
-        running: Running
-        completed: Completed
-        failed: Failed
-        waiting: Waiting for input
-        paused: Paused (debug)
-        success: Succeeded
-        canceled: Canceled
-  stepTypes:
-    start: Start
-    llm: LLM
-    condition: Condition
-    loop: Loop
-    action: Action
-    output: Output
-  edges:
-    yes: Yes
-    no: No
-  step:
-    openStep: Open {name} step
-    openStepDefault: Open step
-  sidePanel:
-    aiAssistant: AI Assistant
-    testWorkflow: Test automation
-    stepTooltip: '{stepType} step'
-    end: End
-    close: Close panel
-    validationErrors: Validation errors
-    validationWarnings: Warnings
-    stepSaveFailed: Failed to save step
-    saving: Saving...
-    resizePanel: Resize panel
-    stepEditor: Step editor
-    fileBasedStepSaveUnsupported: Step saving isn't wired up for file-based automations yet.
-    env: Environment & secrets
-    envHelp: Variables injected into this step's sandbox, overriding the
-      automation-level values on a name clash.
-  nextSteps:
-    endWorkflow: End automation
-    transitions:
-      success: Next step (on success)
-      failure: Next step (on failure)
-      'true': Next step (if true)
-      'false': Next step (if false)
-      loop: Next step (loop iteration)
-      done: Next step (loop complete)
-  assistant:
-    errorMessage:
-      I'm sorry, I encountered an error. Please try again or check the
-      console for details.
-    analyzeAttachments: Please analyze the attached files.
-  tester:
-    inputLabel: Test input (JSON)
-    inputDescription: Provide input data in JSON format for the automation run
-    validation:
-      invalidJson: Enter valid JSON to run this automation.
-      missingRequired: 'Configure required field(s) before running: {fields}'
-    tip: 💡 Execute creates real runs visible in Executions tab.
-    execute: Execute
-    executing: Executing...
-    dryRun:
-      button: Dry run
-      fileBasedUnsupported: Dry run isn't supported for file-based automations yet.
-    toast:
-      invalidJson: Invalid JSON
-      invalidJsonDescription: Please provide valid JSON input
-      executionStarted: Execution started
-      executionId: 'Execution ID: {id}'
-      testFailed: Execution failed
-      startFailed: Failed to start execution
-    result:
-      completed: Completed
-      failed: Execution failed
-      running: Running…
-      failedAtStep: 'Failed at step: {step}'
-      runningStep: 'Current step: {step}'
-      stepsHeading: Executed steps
-      openStep: Open settings for the failed step {step}
-      errorCode:
-        start_failure: The run failed to start
-        step_failure: A step failed
-        timeout: The run timed out
-        canceled: The run was canceled
-        invalid_input: The input was invalid
-    debug:
-      button: Debug
-      title: Debug session
-      pausedAt: 'Paused before step: {step}'
-      step: Step
-      continue: Continue
-      stop: Stop
-      variables: Run variables
-      variablesLoading: Loading variables…
-      variablesError: Couldn't load the run variables.
-  editorView:
-    showGraph: Show graph
-    showSpecification: Show specification
-    specification: Specification
-    regenerateGraph: Regenerate graph
-    generateFromGraph: Generate specification from graph
-    emptyState: No specification yet. Write one below, or generate one from the
-      current automation graph.
-    placeholder: Describe what this automation does, step by step…
-    generateError: Couldn't generate a preview. Try again.
-    diffTitle: Review the generated graph
-    diffDescription:
-      Compare the current graph with the version generated from your
-      specification.
-    applyGraph: Apply graph
-    validationErrors: Validation errors
-    saveSuccess: Specification saved
-    saveFailed: Failed to save specification
-    specStaleBanner: The graph has changed since this specification was last updated.
-    graphStaleBanner: The specification has changed — the graph has not been regenerated yet.
-    updateFromGraph: Update from graph

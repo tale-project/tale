@@ -61,16 +61,7 @@ auth:
     description:
       Dein Passwort ist gemäss der Rotationsrichtlinie der Organisation
       abgelaufen. Lege ein neues Passwort fest, um fortzufahren.
-workflows:
-  triggers:
-    schedules:
-      emptyDescription: Erstelle einen Zeitplan, um diese Automatisierung
-        regelmässig automatisch auszulösen.
-  sidePanel:
-    close: Panel schliessen
-    resizePanel: Panel-Grösse ändern
 chat:
-  budgetWarningDismiss: Schliessen
   fileSizeExceededMultiple: '{names} überschreitet das Dateigrössenlimit von {maxSize} MB.'
 common:
   actions:
@@ -225,4 +216,3 @@ webdav:
       aktive Lock-Tokens werden freigegeben.
     confirm: Widerrufen
     cancel: Abbrechen
-tasks: {}

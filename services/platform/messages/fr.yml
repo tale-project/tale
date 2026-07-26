@@ -913,196 +913,25 @@ chat:
   imageCounter: '{current} sur {total}'
   newChat: Nouveau chat
   moreActions: Plus d'actions
-  tryAgain: Réessayer
-  regenerateFailed: Impossible de régénérer la réponse
-  speakOutLoud: Lire à voix haute
-  pinChat: Épingler le chat
-  unpinChat: Détacher le chat
   pinProject: Épingler le projet
   unpinProject: Détacher le projet
   pinned: Épinglé
   pinFailed: Échec de l'épinglage
-  newResponse: Nouvelle réponse
   projectsSection: Projets
   chatsSection: Chats
-  quote:
-    button: Citer
-    label: Citation
-    remove: Supprimer la citation
-  deleteChat: Supprimer le chat
-  deleteConfirmation: Es-tu sûr de vouloir supprimer {title} ?
-  deletePermanentMessage:
-    Déplacer le chat vers la corbeille. Tu peux le restaurer
-    pendant la période de grâce de l'organisation ; ensuite la rétention
-    supprime définitivement le chat et ses messages.
-  deleteFailed: Échec de la suppression du chat
-  archive: Archiver
-  unarchive: Désarchiver
-  archiveSuccess: Chat archivé
-  archiveFailed: Échec de l'archivage du chat
-  unarchiveSuccess: Chat désarchivé
-  unarchiveFailed: Échec du désarchivage du chat
-  removeFromProject: Retirer du projet
-  removeFromProjectFailed: Échec du retrait du chat du projet
-  archived:
-    title: Archivés
   welcomeEmpty: Sur quoi travaillons-nous ?
-  welcomeSuffix: ici, sur quoi travaillons-nous ?
   toast:
     sendFailed: Échec de l'envoi du message
-    arenaRequiresAgent:
-      Le mode Arène nécessite un agent précis — choisis-en un au
-      lieu d’Auto pour comparer les modèles.
-    piiBlocked: Message bloqué par la politique de protection des données personnelles
-    policyViolation: Message bloqué par la politique de contenu
-    modelAccessDenied: Modèle non disponible
-    budgetExceeded: Limite d'utilisation atteinte
-    kbRefInvalid: Un document référencé n’est plus disponible. Supprime-le et réessaie.
-    kbRefNotIndexed:
-      « {fileName} » n’est pas encore indexé. Supprime-le ou attends
-      la fin de l’indexation, puis réessaie.
-    kbRefUnsupported:
-      « {fileName} » ne peut pas être indexé — ce type de fichier
-      n’est pas pris en charge. Supprime-le pour envoyer ton message.
-    backendRestarting: Le serveur redémarre
-    backendRestartingDescription:
-      Le serveur redémarre brièvement pour une mise à
-      jour. Merci de renvoyer ton message dans un instant.
-  blockedNotice:
-    body: Cette réponse a été bloquée par la politique de contenu de ton
-      organisation.
-  thinking:
-    reading: Lecture de {hostname}
-    searchingKnowledgeBase: Recherche dans la base de connaissances pour "{query}"
-    delegating: Demande à {agent}
-    redacted: A réfléchi en privé
-  thoughtProcess:
-    thinking: Réflexion
-    routingPhase: Sélection de l'agent
-    seconds: '{seconds} s'
-    durationLabel: A réfléchi {seconds} s
-    toolsCount: '{count, plural, one {# outil} other {# outils}}'
-    skillsCount: '{count, plural, one {# skill} other {# skills}}'
-    tokensCount: '{count, plural, one {# token} other {# tokens}}'
-    summaryReasoningOnly: A montré son raisonnement
-    responding: Réponse
-    queuedForCapacity: En file d'attente
-  routing:
-    routedTo: Dirigé vers {agent}
-    reason:
-      single-candidate: Seul assistant correspondant
-      trivial: Message simple — assistant par défaut utilisé
-      cached: Décision de routage récente réutilisée
-      classified: Meilleure correspondance pour cette demande
-      fallback: Par défaut, le routage n'étant pas concluant
-  tools:
-    contactRead: Données de contact
-    productRead: Catalogue produits
-    ragSearch: Base de connaissances
-    knowledgeWrite: Entrée de connaissances
-    web: Contenu web
-    pdf: PDF
-    image: Images
-    pptx: Présentation
-    docx: Document
-    workflowRead: Automatisation
-    updateWorkflowStep: Étape de l'automatisation
-    saveWorkflowDefinition: Enregistrer l'automatisation
-    validateWorkflowDefinition: Valider l'automatisation
-    excel: Fichier Excel
-    contactWrite: Modifier le contact
-    productWrite: Modifier le produit
-    websiteRead: Lire le site
-    websiteWrite: Modifier le site
-    conversationRead: Lire la conversation
-    conversationWrite: Répondre à la conversation
-    agentRead: Voir les agents
-    agentWrite: Gérer les agents
-    metricsRead: Lire les métriques
-    taskRead: Lire les tâches
-    taskWrite: Modifier la tâche
-    projectRead: Lire les projets
-    projectWrite: Modifier le projet
-    fileRead: Lire le fichier
-    fileWrite: Écrire le fichier
-    fileEdit: Modifier le fichier
-    fileList: Lister les fichiers
-    fileDelete: Supprimer le fichier
-    runCode: Exécuter du code
-    generateImage: Générer une image
-    text: Fichier texte
-    workflowSyntax: Syntaxe de l'automatisation
-    createWorkflow: Créer une automatisation
-    runWorkflow: Exécuter l'automatisation
-    integration: Intégration
-    integrationBatch: Intégration par lot
-    integrationIntrospect: Inspecter l'intégration
-    databaseSchema: Schéma de base de données
-    documentFind: Trouver des documents
-    documentRetrieve: Récupérer le document
-    documentWrite: Écrire le document
-    requestHumanInput: Demander à un humain
-    requestUserLocation: Demander la localisation
-    updateTodos: Liste de tâches
-    proposeMemory: Proposer un souvenir
-    secretRead: Lire le secret
-    automationSearch: Recherche d'automatisations
   agentSelector:
     label: Sélectionner un agent
     sectionThirdParty: Agents · s’exécutent dans une sandbox
     degraded: en échec récemment
-    auto: Auto
-    autoDescription:
-      Tale choisit le meilleur agent pour chaque message en fonction
-      de ta demande.
-    viewDetails: Voir les détails de l'agent
-    noAgents: Aucun agent
     defaultAgent: Chat
-    searchPlaceholder: Rechercher des agents
-    noResults: Aucun agent trouvé
-    lockedExternal:
-      Ce chat s'exécute dans un bac à sable et garde son agent — démarre un
-      nouveau chat pour en utiliser un autre.
-    lockedExternalLabel: 'Agent : {agent} (fixé pour ce chat sandbox)'
-    browseAutomations: Parcourir les automatisations
-    sectionAgents: Agents
-    sectionImageAgents: Image
   modelSelector:
     label: Sélectionner un modèle
-    searchPlaceholder: Rechercher des modèles
-    noResults: Aucun modèle trouvé
-    addModel: Ajouter un modèle
-    auto: Auto
-    autoDescription:
-      Tale choisit le meilleur modèle pour chaque message — équilibre
-      qualité, vitesse et coût.
-    byoDefault: Modèle par défaut
-    byoTooltip: Cet agent utilise vos propres identifiants (BYO) — le modèle, la
-      facturation et les limites sont les vôtres.
     noModelsAvailable: Aucun modèle disponible
-    noModelsAdminHint:
-      Aucun fournisseur d’IA n’est encore configuré. Clique pour
-      ouvrir Paramètres → Fournisseurs d’IA et en ajouter un pour commencer à
-      discuter.
-    noModelsAgentHint:
-      Cet assistant n’a aucun modèle utilisable. Vérifie que ses
-      modèles autorisés correspondent à un fournisseur configuré — clique pour
-      ouvrir les fournisseurs d’IA.
-    noModelsMemberHint: Aucun modèle d’IA n’est encore disponible. Demande à ton
-      administrateur d’espace de travail de configurer un fournisseur d’IA pour
-      pouvoir discuter.
-    noModelsRestricted:
-      Aucun modèle ne t’est disponible ici. Les restrictions de
-      modèles de ce projet excluent tous les modèles auxquels tu as accès —
-      contacte ton administrateur pour demander l’accès.
-    recommended: Recommandé
     viewProvider: Voir les paramètres du fournisseur
     viewInfo: Détails du modèle
-    noApiKey: Aucune clé API configurée pour le fournisseur de ce modèle —
-      ajoutes-en une dans Paramètres → Fournisseurs d’IA.
-    noProviderKey:
-      Aucun fournisseur d’IA n’est encore connecté — ajoute une clé API
-      dans Paramètres → Fournisseurs d’IA pour commencer à discuter.
     info:
       provider: Fournisseur
       type: Type
@@ -1129,37 +958,7 @@ chat:
       transcription: Transcription
       vision: Vision
   voice:
-    voiceOutputSpeaking: Lecture en cours
-    voiceOutputStopped: Arrêté
-    voiceOutputPlay: Lire la sortie vocale
-    voiceOutputStop: Arrêter la sortie vocale
-    voiceOutputLoading: Préparation de la voix…
-    voiceOutputBlocked: Lecture vocale bloquée — clique pour lire
-    voiceOutputError: Échec de la sortie vocale
-    voiceOutputErrorRateLimited: Limite vocale atteinte — nouvelle tentative en cours
-    voiceOutputErrorBudget: Budget vocal épuisé pour cette période
-    voiceOutputErrorTransient: Service vocal indisponible — nouvelle tentative en cours
-    voiceOutputErrorDecode: Lecture audio impossible — clique pour réessayer
-    voiceOutputErrorAuthExpired: Session expirée — reconnecte-toi pour continuer la lecture vocale
-    voiceOutputErrorInvalidResponse: Fournisseur vocal a renvoyé un audio invalide — clique pour réessayer
-    voiceOutputErrorMessageCharLimit: Réponse trop longue pour la voix — arrêt ici
-    voiceOutputErrorForbidden: Fournisseur vocal bloqué par la politique d'hôte
-    voiceOutputErrorChunkLimit: Limite vocale atteinte pour cette réponse
-    voiceOutputErrorQueueOverflow: La synthèse vocale prend du retard — mise en pause des phrases suivantes
-    voiceOutputErrorNetwork: Échec de la requête vocale — vérifie ta connexion et réessaie
-    voiceOutputErrorConfig:
-      Fournisseur vocal indisponible — demande à une personne
-      admin d'ajouter un modèle de synthèse vocale
-    voiceOutputErrorOpenSettings: Ouvrir les paramètres
-    voiceOutputAnnounceSpeaking: Lecture vocale en cours
-    voiceOutputAnnounceStopped: Lecture vocale arrêtée
-    voiceOutputAnnounceBlocked: Lecture vocale bloquée — active la lecture pour écouter
-    voiceOutputAnnounceError: Échec de la sortie vocale
-    voiceOutputThreadSwitchLabel: Sortie vocale pour ce chat
-    voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
-    voiceModeLabel: Mode vocal
     voiceModeEnable: Lire les réponses à voix haute
-    voiceModeDisable: Arrêter la lecture à voix haute
   searchChat: Rechercher dans le chat
   showHistory: Afficher l'historique
   hideHistory: Masquer l'historique
@@ -1167,95 +966,8 @@ chat:
   typeMessageHere: Saisis ton message ici…
   send: Envoyer le message
   stopGenerating: Arrêter la génération
-  generationStopped: Génération arrêtée
-  queue:
-    placeholder: L'agent travaille — les nouveaux messages sont mis en file d'attente…
-    placeholderIdle: L'agent a terminé — votre message passe maintenant…
-    full: La file d'attente des messages est pleine
-    status:
-      queued: En file d'attente — sera pris en compte après l'étape en cours
-      waitingMedia: En attente des pièces jointes — envoi automatique dès que tout est prêt
-      delivered: Transmis — en attente de la réponse de l'agent
-      deliversNow: Transmission en cours
-      consumed: Pris en compte
-    tray:
-      label: Messages en attente
-      remove: Retirer le message en attente
-      removeFailed: Impossible de retirer le message en attente
-  errorGenerating: Une erreur s'est produite
-  errorDetailsSummary: Détails techniques
-  retryGeneration: Réessayer
-  openProviderSettings: Ouvrir les paramètres du fournisseur
-  askAdminProviderKey: Demande à un administrateur d’ajouter une clé API dans
-    Paramètres → Fournisseurs d’IA.
-  showMore: Voir plus
-  showLess: Voir moins
-  editMessage: Modifier le message
-  editSend: Envoyer
-  noAgentsAvailable: Aucun agent disponible. Publie d'abord un agent.
-  pendingApprovalDisabled: Réponds à la demande en attente ci-dessus pour continuer
-  archivedDisabled: Ce chat est archivé. Désarchive-le pour poursuivre la conversation.
-  archivedBanner: Cette conversation a été archivée
-  budgetExceededDetail: Limite de {type} atteinte pour cette période {period}
-    ({used} / {limit}). Merci de contacter ton administrateur.
-  budgetExceededDefault: Ta limite d'utilisation a été atteinte pour cette
-    période. Merci de contacter ton administrateur.
-  budgetWarning: Tu as utilisé {percent}% de ta limite {period} de {type} ({used} / {limit})
-  budgetWarningDismiss: Fermer
-  budgetWarningTypeTokens: token
-  budgetWarningTypeCost: coût
-  budgetWarningTypeRequests: requête
-  placeholder: Pose une question sur les contacts, produits ou documents…
-  planMode:
-    label: Mode planification ou exécution
-    plan: Planifier
-    act: Exécuter
-    planTooltip: "Mode planification : l'agent explore en lecture seule et te
-      propose un plan à approuver"
-    actTooltip: "Mode exécution : l'agent applique directement tes instructions"
-    toggleFailed: Impossible de changer de mode
-  workdir:
-    label: Répertoire de travail
-    placeholder: ex. tale
-    helper:
-      Relatif à la racine de l'espace de travail. S'applique dès ton prochain
-      message ; tant que le dossier n'existe pas encore, l'agent reste à la
-      racine.
-    save: Enregistrer
-    reset: Revenir à la racine
-    missingWarning: Ce dossier n'existe pas encore dans l'espace de travail —
-      l'agent restera à la racine tant qu'il n'aura pas été créé.
-    saveFailed: Impossible de changer le répertoire de travail
-    errors:
-      absolute: Indique un chemin relatif à l'espace de travail, pas un chemin absolu
-      tooLong: Ce chemin est trop long
-      badSegment:
-        Uniquement des lettres, chiffres, points, tirets et tirets bas — les
-        segments .. ne sont pas autorisés
   sandbox:
     label: Sandbox
-    tooltip:
-      S'exécute dans une VM sandbox isolée avec son propre espace de travail
-      persistant — elle peut exécuter de vraies commandes et installer des
-      paquets, à l'écart de ton ordinateur.
-    settingsTitle: Paramètres de la sandbox
-    settingsHint: Clique pour modifier les paramètres de la sandbox de cette conversation.
-    working: En cours
-    workingTooltip: L'agent exécute actuellement une tâche dans sa sandbox.
-    sleeping: En veille
-    sleepingTooltip: La sandbox est en veille — tes fichiers sont enregistrés et
-      elle se réveille à ton prochain message (cela prend quelques secondes).
-    starting: Démarrage
-    startingTooltip: La sandbox démarre.
-    recovering: Récupération
-    recoveringTooltip:
-      La sandbox a rencontré un problème et récupère — ton prochain
-      message réessaiera.
-    ready: Prête
-    readyTooltip: La sandbox est chaude et prête — ton prochain message démarre
-      instantanément.
-    pinned: Toujours active
-    pinnedTooltip: Cette sandbox est épinglée pour rester toujours active.
   invalidFiles: Fichiers invalides
   fileSizeExceededMultiple: '{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.'
   audioDurationExceeded: "{names} : l'audio dépasse la limite de {maxHours}
@@ -1275,17 +987,6 @@ chat:
     dépasser {maxSize} Mo. Retire certains fichiers et réessaie.
   duplicateFile: Fichier en double
   duplicateFileDescription: '{filename} est déjà joint.'
-  removeAttachment: Supprimer la pièce jointe
-  cancelUpload: Annuler le téléversement
-  uploadingFile: Téléversement du fichier
-  indexing: Indexation...
-  indexingFailed: Échec de l'indexation
-  indexingFailedDescription: "{filename} n'a pas pu être indexé pour la recherche."
-  indexingUnsupported: Format non pris en charge
-  indexingUnsupportedDescription:
-    "{filename} ne peut pas être indexé — ce type de
-    fichier n'a pas d'extracteur de texte."
-  viewImage: Voir l'image
   fileTypes:
     image: IMG
     pdf: PDF
@@ -1298,175 +999,29 @@ chat:
     video: VIDÉO
     file: FICHIER
   transcription:
-    inProgressTooltip: Transcription de l'audio en cours…
-    transcribing: Transcription en cours…
-    indexing: Indexation en cours…
-    indexed: Indexé
-    transcribed: Transcrit
-    indexingFailed: Échec de l'indexation
-    couldNotTranscribe: N'a pas pu être transcrit
     viewTranscript: Voir la transcription
     previewSubtitle: '{seconds}s transcrites'
-    retry: Réessayer
-    failedSendBlockedTooltip: Échec de la transcription — réessaie ou retire la
-      pièce jointe avant d'envoyer
   videoLink:
     statuses:
-      queued: En file d'attente
-      retrying: Nouvelle tentative…
       attemptNumber: Tentative {n}
-      fetching_metadata: Lecture des infos vidéo…
-      fetching_captions: Récupération des sous-titres…
-      extracting_audio: Extraction de l'audio…
-      transcribing_handoff: Transcription en cours…
-      indexing: Indexation en cours…
-      completed: Prêt
-      failed: Échec
-      skipped: Annulé
-    errors:
-      generic: Impossible d'analyser cette vidéo
-      privateOrAgeGated: Vidéo privée ou à accès restreint
-      unavailable: La vidéo n'est plus disponible
-      geoblocked: Vidéo non disponible dans cette région
-      unsupported: Ce site n'est pas pris en charge
-      transient: Problème temporaire — réessaie
-      botDetection:
-        La plateforme vidéo a bloqué l'accès automatisé — réessaie plus
-        tard ou utilise une autre plateforme
-      rateLimited:
-        La plateforme vidéo limite les requêtes — attends quelques minutes
-        et réessaie
-      forbidden: La plateforme vidéo a refusé l'accès (403) — réessaie plus tard
-      liveStream: Les directs ne sont pas pris en charge
-      premiere: Vidéo en première/à venir non encore disponible
-      memberOnly: Réservé aux membres
-      jsRuntimeMissing:
-        Le traitement vidéo n'est pas entièrement configuré — contacte
-        ton administrateur
-      binaryNotInstalled: Le traitement vidéo n'est pas encore activé — contacte ton administrateur
-      retryCooldown:
-        Cette vidéo vient d'être limitée — attends quelques minutes avant
-        de réessayer
-      timeout: Récupération trop longue — réessaie
-      outputValidationFailed: Impossible de valider le fichier vidéo téléchargé
-      videoTooLong: La vidéo dépasse la limite de 4 heures
-      whisperFailed: Échec de la transcription
-      invalidUrl: URL invalide
-      unsupportedProtocol: Seuls les liens https:// sont acceptés
-      credentialedUrl: Les liens avec identifiants intégrés ne sont pas acceptés
-      ipLiteral: Les liens vers une IP brute ou localhost ne sont pas acceptés
-      playlist:
-        Les listes de lecture ne sont pas prises en charge — colle un lien
-        vidéo unique
-      dnsResolutionFailed: Impossible de résoudre l'hôte
-      privateIpResolved: Ce lien pointe vers une adresse privée/interne
-      inFlightCap: Trop de vidéos en cours de traitement — attends qu'une se termine
-      budgetExceeded: Limite d'usage atteinte — contacte ton administrateur
-    actions:
-      removeLink: Retirer
-      retry: Réessayer
-    chip:
-      fallbackTitle: Lien vidéo
-      ariaLabel: 'Pièce jointe vidéo : {title}'
-      inProgressTooltip:
-        Attends la fin du traitement — ou retire la vignette pour
-        envoyer sans elle
-      failedSendBlockedTooltip: Une vidéo a échoué — réessaie-la ou retire la vignette avant d'envoyer
-    toast:
-      ingestFailedTitle: Impossible d'ajouter cette vidéo
-      retryFailedTitle: Impossible de réessayer cette vidéo
-      bindFailedDescription: Impossible de joindre la transcription vidéo — réessaie
   fallback:
     image: Image
     file: Fichier
   imageEdit:
     editThis: Modifier cette image
-    previewReference: Prévisualiser l'image de référence
-    editingLatest: Modifier la dernière image
-    dismiss: Ne pas référencer cette image
-    change: Changer
-    placeholder: Décris la modification…
-    placeholderCreate: Décris une image à créer…
-    modelCannotEdit:
-      Ce modèle ne crée que de nouvelles images. Passe à un modèle
-      d'édition pour appliquer des modifications.
-    pickAnImage: Choisir une image à modifier
-    noOtherImages: Aucune autre image dans ce fil.
   downloadFile: Télécharger le fichier
-  messageInfo:
-    title: Informations sur le message
-    description: Détails sur cette réponse IA
-    timestamp: Horodatage
-    messageId: ID du message
-    model: Modèle
-    routing: Routage
-    tokenUsage: Utilisation des tokens
-    input: Entrée
-    output: Sortie
-    total: Total
-    reasoning: Reasoning
-    cached: En cache
-    performance: Performance
-    duration: Durée
-    timeToFirstToken: Délai avant le premier token
-    timeToFirstReasoning: Délai avant le premier Reasoning
-    setupBeforeModel: Préparation avant le modèle
-    ttftDetailsTitle: Délai avant le premier token — détails
-    ttftDetailsDescription:
-      Décomposition du délai avant le premier token, avec un
-      outil de dev pour comparer au plancher du modèle.
-    ttftBreakdown: Décomposition
-    ttftBreakdownHint: Tout est mesuré à partir de l'envoi de ton message ;
-      Préparation avant le modèle correspond à l'attente backend avant le début
-      de la génération.
-    toolCalls: Appels d'outils
-    voiceOutput: Sortie vocale
-    voice: Voix
-    voiceCharacters: Caractères
-    noMetadata:
-      L'utilisation des tokens et les informations sur le modèle ne sont
-      pas disponibles pour ce message.
-    contextWindow: Contexte (est.)
-    contextWindowDescription: Le contexte complet envoyé au modèle IA
-    contextTokens: Tokens
-    contextMessages: Messages
-    contextApprovals: Approbations
-    showContext: Afficher la fenêtre de contexte
-    throughput: Débit
-    tokensPerSecond: '{value} tok/s'
-    cachedPercent: '{percent}% en cache'
-    copyId: Copier l'ID du message
-  toolDetails:
-    title: Détails de {tool}
-    input: Entrée
-    output: Sortie
-  loadOlderMessages: Charger les messages plus anciens
   loadingConversation: Chargement de la conversation…
   history:
-    loading: Chargement des chats...
     empty: Aucune conversation pour l'instant
     emptySubtitle: Démarre un nouveau chat pour commencer
     untitled: Chat sans titre
-    renameChat: Renommer le chat
-    loadMore: Charger plus
-    loadingMore: Chargement...
     generating: Génération de la réponse
-    awaitingInput: En attente de ta réponse
     dropHereToAdd: Dépose un chat ici
     dropToChatsHint: Dépose ici pour déplacer vers Chats
-    legalHold:
-      heading: Sous conservation légale
-      body: Conservé pour conformité — ne peut pas être supprimé, archivé ou renommé.
-      reasonLabel: Motif
-      matterLabel: Affaire
-      placedByLabel: Placé par
-      placedAtLabel: Placé le
     toast:
-      renameFailed: Échec du renommage du chat
       moveFailed: Échec du déplacement du chat
   aria:
     messageHistory: Historique des messages
-    scrollToBottom: Défiler vers le bas
     chatRegion: Chat
     chatInput: Saisie du message
   structured:
@@ -1474,88 +1029,28 @@ chat:
   dictation:
     start: Démarrer la dictée
     stop: Arrêter la dictée
-    transcribing: Transcription…
     level: Niveau du microphone
     notSupported: La reconnaissance vocale n'est pas prise en charge par ce navigateur
-    notConfigured:
-      Dictée indisponible — demande à une personne admin d'ajouter un
-      modèle de transcription
     permissionDenied:
       L'accès au microphone a été refusé. Merci d'autoriser l'accès
       au microphone dans les paramètres de ton navigateur.
-    transcriptionFailedShort: Échec de la transcription
-    retry: Réessayer
-    discard: Supprimer l'enregistrement
   citations:
     source: Source {number}
     page: Page {page}
     relevance: 'Pertinence : {score}%'
     viewDocument: Voir dans le document
     visitPage: Visiter la page
-    showAllSources: Afficher les {count} sources
-    hideSources: Masquer les sources
-    chunkCount: '{count, plural, one {# fragment} other {# fragments}}'
-  feedback:
-    thumbsUp: Utile
-    thumbsDown: Pas utile
-    commentPlaceholder: Que pourrait-on améliorer ?
-    submitComment: Soumettre
-    cancel: Annuler
-  shareBoundary: Les messages ci-dessus proviennent d'un chat partagé
-  forkBoundary: Dupliqué depuis ton propre chat
-  notFound: Ce chat n'est pas disponible.
-  forkChat: Dupliquer le chat
-  forkSuccess: Chat dupliqué avec succès
-  forkFailed: Échec de la duplication du chat
   share:
     title: Partager le chat
     button: Partager
-    description: Partage ce chat avec d'autres membres de ton organisation via un lien.
-    enableSharing: Activer le partage
-    enableSharingDescription:
-      Toute personne de ton organisation disposant du lien
-      peut consulter ce chat.
-    copyLink: Copier le lien
     copied: Lien copié
-    copyFailed: Échec de la copie du lien
-    linkLabel: Lien de partage
-    linkHint:
-      Toute personne de ton organisation disposant de ce lien peut consulter
-      le chat.
-    preview: Aperçu
     shareFailed: Échec du partage du chat
-    cannotShareArena: Les chats en mode arène ne peuvent pas être partagés.
-    cannotShareBranch: Les chats de branche ne peuvent pas être partagés.
-    cannotShareArchived: Les chats archivés ne peuvent pas être partagés.
-    notShareable: Ce chat ne peut pas être partagé.
     unshare: Arrêter le partage
     unshared: Partage arrêté
     unshareFailed: Échec de l'arrêt du partage
     sharedChat: Chat partagé
     byline: Partagé par {name} le {date}
-    forkChat: Dupliquer ce chat
-    forkSuccess: Chat dupliqué avec succès
-    forkFailed: Échec de la duplication du chat
-    readOnlyBanner: Tu consultes un chat partagé en lecture seule
-    sharedIndicator: Partagé
     notFound: Ce chat partagé n'est plus disponible.
-    backToChat: Retour au chat
-    inputPlaceholder: Envoie un message pour poursuivre cette conversation...
-    inputHint: L'envoi d'un message créera ta propre copie de ce chat
-  export:
-    button: Exporter
-    title: Exporter le chat
-    description: Sélectionne les messages et télécharge-les dans le format de ton choix.
-    selectAll: Tout sélectionner
-    deselectAll: Tout désélectionner
-    messagesCount:
-      '{count, plural, one {# sur {total} message sélectionné} other {#
-      sur {total} messages sélectionnés}}'
-    downloadPdf: Imprimer en PDF
-    downloadMarkdown: Télécharger en Markdown
-    noMessages: Aucun message à exporter
-    you: Toi
-    assistant: Assistant
   arena:
     label: Mode Arène
     enable: Activer le mode Arène
@@ -1574,23 +1069,6 @@ chat:
     verdictRecorded: Verdict enregistré
     verdictError: Échec de l'enregistrement du verdict
   canvas:
-    title: Canevas
-    error: Impossible de charger ce fichier.
-    noFile: Aucun fichier sélectionné
-    stripOpen: Ouvrir le canevas
-    download: Télécharger
-    mermaidError: Échec du rendu du diagramme
-    viewSource: Source
-    viewPreview: Aperçu
-    copy: Copier
-    copied: Copié
-    toggleWrap: Basculer le retour à la ligne
-    fileActionsAriaLabel: Actions du fichier
-    fileSizeAriaLabel: Taille du fichier
-    sourceRunOutput: Sortie de code
-    sourceAgentWrite: Fichiers IA
-    sourceUserUpload: Téléversés
-    writing: Écriture…
     runStatus:
       queued: En file d'attente
       installing: Installation des dépendances
@@ -1694,21 +1172,6 @@ chat:
     humanInputPending: Ta réponse est nécessaire
     humanInputAnswered: Répondu
     blocked: 'Bloqué par une règle de sécurité : {reason}'
-  branchNavigator:
-    previous: Branche précédente
-    next: Branche suivante
-  skeleton:
-    loadingWelcome: Chargement de l'accueil
-    loadingMessage: Chargement du message
-  promptLibrary: Bibliothèque de prompts
-  savePrompt: Enregistrer le prompt
-  savePromptDraft: Enregistrer le brouillon de prompt
-  savePromptMenu: Options d'enregistrement
-  unsavePrompt: Retirer le prompt
-  unsavePromptConfirm:
-    Le prompt enregistré sera supprimé. Tu pourras toujours le
-    sauvegarder à nouveau plus tard.
-  unsavePromptAction: Retirer
   errorGeneratingDescription:
     Une erreur est survenue lors de la génération de la
     réponse. Merci de réessayer.
@@ -1757,80 +1220,6 @@ chat:
     {provider}. Il a peut-être été renommé ou supprimé.
   errorHintRateLimitedNamed: Limite de débit atteinte chez {provider}. Merci de
     patienter un moment puis de réessayer.
-  errorTriedModels: "{count} modèles ont été essayés avant d'abandonner."
-  modelFallbackNotice: '{from} était indisponible — passage à {to}.'
-  modelFallbackDefaultModel: le modèle par défaut
-  modelFallbackUnknown: le modèle précédent
-  generationIncomplete: La réponse n'a pas pu être terminée. Merci de réessayer.
-  generationIncompleteWithTools: La réponse n'a pas pu être terminée après
-    l'exécution de {tools}. Merci de réessayer.
-  stepLimitContinued: Limite d'étapes de ce tour atteinte — la génération continue automatiquement.
-  stepLimitContinuedRound: Limite d'étapes de ce tour atteinte — la génération
-    continue automatiquement (tour {round}).
-  stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un
-    message pour continuer.
-  workspaceFiles:
-    title: Fichiers de l'espace de travail
-    toggleLabel: Fichiers de l'espace de travail
-    showHidden: Afficher les fichiers cachés
-    refresh: Actualiser
-    download: Télécharger
-    preview: Aperçu
-    previewHint: Sélectionne Aperçu pour afficher ce fichier.
-    previewUnavailable: Ce type de fichier ne peut pas être prévisualisé — utilise Télécharger.
-    emptyDir: Ce dossier est vide.
-    selectFile: Sélectionne un fichier pour l’afficher.
-    sessionStopped: Espace de travail inactif
-    resumeHint: Envoie un message pour reprendre la session et parcourir les fichiers.
-    tooLarge:
-      Impossible d'afficher ce fichier (introuvable ou trop volumineux) —
-      télécharge-le à la place.
-    error: Impossible de charger ce fichier.
-    retry: Réessayer
-    truncated: … autres éléments masqués (liste tronquée)
-    ariaTree: Fichiers de l'espace de travail
-  liveBrowser:
-    title: Navigateur en direct
-    toggleLabel: Navigateur en direct
-    connecting: Connexion…
-    streaming: En direct
-    disconnected: Diffusion terminée
-    reconnect: Se reconnecter
-    error: Impossible de se connecter à la vue en direct.
-    retry: Réessayer
-    emptyTitle: L'agent ne navigue pas en ce moment
-    emptyHint:
-      Lance une requête — dès que l'agent ouvre un navigateur, tu le verras
-      ici, en direct.
-    ariaLabel: Vue en direct du navigateur de l'agent (lecture seule)
-    ariaLabelControl: Navigateur en direct — tu le contrôles
-    takeControl: Prendre le contrôle
-    releaseControl: Rendre le contrôle
-    reset: Réinitialiser le navigateur (efface les connexions)
-    resetConfirmTitle: Réinitialiser le navigateur ?
-    resetConfirmBody:
-      Redémarre le navigateur avec un profil vierge et te déconnecte
-      de tous les sites où l'agent s'était connecté. À n'utiliser que si le
-      navigateur est bloqué et ne se rétablit pas tout seul.
-    resetConfirmAction: Réinitialiser le navigateur
-  chatPanel:
-    stripAria: Panneau de discussion
-    tablistAria: Ouvrir le panneau
-    ariaLabel: Panneau de discussion
-    minimize: Réduire le panneau de discussion
-    resizeAria: Redimensionner le panneau de discussion
-    fullscreen: Passer en plein écran
-    exitFullscreen: Quitter le plein écran
-  kbFolderChipFiles: '{count, plural, one {# fichier} other {# fichiers}}'
-  kbFolderChipFilesSkipped: '{resolved}/{count, plural, one {# fichier} other {#
-    fichiers}} — {skipped, plural, one {# non indexé} other {# non indexés}}'
-  embedded:
-    analyzeAttachments: Merci d'analyser les fichiers joints.
-  errors:
-    PROJECT_MISMATCH: Cette conversation appartient à un autre projet.
-    PROJECT_FORBIDDEN: Tu n'as pas accès au projet de cette conversation.
-    PROJECT_NOT_FOUND: Le projet de cette conversation n'existe plus.
-    PROJECT_ORG_MISMATCH: Le projet de cette conversation appartient à une autre organisation.
 common:
   optional: facultatif
   or: ou
@@ -2100,30 +1489,6 @@ composer:
   openMenu: Ouvrir le menu du chat
   addFiles: Ajouter photos et fichiers
   modeHeader: Modes
-  capabilityHeader: Capacités
-  capabilityDisable: Désactiver {name}
-  requiresIntegration: Nécessite {name}
-  mention:
-    title: Mentions
-    sectionAgents: Agents
-    sectionTeammates: Coéquipiers
-    sectionDocuments: Documents
-    loading: Recherche de documents…
-    noMatches: Aucun résultat
-    emptyAgents: Aucun agent dans ce projet pour le moment
-    emptyTeammates: Personne à mentionner dans l’équipe pour le moment
-    emptyDocuments: Aucun document indexé pour le moment
-    actionBrowseAgents: Parcourir les agents
-    actionInviteTeammates: Inviter des coéquipiers
-    actionUploadDocuments: Importer des documents
-    documentChipLabel: Connaissances
-    agentChipLabel: Agent
-    teammateChipLabel: Coéquipier
-    removeDocumentMention: Supprimer la référence à {title}
-    removeActorMention: Supprimer la mention de {name}
-    limitReached: Tu peux référencer jusqu’à {max} documents par message
-    sectionFolders: Dossiers
-    folderChipLabel: Dossier
 connectivity:
   tabTitle: Reconnexion
   deviceTitle: Tu es hors ligne
@@ -4947,7 +4312,6 @@ notifications:
 personalization:
   page:
     title: Préférences utilisateur
-    privacyLink: Avis de confidentialité
     enable:
       orgStateOn: activé
       orgStateOff: désactivé
@@ -4965,35 +4329,21 @@ personalization:
         que tu approuves à ton sujet d'une conversation à l'autre.
     customInstructions:
       title: Instructions personnalisées
-      description:
-        Ce que l'assistant doit garder à l'esprit dans chaque réponse. 5000
-        caractères maximum.
       placeholder:
         p. ex. Réponds de manière concise. Utilise TypeScript par défaut
         pour le code.
-      counter: '{count} / {max}'
     memories:
       title: Souvenirs enregistrés
       empty:
         Les souvenirs apparaissent ici après que l'assistant en propose et que tu
         les enregistres.
-      delete: Supprimer
-      deleteConfirm: Supprimer ce souvenir ? Cette action est irréversible.
     pending:
       title: Suggestions en attente
       empty: Aucune suggestion en attente.
-  card:
-    label: Souvenir suggéré
-    save: Enregistrer
-    edit: Modifier et enregistrer
-    discard: Ignorer
   errors:
     saveFailed: Échec de l'enregistrement. Réessaie.
     tooLong: Les instructions personnalisées dépassent {max} caractères.
-    illegalChars: Supprime les chevrons, les accents graves et les caractères de contrôle.
   toasts:
-    discarded: Ignoré.
-    deleted: Supprimé.
     preferencesUpdated: Préférences mises à jour.
 userEnv:
   page:
@@ -5032,37 +4382,6 @@ piiConfigPanel:
   removeCustomPattern: Supprimer
   saveCustomPattern: Enregistrer le motif
   cancelCustomPattern: Annuler
-  previewTitle: Aperçu en direct
-  previewDescription: Essayez la configuration active sur du texte réel. La
-    détection se lance à chaque frappe.
-  inputTitle: Votre texte
-  inputHint:
-    Tapez ou collez une phrase — les données personnelles sont détectées
-    en direct.
-  detectedTitle: Détecté
-  detectedHint: Survolez chaque surlignage pour voir le type de donnée détecté.
-  tokenizedTitle: Envoyé à l'IA
-  tokenizedHint: Données personnelles remplacées par des jetons indexés — seule
-    cette version est envoyée au modèle.
-  maskedTitle: Sortie masquée
-  maskedHint: DCP remplacées par des espaces réservés génériques. C'est cette
-    version qui est envoyée et stockée.
-  aiTitle: Réponse de l'IA (simulée)
-  aiHint: Modifiable — déplacez les jetons pour tester le retour.
-  restoredTitle: Réponse restaurée
-  restoredHint:
-    Jetons remplacés par vos données originales. Les surlignages verts
-    montrent ce qui a été restauré.
-  blockTitle: Message bloqué
-  blockHint: DCP détectées — le message serait rejeté et n'atteindrait jamais l'IA.
-  blockBody: Votre saisie contient des données que la politique n'autorise pas.
-    Retirez les éléments surlignés et réessayez.
-  blockPassTitle: Aucune DCP détectée
-  blockPassBody: Le texte serait transmis sans modification.
-  detectionCount: détections
-  noPii: Aucune donnée personnelle détectée — le texte serait transmis tel quel.
-  noPatternsEnabled: Aucun motif de détection actif. Activez-en au moins un
-    ci-dessus pour voir les détections.
 piiTypes:
   email: E-mail
   phone: Téléphone
@@ -7514,10 +6833,6 @@ inbox:
   taskReviewApprovedBody: « {taskTitle} » a été approuvée et terminée.
   taskReviewChangesRequested: Modifications demandées
   taskReviewChangesRequestedBody: Des modifications ont été demandées sur « {taskTitle} ».
-  taskUnblocked: Tâche débloquée
-  taskUnblockedBody: Tous les blocages de « {title} » sont levés — elle peut démarrer.
-  taskDueSoon: Échéance proche
-  taskDueSoonBody: « {title} » arrive à échéance dans moins de 24 heures.
   taskSlaEscalated: Tâche en retard escaladée
   taskSlaEscalatedBody: « {title} » est nettement en retard et demande votre attention.
   taskReviewReminder: Rappel de revue
@@ -7526,10 +6841,6 @@ inbox:
   taskReviewEscalatedBody: Une revue sur « {title} » attend depuis plus d'un jour.
   humanInputEscalated: Automatisation en attente d'une saisie
   humanInputEscalatedBody: Une automatisation attend une saisie humaine depuis {ageHours} heures.
-  workforceDigest: Synthèse quotidienne de la workforce
-  workforceDigestBody: "{created} créées · {completed} terminées · {runs}
-    exécutions d'agents ({failed} en échec) · {pendingReviews} en attente de
-    revue · {queued} en file · {breakers} en pause."
   conversationInboundMessage: Nouveau message de conversation
   conversationInboundMessageBody: 'De {sender} : « {subject} » — ouvre ta boîte de réception pour répondre.'
   conversationAssigned: Conversation assignée
@@ -8126,65 +7437,6 @@ websites:
   delete:
     confirmation: Es-tu sûr de vouloir supprimer ce site web ? Cette action est irréversible.
     title: Supprimer le site web
-workflowCreationApproval:
-  approve: Créer l'automatisation
-  approveTooltip: Approuver et créer cette automatisation
-  rejectTooltip: Annuler la création de l'automatisation
-  stepsCount: '{count} étapes'
-  copyAriaLabel: Copier la configuration de l'automatisation
-  createdSuccessfully: Automatisation créée avec succès
-  statusExecuting: Création de l'automatisation en cours...
-  statusCompletedFailed: La création de l'automatisation a été approuvée mais a échoué.
-  statusCompletedSuccess: L'automatisation a été créée avec succès.
-  statusRejected: La création de l'automatisation a été annulée.
-  errorCreateFailed: Échec de la création de l'automatisation
-workflowRunApproval:
-  approve: Exécuter l'automatisation
-  approveTooltip: Approuver et exécuter cette automatisation
-  rejectTooltip: Annuler l'exécution de l'automatisation
-  statusExecuting: Exécution...
-  statusCompleted: Terminé
-  statusRejected: Rejeté
-  showParameters: Afficher les paramètres
-  hideParameters: Masquer les paramètres
-  executionRunning: En cours d'exécution...
-  executionRunningStep: "Exécution de l'étape : {step}"
-  executionRunningStepWithProgress: "Exécution de l'étape : {step} (itération {current}/{total})"
-  executionElapsed: En cours depuis {duration}
-  executionCompleted: Terminé avec succès
-  executionFailed: Échec de l'exécution
-  viewDetails: Voir les détails de l'exécution
-  showOutput: Afficher le résultat
-  hideOutput: Masquer le résultat
-  stopExecution: Arrêter
-  stopTooltip: Arrêter l'exécution de l'automatisation
-  errorRunFailed: Échec de l'exécution de l'automatisation
-  errorStopFailed: Échec de l'arrêt de l'exécution
-  submitResponse: Soumettre la réponse
-  copyQuestions: Copier les questions
-  pushback: Répondre différemment
-  pushbackPlaceholder: Dis à l'IA ce que tu souhaites à la place...
-  sendFeedback: Envoyer le commentaire
-  backToForm: Retour au formulaire
-  errorFillRequiredFields: Merci de remplir tous les champs obligatoires
-  errorSelectRequired: Merci de faire une sélection
-  errorFeedbackRequired: Merci de saisir ton commentaire
-workflowUpdateApproval:
-  approve: Appliquer la mise à jour
-  approveTooltip: Approuver et appliquer cette mise à jour
-  rejectTooltip: Annuler la mise à jour de l'automatisation
-  badgeFullSave: Mettre à jour l'automatisation
-  badgeMultiStep: Mettre à jour {count} étapes
-  badgeStepPatch: Mettre à jour l'étape
-  versionLabel: 'Version :'
-  slugLabel: 'Slug :'
-  copyAriaLabel: Copier la configuration de la mise à jour
-  updatedSuccessfully: Automatisation mise à jour avec succès
-  statusExecuting: Application de la mise à jour...
-  statusCompletedFailed: La mise à jour a été approuvée mais n'a pas pu être appliquée.
-  statusCompletedSuccess: L'automatisation a été mise à jour avec succès.
-  statusRejected: La mise à jour de l'automatisation a été annulée.
-  errorApplyFailed: Échec de l'application de la mise à jour
 projects:
   title: Projets
   entityLabel: projets
@@ -8581,70 +7833,6 @@ webdav:
       actifs seront libérés.
     confirm: Révoquer
     cancel: Annuler
-catalogSync:
-  button:
-    agents: Mettre à jour les agents livrés
-    workflows: Mettre à jour les automatisations livrées
-    integrations: Mettre à jour les intégrations livrées
-    automations: Mettre à jour les automatisations livrées
-    skills: Mettre à jour les skills livrés
-  confirm:
-    title: Mettre à jour depuis le catalogue intégré
-    description: Remplace les entrées intégrées de cette page par les dernières
-      versions du catalogue — y compris celles que tu as modifiées. La version
-      précédente de chaque entrée modifiée est conservée dans l'historique ; les
-      entrées que tu as créées restent intactes.
-    action: Mettre à jour
-    loading: Mise à jour…
-  toast:
-    updated:
-      '{count, plural, one {1 entrée mise à jour depuis le catalogue} other
-      {{count} entrées mises à jour depuis le catalogue}}'
-    upToDate: Déjà à jour
-    failed: Échec de la mise à jour depuis le catalogue
-agentCatalog:
-  folders:
-    chat: Chat
-    general: Général
-  loadError:
-    title: Impossible de charger le catalogue
-    description:
-      Le catalogue d'agents n'a pas pu être chargé. Vérifie ta connexion
-      et réessaie.
-    retry: Réessayer
-  noResults:
-    title: Aucun agent correspondant
-    description: Aucun agent ne correspond à ta recherche. Essaie un autre terme.
-  title: Catalogue d'agents
-  searchPlaceholder: Rechercher des agents
-  categoryFilter:
-    title: Catégorie
-    all: Tous
-    agent: Agents
-    codingAgent: Agents de code
-    imageAgent: Image
-  categoryBadge:
-    agent: Agent
-    codingAgent: Agent de code
-    imageAgent: Image
-  install: Installer
-  enable: Activer
-  disable: Désactiver
-  uninstall: Désinstaller
-  installed: Agent installé
-  enabled: Agent activé
-  disabled: Agent désactivé
-  uninstalled: Agent désinstallé
-  status:
-    enabled: Activé
-    disabled: Désactivé
-    available: Disponible
-  error: Impossible de mettre à jour l'agent
-  empty:
-    title: Aucun agent disponible
-    description: Le catalogue ne propose aucun agent à installer pour le moment.
-  installedByIntegration: Installé par {integration}
-  requiresIntegration: Nécessite {integration}
 sandboxes:
   title: Sandboxes
   description:
@@ -8718,322 +7906,3 @@ envEditor:
     « {key} » n'est pas un nom de variable valide (lettres, chiffres, tiret
     bas ; ne doit pas commencer par un chiffre).
   dupKey: Nom de variable en double — chaque NOM doit être unique.
-workflows:
-  aria:
-    openNamed: Ouvrir {name}
-    openLoop: Ouvrir la boucle
-  emptyState:
-    noSteps: Aucune étape d'automatisation à afficher
-    createStepsHint:
-      Crée des étapes pour voir l'aperçu de l'automatisation, ou utilise
-      l'assistant IA pour t'aider à démarrer.
-  history:
-    noDifferences: Aucune différence trouvée
-  configuration:
-    timeout: Timeout (ms)
-    timeoutHelp: Temps d'exécution maximum en millisecondes
-    maxRetries: Nombre max de tentatives
-    maxRetriesHelp: Nombre de tentatives en cas d'échec
-    backoff: Backoff (ms)
-    backoffHelp: Délai entre les tentatives en millisecondes
-    variables: Variables (JSON)
-    variablesHelp: Ces variables seront disponibles pour toutes les étapes de l'automatisation
-    validation:
-      invalidJson: JSON invalide dans le champ des variables
-    env: Environnement et secrets
-    envHelp:
-      Variables injectées dans chaque étape sandbox de cette automatisation. Cochez «
-      Secret » pour chiffrer une valeur ; les secrets sont en écriture seule.
-      Une étape peut les remplacer.
-  triggers:
-    errors:
-      unauthenticated: Tu n'es pas connecté. Actualise la page et réessaie.
-      invalidSlug: L'identifiant de cette automatisation est invalide.
-      notInstalled: Cette automatisation n'est pas encore installée.
-      notFound: Ce déclencheur est introuvable. Il a peut-être été supprimé.
-      automationOwnedWorkflow:
-        Une automatisation qui appartient à un pack s'exécute uniquement depuis
-        ce pack et ne peut donc pas s'abonner à des événements.
-      invalidEventType: Ce type d'événement n'est pas valide.
-      duplicateSubscription: Cette automatisation a déjà un déclencheur pour cet événement.
-    schedules:
-      title: Planifications
-      createButton: Ajouter une planification
-      emptyTitle: Aucune planification
-      emptyDescription:
-        Crée une planification pour déclencher automatiquement ce
-        automatisation de manière récurrente.
-      columns:
-        cronExpression: Expression cron
-        project: Projet
-        active: Actif
-        lastTriggered: Dernier déclenchement
-        createdBy: Créé par
-      unboundProject: Sans projet
-      needsConfiguration: Configuration requise
-      needsConfigurationDetail: 'Variables requises manquantes : {fields}'
-      form:
-        title: Créer une planification
-        editTitle: Modifier la planification
-        cronExpression: Expression cron
-        cronPlaceholder: 0 * * * *
-        cronHelp: 'Format cron standard à 5 champs : minute heure jour mois jour_semaine'
-        timezoneLabel: Fuseau horaire
-        variablesLabel: Variables de l'automatisation
-        variablesDescription:
-          Paramètres d'entrée transmis à chaque exécution planifiée.
-          Pré-remplis depuis le schéma d'entrée de l'automatisation.
-        variablesInvalid: Les variables doivent être un objet JSON valide
-        projectLabel: Projet
-        projectPlaceholder: Sélectionner un projet
-        repoLabel: Repository GitHub
-        repoPlaceholder: owner/repo ou https://github.com/owner/repo
-        repoInvalid: Saisis-le au format owner/repo ou une URL GitHub
-        useFormToggle: Utiliser le formulaire
-        editAsJsonToggle: Modifier en JSON
-        validation:
-          cronRequired: L'expression cron est requise
-          cronInvalid: Doit être une expression cron valide à 5 champs
-          missingRequired: "Configure les champs requis avant d'enregistrer : {fields}"
-        presets:
-          every5Minutes: Toutes les 5 minutes
-          hourly: Toutes les heures
-          daily: Tous les jours
-          weekly: Toutes les semaines
-          monthly: Tous les mois
-        ai:
-          label: Décris ta planification
-          placeholder: ex., chaque jour ouvré à 9h, deux fois par jour à 8h et 18h
-          generateButton: Générer
-          generateError:
-            Impossible de générer l'expression cron. Merci de réessayer ou de
-            saisir manuellement.
-      toast:
-        created: Planification créée
-        updated: Planification mise à jour
-        deleted: Planification supprimée
-        enabled: Planification activée
-        disabled: Planification désactivée
-        toggleError: Échec du basculement de la planification
-        deleteError: Échec de la suppression de la planification
-      deleteTitle: Supprimer la planification
-      deleteDescription:
-        Cette planification sera définitivement supprimée. Cette
-        action est irréversible.
-    webhooks:
-      title: Webhooks
-      createButton: Ajouter un webhook
-      emptyTitle: Aucun webhook
-      emptyDescription: Crée un webhook pour déclencher cette automatisation via des requêtes HTTP POST.
-      columns:
-        url: URL du webhook
-        active: Actif
-        lastTriggered: Dernier déclenchement
-      createdTitle: Webhook créé
-      urlWarning: Enregistre cette URL de webhook. Le jeton dans l'URL sert
-        d'identifiant d'authentification.
-      webhookUrl: URL du webhook
-      deleteTitle: Supprimer le webhook
-      deleteDescription:
-        Ce webhook sera définitivement supprimé. Toute intégration
-        utilisant cette URL cessera de fonctionner.
-      deleteWebhook: Supprimer le webhook
-      toast:
-        created: Webhook créé
-        deleted: Webhook supprimé
-        enabled: Webhook activé
-        disabled: Webhook désactivé
-        urlCopied: URL du webhook copiée
-        createFailed: Échec de la création du webhook
-        toggleFailed: Échec du basculement du webhook
-        deleteFailed: Échec de la suppression du webhook
-    events:
-      title: Événements
-      createButton: Ajouter un déclencheur d'événement
-      emptyTitle: Aucun déclencheur d'événement
-      emptyDescription: Abonne-toi aux événements système pour déclencher
-        automatiquement cette automatisation lorsque des actions spécifiques se
-        produisent.
-      columns:
-        eventType: Type d'événement
-        active: Actif
-        lastTriggered: Dernier déclenchement
-        createdBy: Créé par
-      form:
-        title: Ajouter un déclencheur d'événement
-        editTitle: Modifier le déclencheur d'événement
-        eventType: Type d'événement
-        eventTypePlaceholder: Sélectionne un type d'événement
-        filtersLabel: Filtres
-        filterAll: Tous (sans filtre)
-        filterAllPlaceholder: Sélectionne une valeur de filtre
-      toast:
-        created: Déclencheur d'événement créé
-        updated: Déclencheur d'événement mis à jour
-        deleted: Déclencheur d'événement supprimé
-        enabled: Déclencheur d'événement activé
-        disabled: Déclencheur d'événement désactivé
-        toggleError: Échec du basculement de l'abonnement à l'événement
-        deleteError: Échec de la suppression de l'abonnement à l'événement
-      editTitle: Modifier le déclencheur d'événement
-      deleteTitle: Supprimer le déclencheur d'événement
-      deleteDescription:
-        Ce déclencheur d'événement sera définitivement supprimé. L'automatisation
-        ne sera plus déclenchée par cet événement.
-    common:
-      never: Jamais
-      copied: Copié
-      copyFailed: Échec de la copie
-  executions:
-    entityLabel: exécutions
-    entityLabelOne: exécution
-    searchPlaceholder: Rechercher par ID d'exécution
-    viewOnCanvas: Voir sur le canevas
-  steps:
-    banners:
-      hasActiveTriggers:
-        Cette automatisation est active — les modifications enregistrées
-        s’appliquent aux nouvelles exécutions.
-      hasActiveTriggersScheduleGap:
-        Cette automatisation est active, mais une planification
-        active n’a pas toutes ses variables requises ({fields}) — ces exécutions
-        échoueront tant qu’elles ne sont pas définies.
-    toolbar:
-      testWorkflow: Tester l'automatisation
-      addStepUnavailable:
-        La modification des étapes sur le canevas n'est pas encore
-        disponible — utilise l'assistant IA ou modifie la configuration du
-        automatisation.
-    execution:
-      viewingRun: Affichage de l'exécution {id}
-      clear: Masquer les résultats de l'exécution
-      nodeBadgeLabel: "Statut d'exécution : {status}"
-      duration: 'Durée : {duration}'
-      attempts: '{count, plural, one {# tentative} other {# tentatives}}'
-      loopProgress: Itération {current} sur {total}
-      output: Sortie
-      error: Erreur
-      outputTruncated: Aperçu de la sortie tronqué
-      outputUnavailable: Sortie trop volumineuse pour l'aperçu
-      status:
-        pending: En attente
-        running: En cours
-        completed: Terminée
-        failed: Échouée
-        waiting: En attente de saisie
-        paused: En pause (débogage)
-        success: Réussie
-        canceled: Annulée
-  stepTypes:
-    start: Démarrage
-    llm: LLM
-    condition: Condition
-    loop: Boucle
-    action: Action
-    output: Sortie
-  edges:
-    yes: Oui
-    no: Non
-  step:
-    openStep: Ouvrir l'étape {name}
-    openStepDefault: Ouvrir l'étape
-  sidePanel:
-    aiAssistant: Assistant IA
-    testWorkflow: Tester l'automatisation
-    stepTooltip: Étape {stepType}
-    end: Fin
-    close: Fermer le panneau
-    validationErrors: Erreurs de validation
-    validationWarnings: Avertissements
-    stepSaveFailed: Échec de l'enregistrement de l'étape
-    saving: Enregistrement...
-    resizePanel: Redimensionner le panneau
-    stepEditor: Éditeur d'étapes
-    fileBasedStepSaveUnsupported: L'enregistrement d'étapes n'est pas encore
-      disponible pour les automatisations basées sur fichiers.
-    env: Environnement et secrets
-    envHelp:
-      Variables injectées dans la sandbox de cette étape ; elles l'emportent
-      sur les valeurs au niveau de l'automatisation en cas de conflit de nom.
-  nextSteps:
-    endWorkflow: Terminer l'automatisation
-    transitions:
-      success: Étape suivante (en cas de succès)
-      failure: Étape suivante (en cas d'échec)
-      'true': Étape suivante (si vrai)
-      'false': Étape suivante (si faux)
-      loop: Étape suivante (itération de boucle)
-      done: Étape suivante (boucle terminée)
-  assistant:
-    errorMessage:
-      Je suis désolé, j'ai rencontré une erreur. Merci de réessayer ou
-      de consulter la console pour plus de détails.
-    analyzeAttachments: Merci d'analyser les fichiers joints.
-  tester:
-    inputLabel: Entrée de test (JSON)
-    inputDescription: Fournis des données d'entrée au format JSON pour l'exécution de l'automatisation
-    validation:
-      invalidJson: Saisis un JSON valide pour exécuter cette automatisation.
-      missingRequired: "Configure les champs requis avant d'exécuter : {fields}"
-    tip: L'exécution crée de véritables exécutions visibles dans l'onglet
-      Exécutions.
-    execute: Exécuter
-    executing: Exécution...
-    dryRun:
-      button: Exécution à blanc
-      fileBasedUnsupported:
-        L'exécution à blanc n'est pas encore disponible pour les
-        automatisations basées sur fichiers.
-    toast:
-      invalidJson: JSON invalide
-      invalidJsonDescription: Merci de fournir une entrée JSON valide
-      executionStarted: Exécution démarrée
-      executionId: "ID d'exécution : {id}"
-      testFailed: Échec de l'exécution
-      startFailed: Échec du démarrage de l'exécution
-    result:
-      completed: Terminé
-      failed: Échec de l'exécution
-      running: En cours…
-      failedAtStep: "Échec à l'étape : {step}"
-      runningStep: 'Étape en cours : {step}'
-      stepsHeading: Étapes exécutées
-      openStep: Ouvrir les réglages de l'étape en échec {step}
-      errorCode:
-        start_failure: Le démarrage de l'exécution a échoué
-        step_failure: Une étape a échoué
-        timeout: L'exécution a dépassé le délai imparti
-        canceled: L'exécution a été annulée
-        invalid_input: L'entrée était invalide
-    debug:
-      button: Déboguer
-      title: Session de débogage
-      pausedAt: "En pause avant l'étape : {step}"
-      step: Pas à pas
-      continue: Continuer
-      stop: Arrêter
-      variables: Variables de l'exécution
-      variablesLoading: Chargement des variables…
-      variablesError: Impossible de charger les variables de l'exécution.
-  editorView:
-    showGraph: Afficher le graphe
-    showSpecification: Afficher la spécification
-    specification: Spécification
-    regenerateGraph: Régénérer le graphe
-    generateFromGraph: Générer la spécification à partir du graphe
-    emptyState:
-      Aucune spécification pour l'instant. Écris-en une, ou génère-la à
-      partir du graphe actuel de l'automatisation.
-    placeholder: Décris ce que fait cette automatisation, étape par étape…
-    generateError: Impossible de générer un aperçu. Réessaie.
-    diffTitle: Vérifier le graphe généré
-    diffDescription:
-      Compare le graphe actuel avec la version générée à partir de ta
-      spécification.
-    applyGraph: Appliquer le graphe
-    validationErrors: Erreurs de validation
-    saveSuccess: Spécification enregistrée
-    saveFailed: Échec de l'enregistrement de la spécification
-    specStaleBanner: Le graphe a changé depuis la dernière mise à jour de cette spécification.
-    graphStaleBanner: La spécification a changé — le graphe n'a pas encore été régénéré.
-    updateFromGraph: Mettre à jour depuis le graphe

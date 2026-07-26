@@ -204,8 +204,50 @@ entries:
 
   # Inbox: per-user content notifications. titleKey/bodyKey are stored on the
   # userNotifications row and looked up dynamically at render (t(row.titleKey)),
-  # so the scanner can't tie them to a callsite. Driven by convex/collab/notify.ts.
-  - 'inbox'
+  # so the scanner can't tie them to a callsite. One entry per key the server
+  # writes (convex/collab/notify.ts, convex/collab/notify_task_reviews.ts,
+  # convex/notifications/notification_messages.ts — the latter also renders the
+  # `email.*` chrome) — a new notification type must be listed here explicitly,
+  # so the rest of the namespace stays orphan-guarded.
+  - 'inbox.agentEscalation'
+  - 'inbox.agentEscalationBody'
+  - 'inbox.conversationAssigned'
+  - 'inbox.conversationAssignedBody'
+  - 'inbox.conversationAssignedByBody'
+  - 'inbox.conversationInboundMessage'
+  - 'inbox.conversationInboundMessageBody'
+  - 'inbox.conversationTeamAssigned'
+  - 'inbox.conversationTeamAssignedBody'
+  - 'inbox.conversationTeamAssignedByBody'
+  - 'inbox.email.cta'
+  - 'inbox.email.footer'
+  - 'inbox.humanInputEscalated'
+  - 'inbox.humanInputEscalatedBody'
+  - 'inbox.mention'
+  - 'inbox.mentionBody'
+  - 'inbox.mentionByBody'
+  - 'inbox.taskAssigned'
+  - 'inbox.taskAssignedBody'
+  - 'inbox.taskAssignedByBody'
+  - 'inbox.taskCommented'
+  - 'inbox.taskCommentedBody'
+  - 'inbox.taskCommentedByBody'
+  - 'inbox.taskReviewApproved'
+  - 'inbox.taskReviewApprovedBody'
+  - 'inbox.taskReviewChangesRequested'
+  - 'inbox.taskReviewChangesRequestedBody'
+  - 'inbox.taskReviewEscalated'
+  - 'inbox.taskReviewEscalatedBody'
+  - 'inbox.taskReviewReminder'
+  - 'inbox.taskReviewReminderBody'
+  - 'inbox.taskReviewRequested'
+  - 'inbox.taskReviewRequestedBody'
+  - 'inbox.taskReviewRequestedBodyNoAgent'
+  - 'inbox.taskSlaEscalated'
+  - 'inbox.taskSlaEscalatedBody'
+  - 'inbox.taskStatusChanged'
+  - 'inbox.taskStatusChangedBody'
+  - 'inbox.taskStatusChangedByBody'
 
   # Tasks feature: the board UI has shipped. `status`/`priority` labels are
   # enum-driven dynamic lookups (`t(`status.${status}`)` / `t(`priority.${p}`)`
@@ -234,22 +276,6 @@ entries:
   - 'tasks.fields.unassigned'
   - 'tasks.views.table'
   - 'tasks.views.timeline'
-
-  # Agent catalog: the install/enable/disable/uninstall success toasts are
-  # raised via `t(okKey)` in agent-catalog.tsx, where `okKey` is the literal
-  # action name ('installed' | 'enabled' | 'disabled' | 'uninstalled') passed
-  # into the shared action handler. The scanner sees `t(okKey)` with a runtime
-  # variable, so it can't tie those four keys back to the agentCatalog namespace.
-  - 'agentCatalog.installed'
-  - 'agentCatalog.enabled'
-  - 'agentCatalog.disabled'
-  - 'agentCatalog.uninstalled'
-
-  # Agent-catalog folder section headings, rendered via `t(`folders.${folder}`)`
-  # in agent-catalog.tsx's local `folderLabel` (namespace `agentCatalog`) — the
-  # folder set (chat/general + automation folders) is data-driven from the
-  # on-disk agent layout.
-  - 'agentCatalog.folders'
 
   # Task-board dispatch hints: `tasks.assignee.dispatchHints.${suffix}` where the
   # suffix comes from `taskDispatchHintI18nSuffix` (display-category.ts), composed
@@ -333,29 +359,16 @@ entries:
   # its strings intact; until then no live code references them. Every rebuilt
   # surface must REMOVE its entries here so the orphan gate guards it again.
 
-  - 'agentCatalog'
   - 'approvalCommon'
-  - 'catalogSync'
-  - 'chat'
-  - 'composer'
   - 'documentWriteApproval'
   - 'humanInputRequest'
   - 'integrationApproval'
-  - 'knowledgeEntries'
   - 'knowledgeWriteApproval'
   - 'locationRequest'
-  - 'mcpServers'
   - 'operator'
-  - 'personalization'
-  - 'piiConfigPanel'
   - 'planApproval'
   - 'prompts'
-  - 'runtimes'
   - 'todoList'
-  - 'workflowCreationApproval'
-  - 'workflowRunApproval'
-  - 'workflowUpdateApproval'
-  - 'workflows'
 
   - 'analytics.chatHealth'
   - 'projects.agents'
