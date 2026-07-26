@@ -109,6 +109,9 @@ export type ResolvedProviderCredential =
       readonly targetEnvVar: string;
       /** Usable pool size at fetch time, for rotation bookkeeping. */
       readonly poolSize: number;
+      /** The row's endpoint override, when the brokered token authenticates
+       * against a proxy instead of the vendor's default API host. */
+      readonly endpointUrl?: string;
     };
 
 type CredentialError = ConvexError<{ code: string; message: string }>;
@@ -282,6 +285,7 @@ async function resolveBroker(
     token,
     targetEnvVar: broker.targetEnvVar,
     poolSize: diagnostics.usableTokens.length,
+    ...(row.endpointUrl !== undefined ? { endpointUrl: row.endpointUrl } : {}),
   };
 }
 

@@ -79,59 +79,100 @@ export interface ExternalTurnScope {
 }
 
 /** How the managed lane resolved the model a turn runs on. A refusal carries
- * user-facing prose (the kick writes it under the message verbatim). */
+ * user-facing prose (the kick writes it under the message verbatim).
+ * `serving` says how the turn authenticates: `gateway` rides a session
+ * virtual key; `subscription` redeems the vendor-subscription credential and
+ * authenticates the vendor's own harness directly. */
 export type ManagedModelChoice =
-  | { ok: true; providerSlug: string; modelId: string }
+  | {
+      ok: true;
+      providerSlug: string;
+      modelId: string;
+      serving: 'gateway' | 'subscription';
+    }
   | { ok: false; reason: string };
 
 /**
  * The managed model an external turn runs on: the composer's explicit pick
- * when one is sent, else the org's first directly-served model. Only a model
- * a direct-capable credential (api-key/env) serves can ride the session
- * gateway key, so a pick outside that set is refused by name — the composer
- * filters its picker to the same set, but a stale client or a direct API call
- * can still ask for more.
+ * when one is sent, else the org's first directly-served model. A model a
+ * direct-capable credential (api-key/env) serves rides the session gateway
+ * key for ANY managed harness; a vendor-subscription model is eligible for
+ * exactly the harness its credential is bound to (a Claude plan runs Claude
+ * Code — it still cannot run codex) and authenticates directly. The composer
+ * filters its picker to the same sets, but a stale client or a direct API
+ * call can still ask for more.
  */
 export async function resolveManagedModel(
   ctx: ActionCtx,
   organizationId: string,
   requestedModelId?: string,
   requestedProviderSlug?: string,
+  harness?: string,
 ): Promise<ManagedModelChoice> {
   const listing = await ctx.runAction(api.chat.composer.listComposerModels, {
     organizationId,
   });
-  const direct = listing.models.filter(
-    (model) =>
-      model.credential.authMethod === 'api-key' ||
-      model.credential.authMethod === 'env',
-  );
+  const servingOf = (
+    model: (typeof listing.models)[number],
+  ): 'gateway' | 'subscription' =>
+    model.credential.authMethod === 'api-key' ||
+    model.credential.authMethod === 'env'
+      ? 'gateway'
+      : 'subscription';
+  const eligible = listing.models.filter((model) => {
+    const auth = model.credential;
+    if (auth.authMethod === 'api-key' || auth.authMethod === 'env') return true;
+    return (
+      harness !== undefined &&
+      auth.constraints.harness === harness &&
+      harnessHasSubscriptionDelivery(harness)
+    );
+  });
+  const firstDirect = eligible.find((model) => servingOf(model) === 'gateway');
   if (requestedModelId !== undefined) {
     // The provider hint picks between copies of the same id; an unmatched
     // hint degrades to the id-only pick rather than refusing.
     const match =
-      direct.find(
+      eligible.find(
         (model) =>
           model.id === requestedModelId &&
           (requestedProviderSlug === undefined ||
             model.providerSlug === requestedProviderSlug),
-      ) ?? direct.find((model) => model.id === requestedModelId);
+      ) ?? eligible.find((model) => model.id === requestedModelId);
     if (match) {
-      return { ok: true, providerSlug: match.providerSlug, modelId: match.id };
+      return {
+        ok: true,
+        providerSlug: match.providerSlug,
+        modelId: match.id,
+        serving: servingOf(match),
+      };
     }
-    const subscriptionOnly = listing.models.some(
-      (model) => model.id === requestedModelId,
+    const subscriptionEntry = listing.models.find(
+      (model) =>
+        model.id === requestedModelId && servingOf(model) === 'subscription',
     );
+    const boundHarness =
+      subscriptionEntry !== undefined &&
+      subscriptionEntry.credential.authMethod !== 'api-key' &&
+      subscriptionEntry.credential.authMethod !== 'env'
+        ? subscriptionEntry.credential.constraints.harness
+        : undefined;
     return {
       ok: false,
-      reason: subscriptionOnly
-        ? `The model "${requestedModelId}" is served by a subscription credential bound to its vendor's own tooling, so a third-party agent here cannot run it. Pick a directly served model.`
-        : `The model "${requestedModelId}" is not offered by any active provider credential of this organization. Pick a model from the composer's list, or connect a provider under Settings → AI providers.`,
+      reason:
+        boundHarness !== undefined
+          ? `The model "${requestedModelId}" is served by a subscription credential bound to the "${boundHarness}" agent — pick that agent to run it.`
+          : `The model "${requestedModelId}" is not offered by any active provider credential of this organization. Pick a model from the composer's list, or connect a provider under Settings → AI providers.`,
     };
   }
-  const first = direct[0];
+  const first = firstDirect;
   return first
-    ? { ok: true, providerSlug: first.providerSlug, modelId: first.id }
+    ? {
+        ok: true,
+        providerSlug: first.providerSlug,
+        modelId: first.id,
+        serving: 'gateway',
+      }
     : {
         ok: false,
         reason:
@@ -415,17 +456,34 @@ export async function heartbeatExternalTurnOp(
  * harness (e.g. Cursor) can't route through the session gateway, so a managed
  * turn on it would build an inert exec that hangs to the deadline — refuse it
  * up front instead. */
+/** Whether a harness's YAML declares a subscription delivery — without one
+ * the interpreter would silently drop the redeemed token and the turn would
+ * run unauthenticated, so eligibility checks this up front. */
+export function harnessHasSubscriptionDelivery(harness: string): boolean {
+  if (!isHarnessSlug(harness)) return false;
+  return (
+    loadHarnesses().find((h) => h.slug === harness)?.subscription !== undefined
+  );
+}
+
 export function isManagedHarness(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;
   const def = loadHarnesses().find((h) => h.slug === harness);
   return def?.credentialPolicy.managed === true;
 }
 
+/** How a managed external turn authenticates: the session gateway virtual
+ * key, or a redeemed vendor-subscription token the harness's YAML
+ * `subscription` section injects (the vendor CLI authenticates directly). */
+export type ExternalTurnServing =
+  | { kind: 'gateway'; token: string }
+  | { kind: 'subscription'; secret: string; baseUrl?: string };
+
 /** Build the harness exec for a managed external turn. */
 export function buildExternalTurnExec(args: {
   harness: string;
   gatewayModel: string;
-  gatewayToken: string;
+  serving: ExternalTurnServing;
   instructions: string;
   prompt: string;
   resume?: string;
@@ -446,13 +504,30 @@ export function buildExternalTurnExec(args: {
   const exec = glue.buildExec({
     prompt: args.prompt,
     model: args.gatewayModel,
-    credential: {
-      mode: 'managed',
-      gateway: {
-        baseUrl: gatewayBaseUrlForSessions(),
-        token: args.gatewayToken,
-      },
-    },
+    // A subscription turn runs the byo credential shape with an EMPTY env —
+    // the harness YAML's `subscription` delivery injects the token (and it
+    // deliberately overrides the same-named gateway vars), so the vendor CLI
+    // authenticates directly instead of riding the session gateway.
+    credential:
+      args.serving.kind === 'gateway'
+        ? {
+            mode: 'managed',
+            gateway: {
+              baseUrl: gatewayBaseUrlForSessions(),
+              token: args.serving.token,
+            },
+          }
+        : { mode: 'byo', env: {} },
+    ...(args.serving.kind === 'subscription'
+      ? {
+          subscription: {
+            secret: args.serving.secret,
+            ...(args.serving.baseUrl !== undefined
+              ? { baseUrl: args.serving.baseUrl }
+              : {}),
+          },
+        }
+      : {}),
     workdir: '/user/workspace',
     ...(args.resume !== undefined ? { resume: args.resume } : {}),
     posture: 'act',

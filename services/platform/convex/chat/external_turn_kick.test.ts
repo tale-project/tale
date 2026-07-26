@@ -307,15 +307,15 @@ describe('kickExternalTurn — the thin-kick contract', () => {
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
   });
 
-  it('refuses a subscription-bound model pick — the managed lane cannot ride it', async () => {
-    const { ctx } = createCtx({
+  it("runs a subscription model on its own vendor's harness — the token authenticates directly", async () => {
+    const { ctx, tape } = createCtx({
       listing: {
         models: [
           ...MODEL_LISTING.models,
           {
-            id: 'glm-5-plan',
-            label: 'glm-5-plan',
-            providerSlug: 'zai',
+            id: 'claude-fable-5',
+            label: 'claude-fable-5',
+            providerSlug: 'anthropic',
             credential: {
               authMethod: 'subscription-key',
               constraints: { execution: 'sandbox', harness: 'claude-code' },
@@ -328,11 +328,46 @@ describe('kickExternalTurn — the thin-kick contract', () => {
 
     const result = await kickExternalTurn(ctx as never, {
       ...KICK_ARGS,
-      modelId: 'glm-5-plan',
+      modelId: 'claude-fable-5',
+    });
+
+    expect(result.status).toBe('completed');
+    const start = tape.find((t) => t.event.includes('startExternalTurnExec'));
+    expect(start).toBeDefined();
+    expect(start?.args).toMatchObject({
+      serving: 'subscription',
+      // The vendor CLI gets the vendor-native id, never a gateway ref.
+      gatewayModel: 'claude-fable-5',
+      providerSlug: 'anthropic',
+    });
+  });
+
+  it('refuses a subscription model picked for a DIFFERENT harness, naming the right agent', async () => {
+    const { ctx } = createCtx({
+      listing: {
+        models: [
+          ...MODEL_LISTING.models,
+          {
+            id: 'gpt-plan-5',
+            label: 'gpt-plan-5',
+            providerSlug: 'openai',
+            credential: {
+              authMethod: 'subscription-key',
+              constraints: { execution: 'sandbox', harness: 'codex' },
+            },
+          },
+        ],
+        externalAgents: [],
+      },
+    });
+
+    const result = await kickExternalTurn(ctx as never, {
+      ...KICK_ARGS,
+      modelId: 'gpt-plan-5',
     });
 
     expect(result.status).toBe('refused');
-    expect(result.reason).toContain('subscription');
+    expect(result.reason).toContain('codex');
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
   });
 
@@ -359,6 +394,7 @@ describe('runExternalTurnStart — async honesty', () => {
     providerSlug: 'openrouter',
     modelId: 'deepseek/deepseek-v3.2',
     gatewayModel: 'openrouter/deepseek/deepseek-v3.2',
+    serving: 'gateway' as const,
     execId: EXEC,
     streamId: 'stream_1',
     messageId: 'msg_assistant' as never,

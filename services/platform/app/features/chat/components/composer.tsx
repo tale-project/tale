@@ -39,6 +39,7 @@ import { ComposerModeMenu } from './composer-mode-menu';
 import {
   ComposerModelPicker,
   directServedModels,
+  modelsForHarness,
   resolveExternalModelId,
 } from './composer-model-picker';
 import {
@@ -114,7 +115,14 @@ export function Composer({
   // run, and displays the one the turn WOULD use — the explicit pick when it
   // is direct-served, else the first that is — so the trigger never shows a
   // model the sandbox could not mint a key for.
-  const externalModels = useMemo(() => directServedModels(models), [models]);
+  const externalModels = useMemo(
+    () => modelsForHarness(models, selection.harness),
+    [models, selection.harness],
+  );
+  // The platform lane lists only direct-servable models — a subscription
+  // model has no direct path (it runs on its vendor's own harness instead),
+  // so offering it here would dead-end in the sandbox guardrail.
+  const platformModels = useMemo(() => directServedModels(models), [models]);
   const externalSelection = useMemo(() => {
     const modelId = resolveExternalModelId(selection, models);
     return modelId === undefined ? selection : { ...selection, modelId };
@@ -218,7 +226,7 @@ export function Composer({
           />
           {selection.agentKind === 'platform' ? (
             <ComposerModelPicker
-              models={models}
+              models={platformModels}
               selection={selection}
               onSelectionChange={onSelectionChange}
               disabled={disabled}

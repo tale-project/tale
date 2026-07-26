@@ -47,9 +47,11 @@ import {
   resolveSessionCredentialEnv,
 } from '../node_only/sandbox/session_credentials';
 import { WORKSPACE_READ_TOOLS } from '../node_only/sandbox/workspace_tools_bridge';
+import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { sessionIdForUser } from '../sandbox/session_naming';
 import {
   buildExternalTurnExec,
+  type ExternalTurnServing,
   EXTERNAL_TURN_DEADLINE_MS,
   drainExternalTurnWindow,
   ensureAgentSession,
@@ -163,11 +165,17 @@ export async function kickExternalTurn(
     args.organizationId,
     args.modelId,
     args.providerSlug,
+    args.harness,
   );
   if (!model.ok) {
     return refuseBeforeStart(ctx, scope, model.reason);
   }
-  const routing = resolveGatewayRouting(model.providerSlug, model.modelId);
+  // A subscription turn never rides the gateway: the vendor CLI gets the
+  // vendor-native model id and authenticates with the redeemed token.
+  const gatewayModel =
+    model.serving === 'gateway'
+      ? resolveGatewayRouting(model.providerSlug, model.modelId).gatewayModel
+      : model.modelId;
   const execId = newExecId();
   const streamId = randomUUID();
   // One wall-clock cutoff for the whole turn, shared by the token expiry, the
@@ -195,7 +203,7 @@ export async function kickExternalTurn(
       lastSeq: 0,
       harness: args.harness,
       providerSlug: model.providerSlug,
-      gatewayModel: routing.gatewayModel,
+      gatewayModel,
     },
   });
 
@@ -211,7 +219,7 @@ export async function kickExternalTurn(
     execId,
     messageId,
     providerSlug: model.providerSlug,
-    gatewayModel: routing.gatewayModel,
+    gatewayModel,
     streamId,
     deadlineMs: deadlineAt,
   });
@@ -227,7 +235,8 @@ export async function kickExternalTurn(
       harness: args.harness,
       providerSlug: model.providerSlug,
       modelId: model.modelId,
-      gatewayModel: routing.gatewayModel,
+      gatewayModel,
+      serving: model.serving,
       execId,
       streamId,
       messageId,
@@ -265,6 +274,9 @@ export const startExternalTurn = action({
       userText: args.userText,
       harness: args.harness,
       ...(args.modelId !== undefined ? { modelId: args.modelId } : {}),
+      ...(args.providerSlug !== undefined
+        ? { providerSlug: args.providerSlug }
+        : {}),
     });
   },
 });
@@ -278,6 +290,7 @@ interface ExternalTurnStartArgs {
   providerSlug: string;
   modelId: string;
   gatewayModel: string;
+  serving: 'gateway' | 'subscription';
   execId: string;
   streamId: string;
   messageId: Id<'messages'>;
@@ -346,12 +359,18 @@ export async function runExternalTurnStart(
     // assembled.) Resolved BEFORE the token mint: the connector set is the
     // token's integration grant set.
     const skillSlugs = [...new Set(thread.capabilities?.skills ?? [])];
-    const connectorSlugs = [...new Set(thread.capabilities?.connectors ?? [])];
+    // A subscription turn carries no session virtual key, and the key IS the
+    // bridge's auth — so connectors and workspace tools stay off it (v1
+    // parity with byo runs); skills still stage as plain files.
+    const subscriptionRun = args.serving === 'subscription';
+    const connectorSlugs = subscriptionRun
+      ? []
+      : [...new Set(thread.capabilities?.connectors ?? [])];
     // First-party workspace reads (knowledge + Documents hub) are granted to
     // every managed external turn: they read only the org's OWN data, run as
     // the turn's user, org-scoped and audited — so a default read grant is
     // honest without a per-agent picker. Writes are not in this set.
-    const toolGrants = [...WORKSPACE_READ_TOOLS];
+    const toolGrants = subscriptionRun ? [] : [...WORKSPACE_READ_TOOLS];
 
     // Tier-2 broker: the explicitly BROKERABLE grants among the turn's
     // connectors (github today) resolve to in-container env — GITHUB_TOKEN
@@ -379,32 +398,62 @@ export async function runExternalTurnStart(
         err,
       );
     }
-    const { token, keyId } = await provisionTurnGatewayToken(
-      ctx,
-      scope,
-      sessionId,
-      { providerSlug: args.providerSlug, modelId: args.modelId },
-      {
-        harness: args.harness,
+    let serving: ExternalTurnServing;
+    if (subscriptionRun) {
+      // Redeem the vendor subscription at exec time (a brokered pool hands
+      // out a fresh rotating token per turn). The token authenticates the
+      // vendor's own CLI directly — no gateway key exists to mint or revoke,
+      // and the deviation from "credentials never enter the container" is
+      // deliberate: this is the user-scoped coding-plan secret the CLI is
+      // designed to hold, short-lived when brokered.
+      const credential = await resolveProviderCredential(ctx, {
+        organizationId: args.organizationId,
+        providerSlug: args.providerSlug,
+      });
+      if (credential.authMethod === 'subscription-key') {
+        serving = { kind: 'subscription', secret: credential.secret };
+      } else if (credential.authMethod === 'subscription-broker') {
+        serving = {
+          kind: 'subscription',
+          secret: credential.token,
+          ...(credential.endpointUrl !== undefined
+            ? { baseUrl: credential.endpointUrl }
+            : {}),
+        };
+      } else {
+        throw new Error(
+          `The "${args.providerSlug}" credential no longer provides a subscription token — pick the model again.`,
+        );
+      }
+    } else {
+      const { token, keyId } = await provisionTurnGatewayToken(
+        ctx,
+        scope,
+        sessionId,
+        { providerSlug: args.providerSlug, modelId: args.modelId },
+        {
+          harness: args.harness,
+          gatewayModel: args.gatewayModel,
+          expiresAt: args.deadlineAt,
+          integrationGrants: connectorSlugs,
+          toolGrants,
+        },
+      );
+      // Patch the freshly minted key id onto the op row the kick opened, so
+      // every finalize path (drain, cancel, deadline, recovery) can revoke it.
+      await openExternalTurnOp(ctx, {
+        scope,
+        sessionId,
+        execId: args.execId,
+        messageId: args.messageId,
+        providerSlug: args.providerSlug,
         gatewayModel: args.gatewayModel,
-        expiresAt: args.deadlineAt,
-        integrationGrants: connectorSlugs,
-        toolGrants,
-      },
-    );
-    // Patch the freshly minted key id onto the op row the kick opened, so
-    // every finalize path (drain, cancel, deadline, recovery) can revoke it.
-    await openExternalTurnOp(ctx, {
-      scope,
-      sessionId,
-      execId: args.execId,
-      messageId: args.messageId,
-      providerSlug: args.providerSlug,
-      gatewayModel: args.gatewayModel,
-      streamId: args.streamId,
-      deadlineMs: args.deadlineAt,
-      mintedKeyId: keyId,
-    });
+        streamId: args.streamId,
+        deadlineMs: args.deadlineAt,
+        mintedKeyId: keyId,
+      });
+      serving = { kind: 'gateway', token };
+    }
     const skillInstructions = await stageSkills(
       ctx,
       scope,
@@ -428,7 +477,7 @@ export async function runExternalTurnStart(
     const exec = buildExternalTurnExec({
       harness: args.harness,
       gatewayModel: args.gatewayModel,
-      gatewayToken: token,
+      serving,
       instructions,
       prompt: args.userText,
       ...(thread.externalResume !== undefined
@@ -521,6 +570,7 @@ export const startExternalTurnExec = internalAction({
     providerSlug: v.string(),
     modelId: v.string(),
     gatewayModel: v.string(),
+    serving: v.union(v.literal('gateway'), v.literal('subscription')),
     execId: v.string(),
     streamId: v.string(),
     messageId: v.id('messages'),

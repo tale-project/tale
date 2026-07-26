@@ -627,7 +627,7 @@ export const startWorkflowAgentTurn = internalAction({
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
-        gatewayToken: key.token,
+        serving: { kind: 'gateway', token: key.token },
         instructions,
         prompt: args.request.prompt,
         execId: args.execId,

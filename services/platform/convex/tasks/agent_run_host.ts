@@ -266,7 +266,7 @@ export const startTaskAgentTurn = internalAction({
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: routing.gatewayModel,
-        gatewayToken: key.token,
+        serving: { kind: 'gateway', token: key.token },
         instructions,
         prompt: buildTaskPrompt(brief),
         execId: args.execId,

@@ -229,7 +229,7 @@ describe('Composer capability assembly', () => {
 });
 
 describe('Composer model picker', () => {
-  it('lists only models — no harness entries and no automatic entry', async () => {
+  it('lists only direct-served models — no subscription, harness, or auto entries', async () => {
     const { user } = renderComposer({
       models: [API_KEY_MODEL, SUBSCRIPTION_MODEL],
     });
@@ -239,9 +239,11 @@ describe('Composer model picker', () => {
     expect(
       screen.getByRole('menuitem', { name: API_KEY_MODEL.label }),
     ).toBeInTheDocument();
+    // A subscription model has no direct path — it belongs to its vendor's
+    // harness lane, so the platform picker never offers a dead end.
     expect(
-      screen.getByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
-    ).toBeInTheDocument();
+      screen.queryByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+    ).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Claude Code' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /^auto$/i })).toBeNull();
   });
@@ -253,12 +255,12 @@ describe('Composer model picker', () => {
 
     await user.click(screen.getByRole('button', { name: 'Select model' }));
     await user.click(
-      screen.getByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+      screen.getByRole('menuitem', { name: API_KEY_MODEL.label }),
     );
 
     expect(selection()).toMatchObject({
       agentKind: 'platform',
-      modelId: SUBSCRIPTION_MODEL.id,
+      modelId: API_KEY_MODEL.id,
     });
   });
 
@@ -290,6 +292,25 @@ describe('Composer model picker', () => {
       agentKind: 'external',
       harness: 'codex',
       modelId: secondDirect.id,
+    });
+  });
+
+  it('offers a vendor-subscription model to exactly its own harness, and a pick sticks', async () => {
+    const { user, selection } = renderComposer({
+      initial: { ...EXTERNAL, harness: 'claude-code' },
+      models: [SUBSCRIPTION_MODEL, API_KEY_MODEL],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Select model' }));
+    await user.click(
+      screen.getByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+    );
+
+    expect(selection()).toMatchObject({
+      agentKind: 'external',
+      harness: 'claude-code',
+      modelId: SUBSCRIPTION_MODEL.id,
+      providerSlug: SUBSCRIPTION_MODEL.providerSlug,
     });
   });
 

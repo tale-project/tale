@@ -92,8 +92,7 @@ export function withDefaultModel(
 /**
  * The models the managed external lane can run: those a direct-capable
  * (api-key/env) credential serves — the same filter the turn's kick applies
- * server-side. A subscription-bound model only runs inside its own vendor's
- * tooling, never under a third-party harness here.
+ * server-side for the gateway path.
  */
 export function directServedModels(
   models: readonly ComposerModelOption[],
@@ -102,6 +101,25 @@ export function directServedModels(
     (model) =>
       !resolveSandboxAffordance(asCatalogEntry(model), model.credential).locked,
   );
+}
+
+/**
+ * The models one HARNESS can run under the managed lane: everything a direct
+ * credential serves, plus the vendor-subscription models bound to exactly
+ * this harness — a Claude coding plan runs Claude Code, and still cannot run
+ * codex. Mirrors the server's `resolveManagedModel` eligibility.
+ */
+export function modelsForHarness(
+  models: readonly ComposerModelOption[],
+  harness: string | undefined,
+): ComposerModelOption[] {
+  return models.filter((model) => {
+    const auth = model.credential;
+    if (auth.authMethod === 'api-key' || auth.authMethod === 'env') {
+      return true;
+    }
+    return harness !== undefined && auth.constraints.harness === harness;
+  });
 }
 
 /**
@@ -114,9 +132,11 @@ export function resolveExternalModelId(
   selection: ComposerSelection,
   models: readonly ComposerModelOption[],
 ): string | undefined {
-  const eligible = directServedModels(models);
+  const eligible = modelsForHarness(models, selection.harness);
   const picked = eligible.find((model) => model.id === selection.modelId);
-  return (picked ?? eligible[0])?.id;
+  // The fallback stays a DIRECT model: a subscription copy is an explicit
+  // pick, never a silent default.
+  return (picked ?? directServedModels(models)[0])?.id;
 }
 
 export function ComposerModelPicker({
