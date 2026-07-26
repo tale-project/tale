@@ -44,7 +44,6 @@ import {
   stubFromSchema,
 } from '../../lib/engine/core/execute/scope';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner';
-import { llmService } from '../../lib/engine/core/slots';
 import {
   evalCondition,
   evalTemplates,
@@ -71,6 +70,7 @@ import {
   traceFrom,
   whenSkippedFrom,
 } from './checkpoints';
+import { automationLlmCall, type AutomationLlmCall } from './llm_call';
 
 /**
  * How long one invocation works before handing the run back to the scheduler.
@@ -144,6 +144,27 @@ export function setAutomationApprovalGate(
   gate: AutomationApprovalGate | null,
 ): void {
   approvalGate = gate;
+}
+
+/**
+ * How a run gets its llm door. A seam like the approval gate's, but held as a
+ * factory: the real door reaches the network, which the stepper suite forbids,
+ * so a test substitutes a recording factory. `stepRun` builds each turn's
+ * instance from whichever factory is installed and carries it on the run
+ * context, so the closure is always over that turn's ctx and organization.
+ */
+export type AutomationLlmCallFactory = (
+  ctx: ActionCtx,
+  organizationId: string,
+) => AutomationLlmCall;
+
+let llmCallFactory: AutomationLlmCallFactory | null = null;
+
+/** Install a substitute llm door factory; `null` restores the real one. */
+export function setAutomationLlmCallFactory(
+  factory: AutomationLlmCallFactory | null,
+): void {
+  llmCallFactory = factory;
 }
 
 /** A connector node's declared effect, read from the shipped catalog. `read`
@@ -278,6 +299,8 @@ interface RunContext {
   automation: string;
   mode: 'mock' | 'live';
   deadline: number;
+  /** The llm door for this run's organization; live llm nodes go through it. */
+  llm: AutomationLlmCall;
 }
 
 /** A resolved template destined for prompt text: strings pass through,
@@ -346,9 +369,8 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     };
     if (record) trace.input = llmInput;
     effects.push({ node: node.id, integration: 'llm', input: llmInput });
-    const service = llmService();
-    if (run.mode === 'live' && service) {
-      const reply = await service({
+    if (run.mode === 'live') {
+      const reply = await run.llm({
         model,
         prompt,
         ...(system !== undefined && { system }),
@@ -359,15 +381,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       if (node.outputSchema !== undefined) {
         if (!('data' in reply)) {
           throw new Error(
-            'the llm service returned plain text for a node with outputSchema — structured output was required',
+            'the llm call returned plain text for a node with outputSchema — structured output was required',
           );
         }
         return reply.data;
       }
       return 'text' in reply ? { text: reply.text } : reply.data;
-    }
-    if (record && run.mode === 'live') {
-      trace.note = 'no llm service installed — deterministic mock used';
     }
     return node.outputSchema !== undefined
       ? stubFromSchema(node.outputSchema)
@@ -867,6 +886,9 @@ export const stepRun = internalAction({
       automation: loaded.run.name,
       mode: loaded.run.mode,
       deadline: Date.now() + stepBudgetMs(),
+      // Built fresh every turn, like the approval gate below: the door closes
+      // over this invocation's ctx and the run's own organization.
+      llm: (llmCallFactory ?? automationLlmCall)(ctx, args.organizationId),
     };
 
     // Install the real approval gate for THIS run before any node is stepped,

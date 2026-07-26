@@ -31,6 +31,7 @@ import { internal } from '../_generated/api';
 import { internalAction, type ActionCtx } from '../_generated/server';
 import { createBuilderModel } from '../automations_builder/model_call';
 import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
+import { directActiveCredential } from '../lib/providers/direct_credential';
 import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
 
 /** The whole naming attempt shares one wall-clock budget; past it the
@@ -58,26 +59,6 @@ Given the user's first message below, produce a concise, descriptive title (3-6 
 interface TitleModelTarget {
   readonly providerSlug: string;
   readonly modelId: string;
-}
-
-/** The facts the model pick needs from a credential row (the internal query
- * returns `v.any()`, so the shape is narrowed here rather than trusted). */
-function directActiveCredential(
-  row: unknown,
-): { modelAllowlist?: readonly string[] } | null {
-  if (row === null || typeof row !== 'object') return null;
-  if (!('status' in row) || row.status !== 'active') return null;
-  if (
-    !('authMethod' in row) ||
-    (row.authMethod !== 'api-key' && row.authMethod !== 'env')
-  ) {
-    return null;
-  }
-  const allowlist = 'modelAllowlist' in row ? row.modelAllowlist : undefined;
-  return Array.isArray(allowlist) &&
-    allowlist.every((id) => typeof id === 'string')
-    ? { modelAllowlist: allowlist }
-    : {};
 }
 
 /**

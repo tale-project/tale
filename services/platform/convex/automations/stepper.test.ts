@@ -36,7 +36,11 @@ import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import schema from '../schema';
 import { readCheckpoints } from './checkpoints';
-import { setAutomationApprovalGate } from './stepper';
+import type { AutomationLlmRequest } from './llm_call';
+import {
+  setAutomationApprovalGate,
+  setAutomationLlmCallFactory,
+} from './stepper';
 import { automationStore } from './store';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'automations';
@@ -111,6 +115,7 @@ type T = TestConvex<typeof schema>;
 
 beforeEach(() => {
   calls.length = 0;
+  llmCalls.length = 0;
   process.env.TALE_AUTOMATION_STEP_BUDGET_MS = '0';
   vi.stubGlobal(
     'fetch',
@@ -123,8 +128,28 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.TALE_AUTOMATION_STEP_BUDGET_MS;
   setAutomationApprovalGate(null);
+  setAutomationLlmCallFactory(null);
   vi.unstubAllGlobals();
 });
+
+/** Every llm door request the stepper made, with the org its door was built
+ * for. The real door reaches the network, which this suite forbids, so the
+ * factory seam gets this recording stand-in instead. */
+const llmCalls: Array<{
+  organizationId: string;
+  request: AutomationLlmRequest;
+}> = [];
+
+function recordingLlmFactory() {
+  setAutomationLlmCallFactory((_ctx, organizationId) => (request) => {
+    llmCalls.push({ organizationId, request });
+    return Promise.resolve(
+      request.outputSchema === undefined
+        ? { text: 'one real sentence' }
+        : { data: { score: 7 } },
+    );
+  });
+}
 
 /** Save + deploy one document, the way the authoring surface would. */
 async function publish(t: T, wf: Automation): Promise<void> {
@@ -675,5 +700,102 @@ describe('durable stepper — modes', () => {
         (job) => job.name.includes('stepper') && job.state.kind === 'pending',
       ),
     ).toHaveLength(1);
+  });
+});
+
+const summarizeSubject: Automation = {
+  version: 1,
+  name: 'ops/summarize',
+  nodes: [
+    {
+      id: 'summary',
+      type: 'llm',
+      model: 'vendor/small-1',
+      system: 'Be terse.',
+      prompt: 'Summarize: {{ input.subject }}',
+    },
+  ],
+  output: '{{ nodes.summary.output.text }}',
+};
+
+const scoreSubject: Automation = {
+  version: 1,
+  name: 'ops/score',
+  nodes: [
+    {
+      id: 'score',
+      type: 'llm',
+      model: 'vendor/small-1',
+      prompt: 'Score: {{ input.subject }}',
+      outputSchema: {
+        type: 'object',
+        properties: { score: { type: 'number' } },
+        required: ['score'],
+      },
+    },
+  ],
+  output: '{{ nodes.score.output }}',
+};
+
+describe('durable stepper — llm nodes', () => {
+  it('sends a live llm node through the run door, built for the run organization', async () => {
+    recordingLlmFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, summarizeSubject);
+    const runId = await queueRun(t, 'ops/summarize', { subject: 'hello' });
+
+    expect(await drive(t, runId)).toBe('success');
+    expect(llmCalls).toEqual([
+      {
+        organizationId: ORG,
+        request: {
+          model: 'vendor/small-1',
+          prompt: 'Summarize: hello',
+          system: 'Be terse.',
+        },
+      },
+    ]);
+
+    const row = await runRow(t, runId);
+    expect(row.output).toBe('one real sentence');
+    expect(row.effects).toEqual([
+      {
+        node: 'summary',
+        integration: 'llm',
+        input: {
+          model: 'vendor/small-1',
+          prompt: 'Summarize: hello',
+          system: 'Be terse.',
+        },
+      },
+    ]);
+  });
+
+  it('hands an outputSchema node the door reply as data', async () => {
+    recordingLlmFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, scoreSubject);
+    const runId = await queueRun(t, 'ops/score', { subject: 'hello' });
+
+    expect(await drive(t, runId)).toBe('success');
+    expect(llmCalls).toHaveLength(1);
+    expect(llmCalls[0].request.outputSchema).toEqual(
+      scoreSubject.nodes[0].outputSchema,
+    );
+
+    const row = await runRow(t, runId);
+    expect(row.output).toEqual({ score: 7 });
+  });
+
+  it('never opens the door for a mock run — the deterministic mock answers', async () => {
+    recordingLlmFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, summarizeSubject);
+    const runId = await queueRun(t, 'ops/summarize', { subject: 'x' }, 'mock');
+
+    expect(await drive(t, runId)).toBe('success');
+    expect(llmCalls).toHaveLength(0);
+    const row = await runRow(t, runId);
+    expect(row.output).toMatch(/^MOCK_LLM_RESPONSE\[vendor\/small-1:/);
   });
 });
