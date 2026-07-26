@@ -786,6 +786,10 @@ automations:
       outputSchema: Ausgabeschema
       automation: Automatisierung
       credential: Zugangsdaten
+      harness: Agent-Harness
+      skills: Skills
+      connectors: Connectors
+      files: Bereitgestellte Dateien
       when: Wenn
       whenDescription: Diese Node überspringen, wenn der Ausdruck falsch ist.
       elseOf: Sonst zu

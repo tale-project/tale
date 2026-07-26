@@ -35,6 +35,10 @@ const FIELD_CONTROL: Record<string, 'text' | 'multiline' | 'json'> = {
   prompt: 'multiline',
   system: 'multiline',
   model: 'text',
+  harness: 'text',
+  skills: 'json',
+  connectors: 'json',
+  files: 'json',
   automation: 'text',
   credential: 'text',
 };

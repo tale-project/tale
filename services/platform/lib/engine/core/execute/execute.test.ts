@@ -4,6 +4,7 @@ import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../store/memory';
 import {
   registerNodeType,
+  setAgentService,
   setCodeRunner,
   setLlmService,
   setStoreAdapter,
@@ -63,6 +64,7 @@ beforeAll(() => {
 beforeEach(() => {
   setStoreAdapter(null as never);
   setLlmService(null as never);
+  setAgentService(null);
 });
 
 function automationDoc(
@@ -506,6 +508,117 @@ describe('llm structured output', () => {
     const result = await execute(doc, { input: {}, mode: 'live' });
     expect(result.output).toBe('live reply');
     expect(service).toHaveBeenCalledWith({ model: 'the-model', prompt: 'p' });
+  });
+});
+
+describe('agent nodes', () => {
+  it('mock mode yields the deterministic envelope and records the effect', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'extract',
+          type: 'agent',
+          model: 'test-model',
+          prompt: 'Read invoices for {{ input.quarter }}',
+          skills: ['swiss-vat-return'],
+          files: { input: '{{ input.folderId }}' },
+        },
+      ],
+      { output: '{{ nodes.extract.output }}' },
+    );
+    const result = await execute(doc, {
+      input: { quarter: '2026Q1', folderId: 'fld_1' },
+    });
+    expect(result.status).toBe('success');
+    const output = result.output as { text: string; files: unknown[] };
+    expect(output.text).toMatch(/^MOCK_AGENT_RESPONSE\[test-model:/);
+    expect(output).toMatchObject({ files: [], status: 'ok' });
+    expect(result.effects).toEqual([
+      {
+        node: 'extract',
+        integration: 'agent',
+        input: {
+          model: 'test-model',
+          prompt: 'Read invoices for 2026Q1',
+          skills: ['swiss-vat-return'],
+          files: { input: 'fld_1' },
+        },
+      },
+    ]);
+  });
+
+  it('mock runs are byte-identical across executions', async () => {
+    const doc = automationDoc(
+      [{ id: 'a', type: 'agent', model: 'm', prompt: 'stable prompt' }],
+      { output: '{{ nodes.a.output.text }}' },
+    );
+    const first = await execute(doc, { input: {} });
+    const second = await execute(doc, { input: {} });
+    expect(first.output).toEqual(second.output);
+  });
+
+  it('live mode calls the installed service and normalizes the envelope', async () => {
+    const service = vi.fn(async () => ({
+      text: 'done',
+      files: [{ name: 'return.xml', storageId: 'st_1' }],
+    }));
+    setAgentService(service);
+    const doc = automationDoc(
+      [
+        {
+          id: 'work',
+          type: 'agent',
+          model: 'the-model',
+          harness: 'claude-code',
+          prompt: 'p',
+          connectors: ['github'],
+        },
+      ],
+      { output: '{{ nodes.work.output }}' },
+    );
+    const result = await execute(doc, { input: {}, mode: 'live' });
+    expect(result.output).toEqual({
+      text: 'done',
+      files: [{ name: 'return.xml', storageId: 'st_1' }],
+      status: 'ok',
+    });
+    expect(service).toHaveBeenCalledWith({
+      model: 'the-model',
+      prompt: 'p',
+      harness: 'claude-code',
+      connectors: ['github'],
+    });
+  });
+
+  it('live mode without a service falls back to the deterministic mock with a note', async () => {
+    const doc = automationDoc([
+      { id: 'a', type: 'agent', model: 'm', prompt: 'p' },
+    ]);
+    const result = await execute(doc, { input: {}, mode: 'live' });
+    expect(result.status).toBe('success');
+    const entry = result.trace.find((t) => t.node === 'a');
+    expect(entry?.note).toContain('no agent service installed');
+    expect(entry?.output).toMatchObject({
+      text: expect.stringMatching(/^MOCK_AGENT_RESPONSE\[/),
+    });
+  });
+
+  it('downstream nodes path into the structured envelope', async () => {
+    const doc = automationDoc(
+      [
+        { id: 'work', type: 'agent', model: 'm', prompt: 'p' },
+        {
+          id: 'count',
+          type: 'transform',
+          input: { files: '{{ nodes.work.output.files }}' },
+          code: 'return { n: input.files.length };',
+        },
+      ],
+      { output: '{{ nodes.count.output.n }}' },
+    );
+    const result = await execute(doc, { input: {} });
+    expect(result.status).toBe('success');
+    expect(result.output).toBe(0);
   });
 });
 

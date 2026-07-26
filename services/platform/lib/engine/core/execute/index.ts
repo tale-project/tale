@@ -12,14 +12,15 @@
 
 import { Ajv } from 'ajv';
 
-import type { IntegrationHostCapabilities } from '../slots';
-import { llmService, nodeTypes, storeAdapter } from '../slots';
+import type { AgentTurnRequest, IntegrationHostCapabilities } from '../slots';
+import { agentService, llmService, nodeTypes, storeAdapter } from '../slots';
 import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
 import type { Automation, Effect, NodeTrace, RunResult } from '../types';
 import { refsOf, topoSort } from './controlflow';
 import {
   cloneData,
   makeScope,
+  mockAgentText,
   mockLlmText,
   newRunId,
   stubFromSchema,
@@ -244,6 +245,57 @@ export async function execute(
                 : { text: mockLlmText(model, prompt) };
           }
           effects.push({ node: n.id, integration: 'llm', input: llmInput });
+        } else if (n.type === 'agent') {
+          const model = n.model ?? '';
+          const prompt = asPromptText(
+            await evalTemplates(n.prompt ?? '', scope()),
+          );
+          const system = n.system
+            ? asPromptText(await evalTemplates(n.system, scope()))
+            : undefined;
+          const files =
+            n.files === undefined
+              ? undefined
+              : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- evalTemplates preserves the record shape of `files`
+                ((await evalTemplates(n.files, scope())) as Record<
+                  string,
+                  unknown
+                >);
+          const context =
+            n.input === undefined
+              ? undefined
+              : await evalTemplates(n.input, scope());
+          const agentInput: AgentTurnRequest = {
+            model,
+            prompt,
+            ...(system !== undefined && { system }),
+            ...(n.harness !== undefined && { harness: n.harness }),
+            ...(n.skills !== undefined && { skills: n.skills }),
+            ...(n.connectors !== undefined && { connectors: n.connectors }),
+            ...(files !== undefined && { files }),
+            ...(context !== undefined && { input: context }),
+          };
+          if (record) entry.input = agentInput;
+          const service = agentService();
+          if (opts.mode === 'live' && service) {
+            const reply = await service(agentInput);
+            out = {
+              text: reply.text,
+              files: reply.files ?? [],
+              status: reply.status ?? 'ok',
+            };
+          } else {
+            if (record && opts.mode === 'live' && !service) {
+              entry.note =
+                'no agent service installed — deterministic mock used';
+            }
+            out = {
+              text: mockAgentText(model, prompt),
+              files: [],
+              status: 'ok',
+            };
+          }
+          effects.push({ node: n.id, integration: 'agent', input: agentInput });
         } else if (n.type === 'subautomation') {
           const ref = n.automation ?? '';
           const store = storeAdapter();

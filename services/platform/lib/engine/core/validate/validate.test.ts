@@ -229,6 +229,105 @@ describe('document shape', () => {
   });
 });
 
+describe('agent nodes', () => {
+  it('accepts the full field surface', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'work',
+          type: 'agent',
+          model: 'test-model',
+          prompt: 'Extract {{ input.quarter }}',
+          system: 'Be precise.',
+          harness: 'claude-code',
+          skills: ['swiss-vat-return'],
+          connectors: ['github'],
+          files: { setup: '{{ input.setupFolderId }}' },
+          input: { quarter: '{{ input.quarter }}' },
+        },
+      ],
+      {
+        inputs: {
+          type: 'object',
+          properties: {
+            quarter: { type: 'string' },
+            setupFolderId: { type: 'string' },
+          },
+        },
+        output: '{{ nodes.work.output.text }}',
+      },
+    );
+    const { errors } = await validate(doc);
+    expect(errors).toEqual([]);
+  });
+
+  it('requires prompt and model', async () => {
+    const { errors } = await validate(
+      automationDoc([{ id: 'a', type: 'agent' }], {
+        output: '{{ nodes.a.output.text }}',
+      }),
+    );
+    expect(codesOf(errors)).toEqual([
+      'NODE_MISSING_FIELD',
+      'NODE_MISSING_FIELD',
+    ]);
+  });
+
+  it('refuses outputSchema — the envelope is fixed', async () => {
+    const { errors } = await validate(
+      automationDoc(
+        [
+          {
+            id: 'a',
+            type: 'agent',
+            model: 'm',
+            prompt: 'p',
+            outputSchema: { type: 'object' },
+          },
+        ],
+        { output: '{{ nodes.a.output.text }}' },
+      ),
+    );
+    expect(codesOf(errors)).toEqual(['NODE_UNKNOWN_FIELD']);
+  });
+
+  it('type-checks the capability lists and the files map', async () => {
+    const { errors } = await validate(
+      automationDoc(
+        [
+          {
+            id: 'a',
+            type: 'agent',
+            model: 'm',
+            prompt: 'p',
+            skills: 'swiss-vat-return' as never,
+            files: ['not', 'a', 'map'] as never,
+          },
+        ],
+        { output: '{{ nodes.a.output.text }}' },
+      ),
+    );
+    expect(codesOf(errors)).toEqual(['NODE_FIELD_TYPE', 'NODE_FIELD_TYPE']);
+  });
+
+  it('lets references path into the structured envelope', async () => {
+    const doc = automationDoc(
+      [
+        { id: 'a', type: 'agent', model: 'm', prompt: 'p' },
+        {
+          id: 'b',
+          type: 'transform',
+          input: { files: '{{ nodes.a.output.files }}' },
+          code: 'return input.files.length;',
+        },
+      ],
+      { output: '{{ nodes.b.output }}' },
+    );
+    const { errors } = await validate(doc);
+    expect(errors).toEqual([]);
+  });
+});
+
 describe('references', () => {
   it('suggests the closest node id on unknown references', async () => {
     const doc = automationDoc(

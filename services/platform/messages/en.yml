@@ -748,6 +748,10 @@ automations:
       outputSchema: Output schema
       automation: Automation
       credential: Credential
+      harness: Agent harness
+      skills: Skills
+      connectors: Connectors
+      files: Staged files
       when: When
       whenDescription: Skip this node when the expression is falsy.
       elseOf: Else of

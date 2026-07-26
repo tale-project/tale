@@ -36,17 +36,29 @@ export function newRunId(): string {
   return `run_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Deterministic default text for llm nodes in mock mode: a stable hash tag
- * plus the prompt head, so acceptance tests can compute expected values and
- * two runs of one document are byte-identical. */
-export function mockLlmText(model: string, prompt: string): string {
+/** FNV-1a tag of a prompt — the stable hash both mock texts embed. */
+function promptTag(prompt: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < prompt.length; i++) {
     h ^= prompt.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
+  return (h % 100000).toString(36);
+}
+
+/** Deterministic default text for llm nodes in mock mode: a stable hash tag
+ * plus the prompt head, so acceptance tests can compute expected values and
+ * two runs of one document are byte-identical. */
+export function mockLlmText(model: string, prompt: string): string {
   const head = prompt.replace(/\s+/g, ' ').trim().slice(0, 70);
-  return `MOCK_LLM_RESPONSE[${model}:${(h % 100000).toString(36)}]: ${head}`;
+  return `MOCK_LLM_RESPONSE[${model}:${promptTag(prompt)}]: ${head}`;
+}
+
+/** Deterministic default reply for agent nodes in mock mode — same contract
+ * as {@link mockLlmText}, distinct marker so traces read honestly. */
+export function mockAgentText(model: string, prompt: string): string {
+  const head = prompt.replace(/\s+/g, ' ').trim().slice(0, 70);
+  return `MOCK_AGENT_RESPONSE[${model}:${promptTag(prompt)}]: ${head}`;
 }
 
 /**

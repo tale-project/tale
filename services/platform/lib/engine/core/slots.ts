@@ -214,6 +214,30 @@ const table = new Map<string, NodeTypeDef>([
     },
   ],
   [
+    'agent',
+    {
+      type: 'agent',
+      kind: 'core',
+      // The reply text is free-form, but the envelope is fixed — callers path
+      // into .output.text / .output.files / .output.status, so the reference
+      // system treats the node as structured.
+      outputKind: 'structured',
+      description:
+        'Run one turn of an external coding agent (Claude Code, Codex, …) in the sandbox: it reads staged `files`, uses `skills` and brokered `connectors`, and writes artifacts. `model` is required and explicit. Output: {text, files: [{name, storageId, size, contentType}], status}. Use `llm` for a one-shot completion; use `agent` only when the step needs tools, files, or multiple turns.',
+      allowedFields: [
+        'prompt',
+        'system',
+        'model',
+        'harness',
+        'skills',
+        'connectors',
+        'files',
+        'input',
+      ],
+      requiredFields: ['prompt', 'model'],
+    },
+  ],
+  [
     'subautomation',
     {
       type: 'subautomation',
@@ -291,4 +315,56 @@ export function setLlmService(service: LlmService): void {
 
 export function llmService(): LlmService | null {
   return llm;
+}
+
+// -------------------------------------------------------------------- agent
+
+/** A file an agent turn produced, as the host harvested and stored it. */
+export interface AgentFileRef {
+  name: string;
+  storageId?: string;
+  size?: number;
+  contentType?: string;
+}
+
+/** What an `agent` node hands the service: the resolved prompt pair, the
+ * explicit model, and the declared capability surface. `files` values are
+ * host-interpreted references (folder/document ids); the engine only
+ * resolves the templates inside them. */
+export interface AgentTurnRequest {
+  model: string;
+  prompt: string;
+  system?: string;
+  harness?: string;
+  skills?: string[];
+  connectors?: string[];
+  files?: Record<string, unknown>;
+  input?: unknown;
+}
+
+/** The fixed output envelope of an `agent` node. */
+export interface AgentTurnResult {
+  text: string;
+  files?: AgentFileRef[];
+  status?: string;
+}
+
+/**
+ * The external-agent seam for `agent` nodes — the sibling of {@link LlmService}.
+ * The host runs the turn in its sandbox (staging, harness exec, harvest) and
+ * returns the settled envelope. When no service is installed, execution uses
+ * a deterministic mock, so documents stay testable without a sandbox.
+ */
+export interface AgentService {
+  (args: AgentTurnRequest): Promise<AgentTurnResult>;
+}
+
+let agent: AgentService | null = null;
+
+export function setAgentService(service: AgentService | null): void {
+  agent = service;
+}
+
+export function agentService(): AgentService | null {
+  return agent;
 }

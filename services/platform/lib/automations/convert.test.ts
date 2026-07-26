@@ -884,3 +884,156 @@ describe('ordering with no data between two steps', () => {
     ]);
   });
 });
+
+const sandboxDesk: SourceAutomation = {
+  steps: [
+    {
+      stepSlug: 'start',
+      stepType: 'start',
+      config: {
+        inputSchema: { properties: { task: { type: 'object' } } },
+      },
+      nextSteps: { success: 'extract_invoices' },
+    },
+    {
+      stepSlug: 'extract_invoices',
+      stepType: 'sandbox',
+      config: {
+        run: {
+          agent: 'vat-return-desk/invoice-reader',
+          instructions: 'Extract fields for {{input.task.title}}.',
+          budget: { maxCents: 400, maxTurns: 80 },
+        },
+        inputs: [
+          {
+            as: 'workspace/setup',
+            from: { folderId: '{{input.task.externalUrl}}' },
+          },
+          {
+            as: 'workspace/input',
+            from: { folderId: '{{input.task.externalId}}' },
+          },
+        ],
+        output: { collectDir: 'output' },
+        timeoutMs: 3_600_000,
+      },
+      nextSteps: { success: 'run_pipeline' },
+    },
+    {
+      stepSlug: 'run_pipeline',
+      stepType: 'sandbox',
+      config: {
+        run: {
+          script: 'pack://vat-return-desk/scripts/run_quarter.py',
+          language: 'python',
+          params: { period: '{{input.task.title}}', fxRefresh: true },
+          useSkills: [{ slug: 'swiss-vat-return', include: ['engine'] }],
+        },
+        inputs: [
+          { as: 'input', from: { folderId: '{{input.task.externalId}}' } },
+        ],
+        output: { collectDir: 'output', resultFile: 'result.json' },
+        timeoutMs: 1_200_000,
+      },
+      nextSteps: {},
+    },
+  ],
+};
+
+describe('a sandbox step splits into agent and script nodes', () => {
+  const { automation, needsReview } = convert('vat/desk', sandboxDesk);
+  const agent = automation.nodes.find((node) => node.id === 'extract_invoices');
+  const script = automation.nodes.find((node) => node.id === 'run_pipeline');
+
+  it('maps the agent run onto an agent node, never llm', () => {
+    expect(agent).toEqual({
+      id: 'extract_invoices',
+      type: 'agent',
+      model: MODEL,
+      prompt: 'Extract fields for {{ input.task?.title }}.',
+      files: {
+        'workspace/setup': '{{ input.task?.externalUrl }}',
+        'workspace/input': '{{ input.task?.externalId }}',
+      },
+    });
+  });
+
+  it('maps the script run onto the script capability, never llm', () => {
+    expect(script?.type).toBe('sandbox.run_script');
+    expect(script?.input).toEqual({
+      skill: 'swiss-vat-return',
+      entry: 'scripts/run_quarter.py',
+      language: 'python',
+      params: { period: '{{ input.task?.title }}', fxRefresh: true },
+      files: { input: '{{ input.task?.externalId }}' },
+      output: { resultFile: 'result.json' },
+    });
+    expect(script?.when).toBe(
+      '{{ nodes.extract_invoices.output !== undefined }}',
+    );
+  });
+
+  it('reports what a human still has to decide', () => {
+    expect(needsReview).toContainEqual({
+      node: 'extract_invoices',
+      reason: expect.stringContaining('confirm that is the model'),
+    });
+    expect(needsReview).toContainEqual({
+      node: 'extract_invoices',
+      reason: expect.stringContaining('invoice-reader'),
+    });
+    expect(needsReview).toContainEqual({
+      node: 'extract_invoices',
+      reason: expect.stringContaining('budget'),
+    });
+    expect(needsReview).toContainEqual({
+      node: 'run_pipeline',
+      reason: expect.stringContaining('pack script paths no longer resolve'),
+    });
+    expect(needsReview).toContainEqual({
+      node: 'run_pipeline',
+      reason: expect.stringContaining('whole skill bundle'),
+    });
+    expect(needsReview).toContainEqual({
+      node: 'run_pipeline',
+      reason: expect.stringContaining('timeouts are now the runtime'),
+    });
+  });
+});
+
+describe('a converted agent node runs against the deterministic mock', () => {
+  const source: SourceAutomation = {
+    steps: [
+      {
+        stepSlug: 'start',
+        stepType: 'start',
+        config: {},
+        nextSteps: { success: 'author' },
+      },
+      {
+        stepSlug: 'author',
+        stepType: 'sandbox',
+        config: { run: { agent: 'x/y', instructions: 'Fix the setup.' } },
+        nextSteps: {},
+      },
+    ],
+  };
+  const { automation } = convert('vat/author', source);
+
+  it('validates clean and yields the agent envelope', async () => {
+    const result = await runConverted(automation, {});
+    expect(result.status).toBe('success');
+    expect(result.output).toMatchObject({
+      files: [],
+      status: 'ok',
+      text: expect.stringContaining('MOCK_AGENT_RESPONSE'),
+    });
+    expect(result.effects).toEqual([
+      {
+        node: 'author',
+        integration: 'agent',
+        input: { model: MODEL, prompt: 'Fix the setup.' },
+      },
+    ]);
+  });
+});

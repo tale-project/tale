@@ -23,6 +23,8 @@ export type Json =
  *  - `transform`      — sandboxed JavaScript over its resolved `input`
  *  - `llm`            — language-model call with a templated prompt and an
  *                       explicit, caller-chosen model
+ *  - `agent`          — one turn of an external coding agent in the sandbox,
+ *                       with staged files, skills and brokered connectors
  *  - `subautomation`  — run a saved automation as a node
  *  - any registered capability name (integration actions, platform natives
  *    such as knowledge search) — an external connector
@@ -56,14 +58,14 @@ export interface NodeDef {
   /** transform: a JavaScript function body over `input`/`nodes` (+ `item`
    * and `index` under forEach); it MUST return a value. */
   code?: string;
-  /** llm: the user prompt template. */
+  /** llm/agent: the user prompt template. */
   prompt?: string;
-  /** llm: optional system prompt. */
+  /** llm/agent: optional system prompt. */
   system?: string;
   /**
-   * llm: the model to call — REQUIRED and always explicit. The engine never
-   * picks a model on the author's behalf; availability and access are the
-   * host's concern.
+   * llm/agent: the model to call — REQUIRED and always explicit. The engine
+   * never picks a model on the author's behalf; availability and access are
+   * the host's concern.
    */
   model?: string;
   /**
@@ -72,6 +74,21 @@ export interface NodeDef {
    * sanctioned bridge from unstructured text to structured data.
    */
   outputSchema?: Record<string, unknown>;
+  /**
+   * agent: the coding-agent harness that runs the turn (`claude-code`,
+   * `codex`, …). Optional — the host's default harness applies when absent.
+   */
+  harness?: string;
+  /** agent: org skill slugs staged into the session before the turn. */
+  skills?: string[];
+  /** agent: connector slugs the turn may reach through the broker. */
+  connectors?: string[];
+  /**
+   * agent: workspace staging map — mount name → a document/folder reference
+   * (templates allowed in values). The host stages each entry under the
+   * session workspace before the turn starts.
+   */
+  files?: Record<string, unknown>;
   /** subautomation: a saved reference, `"name"` or `"name@version"`. */
   automation?: string;
 }

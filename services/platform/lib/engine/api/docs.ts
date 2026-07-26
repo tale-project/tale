@@ -196,9 +196,13 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
    {id, type: llm, model: "<model id>", system?: "...", prompt: "... {{ nodes.get.output }} ..."} → output {text: string}
    With "outputSchema" (a JSON Schema), the output becomes the schema-shaped OBJECT instead — this is the one bridge from free text to structured data, and the fix for "an unstructured output has no fields".
 
-3. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
+3. agent — run ONE turn of an external coding agent (Claude Code, Codex, …) in the sandbox. "model" and "prompt" are required and explicit.
+   {id, type: agent, model: "<model id>", prompt: "...", system?: "...", harness?: "claude-code", skills?: ["<skill slug>"], connectors?: ["<connector slug>"], files?: {"setup": "{{ input.setupFolderId }}"}} → output {text, files: [{name, storageId, size, contentType}], status}
+   "files" stages folders/documents into the agent workspace; whatever the agent writes to its output directory comes back as output.files. Use llm for a one-shot completion; use agent ONLY when the step needs tools, staged files, or multiple turns — it is slower and costs more.
 
-4. capability nodes — connectors to external apps and platform tools. Set "type" to the capability's own name (never "integration"); data goes in "input" and must match its schema:
+4. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
+
+5. capability nodes — connectors to external apps and platform tools. Set "type" to the capability's own name (never "integration"); data goes in "input" and must match its schema:
 ${integrationLines()}
    Capability nodes accept NO other fields. During testing they are deterministic mocks: same input → same output. Discover more with search_catalog.
 

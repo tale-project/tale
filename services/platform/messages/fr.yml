@@ -784,6 +784,10 @@ automations:
       outputSchema: Schéma de sortie
       automation: Automatisation
       credential: Identifiants
+      harness: Harness d'agent
+      skills: Skills
+      connectors: Connecteurs
+      files: Fichiers fournis
       when: Si
       whenDescription: Ignorer ce nœud quand l’expression est fausse.
       elseOf: Sinon de

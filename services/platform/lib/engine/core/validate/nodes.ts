@@ -37,8 +37,12 @@ const STRING_FIELDS = [
   'prompt',
   'system',
   'model',
+  'harness',
   'automation',
 ] as const;
+
+/** Agent capability lists: flat arrays of slugs. */
+const SLUG_LIST_FIELDS = ['skills', 'connectors'] as const;
 
 /** Transform code runs data-only: no module loading, no network, no host
  * process — these tokens always fail at runtime. */
@@ -324,6 +328,31 @@ export async function validateNodes(
           }),
         );
       }
+    }
+    for (const k of SLUG_LIST_FIELDS) {
+      const v = n[k];
+      if (v === undefined) continue;
+      if (!Array.isArray(v) || v.some((s) => typeof s !== 'string')) {
+        issues.push(
+          err(
+            'NODE_FIELD_TYPE',
+            `node "${label}": "${k}" must be an array of slugs`,
+            { nodeId: id, hint: `e.g. "${k}": ["swiss-vat-return"]` },
+          ),
+        );
+      }
+    }
+    if (n.files !== undefined && !isRecord(n.files)) {
+      issues.push(
+        err(
+          'NODE_FIELD_TYPE',
+          `node "${label}": "files" must be an object mapping mount names to file or folder references`,
+          {
+            nodeId: id,
+            hint: 'e.g. "files": {"setup": "{{ input.setupFolderId }}"}',
+          },
+        ),
+      );
     }
     if (allowed.has('outputSchema') && n.outputSchema !== undefined) {
       if (!isRecord(n.outputSchema)) {

@@ -112,14 +112,14 @@ unknown-node-type:
     - code: UNKNOWN_NODE_TYPE
       nodeId: main
       message: unknown node type "transfrom"
-      hint: 'did you mean "transform"? registered types include: transform, llm, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
+      hint: 'did you mean "transform"? registered types include: transform, llm, agent, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
   warnings: []
 unknown-node-type-keyword:
   errors:
     - code: UNKNOWN_NODE_TYPE
       nodeId: fetch
       message: unknown node type "integration"
-      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
+      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, agent, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
   warnings: []
 node-unknown-field:
   errors:

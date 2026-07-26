@@ -30,7 +30,7 @@ export const CODES = {
   NODE_ID_INVALID: 'node ids are snake_case',
   NODE_ID_DUPLICATE: 'node ids are unique',
   UNKNOWN_NODE_TYPE:
-    'type must be transform | llm | subautomation | a registered capability name',
+    'type must be transform | llm | agent | subautomation | a registered capability name',
   NODE_UNKNOWN_FIELD: 'nodes accept only their documented fields',
   NODE_MISSING_FIELD: 'required per-type fields must be present',
   NODE_FIELD_TYPE: 'node fields have fixed types',

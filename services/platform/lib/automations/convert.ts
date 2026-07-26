@@ -19,7 +19,10 @@
  *    its two branches pair up as `when` / `elseOf` wherever the branch heads
  *    are a true exclusive either-or;
  *  - a loop step disappears into `forEach` on the node(s) it iterated, and a
- *    single-node polling cycle becomes `repeatUntil` + `maxRepeats`.
+ *    single-node polling cycle becomes `repeatUntil` + `maxRepeats`;
+ *  - a sandbox step splits on its payload: a deterministic script becomes a
+ *    `sandbox.run_script` capability node, an agent run becomes an `agent`
+ *    node — never an `llm` node, which could not reproduce either behaviour.
  *
  * Everything that CANNOT be re-expressed with the same behaviour is reported
  * in `needsReview` and left visible in the document rather than quietly
@@ -135,7 +138,13 @@ export function toAutomationName(slug: string): string {
 // ------------------------------------------------------------------ planning
 
 type StepRole = 'start' | 'output' | 'condition' | 'loop' | 'node' | 'unknown';
-type NodeKind = 'integration' | 'variables' | 'llm' | 'placeholder';
+type NodeKind =
+  | 'integration'
+  | 'variables'
+  | 'llm'
+  | 'agent'
+  | 'script'
+  | 'placeholder';
 
 interface StepPlan {
   readonly step: SourceStep;
@@ -242,8 +251,18 @@ function planStep(step: SourceStep, taken: Set<string>): StepPlan {
       if (type === 'set_variables') return withId('variables', 'data');
       return withId('placeholder', 'unknown');
     }
+    case 'sandbox': {
+      // A sandbox step is one of two things, split on its run payload: a
+      // deterministic script (a capability node) or an external-agent turn
+      // (an `agent` node). Neither is ever an `llm` node — a one-shot model
+      // call cannot stand in for either behaviour.
+      const run = recordField(step.config, 'run');
+      return typeof run?.script === 'string'
+        ? withId('script', 'unknown', 'sandbox.run_script')
+        : withId('agent', 'unknown', 'agent');
+    }
     default:
-      // A step kind of its own (a sandbox run, say) — named by that kind.
+      // A step kind of its own — named by that kind.
       return withId('placeholder', 'unknown', step.stepType);
   }
 }
@@ -561,6 +580,59 @@ export function convertAutomation(
     return `{{ ${alternatives[0]} }}`;
   };
 
+  /** A sandbox step's staged inputs (`[{as, from: {folderId|fileId|folderPath|
+   * content}}]`) as an agent/script `files` map — mount name → translated
+   * source reference. */
+  const stagedFiles = (
+    config: Record<string, unknown> | undefined,
+    scope: ExpressionScope,
+    nodeId: string,
+  ): Record<string, unknown> | undefined => {
+    const inputs = config?.inputs;
+    if (!Array.isArray(inputs)) return undefined;
+    const files: Record<string, unknown> = {};
+    for (const entry of inputs) {
+      if (!isRecord(entry) || typeof entry.as !== 'string') {
+        note(nodeId, 'a staged input has no mount name ("as") and was dropped');
+        continue;
+      }
+      const from = recordField(entry, 'from') ?? {};
+      const ref =
+        from.folderId ?? from.fileId ?? from.folderPath ?? from.content;
+      if (ref === undefined) {
+        note(
+          nodeId,
+          `staged input "${entry.as}" names no source and was dropped`,
+        );
+        continue;
+      }
+      const { value, issues } = translateValue(ref, scope);
+      files[entry.as] = value;
+      for (const issue of issues) note(nodeId, issue);
+    }
+    return Object.keys(files).length > 0 ? files : undefined;
+  };
+
+  /** Runtime-owned sandbox knobs the document no longer carries. */
+  const noteRuntimeKnobs = (
+    config: Record<string, unknown> | undefined,
+    runCfg: Record<string, unknown>,
+    nodeId: string,
+  ): void => {
+    if (recordField(runCfg, 'budget') !== undefined) {
+      note(
+        nodeId,
+        "this step carried a spend/turn budget; budgets are now the runtime's concern, not the document's",
+      );
+    }
+    if (typeof config?.timeoutMs === 'number') {
+      note(
+        nodeId,
+        `this step allowed itself ${config.timeoutMs}ms; node timeouts are now the runtime's concern, not the document's`,
+      );
+    }
+  };
+
   for (const [slug, placement] of ordered) {
     const plan = plans.get(slug);
     if (plan?.nodeId === undefined) continue;
@@ -679,6 +751,97 @@ export function convertAutomation(
         const translated = translateTemplate(promptSource ?? '', scope);
         node.prompt = translated.text;
         for (const issue of translated.issues) note(nodeId, issue);
+        break;
+      }
+      case 'agent': {
+        const config = plan.step.config ?? {};
+        const runCfg = recordField(config, 'run') ?? {};
+        node.type = 'agent';
+        node.model = options.model;
+        note(
+          nodeId,
+          `this step ran in the sandbox without naming a model; the document now calls "${options.model}" by name — confirm that is the model it should use`,
+        );
+        const agentRef = stringField(runCfg, 'agent');
+        if (agentRef !== undefined) {
+          note(
+            nodeId,
+            `this step ran agent "${agentRef}", whose persona carried its own system prompt and skill bindings; fold them into this node's "system" and "skills" fields`,
+          );
+        }
+        const instructions = stringField(runCfg, 'instructions');
+        if (instructions === undefined) {
+          note(nodeId, 'this step had no instructions; write the agent prompt');
+        }
+        const translated = translateTemplate(instructions ?? '', scope);
+        node.prompt = translated.text;
+        for (const issue of translated.issues) note(nodeId, issue);
+        const files = stagedFiles(config, scope, nodeId);
+        if (files !== undefined) node.files = files;
+        noteRuntimeKnobs(config, runCfg, nodeId);
+        break;
+      }
+      case 'script': {
+        const config = plan.step.config ?? {};
+        const runCfg = recordField(config, 'run') ?? {};
+        node.type = 'sandbox.run_script';
+        const input: Record<string, unknown> = {};
+        const useSkills = Array.isArray(runCfg.useSkills)
+          ? runCfg.useSkills
+          : [];
+        const skillEntries = useSkills.filter(
+          (s): s is Record<string, unknown> =>
+            isRecord(s) && typeof s.slug === 'string',
+        );
+        const firstSkill = skillEntries[0];
+        if (firstSkill !== undefined) {
+          input.skill = firstSkill.slug;
+          if (firstSkill.include !== undefined) {
+            note(
+              nodeId,
+              'this step staged a filtered slice of the skill; the whole skill bundle is staged now',
+            );
+          }
+        }
+        if (skillEntries.length > 1) {
+          note(
+            nodeId,
+            'this step staged several skills; a script runs against exactly one skill bundle, so the rest were dropped',
+          );
+        }
+        const script = stringField(runCfg, 'script');
+        if (script !== undefined) {
+          input.entry = script.replace(/^pack:\/\/[^/]+\//, '');
+          note(
+            nodeId,
+            `this step ran "${script}"; pack script paths no longer resolve — move the script into the ${typeof input.skill === 'string' ? `"${input.skill}"` : 'declared'} skill bundle and point input.entry at it`,
+          );
+        }
+        const language = stringField(runCfg, 'language');
+        if (language !== undefined) input.language = language;
+        if (runCfg.params !== undefined) {
+          const { value, issues } = translateValue(runCfg.params, scope);
+          input.params = value;
+          for (const issue of issues) note(nodeId, issue);
+        }
+        const files = stagedFiles(config, scope, nodeId);
+        if (files !== undefined) input.files = files;
+        const resultFile = stringField(
+          recordField(config, 'output'),
+          'resultFile',
+        );
+        if (resultFile !== undefined) input.output = { resultFile };
+        node.input = input;
+        noteRuntimeKnobs(config, runCfg, nodeId);
+        if (
+          options.knownTypes !== undefined &&
+          !options.knownTypes.has('sandbox.run_script')
+        ) {
+          note(
+            nodeId,
+            'no connector action named "sandbox.run_script" is registered; pick the action that replaces it',
+          );
+        }
         break;
       }
       default: {
