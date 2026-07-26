@@ -116,7 +116,11 @@ export function SkillAssetViewer({
   const oversize = useShiki && content.length > 64_000;
 
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
-  const [wrap, setWrap] = useState(false);
+  // Wrapped by default: the pane is for READING an asset, and schema files
+  // open on attribute-heavy lines that would otherwise live behind a
+  // horizontal scrollbar. The header toggle restores columns when alignment
+  // matters.
+  const [wrap, setWrap] = useState(true);
   const [copied, setCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const copyTimerRef = useRef<NodeJS.Timeout | null>(null);
