@@ -5547,7 +5547,6 @@ settings:
         are write-only.
     automationBadge: Automation
   skills:
-    entityLabel: skills
     uploadSkill: Upload skill
     searchPlaceholder: Search skills
     deleteSkill: Delete skill
@@ -5555,18 +5554,11 @@ settings:
     backToList: Back to skills
     skillDeleted: Skill deleted
     skillDeleteFailed: Failed to delete skill
-    skillDeleteConflict: Skill changed since you opened this dialog. Reload and retry.
-    skillDuplicated: Skill duplicated as {slug}
-    skillDuplicateFailed: Failed to duplicate skill
     deleteConfirmation:
       This removes the skill bundle from disk. Any agent currently
       bound to it will lose access.
-    manageInSettings: Manage in Skills settings
     actions:
-      duplicate: Duplicate
       replaceBundle: Replace bundle
-      viewDetails: View details
-      menuLabel: Manage {name}
     columns:
       loadError: Failed to read SKILL.md
     loadErrorDetail:
@@ -5582,22 +5574,6 @@ settings:
         symlink: SKILL.md is a symlink
         inaccessible: Couldn't read this skill
         generic: This skill couldn't be loaded
-    form:
-      description: Description
-    section:
-      body: Instructions (body)
-      auditHistory: Recent changes
-    metadata:
-      license: License
-    body:
-      previewEmpty: (Body is empty)
-    auditHistory:
-      empty: No audit entries yet for this skill.
-      action:
-        upload_skill: Uploaded
-        duplicate_skill: Duplicated
-        delete_skill: Deleted
-        update_skill: Updated
     viewer:
       toggleWrap: Toggle line wrap
       imageNotice: Image preview is not available in the browser. Use the CLI to
@@ -5606,7 +5582,6 @@ settings:
       largeFile: Large file — syntax highlighting disabled for performance.
       notFound: This file is no longer in the bundle. Pick another file from the tree.
     detail:
-      descriptionEmpty: (no description)
       tree:
         heading: Bundle
         empty:
@@ -5645,59 +5620,14 @@ settings:
         overwrite its current contents.
       replaceConfirm: Replace
       replaceSuccess: Skill bundle replaced
-    addMenu:
-      label: Add skill
-    createMenu:
-      blank: Blank
-      fromTemplate: From template
-    createDialog:
-      title: Create skill
-      nameLabel: Name
-      namePlaceholder: my-skill
-      nameHelp: Unique id — lowercase letters, numbers, and single hyphens. This
-        becomes the skill’s slug.
-      namePatternError: Use lowercase letters, numbers, and single hyphens (e.g. my-skill).
-      descriptionLabel: Description
-      descriptionPlaceholder: When should an agent reach for this skill?
-      descriptionHelp: You can refine it later in the editor.
-      submit: Create
-      creating: Creating...
-      created: Skill created
-      exists: A skill with this name already exists.
-      createFailed: Couldn't create the skill
-    templateDialog:
-      title: New skill from template
-      description: Start from a built-in skill — the copy is yours to edit.
-      templateLabel: Template
-      templatePlaceholder: Select a template
-      empty: No built-in skills available.
     noResults:
       title: No matching skills
       description: No skills match your search. Try a different term.
     listFailed: Couldn't load the skill library. Reload to retry.
     openSkill: Open skill {slug}
-    readOnly: You can read this skill but not change it — its owner (or an org
-      admin, for org skills) manages it.
     visibility:
-      label: Visibility
       org: Organization
-      orgHelp: Every member can read it; agents can load it for anyone.
       private: Private
-      privateHelp: Only you can see it and only your chats can load it.
-    editor:
-      saveFailed: Failed to save skill
-      descriptionHelp:
-        One or two sentences on what the skill covers — this is what tells
-        the model when to read it.
-      labels: Labels
-      labelsPlaceholder: research, pdf, finance
-      labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
-      bodyHelp: Markdown the model reads when it loads the skill — playbooks,
-        conventions, reference material. Never executed.
-      viewEdit: Edit
-      viewPreview: Preview
-    export:
-      failed: Failed to export skill
   integrations:
     catalog:
       title: Connectors

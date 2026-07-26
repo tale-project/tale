@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  ActiveEditorProvider,
-  useActiveEditor,
-  type EditorController,
-} from '@/app/components/ui/editor';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -55,101 +49,62 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
-const saveSkill = vi.fn().mockResolvedValue({});
 const deleteSkill = vi.fn().mockResolvedValue(true);
 vi.mock('../hooks/mutations', () => ({
-  useSaveSkill: () => ({ mutateAsync: saveSkill, isPending: false }),
   useDeleteSkill: () => ({ mutateAsync: deleteSkill, isPending: false }),
 }));
 
 import { SkillEditor } from './skill-editor';
 
-/** Captures the controller the editor registers with the global save bar. */
-function ActiveProbe({
-  capture,
-}: {
-  capture: { current: EditorController | null };
-}) {
-  capture.current = useActiveEditor();
-  return null;
-}
-
 function renderEditor() {
-  const capture = { current: null as EditorController | null };
-  const utils = render(
-    <ActiveEditorProvider>
-      <ActiveProbe capture={capture} />
-      <SkillEditor
-        organizationId="org-1"
-        slug="visual-aspect-analyzer"
-        onBack={vi.fn()}
-        onDeleted={vi.fn()}
-      />
-    </ActiveEditorProvider>,
+  return render(
+    <SkillEditor
+      organizationId="org-1"
+      slug="docx"
+      onBack={vi.fn()}
+      onDeleted={vi.fn()}
+    />,
   );
-  return { ...utils, capture };
 }
 
 describe('SkillEditor', () => {
-  it('seeds the form from the loaded document and saves the edited fields through the global controller', async () => {
+  it('renders the document read-only: metadata facts plus the rendered body', () => {
     skillData = {
-      slug: 'visual-aspect-analyzer',
-      description: 'Analyze visual aspects.',
+      slug: 'docx',
+      description: 'Word documents.',
       visibility: 'org',
-      body: '# Playbook',
-      labels: ['vision', 'pdf'],
+      body: '# Title\n\n| A | B |\n| - | - |\n| 1 | 2 |',
+      labels: ['documents'],
       canEdit: true,
     };
-    const { user, capture } = renderEditor();
+    renderEditor();
 
-    const description = screen.getByLabelText(
-      'settings.skills.form.description',
-    );
-    expect(description).toHaveValue('Analyze visual aspects.');
-    expect(screen.getByLabelText('settings.skills.section.body')).toHaveValue(
-      '# Playbook',
-    );
-    expect(screen.getByLabelText('settings.skills.editor.labels')).toHaveValue(
-      'vision, pdf',
-    );
+    const meta = screen.getByTestId('skill-document-meta');
+    expect(meta).toHaveTextContent('Word documents.');
+    expect(meta).toHaveTextContent('settings.skills.visibility.org');
+    expect(meta).toHaveTextContent('documents');
 
-    await user.clear(description);
-    await user.type(description, 'Sharper description.');
+    const body = screen.getByTestId('skill-document-body');
+    expect(body.querySelector('h1')).toHaveTextContent('Title');
+    expect(body.querySelector('table')).not.toBeNull();
 
-    expect(capture.current?.isDirty).toBe(true);
-    await act(async () => {
-      await capture.current?.save();
-    });
-
-    expect(saveSkill).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      slug: 'visual-aspect-analyzer',
-      description: 'Sharper description.',
-      body: '# Playbook',
-      visibility: 'org',
-      labels: ['vision', 'pdf'],
-    });
+    // Browse-only: no form controls, no save surface.
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('renders read-only (no delete, no registered editor) when the viewer cannot edit', () => {
+  it('hides Delete from a viewer who may not manage the skill', () => {
     skillData = {
-      slug: 'visual-aspect-analyzer',
-      description: 'Analyze visual aspects.',
+      slug: 'docx',
+      description: 'Word documents.',
       visibility: 'org',
-      body: '',
+      body: 'Body.',
       canEdit: false,
     };
-    const { capture } = renderEditor();
+    renderEditor();
 
-    expect(screen.getByText('settings.skills.readOnly')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /common.actions.delete/ }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByLabelText('settings.skills.form.description'),
-    ).toBeDisabled();
-    // Read-only viewers never get Save/Discard in the settings header.
-    expect(capture.current).toBeNull();
   });
 
   it('shows not-found for a missing slug', () => {
@@ -158,12 +113,13 @@ describe('SkillEditor', () => {
 
     expect(screen.getByText('settings.skills.notFound')).toBeInTheDocument();
   });
-  it('lists bundle assets in the tree and swaps in the read-only viewer', async () => {
+
+  it('swaps between the rendered document and the asset viewer via the tree', async () => {
     skillData = {
       slug: 'docx',
       description: 'Word documents.',
       visibility: 'org',
-      body: 'Body.',
+      body: '# Top',
       canEdit: true,
     };
     assetsData = {
@@ -176,53 +132,15 @@ describe('SkillEditor', () => {
     };
     const { user } = renderEditor();
 
-    // SKILL.md is pinned and the asset is listed.
-    expect(screen.getByRole('treeitem', { name: /SKILL\.md/ })).toBeVisible();
-    const assetRow = screen.getByRole('treeitem', { name: /pack\.py/ });
-
-    await user.click(assetRow);
-    // The form yields to the read-only viewer…
-    expect(
-      screen.queryByLabelText('settings.skills.form.description'),
-    ).not.toBeInTheDocument();
-    // Syntax highlighting splits the code into token spans — assert on the
-    // rendered text as a whole.
+    await user.click(screen.getByRole('treeitem', { name: /pack\.py/ }));
+    expect(screen.queryByTestId('skill-document-body')).not.toBeInTheDocument();
     await waitFor(() => {
       expect(document.body.textContent).toContain('print("hi")');
     });
 
-    // …and SKILL.md brings the form back.
     await user.click(screen.getByRole('treeitem', { name: /SKILL\.md/ }));
     expect(
-      screen.getByLabelText('settings.skills.form.description'),
-    ).toBeVisible();
-  });
-  it('previews the body as rendered markdown and returns to the editor', async () => {
-    skillData = {
-      slug: 'docx',
-      description: 'Word documents.',
-      visibility: 'org',
-      body: '# Title\n\n| A | B |\n| - | - |\n| 1 | 2 |',
-      canEdit: true,
-    };
-    const { user } = renderEditor();
-
-    await user.click(screen.getByTestId('skill-body-preview-toggle'));
-    const preview = screen.getByTestId('skill-body-preview');
-    expect(preview.querySelector('table')).not.toBeNull();
-    expect(preview.querySelector('h1')).toHaveTextContent('Title');
-    // jsdom carries no Tailwind stylesheet, so assert the hiding class on the
-    // field frame rather than computed visibility.
-    expect(
-      screen.getByLabelText('settings.skills.section.body').closest('.hidden'),
-    ).not.toBeNull();
-
-    await user.click(
-      screen.getByRole('button', { name: 'settings.skills.editor.viewEdit' }),
-    );
-    expect(
-      screen.getByLabelText('settings.skills.section.body').closest('.hidden'),
-    ).toBeNull();
-    expect(screen.queryByTestId('skill-body-preview')).not.toBeInTheDocument();
+      screen.getByTestId('skill-document-body').querySelector('h1'),
+    ).toHaveTextContent('Top');
   });
 });

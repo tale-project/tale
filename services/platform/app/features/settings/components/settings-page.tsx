@@ -54,15 +54,6 @@ interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
    * reason at the call site; most settings pages should NOT set this.
    */
   fullWidth?: boolean;
-  /**
-   * How labelled controls beneath the page lay out (see `FieldShell`).
-   * `row` — the settings default — reads label-left / control-right with the
-   * shared 20rem control column. `stacked` is for the documented full-measure
-   * surfaces whose content is an editor rather than a settings form (the
-   * skill bundle editor): fields stack and controls take the width their
-   * surface gives them.
-   */
-  fieldLayout?: 'row' | 'stacked';
   /** Section content — `<SettingsSection>` children separated by 32px gap. */
   children?: ReactNode;
 }
@@ -86,14 +77,13 @@ interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
 export function SettingsPage({
   fitToContainer,
   fullWidth,
-  fieldLayout = 'row',
   children,
   className,
   ...props
 }: SettingsPageProps) {
   return (
     <div
-      {...(fieldLayout === 'row' ? FIELD_LAYOUT_ROW : {})}
+      {...FIELD_LAYOUT_ROW}
       className={cn(
         'flex w-full flex-col gap-8',
         // Every section after the first gets the same divider, owned by the

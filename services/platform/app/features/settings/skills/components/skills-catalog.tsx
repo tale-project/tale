@@ -2,11 +2,9 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { CatalogGridSkeleton } from '@/app/components/catalog/catalog-card-skeleton';
@@ -22,7 +20,6 @@ import { useCatalogSearch } from '@/app/components/catalog/use-catalog-search';
 import { useT } from '@/lib/i18n/client';
 
 import { useSkills } from '../hooks/queries';
-import { SkillCreateDialog } from './skill-create-dialog';
 
 interface SkillSummary {
   slug: string;
@@ -43,21 +40,22 @@ const skillHaystack = (skill: SkillSummary) => [
  * The org's skill library: every `SKILL.md` bundle the viewer may see, as
  * catalog cards. Skills are knowledge packs agents READ (never execute); a
  * private skill is visible to its owner only, an org skill to everyone.
- * Unreadable bundles surface as an operator banner instead of vanishing —
- * a broken file is a fact the admin needs, not a silent hole in the grid.
+ * The library is browse-only — bundles arrive and change through package
+ * uploads, so there is no create or edit entry here. Unreadable bundles
+ * surface as an operator banner instead of vanishing — a broken file is a
+ * fact the admin needs, not a silent hole in the grid.
  */
 export function SkillsCatalog({
   organizationId,
   onOpen,
 }: {
   organizationId: string;
-  /** Open a skill's editor (deep-linkable `?slug=` on the route). */
+  /** Open a skill's detail page (deep-linkable `?slug=` on the route). */
   onOpen: (slug: string) => void;
 }) {
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
   const [query, setQuery] = useState('');
-  const [createOpen, setCreateOpen] = useState(false);
 
   const skillsQuery = useSkills(organizationId);
   const skills: SkillSummary[] = skillsQuery.data?.skills ?? [];
@@ -73,12 +71,6 @@ export function SkillsCatalog({
           onChange: (e) => setQuery(e.target.value),
           placeholder: t('skills.searchPlaceholder'),
         }}
-        action={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 size-4" />
-            {t('skills.addMenu.label')}
-          </Button>
-        }
       />
 
       {skillsQuery.isError && (
@@ -116,11 +108,6 @@ export function SkillsCatalog({
               ? tEmpty('skills.description')
               : t('skills.noResults.description')}
           </Text>
-          {skills.length === 0 && (
-            <Button variant="secondary" onClick={() => setCreateOpen(true)}>
-              {t('skills.addMenu.label')}
-            </Button>
-          )}
         </Stack>
       ) : (
         <CatalogGrid>
@@ -148,17 +135,6 @@ export function SkillsCatalog({
           ))}
         </CatalogGrid>
       )}
-
-      <SkillCreateDialog
-        organizationId={organizationId}
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        existingSlugs={skills.map((skill) => skill.slug)}
-        onCreated={(slug) => {
-          setCreateOpen(false);
-          onOpen(slug);
-        }}
-      />
     </Stack>
   );
 }

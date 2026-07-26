@@ -5428,7 +5428,6 @@ settings:
         schreibbar.
     automationBadge: Automatisierung
   skills:
-    entityLabel: Skills
     uploadSkill: Skill hochladen
     searchPlaceholder: Skills suchen
     deleteSkill: Skill löschen
@@ -5436,18 +5435,9 @@ settings:
     backToList: Zurück zu Skills
     skillDeleted: Skill gelöscht
     skillDeleteFailed: Skill konnte nicht gelöscht werden
-    skillDeleteConflict:
-      Skill wurde geändert, seit du diesen Dialog geöffnet hast.
-      Lade neu und versuche es noch einmal.
-    skillDuplicated: Skill als {slug} dupliziert
-    skillDuplicateFailed: Skill konnte nicht dupliziert werden
     deleteConfirmation: Skill-Bundle wirklich löschen? Jeder gebundene Agent verliert den Zugriff.
-    manageInSettings: In Skill-Einstellungen verwalten
     actions:
-      duplicate: Duplizieren
       replaceBundle: Bundle ersetzen
-      viewDetails: Details anzeigen
-      menuLabel: '{name} verwalten'
     columns:
       loadError: SKILL.md konnte nicht gelesen werden
     loadErrorDetail:
@@ -5463,22 +5453,6 @@ settings:
         symlink: SKILL.md ist ein Symlink
         inaccessible: Skill konnte nicht gelesen werden
         generic: Skill konnte nicht geladen werden
-    form:
-      description: Beschreibung
-    section:
-      body: Anweisungen (Body)
-      auditHistory: Letzte Änderungen
-    metadata:
-      license: Lizenz
-    body:
-      previewEmpty: (Body ist leer)
-    auditHistory:
-      empty: Noch keine Audit-Einträge für diesen Skill.
-      action:
-        upload_skill: Hochgeladen
-        duplicate_skill: Dupliziert
-        delete_skill: Gelöscht
-        update_skill: Aktualisiert
     viewer:
       toggleWrap: Zeilenumbruch umschalten
       imageNotice:
@@ -5490,7 +5464,6 @@ settings:
         Diese Datei ist nicht mehr im Bundle. Wähle eine andere Datei aus dem
         Baum.
     detail:
-      descriptionEmpty: (keine Beschreibung)
       tree:
         heading: Bundle
         empty:
@@ -5531,65 +5504,14 @@ settings:
         Hochladen überschreibt seinen aktuellen Inhalt.
       replaceConfirm: Ersetzen
       replaceSuccess: Skill-Bundle ersetzt
-    addMenu:
-      label: Skill hinzufügen
-    createMenu:
-      blank: Leer
-      fromTemplate: Aus Vorlage
-    createDialog:
-      title: Skill erstellen
-      nameLabel: Name
-      namePlaceholder: mein-skill
-      nameHelp:
-        Eindeutige ID – Kleinbuchstaben, Zahlen und einzelne Bindestriche.
-        Daraus wird der Slug des Skills.
-      namePatternError:
-        Nutze Kleinbuchstaben, Zahlen und einzelne Bindestriche (z. B.
-        mein-skill).
-      descriptionLabel: Beschreibung
-      descriptionPlaceholder: Wann sollte ein Agent zu diesem Skill greifen?
-      descriptionHelp: Du kannst sie später im Editor verfeinern.
-      submit: Erstellen
-      creating: Erstelle...
-      created: Skill erstellt
-      exists: Ein Skill mit diesem Namen existiert bereits.
-      createFailed: Skill konnte nicht erstellt werden
-    templateDialog:
-      title: Neuer Skill aus Vorlage
-      description:
-        Starte mit einem mitgelieferten Skill – die Kopie kannst du frei
-        anpassen.
-      templateLabel: Vorlage
-      templatePlaceholder: Vorlage auswählen
-      empty: Keine mitgelieferten Skills verfügbar.
     noResults:
       title: Keine passenden Skills
       description: Keine Skills passen zu deiner Suche. Versuch einen anderen Begriff.
     listFailed: Die Skill-Bibliothek konnte nicht geladen werden. Lade neu und versuche es erneut.
     openSkill: Skill {slug} öffnen
-    readOnly: Du kannst diesen Skill lesen, aber nicht ändern — sein Inhaber
-      (oder ein Org-Admin bei Org-Skills) verwaltet ihn.
     visibility:
-      label: Sichtbarkeit
       org: Organisation
-      orgHelp: Jedes Mitglied kann ihn lesen; Agenten laden ihn für alle.
       private: Privat
-      privateHelp: Nur du siehst ihn, und nur deine Chats laden ihn.
-    editor:
-      saveFailed: Skill konnte nicht gespeichert werden
-      descriptionHelp:
-        Ein bis zwei Sätze dazu, was der Skill abdeckt — daran erkennt das
-        Modell, wann es ihn lesen sollte.
-      labels: Labels
-      labelsPlaceholder: recherche, pdf, finanzen
-      labelsHelp: Kommagetrennt, bis zu 8 — zum Stöbern, nicht für das Modell.
-      bodyHelp:
-        Markdown, das das Modell liest, wenn es den Skill lädt — Playbooks,
-        Konventionen, Referenzmaterial. Wird nie ausgeführt.
-      viewEdit: Bearbeiten
-      viewPreview: Vorschau
-    export:
-      failed: Skill konnte nicht exportiert werden
   integrations:
     catalog:
       title: Connectoren

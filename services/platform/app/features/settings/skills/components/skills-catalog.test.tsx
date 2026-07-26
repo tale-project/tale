@@ -111,13 +111,13 @@ describe('SkillsCatalog', () => {
     expect(screen.getByText('skills/broken/SKILL.md')).toBeInTheDocument();
   });
 
-  it('shows the library empty state with a create path when no skills exist', () => {
+  it('shows the library empty state without any create path — the library is browse-only', () => {
     skillsData = { skills: [], failures: [] };
     render(<SkillsCatalog organizationId="org-1" onOpen={vi.fn()} />);
 
     expect(screen.getByText('emptyStates.skills.title')).toBeInTheDocument();
     expect(
-      screen.getAllByText('settings.skills.addMenu.label').length,
-    ).toBeGreaterThan(0);
+      screen.queryByText('settings.skills.addMenu.label'),
+    ).not.toBeInTheDocument();
   });
 });

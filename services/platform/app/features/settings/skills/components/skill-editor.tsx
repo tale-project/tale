@@ -8,19 +8,12 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Input } from '@/app/components/ui/forms/input';
-import { RadioGroup } from '@/app/components/ui/forms/radio-group';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
   markdownComponents,
   markdownWrapperStyles,
@@ -29,29 +22,20 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useDeleteSkill, useSaveSkill } from '../hooks/mutations';
+import { useDeleteSkill } from '../hooks/mutations';
 import { useSkill, useSkillAssets } from '../hooks/queries';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 
-interface SkillFormState {
-  description: string;
-  body: string;
-  visibility: 'private' | 'org';
-  labels: string;
-}
-
 /**
- * Edit one skill's `SKILL.md`: description (what tells the model when to read
- * it), the markdown body, visibility, and labels. The slug is immutable
- * identity (directory name = frontmatter `name`) — renaming is create+delete
- * on purpose. Saving posts only the fields this form carries; the server
- * merges over the on-disk file, so frontmatter the editor doesn't know
- * (license, icon, recommended-packages, custom keys) survives untouched.
- * Read-only for viewers without edit rights (owner, or org-admin for org
- * skills — `canEdit` is computed server-side). Saving runs through the
- * settings header's global Save/Discard cluster; Delete stays local as a
- * dialog-confirmed destructive action.
+ * One skill, read-only: the bundle's file tree beside the rendered document.
+ *
+ * The library is a BROWSING surface — a bundle changes only through a package
+ * upload (whole-bundle replace with a history trail), never through in-place
+ * edits, so `SKILL.md` renders the way a reader sees it and the metadata
+ * (description, visibility, labels) shows as facts rather than fields. The
+ * one mutation that stays local is Delete, gated on the same `canEdit` the
+ * server computes (owner, or org admin for shared skills).
  */
 export function SkillEditor({
   organizationId,
@@ -68,75 +52,13 @@ export function SkillEditor({
   const { t: tCommon } = useT('common');
   const skillQuery = useSkill(organizationId, slug);
   const assetsQuery = useSkillAssets(organizationId, slug);
-  const saveSkill = useSaveSkill();
   const deleteSkill = useDeleteSkill();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  /** 'SKILL.md' (the form) or a bundle asset shown read-only. */
+  /** 'SKILL.md' (the rendered document) or a bundle asset. */
   const [selectedPath, setSelectedPath] = useState('SKILL.md');
 
   const skill = skillQuery.data;
-
-  const data = useMemo<SkillFormState | undefined>(() => {
-    if (!skill) return undefined;
-    return {
-      description: skill.description,
-      body: skill.body,
-      visibility: skill.visibility,
-      labels: (skill.labels ?? []).join(', '),
-    };
-  }, [skill]);
-
-  // Save feedback belongs to the settings header's Save/Discard cluster: it
-  // flashes "Saved" on success and raises the single destructive toast on
-  // failure. Delete stays a local, dialog-confirmed action and keeps its own
-  // toasts.
-  const save = useCallback(
-    async (values: SkillFormState) => {
-      const labels = values.labels
-        .split(',')
-        .map((label) => label.trim())
-        .filter(Boolean);
-      try {
-        await saveSkill.mutateAsync({
-          organizationId,
-          slug,
-          description: values.description.trim(),
-          body: values.body,
-          visibility: values.visibility,
-          labels,
-        });
-      } catch (error) {
-        console.error('Failed to save skill', error);
-        throw new Error(t('skills.editor.saveFailed'), { cause: error });
-      }
-    },
-    [organizationId, saveSkill, slug, t],
-  );
-
-  const editor = useFormEditor<SkillFormState>({ data, save });
-  useRegisterGroupedEditor(editor, {
-    enabled: skill != null && skill.canEdit,
-  });
-
-  // A form reset parks the caret at the END of the value, so the first focus
-  // would scroll the body to the document's tail. Rest the caret at the top
-  // once the loaded value has actually reached the DOM (watching the field —
-  // the reset lands a commit after `data` does). The parked-at-end check
-  // keeps this from ever touching a caret the member has placed.
-  const bodyValue = editor.form.watch('body');
-  useEffect(() => {
-    const el = document.getElementById('skill-body');
-    if (
-      el instanceof HTMLTextAreaElement &&
-      document.activeElement !== el &&
-      el.value.length > 0 &&
-      el.selectionStart === el.value.length
-    ) {
-      el.setSelectionRange(0, 0);
-      el.scrollTop = 0;
-    }
-  }, [bodyValue]);
 
   if (skillQuery.isPending) {
     return (
@@ -161,8 +83,6 @@ export function SkillEditor({
       </Stack>
     );
   }
-
-  const readOnly = !skill.canEdit;
 
   const confirmDelete = async () => {
     try {
@@ -189,7 +109,7 @@ export function SkillEditor({
             <Badge variant="outline">{t('skills.visibility.private')}</Badge>
           )}
         </HStack>
-        {!readOnly && (
+        {skill.canEdit && (
           <Button variant="secondary" onClick={() => setDeleteOpen(true)}>
             <Trash2 className="text-destructive mr-1 size-4" />
             {tCommon('actions.delete')}
@@ -197,15 +117,12 @@ export function SkillEditor({
         )}
       </Row>
 
-      {readOnly && <Alert description={t('skills.readOnly')} />}
-
       {/* One bounded card, split like main's detail panel: the tree owns a
           fixed-width, internally-scrolling rail (hidden on small screens),
-          and the right pane holds the SKILL.md form or the read-only viewer.
-          The card takes EXACTLY the height the settings scroll area has left
+          and the right pane renders the selected file read-only. The card
+          takes EXACTLY the height the settings scroll area has left
           (fitToContainer threads flex-1 down from the page shell — no
-          viewport math, so browser banners and zoom can't push it off
-          screen); each side scrolls itself. */}
+          viewport math); each side scrolls itself. */}
       <div className="border-border flex min-h-[20rem] flex-1 overflow-hidden rounded-lg border">
         <div className="hidden md:contents">
           <SkillBundleTreePanel
@@ -221,7 +138,13 @@ export function SkillEditor({
         </div>
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           {selectedPath === 'SKILL.md' ? (
-            <SkillMdForm editor={editor} readOnly={readOnly} t={t} />
+            <SkillDocument
+              description={skill.description}
+              visibility={skill.visibility}
+              labels={skill.labels ?? []}
+              body={skill.body}
+              t={t}
+            />
           ) : (
             <SkillAssetViewer
               organizationId={organizationId}
@@ -244,156 +167,58 @@ export function SkillEditor({
   );
 }
 
-/** The SKILL.md editing form, unchanged behaviour — split out so the two-pane
- * layout can swap it against the asset viewer without re-mounting the page. */
-function SkillMdForm({
-  editor,
-  readOnly,
+/**
+ * The rendered `SKILL.md`: the frontmatter facts a reader needs (description,
+ * visibility, labels), then the body exactly as a model or teammate reads it.
+ */
+function SkillDocument({
+  description,
+  visibility,
+  labels,
+  body,
   t,
 }: {
-  editor: ReturnType<typeof useFormEditor<SkillFormState>>;
-  readOnly: boolean;
+  description: string;
+  visibility: 'private' | 'org';
+  labels: string[];
+  body: string;
   t: ReturnType<typeof useT>['t'];
 }) {
-  const { register, watch, setValue } = editor.form;
-  const [bodyView, setBodyView] = useState<'edit' | 'preview'>('edit');
-  const bodyValue = watch('body') ?? '';
   return (
-    // The metadata sits compact in two columns; the body is the editor's
-    // star — it takes the pane's full width and every remaining pixel of
-    // height, scrolling internally (as the raw-markdown textarea or the
-    // rendered preview). Only when the pane is too short for the metadata
-    // plus the body's floor does the pane itself scroll.
-    <form
-      onSubmit={editor.submit}
-      className="flex min-h-0 flex-1 flex-col gap-4 p-4"
-    >
-      <div className="grid max-w-4xl shrink-0 gap-x-6 gap-y-4 md:grid-cols-2">
-        <Stack gap={4}>
-          <Stack gap={1}>
-            <label htmlFor="skill-description" className="text-sm font-medium">
-              {t('skills.form.description')}
-            </label>
-            <Input
-              id="skill-description"
-              disabled={readOnly}
-              aria-describedby="skill-description-help"
-              {...register('description')}
-            />
-            <p
-              id="skill-description-help"
-              className="text-muted-foreground text-xs"
-            >
-              {t('skills.editor.descriptionHelp')}
-            </p>
-          </Stack>
-
-          <Stack gap={1}>
-            <label htmlFor="skill-labels" className="text-sm font-medium">
-              {t('skills.editor.labels')}
-            </label>
-            <Input
-              id="skill-labels"
-              disabled={readOnly}
-              placeholder={t('skills.editor.labelsPlaceholder')}
-              aria-describedby="skill-labels-help"
-              {...register('labels')}
-            />
-            <p id="skill-labels-help" className="text-muted-foreground text-xs">
-              {t('skills.editor.labelsHelp')}
-            </p>
-          </Stack>
-        </Stack>
-
-        <Stack gap={1}>
-          <span className="text-sm font-medium">
-            {t('skills.visibility.label')}
-          </span>
-          <RadioGroup
-            aria-label={t('skills.visibility.label')}
-            value={watch('visibility') ?? 'org'}
-            onValueChange={(visibility) => {
-              if (visibility === 'private' || visibility === 'org') {
-                setValue('visibility', visibility, { shouldDirty: true });
-              }
-            }}
-            options={[
-              {
-                value: 'org',
-                label: t('skills.visibility.org'),
-                description: t('skills.visibility.orgHelp'),
-              },
-              {
-                value: 'private',
-                label: t('skills.visibility.private'),
-                description: t('skills.visibility.privateHelp'),
-              },
-            ]}
-            disabled={readOnly}
-          />
-        </Stack>
-      </div>
-
-      <Stack gap={1} className="min-h-[16rem] flex-1">
-        <Row gap={2} justify="between" align="center" className="shrink-0">
-          <label htmlFor="skill-body" className="text-sm font-medium">
-            {t('skills.section.body')}
-          </label>
-          <HStack gap={1}>
-            <Button
-              type="button"
-              size="sm"
-              variant={bodyView === 'edit' ? 'secondary' : 'ghost'}
-              aria-pressed={bodyView === 'edit'}
-              onClick={() => setBodyView('edit')}
-            >
-              {t('skills.editor.viewEdit')}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={bodyView === 'preview' ? 'secondary' : 'ghost'}
-              aria-pressed={bodyView === 'preview'}
-              onClick={() => setBodyView('preview')}
-              data-testid="skill-body-preview-toggle"
-            >
-              {t('skills.editor.viewPreview')}
-            </Button>
-          </HStack>
-        </Row>
-        <Textarea
-          id="skill-body"
-          disabled={readOnly}
-          fillHeight
-          className="font-mono text-sm"
-          wrapperClassName={bodyView === 'preview' ? 'hidden' : undefined}
-          aria-describedby="skill-body-help"
-          {...register('body')}
-        />
-        {bodyView === 'preview' && (
-          <div
-            className={cn(
-              'border-border min-h-0 flex-1 overflow-y-auto rounded-md border p-4',
-              markdownWrapperStyles,
-            )}
-            data-testid="skill-body-preview"
-          >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {bodyValue}
-            </ReactMarkdown>
-          </div>
-        )}
-        <p
-          id="skill-body-help"
-          className="text-muted-foreground shrink-0 text-xs"
-        >
-          {t('skills.editor.bodyHelp')}
-        </p>
+    <div className="flex min-h-full flex-col">
+      <Stack
+        gap={2}
+        className="border-border bg-muted/30 shrink-0 border-b px-4 py-3"
+        data-testid="skill-document-meta"
+      >
+        <Text as="p" variant="muted" className="text-sm">
+          {description}
+        </Text>
+        <HStack gap={2} align="center" className="flex-wrap">
+          <Badge variant="outline">
+            {visibility === 'private'
+              ? t('skills.visibility.private')
+              : t('skills.visibility.org')}
+          </Badge>
+          {labels.map((label) => (
+            <Badge key={label} variant="slate">
+              {label}
+            </Badge>
+          ))}
+        </HStack>
       </Stack>
-    </form>
+      <div
+        className={cn('min-h-0 flex-1 p-4', markdownWrapperStyles)}
+        data-testid="skill-document-body"
+      >
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={markdownComponents}
+        >
+          {body}
+        </ReactMarkdown>
+      </div>
+    </div>
   );
 }
 

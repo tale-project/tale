@@ -371,10 +371,15 @@ entries:
   - 'todoList'
 
   - 'analytics.chatHealth'
+  # The skill library went browse-only (changes flow through package uploads),
+  # but the standalone skill-zip upload surface is still planned — its strings
+  # stay parked, narrowly, so the rest of settings.skills is orphan-guarded.
+  - 'settings.skills.upload'
+  - 'settings.skills.uploadSkill'
+  - 'settings.skills.actions.replaceBundle'
   - 'projects.agents'
   - 'projects.automations'
   - 'settings.agents'
-  - 'settings.skills'
 
   # Individual keys orphaned by interim degraded states (disabled controls,
   # gated panels) in otherwise-live surfaces:

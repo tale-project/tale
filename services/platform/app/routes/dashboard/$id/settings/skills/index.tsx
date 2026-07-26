@@ -40,13 +40,12 @@ function SkillsPage() {
     });
 
   return (
-    // The editor is a master-detail file browser — the one settings surface
-    // that needs the documented full-measure escape AND stacked fields (its
-    // controls size to the editor pane, not the settings control column);
-    // the catalog keeps the shared narrow measure.
+    // The detail page is a master-detail file browser — the one settings
+    // surface that needs the documented full-measure escape and the
+    // fit-to-container height chain; the catalog keeps the shared narrow
+    // measure.
     <SettingsPage
       fullWidth={slug !== undefined}
-      fieldLayout={slug !== undefined ? 'stacked' : 'row'}
       fitToContainer={slug !== undefined}
     >
       <SettingsSection

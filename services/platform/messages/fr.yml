@@ -5503,7 +5503,6 @@ settings:
         chiffrer une valeur ; les secrets sont en écriture seule.
     automationBadge: Automatisation
   skills:
-    entityLabel: skills
     uploadSkill: Téléverser un skill
     searchPlaceholder: Rechercher des skills
     deleteSkill: Supprimer le skill
@@ -5511,17 +5510,10 @@ settings:
     backToList: Retour aux skills
     skillDeleted: Skill supprimé
     skillDeleteFailed: Échec de la suppression du skill
-    skillDeleteConflict: Le skill a changé depuis l'ouverture de ce dialogue. Recharge et réessaie.
-    skillDuplicated: Skill dupliqué en {slug}
-    skillDuplicateFailed: Échec de la duplication du skill
     deleteConfirmation: Cela supprime le bundle du skill du disque. Tout agent
       l'ayant attaché perdra l'accès.
-    manageInSettings: Gérer dans les paramètres des skills
     actions:
-      duplicate: Dupliquer
       replaceBundle: Remplacer le bundle
-      viewDetails: Voir les détails
-      menuLabel: Gérer {name}
     columns:
       loadError: Impossible de lire SKILL.md
     loadErrorDetail:
@@ -5537,22 +5529,6 @@ settings:
         symlink: SKILL.md est un lien symbolique
         inaccessible: Impossible de lire ce skill
         generic: Ce skill n'a pas pu être chargé
-    form:
-      description: Description
-    section:
-      body: Instructions (corps)
-      auditHistory: Modifications récentes
-    metadata:
-      license: Licence
-    body:
-      previewEmpty: (Le corps est vide)
-    auditHistory:
-      empty: Aucune entrée d'audit pour l'instant pour ce skill.
-      action:
-        upload_skill: Téléversé
-        duplicate_skill: Dupliqué
-        delete_skill: Supprimé
-        update_skill: Mis à jour
     viewer:
       toggleWrap: Basculer le retour à la ligne
       imageNotice:
@@ -5565,7 +5541,6 @@ settings:
         Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
         l'arborescence.
     detail:
-      descriptionEmpty: (aucune description)
       tree:
         heading: Bundle
         empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
@@ -5603,64 +5578,14 @@ settings:
         écrasera son contenu actuel.
       replaceConfirm: Remplacer
       replaceSuccess: Bundle de skill remplacé
-    addMenu:
-      label: Ajouter un skill
-    createMenu:
-      blank: Vierge
-      fromTemplate: À partir d'un modèle
-    createDialog:
-      title: Créer un skill
-      nameLabel: Nom
-      namePlaceholder: mon-skill
-      nameHelp:
-        Identifiant unique — lettres minuscules, chiffres et tirets simples.
-        Ce nom devient le slug du skill.
-      namePatternError:
-        Utilise des lettres minuscules, des chiffres et des tirets
-        simples (ex. mon-skill).
-      descriptionLabel: Description
-      descriptionPlaceholder: Quand un agent devrait-il utiliser ce skill ?
-      descriptionHelp: Tu pourras l'affiner ensuite dans l'éditeur.
-      submit: Créer
-      creating: Création...
-      created: Skill créé
-      exists: Un skill avec ce nom existe déjà.
-      createFailed: Impossible de créer le skill
-    templateDialog:
-      title: Nouveau skill à partir d'un modèle
-      description: Pars d'un skill livré — la copie est à toi, adapte-la librement.
-      templateLabel: Modèle
-      templatePlaceholder: Sélectionner un modèle
-      empty: Aucun skill livré disponible.
     noResults:
       title: Aucun skill correspondant
       description: Aucun skill ne correspond à ta recherche. Essaie un autre terme.
     listFailed: Impossible de charger la bibliothèque de skills. Recharge et réessaie.
     openSkill: Ouvrir le skill {slug}
-    readOnly:
-      Tu peux lire ce skill mais pas le modifier — son propriétaire (ou un
-      admin de l'organisation pour les skills partagés) le gère.
     visibility:
-      label: Visibilité
       org: Organisation
-      orgHelp: Chaque membre peut le lire ; les agents peuvent le charger pour tout le monde.
       private: Privé
-      privateHelp: Toi seul le vois, et seuls tes chats le chargent.
-    editor:
-      saveFailed: Échec de l'enregistrement du skill
-      descriptionHelp:
-        Une ou deux phrases sur ce que couvre le skill — c'est ce qui indique
-        au modèle quand le lire.
-      labels: Libellés
-      labelsPlaceholder: recherche, pdf, finance
-      labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
-      bodyHelp:
-        Le markdown que le modèle lit quand il charge le skill — playbooks,
-        conventions, référence. Jamais exécuté.
-      viewEdit: Modifier
-      viewPreview: Aperçu
-    export:
-      failed: Échec de l'export du skill
   integrations:
     catalog:
       title: Connecteurs
