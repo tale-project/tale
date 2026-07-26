@@ -173,30 +173,37 @@ export function SkillEditor({
 
       {readOnly && <Alert description={t('skills.readOnly')} />}
 
-      {/* Left: the bundle's file tree (SKILL.md pinned). Right: the SKILL.md
-          form, or a read-only viewer for the selected asset. */}
-      <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <SkillBundleTreePanel
-          assets={assetsQuery.data?.assets ?? []}
-          slug={slug}
-          selectedPath={selectedPath}
-          onSelectPath={setSelectedPath}
-          {...(assetsQuery.data
-            ? { fileCount: assetsQuery.data.assets.length + 1 }
-            : {})}
-          loading={assetsQuery.isPending}
-        />
-        {selectedPath === 'SKILL.md' ? (
-          <SkillMdForm editor={editor} readOnly={readOnly} t={t} />
-        ) : (
-          <div className="border-border min-h-96 overflow-hidden rounded-lg border">
+      {/* One bounded card, split like main's detail panel: the tree owns a
+          fixed-width, internally-scrolling rail (hidden on small screens),
+          and the right pane scrolls the SKILL.md form or the read-only
+          viewer. The card's max height is what keeps a 60-file bundle from
+          stretching the page — each side scrolls itself instead. */}
+      <div className="border-border flex max-h-[calc(100vh-18rem)] min-h-[28rem] overflow-hidden rounded-lg border">
+        <div className="hidden md:contents">
+          <SkillBundleTreePanel
+            assets={assetsQuery.data?.assets ?? []}
+            slug={slug}
+            selectedPath={selectedPath}
+            onSelectPath={setSelectedPath}
+            {...(assetsQuery.data
+              ? { fileCount: assetsQuery.data.assets.length + 1 }
+              : {})}
+            loading={assetsQuery.isPending}
+          />
+        </div>
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          {selectedPath === 'SKILL.md' ? (
+            <div className="p-4">
+              <SkillMdForm editor={editor} readOnly={readOnly} t={t} />
+            </div>
+          ) : (
             <SkillAssetViewer
               organizationId={organizationId}
               skillSlug={slug}
               assetPath={selectedPath}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <DeleteDialog
@@ -224,8 +231,10 @@ function SkillMdForm({
 }) {
   const { register, watch, setValue } = editor.form;
   return (
+    // The metadata keeps a readable measure; the body is the editor's star
+    // and takes the pane's full width and remaining height.
     <form onSubmit={editor.submit}>
-      <Stack gap={4}>
+      <Stack gap={4} className="max-w-2xl">
         <Stack gap={1}>
           <label htmlFor="skill-description" className="text-sm font-medium">
             {t('skills.form.description')}
@@ -287,23 +296,23 @@ function SkillMdForm({
             {t('skills.editor.labelsHelp')}
           </p>
         </Stack>
+      </Stack>
 
-        <Stack gap={1}>
-          <label htmlFor="skill-body" className="text-sm font-medium">
-            {t('skills.section.body')}
-          </label>
-          <Textarea
-            id="skill-body"
-            disabled={readOnly}
-            rows={18}
-            className="font-mono text-sm"
-            aria-describedby="skill-body-help"
-            {...register('body')}
-          />
-          <p id="skill-body-help" className="text-muted-foreground text-xs">
-            {t('skills.editor.bodyHelp')}
-          </p>
-        </Stack>
+      <Stack gap={1} className="mt-4">
+        <label htmlFor="skill-body" className="text-sm font-medium">
+          {t('skills.section.body')}
+        </label>
+        <Textarea
+          id="skill-body"
+          disabled={readOnly}
+          rows={18}
+          className="min-h-[26rem] resize-y font-mono text-sm"
+          aria-describedby="skill-body-help"
+          {...register('body')}
+        />
+        <p id="skill-body-help" className="text-muted-foreground text-xs">
+          {t('skills.editor.bodyHelp')}
+        </p>
       </Stack>
     </form>
   );

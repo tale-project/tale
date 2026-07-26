@@ -40,7 +40,14 @@ function SkillsPage() {
     });
 
   return (
-    <SettingsPage>
+    // The editor is a master-detail file browser — the one settings surface
+    // that needs the documented full-measure escape AND stacked fields (its
+    // controls size to the editor pane, not the settings control column);
+    // the catalog keeps the shared narrow measure.
+    <SettingsPage
+      fullWidth={slug !== undefined}
+      fieldLayout={slug !== undefined ? 'stacked' : 'row'}
+    >
       <SettingsSection
         title={tNav('skills')}
         description={tSettings('menu.skills.description')}
