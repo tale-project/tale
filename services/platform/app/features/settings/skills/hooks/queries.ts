@@ -28,3 +28,31 @@ export function useSkill(organizationId: string, slug: string | null) {
     { enabled: !!slug },
   );
 }
+
+/** The bundle's file tree (paths + sizes; SKILL.md pinned out), or null. */
+export function useSkillAssets(organizationId: string, slug: string | null) {
+  return useActionQuery(
+    configKeys.detail('skills', organizationId, `${slug ?? ''}/assets`),
+    api.skills.actions.getSkillAssets,
+    { organizationId, slug: slug ?? '' },
+    { enabled: !!slug },
+  );
+}
+
+/** One asset's bytes (base64 — the viewer decodes), null-gated on selection. */
+export function useSkillAsset(
+  organizationId: string,
+  slug: string,
+  assetPath: string | null,
+) {
+  return useActionQuery(
+    configKeys.detail(
+      'skills',
+      organizationId,
+      `${slug}/asset/${assetPath ?? ''}`,
+    ),
+    api.skills.actions.getSkillAsset,
+    { organizationId, slug, assetPath: assetPath ?? '' },
+    { enabled: assetPath !== null },
+  );
+}

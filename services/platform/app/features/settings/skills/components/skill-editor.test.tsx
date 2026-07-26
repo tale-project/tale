@@ -8,7 +8,7 @@ import {
   useActiveEditor,
   type EditorController,
 } from '@/app/components/ui/editor';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -28,9 +28,28 @@ let skillData:
     }
   | null
   | undefined;
+let assetsData:
+  | { assets: { path: string; size: number }[]; skillMdBytes: number }
+  | null
+  | undefined = { assets: [], skillMdBytes: 10 };
+let assetData:
+  | { ok: true; contentBase64: string }
+  | { ok: false; error: 'not_found' | 'too_large' }
+  | null
+  | undefined;
 vi.mock('../hooks/queries', () => ({
   useSkill: () => ({
     data: skillData,
+    isPending: false,
+    isError: false,
+  }),
+  useSkillAssets: () => ({
+    data: assetsData,
+    isPending: false,
+    isError: false,
+  }),
+  useSkillAsset: () => ({
+    data: assetData,
     isPending: false,
     isError: false,
   }),
@@ -138,5 +157,44 @@ describe('SkillEditor', () => {
     renderEditor();
 
     expect(screen.getByText('settings.skills.notFound')).toBeInTheDocument();
+  });
+  it('lists bundle assets in the tree and swaps in the read-only viewer', async () => {
+    skillData = {
+      slug: 'docx',
+      description: 'Word documents.',
+      visibility: 'org',
+      body: 'Body.',
+      canEdit: true,
+    };
+    assetsData = {
+      assets: [{ path: 'scripts/pack.py', size: 5 }],
+      skillMdBytes: 20,
+    };
+    assetData = {
+      ok: true,
+      contentBase64: Buffer.from('print("hi")').toString('base64'),
+    };
+    const { user } = renderEditor();
+
+    // SKILL.md is pinned and the asset is listed.
+    expect(screen.getByRole('treeitem', { name: /SKILL\.md/ })).toBeVisible();
+    const assetRow = screen.getByRole('treeitem', { name: /pack\.py/ });
+
+    await user.click(assetRow);
+    // The form yields to the read-only viewer…
+    expect(
+      screen.queryByLabelText('settings.skills.form.description'),
+    ).not.toBeInTheDocument();
+    // Syntax highlighting splits the code into token spans — assert on the
+    // rendered text as a whole.
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('print("hi")');
+    });
+
+    // …and SKILL.md brings the form back.
+    await user.click(screen.getByRole('treeitem', { name: /SKILL\.md/ }));
+    expect(
+      screen.getByLabelText('settings.skills.form.description'),
+    ).toBeVisible();
   });
 });

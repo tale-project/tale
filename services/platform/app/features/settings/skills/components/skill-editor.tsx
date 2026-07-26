@@ -23,7 +23,9 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteSkill, useSaveSkill } from '../hooks/mutations';
-import { useSkill } from '../hooks/queries';
+import { useSkill, useSkillAssets } from '../hooks/queries';
+import { SkillAssetViewer } from './skill-asset-viewer';
+import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 
 interface SkillFormState {
   description: string;
@@ -58,10 +60,13 @@ export function SkillEditor({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const skillQuery = useSkill(organizationId, slug);
+  const assetsQuery = useSkillAssets(organizationId, slug);
   const saveSkill = useSaveSkill();
   const deleteSkill = useDeleteSkill();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
+  /** 'SKILL.md' (the form) or a bundle asset shown read-only. */
+  const [selectedPath, setSelectedPath] = useState('SKILL.md');
 
   const skill = skillQuery.data;
 
@@ -106,7 +111,6 @@ export function SkillEditor({
   useRegisterGroupedEditor(editor, {
     enabled: skill != null && skill.canEdit,
   });
-  const { register, watch, setValue } = editor.form;
 
   if (skillQuery.isPending) {
     return (
@@ -169,88 +173,31 @@ export function SkillEditor({
 
       {readOnly && <Alert description={t('skills.readOnly')} />}
 
-      <form onSubmit={editor.submit}>
-        <Stack gap={4}>
-          <Stack gap={1}>
-            <label htmlFor="skill-description" className="text-sm font-medium">
-              {t('skills.form.description')}
-            </label>
-            <Input
-              id="skill-description"
-              disabled={readOnly}
-              aria-describedby="skill-description-help"
-              {...register('description')}
+      {/* Left: the bundle's file tree (SKILL.md pinned). Right: the SKILL.md
+          form, or a read-only viewer for the selected asset. */}
+      <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <SkillBundleTreePanel
+          assets={assetsQuery.data?.assets ?? []}
+          slug={slug}
+          selectedPath={selectedPath}
+          onSelectPath={setSelectedPath}
+          {...(assetsQuery.data
+            ? { fileCount: assetsQuery.data.assets.length + 1 }
+            : {})}
+          loading={assetsQuery.isPending}
+        />
+        {selectedPath === 'SKILL.md' ? (
+          <SkillMdForm editor={editor} readOnly={readOnly} t={t} />
+        ) : (
+          <div className="border-border min-h-96 overflow-hidden rounded-lg border">
+            <SkillAssetViewer
+              organizationId={organizationId}
+              skillSlug={slug}
+              assetPath={selectedPath}
             />
-            <p
-              id="skill-description-help"
-              className="text-muted-foreground text-xs"
-            >
-              {t('skills.editor.descriptionHelp')}
-            </p>
-          </Stack>
-
-          <Stack gap={1}>
-            <span className="text-sm font-medium">
-              {t('skills.visibility.label')}
-            </span>
-            <RadioGroup
-              aria-label={t('skills.visibility.label')}
-              value={watch('visibility') ?? 'org'}
-              onValueChange={(visibility) => {
-                if (visibility === 'private' || visibility === 'org') {
-                  setValue('visibility', visibility, { shouldDirty: true });
-                }
-              }}
-              options={[
-                {
-                  value: 'org',
-                  label: t('skills.visibility.org'),
-                  description: t('skills.visibility.orgHelp'),
-                },
-                {
-                  value: 'private',
-                  label: t('skills.visibility.private'),
-                  description: t('skills.visibility.privateHelp'),
-                },
-              ]}
-              disabled={readOnly}
-            />
-          </Stack>
-
-          <Stack gap={1}>
-            <label htmlFor="skill-labels" className="text-sm font-medium">
-              {t('skills.editor.labels')}
-            </label>
-            <Input
-              id="skill-labels"
-              disabled={readOnly}
-              placeholder={t('skills.editor.labelsPlaceholder')}
-              aria-describedby="skill-labels-help"
-              {...register('labels')}
-            />
-            <p id="skill-labels-help" className="text-muted-foreground text-xs">
-              {t('skills.editor.labelsHelp')}
-            </p>
-          </Stack>
-
-          <Stack gap={1}>
-            <label htmlFor="skill-body" className="text-sm font-medium">
-              {t('skills.section.body')}
-            </label>
-            <Textarea
-              id="skill-body"
-              disabled={readOnly}
-              rows={18}
-              className="font-mono text-sm"
-              aria-describedby="skill-body-help"
-              {...register('body')}
-            />
-            <p id="skill-body-help" className="text-muted-foreground text-xs">
-              {t('skills.editor.bodyHelp')}
-            </p>
-          </Stack>
-        </Stack>
-      </form>
+          </div>
+        )}
+      </div>
 
       <DeleteDialog
         open={deleteOpen}
@@ -261,6 +208,104 @@ export function SkillEditor({
         isDeleting={deleteSkill.isPending}
       />
     </Stack>
+  );
+}
+
+/** The SKILL.md editing form, unchanged behaviour — split out so the two-pane
+ * layout can swap it against the asset viewer without re-mounting the page. */
+function SkillMdForm({
+  editor,
+  readOnly,
+  t,
+}: {
+  editor: ReturnType<typeof useFormEditor<SkillFormState>>;
+  readOnly: boolean;
+  t: ReturnType<typeof useT>['t'];
+}) {
+  const { register, watch, setValue } = editor.form;
+  return (
+    <form onSubmit={editor.submit}>
+      <Stack gap={4}>
+        <Stack gap={1}>
+          <label htmlFor="skill-description" className="text-sm font-medium">
+            {t('skills.form.description')}
+          </label>
+          <Input
+            id="skill-description"
+            disabled={readOnly}
+            aria-describedby="skill-description-help"
+            {...register('description')}
+          />
+          <p
+            id="skill-description-help"
+            className="text-muted-foreground text-xs"
+          >
+            {t('skills.editor.descriptionHelp')}
+          </p>
+        </Stack>
+
+        <Stack gap={1}>
+          <span className="text-sm font-medium">
+            {t('skills.visibility.label')}
+          </span>
+          <RadioGroup
+            aria-label={t('skills.visibility.label')}
+            value={watch('visibility') ?? 'org'}
+            onValueChange={(visibility) => {
+              if (visibility === 'private' || visibility === 'org') {
+                setValue('visibility', visibility, { shouldDirty: true });
+              }
+            }}
+            options={[
+              {
+                value: 'org',
+                label: t('skills.visibility.org'),
+                description: t('skills.visibility.orgHelp'),
+              },
+              {
+                value: 'private',
+                label: t('skills.visibility.private'),
+                description: t('skills.visibility.privateHelp'),
+              },
+            ]}
+            disabled={readOnly}
+          />
+        </Stack>
+
+        <Stack gap={1}>
+          <label htmlFor="skill-labels" className="text-sm font-medium">
+            {t('skills.editor.labels')}
+          </label>
+          <Input
+            id="skill-labels"
+            disabled={readOnly}
+            placeholder={t('skills.editor.labelsPlaceholder')}
+            aria-describedby="skill-labels-help"
+            {...register('labels')}
+          />
+          <p id="skill-labels-help" className="text-muted-foreground text-xs">
+            {t('skills.editor.labelsHelp')}
+          </p>
+        </Stack>
+
+        <Stack gap={1}>
+          <label htmlFor="skill-body" className="text-sm font-medium">
+            {t('skills.section.body')}
+          </label>
+          <Textarea
+            id="skill-body"
+            disabled={readOnly}
+            rows={18}
+            className="font-mono text-sm"
+            aria-describedby="skill-body-help"
+            {...register('body')}
+          />
+          <p id="skill-body-help" className="text-muted-foreground text-xs">
+            {t('skills.editor.bodyHelp')}
+          </p>
+        </Stack>
+      </Stack>
+    </form>
   );
 }
 
