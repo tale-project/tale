@@ -23,6 +23,7 @@ import {
   type GenerateDocxResult,
 } from './generate_docx';
 import type { GenerateDocumentResult } from './types';
+import { uploadBase64ToStorage } from './upload_base64_to_storage';
 
 // Every RAG hook below
 // (`deleteDocumentFromRag`'s corpus cleanup, `uploadDocumentToRag`,
@@ -409,5 +410,28 @@ export const storeRawContent = internalAction({
       size,
       extension: args.extension,
     };
+  },
+});
+
+/**
+ * Store base64-encoded file bytes as a blob (no document row) — the thin
+ * registered wrapper `uploadBase64ToStorage`'s own doc asks for. Binary
+ * seeding lanes (integration imports, test fixtures) pair it with
+ * `upsertDocumentByExternalId` to file the blob into a folder.
+ */
+export const uploadFileFromBase64 = internalAction({
+  args: {
+    organizationId: v.string(),
+    fileName: v.string(),
+    contentType: v.string(),
+    dataBase64: v.string(),
+  },
+  returns: v.object({
+    fileStorageId: v.id('_storage'),
+    size: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const uploaded = await uploadBase64ToStorage(ctx, args);
+    return { fileStorageId: uploaded.fileStorageId, size: uploaded.size };
   },
 });

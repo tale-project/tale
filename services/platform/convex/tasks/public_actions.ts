@@ -17,33 +17,64 @@ import { parseIssueNumber, parseRepoRef } from './issue_ref';
  */
 async function startWorkflowForTask(
   ctx: ActionCtx,
-  args: { organizationId: string; task: Doc<'tasks'>; workflowSlug: string },
-): Promise<string | null> {
+  args: {
+    organizationId: string;
+    task: Doc<'tasks'>;
+    workflowSlug: string;
+    startedByUserId: string;
+  },
+): Promise<{ runId: string; alreadyRunning: boolean } | null> {
   const issueNumber = parseIssueNumber(args.task.externalId);
   // owner/repo from the same "owner/repo#N" ref, so a workflow can address the
   // upstream issue (e.g. the desk pre-check's get_issue) without re-parsing;
   // null for a non-issue/malformed ref, which the workflow guards on.
   const repoRef = parseRepoRef(args.task.externalId);
-  // There is no more install-time app config to inject here — an app no
-  // longer has a `requires.config` concept. A value like a test command or
-  // repo notes now comes from the owning workflow's OWN trigger/schedule
-  // variables (e.g. issue-desk/reconcile's `variables`, set via the
-  // workflow's Triggers tab), read inside the workflow itself rather than
-  // threaded through this action's `input`. (N3 wires that up for issue-desk.)
   try {
-    // Task workflows ran on the retired automation engine, which is offline
-    // while it is rebuilt. Callers already treat a failed start as
-    // "not started", so degrade the same way.
-    console.warn(
-      '[task-workflow] start skipped — automation engine offline while it is rebuilt',
+    // The workflow slug names a DEPLOYED automation of this organization; the
+    // run carries the task as its input — the same contract the retired
+    // engine's task workflows had. Not-deployed degrades to "not started",
+    // which callers already handle.
+    const started = await ctx.runMutation(
+      internal.automations.mutations.startTaskWorkflowRun,
       {
-        workflowSlug: args.workflowSlug,
-        taskId: args.task._id,
-        issueNumber,
-        repo: repoRef ? `${repoRef.owner}/${repoRef.repo}` : null,
+        organizationId: args.organizationId,
+        name: args.workflowSlug,
+        taskId: String(args.task._id),
+        startedBy: `user:${args.startedByUserId}`,
+        input: {
+          task: {
+            id: String(args.task._id),
+            title: args.task.title,
+            status: args.task.status,
+            projectId: String(args.task.projectId),
+            ...(args.task.externalSystem !== undefined
+              ? { externalSystem: args.task.externalSystem }
+              : {}),
+            ...(args.task.externalId !== undefined
+              ? { externalId: args.task.externalId }
+              : {}),
+            ...(args.task.externalUrl !== undefined
+              ? { externalUrl: args.task.externalUrl }
+              : {}),
+            ...(issueNumber !== null ? { issueNumber } : {}),
+            ...(repoRef !== null
+              ? { repo: `${repoRef.owner}/${repoRef.repo}` }
+              : {}),
+          },
+        },
       },
     );
-    return null;
+    if (started === null) {
+      console.warn(
+        '[task-workflow] start skipped — no deployed automation named',
+        args.workflowSlug,
+      );
+      return null;
+    }
+    return {
+      runId: String(started.runId),
+      alreadyRunning: started.alreadyRunning === true,
+    };
   } catch (err) {
     console.error(
       '[task-workflow] workflow start failed',
@@ -299,7 +330,7 @@ export const startTaskWorkflow = action({
     executionId: string | null;
     reason?: 'already_running' | 'not_started';
   }> => {
-    await requireOrgMembershipById(ctx, args.organizationId);
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
 
     const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
       taskId: args.taskId,
@@ -309,26 +340,23 @@ export const startTaskWorkflow = action({
       throw new Error('Task not found');
     }
 
-    // No executions can be active while the automation engine is rebuilt,
-    // so the duplicate-run pre-check short-circuits to "none".
-    const active = null as { executionId: string } | null;
-    if (active) {
-      return {
-        started: false,
-        reason: 'already_running',
-        executionId: active.executionId,
-      };
-    }
-
-    const executionId = await startWorkflowForTask(ctx, {
+    const started = await startWorkflowForTask(ctx, {
       organizationId: args.organizationId,
       task: loaded.task,
       workflowSlug: args.workflowSlug,
+      startedByUserId: auth.userId,
     });
-    if (!executionId) {
+    if (!started) {
       return { started: false, reason: 'not_started', executionId: null };
     }
-    return { started: true, executionId };
+    if (started.alreadyRunning) {
+      return {
+        started: false,
+        reason: 'already_running',
+        executionId: started.runId,
+      };
+    }
+    return { started: true, executionId: started.runId };
   },
 });
 

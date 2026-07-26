@@ -45,6 +45,7 @@ import type * as audit_logs_types from "../audit_logs/types.js";
 import type * as audit_logs_validators from "../audit_logs/validators.js";
 import type * as audit_logs_verify_integrity from "../audit_logs/verify_integrity.js";
 import type * as auth from "../auth.js";
+import type * as automations_agent_host from "../automations/agent_host.js";
 import type * as automations_catalog from "../automations/catalog.js";
 import type * as automations_checkpoints from "../automations/checkpoints.js";
 import type * as automations_cron from "../automations/cron.js";
@@ -52,6 +53,7 @@ import type * as automations_llm_call from "../automations/llm_call.js";
 import type * as automations_mutations from "../automations/mutations.js";
 import type * as automations_queries from "../automations/queries.js";
 import type * as automations_rest_api from "../automations/rest_api.js";
+import type * as automations_script_host from "../automations/script_host.js";
 import type * as automations_stepper from "../automations/stepper.js";
 import type * as automations_store from "../automations/store.js";
 import type * as automations_triggers from "../automations/triggers.js";
@@ -382,6 +384,7 @@ import type * as integrations_execute_action from "../integrations/execute_actio
 import type * as integrations_hostcall_action from "../integrations/hostcall_action.js";
 import type * as integrations_hostcall_http from "../integrations/hostcall_http.js";
 import type * as integrations_hostcall_token from "../integrations/hostcall_token.js";
+import type * as integrations_platform_stores from "../integrations/platform_stores.js";
 import type * as knowledge_connection from "../knowledge/connection.js";
 import type * as knowledge_corpus from "../knowledge/corpus.js";
 import type * as knowledge_ddl from "../knowledge/ddl.js";
@@ -893,6 +896,7 @@ declare const fullApi: ApiFromModules<{
   "audit_logs/validators": typeof audit_logs_validators;
   "audit_logs/verify_integrity": typeof audit_logs_verify_integrity;
   auth: typeof auth;
+  "automations/agent_host": typeof automations_agent_host;
   "automations/catalog": typeof automations_catalog;
   "automations/checkpoints": typeof automations_checkpoints;
   "automations/cron": typeof automations_cron;
@@ -900,6 +904,7 @@ declare const fullApi: ApiFromModules<{
   "automations/mutations": typeof automations_mutations;
   "automations/queries": typeof automations_queries;
   "automations/rest_api": typeof automations_rest_api;
+  "automations/script_host": typeof automations_script_host;
   "automations/stepper": typeof automations_stepper;
   "automations/store": typeof automations_store;
   "automations/triggers": typeof automations_triggers;
@@ -1230,6 +1235,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/hostcall_action": typeof integrations_hostcall_action;
   "integrations/hostcall_http": typeof integrations_hostcall_http;
   "integrations/hostcall_token": typeof integrations_hostcall_token;
+  "integrations/platform_stores": typeof integrations_platform_stores;
   "knowledge/connection": typeof knowledge_connection;
   "knowledge/corpus": typeof knowledge_corpus;
   "knowledge/ddl": typeof knowledge_ddl;
