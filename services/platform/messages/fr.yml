@@ -799,13 +799,6 @@ automations:
       forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
       repeatUntil: Répéter jusqu’à
       repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
-  review:
-    title: '{count, plural, one {# nœud à relire} other {# nœuds à relire}}'
-    description: Cette automatisation a été convertie depuis une définition plus
-      ancienne, et ces constructions n’ont pas pu être réexprimées à comportement
-      égal. Lis-les toutes avant de mettre en service.
-    nodeTitle: Ce nœud demande une relecture humaine
-    nodeBadge: '{count, plural, one {# remarque} other {# remarques}}'
   versions:
     title: Versions
     empty: Aucune version n’a encore été enregistrée.

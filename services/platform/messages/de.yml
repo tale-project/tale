@@ -801,13 +801,6 @@ automations:
       forEachDescription: Läuft einmal pro Element des Arrays, das der Ausdruck ergibt.
       repeatUntil: Wiederholen bis
       repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
-  review:
-    title: '{count, plural, one {# Node braucht eine Prüfung} other {# Nodes brauchen eine Prüfung}}'
-    description: Diese Automatisierung wurde aus einer älteren Definition
-      übernommen, und diese Konstrukte ließen sich nicht mit gleichem Verhalten
-      neu ausdrücken. Lies jedes davon, bevor du sie live schaltest.
-    nodeTitle: Diese Node braucht einen menschlichen Blick
-    nodeBadge: '{count, plural, one {# Hinweis} other {# Hinweise}}'
   versions:
     title: Versionen
     empty: Es wurde noch keine Version gespeichert.

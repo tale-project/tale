@@ -117,13 +117,11 @@ describe('AutomationNodeBox', () => {
         inspectorId="inspector"
         sources={[]}
         runStatus="error"
-        reviewCount={2}
         onSelect={vi.fn()}
       />,
     );
     const button = screen.getByRole('button');
     expect(button).toHaveAccessibleName(/failed/i);
-    expect(button).toHaveAccessibleName(/2 review notes/i);
     expect(button).toHaveAccessibleName(/when/i);
   });
 
@@ -172,7 +170,6 @@ describe('AutomationNodeBox', () => {
         inspectorId="inspector"
         sources={['calc']}
         runStatus="ok"
-        reviewCount={1}
         onSelect={vi.fn()}
       />,
     );

@@ -59,11 +59,9 @@ export interface AutomationCanvasProps {
   /** Id of the inspector region a node button expands. */
   inspectorId: string;
   runStatusByNode?: ReadonlyMap<string, NodeRunStatus>;
-  reviewCountByNode?: ReadonlyMap<string, number>;
 }
 
 const EMPTY_STATUSES: ReadonlyMap<string, NodeRunStatus> = new Map();
-const EMPTY_COUNTS: ReadonlyMap<string, number> = new Map();
 
 function CanvasInner({
   graph,
@@ -72,7 +70,6 @@ function CanvasInner({
   onSelectNode,
   inspectorId,
   runStatusByNode = EMPTY_STATUSES,
-  reviewCountByNode = EMPTY_COUNTS,
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
   const { setCenter, getZoom } = useReactFlow();
@@ -180,7 +177,6 @@ function CanvasInner({
       onSelect: onSelectNode,
       onFocusNode,
       runStatusByNode,
-      reviewCountByNode,
       incomingByNode,
     }),
     [
@@ -189,7 +185,6 @@ function CanvasInner({
       onSelectNode,
       onFocusNode,
       runStatusByNode,
-      reviewCountByNode,
       incomingByNode,
     ],
   );

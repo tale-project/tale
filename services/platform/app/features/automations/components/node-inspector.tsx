@@ -15,7 +15,6 @@ import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodeTypeSummary } from '../hooks/backend';
-import type { ReviewNote } from '../lib/document';
 import { controlFlowBadges } from '../lib/graph';
 import type { NodeRunView } from '../lib/run-view';
 import { EffectList } from './effect-list';
@@ -196,7 +195,6 @@ export interface NodeInspectorProps {
   nodeType: NodeTypeSummary | undefined;
   /** The node-type catalog could not be loaded at all. */
   catalogUnavailable?: boolean;
-  reviewNotes: readonly ReviewNote[];
   /** What the overlaid run did to this node, when one is shown. */
   runView?: NodeRunView | undefined;
   readOnly: boolean;
@@ -218,7 +216,6 @@ export function NodeInspector({
   node,
   nodeType,
   catalogUnavailable = false,
-  reviewNotes,
   runView,
   readOnly,
   onChange,
@@ -275,25 +272,6 @@ export function NodeInspector({
           variant="warning"
           icon={AlertTriangle}
           description={t('editor.catalogUnavailable')}
-        />
-      )}
-
-      {reviewNotes.length > 0 && (
-        <Alert
-          variant="warning"
-          icon={AlertTriangle}
-          description={
-            <>
-              <p className="text-foreground font-medium">
-                {t('review.nodeTitle')}
-              </p>
-              <ul className="mt-1 list-disc space-y-1 pl-4">
-                {reviewNotes.map((note) => (
-                  <li key={note.reason}>{note.reason}</li>
-                ))}
-              </ul>
-            </>
-          }
         />
       )}
 

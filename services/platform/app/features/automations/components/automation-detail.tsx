@@ -37,17 +37,11 @@ import {
   useAutomationVersions,
   useNodeTypeCatalog,
 } from '../hooks/queries';
-import {
-  readDocument,
-  readPositions,
-  readReviewNotes,
-  reviewNotesByNode,
-} from '../lib/document';
+import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import { nodeStatusMap, projectRun } from '../lib/run-view';
 import { AutomationCanvas } from './automation-canvas';
-import { NeedsReviewPanel } from './needs-review-panel';
 import { NodeInspector } from './node-inspector';
 import { RunList } from './run-list';
 import { TriggerEditor } from './trigger-editor';
@@ -180,16 +174,6 @@ export function AutomationDetail({
   const automation = draft ?? stored;
   const graph = useMemo(() => buildGraph(automation), [automation]);
   const positions = useMemo(() => readPositions(automation), [automation]);
-  const reviewNotes = useMemo(() => readReviewNotes(automation), [automation]);
-  const reviewByNode = useMemo(
-    () => reviewNotesByNode(reviewNotes),
-    [reviewNotes],
-  );
-  const reviewCountByNode = useMemo(
-    () =>
-      new Map([...reviewByNode].map(([node, notes]) => [node, notes.length])),
-    [reviewByNode],
-  );
 
   const runs = runsQuery.data ?? [];
   const lastRun = runs[0];
@@ -424,11 +408,6 @@ export function AutomationDetail({
           <Alert variant="destructive" description={refusal} />
         )}
 
-        <NeedsReviewPanel
-          notes={reviewNotes}
-          onSelectNode={setSelectedNodeId}
-        />
-
         {lastRun && (
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -479,7 +458,6 @@ export function AutomationDetail({
               onSelectNode={setSelectedNodeId}
               inspectorId={inspectorId}
               {...(runStatusByNode !== undefined && { runStatusByNode })}
-              reviewCountByNode={reviewCountByNode}
             />
           </div>
           <NodeInspector
@@ -487,9 +465,6 @@ export function AutomationDetail({
             node={selectedNode}
             nodeType={nodeTypes.find((def) => def.type === selectedNode?.type)}
             catalogUnavailable={catalogQuery.isError}
-            reviewNotes={
-              selectedNode ? (reviewByNode.get(selectedNode.id) ?? []) : []
-            }
             runView={
               selectedNode && showLastRun
                 ? lastRunProjection.byNode.get(selectedNode.id)

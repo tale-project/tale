@@ -22,12 +22,7 @@ import {
   useAutomationRun,
   useNodeTypeCatalog,
 } from '../hooks/queries';
-import {
-  readDocument,
-  readPositions,
-  readReviewNotes,
-  reviewNotesByNode,
-} from '../lib/document';
+import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import {
@@ -83,10 +78,6 @@ export function RunDetail({
   );
   const graph = useMemo(() => buildGraph(automation), [automation]);
   const positions = useMemo(() => readPositions(automation), [automation]);
-  const reviewByNode = useMemo(
-    () => reviewNotesByNode(readReviewNotes(automation)),
-    [automation],
-  );
   const projection = useMemo(() => projectRun(run), [run]);
   const runStatusByNode = useMemo(
     () =>
@@ -95,11 +86,6 @@ export function RunDetail({
         graph.nodes.map((node) => node.id),
       ),
     [graph.nodes, projection],
-  );
-  const reviewCountByNode = useMemo(
-    () =>
-      new Map([...reviewByNode].map(([node, notes]) => [node, notes.length])),
-    [reviewByNode],
   );
   const nodeTypes = useMemo(
     () => mergeNodeTypes(catalogQuery.data),
@@ -221,7 +207,6 @@ export function RunDetail({
             onSelectNode={setSelectedNodeId}
             inspectorId={inspectorId}
             runStatusByNode={runStatusByNode}
-            reviewCountByNode={reviewCountByNode}
           />
         </div>
         <NodeInspector
@@ -229,9 +214,6 @@ export function RunDetail({
           node={selectedNode}
           nodeType={nodeTypes.find((def) => def.type === selectedNode?.type)}
           catalogUnavailable={catalogQuery.isError}
-          reviewNotes={
-            selectedNode ? (reviewByNode.get(selectedNode.id) ?? []) : []
-          }
           runView={
             selectedNode ? projection.byNode.get(selectedNode.id) : undefined
           }

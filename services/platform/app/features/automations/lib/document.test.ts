@@ -2,12 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DOC_EXAMPLE } from '@/lib/engine/api/docs';
 
-import {
-  readDocument,
-  readPositions,
-  readReviewNotes,
-  reviewNotesByNode,
-} from './document';
+import { readDocument, readPositions } from './document';
 
 /**
  * A stored document arrives as `v.any()`. These tests pin the narrowing to the
@@ -76,28 +71,5 @@ describe('readPositions', () => {
 
   it('reads no positions from a document that placed none', () => {
     expect(readPositions(readDocument(DOC_EXAMPLE.automation))).toEqual({});
-  });
-});
-
-describe('readReviewNotes', () => {
-  it('reads the converter notes a document carries', () => {
-    const automation = readDocument({
-      name: 'a',
-      nodes: [{ id: 'n', type: 'transform', code: 'return 1;' }],
-      ui: {
-        needsReview: [
-          { node: 'n', reason: 'the model was chosen for you' },
-          { node: 'n', reason: 'a per-item branch could not be flattened' },
-          { reason: 'no node named' },
-        ],
-      },
-    });
-    const notes = readReviewNotes(automation);
-    expect(notes).toHaveLength(2);
-    expect(reviewNotesByNode(notes).get('n')).toHaveLength(2);
-  });
-
-  it('reports no flagged node when the document carries none', () => {
-    expect(readReviewNotes(readDocument(DOC_EXAMPLE.automation))).toEqual([]);
   });
 });

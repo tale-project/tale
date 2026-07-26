@@ -761,15 +761,6 @@ automations:
       forEachDescription: Run once per item of the array the expression resolves to.
       repeatUntil: Repeat until
       repeatUntilDescription: Re-run this node until the expression is truthy.
-  review:
-    title: '{count, plural, one {# node needs review} other {# nodes need
-      review}}'
-    description:
-      This automation was converted from an older definition, and these
-      constructs could not be re-expressed with the same behaviour. Read each one
-      before deploying.
-    nodeTitle: This node needs a human pass
-    nodeBadge: '{count, plural, one {# review note} other {# review notes}}'
   versions:
     title: Versions
     empty: No version has been saved yet.

@@ -4,14 +4,14 @@
  * The store keeps a version's document as `v.any()` — the engine owns the v1
  * grammar and Convex would have to mirror the whole node grammar to type it —
  * so every surface that renders one starts by narrowing the raw value here.
- * The narrowing is deliberately forgiving: a document authored by an agent, or
- * carried over by a conversion, may be incomplete, and a canvas that refuses to
- * draw an imperfect document is useless exactly when it is needed most. What
- * cannot be understood is dropped, never guessed.
+ * The narrowing is deliberately forgiving: a document authored by an agent may
+ * be incomplete, and a canvas that refuses to draw an imperfect document is
+ * useless exactly when it is needed most. What cannot be understood is
+ * dropped, never guessed.
  *
  * `ui` is the engine's declared canvas metadata — "ignored by the engine" — and
- * is where this feature keeps the two things the canvas needs and the executor
- * must not see: hand-placed node positions and the converter's review notes.
+ * is where this feature keeps what the canvas needs and the executor must not
+ * see: hand-placed node positions.
  */
 
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
@@ -20,16 +20,6 @@ import type { NodeDef, Automation } from '@/lib/engine/core/types';
 export interface NodePosition {
   x: number;
   y: number;
-}
-
-/**
- * One construct a conversion could not re-express faithfully, as
- * `lib/automations/convert.ts` reports it: the node it concerns and why a
- * human has to look.
- */
-export interface ReviewNote {
-  node: string;
-  reason: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,42 +106,4 @@ export function readPositions(
     if (typeof x === 'number' && typeof y === 'number') out[id] = { x, y };
   }
   return out;
-}
-
-/**
- * The converter's review notes, from `ui.needsReview`.
- *
- * SEAM — this is the one place the feature assumes where a conversion records
- * what it could not re-express. `lib/automations/convert.ts` returns
- * `{automation, needsReview}`, but nothing writes the result yet; the notes ride
- * in the document's canvas metadata because they annotate NODES for a human and
- * must never reach the executor. When the writer lands it fills
- * `ui.needsReview` with the same `{node, reason}` records and nothing here
- * changes. Until then a document simply carries none, and the canvas correctly
- * reports that no node is flagged — rather than inventing flags.
- */
-export function readReviewNotes(automation: Automation | null): ReviewNote[] {
-  const raw = automation?.ui?.needsReview;
-  if (!Array.isArray(raw)) return [];
-  const out: ReviewNote[] = [];
-  for (const value of raw) {
-    if (!isRecord(value)) continue;
-    const node = readString(value.node);
-    const reason = readString(value.reason);
-    if (node && reason) out.push({ node, reason });
-  }
-  return out;
-}
-
-/** Review notes grouped by the node they concern, for per-node display. */
-export function reviewNotesByNode(
-  notes: readonly ReviewNote[],
-): Map<string, ReviewNote[]> {
-  const grouped = new Map<string, ReviewNote[]>();
-  for (const note of notes) {
-    const bucket = grouped.get(note.node);
-    if (bucket) bucket.push(note);
-    else grouped.set(note.node, [note]);
-  }
-  return grouped;
 }

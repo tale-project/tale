@@ -2,7 +2,6 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { AlertTriangle } from 'lucide-react';
 import { createContext, useContext, useMemo } from 'react';
 
 import type { NodeDef } from '@/lib/engine/core/types';
@@ -28,8 +27,6 @@ export interface CanvasNodeContextValue {
   onFocusNode: (nodeId: string) => void;
   /** Overlay status per node, when a run is shown on the canvas. */
   runStatusByNode: ReadonlyMap<string, NodeRunStatus>;
-  /** How many review notes each node carries. */
-  reviewCountByNode: ReadonlyMap<string, number>;
   /** The derived incoming edges, by target node. */
   incomingByNode: ReadonlyMap<string, DerivedEdge[]>;
 }
@@ -64,7 +61,6 @@ export interface AutomationNodeBoxProps {
   /** Node ids this node reads from, derived from its references. */
   sources: readonly string[];
   runStatus?: NodeRunStatus | undefined;
-  reviewCount?: number;
   onSelect: () => void;
   onFocus?: () => void;
 }
@@ -79,8 +75,8 @@ export interface AutomationNodeBoxProps {
  *
  * What the box shows is what the engine will do: the node's id and type, its
  * declarative control flow as badges, the nodes it reads from (spelled out in
- * words, so the graph is readable without seeing the lines at all), its status
- * under the run being overlaid, and whether a conversion flagged it for review.
+ * words, so the graph is readable without seeing the lines at all), and its
+ * status under the run being overlaid.
  */
 export function AutomationNodeBox({
   node,
@@ -88,7 +84,6 @@ export function AutomationNodeBox({
   inspectorId,
   sources,
   runStatus,
-  reviewCount = 0,
   onSelect,
   onFocus,
 }: AutomationNodeBoxProps) {
@@ -116,7 +111,6 @@ export function AutomationNodeBox({
         'bg-card text-card-foreground border-border w-[18.75rem] rounded-lg border p-3 text-left shadow-sm transition-shadow',
         'focus-visible:ring-ring cursor-pointer hover:shadow-md focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
         selected && 'ring-ring ring-2',
-        reviewCount > 0 && 'border-warning border-l-4',
       )}
     >
       <span className="flex items-start justify-between gap-2">
@@ -135,14 +129,9 @@ export function AutomationNodeBox({
         </span>
       )}
 
-      {(badges.length > 0 || runStatus !== undefined || reviewCount > 0) && (
+      {(badges.length > 0 || runStatus !== undefined) && (
         <span className="mt-2 flex flex-wrap items-center gap-1">
           {runStatus !== undefined && <RunStatusBadge status={runStatus} />}
-          {reviewCount > 0 && (
-            <Badge variant="yellow" icon={AlertTriangle}>
-              {t('review.nodeBadge', { count: reviewCount })}
-            </Badge>
-          )}
           {badges.map((badge) => (
             <Badge key={badge.kind} variant="blue">
               {badgeLabel(badge.kind, badge.value, badge.maxRepeats)}
@@ -166,7 +155,6 @@ export function AutomationNode({ data }: NodeProps) {
     onSelect,
     onFocusNode,
     runStatusByNode,
-    reviewCountByNode,
     incomingByNode,
   } = useCanvasNode();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the canvas builds every node's data itself
@@ -190,7 +178,6 @@ export function AutomationNode({ data }: NodeProps) {
         inspectorId={inspectorId}
         sources={sources}
         runStatus={runStatusByNode.get(node.id)}
-        reviewCount={reviewCountByNode.get(node.id) ?? 0}
         onSelect={() => {
           onSelect(node.id);
         }}

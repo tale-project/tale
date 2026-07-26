@@ -41,7 +41,6 @@ describe('NodeInspector', () => {
         id="inspector"
         node={null}
         nodeType={undefined}
-        reviewNotes={[]}
         readOnly={false}
         onChange={vi.fn()}
       />,
@@ -55,7 +54,6 @@ describe('NodeInspector', () => {
         id="inspector"
         node={llmNode}
         nodeType={llmType}
-        reviewNotes={[]}
         readOnly={false}
         onChange={vi.fn()}
       />,
@@ -76,7 +74,6 @@ describe('NodeInspector', () => {
         id="inspector"
         node={{ id: 'calc', type: 'transform', code: 'return 1;' }}
         nodeType={transformType}
-        reviewNotes={[]}
         readOnly={false}
         onChange={vi.fn()}
       />,
@@ -93,7 +90,6 @@ describe('NodeInspector', () => {
         id="inspector"
         node={{ id: 'calc', type: 'transform', code: '' }}
         nodeType={transformType}
-        reviewNotes={[]}
         readOnly={false}
         onChange={onChange}
       />,
@@ -109,7 +105,6 @@ describe('NodeInspector', () => {
         id="inspector"
         node={{ id: 'calc', type: 'transform', code: '' }}
         nodeType={transformType}
-        reviewNotes={[]}
         readOnly={false}
         onChange={onChange}
       />,
@@ -125,7 +120,6 @@ describe('NodeInspector', () => {
         id="inspector"
         node={llmNode}
         nodeType={llmType}
-        reviewNotes={[]}
         readOnly={false}
         onChange={vi.fn()}
       />,
@@ -143,7 +137,6 @@ describe('NodeInspector', () => {
         node={{ id: 'ping', type: 'acme.ping' }}
         nodeType={undefined}
         catalogUnavailable
-        reviewNotes={[]}
         readOnly={false}
         onChange={vi.fn()}
       />,
@@ -157,29 +150,12 @@ describe('NodeInspector', () => {
     ).toBeVisible();
   });
 
-  it('carries the converter reason for a node that needs review', () => {
-    render(
-      <NodeInspector
-        id="inspector"
-        node={llmNode}
-        nodeType={llmType}
-        reviewNotes={[
-          { node: 'summary', reason: 'the model was chosen for you' },
-        ]}
-        readOnly={false}
-        onChange={vi.fn()}
-      />,
-    );
-    expect(screen.getByText('the model was chosen for you')).toBeVisible();
-  });
-
   it('shows what the overlaid run did to this node, effects included', () => {
     render(
       <NodeInspector
         id="inspector"
         node={llmNode}
         nodeType={llmType}
-        reviewNotes={[]}
         runView={{
           status: 'ok',
           input: { prompt: 'hi' },
@@ -209,9 +185,6 @@ describe('NodeInspector', () => {
         id="inspector"
         node={llmNode}
         nodeType={llmType}
-        reviewNotes={[
-          { node: 'summary', reason: 'the model was chosen for you' },
-        ]}
         readOnly={false}
         onChange={vi.fn()}
       />,
