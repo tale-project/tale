@@ -57,6 +57,7 @@ import type * as automations_script_host from "../automations/script_host.js";
 import type * as automations_stepper from "../automations/stepper.js";
 import type * as automations_store from "../automations/store.js";
 import type * as automations_triggers from "../automations/triggers.js";
+import type * as automations_upload_action from "../automations/upload_action.js";
 import type * as automations_webhook_token from "../automations/webhook_token.js";
 import type * as automations_builder_actions from "../automations_builder/actions.js";
 import type * as automations_builder_chat_wire from "../automations_builder/chat_wire.js";
@@ -908,6 +909,7 @@ declare const fullApi: ApiFromModules<{
   "automations/stepper": typeof automations_stepper;
   "automations/store": typeof automations_store;
   "automations/triggers": typeof automations_triggers;
+  "automations/upload_action": typeof automations_upload_action;
   "automations/webhook_token": typeof automations_webhook_token;
   "automations_builder/actions": typeof automations_builder_actions;
   "automations_builder/chat_wire": typeof automations_builder_chat_wire;

@@ -55,6 +55,9 @@ export interface AutomationStoreScope {
  * reads a fact instead of re-running them. */
 export interface SaveOptions {
   testsPassed?: boolean;
+  /** The version's task-surface contract (already zod-validated by the
+   * caller); stored beside the document. */
+  taskContract?: unknown;
 }
 
 /** What `setTrigger` may persist. Mirrors the engine's `TriggerSpec` plus the
@@ -198,7 +201,9 @@ export async function listAutomationsFor(
    * registry see project automations too.
    */
   projectId?: Id<'projects'> | null,
-): Promise<Array<{ name: string; latest: number }>> {
+): Promise<
+  Array<{ name: string; latest: number; projectId?: Id<'projects'> }>
+> {
   const rows =
     projectId === undefined
       ? await ctx.db
@@ -213,12 +218,24 @@ export async function listAutomationsFor(
               .eq('projectId', projectId ?? undefined),
           )
           .collect();
-  const latest = new Map<string, number>();
+  const latest = new Map<
+    string,
+    { latest: number; projectId?: Id<'projects'> }
+  >();
   for (const row of rows) {
-    latest.set(row.name, Math.max(latest.get(row.name) ?? 0, row.version));
+    const prev = latest.get(row.name)?.latest ?? 0;
+    latest.set(row.name, {
+      latest: Math.max(prev, row.version),
+      // The name→project pin is version-invariant, so any row's value works.
+      ...(row.projectId !== undefined ? { projectId: row.projectId } : {}),
+    });
   }
   return [...latest.entries()]
-    .map(([name, version]) => ({ name, latest: version }))
+    .map(([name, entry]) =>
+      entry.projectId === undefined
+        ? { name, latest: entry.latest }
+        : { name, latest: entry.latest, projectId: entry.projectId },
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -297,6 +314,9 @@ export function automationStore(
         ...(message !== undefined && message !== '' && { message }),
         ...(options?.testsPassed !== undefined && {
           testsPassed: options.testsPassed,
+        }),
+        ...(options?.taskContract !== undefined && {
+          taskContract: options.taskContract,
         }),
         createdBy: actor,
         createdAt: Date.now(),

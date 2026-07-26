@@ -45,6 +45,9 @@ vi.mock('../_generated/api', () => ({
         scheduleTaskWorkflowStart: 'scheduleTaskWorkflowStart',
       },
     },
+    automations: {
+      mutations: { cancelTaskWorkflowRun: 'cancelTaskWorkflowRun' },
+    },
     workflow_executions: {
       internal_queries: { getActiveExecutionForSubject: 'getActive' },
     },
@@ -65,6 +68,7 @@ type Handler = { handler: (ctx: unknown, args: unknown) => Promise<any> };
 
 const TASK = {
   _id: 'task_1',
+  projectId: 'project_1',
   externalId: 'tale-project/tale#1851',
   title: 'a task',
 };
@@ -163,7 +167,7 @@ describe('cancelTaskWorkflow', () => {
   const handler = (cancelTaskWorkflow as unknown as Handler).handler;
   const cancelArgs = { organizationId: 'org_1', taskId: 'task_1' };
 
-  it('parks the task without touching executions while the engine is offline', async () => {
+  it('consults the run kernel and parks the task when no run is live', async () => {
     const { ctx, runMutationCalls } = createCtx({
       task: { task: { ...TASK, status: 'in_progress' } },
       active: { executionId: 'exec_run', status: 'running' },
@@ -176,13 +180,21 @@ describe('cancelTaskWorkflow', () => {
     });
     expect(runMutationCalls).toEqual([
       {
+        ref: 'cancelTaskWorkflowRun',
+        args: {
+          organizationId: 'org_1',
+          projectId: 'project_1',
+          taskId: 'task_1',
+        },
+      },
+      {
         ref: 'updateTaskStatus',
         args: { taskId: 'task_1', status: 'cancelled' },
       },
     ]);
   });
 
-  it('still parks the task when no execution is running', async () => {
+  it('parks the task when the kernel reports nothing to cancel', async () => {
     const { ctx, runMutationCalls } = createCtx({
       task: { task: { ...TASK, status: 'in_progress' } },
       active: null,
@@ -194,6 +206,14 @@ describe('cancelTaskWorkflow', () => {
       executionId: null,
     });
     expect(runMutationCalls).toEqual([
+      {
+        ref: 'cancelTaskWorkflowRun',
+        args: {
+          organizationId: 'org_1',
+          projectId: 'project_1',
+          taskId: 'task_1',
+        },
+      },
       {
         ref: 'updateTaskStatus',
         args: { taskId: 'task_1', status: 'cancelled' },
@@ -208,7 +228,18 @@ describe('cancelTaskWorkflow', () => {
     });
     const result = await handler(ctx, cancelArgs);
     expect(result.taskCancelled).toBe(true);
-    expect(runMutationCalls).toEqual([]);
+    // The kernel is still consulted — a live run must die even when the task
+    // row already reads cancelled — but no redundant status write follows.
+    expect(runMutationCalls).toEqual([
+      {
+        ref: 'cancelTaskWorkflowRun',
+        args: {
+          organizationId: 'org_1',
+          projectId: 'project_1',
+          taskId: 'task_1',
+        },
+      },
+    ]);
   });
 
   it('throws when the task does not exist', async () => {

@@ -30,6 +30,7 @@ import { z } from 'zod/v4';
 import type { Automation } from '../engine/core/types';
 import { parseYamlOrThrow } from '../shared/config/yaml';
 import { zodErrorMessage } from '../shared/schemas/format-error';
+import { taskSubjectContractSchema } from '../shared/schemas/task_contract';
 import { isRecord } from '../utils/type-utils';
 
 /** Repo-relative location of the per-org seed catalog. */
@@ -96,6 +97,12 @@ export const automationPackManifestSchema = z
       .strict()
       .optional(),
     triggers: z.array(automationTriggerSchema).optional(),
+    /** Task-surface bindings: `subjects.task` is the contract the task board
+     * choreographs against once the pack is installed and deployed. */
+    subjects: z
+      .object({ task: taskSubjectContractSchema.optional() })
+      .strict()
+      .optional(),
     i18n: packI18nSchema.optional(),
   })
   .strict();

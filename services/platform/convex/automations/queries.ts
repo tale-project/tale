@@ -20,6 +20,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
+import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { internalQuery, query } from '../_generated/server';
@@ -132,15 +133,23 @@ function toTriggerView(row: Doc<'automationTriggers'>) {
 export const listAutomations = query({
   args: {
     organizationId: v.string(),
-    /** A project's Automations tab; absent = the org page (project-less
-     * automations only — project-owned ones live on their tab). */
+    /** One project's automations; absent = the org page. */
     projectId: v.optional(v.id('projects')),
+    /** Org page only: ALSO list project-pinned automations (each row carries
+     * its `projectId`) — the org Automations page is the single admin
+     * surface now that project navigation has no Automations tab. */
+    includeProjectBound: v.optional(v.boolean()),
   },
   returns: v.array(
     v.object({
       name: v.string(),
       latest: v.number(),
+      /** Set on project-pinned rows of the merged org listing. */
+      projectId: v.optional(v.id('projects')),
       deployedVersion: v.optional(v.number()),
+      /** The DEPLOYED version's task-surface contract, when it carries one —
+       * what the task board's choreography and badges consume. */
+      taskContract: v.optional(v.any()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -148,7 +157,7 @@ export const listAutomations = query({
     const automations = await listAutomationsFor(
       ctx,
       args.organizationId,
-      args.projectId ?? null,
+      args.projectId ?? (args.includeProjectBound === true ? undefined : null),
     );
     const deployments = await ctx.db
       .query('automationDeployments')
@@ -158,11 +167,88 @@ export const listAutomations = query({
     const out = [];
     for (const entry of automations) {
       const deployedVersion = live.get(entry.name);
-      out.push(
-        deployedVersion === undefined ? entry : { ...entry, deployedVersion },
+      if (deployedVersion === undefined) {
+        out.push(entry);
+        continue;
+      }
+      const row = await versionRow(
+        ctx,
+        args.organizationId,
+        entry.name,
+        deployedVersion,
       );
+      out.push({
+        ...entry,
+        deployedVersion,
+        ...(row?.taskContract !== undefined
+          ? { taskContract: row.taskContract }
+          : {}),
+      });
     }
     return out;
+  },
+});
+
+/** Newest project runs scanned when resolving a task's live run — live rows
+ * sit at the head of the by-project ordering. */
+const LIVE_RUN_SCAN_CAP = 100;
+
+/**
+ * The LIVE run currently operating one task, if any — what the task board's
+ * status choreography consults before it cancels or refuses a duplicate
+ * start. Scans the project's newest runs for a non-terminal one carrying the
+ * task as its subject.
+ */
+export const getLiveRunForTask = query({
+  args: {
+    organizationId: v.string(),
+    projectId: v.id('projects'),
+    taskId: v.id('tasks'),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      runId: v.id('automationRuns'),
+      name: v.string(),
+      status: v.string(),
+      version: v.number(),
+      /** e.g. `approval:<id>` while parked on a write approval — the task
+       * modal renders the decision inline from this. */
+      detail: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.organizationId);
+    let scanned = 0;
+    for await (const run of ctx.db
+      .query('automationRuns')
+      .withIndex('by_org_project', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .order('desc')) {
+      if (++scanned > LIVE_RUN_SCAN_CAP) break;
+      if (
+        run.status !== 'queued' &&
+        run.status !== 'running' &&
+        run.status !== 'waiting'
+      ) {
+        continue;
+      }
+      const input = run.input;
+      const rawTaskId =
+        isRecord(input) && isRecord(input.task) ? input.task.id : undefined;
+      if (rawTaskId !== String(args.taskId)) continue;
+      return {
+        runId: run._id,
+        name: run.name,
+        status: run.status,
+        version: run.version,
+        ...(run.detail !== undefined ? { detail: run.detail } : {}),
+      };
+    }
+    return null;
   },
 });
 

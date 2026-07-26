@@ -136,6 +136,10 @@ export const createTaskFromExternalIssue = action({
     labels: v.optional(v.array(v.string())),
     /** App workflow slug to run on the newly created task (app-scoped). */
     runWorkflowSlug: v.optional(v.string()),
+    /** Attribute the task to this automation (`createdByType:'app'`) without
+     *  starting anything — template creation from the task board, where the
+     *  run comes later via the status choreography. */
+    automationSlug: v.optional(v.string()),
   },
   returns: v.object({
     taskId: v.string(),
@@ -258,6 +262,7 @@ export const createTaskFromExternalIssue = action({
         // Attributes the task to the owning app (createdByType:'app') so generic
         // task automation defers to the app's workflow — see the upsert mutation.
         runWorkflowSlug: args.runWorkflowSlug,
+        automationSlug: args.automationSlug,
         // An explicit project (a project-scoped app) dedups per project so two
         // projects each get their own task; the org-wide fallback dedups per org.
         dedupeScope: args.projectId ? 'project' : 'org',
@@ -394,10 +399,19 @@ export const cancelTaskWorkflow = action({
       throw new Error('Task not found');
     }
 
-    // No executions can be active while the automation engine is rebuilt —
-    // there is nothing to cancel; the task itself still gets cancelled below.
-    const executionCancelled = false;
-    const executionId: string | null = null;
+    // Cancel the live automation run operating this task, if any — the same
+    // member-level act as Start (the run itself was authorized at deploy).
+    const cancelled = await ctx.runMutation(
+      internal.automations.mutations.cancelTaskWorkflowRun,
+      {
+        organizationId: args.organizationId,
+        projectId: loaded.task.projectId,
+        taskId: String(args.taskId),
+      },
+    );
+    const executionCancelled = cancelled !== null;
+    const executionId: string | null =
+      cancelled === null ? null : String(cancelled.runId);
 
     if (loaded.task.status !== 'cancelled') {
       await ctx.runMutation(api.tasks.mutations.updateTaskStatus, {

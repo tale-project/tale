@@ -48,6 +48,11 @@ export const automationsTable = defineTable({
   /** Whether the version's own tests passed when it was saved — the deploy
    * gate reads this instead of re-running them at promotion time. */
   testsPassed: v.optional(v.boolean()),
+  /** The automation's task-surface contract (`taskSubjectContractSchema`) —
+   * how the task board choreographs status verbs into runs for tasks this
+   * automation owns. Versioned with the document; validated by the writers
+   * (zod), stored as JSON like the document itself. */
+  taskContract: v.optional(v.any()),
   createdBy: v.string(),
   createdAt: v.number(),
 })

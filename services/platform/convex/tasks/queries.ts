@@ -746,6 +746,9 @@ export const listTaskActivity = query({
 // ---------------------------------------------------------------------------
 
 const TASK_OPS_INDICATOR_CAP = 50;
+/** Newest automation runs examined for the working indicator — live runs sit
+ * at the head of the by-project ordering. */
+const TASK_OPS_RUN_SCAN_CAP = 100;
 
 /**
  * Live agent-work indicators for an open board: which tasks have a RUNNING
@@ -772,13 +775,49 @@ export const getTaskOpsIndicators = query({
     );
 
     const runningTaskIds: Id<'tasks'>[] = [];
+    const seenRunning = new Set<Id<'tasks'>>();
     for await (const run of ctx.db
       .query('taskAgentRuns')
       .withIndex('by_project_status', (q) =>
         q.eq('projectId', args.projectId).eq('status', 'running'),
       )) {
-      runningTaskIds.push(run.taskId);
+      if (!seenRunning.has(run.taskId)) {
+        runningTaskIds.push(run.taskId);
+        seenRunning.add(run.taskId);
+      }
       if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+    }
+    // Subject-linked AUTOMATION runs (a choreographed Start) pulse the SAME
+    // working indicator — a status-driven start must read as work in flight
+    // on the board, not only inside the run page. The scan walks the
+    // project's newest runs only: live ones sit at the head, and the bound
+    // window keeps a long history from costing anything.
+    let scanned = 0;
+    for await (const run of ctx.db
+      .query('automationRuns')
+      .withIndex('by_org_project', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .order('desc')) {
+      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+      if (++scanned > TASK_OPS_RUN_SCAN_CAP) break;
+      if (
+        run.status !== 'queued' &&
+        run.status !== 'running' &&
+        run.status !== 'waiting'
+      ) {
+        continue;
+      }
+      const input = run.input;
+      const rawTaskId =
+        isRecord(input) && isRecord(input.task) ? input.task.id : undefined;
+      if (typeof rawTaskId !== 'string') continue;
+      const taskId = ctx.db.normalizeId('tasks', rawTaskId);
+      if (!taskId || seenRunning.has(taskId)) continue;
+      runningTaskIds.push(taskId);
+      seenRunning.add(taskId);
     }
 
     // Pending reviews are rare org-wide, so the org-level pending scan

@@ -25,6 +25,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { taskSubjectContractSchema } from '../../lib/shared/schemas/task_contract';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -45,6 +46,25 @@ import {
   versionsOf,
 } from './store';
 import { hashWebhookToken, mintWebhookToken } from './webhook_token';
+
+/** A save's task contract must be the real shape or absent — a malformed one
+ * is refused at the door rather than stored to fail closed on every board. */
+function parseContractOrThrow(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+  const parsed = taskSubjectContractSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new ConvexError({
+      code: 'AUTOMATION_CONTRACT_INVALID',
+      message: `subjects.task is not a valid task contract: ${parsed.error.issues
+        .slice(0, 3)
+        .map(
+          (issue) => `${issue.path.join('.') || 'contract'} ${issue.message}`,
+        )
+        .join('; ')}`,
+    });
+  }
+  return parsed.data;
+}
 
 /** How a run is addressed once it exists. */
 export type RunId = Id<'automationRuns'>;
@@ -95,10 +115,13 @@ export const saveAutomation = mutation({
     /** Owning project for a NEW automation; an existing name keeps its
      * owner and refuses a mismatch (see the store's save). */
     projectId: v.optional(v.id('projects')),
+    /** Task-surface contract for this version (see task_contract schema). */
+    taskContract: v.optional(v.any()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const contract = parseContractOrThrow(args.taskContract);
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: auth.userId,
@@ -110,6 +133,7 @@ export const saveAutomation = mutation({
         ...(args.testsPassed !== undefined && {
           testsPassed: args.testsPassed,
         }),
+        ...(contract !== undefined && { taskContract: contract }),
       });
     } catch (error) {
       return asStoreError(error, 'AUTOMATION_SAVE_REJECTED');
@@ -368,9 +392,12 @@ export const storeSave = internalMutation({
     /** Owning project for a NEW automation; an existing name keeps its
      * owner and refuses a mismatch (see the store's save). */
     projectId: v.optional(v.id('projects')),
+    /** Task-surface contract for this version (see task_contract schema). */
+    taskContract: v.optional(v.any()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
+    const contract = parseContractOrThrow(args.taskContract);
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: args.actor,
@@ -379,6 +406,7 @@ export const storeSave = internalMutation({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine owns the document grammar; the store only records it
     return await store.save(args.automation as Automation, args.message, {
       ...(args.testsPassed !== undefined && { testsPassed: args.testsPassed }),
+      ...(contract !== undefined && { taskContract: contract }),
     });
   },
 });
@@ -597,6 +625,7 @@ export const storeRecordRun = internalMutation({
 const seedPackValidator = v.object({
   document: v.any(),
   trigger: v.optional(v.any()),
+  taskContract: v.optional(v.any()),
 });
 
 /**
@@ -636,7 +665,10 @@ export const seedDefaultPacks = internalMutation({
         skipped.push(name);
         continue;
       }
-      await store.save(document, 'Shipped default pack');
+      const contract = parseContractOrThrow(pack.taskContract);
+      await store.save(document, 'Shipped default pack', {
+        ...(contract !== undefined && { taskContract: contract }),
+      });
       const boundTrigger = await triggerRow(ctx, args.organizationId, name);
       if (pack.trigger !== undefined && boundTrigger === null) {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store validates the kind and its required fields
@@ -829,6 +861,48 @@ export const finishRun = internalMutation({
       finishedAt: Date.now(),
     });
     return { status: args.status };
+  },
+});
+
+/**
+ * Cancel the LIVE run operating one task — the task-surface Cancel verb's
+ * kernel. Authorization is the calling public action's (org membership, the
+ * same level as Start); the scan mirrors `startTaskWorkflowRun`'s duplicate
+ * guard. Returns the run it cancelled, or null when nothing was in flight.
+ */
+export const cancelTaskWorkflowRun = internalMutation({
+  args: {
+    organizationId: v.string(),
+    projectId: v.id('projects'),
+    taskId: v.string(),
+  },
+  returns: v.union(v.null(), v.object({ runId: v.id('automationRuns') })),
+  handler: async (ctx, args) => {
+    let scanned = 0;
+    for await (const run of ctx.db
+      .query('automationRuns')
+      .withIndex('by_org_project', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .order('desc')) {
+      if (++scanned > 100) break;
+      if (
+        run.status !== 'queued' &&
+        run.status !== 'running' &&
+        run.status !== 'waiting'
+      ) {
+        continue;
+      }
+      const input = run.input;
+      const rawTaskId =
+        isRecord(input) && isRecord(input.task) ? input.task.id : undefined;
+      if (rawTaskId !== args.taskId) continue;
+      await cancelRunRow(ctx, args.organizationId, run._id);
+      return { runId: run._id };
+    }
+    return null;
   },
 });
 

@@ -91,6 +91,9 @@ export function loadSeedablePacks(
     seedable.push({
       document: pack.automation,
       ...(triggers[0] !== undefined && { trigger: triggers[0] }),
+      ...(pack.manifest.subjects?.task !== undefined && {
+        taskContract: pack.manifest.subjects.task,
+      }),
     });
   }
   return seedable;
