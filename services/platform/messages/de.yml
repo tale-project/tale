@@ -1055,8 +1055,7 @@ chat:
     automationSearch: Automatisierungssuche
   agentSelector:
     label: Agent auswählen
-    sectionPlatform: Chat
-    sectionThirdParty: Drittanbieter-Agenten · laufen in einer Sandbox
+    sectionThirdParty: Agenten · laufen in einer Sandbox
     degraded: zuletzt fehlerhaft
     auto: Auto
     autoDescription:
@@ -1064,12 +1063,11 @@ chat:
       deiner Anfrage.
     viewDetails: Agentdetails anzeigen
     noAgents: Keine Agents
-    defaultAgent: Assistent
+    defaultAgent: Chat
     searchPlaceholder: Agents suchen
     noResults: Keine Agents gefunden
     lockedExternal: Dieser Chat läuft in einer Sandbox und behält seinen
-      Drittanbieter-Agenten — starte einen neuen Chat, um einen anderen zu
-      verwenden.
+      Agenten — starte einen neuen Chat, um einen anderen zu verwenden.
     lockedExternalLabel: 'Agent: {agent} (für diesen Sandbox-Chat festgelegt)'
     browseAutomations: Automatisierungen durchsuchen
     sectionAgents: Agenten

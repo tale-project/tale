@@ -104,18 +104,13 @@ function renderComposer({
 }
 
 describe('Composer agent picker', () => {
-  it('groups the menu into the platform agent and third-party agents', async () => {
+  it('groups the menu into the chat entry and sandboxed agents', async () => {
     const { user } = renderComposer();
 
     await user.click(screen.getByRole('button', { name: 'Select agent' }));
 
-    expect(screen.getByText('Chat')).toBeInTheDocument();
-    expect(
-      screen.getByText('Third-party agents · run in a sandbox'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: 'Assistant' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Agents · run in a sandbox')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Chat' })).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: 'Claude Code' }),
     ).toBeInTheDocument();
@@ -158,7 +153,7 @@ describe('Composer agent picker', () => {
     const { user, selection } = renderComposer({ initial: EXTERNAL });
 
     await user.click(screen.getByRole('button', { name: 'Select agent' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Assistant' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Chat' }));
 
     expect(selection()).toMatchObject({ agentKind: 'platform' });
     expect(selection().harness).toBeUndefined();

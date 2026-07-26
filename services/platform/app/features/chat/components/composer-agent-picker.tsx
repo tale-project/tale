@@ -4,11 +4,10 @@
  * The composer's agent picker: WHICH agent answers the turn.
  *
  * Two kinds, and the kind alone decides where the turn runs — so there is no
- * separate sandbox switch. The PLATFORM agent ("Assistant") runs a model
- * directly, and its model is chosen in the picker beside this one. A
- * THIRD-PARTY agent is an external harness (Claude Code, OpenClaw, …) that
- * always runs in a sandbox and brings its own model, so no model picker shows
- * for it.
+ * separate sandbox switch. The PLATFORM agent ("Chat") runs a model directly,
+ * and its model is chosen in the picker beside this one. An EXTERNAL agent is
+ * a third-party harness (Claude Code, OpenClaw, …) that always runs in a
+ * sandbox and brings its own model, so no model picker shows for it.
  */
 
 import { Button } from '@tale/ui/button';
@@ -64,7 +63,8 @@ export function ComposerAgentPicker({
   const items = useMemo<DropdownMenuGroup[]>(() => {
     const groups: DropdownMenuGroup[] = [
       [
-        { type: 'label', content: t('agentSelector.sectionPlatform') },
+        // No group header here: the single built-in entry IS the group, and
+        // its label already says "Chat" — a header would just repeat it.
         {
           type: 'item',
           label: t('agentSelector.defaultAgent'),

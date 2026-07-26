@@ -1056,8 +1056,7 @@ chat:
     automationSearch: Recherche d'automatisations
   agentSelector:
     label: Sélectionner un agent
-    sectionPlatform: Chat
-    sectionThirdParty: Agents tiers · s’exécutent dans une sandbox
+    sectionThirdParty: Agents · s’exécutent dans une sandbox
     degraded: en échec récemment
     auto: Auto
     autoDescription:
@@ -1065,12 +1064,12 @@ chat:
       de ta demande.
     viewDetails: Voir les détails de l'agent
     noAgents: Aucun agent
-    defaultAgent: Assistant
+    defaultAgent: Chat
     searchPlaceholder: Rechercher des agents
     noResults: Aucun agent trouvé
     lockedExternal:
-      Ce chat s'exécute dans un bac à sable et garde son agent tiers
-      — démarre un nouveau chat pour en utiliser un autre.
+      Ce chat s'exécute dans un bac à sable et garde son agent — démarre un
+      nouveau chat pour en utiliser un autre.
     lockedExternalLabel: 'Agent : {agent} (fixé pour ce chat sandbox)'
     browseAutomations: Parcourir les automatisations
     sectionAgents: Agents
