@@ -20,7 +20,7 @@ errors, no error boundary) against a seeded org on 2026-06-23.
 | Agents          | `/dashboard/{org}/projects/{projectId}/agents`                                                                            |
 | Instructions    | `/dashboard/{org}/projects/{projectId}/instructions`                                                                      |
 | Secrets         | `/dashboard/{org}/projects/{projectId}/secrets`                                                                           |
-| Metrics         | `/dashboard/{org}/projects/{projectId}/metrics`                                                                           |
+| Metrics         | `/dashboard/{org}/settings/metrics/projects?project={projectId}` (the one metrics home; linked from the tasks toolbar)    |
 | Automations     | `/dashboard/{org}/projects/{projectId}/automations/{automationSlug}` (and `…/automations/{automationSlug}/runs/{execId}`) |
 | Tasks (board)   | `/dashboard/{org}/projects/{projectId}/tasks` → redirects to `…/tasks/board`                                              |
 | Tasks (list)    | `/dashboard/{org}/projects/{projectId}/tasks/list`                                                                        |

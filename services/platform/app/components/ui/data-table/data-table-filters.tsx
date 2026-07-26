@@ -57,12 +57,32 @@ export interface FilterConfig {
   /** Callback when selection changes */
   onChange: (values: string[]) => void;
   /**
+   * The filter's resting selection — for a mandatory filter (one that always
+   * carries a value, like a metrics period), the value it falls back to.
+   * A selection equal to it does not count as ACTIVE: no indicator dot, and
+   * "Clear all" restores it instead of emptying the filter.
+   */
+  defaultValues?: string[];
+  /**
    * Number of columns for the options grid.
    * @default 1
    */
   columns?: 1 | 2;
   /** Whether multiple options can be selected (default: false) */
   multiSelect?: boolean;
+}
+
+/**
+ * Whether a filter is narrowing anything beyond its resting state. Order is
+ * ignored so a multi-select reads as inactive however its defaults were
+ * re-ticked.
+ */
+export function isFilterActive(
+  filter: Pick<FilterConfig, 'selectedValues' | 'defaultValues'>,
+): boolean {
+  const defaults = new Set(filter.defaultValues ?? []);
+  if (filter.selectedValues.length !== defaults.size) return true;
+  return filter.selectedValues.some((value) => !defaults.has(value));
 }
 
 export interface DataTableFiltersProps {
@@ -149,14 +169,11 @@ export function DataTableFilters({
   // than making the picker fully controlled across every caller.
   const [dateResetKey, setDateResetKey] = useState(0);
 
-  const totalActiveFilters = filters.reduce(
-    (acc, filter) => acc + filter.selectedValues.length,
-    0,
-  );
+  const activeFilterCount = filters.filter(isFilterActive).length;
 
   const hasDateRange = dateRange?.from || dateRange?.to;
   const hasActiveFilters =
-    totalActiveFilters > 0 ||
+    activeFilterCount > 0 ||
     (search?.value && search.value.length > 0) ||
     hasDateRange;
 
@@ -175,7 +192,7 @@ export function DataTableFilters({
     if (search?.onChange) {
       search.onChange('');
     }
-    filters.forEach((filter) => filter.onChange([]));
+    filters.forEach((filter) => filter.onChange(filter.defaultValues ?? []));
     if (dateRange?.onChange) {
       dateRange.onChange(undefined);
       // Remount the date picker so its uncontrolled internal state clears.
@@ -231,7 +248,7 @@ export function DataTableFilters({
               contentClassName="bg-card flex max-h-[min(32rem,calc(100dvh-2rem))] flex-col overflow-hidden p-0"
               trigger={
                 <FilterButton
-                  hasActiveFilters={totalActiveFilters > 0}
+                  hasActiveFilters={activeFilterCount > 0}
                   isLoading={isLoading}
                 />
               }
@@ -240,7 +257,7 @@ export function DataTableFilters({
                 <Text as="span" variant="label" className="text-sm">
                   {t('labels.filters')}
                 </Text>
-                {totalActiveFilters > 0 && (
+                {activeFilterCount > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAll}
@@ -266,9 +283,7 @@ export function DataTableFilters({
                     selectedCount={
                       filter.multiSelect ? filter.selectedValues.length : 0
                     }
-                    hasSelection={
-                      !filter.multiSelect && filter.selectedValues.length > 0
-                    }
+                    hasSelection={!filter.multiSelect && isFilterActive(filter)}
                   >
                     {filter.multiSelect ? (
                       <div
@@ -333,7 +348,9 @@ export function DataTableFilters({
                               aria-checked={isSelected}
                               onClick={() =>
                                 filter.onChange(
-                                  isSelected ? [] : [option.value],
+                                  isSelected
+                                    ? (filter.defaultValues ?? [])
+                                    : [option.value],
                                 )
                               }
                               className={cn(

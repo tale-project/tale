@@ -62,7 +62,11 @@ import {
   DataTableEmptyState,
   type DataTableEmptyStateProps,
 } from './data-table-empty-state';
-import { DataTableFilters, type FilterConfig } from './data-table-filters';
+import {
+  DataTableFilters,
+  isFilterActive,
+  type FilterConfig,
+} from './data-table-filters';
 import {
   DataTablePagination,
   type DataTablePaginationProps,
@@ -453,7 +457,7 @@ export function DataTable<TData, TValue = unknown>({
   const hasActiveFilters = useMemo(
     () =>
       !!(search?.value && search.value.trim().length > 0) ||
-      !!(filters && filters.some((f) => f.selectedValues.length > 0)) ||
+      !!filters?.some(isFilterActive) ||
       !!dateRange?.from ||
       !!dateRange?.to,
     [search?.value, filters, dateRange?.from, dateRange?.to],

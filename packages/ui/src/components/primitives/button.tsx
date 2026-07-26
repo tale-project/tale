@@ -317,6 +317,8 @@ export interface LinkButtonProps extends VariantProps<typeof buttonVariants> {
   href: string;
   /** Route params for dynamic segments (e.g. { id: '123' } for /dashboard/$id) */
   params?: Record<string, string>;
+  /** Search params for the target route (e.g. { project: '123' }) */
+  search?: Record<string, string>;
   /** Icon to display before the button text */
   icon?: LucideIcon;
   /** Additional className for the icon */
@@ -351,6 +353,7 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
       children,
       href,
       params,
+      search,
       prefetch,
     },
     ref,
@@ -365,6 +368,7 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
       <Link
         to={href}
         params={params}
+        search={search}
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         preload={prefetch ? 'intent' : false}

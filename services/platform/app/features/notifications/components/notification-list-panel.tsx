@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { Tabs } from '@tale/ui/tabs';
 import {
   ArrowDownUp,
   CheckCheck,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import {
   useMarkAllNotificationsRead as useMarkAllMyNotificationsRead,
   useMarkNotificationRead as useMarkMyNotificationRead,
@@ -281,7 +281,7 @@ export function NotificationListPanel({
   }, [status, loadMore, myStatus, loadMoreMy]);
 
   const sortButton = (
-    <Button
+    <IconButton
       variant="ghost"
       size="sm"
       icon={ArrowDownUp}
@@ -290,13 +290,10 @@ export function NotificationListPanel({
       onClick={() =>
         setSort((prev) => (prev === 'priority' ? 'recent' : 'priority'))
       }
-    >
-      {sort === 'priority' ? t('sortPriority') : t('sortRecent')}
-    </Button>
+    />
   );
 
-  const showHeaderRow =
-    onBack != null || layout === 'compact' || unreadCount > 0;
+  const showHeaderRow = onBack != null || layout === 'compact';
 
   return (
     <div
@@ -344,43 +341,49 @@ export function NotificationListPanel({
                   onClick={onExpand}
                 />
               )}
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={markAllRead.isPending || markAllMyRead.isPending}
-                  onClick={handleMarkAllRead}
-                >
-                  {t('markAllAsRead')}
-                </Button>
-              )}
             </div>
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <Tabs
-            value={filter}
-            onValueChange={(v) => {
-              if (v === 'unread' || v === 'all') handleFilterChange(v);
-            }}
-            // The host popover surface is itself `dark:bg-muted`, so the pill
-            // track's default `bg-muted` vanishes into the panel in dark mode.
-            // Recess the track to the base surface so the segmented control
-            // reads as a proper well with the active pill raised on top.
-            listClassName="dark:bg-bg-base"
-            items={[
-              {
-                value: 'unread',
-                label:
-                  unreadCount > 0
-                    ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
-                    : t('filterUnread'),
+        {/* One filter bar: the shared filter button (Unread is the resting
+            state, so it carries no active dot) and the sort toggle on the
+            left, mark-all-as-read on the right — all on one baseline. */}
+        <DataTableFilters
+          filters={[
+            {
+              key: 'status',
+              title: t('filterLabel'),
+              options: [
+                {
+                  value: 'unread',
+                  label:
+                    unreadCount > 0
+                      ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
+                      : t('filterUnread'),
+                },
+                { value: 'all', label: t('filterAll') },
+              ],
+              selectedValues: [filter],
+              defaultValues: ['unread'],
+              onChange: (values) => {
+                handleFilterChange(values[0] === 'all' ? 'all' : 'unread');
               },
-              { value: 'all', label: t('filterAll') },
-            ]}
-          />
+            },
+          ]}
+          actions={
+            unreadCount > 0 ? (
+              <IconButton
+                variant="ghost"
+                size="sm"
+                icon={CheckCheck}
+                aria-label={t('markAllAsRead')}
+                disabled={markAllRead.isPending || markAllMyRead.isPending}
+                onClick={handleMarkAllRead}
+              />
+            ) : undefined
+          }
+        >
           {sortButton}
-        </div>
+        </DataTableFilters>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {items.length === 0 && myItems.length === 0 ? (

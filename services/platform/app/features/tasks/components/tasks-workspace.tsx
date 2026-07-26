@@ -228,9 +228,12 @@ export function TasksWorkspace({
           )}
         </Row>
         <Row gap={2}>
+          {/* Project metrics live in ONE home — Settings → Metrics →
+              Projects — with this project preselected via the search param. */}
           <LinkButton
-            href="/dashboard/$id/projects/$projectId/metrics"
-            params={{ id: organizationId, projectId }}
+            href="/dashboard/$id/settings/metrics/projects"
+            params={{ id: organizationId }}
+            search={{ project: projectId }}
             variant="secondary"
             size="sm"
             icon={BarChart3}

@@ -6,7 +6,6 @@ import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { MetricSelect } from '@/app/components/metrics/metric-select';
 import {
   MetricsFilterChips,
   type MetricsFilterChip,
@@ -141,24 +140,28 @@ export function UsageMetricsPageView({
       title={t('usage.title')}
       description={t('usage.description')}
       toolbar={
-        <>
-          <MetricsPeriodSelect
-            value={String(periodDays)}
-            onValueChange={onPeriod}
-          />
-          <MetricSelect
-            aria-label={t('usage.granularity.label')}
-            options={granularityOptions}
-            value={granularity}
-            onValueChange={onGranularity}
-          />
-          <MetricSelect
-            aria-label={t('usage.metric.label')}
-            options={metricOptions}
-            value={metric}
-            onValueChange={onMetric}
-          />
-        </>
+        <MetricsPeriodSelect
+          value={String(periodDays)}
+          onValueChange={onPeriod}
+          extraFilters={[
+            {
+              key: 'granularity',
+              title: t('usage.granularity.label'),
+              options: granularityOptions,
+              selectedValues: [granularity],
+              defaultValues: ['daily'],
+              onChange: (values) => onGranularity(values[0] ?? 'daily'),
+            },
+            {
+              key: 'metric',
+              title: t('usage.metric.label'),
+              options: metricOptions,
+              selectedValues: [metric],
+              defaultValues: ['tokens'],
+              onChange: (values) => onMetric(values[0] ?? 'tokens'),
+            },
+          ]}
+        />
       }
       filters={
         <MetricsFilterChips

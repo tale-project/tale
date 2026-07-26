@@ -4417,9 +4417,8 @@ metrics:
     allTime: Gesamter Zeitraum
   projects:
     selectLabel: Projekt
-    selectPlaceholder: Projekt auswählen…
     emptyTitle: Projekt auswählen
-    emptyDescription: Wähle ein Projekt, um seine Aufgaben-Metriken zu sehen.
+    emptyDescription: Wähle ein Projekt, um seine Metriken zu sehen.
 humanInputRequest:
   questionTitle: Frage
   submit: Antwort absenden
@@ -4825,6 +4824,7 @@ notifications:
   markAsRead: Als gelesen markieren
   markAllAsRead: Alle als gelesen markieren
   expand: Vergrößern
+  filterLabel: Anzeigen
   filterUnread: Ungelesen
   filterAll: Alle
   sortLabel: Sortieren
@@ -7684,7 +7684,7 @@ tasks:
     empty: Keine Treffer
   metrics:
     link: Metriken anzeigen
-    title: Aufgaben-Metriken
+    title: Projekt-Metriken
     description: Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.
     cappedNotice:
       Einige Tage haben das Scan-Limit des Rollups erreicht — die Summen

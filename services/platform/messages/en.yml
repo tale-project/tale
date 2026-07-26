@@ -104,7 +104,7 @@ accessDenied:
   providers: You need Admin or Developer permissions to manage AI providers.
 analytics:
   automations:
-    title: Automation Metrics
+    title: Automation metrics
     description: Usage and performance KPIs across your automations.
     cappedNotice: Showing the most recent 5,000 runs in this window. Older
       runs in this period are not included in these totals.
@@ -158,7 +158,7 @@ analytics:
       timeouts: Timeouts
       empty: No third-party agent turns have run in the selected period.
   usage:
-    title: Usage Metrics
+    title: Usage metrics
     description: Token consumption, requests, and active users over time.
     cappedNotice: Results are capped because the time range contains too many
       records. Narrow the range for complete data.
@@ -228,7 +228,7 @@ analytics:
       title: No voice usage yet
       description: No TTS synthesis has been recorded for the selected period.
   feedback:
-    title: Feedback Metrics
+    title: Feedback metrics
     description: User-submitted thumbs up/down and arena verdicts on assistant responses.
     commentsOnly: Comments only
     errors:
@@ -4225,9 +4225,8 @@ metrics:
     allTime: All time
   projects:
     selectLabel: Project
-    selectPlaceholder: Select a project…
     emptyTitle: Select a project
-    emptyDescription: Choose a project to view its task metrics.
+    emptyDescription: Choose a project to view its metrics.
 humanInputRequest:
   questionTitle: Question
   submit: Submit response
@@ -4628,6 +4627,7 @@ notifications:
   markAsRead: Mark as read
   markAllAsRead: Mark all as read
   expand: Expand
+  filterLabel: Show
   filterUnread: Unread
   filterAll: All
   sortLabel: Sort
@@ -7676,7 +7676,7 @@ tasks:
     empty: No matches
   metrics:
     link: Metrics
-    title: Task Metrics
+    title: Project metrics
     description: Delivery, intervention, and cost KPIs for this project's tasks.
     cappedNotice: Some days hit the rollup scan cap — totals in this window may undercount.
     noData: No data

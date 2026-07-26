@@ -212,6 +212,17 @@ describe('NotificationListPanel', () => {
   // The panel drives a single "Load more" affordance off BOTH streams: enabled
   // while either has another page, and a click advances every stream that still
   // has more. These tests pin that combined wiring.
+
+  /** Switch the panel's status filter to "All" via the shared filter button:
+   *  open the popover, expand the one section, pick the radio option. */
+  async function switchFilterToAll(
+    user: ReturnType<typeof renderPanel>['user'],
+  ) {
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: /Show/ }));
+    await user.click(screen.getByRole('radio', { name: 'All' }));
+  }
+
   describe('combined load-more', () => {
     it('hides "Load more" when both streams are exhausted', () => {
       renderPanel();
@@ -226,7 +237,7 @@ describe('NotificationListPanel', () => {
       const { user } = renderPanel();
       // Default Unread filter hides load-more on an empty list; All keeps it
       // visible while older read pages remain paginated.
-      await user.click(screen.getByRole('tab', { name: 'All' }));
+      await switchFilterToAll(user);
 
       await user.click(screen.getByRole('button', { name: 'Load more' }));
 
@@ -238,7 +249,7 @@ describe('NotificationListPanel', () => {
       streamState.org = 'Exhausted';
       streamState.my = 'CanLoadMore';
       const { user } = renderPanel();
-      await user.click(screen.getByRole('tab', { name: 'All' }));
+      await switchFilterToAll(user);
 
       await user.click(screen.getByRole('button', { name: 'Load more' }));
 
@@ -250,7 +261,7 @@ describe('NotificationListPanel', () => {
       streamState.org = 'CanLoadMore';
       streamState.my = 'Exhausted';
       const { user } = renderPanel();
-      await user.click(screen.getByRole('tab', { name: 'All' }));
+      await switchFilterToAll(user);
 
       await user.click(screen.getByRole('button', { name: 'Load more' }));
 

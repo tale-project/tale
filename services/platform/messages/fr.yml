@@ -4468,9 +4468,8 @@ metrics:
     allTime: Tout l'historique
   projects:
     selectLabel: Projet
-    selectPlaceholder: Sélectionner un projet…
     emptyTitle: Sélectionner un projet
-    emptyDescription: Choisis un projet pour afficher ses métriques de tâches.
+    emptyDescription: Choisis un projet pour afficher ses métriques.
 humanInputRequest:
   questionTitle: Question
   submit: Soumettre la réponse
@@ -4880,6 +4879,7 @@ notifications:
   markAsRead: Marquer comme lu
   markAllAsRead: Tout marquer comme lu
   expand: Agrandir
+  filterLabel: Afficher
   filterUnread: Non lus
   filterAll: Tous
   sortLabel: Trier
@@ -7795,7 +7795,7 @@ tasks:
     empty: Aucun résultat
   metrics:
     link: Voir les métriques
-    title: Métriques des tâches
+    title: Métriques du projet
     description:
       Indicateurs de livraison, d'intervention et de coût pour les tâches
       de ce projet.

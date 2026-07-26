@@ -179,6 +179,7 @@ export function ReleaseHistorySection({
               // Single-select with a mandatory value — the history query
               // always filters by one status, so clearing falls back to the
               // default bucket instead of an unfiltered view.
+              defaultValues: ['effected'],
               onChange: (values) =>
                 setStatus(
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to ReleaseStatus

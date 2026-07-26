@@ -5,7 +5,6 @@ import { BarChart3 } from 'lucide-react';
 import { useCallback } from 'react';
 import { z } from 'zod';
 
-import { MetricSelect } from '@/app/components/metrics/metric-select';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import {
   metricsPeriodSearchSchema,
@@ -13,6 +12,7 @@ import {
   parseMetricsPeriodDays,
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -86,16 +86,15 @@ function ProjectsMetricsRoute() {
     [navigate, organizationId],
   );
 
-  const projectPicker = (
-    <MetricSelect
-      aria-label={t('projects.selectLabel')}
-      placeholder={t('projects.selectPlaceholder')}
-      options={projectOptions}
-      value={selectedProjectId ?? ''}
-      onValueChange={handleSelectProject}
-      widthClassName="w-56"
-    />
-  );
+  // A section of the ONE filter button (ahead of Period), not a standalone
+  // select — a metrics toolbar carries a single filter control.
+  const projectFilter = {
+    key: 'project',
+    title: t('projects.selectLabel'),
+    options: projectOptions,
+    selectedValues: selectedProjectId ? [selectedProjectId] : [],
+    onChange: (values: string[]) => handleSelectProject(values[0] ?? ''),
+  };
 
   // `fullWidth`: `ProjectMetricsPage` lays its charts out on a two-column
   // grid designed for the full pane, wider than the `max-w-3xl` standard
@@ -108,8 +107,7 @@ function ProjectsMetricsRoute() {
       <SettingsPage fullWidth>
         <Skeletonize loading={projectsLoading}>
           <ProjectMetricsPage
-            as="h3"
-            toolbarStart={projectPicker}
+            extraFilters={[projectFilter]}
             projectId={selectedProjectId}
             periodDays={periodDays}
             onChangePeriod={handleChangePeriod}
@@ -129,7 +127,15 @@ function ProjectsMetricsRoute() {
           as="h3"
           title={tTasks('metrics.title')}
           description={tTasks('metrics.description')}
-          toolbar={projectPicker}
+          toolbar={
+            <MetricsPeriodSelect
+              value={metricsPeriodToParam(periodDays)}
+              onValueChange={(v) =>
+                handleChangePeriod(parseMetricsPeriodDays(v))
+              }
+              extraFilters={[projectFilter]}
+            />
+          }
           className="min-h-0 flex-1"
         >
           <EmptyState

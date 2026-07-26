@@ -12,7 +12,6 @@ import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { AlertTriangle, BarChart3 } from 'lucide-react';
-import { type ReactNode } from 'react';
 
 import {
   seriesToLegend,
@@ -27,6 +26,7 @@ import {
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
+import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -128,12 +128,9 @@ interface ProjectMetricsPageProps {
   projectId: Id<'projects'>;
   periodDays: MetricsPeriodDays;
   onChangePeriod: (period: MetricsPeriodDays) => void;
-  /** Heading element — `h2` standalone (project sub-view), `h3` inside a
-   *  settings tab that already owns the page heading. */
-  as?: 'h2' | 'h3';
-  /** Extra toolbar controls rendered before the period select (e.g. the
-   *  project picker on Settings → Metrics → Projects). */
-  toolbarStart?: ReactNode;
+  /** A host's own dimensions (the project picker on Settings → Metrics →
+   *  Projects), folded into the one filter button ahead of the period. */
+  extraFilters?: FilterConfig[];
 }
 
 /**
@@ -153,8 +150,7 @@ interface ProjectMetricsPageProps {
 export function ProjectMetricsPage({
   periodDays,
   onChangePeriod,
-  as,
-  toolbarStart,
+  extraFilters,
 }: ProjectMetricsPageProps) {
   const { t } = useT('tasks');
   const { formatCostCents } = useFormatNumber();
@@ -254,17 +250,15 @@ export function ProjectMetricsPage({
   return (
     <Skeletonize loading={isLoading} label={t('metrics.title')}>
       <MetricsLayout
-        as={as}
+        as="h3"
         title={t('metrics.title')}
         description={t('metrics.description')}
         toolbar={
-          <>
-            {toolbarStart}
-            <MetricsPeriodSelect
-              value={String(periodDays)}
-              onValueChange={(v) => onChangePeriod(parseMetricsPeriodDays(v))}
-            />
-          </>
+          <MetricsPeriodSelect
+            value={String(periodDays)}
+            onValueChange={(v) => onChangePeriod(parseMetricsPeriodDays(v))}
+            {...(extraFilters !== undefined && { extraFilters })}
+          />
         }
         notice={
           !isLoading && totals.capped ? (

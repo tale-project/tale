@@ -48,7 +48,7 @@ describe('UsageMetricsPage', () => {
 
     // Page title (the E2E asserted this heading by name).
     expect(
-      screen.getByRole('heading', { name: 'Usage Metrics' }),
+      screen.getByRole('heading', { name: 'Usage metrics' }),
     ).toBeInTheDocument();
 
     // The period Select control, addressed by its accessible label exactly as

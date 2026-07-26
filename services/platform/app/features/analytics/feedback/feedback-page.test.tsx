@@ -95,7 +95,7 @@ describe('FeedbackMetricsPage', () => {
     render(<FeedbackMetricsPage {...baseProps} />);
 
     expect(
-      screen.getByRole('heading', { name: 'Feedback Metrics' }),
+      screen.getByRole('heading', { name: 'Feedback metrics' }),
     ).toBeInTheDocument();
   });
 
@@ -109,7 +109,7 @@ describe('FeedbackMetricsPage', () => {
     render(<FeedbackMetricsPage {...baseProps} />);
 
     expect(
-      screen.getByRole('heading', { name: 'Feedback Metrics' }),
+      screen.getByRole('heading', { name: 'Feedback metrics' }),
     ).toBeInTheDocument();
   });
 });
