@@ -8,7 +8,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -112,6 +112,25 @@ export function SkillEditor({
     enabled: skill != null && skill.canEdit,
   });
 
+  // A form reset parks the caret at the END of the value, so the first focus
+  // would scroll the body to the document's tail. Rest the caret at the top
+  // once the loaded value has actually reached the DOM (watching the field —
+  // the reset lands a commit after `data` does). The parked-at-end check
+  // keeps this from ever touching a caret the member has placed.
+  const bodyValue = editor.form.watch('body');
+  useEffect(() => {
+    const el = document.getElementById('skill-body');
+    if (
+      el instanceof HTMLTextAreaElement &&
+      document.activeElement !== el &&
+      el.value.length > 0 &&
+      el.selectionStart === el.value.length
+    ) {
+      el.setSelectionRange(0, 0);
+      el.scrollTop = 0;
+    }
+  }, [bodyValue]);
+
   if (skillQuery.isPending) {
     return (
       <Skeletonize loading>
@@ -151,8 +170,8 @@ export function SkillEditor({
   };
 
   return (
-    <Stack gap={5}>
-      <Row gap={3} justify="between" align="center">
+    <Stack gap={5} className="min-h-0 flex-1">
+      <Row gap={3} justify="between" align="center" className="shrink-0">
         <HStack gap={3} align="center" className="min-w-0">
           <BackButton onBack={onBack} label={t('skills.backToList')} />
           <SkillIcon icon={skill.icon} className="size-6" />
@@ -175,10 +194,12 @@ export function SkillEditor({
 
       {/* One bounded card, split like main's detail panel: the tree owns a
           fixed-width, internally-scrolling rail (hidden on small screens),
-          and the right pane scrolls the SKILL.md form or the read-only
-          viewer. The card's max height is what keeps a 60-file bundle from
-          stretching the page — each side scrolls itself instead. */}
-      <div className="border-border flex max-h-[calc(100vh-18rem)] min-h-[28rem] overflow-hidden rounded-lg border">
+          and the right pane holds the SKILL.md form or the read-only viewer.
+          The card takes EXACTLY the height the settings scroll area has left
+          (fitToContainer threads flex-1 down from the page shell — no
+          viewport math, so browser banners and zoom can't push it off
+          screen); each side scrolls itself. */}
+      <div className="border-border flex min-h-[20rem] flex-1 overflow-hidden rounded-lg border">
         <div className="hidden md:contents">
           <SkillBundleTreePanel
             assets={assetsQuery.data?.assets ?? []}

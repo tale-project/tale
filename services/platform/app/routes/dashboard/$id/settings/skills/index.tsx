@@ -47,10 +47,12 @@ function SkillsPage() {
     <SettingsPage
       fullWidth={slug !== undefined}
       fieldLayout={slug !== undefined ? 'stacked' : 'row'}
+      fitToContainer={slug !== undefined}
     >
       <SettingsSection
         title={tNav('skills')}
         description={tSettings('menu.skills.description')}
+        className={slug !== undefined ? 'min-h-0 flex-1' : undefined}
       >
         {slug ? (
           <SkillEditor
