@@ -12,6 +12,11 @@ import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
 import { useEffect, useState } from 'react';
 
+import {
+  CapabilityMenu,
+  type CapabilityOption,
+  type CapabilitySelection,
+} from '@/app/components/capabilities/capability-menu';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -25,11 +30,6 @@ import {
   useUpdateProjectAgent,
 } from '../hooks/mutations';
 import type { ProjectAgentRow } from '../hooks/queries';
-import {
-  type AgentCapabilityBinding,
-  type CapabilityOption,
-  ProjectAgentCapabilityMenu,
-} from './project-agent-capability-menu';
 
 /** One harness the agent can run on (the composer's managed roster entry). */
 export interface HarnessOption {
@@ -38,11 +38,18 @@ export interface HarnessOption {
   iconUrl?: string;
 }
 
+/** One model the agent can call (a composer model listing entry). */
+export interface ModelOption {
+  id: string;
+  label: string;
+}
+
 interface ProjectAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: Id<'projects'>;
   harnesses: readonly HarnessOption[];
+  models: readonly ModelOption[];
   skills: readonly CapabilityOption[];
   connectors: readonly CapabilityOption[];
   /** The row being edited; absent = create. */
@@ -52,13 +59,14 @@ interface ProjectAgentDialogProps {
 /** Mirrors the mutation's `PROJECT_AGENT_INSTRUCTIONS_MAX`. */
 const INSTRUCTIONS_MAX = 20_000;
 
-const EMPTY_BINDING: AgentCapabilityBinding = { skills: [], connectors: [] };
+const EMPTY_BINDING: CapabilitySelection = { skills: [], connectors: [] };
 
 export function ProjectAgentDialog({
   open,
   onOpenChange,
   projectId,
   harnesses,
+  models,
   skills,
   connectors,
   agent,
@@ -69,6 +77,7 @@ export function ProjectAgentDialog({
 
   const [name, setName] = useState('');
   const [harness, setHarness] = useState('');
+  const [model, setModel] = useState('');
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [instructions, setInstructions] = useState('');
   const [nameError, setNameError] = useState<string | undefined>(undefined);
@@ -79,6 +88,7 @@ export function ProjectAgentDialog({
     if (!open) return;
     setName(agent?.name ?? '');
     setHarness(agent?.harness ?? '');
+    setModel(agent?.model ?? '');
     setBinding(
       agent
         ? { skills: agent.skills, connectors: agent.connectors }
@@ -88,7 +98,7 @@ export function ProjectAgentDialog({
     setNameError(undefined);
   }, [open, agent]);
 
-  const canSubmit = name.trim().length > 0 && harness !== '';
+  const canSubmit = name.trim().length > 0 && harness !== '' && model !== '';
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +108,7 @@ export function ProjectAgentDialog({
       const payload = {
         name: name.trim(),
         harness,
+        model,
         skills: [...binding.skills],
         connectors: [...binding.connectors],
         ...(instructions.trim() !== ''
@@ -123,6 +134,7 @@ export function ProjectAgentDialog({
         setNameError(t(`errors.${code}`));
       } else if (
         code === 'PROJECT_AGENT_HARNESS_INVALID' ||
+        code === 'PROJECT_AGENT_MODEL_INVALID' ||
         code === 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' ||
         code === 'PROJECT_AGENT_LIMIT' ||
         code === 'RBAC_FORBIDDEN'
@@ -187,11 +199,24 @@ export function ProjectAgentDialog({
           if (value !== '') setHarness(value);
         }}
       />
+      <Select
+        id="project-agent-model"
+        label={t('agents.modelLabel')}
+        placeholder={t('agents.modelPlaceholder')}
+        options={models.map((option) => ({
+          value: option.id,
+          label: option.label,
+        }))}
+        value={model}
+        onValueChange={(value) => {
+          if (value !== '') setModel(value);
+        }}
+      />
       <Stack gap={1}>
         <Text variant="caption" className="font-medium">
           {t('agents.equipmentLabel')}
         </Text>
-        <ProjectAgentCapabilityMenu
+        <CapabilityMenu
           skills={skills}
           connectors={connectors}
           value={binding}

@@ -241,6 +241,7 @@ const projectAgentRowValidator = v.object({
   projectId: v.id('projects'),
   name: v.string(),
   harness: v.string(),
+  model: v.optional(v.string()),
   skills: v.array(v.string()),
   connectors: v.array(v.string()),
   instructions: v.optional(v.string()),

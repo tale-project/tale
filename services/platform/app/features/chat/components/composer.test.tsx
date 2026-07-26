@@ -202,7 +202,7 @@ describe('Composer capability assembly', () => {
     ).toBeChecked();
   });
 
-  it('shows the skills group empty, and hides connectors until they are bridged', async () => {
+  it('shows both groups when empty, each stating why it is empty', async () => {
     const { user } = renderComposer({
       initial: EXTERNAL,
       skills: [],
@@ -211,14 +211,14 @@ describe('Composer capability assembly', () => {
 
     await user.click(screen.getByRole('button', { name: 'Capabilities' }));
 
-    // Skills stage into the session today, so their group shows even when empty.
+    // Skills stage into the session, so their group shows even when empty.
     expect(
       screen.getByText('No skills in this organization yet.'),
     ).toBeInTheDocument();
-    // Connectors aren't reachable from an external turn yet, so the group is hidden
-    // entirely — never advertised as "none available" (the plan's honesty gate).
-    expect(screen.queryByText(/No connectors enabled yet/)).toBeNull();
-    expect(screen.queryByText('Connectors')).toBeNull();
+    // Connectors are credential-gated: an org with none sees WHERE to add one
+    // instead of a silently missing group (which reads as a bug, not as
+    // "nothing to equip").
+    expect(screen.getByText(/No connectors enabled yet/)).toBeInTheDocument();
   });
 
   it('offers no capability menu to the platform agent — that lane comes with the tool loop', () => {

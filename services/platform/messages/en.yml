@@ -5274,6 +5274,8 @@ projects:
     namePlaceholder: e.g. PR reviewer
     harnessLabel: Harness
     harnessPlaceholder: Choose the harness it runs on
+    modelLabel: Model
+    modelPlaceholder: Choose the model it calls
     equipmentLabel: Skills & connectors
     instructionsLabel: Instructions
     instructionsPlaceholder:
@@ -5417,6 +5419,7 @@ projects:
     PROJECT_AGENT_NAME_INVALID: Agent name must be 1–120 characters.
     PROJECT_AGENT_NAME_TAKEN: Another agent in this project already has that name.
     PROJECT_AGENT_HARNESS_INVALID: That harness can't be used for project agents.
+    PROJECT_AGENT_MODEL_INVALID: Pick a model for this agent.
     PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Instructions exceed the 20,000-character limit. Trim before saving.
     PROJECT_AGENT_LIMIT: This project has reached its agent limit.
     PROJECT_AGENT_NOT_FOUND: We couldn't find that agent. It may have been deleted.

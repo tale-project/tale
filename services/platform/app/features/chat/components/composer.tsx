@@ -23,6 +23,7 @@ import { ArrowUp, CircleStop } from 'lucide-react';
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CapabilityMenu } from '@/app/components/capabilities/capability-menu';
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
@@ -34,7 +35,6 @@ import type {
   ComposerSelection,
 } from '../types';
 import { ComposerAgentPicker } from './composer-agent-picker';
-import { ComposerCapabilityMenu } from './composer-capability-menu';
 import { ComposerModeMenu } from './composer-mode-menu';
 import {
   ComposerModelPicker,
@@ -234,12 +234,20 @@ export function Composer({
               {/* An external agent is also equipped per conversation: org
                   skills and enabled connectors, provisioned into its sandbox
                   session. */}
-              <ComposerCapabilityMenu
+              <CapabilityMenu
                 skills={skills}
                 connectors={connectors}
-                selection={selection}
-                onSelectionChange={onSelectionChange}
+                value={selection}
+                onChange={(next) =>
+                  onSelectionChange({
+                    ...selection,
+                    skills: next.skills,
+                    connectors: next.connectors,
+                  })
+                }
                 disabled={disabled}
+                variant="ghost"
+                align="start"
               />
             </>
           )}

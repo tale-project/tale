@@ -62,6 +62,7 @@ export function ProjectAgentsTab({
     () => externalAgents ?? [],
     [externalAgents],
   );
+  const models = rosterQuery.data?.models ?? [];
   const harnessBySlug = useMemo(() => {
     const map = new Map<string, HarnessOption>();
     for (const option of harnesses) map.set(option.harness, option);
@@ -152,6 +153,7 @@ export function ProjectAgentsTab({
                         className="text-muted-foreground truncate"
                       >
                         {option?.label ?? agent.harness}
+                        {agent.model !== undefined ? ` · ${agent.model}` : ''}
                         {equipped > 0
                           ? ` · ${t('agents.equippedCount', { count: equipped })}`
                           : ''}
@@ -193,6 +195,7 @@ export function ProjectAgentsTab({
         }}
         projectId={projectId}
         harnesses={harnesses}
+        models={models}
         skills={skills}
         connectors={connectors}
         {...(editing !== undefined ? { agent: editing } : {})}

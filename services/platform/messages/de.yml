@@ -8213,6 +8213,8 @@ projects:
     namePlaceholder: z. B. PR-Reviewer
     harnessLabel: Harness
     harnessPlaceholder: Wähle das Harness, auf dem er läuft
+    modelLabel: Modell
+    modelPlaceholder: Wähle das Modell, das er aufruft
     equipmentLabel: Skills & Connectors
     instructionsLabel: Anweisungen
     instructionsPlaceholder:
@@ -8374,6 +8376,7 @@ projects:
     PROJECT_AGENT_NAME_INVALID: Der Agentenname muss 1–120 Zeichen lang sein.
     PROJECT_AGENT_NAME_TAKEN: Ein anderer Agent in diesem Projekt trägt diesen Namen bereits.
     PROJECT_AGENT_HARNESS_INVALID: Dieses Harness lässt sich nicht für Projekt-Agenten verwenden.
+    PROJECT_AGENT_MODEL_INVALID: Wähle ein Modell für diesen Agenten.
     PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Anweisungen überschreiten das Limit von
       20.000 Zeichen. Kürze sie vor dem Speichern.
     PROJECT_AGENT_LIMIT: Dieses Projekt hat sein Agenten-Limit erreicht.

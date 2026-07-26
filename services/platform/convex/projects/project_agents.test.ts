@@ -110,6 +110,7 @@ const AGENT_ROW = {
   projectId: 'project_1',
   name: 'Old reviewer',
   harness: 'codex',
+  model: 'openrouter/deepseek/deepseek-v3.2',
   skills: ['plan'],
   connectors: [],
   instructions: 'old instructions',
@@ -171,6 +172,7 @@ describe('createProjectAgent', () => {
       projectId: 'project_1',
       name: '  PR reviewer  ',
       harness: 'claude-code',
+      model: 'z-ai/glm-5',
       skills: ['a', 'a', '', 'b'],
       connectors: ['', 'x', 'x'],
       instructions: '  review every PR carefully  ',
@@ -184,6 +186,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: 'PR reviewer',
         harness: 'claude-code',
+        model: 'z-ai/glm-5',
         skills: ['a', 'b'],
         connectors: ['x'],
         instructions: 'review every PR carefully',
@@ -216,6 +219,7 @@ describe('createProjectAgent', () => {
       projectId: 'project_1',
       name: 'Tester',
       harness: 'codex',
+      model: 'z-ai/glm-5',
       skills: [],
       connectors: [],
       instructions: '   ',
@@ -237,6 +241,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: 'Tester',
         harness,
+        model: 'z-ai/glm-5',
         skills: [],
         connectors: [],
       }),
@@ -257,6 +262,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: 'PR Reviewer',
         harness: 'claude-code',
+        model: 'z-ai/glm-5',
         skills: [],
         connectors: [],
       }),
@@ -273,6 +279,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: 'Tester',
         harness: 'codex',
+        model: 'z-ai/glm-5',
         skills: Array.from({ length: 26 }, (_, i) => `s${i}`),
         connectors: [],
       }),
@@ -294,6 +301,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: 'One too many',
         harness: 'codex',
+        model: 'z-ai/glm-5',
         skills: [],
         connectors: [],
       }),
@@ -310,6 +318,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: 'Tester',
         harness: 'codex',
+        model: 'z-ai/glm-5',
         skills: [],
         connectors: [],
         instructions: 'x'.repeat(20_001),
@@ -317,6 +326,23 @@ describe('createProjectAgent', () => {
     ).rejects.toMatchObject({
       data: { code: 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' },
     });
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing model', async () => {
+    const ctx = createMockCtx();
+    const { create } = await getMutations();
+
+    await expect(
+      create.handler(ctx, {
+        projectId: 'project_1',
+        name: 'Tester',
+        harness: 'codex',
+        model: '   ',
+        skills: [],
+        connectors: [],
+      }),
+    ).rejects.toMatchObject({ data: { code: 'PROJECT_AGENT_MODEL_INVALID' } });
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 
@@ -329,6 +355,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: '   ',
         harness: 'codex',
+        model: 'z-ai/glm-5',
         skills: [],
         connectors: [],
       }),
@@ -351,6 +378,7 @@ describe('createProjectAgent', () => {
         projectId: 'project_1',
         name: 'Tester',
         harness: 'codex',
+        model: 'z-ai/glm-5',
         skills: [],
         connectors: [],
       }),
@@ -368,6 +396,7 @@ describe('updateProjectAgent', () => {
       agentId: 'agent_1',
       name: 'New reviewer',
       harness: 'claude-code',
+      model: 'z-ai/glm-5',
       skills: ['review'],
       connectors: ['github'],
       instructions: 'updated',
@@ -378,6 +407,7 @@ describe('updateProjectAgent', () => {
       expect.objectContaining({
         name: 'New reviewer',
         harness: 'claude-code',
+        model: 'z-ai/glm-5',
         skills: ['review'],
         connectors: ['github'],
         instructions: 'updated',
@@ -404,6 +434,7 @@ describe('updateProjectAgent', () => {
       agentId: 'agent_1',
       name: 'OLD REVIEWER',
       harness: 'codex',
+      model: 'z-ai/glm-5',
       skills: [],
       connectors: [],
     });
@@ -420,6 +451,7 @@ describe('updateProjectAgent', () => {
         agentId: 'agent_1',
         name: 'Anything',
         harness: 'codex',
+        model: 'z-ai/glm-5',
         skills: [],
         connectors: [],
       }),

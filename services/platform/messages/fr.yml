@@ -8324,6 +8324,8 @@ projects:
     namePlaceholder: p. ex. Relecteur de PR
     harnessLabel: Harness
     harnessPlaceholder: Choisis le harness sur lequel il tourne
+    modelLabel: Modèle
+    modelPlaceholder: Choisis le modèle qu'il appelle
     equipmentLabel: Skills & connecteurs
     instructionsLabel: Instructions
     instructionsPlaceholder:
@@ -8478,6 +8480,7 @@ projects:
     PROJECT_AGENT_NAME_INVALID: Le nom de l'agent doit faire entre 1 et 120 caractères.
     PROJECT_AGENT_NAME_TAKEN: Un autre agent de ce projet porte déjà ce nom.
     PROJECT_AGENT_HARNESS_INVALID: Ce harness ne peut pas être utilisé pour les agents de projet.
+    PROJECT_AGENT_MODEL_INVALID: Choisis un modèle pour cet agent.
     PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Les instructions dépassent la limite de
       20 000 caractères. Raccourcis-les avant d'enregistrer.
     PROJECT_AGENT_LIMIT: Ce projet a atteint sa limite d'agents.
