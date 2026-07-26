@@ -2133,6 +2133,7 @@ conversations:
     teamsSection: Team
     assignSearchAll: Search people and teams
     noAssignees: No people or teams found
+    autoAssignSettings: Auto assign
   editor:
     noContent: No content to improve
     improveFailed: Failed to improve content. Please try again.

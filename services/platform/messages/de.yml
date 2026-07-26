@@ -2236,6 +2236,7 @@ conversations:
     teamsSection: Team
     assignSearchAll: Personen und Teams suchen
     noAssignees: Keine Personen oder Teams gefunden
+    autoAssignSettings: Automatisch zuweisen
   editor:
     noContent: Kein Inhalt zum Verbessern
     improveFailed: Inhalt konnte nicht verbessert werden. Bitte versuche es erneut.
