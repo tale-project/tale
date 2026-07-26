@@ -29,7 +29,9 @@ import { z } from 'zod/v4';
 
 import type { Automation } from '../engine/core/types';
 import { parseYamlOrThrow } from '../shared/config/yaml';
+import { MAX_PACK_SKILLS } from '../shared/schemas/automations';
 import { zodErrorMessage } from '../shared/schemas/format-error';
+import { isValidSkillSlug } from '../shared/schemas/skills';
 import { taskSubjectContractSchema } from '../shared/schemas/task_contract';
 import { isRecord } from '../utils/type-utils';
 
@@ -97,6 +99,24 @@ export const automationPackManifestSchema = z
       .strict()
       .optional(),
     triggers: z.array(automationTriggerSchema).optional(),
+    /**
+     * Skill bundles the package CARRIES at `skills/<slug>/` — installed into
+     * the organization's skills domain on upload. The declaration is
+     * authoritative, not display: the upload refuses a package whose carried
+     * directories and declared slugs differ in either direction, so a package
+     * can neither smuggle an undeclared bundle nor promise one it doesn't
+     * ship. Builtin packs declare none — their skills live in the shared
+     * `custom/skills/` catalog every organization is seeded with.
+     */
+    skills: z
+      .array(
+        z.string().refine(isValidSkillSlug, {
+          message:
+            'must be a valid skill slug (lowercase letters, digits, single hyphens, not reserved)',
+        }),
+      )
+      .max(MAX_PACK_SKILLS)
+      .optional(),
     /** Task-surface bindings: `subjects.task` is the contract the task board
      * choreographs against once the pack is installed and deployed. */
     subjects: z

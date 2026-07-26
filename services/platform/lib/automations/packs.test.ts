@@ -11,7 +11,7 @@ import { validate } from '../engine/core/validate';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import { loadConnectors } from '../integrations/registry';
 import type { AutomationPack } from './packs';
-import { loadAutomationPacks } from './packs';
+import { automationPackManifestSchema, loadAutomationPacks } from './packs';
 
 const REPO = path.join(
   path.dirname(new URL(import.meta.url).pathname),
@@ -164,5 +164,33 @@ describe('the three inbox packs stay one document', () => {
       expect(pack.automation.name).toContain(variant.connector);
       expect(pack.manifest.labels).toContain('Email');
     }
+  });
+});
+
+describe('the manifest skills declaration', () => {
+  const base = { name: 'Carrier' };
+
+  it('accepts valid skill slugs', () => {
+    const parsed = automationPackManifestSchema.parse({
+      ...base,
+      skills: ['vat-return', 'pdf2'],
+    });
+    expect(parsed.skills).toEqual(['vat-return', 'pdf2']);
+  });
+
+  it('refuses a slug the skills domain would refuse', () => {
+    for (const bad of ['Upper', 'double--hyphen', '-lead', 'claude']) {
+      expect(
+        automationPackManifestSchema.safeParse({ ...base, skills: [bad] })
+          .success,
+      ).toBe(false);
+    }
+  });
+
+  it('refuses more skills than one package may carry', () => {
+    const skills = Array.from({ length: 21 }, (_, i) => `skill-${i}`);
+    expect(
+      automationPackManifestSchema.safeParse({ ...base, skills }).success,
+    ).toBe(false);
   });
 });
