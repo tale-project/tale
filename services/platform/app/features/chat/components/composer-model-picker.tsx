@@ -154,10 +154,11 @@ export function ComposerModelPicker({
           providerSlug: model.providerSlug,
         }),
     });
-    // One provider → a flat list (the section header would be noise). More →
-    // one section per provider, so the same model id is findable — and
-    // PICKABLE — under each provider that serves it.
-    if (providers.length === 1) return [models.map(itemOf)];
+    // Always one labelled section per provider — even a lone provider keeps
+    // its header, so the two lanes read the same (the external lane often
+    // narrows to a single provider's direct-served models, and its header
+    // says exactly whose wire those are) and the same model id is findable —
+    // and PICKABLE — under each provider that serves it.
     return providers.map((provider) => {
       const group: DropdownMenuGroup = [
         { type: 'label' as const, content: provider },
