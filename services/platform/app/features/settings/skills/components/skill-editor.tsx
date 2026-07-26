@@ -9,6 +9,8 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -19,8 +21,13 @@ import {
 import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  markdownComponents,
+  markdownWrapperStyles,
+} from '@/app/features/shared/markdown/markdown-renderer';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useDeleteSkill, useSaveSkill } from '../hooks/mutations';
 import { useSkill, useSkillAssets } from '../hooks/queries';
@@ -249,33 +256,53 @@ function SkillMdForm({
   t: ReturnType<typeof useT>['t'];
 }) {
   const { register, watch, setValue } = editor.form;
+  const [bodyView, setBodyView] = useState<'edit' | 'preview'>('edit');
+  const bodyValue = watch('body') ?? '';
   return (
-    // The metadata keeps a readable measure and its natural height; the body
-    // is the editor's star — it takes the pane's full width and every
-    // remaining pixel of height, scrolling internally. Only when the pane is
-    // too short for the metadata plus the body's floor does the pane itself
-    // scroll (the flex chain runs through the Textarea's fillHeight shell).
+    // The metadata sits compact in two columns; the body is the editor's
+    // star — it takes the pane's full width and every remaining pixel of
+    // height, scrolling internally (as the raw-markdown textarea or the
+    // rendered preview). Only when the pane is too short for the metadata
+    // plus the body's floor does the pane itself scroll.
     <form
       onSubmit={editor.submit}
       className="flex min-h-0 flex-1 flex-col gap-4 p-4"
     >
-      <Stack gap={4} className="max-w-2xl shrink-0">
-        <Stack gap={1}>
-          <label htmlFor="skill-description" className="text-sm font-medium">
-            {t('skills.form.description')}
-          </label>
-          <Input
-            id="skill-description"
-            disabled={readOnly}
-            aria-describedby="skill-description-help"
-            {...register('description')}
-          />
-          <p
-            id="skill-description-help"
-            className="text-muted-foreground text-xs"
-          >
-            {t('skills.editor.descriptionHelp')}
-          </p>
+      <div className="grid max-w-4xl shrink-0 gap-x-6 gap-y-4 md:grid-cols-2">
+        <Stack gap={4}>
+          <Stack gap={1}>
+            <label htmlFor="skill-description" className="text-sm font-medium">
+              {t('skills.form.description')}
+            </label>
+            <Input
+              id="skill-description"
+              disabled={readOnly}
+              aria-describedby="skill-description-help"
+              {...register('description')}
+            />
+            <p
+              id="skill-description-help"
+              className="text-muted-foreground text-xs"
+            >
+              {t('skills.editor.descriptionHelp')}
+            </p>
+          </Stack>
+
+          <Stack gap={1}>
+            <label htmlFor="skill-labels" className="text-sm font-medium">
+              {t('skills.editor.labels')}
+            </label>
+            <Input
+              id="skill-labels"
+              disabled={readOnly}
+              placeholder={t('skills.editor.labelsPlaceholder')}
+              aria-describedby="skill-labels-help"
+              {...register('labels')}
+            />
+            <p id="skill-labels-help" className="text-muted-foreground text-xs">
+              {t('skills.editor.labelsHelp')}
+            </p>
+          </Stack>
         </Stack>
 
         <Stack gap={1}>
@@ -305,36 +332,60 @@ function SkillMdForm({
             disabled={readOnly}
           />
         </Stack>
-
-        <Stack gap={1}>
-          <label htmlFor="skill-labels" className="text-sm font-medium">
-            {t('skills.editor.labels')}
-          </label>
-          <Input
-            id="skill-labels"
-            disabled={readOnly}
-            placeholder={t('skills.editor.labelsPlaceholder')}
-            aria-describedby="skill-labels-help"
-            {...register('labels')}
-          />
-          <p id="skill-labels-help" className="text-muted-foreground text-xs">
-            {t('skills.editor.labelsHelp')}
-          </p>
-        </Stack>
-      </Stack>
+      </div>
 
       <Stack gap={1} className="min-h-[16rem] flex-1">
-        <label htmlFor="skill-body" className="text-sm font-medium">
-          {t('skills.section.body')}
-        </label>
+        <Row gap={2} justify="between" align="center" className="shrink-0">
+          <label htmlFor="skill-body" className="text-sm font-medium">
+            {t('skills.section.body')}
+          </label>
+          <HStack gap={1}>
+            <Button
+              type="button"
+              size="sm"
+              variant={bodyView === 'edit' ? 'secondary' : 'ghost'}
+              aria-pressed={bodyView === 'edit'}
+              onClick={() => setBodyView('edit')}
+            >
+              {t('skills.editor.viewEdit')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={bodyView === 'preview' ? 'secondary' : 'ghost'}
+              aria-pressed={bodyView === 'preview'}
+              onClick={() => setBodyView('preview')}
+              data-testid="skill-body-preview-toggle"
+            >
+              {t('skills.editor.viewPreview')}
+            </Button>
+          </HStack>
+        </Row>
         <Textarea
           id="skill-body"
           disabled={readOnly}
           fillHeight
           className="font-mono text-sm"
+          wrapperClassName={bodyView === 'preview' ? 'hidden' : undefined}
           aria-describedby="skill-body-help"
           {...register('body')}
         />
+        {bodyView === 'preview' && (
+          <div
+            className={cn(
+              'border-border min-h-0 flex-1 overflow-y-auto rounded-md border p-4',
+              markdownWrapperStyles,
+            )}
+            data-testid="skill-body-preview"
+          >
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {bodyValue}
+            </ReactMarkdown>
+          </div>
+        )}
         <p
           id="skill-body-help"
           className="text-muted-foreground shrink-0 text-xs"

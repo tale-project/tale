@@ -197,4 +197,32 @@ describe('SkillEditor', () => {
       screen.getByLabelText('settings.skills.form.description'),
     ).toBeVisible();
   });
+  it('previews the body as rendered markdown and returns to the editor', async () => {
+    skillData = {
+      slug: 'docx',
+      description: 'Word documents.',
+      visibility: 'org',
+      body: '# Title\n\n| A | B |\n| - | - |\n| 1 | 2 |',
+      canEdit: true,
+    };
+    const { user } = renderEditor();
+
+    await user.click(screen.getByTestId('skill-body-preview-toggle'));
+    const preview = screen.getByTestId('skill-body-preview');
+    expect(preview.querySelector('table')).not.toBeNull();
+    expect(preview.querySelector('h1')).toHaveTextContent('Title');
+    // jsdom carries no Tailwind stylesheet, so assert the hiding class on the
+    // field frame rather than computed visibility.
+    expect(
+      screen.getByLabelText('settings.skills.section.body').closest('.hidden'),
+    ).not.toBeNull();
+
+    await user.click(
+      screen.getByRole('button', { name: 'settings.skills.editor.viewEdit' }),
+    );
+    expect(
+      screen.getByLabelText('settings.skills.section.body').closest('.hidden'),
+    ).toBeNull();
+    expect(screen.queryByTestId('skill-body-preview')).not.toBeInTheDocument();
+  });
 });

@@ -5657,6 +5657,8 @@ settings:
       bodyHelp:
         Le markdown que le modèle lit quand il charge le skill — playbooks,
         conventions, référence. Jamais exécuté.
+      viewEdit: Modifier
+      viewPreview: Aperçu
     export:
       failed: Échec de l'export du skill
   integrations:

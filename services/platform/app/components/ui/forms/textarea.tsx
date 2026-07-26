@@ -33,6 +33,8 @@ interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
    * editor-style body rather than a form field.
    */
   fillHeight?: boolean;
+  /** Extra classes for the field's outer frame (mirrors `Input`). */
+  wrapperClassName?: string;
 }
 
 // Plain control — the real textarea field. No skeleton logic of its own.
@@ -47,6 +49,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       counterMax,
       wideControl,
       fillHeight,
+      wrapperClassName,
       id: providedId,
       ...props
     },
@@ -89,6 +92,9 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       <FieldShell
         {...(wideControl !== undefined ? { wideControl } : {})}
         {...(fillHeight !== undefined ? { fillHeight } : {})}
+        {...(wrapperClassName !== undefined
+          ? { className: wrapperClassName }
+          : {})}
         {...(label !== undefined
           ? {
               label: (

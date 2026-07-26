@@ -5586,6 +5586,8 @@ settings:
       bodyHelp:
         Markdown, das das Modell liest, wenn es den Skill lädt — Playbooks,
         Konventionen, Referenzmaterial. Wird nie ausgeführt.
+      viewEdit: Bearbeiten
+      viewPreview: Vorschau
     export:
       failed: Skill konnte nicht exportiert werden
   integrations:

@@ -5694,6 +5694,8 @@ settings:
       labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
       bodyHelp: Markdown the model reads when it loads the skill — playbooks,
         conventions, reference material. Never executed.
+      viewEdit: Edit
+      viewPreview: Preview
     export:
       failed: Failed to export skill
   integrations:
