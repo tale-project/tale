@@ -11,7 +11,7 @@ import {
   type Node,
 } from '@xyflow/react';
 import { AlertTriangle, Workflow } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type CSSProperties } from 'react';
 
 import {
   FLOW_EDGE_COLORS,
@@ -40,6 +40,14 @@ const NODE_HEIGHT = 116;
 /** React Flow requires a stable node-type map; an inline object remounts every
  * node on each render. */
 const NODE_TYPES = { automation: AutomationNode };
+
+/** React Flow computes `pointer-events: none` on a node wrapper that is
+ * neither selectable nor draggable and has no flow-level mouse handlers —
+ * which is every node here, because this canvas turns React Flow's own
+ * interaction models off in favour of the real button inside each box. The
+ * per-node style spreads after that computed value, handing pointer events
+ * back so the button is clickable at all. */
+const NODE_STYLE: CSSProperties = { pointerEvents: 'all' };
 
 export interface AutomationCanvasProps {
   graph: AutomationGraph;
@@ -95,6 +103,7 @@ function CanvasInner({
           height: NODE_HEIGHT,
           sourcePosition: Position.Bottom,
           targetPosition: Position.Top,
+          style: NODE_STYLE,
           data,
         };
       }),

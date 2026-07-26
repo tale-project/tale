@@ -19,6 +19,17 @@ const node = {
   input: { text: '{{ nodes.calc.output.summary }}' },
 };
 
+/** jsdom approximates `:focus-visible` with event bookkeeping that leaks
+ * across the tests sharing one document, so its verdict is order-dependent.
+ * Pin the verdict to test each branch of the box's focus guard; the heuristic
+ * itself is the browser's contract, not ours. */
+function stubFocusVisible(element: Element, verdict: boolean) {
+  const realMatches = element.matches.bind(element);
+  vi.spyOn(element, 'matches').mockImplementation((selector: string) =>
+    selector === ':focus-visible' ? verdict : realMatches(selector),
+  );
+}
+
 describe('AutomationNodeBox', () => {
   it('is a button that names the node and its type', () => {
     render(
@@ -128,8 +139,29 @@ describe('AutomationNodeBox', () => {
         onFocus={onFocus}
       />,
     );
+    stubFocusVisible(screen.getByRole('button'), true);
     await user.tab();
     expect(onFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores pointer focus, which would pan the box out from under the click', async () => {
+    const onFocus = vi.fn();
+    const onSelect = vi.fn();
+    const { user } = render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        onSelect={onSelect}
+        onFocus={onFocus}
+      />,
+    );
+    const button = screen.getByRole('button');
+    stubFocusVisible(button, false);
+    await user.click(button);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onFocus).not.toHaveBeenCalled();
   });
 
   it('passes an axe audit', async () => {

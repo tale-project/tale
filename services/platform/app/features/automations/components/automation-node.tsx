@@ -106,7 +106,12 @@ export function AutomationNodeBox({
       aria-expanded={selected}
       aria-controls={inspectorId}
       onClick={onSelect}
-      onFocus={onFocus}
+      onFocus={(event) => {
+        // A mouse press focuses the button too, and panning then would drag
+        // the box out from under the pointer mid-click — follow keyboard
+        // focus only.
+        if (event.currentTarget.matches(':focus-visible')) onFocus?.();
+      }}
       className={cn(
         'bg-card text-card-foreground border-border w-[18.75rem] rounded-lg border p-3 text-left shadow-sm transition-shadow',
         'focus-visible:ring-ring cursor-pointer hover:shadow-md focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
