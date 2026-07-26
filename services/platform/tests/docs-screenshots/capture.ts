@@ -178,30 +178,26 @@ async function signUpOrIn(context: BrowserContext): Promise<void> {
 /**
  * Block until the demo org has finished scaffolding. The e2e helper's
  * waitForSeededOrg waits for the E2E fixture agent, which this stack never
- * seeds — the docs-demo catalog installs the REAL builtin chat agents into a
- * `chat` folder, and the agents list renders folders COLLAPSED, so agent
- * display names are not in the DOM until the folder expands. The folder row
- * itself is the "scaffold complete" marker. Reload-and-retry because the
- * agents list loads via a non-reactive action that never refetches on its
- * own (same rationale as waitForSeededOrg).
+ * seeds. The "scaffold complete" marker is the seeded automation packs on the
+ * Automations page — provisioning writes them at org creation, so a listed
+ * pack row means the org's catalog scaffold ran. Reload-and-retry so a page
+ * that loaded before provisioning finished gets a fresh read.
  */
 async function waitForDemoScaffold(
   page: Page,
   organizationId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${organizationId}/agents`);
-  // Role-scoped so the sidebar's "Chat" nav item can never satisfy the
-  // marker — only the agents table renders a row named after the folder.
-  const folderRow = page.getByRole('row', { name: 'Chat' }).first();
+  await page.goto(`/dashboard/${organizationId}/automations`);
+  const packRow = page.getByText('gmail-triage-inbox', { exact: true }).first();
   const ATTEMPTS = 8;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
-      await expect(folderRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+      await expect(packRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
       return;
     } catch (err) {
       if (attempt === ATTEMPTS) {
         throw new Error(
-          `Demo catalog folder "chat" never appeared for org ${organizationId} at ${BASE_URL}. ` +
+          `The seeded automation packs never appeared for org ${organizationId} at ${BASE_URL}. ` +
             `The stack must run with TALE_CONFIG_BUILTIN_DIR pointing at tests/e2e/fixtures/config/docs-demo ` +
             `(see tests/docs-screenshots/README.md).`,
           { cause: err },

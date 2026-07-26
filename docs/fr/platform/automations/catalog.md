@@ -1,44 +1,78 @@
 ---
-title: Parcourir et installer des automatisations
-description: Comment fonctionne le catalogue des automatisations — Installées vs Toutes les automatisations, le panneau latéral qu’ouvre une carte, l’assistant d’installation et son contrôle préalable, réinstaller et désinstaller, et mettre à jour toutes les automatisations livrées en une fois.
+title: Ajouter des automatisations à ton organisation
+description: D’où viennent les automatisations — les packs livrés avec chaque organisation, les brouillons créés sur le canvas, et les paquets téléversés, y compris les zips qui installent les skills qu’ils embarquent.
 ---
 
-Le catalogue des automatisations (**Automatisations** dans la barre latérale) est l’endroit où les Propriétaires, Admins et Développeurs parcourent chaque automatisation disponible pour l’organisation et décident lesquelles installer. Cette page couvre le catalogue lui-même — le panneau latéral qu’ouvre une carte, l’assistant d’installation, et les actions de réinstallation, désinstallation et mise à jour qui suivent. Ce que fait chaque automatisation livrée vit sur [Automatisations livrées](/fr/platform/automations/builtin) ; le modèle mental des pièces qu’une automatisation empaquette vit sur [Concepts d’automatisation](/fr/platform/automations/concepts).
+La page **Automatisations** de la barre latérale liste chaque automatisation de l’organisation et sert de porte d’entrée aux nouvelles. Une organisation démarre avec les packs livrés déjà en place, tu peux en créer une de zéro sur son canvas, et **Téléverser un paquet** accepte un pack construit ailleurs — sous forme de fichiers, ou d’un seul zip qui installe aussi les bundles de skills que le pack embarque. Gérer la page demande les permissions Propriétaire, Admin ou Développeur ; tout ce qu’un téléversement crée reste un brouillon jusqu’au déploiement — rien de ce qui tourne ne change parce qu’un fichier a atterri.
 
-<Frame caption="Le catalogue des automatisations — chaque carte est une automatisation installable ; le bundle installe tous ses membres via un seul assistant.">
+Cette page couvre la provenance des automatisations et ce qu’un paquet téléversé peut contenir. En piloter une — canvas, versions, exécutions de test, déploiement — vit sur [L’éditeur de workflow](/fr/platform/automations/editor) ; le modèle sous-jacent sur [Concepts d’automatisation](/fr/platform/automations/concepts) ; ce que font les packs livrés sur [Automatisations livrées](/fr/platform/automations/builtin).
 
-![Le catalogue des automatisations sur l’onglet Toutes les automatisations, avec les cartes des trois automatisations d’e-mail et du bundle Résoudre les issues GitHub, chacune avec son icône et sa description.](/images/platform/automations-catalog.webp)
+<Frame caption="La page Automatisations — chaque ligne est une automatisation avec son nombre de versions et la version en service, ou Pas en service.">
+
+![La page Automatisations listant les automatisations e-mail et GitHub livrées, chaque ligne avec son nombre de versions et son état de déploiement.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
-## Installées et Toutes les automatisations
+## Ce que montre la liste
 
-Le catalogue s’ouvre sur **Installées** — le choix par défaut de la barre d’onglets, et le seul onglet où un bundle se dissout en ses propres cartes membres au lieu d’apparaître une fois comme bundle. Chaque membre porte sur son icône un petit repère nommant son bundle — **Partie de Résoudre les issues GitHub**, par exemple — pour que leur appartenance reste visible même séparés, et chacun garde son propre **Réinstaller**/**Désinstaller** dans son menu **⋯** : un bundle n’a pas d’installation propre à gérer comme un tout (voir [Concepts d’automatisation](/fr/platform/automations/concepts) pour comprendre pourquoi). Passe à **Toutes les automatisations** pour parcourir tout le catalogue à la place — livrées et téléversées, installées ou non : ici, le bundle EST la carte, installée via un seul assistant, et ses membres cachés n’apparaissent jamais seuls. **Installées** sert à gérer ce qui tourne ; **Toutes les automatisations** à trouver du nouveau.
+Chaque ligne est une automatisation : son nom, son nombre de versions, et soit la version en service, soit **Pas en service**. La page de l’org liste les automatisations au niveau de l’organisation ; une automatisation qui appartient à un projet vit dans l’onglet **Automatisations** de ce projet — l’endroit où elle apparaît se décide une fois, à son premier enregistrement, et ne bouge plus. Clique une ligne pour arriver sur la page de l’automatisation, que décrit [L’éditeur de workflow](/fr/platform/automations/editor).
 
-## Installer une automatisation
+**Nouvelle automatisation** crée un brouillon vide à construire sur le canvas. Les packs livrés ne demandent aucune installation : chaque organisation en est équipée à sa création, prêts à déployer.
 
-Clique sur une carte et son panneau latéral s’ouvre — le même mode aperçu-au-clic que [Paramètres > Intégrations](/fr/platform/integrations/overview) utilise pour son propre catalogue. Le panneau liste ce que l’installation ajoute : ses pages, workflows, agents, compétences, et les intégrations qu’elle requiert, plus le projet qu’elle cible si elle est scopée à un projet. Clique sur **Installer** et l’assistant s’ouvre.
+## Téléverser un paquet
 
-L’assistant ne parcourt que les étapes dont cette automatisation a réellement besoin : une étape **Projet** si elle est scopée à un projet et que tu ne l’as pas ouverte depuis l’intérieur d’un projet ; une étape **Vérifier les changements** si l’installation écraserait des fichiers déjà sur le disque ; une étape **Installer** qui connecte toute intégration requise pas encore connectée ; une étape **Mode de l’agent** pour chaque agent qui peut tourner sur tes propres identifiants plutôt que sur ceux de la plateforme ; et une étape **Terminé**. Le projet que tu choisis à l’étape **Projet** fait double usage : c’est aussi ce à quoi est liée chaque planification installée par l’automatisation, pour qu’une automatisation dont le document lit `{{ input.projectId }}` s’exécute contre le bon projet sans que cette valeur soit retapée nulle part.
+Un pack est un dossier : `workflow.yml` (le document de l’automatisation — requis), `automation.yml` (le manifeste — optionnel) et, quand le pack apporte son propre savoir, un dossier par skill sous `skills/`.
 
-**Terminé** n’annonce « prête » que lorsque l’automatisation l’est vraiment. Si chaque intégration requise est connectée, c’est exactement ce qui s’affiche ; une entrée requise que le schéma propre à l’automatisation déclare et qu’aucune étape de l’assistant ne demande est nommée à la place, si bien que tu quittes l’assistant en sachant ce qui manque encore (pour un bundle, l’étape Terminé fait la même chose par membre). Chaque étape de configuration reste rattrapable plus tard, depuis la checklist **Terminer la configuration** propre à l’automatisation.
+```text
+review-invoices/
+├── workflow.yml
+├── automation.yml
+└── skills/
+    └── invoice-rules/
+        ├── SKILL.md
+        └── references/
+            └── vat-rates.md
+```
 
-## Le contrôle préalable à l’installation
+Pour téléverser, ouvre **Automatisations**, clique **Téléverser un paquet** et choisis l’une des deux formes du même pack :
 
-Réinstaller ou téléverser à nouveau par-dessus une automatisation dont certains fichiers ont déjà changé déclenche une étape **Vérifier les changements** avant que quoi que ce soit ne soit touché. Pour une automatisation seule, l’étape liste chaque fichier que l’installation écraserait et te demande de confirmer le remplacement de tous par les versions de l’automatisation — pas de sélection fichier par fichier. Installer un **bundle** passe en revue chaque automatisation membre séparément : chacune a sa propre section repliable et sa propre confirmation, pour que tu voies exactement lesquelles des plusieurs automatisations du bundle touchent des fichiers que tu as modifiés. Dans les deux cas, le document de workflow propre à une automatisation échappe à ce contrôle — voir la section suivante.
+- **Les fichiers** — `workflow.yml`, plus `automation.yml` si le pack en fournit un. Le bon choix pour un pack qui n’est que son document.
+- **Un seul `.zip` du dossier du pack** — obligatoire quand le pack embarque des skills, puisque seul le zip peut porter leurs dossiers. Le zip reste sous 20 MiB.
 
-## Réinstaller, désinstaller et mettre à jour
+Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet : le premier téléversement la lie définitivement à cette surface.
 
-Chaque carte installée porte un menu **⋯** avec **Réinstaller** et **Désinstaller** ; le menu d’une carte pas encore installée propose **Installer** à la place, plus **Supprimer** pour un envoi privé que tu n’as pas encore installé. **Réinstaller** relance le même contrôle préalable qu’une installation neuve et conserve tes variables d’environnement et tes secrets. **Désinstaller** retire l’automatisation et tout ce qu’elle a installé — ses agents, workflows, pages, et leurs variables d’environnement et secrets — tandis que toute intégration qu’elle utilisait reste connectée pour ce que d’autres en font.
+<Frame caption="Téléverser un paquet d’automatisation — les fichiers ou un zip, et la surface à laquelle l’automatisation est liée.">
 
-Réinstaller ne touche jamais au document de workflow de l’automatisation : il est exempté de mise à jour, donc les versions que tu as enregistrées et celle que tu as mise en service survivent à chaque réinstallation et à chaque mise à jour du catalogue. Pour récupérer plutôt le dernier document livré, désinstalle l’automatisation puis réinstalle-la — Tale répète ce rappel sur la confirmation de réinstallation.
+![Le dialogue de téléversement de paquet avec sa zone de dépôt et le sélecteur Installer dans réglé sur Organisation.](/images/platform/automations-upload-dialog.webp)
 
-**Mettre à jour les automatisations livrées**, dans le même menu **Ajouter une automatisation** que **Téléverser un package**, est une action différente des deux précédentes : elle resynchronise en un seul passage toutes les automatisations livrées de l’organisation avec le catalogue livré — y compris celles que tu as modifiées — plutôt qu’une carte à la fois. Elle porte la même exemption de workflow et conserve les secrets, et comme un enregistrement ne fait qu’ajouter, ce qu’elle change laisse chaque version antérieure de cette automatisation exactement où elle était.
+</Frame>
 
-## Téléverser une automatisation privée
+Le serveur valide avant d’enregistrer quoi que ce soit. Le document passe par la même validation moteur que l’éditeur — un téléversement qui ne tournerait pas est refusé avec les messages du moteur, pas enregistré cassé — et le bloc `subjects` du manifeste devient le contrat de tâches de l’automatisation, exactement comme le ferait un enregistrement depuis le canvas. Ce qui atterrit est une **version brouillon** derrière la barrière de déploiement habituelle : aucun déclencheur ne tourne avant que tu la déploies depuis la page de l’automatisation.
 
-**Téléverser un package**, dans le même menu, ajoute une automatisation que le catalogue ne livre pas — dépose un `.zip`, ou sélectionne un dossier contenant un `automation.json` à sa racine ; le nom du dossier ou du fichier devient le slug de l’automatisation. Téléverser ne fait que l’ajouter au catalogue privé de l’organisation ; installe-la ensuite comme n’importe quelle autre carte. Téléverser à nouveau par-dessus un slug qui existe déjà te demande de confirmer le remplacement avant d’écraser le package existant.
+Téléverser à nouveau le pack d’une automatisation existante ajoute la version suivante — le store n’écrase jamais l’historique, chaque version antérieure reste exactement où elle était.
 
-## Où cela s’inscrit
+## Les skills que le paquet embarque
 
-Le catalogue est la porte d’entrée vers chaque automatisation que l’organisation peut faire tourner : le panneau latéral prévisualise ce que l’installation ajoute, l’assistant connecte ce dont elle a besoin, et réinstaller, désinstaller et mettre à jour la gardent à jour sans toucher à un workflow que tu es en train de modifier. [Automatisations livrées](/fr/platform/automations/builtin) est la lecture suivante pour ce que fait chaque automatisation livrée et le bundle Résoudre les issues GitHub ; [Concepts d’automatisation](/fr/platform/automations/concepts) est le modèle mental si tu ne l’as pas encore lu.
+Un zip peut livrer les skills sur lesquels son document s’appuie — les bundles qu’un nœud agent charge ou depuis lesquels une étape de script tourne. Le manifeste doit les nommer, et la déclaration se vérifie dans les deux sens : un dossier `skills/` que le manifeste ne déclare pas refuse le téléversement, tout comme un slug déclaré que le zip n’apporte pas.
+
+```yaml
+# automation.yml
+name: Review invoices
+skills:
+  - invoice-rules
+subjects:
+  task:
+    # …le contrat de tâches, inchangé
+```
+
+Chaque bundle embarqué est validé comme un vrai skill — frontmatter parsé, `name` égal à son dossier — et installé dans la [bibliothèque de skills](/fr/platform/workspace/skills) de l’organisation dès que le téléversement est accepté ; les exécutions de test du brouillon les trouvent donc déjà. Ce qui arrive par slug dépend de ce que la bibliothèque tient déjà :
+
+- **Slug nouveau** — le bundle est installé.
+- **Bundle identique** — rien n’est écrit ; le téléversement le signale inchangé.
+- **Contenu différent** — le téléversement s’arrête et liste les slugs en collision. Confirme pour les remplacer par les versions du paquet ; l’ancien `SKILL.md` reste dans l’historique de chaque skill. Rien — ni l’automatisation, ni aucun skill — n’est écrit avant ta confirmation.
+
+Un document qui référence un skill que le paquet n’embarque pas et que la bibliothèque ne tient pas se téléverse quand même — la référence manquante revient en avertissement, pour qu’un pack puisse nommer un skill que tu installeras plus tard.
+
+## Où cela s’insère
+
+Les automatisations arrivent par trois chemins — livrées avec l’organisation, créées sur le canvas, ou téléversées en pack — et chaque chemin finit au même endroit : une version brouillon sur la page de l’automatisation, déployée quand tu le décides. Un téléversement en zip alimente aussi la [bibliothèque de skills](/fr/platform/workspace/skills) avec les bundles dont l’automatisation a besoin, avec une confirmation devant chaque skill qu’il remplacerait. [L’éditeur de workflow](/fr/platform/automations/editor) est la lecture suivante pour mettre ce brouillon en service.

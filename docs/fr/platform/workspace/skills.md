@@ -59,35 +59,13 @@ Un bundle sans `visibility` du tout compte comme un skill d'organisation. Un bun
 
 ## Ajouter un skill à la bibliothèque
 
-Ouvre **Paramètres > Skills**. **Ajouter un skill** propose deux points de départ, et **Téléverser un skill** se trouve à côté pour un bundle que tu as déjà.
+Ouvre **Paramètres > Skills**. **Ajouter un skill** demande un nom — le slug, en minuscules, chiffres et traits d'union simples — et une description, puis te dépose sur la page du nouveau bundle. Rédige la consigne sous **Instructions (corps)** : c'est le texte qu'un modèle lit, écris-le comme tu briefferais un collègue — à quoi sert le skill, quand il s'applique, et à quoi ressemble un bon résultat.
 
-<Steps>
+Des bundles arrivent aussi sans que personne ne tape ici : un paquet d'automatisation téléversé en zip installe les skills qu'il embarque directement dans cette bibliothèque, avec une confirmation devant chaque skill existant qu'il remplacerait. Ce chemin — et la façon dont un paquet déclare ses skills — vit sur [Ajouter des automatisations à ton organisation](/fr/platform/automations/catalog).
 
-<Step title="Partir de zéro ou d'un modèle">
+## Remplacer et retirer
 
-**Vierge** ne demande qu'un nom — le slug, en minuscules, chiffres et traits d'union simples — et te dépose dans un bundle vide. **À partir d'un modèle** ouvre **Nouveau skill à partir d'un modèle** : tu choisis l'un des skills livrés et tu obtiens une copie qui t'appartient.
-
-</Step>
-
-<Step title="Ou téléverser un bundle">
-
-**Téléverser un skill** ouvre **Téléverser un bundle de skill**. Dépose un `.zip` contenant une `SKILL.md` à sa racine, avec les dossiers `scripts/`, `references/` ou `assets/` que tu veux. Tale lit le frontmatter avant d'écrire quoi que ce soit et te montre ce qu'il y a trouvé — la description, la licence, les paquets recommandés et le nombre de clés supplémentaires qu'il conservera. Tu valides donc un bundle que tu as réellement lu. Si le slug existe déjà, on te demande d'abord si tu veux remplacer.
-
-</Step>
-
-<Step title="Écrire le corps">
-
-Ouvre le skill et rédige la consigne sous **Instructions (corps)**. C'est le texte qu'un modèle lit : écris-le comme tu briefferais un collègue — à quoi sert le skill, quand il s'applique, et à quoi ressemble un bon résultat.
-
-</Step>
-
-</Steps>
-
-## Copier, remplacer, retirer
-
-Le menu de chaque skill porte **Voir les détails**, **Dupliquer** et **Supprimer le skill** ; la vue détaillée y ajoute **Remplacer le bundle**.
-
-**Dupliquer** dérive le bundle sous un nouveau slug — pratique pour faire varier un skill partagé sans toucher à l'original. **Remplacer le bundle** écrase le contenu sur place en gardant le slug, si bien que tout agent lié le lit dans sa nouvelle version dès la requête suivante. **Supprimer le skill** retire le bundle du disque : chaque agent lié y perd l'accès, et la liaison ne se rabat sur rien.
+Remplacer le contenu d'un bundle passe par ce même téléversement de paquet : un skill embarqué dont le slug existe déjà demande confirmation, puis remplace le bundle entier et garde l'ancien `SKILL.md` dans l'historique du skill. **Supprimer**, sur la page du skill, retire le bundle du disque : chaque agent lié y perd l'accès, et la liaison ne se rabat sur rien.
 
 <Warning>
 
@@ -97,7 +75,7 @@ Remplacer et supprimer prennent effet immédiatement, et rien ne fige une versio
 
 ## Ce qu'il y a dans le bundle
 
-La vue détaillée affiche **Bundle** — l'arborescence telle qu'elle existe sur le disque — avec une visionneuse pour chaque fichier que tu ouvres. Le skill utile le plus petit tient en un seul fichier, et la plupart grandissent un dossier à la fois.
+La page du skill affiche **Bundle** — l'arborescence telle qu'elle existe sur le disque, avec la `SKILL.md` épinglée en haut — et chaque fichier cliqué s'ouvre en lecture seule à côté de l'arbre : le code avec coloration syntaxique, le markdown rendu, et un message clair pour une image ou un binaire que le navigateur ne sait pas afficher. La `SKILL.md` elle-même ramène le formulaire d'édition. Le skill utile le plus petit tient en un seul fichier, et la plupart grandissent un dossier à la fois.
 
 ```text
 release-notes/
@@ -108,7 +86,13 @@ release-notes/
     └── group-changes.py
 ```
 
-Garde des assets courts et lisibles. Un texte qu'un modèle ouvre à peu de frais finit par servir ; un gros binaire reste là sans être lu, et la visionneuse te dit franchement qu'elle ne sait pas l'afficher. **Modifications récentes**, dans la même vue, est la piste d'audit du bundle — qui l'a téléversé, dupliqué, modifié ou supprimé, et quand. C'est le premier endroit où regarder quand un skill se met à se comporter autrement que la dernière fois.
+<Frame caption="La page d'un skill — l'arborescence du bundle à gauche, le fichier sélectionné en lecture seule à droite.">
+
+![La page de détail d'un skill avec l'arborescence du bundle, la SKILL.md épinglée, et un fichier de script ouvert dans la visionneuse en lecture seule.](/images/platform/skills-bundle-tree.webp)
+
+</Frame>
+
+Garde des assets courts et lisibles. Un texte qu'un modèle ouvre à peu de frais finit par servir ; un gros binaire reste là sans être lu, et la visionneuse te dit franchement qu'elle ne sait pas l'afficher.
 
 ## Où cela se place
 

@@ -575,13 +575,37 @@ export const SHOTS: readonly Shot[] = [
     },
   },
   {
-    // The Automations catalog, All tab — builtin automation and bundle cards
-    // with their install state.
+    // The Automations page — the seeded pack rows with their version count
+    // and deployment state, plus the Upload package / New automation actions.
     name: 'automations-catalog',
     section: 'platform',
-    route: '/dashboard/:orgId/automations?tab=all',
+    route: '/dashboard/:orgId/automations',
     readyWhen: (page) =>
-      page.getByText('Resolve GitHub issues', { exact: true }).first(),
+      page.getByText('gmail-triage-inbox', { exact: true }).first(),
+  },
+  {
+    // The Upload package dialog — file drop zone and the Install into picker.
+    name: 'automations-upload-dialog',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations',
+    prepare: async (page) => {
+      await page.getByTestId('upload-automation').click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', { name: t('automations.upload.title') }),
+  },
+  {
+    // A skill's detail page — the bundle file tree (SKILL.md pinned) beside
+    // the read-only asset viewer; the seeded pdf skill ships script assets.
+    name: 'skills-bundle-tree',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/skills?slug=pdf',
+    prepare: async (page) => {
+      await page
+        .getByRole('treeitem', { name: 'reference.md', exact: true })
+        .click();
+    },
+    readyWhen: (page) => page.getByText('reference.md').nth(1),
   },
   {
     // The automation's workflow editor tab — step graph on the canvas with

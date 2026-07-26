@@ -59,35 +59,13 @@ A bundle carrying no `visibility` at all counts as an organization skill. An unm
 
 ## Add a skill to the library
 
-Open **Settings > Skills**. **Add skill** offers two starting points, and **Upload skill** sits beside it for a bundle you already have.
+Open **Settings > Skills**. **Add skill** asks for a name — the slug, in lowercase letters, numbers, and single hyphens — and a description, and drops you into the new bundle's page. Write the instruction under **Instructions (body)**: this is the text a model reads, so write it the way you would brief a colleague — what the skill is for, when it applies, and what good output looks like.
 
-<Steps>
+Bundles also arrive without being typed in here at all: an automation package uploaded as a zip installs the skills it carries straight into this library, with a confirmation in front of any existing skill it would replace. That flow — and how a package declares its skills — lives on [Add automations to your organization](/platform/automations/catalog).
 
-<Step title="Start blank or from a template">
+## Replace and retire
 
-**Blank** asks only for a name — the slug, in lowercase letters, numbers, and single hyphens — and drops you into an empty bundle. **From template** opens **New skill from template**, where you pick one of the built-in skills and get a copy that is yours to edit.
-
-</Step>
-
-<Step title="Or upload a bundle">
-
-**Upload skill** opens **Upload skill bundle**. Drop a `.zip` with `SKILL.md` at its root, alongside any `scripts/`, `references/`, or `assets/` folders. Tale reads the frontmatter before writing anything and shows you what it found — the description, the license, the recommended packages, and a count of the extra keys it will preserve — so you approve a bundle you have actually read. A zip whose slug already exists asks first whether to replace it.
-
-</Step>
-
-<Step title="Write the body">
-
-Open the skill and write the instruction under **Instructions (body)**. This is the text a model reads, so write it the way you would brief a colleague: what the skill is for, when it applies, and what good output looks like.
-
-</Step>
-
-</Steps>
-
-## Copy, replace, and retire
-
-Each skill's menu carries **View details**, **Duplicate**, and **Delete skill**; the detail view adds **Replace bundle**.
-
-**Duplicate** forks the bundle under a new slug — reach for it when you want to vary a shared skill without disturbing the original. **Replace bundle** overwrites a bundle's contents in place and keeps the slug, so every agent bound to it picks up the new text from its next request. **Delete skill** removes the bundle from disk; any agent bound to it loses access, and the binding falls back to nothing.
+Replacing a bundle's contents happens through the same package upload: a carried skill whose slug already exists asks for confirmation, then swaps the whole bundle and keeps the superseded `SKILL.md` in the skill's history. **Delete** on the skill's own page removes the bundle from disk; any agent bound to it loses access, and the binding falls back to nothing.
 
 <Warning>
 
@@ -97,7 +75,7 @@ Replacing and deleting both take effect immediately, and there is no version pin
 
 ## What sits in the bundle
 
-The detail view shows **Bundle** — the file tree as it exists on disk — with a viewer for any file you click. The smallest useful skill is a single file, and most grow one folder at a time.
+The skill's page shows **Bundle** — the file tree as it exists on disk, with `SKILL.md` pinned at the top — and clicking any file opens it read-only beside the tree: code with syntax highlighting, markdown rendered, and a plain notice for an image or a binary the browser cannot preview. `SKILL.md` itself brings back the editing form. The smallest useful skill is a single file, and most grow one folder at a time.
 
 ```text
 release-notes/
@@ -108,7 +86,13 @@ release-notes/
     └── group-changes.py
 ```
 
-Keep the assets small and readable. Text a model can open cheaply gets used; a large binary sits there unread, and the viewer says outright that it cannot preview it. **Recent changes** on the same view is the bundle's audit trail — who uploaded, duplicated, updated, or deleted it, and when — and it is the first place to look when a skill starts behaving differently from the last time you reached for it.
+<Frame caption="A skill's page — the bundle's file tree on the left, the selected file read-only on the right.">
+
+![A skill's detail page showing the bundle file tree with SKILL.md pinned and a script file open in the read-only viewer.](/images/platform/skills-bundle-tree.webp)
+
+</Frame>
+
+Keep the assets small and readable. Text a model can open cheaply gets used; a large binary sits there unread, and the viewer says outright that it cannot preview it.
 
 ## Where this fits
 

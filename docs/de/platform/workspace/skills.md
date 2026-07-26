@@ -59,35 +59,13 @@ Ein Bundle ganz ohne `visibility` gilt als Organisations-Skill. Ein unmarkiertes
 
 ## Einen Skill in die Bibliothek legen
 
-Öffne **Einstellungen > Skills**. **Skill hinzufügen** bietet dir zwei Startpunkte, daneben liegt **Skill hochladen** für ein Bundle, das du schon hast.
+Öffne **Einstellungen > Skills**. **Skill hinzufügen** fragt nach einem Namen — dem Slug, aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen — und einer Beschreibung, und setzt dich auf die Seite des neuen Bundles. Schreib die Anweisung unter **Anweisungen (Body)**: Das ist der Text, den ein Modell liest — formuliere ihn wie ein Briefing für eine Kollegin: wozu der Skill da ist, wann er greift und woran gutes Ergebnis zu erkennen ist.
 
-<Steps>
+Bundles kommen auch an, ohne dass hier jemand tippt: Ein als Zip hochgeladenes Automatisierungs-Paket installiert die Skills, die es mitbringt, direkt in diese Bibliothek — mit einer Bestätigung vor jedem bestehenden Skill, den es ersetzen würde. Dieser Weg — und wie ein Paket seine Skills deklariert — steht auf [Automatisierungen in deine Organisation bringen](/de/platform/automations/catalog).
 
-<Step title="Leer starten oder aus einer Vorlage">
+## Ersetzen und aussortieren
 
-**Leer** fragt nur nach einem Namen — dem Slug, aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen — und setzt dich in ein leeres Bundle. **Aus Vorlage** öffnet **Neuer Skill aus Vorlage**: Du wählst einen der mitgelieferten Skills und bekommst eine Kopie, die dir gehört.
-
-</Step>
-
-<Step title="Oder ein Bundle hochladen">
-
-**Skill hochladen** öffnet **Skill-Bundle hochladen**. Lege eine `.zip` ab, die eine `SKILL.md` im Wurzelverzeichnis enthält, daneben beliebige Ordner `scripts/`, `references/` oder `assets/`. Tale liest den Frontmatter, bevor irgendetwas geschrieben wird, und zeigt dir, was darin steht — Beschreibung, Lizenz, empfohlene Pakete und wie viele zusätzliche Schlüssel es unverändert übernimmt. So gibst du ein Bundle frei, das du tatsächlich gelesen hast. Bei einem Slug, den es schon gibt, wird vorher gefragt, ob ersetzt werden soll.
-
-</Step>
-
-<Step title="Den Body schreiben">
-
-Öffne den Skill und schreib die Anweisung unter **Anweisungen (Body)**. Das ist der Text, den ein Modell liest — formuliere ihn wie ein Briefing für eine Kollegin: wozu der Skill da ist, wann er greift und woran gutes Ergebnis zu erkennen ist.
-
-</Step>
-
-</Steps>
-
-## Kopieren, ersetzen, aussortieren
-
-Im Menü jedes Skills stehen **Details anzeigen**, **Duplizieren** und **Skill löschen**; in der Detailansicht kommt **Bundle ersetzen** dazu.
-
-**Duplizieren** gabelt das Bundle unter einem neuen Slug ab — praktisch, wenn du eine geteilte Fassung abwandeln willst, ohne das Original anzurühren. **Bundle ersetzen** überschreibt den Inhalt an Ort und Stelle und behält den Slug, sodass jeder daran gebundene Agent ab der nächsten Anfrage den neuen Text liest. **Skill löschen** entfernt das Bundle von der Platte; jeder gebundene Agent verliert den Zugriff, und die Bindung greift auf nichts zurück.
+Den Inhalt eines Bundles ersetzt derselbe Paket-Upload: Ein mitgebrachter Skill, dessen Slug es schon gibt, fragt nach Bestätigung, tauscht dann das ganze Bundle und behält die abgelöste `SKILL.md` im Verlauf des Skills. **Löschen** auf der Seite des Skills entfernt das Bundle von der Platte; jeder gebundene Agent verliert den Zugriff, und die Bindung greift auf nichts zurück.
 
 <Warning>
 
@@ -97,7 +75,7 @@ Ersetzen und Löschen wirken sofort, und es gibt kein Festschreiben einer Versio
 
 ## Was im Bundle liegt
 
-Die Detailansicht zeigt **Bundle** — den Dateibaum, wie er auf der Platte liegt — mit einer Vorschau für jede Datei, die du anklickst. Der kleinste brauchbare Skill besteht aus einer einzigen Datei, und die meisten wachsen Ordner für Ordner.
+Die Seite des Skills zeigt **Bundle** — den Dateibaum, wie er auf der Platte liegt, mit der `SKILL.md` oben angepinnt — und jede angeklickte Datei öffnet sich schreibgeschützt neben dem Baum: Code mit Syntax-Hervorhebung, Markdown gerendert, und ein klarer Hinweis bei einem Bild oder einer Binärdatei, die der Browser nicht anzeigen kann. Die `SKILL.md` selbst bringt das Bearbeitungsformular zurück. Der kleinste brauchbare Skill besteht aus einer einzigen Datei, und die meisten wachsen Ordner für Ordner.
 
 ```text
 release-notes/
@@ -108,7 +86,13 @@ release-notes/
     └── group-changes.py
 ```
 
-Halte die Assets klein und lesbar. Text, den ein Modell günstig öffnen kann, wird auch benutzt; eine große Binärdatei liegt ungelesen herum, und die Vorschau sagt dir offen, dass sie damit nichts anfangen kann. **Letzte Änderungen** in derselben Ansicht ist die Prüfspur des Bundles — wer es hochgeladen, dupliziert, geändert oder gelöscht hat und wann. Dort schaust du zuerst nach, wenn ein Skill sich anders verhält als beim letzten Mal.
+<Frame caption="Die Seite eines Skills — links der Dateibaum des Bundles, rechts die gewählte Datei schreibgeschützt.">
+
+![Die Detailseite eines Skills mit dem Dateibaum des Bundles, der SKILL.md oben angepinnt, und einer Script-Datei im schreibgeschützten Viewer.](/images/platform/skills-bundle-tree.webp)
+
+</Frame>
+
+Halte die Assets klein und lesbar. Text, den ein Modell günstig öffnen kann, wird auch benutzt; eine große Binärdatei liegt ungelesen herum, und die Vorschau sagt dir offen, dass sie damit nichts anfangen kann.
 
 ## Wo das hingehört
 

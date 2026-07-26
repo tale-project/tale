@@ -1,44 +1,78 @@
 ---
-title: Browse and install automations
-description: How the Automations catalog works — Installed vs All automations, the side panel a card opens, the install wizard and its preflight, reinstalling and uninstalling, and updating every built-in automation at once.
+title: Add automations to your organization
+description: Where automations come from — the shipped packs every organization starts with, drafts you author on the canvas, and uploaded packages, including zips that install the skills they carry.
 ---
 
-The Automations catalog (**Automations** in the sidebar) is where Owners, Admins, and Developers browse every automation available to the organization and decide which ones are installed. This page covers the catalog itself — the side panel a card opens, the install wizard, and the reinstall, uninstall, and update actions that follow. What each shipped automation actually does lives on [Built-in automations](/platform/automations/builtin); the mental model for the pieces an automation bundles lives on [Automation concepts](/platform/automations/concepts).
+The **Automations** page in the sidebar lists every automation the organization owns and is the door new ones come through. An organization starts with the shipped packs already in place, you can author a new automation from scratch on its canvas, and **Upload package** takes a pack you built elsewhere — as plain files, or as one zip that also installs the skill bundles the pack ships with. Managing the page takes Owner, Admin, or Developer permissions; everything an upload creates stays a draft until you deploy it, so nothing running changes because a file landed.
 
-<Frame caption="The Automations catalog — every card is one installable automation; the bundle installs all its members through one wizard.">
+This page covers where automations come from and what an uploaded package may contain. Operating one — the canvas, versions, test runs, deploying — is [The workflow editor](/platform/automations/editor); the model underneath is [Automation concepts](/platform/automations/concepts); what the shipped packs do is [Built-in automations](/platform/automations/builtin).
 
-![The Automations catalog on the All automations tab, showing cards for the three email automations and the Resolve GitHub issues bundle, each with its icon and description.](/images/platform/automations-catalog.webp)
+<Frame caption="The Automations page — every row is one automation with its version count and the version that is live, or Not deployed.">
+
+![The Automations page listing the shipped email and GitHub automations, each row showing its version count and deployment state.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
-## Installed and All
+## What the list shows
 
-The catalog opens on **Installed** — the tab strip's default, and the only tab where a bundle dissolves into its own member cards instead of showing once as the bundle. Each member carries a small marker on its icon naming its bundle — **Part of Resolve GitHub issues**, for one — so you can still tell which ones belong together even split apart, and each keeps its own **Reinstall**/**Uninstall** in its **⋯** menu: a bundle has no install of its own to manage as one unit (see [Automation concepts](/platform/automations/concepts) for why). Switch to **All automations** to browse the whole catalog instead — built-in and uploaded, installed or not: here the bundle IS the card, installed through one wizard, and its hidden members never appear on their own. Use **Installed** to manage what's running; use **All automations** to find something new to add.
+Each row is one automation: its name, how many versions it has, and either the live version or **Not deployed**. The org page lists organization-level automations; an automation that belongs to a project lives on that project's **Automations** tab instead — where an automation appears is decided once, by its first save, and never moves. Click a row to land on the automation's page and work with it as [The workflow editor](/platform/automations/editor) describes.
 
-## Installing one
+**New automation** creates an empty draft to author on the canvas. The shipped packs need no install step at all: every organization is seeded with them at creation, ready to deploy.
 
-Click a card and its side panel opens — the same click-to-preview pattern [Settings > Integrations](/platform/integrations/overview) uses for its own catalog. The panel lists what installing adds: its pages, workflows, agents, skills, and the integrations it requires, plus which project it targets if it's project-scoped. Click **Install** and the wizard opens.
+## Upload a package
 
-The wizard walks only the steps this automation actually needs: a **Project** step if it's project-scoped and you didn't open it from inside one already; a **Review changes** step if installing would overwrite files already on disk; an **Install** step that confirms what's ready and names what still needs connecting; an **Agent mode** step for every agent that can run on your own credentials instead of the platform's, followed by a connect step for each provider key or required integration that choice still leaves unconnected; and a **Done** step. The project you pick on the **Project** step does double duty: it is also what any schedule the automation installs is bound to, so an automation whose document reads `{{ input.projectId }}` runs against the right project without that value being retyped anywhere.
+A pack is a directory: `workflow.yml` (the automation document — required), `automation.yml` (the manifest — optional), and, when the pack ships its own knowledge, one folder per skill under `skills/`.
 
-**Done** doesn't say "ready" until the automation actually is. Every required integration connected reports exactly that; a required input the automation's own schema declares and no wizard step asks for is named instead, so you leave the wizard knowing what is still missing (a bundle's Done step does the same per member). Every setup step is finish-able later regardless, from the automation's own **Finish setup** checklist.
+```text
+review-invoices/
+├── workflow.yml
+├── automation.yml
+└── skills/
+    └── invoice-rules/
+        ├── SKILL.md
+        └── references/
+            └── vat-rates.md
+```
 
-## The install preflight
+To upload one, open **Automations**, click **Upload package**, and pick either form of the same pack:
 
-Reinstalling or re-uploading over an automation that already changed some of its files triggers a **Review changes** step before anything is touched. For a single automation, the step lists every file the install would overwrite and asks you to confirm replacing them all with the automation's own versions in one step — there's no per-file pick-and-choose. Installing a **bundle** reviews per member automation instead: each member gets its own collapsible section and its own confirmation, so you can see exactly which of the bundle's several automations touch files you changed. Either way, an automation's own workflow document is exempt from this check — see the next section.
+- **The files** — `workflow.yml`, plus `automation.yml` when the pack ships one. Right for a pack that is only its document.
+- **One `.zip` of the pack directory** — required when the pack carries skills, since only the zip can hold their folders. The zip stays under 20 MiB.
 
-## Reinstalling, uninstalling, and updating
+Pick where the automation installs — the organization, or one project — before you submit: the first upload pins it to that surface for good.
 
-Every installed card carries a **⋯** menu with **Reinstall** and **Uninstall**; a not-yet-installed card's menu offers **Install** instead, plus **Delete** for a private upload you haven't installed yet. **Reinstall** re-runs the same preflight as a fresh install and keeps your environment variables and secrets. **Uninstall** removes the automation and everything it installed — its agents, workflows, pages, and their environment variables and secrets — while any integration it used stays connected for whatever else needs it.
+<Frame caption="Upload an automation package — the files or one zip, and the surface the automation is pinned to.">
 
-Reinstalling never touches the automation's workflow document: it is update-exempt, so the versions you saved and the one you deployed survive every reinstall and every catalog update. To pick up the latest shipped document instead, uninstall the automation and install it again — Tale repeats this reminder on the reinstall confirmation.
+![The upload package dialog with its file drop zone and the Install into picker set to Organization.](/images/platform/automations-upload-dialog.webp)
 
-**Update built-in automations**, in the same **Add automation** menu as **Upload package**, is a different action from either: it re-syncs every built-in automation in the organization against the shipped catalog in one pass — including ones you edited — rather than one card at a time. It carries the same workflow exemption and keeps secrets, and because a save only ever appends, whatever it changes leaves every earlier version of that automation exactly where it was.
+</Frame>
 
-## Uploading a private automation
+The server validates before anything is stored. The document runs through the same engine validation the editor uses — an upload that would not run is refused with the engine's own issues, not saved broken — and the manifest's `subjects` block becomes the automation's task contract, exactly as a save from the canvas would set it. What lands is a **draft version** behind the normal deploy gate: nothing triggers run until you deploy it from the automation's page.
 
-**Upload package** in the same menu adds an automation the catalog doesn't ship — drop a `.zip`, or select a folder containing an `automation.json` at its root; the folder or file name becomes the automation's slug. Uploading only adds it to the organization's private catalog; install it afterwards like any other card. Re-uploading over a slug that already exists asks you to confirm the replacement before it overwrites the existing package.
+Uploading an existing automation's pack again appends the next version — the store never overwrites history, so every earlier version stays exactly where it was.
+
+## Skills the package carries
+
+A zip may ship the skills its document leans on — the bundles an agent node loads or a script step runs from. The manifest must name them, and the declaration is checked in both directions: a `skills/` folder the manifest doesn't declare refuses the upload, and so does a declared slug the zip doesn't carry.
+
+```yaml
+# automation.yml
+name: Review invoices
+skills:
+  - invoice-rules
+subjects:
+  task:
+    # …the task contract, unchanged
+```
+
+Each carried bundle is validated as a real skill — frontmatter parsed, `name` equal to its folder — and installed into the organization's [skill library](/platform/workspace/skills) the moment the upload is accepted, so the draft's test runs already find them. What happens per slug depends on what the library already holds:
+
+- **New slug** — the bundle is installed.
+- **Identical bundle** — nothing is written; the upload reports it unchanged.
+- **Different content** — the upload stops and lists the colliding slugs. Confirm to replace them with the package's versions; the superseded `SKILL.md` stays in each skill's history. Nothing — not the automation, not any skill — is written until you confirm.
+
+A document that references a skill the package doesn't carry and the library doesn't hold still uploads — the missing reference comes back as a warning, so a pack can name a skill you install later.
 
 ## Where this fits
 
-The catalog is the front door to every automation the organization can run: the side panel previews what installing adds, the wizard connects what it needs, and reinstall, uninstall, and update keep it current without touching a workflow you're mid-edit on. [Built-in automations](/platform/automations/builtin) is the next read for what each shipped automation and the Resolve GitHub issues bundle actually do; [Automation concepts](/platform/automations/concepts) is the mental model if you haven't read it yet.
+Automations arrive three ways — seeded with the organization, authored on the canvas, or uploaded as a pack — and every route ends in the same place: a draft version on the automation's page, deployed on your say-so. A zip-packed upload also stocks the [skill library](/platform/workspace/skills) with the bundles the automation needs, with a confirmation in front of any skill it would replace. [The workflow editor](/platform/automations/editor) is the next read for taking that draft live.
