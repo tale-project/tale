@@ -159,6 +159,7 @@ export function UploadAutomationDialog({
     if (!response.ok) {
       throw new Error(`uploading the package failed (HTTP ${response.status})`);
     }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the presign endpoint's response shape is Convex's own upload contract
     const { storageId } = (await response.json()) as {
       storageId: Id<'_storage'>;
     };

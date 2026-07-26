@@ -106,12 +106,9 @@ export default {
       // subsystem is wired (or truly retired) and let knip re-audit it.
       // ----------------------------------------------------------------
       ignore: [
-        'lib/agents/**',
-        'lib/automations_builder/**',
         'lib/chat/**',
         'lib/knowledge/**',
         'lib/pii/**',
-        'lib/skills/**',
         'lib/integrations/natives/**',
         // Shared contract layer: types declared for the parked consumers
         // above (schemas, platform run/render vocabulary, provider catalog
@@ -126,8 +123,6 @@ export default {
         'lib/shared/metrics-window.ts',
         'lib/shared/platform/**',
         'lib/shared/providers/attribution.ts',
-        'lib/shared/providers/catalog_normalize.ts',
-        'lib/shared/sandbox-workdir.ts',
         'lib/shared/schemas/agents.ts',
         'lib/shared/schemas/approvals.ts',
         'lib/shared/schemas/enterprise_sso.ts',
@@ -136,7 +131,6 @@ export default {
         'lib/shared/schemas/pii.ts',
         'lib/shared/schemas/providers.ts',
         'lib/shared/text-matching/**',
-        'lib/shared/video-link-markdown.ts',
         // E2E helper for the parked chat specs.
         'tests/e2e/helpers/chat.ts',
       ],

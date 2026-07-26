@@ -26,8 +26,8 @@ async function refusalCode(bytes: Uint8Array): Promise<string> {
     await parseAutomationPackZip(bytes);
   } catch (error) {
     if (error instanceof ConvexError) {
-      // oxlint-disable-next-line typescript/no-unsafe-member-access -- ConvexError data is untyped by design
-      return String((error.data as { code: string }).code);
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data is untyped by design
+      return (error.data as { code: string }).code;
     }
     throw error;
   }
