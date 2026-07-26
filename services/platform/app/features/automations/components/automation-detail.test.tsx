@@ -148,6 +148,23 @@ describe('AutomationDetail', () => {
     ).toBeVisible();
   });
 
+  it('test-runs the version on screen, not the deployed one', async () => {
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+    // The page shows v3 while v2 is deployed; without the explicit version the
+    // server falls back to the deployment and an undeployed draft cannot be
+    // tested at all.
+    expect(startRun.mutate).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-1',
+        name: 'billing/dunning',
+        mode: 'mock',
+        version: 3,
+      },
+      expect.any(Object),
+    );
+  });
+
   it('arms the shared cluster as soon as a node is edited', async () => {
     const { user } = renderPage();
     expect(saveButton()).toBeDisabled();

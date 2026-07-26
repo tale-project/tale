@@ -372,7 +372,16 @@ export function AutomationDetail({
               onClick={() => {
                 setRefusal(null);
                 startRun.mutate(
-                  { organizationId, name: automationSlug, mode: 'mock' },
+                  {
+                    organizationId,
+                    name: automationSlug,
+                    mode: 'mock',
+                    // A test run exercises the version on screen — the badge
+                    // beside this button — so an undeployed draft is testable.
+                    // Without a version the server falls back to the deployed
+                    // one and refuses when there is none.
+                    ...(meta && { version: meta.version }),
+                  },
                   {
                     onError: (error) => {
                       setRefusal(automationErrorMessage(error));
