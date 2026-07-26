@@ -824,6 +824,7 @@ automations:
     description: Die workflow.yml eines Packs (erforderlich) und die automation.yml (optional — ihr subjects-Block wird zum Task-Vertrag). Das Dokument wird vor dem Speichern validiert; die hochgeladene Version bleibt ein Entwurf, bis du sie deployst.
     filesLabel: Paketdateien
     filesHelp: Wähle workflow.yml — und automation.yml, wenn das Pack eine mitbringt.
+    removeFile: '{name} entfernen'
     targetLabel: Installieren in
     targetOrg: Organisation
     targetHelp: Der erste Upload bindet die Automatisierung dauerhaft an diese Oberfläche — eine Organisations-Automatisierung bleibt auf der Org-Seite, eine Projekt-Automatisierung lebt im Automations-Tab des Projekts.

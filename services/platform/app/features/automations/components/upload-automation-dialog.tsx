@@ -3,13 +3,14 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Field } from '@tale/ui/field';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
-import { Upload } from 'lucide-react';
+import { FileText, Upload, X } from 'lucide-react';
 import { useId, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
@@ -133,21 +134,55 @@ export function UploadAutomationDialog({
         )}
 
         <Field label={t('upload.filesLabel')} htmlFor={filesId}>
-          <input
-            id={filesId}
-            type="file"
-            multiple
-            accept=".yml,.yaml,.json"
-            className="text-sm"
-            onChange={(event) => {
-              setFiles([...(event.target.files ?? [])]);
-              setRefusal(null);
-            }}
-          />
+          <FileUpload.Root>
+            <FileUpload.DropZone
+              onFilesSelected={(picked) => {
+                setFiles(picked);
+                setRefusal(null);
+              }}
+              accept=".yml,.yaml,.json"
+              multiple
+              disabled={pending}
+              inputId={filesId}
+              aria-label={t('upload.filesLabel')}
+              className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed p-4 transition-colors"
+            >
+              <Upload className="text-muted-foreground size-5" aria-hidden />
+              <Text as="p" variant="muted" className="text-xs">
+                {t('upload.filesHelp')}
+              </Text>
+              <FileUpload.Overlay />
+            </FileUpload.DropZone>
+          </FileUpload.Root>
         </Field>
-        <Text as="p" variant="muted" className="text-xs">
-          {t('upload.filesHelp')}
-        </Text>
+        {files.length > 0 && (
+          <ul className="flex flex-col gap-1">
+            {files.map((file) => (
+              <li key={file.name}>
+                <Row gap={2} align="center" className="min-w-0 text-sm">
+                  <FileText
+                    className="text-muted-foreground size-4 shrink-0"
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('upload.removeFile', { name: file.name })}
+                    disabled={pending}
+                    onClick={() =>
+                      setFiles((current) =>
+                        current.filter((entry) => entry.name !== file.name),
+                      )
+                    }
+                  >
+                    <X className="size-4" aria-hidden />
+                  </Button>
+                </Row>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {projectId === undefined && (
           <Select

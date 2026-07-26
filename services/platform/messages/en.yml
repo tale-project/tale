@@ -786,6 +786,7 @@ automations:
     description: A pack's workflow.yml (required) and automation.yml (optional — its subjects block becomes the task contract). The document is validated before anything is stored, and the uploaded version stays a draft until you deploy it.
     filesLabel: Package files
     filesHelp: Pick workflow.yml — and automation.yml when the pack ships one.
+    removeFile: 'Remove {name}'
     targetLabel: Install into
     targetOrg: Organization
     targetHelp: The first upload pins the automation to this surface for good — an organization automation stays on the org page, a project automation lives on that project's Automations tab.

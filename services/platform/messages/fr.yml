@@ -822,6 +822,7 @@ automations:
     description: "Le workflow.yml d'un pack (requis) et l'automation.yml (optionnel — son bloc subjects devient le contrat de tâches). Le document est validé avant tout enregistrement ; la version téléversée reste un brouillon jusqu'au déploiement."
     filesLabel: Fichiers du paquet
     filesHelp: 'Choisis workflow.yml — et automation.yml si le pack en fournit un.'
+    removeFile: 'Retirer {name}'
     targetLabel: Installer dans
     targetOrg: Organisation
     targetHelp: "Le premier téléversement lie définitivement l'automatisation à cette surface — une automatisation d'organisation reste sur la page de l'org, une automatisation de projet vit dans l'onglet Automatisations du projet."
