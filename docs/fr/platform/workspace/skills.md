@@ -3,9 +3,9 @@ title: Bibliothèque de skills
 description: La bibliothèque de skills de l'organisation — des bundles de fichiers que n'importe quel agent lit à l'exécution, gardés privés ou partagés par un seul champ.
 ---
 
-Un skill est une consigne que tu écris une fois et que chaque conversation et chaque agent peuvent ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. C'est sous **Paramètres > Skills** que tu crées, téléverses et entretiens ces bundles, et il faut des droits Admin ou Developer pour le faire.
+Un skill est une consigne que tu écris une fois et que chaque conversation et chaque agent peuvent ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. C'est sous **Paramètres > Skills** que tu parcours et lis ces bundles. La bibliothèque est en lecture seule à dessein : un bundle arrive et change par téléversement de paquet, jamais par une modification sur place — ce que tu lis ici est exactement ce qui a été livré. Supprimer un skill demande des droits Admin ou Developer.
 
-Cette page explique ce qu'est un skill, de quel fichier il est fait, qui a le droit de le voir, et comment tu en ajoutes un, le copies et le retires. Le versant agent est sur [Skills d'agent](/fr/platform/agents/skills) : lis-le dès qu'un agent précis doit aller chercher un bundle précis.
+Cette page explique ce qu'est un skill, de quel fichier il est fait, qui a le droit de le voir, et comment il arrive, se remplace et se retire. Le versant agent est sur [Skills d'agent](/fr/platform/agents/skills) : lis-le dès qu'un agent précis doit aller chercher un bundle précis.
 
 ## Ce qu'un skill est, et ce qu'il n'est pas
 
@@ -57,11 +57,9 @@ Un bundle sans `visibility` du tout compte comme un skill d'organisation. Un bun
 
 </Note>
 
-## Ajouter un skill à la bibliothèque
+## D'où viennent les skills
 
-Ouvre **Paramètres > Skills**. **Ajouter un skill** demande un nom — le slug, en minuscules, chiffres et traits d'union simples — et une description, puis te dépose sur la page du nouveau bundle. Rédige la consigne sous **Instructions (corps)** : c'est le texte qu'un modèle lit, écris-le comme tu briefferais un collègue — à quoi sert le skill, quand il s'applique, et à quoi ressemble un bon résultat.
-
-Des bundles arrivent aussi sans que personne ne tape ici : un paquet d'automatisation téléversé en zip installe les skills qu'il embarque directement dans cette bibliothèque, avec une confirmation devant chaque skill existant qu'il remplacerait. Ce chemin — et la façon dont un paquet déclare ses skills — vit sur [Ajouter des automatisations à ton organisation](/fr/platform/automations/catalog).
+Chaque organisation démarre avec les skills de documents livrés, et les nouveaux bundles arrivent par téléversement : un paquet d'automatisation téléversé en zip installe les skills qu'il embarque directement dans cette bibliothèque, avec une confirmation devant chaque skill existant qu'il remplacerait. Ce chemin — et la façon dont un paquet déclare ses skills — vit sur [Ajouter des automatisations à ton organisation](/fr/platform/automations/catalog). Rien ne se rédige dans l'app : un bundle s'écrit là où vit son pack, dans des fichiers, et se livre en entier.
 
 ## Remplacer et retirer
 
@@ -75,7 +73,7 @@ Remplacer et supprimer prennent effet immédiatement, et rien ne fige une versio
 
 ## Ce qu'il y a dans le bundle
 
-La page du skill affiche **Bundle** — l'arborescence telle qu'elle existe sur le disque, avec la `SKILL.md` épinglée en haut — et chaque fichier cliqué s'ouvre en lecture seule à côté de l'arbre : le code avec coloration syntaxique, le markdown rendu, et un message clair pour une image ou un binaire que le navigateur ne sait pas afficher. La `SKILL.md` elle-même ramène le formulaire d'édition, dont le corps porte une bascule **Modifier**/**Aperçu** — l'aperçu rend le markdown exactement comme un lecteur le voit. Le skill utile le plus petit tient en un seul fichier, et la plupart grandissent un dossier à la fois.
+La page du skill affiche **Bundle** — l'arborescence telle qu'elle existe sur le disque, avec la `SKILL.md` épinglée en haut — et chaque fichier cliqué s'ouvre en lecture seule à côté de l'arbre : le code avec coloration syntaxique, le markdown rendu, et un message clair pour une image ou un binaire que le navigateur ne sait pas afficher. La `SKILL.md` elle-même se rend de la même façon — les faits du frontmatter (description, visibilité, labels) au-dessus du corps, exactement tel qu'un modèle le lit. Le skill utile le plus petit tient en un seul fichier, et la plupart grandissent un dossier à la fois.
 
 ```text
 release-notes/

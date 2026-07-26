@@ -3,9 +3,9 @@ title: Skill-Bibliothek
 description: Die Skill-Bibliothek der Organisation — dateibasierte Bundles, die jeder Agent zur Laufzeit liest, privat gehalten oder über ein einziges Feld für alle freigegeben.
 ---
 
-Ein Skill ist eine Anweisung, die du einmal schreibst und die danach jeder Chat und jeder Agent lesen kann. Er liegt als kleines Bundle im Dateibaum deiner Organisation — eine `SKILL.md` mit der Anweisung im Body, dazu das Referenzmaterial, auf das sich diese Anweisung stützt. Unter **Einstellungen > Skills** legst du solche Bundles an, lädst sie hoch und pflegst sie. Dafür brauchst du Admin- oder Developer-Rechte.
+Ein Skill ist eine Anweisung, die du einmal schreibst und die danach jeder Chat und jeder Agent lesen kann. Er liegt als kleines Bundle im Dateibaum deiner Organisation — eine `SKILL.md` mit der Anweisung im Body, dazu das Referenzmaterial, auf das sich diese Anweisung stützt. Unter **Einstellungen > Skills** stöberst du durch diese Bundles und liest sie. Die Bibliothek ist mit Absicht schreibgeschützt: Ein Bundle kommt per Paket-Upload an und ändert sich auch nur so — nie durch Bearbeiten an Ort und Stelle. Was du hier liest, ist exakt das, was ausgeliefert wurde. Löschen braucht Admin- oder Developer-Rechte.
 
-Diese Seite erklärt, was ein Skill ist, aus welcher Datei er besteht, wer ihn zu sehen bekommt und wie du einen anlegst, kopierst und wieder aus dem Verkehr ziehst. Die Agent-Seite steht unter [Agent-Skills](/de/platform/agents/skills) — lies sie, sobald ein bestimmter Agent nach einem bestimmten Bundle greifen soll.
+Diese Seite erklärt, was ein Skill ist, aus welcher Datei er besteht, wer ihn zu sehen bekommt und wie einer ankommt, ersetzt wird und wieder verschwindet. Die Agent-Seite steht unter [Agent-Skills](/de/platform/agents/skills) — lies sie, sobald ein bestimmter Agent nach einem bestimmten Bundle greifen soll.
 
 ## Was ein Skill ist und was nicht
 
@@ -57,11 +57,9 @@ Ein Bundle ganz ohne `visibility` gilt als Organisations-Skill. Ein unmarkiertes
 
 </Note>
 
-## Einen Skill in die Bibliothek legen
+## Woher Skills kommen
 
-Öffne **Einstellungen > Skills**. **Skill hinzufügen** fragt nach einem Namen — dem Slug, aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen — und einer Beschreibung, und setzt dich auf die Seite des neuen Bundles. Schreib die Anweisung unter **Anweisungen (Body)**: Das ist der Text, den ein Modell liest — formuliere ihn wie ein Briefing für eine Kollegin: wozu der Skill da ist, wann er greift und woran gutes Ergebnis zu erkennen ist.
-
-Bundles kommen auch an, ohne dass hier jemand tippt: Ein als Zip hochgeladenes Automatisierungs-Paket installiert die Skills, die es mitbringt, direkt in diese Bibliothek — mit einer Bestätigung vor jedem bestehenden Skill, den es ersetzen würde. Dieser Weg — und wie ein Paket seine Skills deklariert — steht auf [Automatisierungen in deine Organisation bringen](/de/platform/automations/catalog).
+Jede Organisation startet mit den mitgelieferten Dokument-Skills, und neue Bundles kommen per Upload an: Ein als Zip hochgeladenes Automatisierungs-Paket installiert die Skills, die es mitbringt, direkt in diese Bibliothek — mit einer Bestätigung vor jedem bestehenden Skill, den es ersetzen würde. Dieser Weg — und wie ein Paket seine Skills deklariert — steht auf [Automatisierungen in deine Organisation bringen](/de/platform/automations/catalog). In der App wird nichts verfasst: Ein Bundle entsteht dort, wo sein Pack lebt — in Dateien — und wird im Ganzen ausgeliefert.
 
 ## Ersetzen und aussortieren
 
@@ -75,7 +73,7 @@ Ersetzen und Löschen wirken sofort, und es gibt kein Festschreiben einer Versio
 
 ## Was im Bundle liegt
 
-Die Seite des Skills zeigt **Bundle** — den Dateibaum, wie er auf der Platte liegt, mit der `SKILL.md` oben angepinnt — und jede angeklickte Datei öffnet sich schreibgeschützt neben dem Baum: Code mit Syntax-Hervorhebung, Markdown gerendert, und ein klarer Hinweis bei einem Bild oder einer Binärdatei, die der Browser nicht anzeigen kann. Die `SKILL.md` selbst bringt das Bearbeitungsformular zurück; der Body trägt einen **Bearbeiten**/**Vorschau**-Umschalter — die Vorschau rendert das Markdown genau so, wie eine Leserin es sieht. Der kleinste brauchbare Skill besteht aus einer einzigen Datei, und die meisten wachsen Ordner für Ordner.
+Die Seite des Skills zeigt **Bundle** — den Dateibaum, wie er auf der Platte liegt, mit der `SKILL.md` oben angepinnt — und jede angeklickte Datei öffnet sich schreibgeschützt neben dem Baum: Code mit Syntax-Hervorhebung, Markdown gerendert, und ein klarer Hinweis bei einem Bild oder einer Binärdatei, die der Browser nicht anzeigen kann. Die `SKILL.md` selbst wird genauso gerendert — die Frontmatter-Fakten (Beschreibung, Sichtbarkeit, Labels) über dem Body, exakt so, wie ein Modell ihn liest. Der kleinste brauchbare Skill besteht aus einer einzigen Datei, und die meisten wachsen Ordner für Ordner.
 
 ```text
 release-notes/

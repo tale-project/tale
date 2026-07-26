@@ -3,9 +3,9 @@ title: Skill library
 description: The organization's skill library — file-based bundles any agent can read at runtime, kept by one member or shared with everyone through a single field.
 ---
 
-A skill is an instruction you write once and let every chat and every agent read. It lives in your organization's own file tree as a small bundle — a `SKILL.md` carrying the instruction in its body, plus any reference material that instruction leans on — and the library under **Settings > Skills** is where you create, upload, and maintain those bundles. Managing the library takes Admin or Developer permissions.
+A skill is an instruction you write once and let every chat and every agent read. It lives in your organization's own file tree as a small bundle — a `SKILL.md` carrying the instruction in its body, plus any reference material that instruction leans on — and the library under **Settings > Skills** is where you browse and inspect those bundles. The library is read-only on purpose: a bundle arrives and changes through package uploads, never through in-place edits, so what you read here is exactly what shipped. Deleting a skill takes Admin or Developer permissions.
 
-This page covers what a skill is, the file it is made of, who gets to see it, and how you add, copy, and retire one. Read the agent side on [Agent skills](/platform/agents/skills) once you want a particular agent to reach for a particular bundle.
+This page covers what a skill is, the file it is made of, who gets to see it, and how one arrives, gets replaced, and retires. Read the agent side on [Agent skills](/platform/agents/skills) once you want a particular agent to reach for a particular bundle.
 
 ## What a skill is, and what it is not
 
@@ -57,11 +57,9 @@ A bundle carrying no `visibility` at all counts as an organization skill. An unm
 
 </Note>
 
-## Add a skill to the library
+## Where skills come from
 
-Open **Settings > Skills**. **Add skill** asks for a name — the slug, in lowercase letters, numbers, and single hyphens — and a description, and drops you into the new bundle's page. Write the instruction under **Instructions (body)**: this is the text a model reads, so write it the way you would brief a colleague — what the skill is for, when it applies, and what good output looks like.
-
-Bundles also arrive without being typed in here at all: an automation package uploaded as a zip installs the skills it carries straight into this library, with a confirmation in front of any existing skill it would replace. That flow — and how a package declares its skills — lives on [Add automations to your organization](/platform/automations/catalog).
+Every organization starts with the shipped document skills already in place, and new bundles arrive through uploads: an automation package uploaded as a zip installs the skills it carries straight into this library, with a confirmation in front of any existing skill it would replace. That flow — and how a package declares its skills — lives on [Add automations to your organization](/platform/automations/catalog). There is no in-app authoring: a bundle is written where its pack lives, in files, and shipped whole.
 
 ## Replace and retire
 
@@ -75,7 +73,7 @@ Replacing and deleting both take effect immediately, and there is no version pin
 
 ## What sits in the bundle
 
-The skill's page shows **Bundle** — the file tree as it exists on disk, with `SKILL.md` pinned at the top — and clicking any file opens it read-only beside the tree: code with syntax highlighting, markdown rendered, and a plain notice for an image or a binary the browser cannot preview. `SKILL.md` itself brings back the editing form, whose body offers an **Edit** / **Preview** toggle — preview renders the markdown exactly as a reader sees it. The smallest useful skill is a single file, and most grow one folder at a time.
+The skill's page shows **Bundle** — the file tree as it exists on disk, with `SKILL.md` pinned at the top — and clicking any file opens it read-only beside the tree: code with syntax highlighting, markdown rendered, and a plain notice for an image or a binary the browser cannot preview. `SKILL.md` itself renders the same way — the frontmatter facts (description, visibility, labels) above the body exactly as a model reads it. The smallest useful skill is a single file, and most grow one folder at a time.
 
 ```text
 release-notes/
