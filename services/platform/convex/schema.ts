@@ -27,6 +27,7 @@ import {
   automationRunsTable,
   automationsTable,
   automationTriggersTable,
+  automationUploadIntentsTable,
 } from './automations/schema';
 import { browserSessionsTable } from './browser_sessions/schema';
 import {
@@ -154,6 +155,7 @@ export default defineSchema({
   automationDeployments: automationDeploymentsTable,
   automationTriggers: automationTriggersTable,
   automationRuns: automationRunsTable,
+  automationUploadIntents: automationUploadIntentsTable,
   // Chat storage. `generations` is split out because it is the only hot-written
   // row during a turn — keeping it out of `threads` means a streaming turn does
   // not rewrite a row every thread list reads. `memories` are pending until a

@@ -123,6 +123,23 @@ export const automationTriggersTable = defineTable({
   .index('by_token_hash', ['tokenHash']);
 
 /**
+ * Single-use ownership record for an uploaded package blob. The client
+ * presigns, POSTs the zip to `_storage`, records the intent, and only then
+ * invokes the upload action — which verifies the row binds the storageId to
+ * the SAME organization before reading a byte, and deletes it (single-use) in
+ * its `finally`. Without this row the action would have to trust a
+ * client-supplied storageId, letting any org admin read or delete another
+ * tenant's staged blob. Tenant isolation: the row carries the owning
+ * `organizationId` and every read compares it against the caller's.
+ */
+export const automationUploadIntentsTable = defineTable({
+  storageId: v.id('_storage'),
+  organizationId: v.string(),
+  userId: v.string(),
+  createdAt: v.number(),
+}).index('by_storageId', ['storageId']);
+
+/**
  * One execution. `checkpoints` is what makes the run durable: a live run steps
  * node by node across scheduler invocations, and each completed node records
  * its output here, so an action that hits the Convex time window resumes from
