@@ -223,6 +223,10 @@ export function useTaskStatusChoreography(
             toast({ title: tCommon('errors.generic'), variant: 'destructive' });
             return 'blocked';
           }
+        default: {
+          const exhaustive: never = plan;
+          return exhaustive;
+        }
       }
     },
     [automations, cancelRun, client, organizationId, startRun, t, tCommon],
