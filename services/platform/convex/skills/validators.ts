@@ -58,6 +58,32 @@ export const skillBundleValidator = v.object({
   files: v.array(skillBundleFileValidator),
 });
 
+/** One bundle asset as the detail page's file tree lists it — no content. */
+export const skillAssetValidator = v.object({
+  path: v.string(),
+  size: v.number(),
+});
+
+export const skillAssetListValidator = v.object({
+  assets: v.array(skillAssetValidator),
+  /** Size of `SKILL.md`, which the tree pins outside the asset list. */
+  skillMdBytes: v.number(),
+});
+
+/**
+ * One asset read for the viewer. Base64 rather than text because an asset may
+ * be an image or other binary — the client decides how to render it. A read
+ * refused by the per-file staging cap reports `too_large` instead of shipping
+ * megabytes to a read-only preview.
+ */
+export const skillAssetReadValidator = v.union(
+  v.object({ ok: v.literal(true), contentBase64: v.string() }),
+  v.object({
+    ok: v.literal(false),
+    error: v.union(v.literal('not_found'), v.literal('too_large')),
+  }),
+);
+
 /**
  * A bundle that failed to load. `path` is relative to the org's config tree
  * so an operator can find the file without the server's absolute layout
@@ -118,6 +144,20 @@ export interface SkillBundleFileView {
 export interface SkillBundleView {
   files: SkillBundleFileView[];
 }
+
+export interface SkillAssetView {
+  path: string;
+  size: number;
+}
+
+export interface SkillAssetListView {
+  assets: SkillAssetView[];
+  skillMdBytes: number;
+}
+
+export type SkillAssetReadView =
+  | { ok: true; contentBase64: string }
+  | { ok: false; error: 'not_found' | 'too_large' };
 
 export interface SkillLoadFailureView {
   slug: string;

@@ -25,9 +25,13 @@ import {
   type OrgMembershipAuth,
 } from '../lib/auth/require_org_membership';
 import {
+  skillAssetListValidator,
+  skillAssetReadValidator,
   skillDocumentValidator,
   skillEditArgs,
   skillListingValidator,
+  type SkillAssetListView,
+  type SkillAssetReadView,
   type SkillDocumentView,
   type SkillListingView,
 } from './validators';
@@ -114,6 +118,37 @@ export const deleteSkill = action({
     return ctx.runAction(internal.skills.file_actions.deleteSkill, {
       ...caller,
       slug: args.slug,
+    });
+  },
+});
+
+/** The file tree of one bundle — paths and sizes for the detail page. */
+export const getSkillAssets = action({
+  args: { organizationId: v.string(), slug: v.string() },
+  returns: v.union(v.null(), skillAssetListValidator),
+  handler: async (ctx, args): Promise<SkillAssetListView | null> => {
+    const caller = await resolveSkillCaller(ctx, args.organizationId);
+    return ctx.runAction(internal.skills.file_actions.listSkillAssets, {
+      ...caller,
+      slug: args.slug,
+    });
+  },
+});
+
+/** One bundle asset's bytes for the read-only viewer. */
+export const getSkillAsset = action({
+  args: {
+    organizationId: v.string(),
+    slug: v.string(),
+    assetPath: v.string(),
+  },
+  returns: v.union(v.null(), skillAssetReadValidator),
+  handler: async (ctx, args): Promise<SkillAssetReadView | null> => {
+    const caller = await resolveSkillCaller(ctx, args.organizationId);
+    return ctx.runAction(internal.skills.file_actions.readSkillAssetText, {
+      ...caller,
+      slug: args.slug,
+      assetPath: args.assetPath,
     });
   },
 });

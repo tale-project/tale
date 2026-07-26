@@ -608,3 +608,79 @@ describe('readSkillBundle', () => {
     }
   });
 });
+
+describe('listSkillAssets', () => {
+  it('lists sizes for a visible bundle and hides an invisible one', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    );
+    const dir = path.join(configRoot, 'acme', 'skills', 'alice-drafts');
+    await mkdir(path.join(dir, 'scripts'), { recursive: true });
+    await writeFile(path.join(dir, 'scripts', 'go.sh'), 'echo', 'utf-8');
+    const listSkillAssets = await load('listSkillAssets');
+
+    const forAlice = await listSkillAssets.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+    });
+    expect(forAlice).toEqual({
+      assets: [{ path: 'scripts/go.sh', size: 4 }],
+      skillMdBytes: expect.any(Number),
+    });
+
+    const forBob = await listSkillAssets.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...bob,
+    });
+    expect(forBob).toBeNull();
+  });
+});
+
+describe('readSkillAssetText', () => {
+  it('reads an asset as base64, refuses SKILL.md and misses cleanly', async () => {
+    await seedSkill(
+      'acme',
+      'docx',
+      skillMd({ name: 'docx', description: 'Word.', visibility: 'org' }),
+    );
+    const dir = path.join(configRoot, 'acme', 'skills', 'docx');
+    await writeFile(path.join(dir, 'ref.md'), 'Reference.\n', 'utf-8');
+    const readSkillAssetText = await load('readSkillAssetText');
+
+    const hit = await readSkillAssetText.handler(null, {
+      orgSlug: 'acme',
+      slug: 'docx',
+      assetPath: 'ref.md',
+      ...bob,
+    });
+    expect(hit.ok).toBe(true);
+    expect(Buffer.from(hit.contentBase64 as string, 'base64').toString()).toBe(
+      'Reference.\n',
+    );
+
+    const skillMdRead = await readSkillAssetText.handler(null, {
+      orgSlug: 'acme',
+      slug: 'docx',
+      assetPath: 'SKILL.md',
+      ...bob,
+    });
+    expect(skillMdRead).toEqual({ ok: false, error: 'not_found' });
+
+    const miss = await readSkillAssetText.handler(null, {
+      orgSlug: 'acme',
+      slug: 'docx',
+      assetPath: 'ghost.md',
+      ...bob,
+    });
+    expect(miss).toEqual({ ok: false, error: 'not_found' });
+  });
+});

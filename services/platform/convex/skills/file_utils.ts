@@ -21,7 +21,7 @@
  * against the domain root so a planted link cannot reach outside the tree.
  */
 
-import { lstat, readdir, readFile } from 'node:fs/promises';
+import { lstat, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -34,6 +34,7 @@ import {
 import type { SkillBundleReader } from '../../lib/skills/listing';
 import {
   atomicWrite,
+  atomicWriteBuffer,
   errnoCode,
   generateHistoryTimestamp,
   getConfigRoot,
@@ -281,6 +282,219 @@ export async function writeSkillMdText(
     await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
   }
   await atomicWrite(filePath, content);
+}
+
+function validateAssetRelPath(relPath: string): void {
+  if (relPath.length === 0 || relPath.length > 200) {
+    throw new Error('Asset path must be 1..200 characters');
+  }
+  if (relPath.includes('\0')) {
+    throw new Error('Asset path must not contain NUL bytes');
+  }
+  if (path.isAbsolute(relPath)) {
+    throw new Error('Asset path must be relative');
+  }
+  // Reject Windows drive prefixes even on POSIX (defense-in-depth).
+  if (/^[A-Za-z]:/.test(relPath)) {
+    throw new Error('Asset path must not contain a drive prefix');
+  }
+  // Split on SINGLE separators so `a//b` surfaces its empty segment instead
+  // of being silently collapsed to `a/b`.
+  const segments = relPath.split(/[\\/]/);
+  for (const seg of segments) {
+    if (seg === '' || seg === '..') {
+      throw new Error('Asset path must not contain `..` or empty segments');
+    }
+    if (seg.startsWith('.')) {
+      throw new Error('Asset path segments must not start with `.`');
+    }
+  }
+}
+
+/**
+ * Resolve a bundle-relative asset path to its absolute location, refusing
+ * traversal and the `SKILL.md` slot itself — the document has its own reader
+ * and writer, and letting an asset path address it would bypass both the
+ * history trail and the frontmatter validation. The lockout is case-folded:
+ * on a case-insensitive filesystem `skill.md` is the same inode.
+ */
+export function resolveSkillAssetPath(
+  orgSlug: string,
+  slug: string,
+  relPath: string,
+): string {
+  validateAssetRelPath(relPath);
+  const skillDir = resolveSkillDir(orgSlug, slug);
+  const resolved = safeJoinWithinDir(skillDir, relPath);
+  if (
+    path.dirname(resolved) === path.resolve(skillDir) &&
+    path.basename(resolved).toLowerCase() === 'skill.md'
+  ) {
+    throw new Error(
+      'SKILL.md is not addressable as an asset; use the skill markdown reader/writer instead',
+    );
+  }
+  return resolved;
+}
+
+/**
+ * Safe variant of {@link resolveSkillAssetPath} that also realpath-checks the
+ * resolution. Use it on every READ of a bundle file so a symlink planted as
+ * an intermediate directory cannot escape the skill root. (Writes go through
+ * {@link writeSkillBundleFiles}, which owns the whole directory.)
+ */
+export async function resolveSkillAssetPathChecked(
+  orgSlug: string,
+  slug: string,
+  relPath: string,
+): Promise<string> {
+  const resolved = resolveSkillAssetPath(orgSlug, slug, relPath);
+  await verifyPathWithinBase(resolved, resolveSkillDir(orgSlug, slug));
+  return resolved;
+}
+
+/** One bundle asset as the listing reports it — path and size only. */
+export interface SkillBundleAsset {
+  readonly path: string;
+  readonly size: number;
+}
+
+export interface SkillBundleAssetListing {
+  /** Sorted by path; `SKILL.md` excluded (reported via {@link skillMdBytes}). */
+  readonly assets: SkillBundleAsset[];
+  readonly skillMdBytes: number;
+}
+
+/**
+ * Stat-only twin of {@link readSkillBundleFiles} for the detail page's file
+ * tree: every file's path and size without reading a byte of content. Same
+ * exclusions and symlink refusals as the content walk, so the tree never
+ * lists a file the staging read would refuse. Returns `null` when the org
+ * has no such bundle.
+ */
+export async function listSkillBundleAssets(
+  orgSlug: string,
+  slug: string,
+): Promise<SkillBundleAssetListing | null> {
+  const skillDir = resolveSkillDir(orgSlug, slug);
+
+  let bundleStats;
+  try {
+    bundleStats = await lstat(skillDir);
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return null;
+    throw err;
+  }
+  if (bundleStats.isSymbolicLink()) {
+    throw new Error(`${skillDir}: skill bundle directory is a symlink`);
+  }
+  await verifyPathWithinBase(skillDir, resolveSkillsDir(orgSlug));
+
+  const assets: SkillBundleAsset[] = [];
+  let skillMdBytes = 0;
+
+  async function walk(dir: string, relPrefix: string): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (isBundleWalkExcluded(entry.name)) continue;
+      const absPath = path.join(dir, entry.name);
+      const relPath =
+        relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
+      if (entry.isSymbolicLink()) {
+        throw new Error(`${absPath}: skill bundle contains a symlink`);
+      }
+      if (entry.isDirectory()) {
+        await walk(absPath, relPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const stats = await stat(absPath);
+      if (relPath === SKILL_DOCUMENT_NAME) {
+        skillMdBytes = stats.size;
+        continue;
+      }
+      assets.push({ path: relPath, size: stats.size });
+    }
+  }
+
+  await walk(skillDir, '');
+  assets.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { assets, skillMdBytes };
+}
+
+/** One file of a bundle write: bundle-relative POSIX path plus bytes. */
+export interface SkillBundleWriteFile {
+  readonly path: string;
+  readonly content: Uint8Array;
+}
+
+/**
+ * Replace a skill bundle with exactly the given files — the fan-out writer
+ * behind the package upload.
+ *
+ * Replace, not merge: the superseded `SKILL.md` goes into the domain history
+ * trail first, then the bundle directory is removed whole, so an asset the
+ * new bundle no longer carries does not linger and poison the next staging
+ * read. `SKILL.md` is written LAST — the listing treats a directory without
+ * one as not-a-skill, so the bundle is never observable half-written.
+ */
+export async function writeSkillBundleFiles(
+  orgSlug: string,
+  slug: string,
+  files: readonly SkillBundleWriteFile[],
+): Promise<void> {
+  const skillMd = files.find((file) => file.path === SKILL_DOCUMENT_NAME);
+  if (skillMd === undefined) {
+    throw new Error(`skill "${slug}": a bundle write must carry SKILL.md`);
+  }
+  if (files.length > MAX_SKILL_BUNDLE_FILES) {
+    throw new Error(
+      `skill "${slug}": bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
+    );
+  }
+  let totalBytes = 0;
+  const assetWrites: { resolved: string; content: Uint8Array }[] = [];
+  for (const file of files) {
+    if (file.content.byteLength > MAX_SKILL_BUNDLE_FILE_BYTES) {
+      throw new Error(
+        `skill "${slug}": ${file.path} exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+      );
+    }
+    totalBytes += file.content.byteLength;
+    if (file.path === SKILL_DOCUMENT_NAME) continue;
+    // Resolving up front also validates the path — traversal, dotfiles and
+    // the case-folded SKILL.md slot all refuse before anything is touched.
+    assetWrites.push({
+      resolved: resolveSkillAssetPath(orgSlug, slug, file.path),
+      content: file.content,
+    });
+  }
+  if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
+    throw new Error(
+      `skill "${slug}": bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes in total`,
+    );
+  }
+
+  const current = await readSkillMdText(orgSlug, slug);
+  if (current !== null) {
+    const historyDir = resolveSkillHistoryDir(orgSlug, slug);
+    await atomicWrite(
+      path.join(historyDir, `${generateHistoryTimestamp()}.md`),
+      current,
+    );
+    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
+  }
+
+  // History (outside the bundle dir) survives; stale assets do not.
+  await removeDirSafe(resolveSkillDir(orgSlug, slug));
+
+  for (const write of assetWrites) {
+    await atomicWriteBuffer(write.resolved, Buffer.from(write.content));
+  }
+  await atomicWrite(
+    resolveSkillMdPath(orgSlug, slug),
+    new TextDecoder().decode(skillMd.content),
+  );
 }
 
 /**

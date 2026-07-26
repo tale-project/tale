@@ -14,10 +14,13 @@
  * out of another's.
  */
 
+import { readFile, stat } from 'node:fs/promises';
+
 import { ConvexError, v } from 'convex/values';
 
 import {
   isValidSkillSlug,
+  MAX_SKILL_BUNDLE_FILE_BYTES,
   type SkillFrontmatter,
 } from '../../lib/shared/schemas/skills';
 import {
@@ -38,19 +41,25 @@ import {
 import { internalAction } from '../_generated/server';
 import {
   createOrgSkillReader,
+  listSkillBundleAssets,
   readSkillBundleFiles,
   removeSkillBundle,
+  resolveSkillAssetPathChecked,
   resolveSkillMdPath,
   SKILL_DOCUMENT_NAME,
   SKILLS_CONFIG_DOMAIN,
   writeSkillMdText,
 } from './file_utils';
 import {
+  skillAssetListValidator,
+  skillAssetReadValidator,
   skillBundleValidator,
   skillDocumentValidator,
   skillEditArgs,
   skillListingValidator,
   skillViewerArgs,
+  type SkillAssetListView,
+  type SkillAssetReadView,
   type SkillBundleView,
   type SkillDocumentView,
   type SkillListingView,
@@ -294,3 +303,65 @@ async function loadSkillOrThrow(
     throw err;
   }
 }
+
+/**
+ * The file tree of one bundle — paths and sizes, no content. Visibility
+ * follows {@link readSkill}: a bundle the member may not see reads as absent.
+ */
+export const listSkillAssets = internalAction({
+  args: { orgSlug: v.string(), slug: v.string(), ...skillViewerArgs },
+  returns: v.union(v.null(), skillAssetListValidator),
+  handler: async (_ctx, args): Promise<SkillAssetListView | null> => {
+    assertValidSlug(args.slug);
+    const viewer = viewerFrom(args);
+    const skill = await loadSkillOrThrow(args.orgSlug, args.slug);
+    if (skill === null || !canViewSkill(skill.meta, viewer)) return null;
+    return listSkillBundleAssets(args.orgSlug, args.slug);
+  },
+});
+
+/**
+ * One bundle asset's bytes for the read-only viewer, base64-encoded so an
+ * image renders as easily as a script. `SKILL.md` is not addressable here —
+ * it has its own reader — and a file over the staging cap reports `too_large`
+ * instead of shipping megabytes to a preview pane.
+ */
+export const readSkillAssetText = internalAction({
+  args: {
+    orgSlug: v.string(),
+    slug: v.string(),
+    assetPath: v.string(),
+    ...skillViewerArgs,
+  },
+  returns: v.union(v.null(), skillAssetReadValidator),
+  handler: async (_ctx, args): Promise<SkillAssetReadView | null> => {
+    assertValidSlug(args.slug);
+    const viewer = viewerFrom(args);
+    const skill = await loadSkillOrThrow(args.orgSlug, args.slug);
+    if (skill === null || !canViewSkill(skill.meta, viewer)) return null;
+    let resolved: string;
+    try {
+      resolved = await resolveSkillAssetPathChecked(
+        args.orgSlug,
+        args.slug,
+        args.assetPath,
+      );
+    } catch (err) {
+      console.warn(
+        `[skills] ${args.orgSlug}/${args.slug}: refused asset path — ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return { ok: false, error: 'not_found' };
+    }
+    let size: number;
+    try {
+      size = (await stat(resolved)).size;
+    } catch {
+      return { ok: false, error: 'not_found' };
+    }
+    if (size > MAX_SKILL_BUNDLE_FILE_BYTES) {
+      return { ok: false, error: 'too_large' };
+    }
+    const content = await readFile(resolved);
+    return { ok: true, contentBase64: content.toString('base64') };
+  },
+});

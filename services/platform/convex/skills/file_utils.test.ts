@@ -31,6 +31,9 @@ import {
   resolveSkillMdPath,
   resolveSkillsDir,
   writeSkillMdText,
+  listSkillBundleAssets,
+  resolveSkillAssetPath,
+  writeSkillBundleFiles,
 } from './file_utils';
 
 let configRoot: string;
@@ -475,5 +478,148 @@ describe('readSkillBundleFiles', () => {
     await expect(readSkillBundleFiles('acme', 'fat-bundle')).rejects.toThrow(
       /bytes in total/,
     );
+  });
+});
+
+describe('writeSkillBundleFiles', () => {
+  const enc = (text: string) => new TextEncoder().encode(text);
+
+  it('creates a nested bundle with SKILL.md and assets', async () => {
+    const doc = skillMd({ name: 'triage', description: 'Sorts.' });
+    await writeSkillBundleFiles('acme', 'triage', [
+      { path: 'SKILL.md', content: enc(doc) },
+      { path: 'scripts/run.py', content: enc('print("hi")\n') },
+    ]);
+    const bundleDir = path.join(configRoot, 'acme', 'skills', 'triage');
+    expect(await readFile(path.join(bundleDir, 'SKILL.md'), 'utf-8')).toBe(doc);
+    expect(
+      await readFile(path.join(bundleDir, 'scripts', 'run.py'), 'utf-8'),
+    ).toBe('print("hi")\n');
+  });
+
+  it('refuses a write without SKILL.md', async () => {
+    await expect(
+      writeSkillBundleFiles('acme', 'triage', [
+        { path: 'notes.md', content: enc('x') },
+      ]),
+    ).rejects.toThrow(/must carry SKILL\.md/);
+  });
+
+  it('refuses traversal and SKILL.md-case asset paths before touching disk', async () => {
+    const doc = skillMd({ name: 'triage', description: 'Sorts.' });
+    for (const bad of ['../evil.md', 'skill.MD', '.hidden/x']) {
+      await expect(
+        writeSkillBundleFiles('acme', 'triage', [
+          { path: 'SKILL.md', content: enc(doc) },
+          { path: bad, content: enc('x') },
+        ]),
+      ).rejects.toThrow();
+    }
+    expect(await readSkillMdText('acme', 'triage')).toBeNull();
+  });
+
+  it('replaces the whole bundle, keeps history, drops stale assets', async () => {
+    const first = skillMd({ name: 'triage', description: 'First.' });
+    await writeSkillBundleFiles('acme', 'triage', [
+      { path: 'SKILL.md', content: enc(first) },
+      { path: 'stale.txt', content: enc('old') },
+    ]);
+    const second = skillMd({ name: 'triage', description: 'Second.' });
+    await writeSkillBundleFiles('acme', 'triage', [
+      { path: 'SKILL.md', content: enc(second) },
+      { path: 'fresh.txt', content: enc('new') },
+    ]);
+
+    const bundleDir = path.join(configRoot, 'acme', 'skills', 'triage');
+    expect(await readSkillMdText('acme', 'triage')).toBe(second);
+    await expect(readFile(path.join(bundleDir, 'stale.txt'))).rejects.toThrow();
+    expect(await readFile(path.join(bundleDir, 'fresh.txt'), 'utf-8')).toBe(
+      'new',
+    );
+    const history = await readdir(
+      path.join(configRoot, 'acme', 'skills', '.history', 'triage'),
+    );
+    expect(history).toHaveLength(1);
+    expect(
+      await readFile(
+        path.join(
+          configRoot,
+          'acme',
+          'skills',
+          '.history',
+          'triage',
+          history[0] ?? '',
+        ),
+        'utf-8',
+      ),
+    ).toBe(first);
+  });
+
+  it('refuses an oversized file', async () => {
+    await expect(
+      writeSkillBundleFiles('acme', 'triage', [
+        {
+          path: 'SKILL.md',
+          content: enc(skillMd({ name: 'triage', description: 'S.' })),
+        },
+        {
+          path: 'big.bin',
+          content: new Uint8Array(MAX_SKILL_BUNDLE_FILE_BYTES + 1),
+        },
+      ]),
+    ).rejects.toThrow(/exceeds/);
+  });
+});
+
+describe('listSkillBundleAssets', () => {
+  it('lists paths and sizes, SKILL.md pinned out of the asset list', async () => {
+    const doc = skillMd({ name: 'docx', description: 'Word docs.' });
+    await seedSkill('acme', 'docx', doc);
+    const bundleDir = path.join(configRoot, 'acme', 'skills', 'docx');
+    await mkdir(path.join(bundleDir, 'scripts'), { recursive: true });
+    await writeFile(
+      path.join(bundleDir, 'scripts', 'pack.py'),
+      '12345',
+      'utf-8',
+    );
+    await writeFile(path.join(bundleDir, '.DS_Store'), 'x', 'utf-8');
+
+    const listing = await listSkillBundleAssets('acme', 'docx');
+    expect(listing?.assets).toEqual([{ path: 'scripts/pack.py', size: 5 }]);
+    expect(listing?.skillMdBytes).toBe(Buffer.byteLength(doc));
+  });
+
+  it('is null for an absent bundle and refuses a symlinked one', async () => {
+    expect(await listSkillBundleAssets('acme', 'ghost')).toBeNull();
+    await seedSkill(
+      'acme',
+      'real',
+      skillMd({ name: 'real', description: 'R.' }),
+    );
+    const bundleDir = path.join(configRoot, 'acme', 'skills', 'real');
+    await symlink('/etc', path.join(bundleDir, 'link'));
+    await expect(listSkillBundleAssets('acme', 'real')).rejects.toThrow(
+      /symlink/,
+    );
+  });
+});
+
+describe('resolveSkillAssetPath', () => {
+  it('refuses the SKILL.md slot in any case spelling at the bundle root', () => {
+    for (const name of ['SKILL.md', 'skill.md', 'Skill.MD']) {
+      expect(() => resolveSkillAssetPath('acme', 'docx', name)).toThrow(
+        /not addressable/,
+      );
+    }
+    // A nested skill.md is an ordinary asset.
+    expect(() =>
+      resolveSkillAssetPath('acme', 'docx', 'docs/skill.md'),
+    ).not.toThrow();
+  });
+
+  it('refuses traversal, absolute, drive and dotfile paths', () => {
+    for (const bad of ['../x', '/abs', 'C:evil', 'a//b', '.hidden', 'a/.b']) {
+      expect(() => resolveSkillAssetPath('acme', 'docx', bad)).toThrow();
+    }
   });
 });
