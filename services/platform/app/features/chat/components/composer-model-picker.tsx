@@ -82,7 +82,11 @@ export function withDefaultModel(
     models.find((model) => !affordanceOf(model).locked) ??
     models[0];
   if (chosen === undefined) return selection;
-  return { ...selection, modelId: chosen.id };
+  return {
+    ...selection,
+    modelId: chosen.id,
+    providerSlug: chosen.providerSlug,
+  };
 }
 
 /**
@@ -123,19 +127,46 @@ export function ComposerModelPicker({
 }: ComposerModelPickerProps) {
   const { t } = useT('chat');
 
-  const selectedModel = models.find((model) => model.id === selection.modelId);
+  // Prefer the exact (provider, id) pair; fall back to the id alone for a
+  // selection saved before providers were part of the pick.
+  const selectedModel =
+    models.find(
+      (model) =>
+        model.id === selection.modelId &&
+        model.providerSlug === selection.providerSlug,
+    ) ?? models.find((model) => model.id === selection.modelId);
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
     if (models.length === 0) return [];
-    return [
-      models.map((model) => ({
-        type: 'item' as const,
-        label: model.label,
-        icon: Cpu,
-        selected: model.id === selection.modelId,
-        onClick: () => onSelectionChange({ ...selection, modelId: model.id }),
-      })),
-    ];
+    const providers = [...new Set(models.map((model) => model.providerSlug))];
+    const itemOf = (model: ComposerModelOption) => ({
+      type: 'item' as const,
+      label: model.label,
+      icon: Cpu,
+      selected:
+        model.id === selection.modelId &&
+        (selection.providerSlug === undefined ||
+          model.providerSlug === selection.providerSlug),
+      onClick: () =>
+        onSelectionChange({
+          ...selection,
+          modelId: model.id,
+          providerSlug: model.providerSlug,
+        }),
+    });
+    // One provider → a flat list (the section header would be noise). More →
+    // one section per provider, so the same model id is findable — and
+    // PICKABLE — under each provider that serves it.
+    if (providers.length === 1) return [models.map(itemOf)];
+    return providers.map((provider) => {
+      const group: DropdownMenuGroup = [
+        { type: 'label' as const, content: provider },
+      ];
+      for (const model of models) {
+        if (model.providerSlug === provider) group.push(itemOf(model));
+      }
+      return group;
+    });
   }, [models, selection, onSelectionChange]);
 
   // Nothing selected is not the same as nothing to select: with options on

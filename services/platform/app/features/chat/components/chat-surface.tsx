@@ -290,6 +290,12 @@ export function ChatSurface({
           text,
           agentKind: selection.agentKind,
           ...(modelIdToSend !== undefined ? { modelId: modelIdToSend } : {}),
+          // The provider pick travels only with the model it was made for —
+          // the external fallback model resolves its own provider.
+          ...(selection.providerSlug !== undefined &&
+          modelIdToSend === selection.modelId
+            ? { providerSlug: selection.providerSlug }
+            : {}),
           ...(selection.harness !== undefined
             ? { harness: selection.harness }
             : {}),

@@ -73,14 +73,25 @@ interface ResolvedModel {
 }
 
 /** Find the catalog entry for an explicit model id in the org's connectors.
- * The connector that lists it is the one whose wire the turn will speak. */
+ * The connector that lists it is the one whose wire the turn will speak.
+ * A provider hint (the composer's picked section) is tried first, so two
+ * providers serving the same id resolve to the copy the user chose; an
+ * unmatched hint falls back to the id-only walk rather than refusing. */
 async function resolveModel(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
+  providerSlug?: string,
 ): Promise<ResolvedModel> {
   const connectors = await resolveConnectorsForOrgId(ctx, organizationId);
-  for (const connector of connectors) {
+  const ordered =
+    providerSlug === undefined
+      ? connectors
+      : [
+          ...connectors.filter((connector) => connector.name === providerSlug),
+          ...connectors.filter((connector) => connector.name !== providerSlug),
+        ];
+  for (const connector of ordered) {
     const catalog = await getConnectorCatalog(connector);
     const entry = catalog.find((candidate) => candidate.id === modelId);
     if (entry) return { entry, connector };
@@ -352,6 +363,7 @@ export interface ExecuteTurnArgs {
   readonly threadId: string;
   readonly userText: string;
   readonly modelId: string;
+  readonly providerSlug?: string;
   readonly sandbox: boolean;
   readonly agentSlug?: string;
   readonly locale: string;
@@ -376,7 +388,12 @@ export async function executeTurn(
   args: ExecuteTurnArgs,
   overrides: ExecuteTurnOverrides = {},
 ): Promise<TurnOutcome> {
-  const resolved = await resolveModel(ctx, args.organizationId, args.modelId);
+  const resolved = await resolveModel(
+    ctx,
+    args.organizationId,
+    args.modelId,
+    args.providerSlug,
+  );
 
   const history: ChatMessage[] = (
     await ctx.runQuery(api.chat.messages.listMessages, {
@@ -430,6 +447,7 @@ export const startTurn = action({
     threadId: v.string(),
     userText: v.string(),
     modelId: v.string(),
+    providerSlug: v.optional(v.string()),
     sandbox: v.boolean(),
     agentSlug: v.optional(v.string()),
     locale: v.optional(v.string()),
@@ -477,6 +495,9 @@ export const startTurn = action({
       threadId: args.threadId,
       userText: args.userText,
       modelId: args.modelId,
+      ...(args.providerSlug !== undefined && {
+        providerSlug: args.providerSlug,
+      }),
       sandbox: args.sandbox,
       agentSlug: args.agentSlug,
       locale: args.locale ?? 'en',
@@ -512,6 +533,7 @@ export const startTurnForApiKey = internalAction({
     threadId: v.string(),
     userText: v.string(),
     modelId: v.string(),
+    providerSlug: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     locale: v.optional(v.string()),
   },
@@ -553,6 +575,9 @@ export const startTurnForApiKey = internalAction({
         threadId: args.threadId,
         userText: args.userText,
         modelId: args.modelId,
+        ...(args.providerSlug !== undefined && {
+          providerSlug: args.providerSlug,
+        }),
         // Direct execution only: the sandbox lane is started by its own action.
         sandbox: false,
         ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),

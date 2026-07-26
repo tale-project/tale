@@ -133,6 +133,12 @@ export interface ComposerSelection {
   readonly agentKind: ComposerAgentKind;
   /** The platform agent's chosen model. */
   readonly modelId?: string;
+  /**
+   * The provider serving the chosen model. Distinguishes the copies when
+   * more than one configured provider lists the same model id; absent means
+   * "whichever provider resolves first" (the pre-provider-pick behavior).
+   */
+  readonly providerSlug?: string;
   /** The third-party agent's harness. */
   readonly harness?: string;
   /** Org skill slugs the conversation equips its agent with. */

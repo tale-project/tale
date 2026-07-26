@@ -96,6 +96,7 @@ export async function resolveManagedModel(
   ctx: ActionCtx,
   organizationId: string,
   requestedModelId?: string,
+  requestedProviderSlug?: string,
 ): Promise<ManagedModelChoice> {
   const listing = await ctx.runAction(api.chat.composer.listComposerModels, {
     organizationId,
@@ -106,7 +107,15 @@ export async function resolveManagedModel(
       model.credential.authMethod === 'env',
   );
   if (requestedModelId !== undefined) {
-    const match = direct.find((model) => model.id === requestedModelId);
+    // The provider hint picks between copies of the same id; an unmatched
+    // hint degrades to the id-only pick rather than refusing.
+    const match =
+      direct.find(
+        (model) =>
+          model.id === requestedModelId &&
+          (requestedProviderSlug === undefined ||
+            model.providerSlug === requestedProviderSlug),
+      ) ?? direct.find((model) => model.id === requestedModelId);
     if (match) {
       return { ok: true, providerSlug: match.providerSlug, modelId: match.id };
     }

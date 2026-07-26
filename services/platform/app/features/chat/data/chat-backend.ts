@@ -454,6 +454,7 @@ export interface ChatTurnRequest {
   readonly text: string;
   readonly agentKind: 'platform' | 'external';
   readonly modelId?: string;
+  readonly providerSlug?: string;
   readonly harness?: string;
   readonly sandbox?: boolean;
   readonly agentSlug?: string;
@@ -549,6 +550,9 @@ export function useChatSend(organizationId: string): {
             ...(request.modelId !== undefined
               ? { modelId: request.modelId }
               : {}),
+            ...(request.providerSlug !== undefined
+              ? { providerSlug: request.providerSlug }
+              : {}),
           },
         );
         return { threadId, outcome };
@@ -561,6 +565,9 @@ export function useChatSend(organizationId: string): {
         threadId,
         userText: request.text,
         modelId: request.modelId,
+        ...(request.providerSlug !== undefined
+          ? { providerSlug: request.providerSlug }
+          : {}),
         sandbox: request.sandbox ?? false,
         ...(request.agentSlug !== undefined
           ? { agentSlug: request.agentSlug }

@@ -92,6 +92,9 @@ interface ExternalTurnKickArgs {
   /** The composer's model pick; absent falls back to the org's first
    * directly-served model. */
   modelId?: string;
+  /** The provider serving that pick, when the composer chose between copies
+   * of the same model id. */
+  providerSlug?: string;
 }
 
 /**
@@ -159,6 +162,7 @@ export async function kickExternalTurn(
     ctx,
     args.organizationId,
     args.modelId,
+    args.providerSlug,
   );
   if (!model.ok) {
     return refuseBeforeStart(ctx, scope, model.reason);
@@ -243,6 +247,7 @@ export const startExternalTurn = action({
     // The composer's per-turn model pick; absent falls back to the org's
     // first directly-served model.
     modelId: v.optional(v.string()),
+    providerSlug: v.optional(v.string()),
   },
   returns: v.object({
     status: v.union(v.literal('completed'), v.literal('refused')),

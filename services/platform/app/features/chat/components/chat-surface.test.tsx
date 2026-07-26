@@ -323,6 +323,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
         text: 'Hello there',
         agentKind: 'platform',
         modelId: 'deepseek-chat',
+        providerSlug: 'deepseek',
         sandbox: false,
       });
       expect(navigateMock).toHaveBeenCalledWith({
@@ -494,6 +495,7 @@ describe('ChatSurface on an open sandbox thread', () => {
         text: 'Fix the bug',
         agentKind: 'external',
         modelId: 'deepseek-chat',
+        providerSlug: 'deepseek',
         harness: 'claude-code',
         sandbox: true,
       });

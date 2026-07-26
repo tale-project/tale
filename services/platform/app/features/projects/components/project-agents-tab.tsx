@@ -62,7 +62,18 @@ export function ProjectAgentsTab({
     () => externalAgents ?? [],
     [externalAgents],
   );
-  const models = rosterQuery.data?.models ?? [];
+  // The listing carries one entry per (provider, model) pair; the dialog's
+  // Select keys options by model id alone (an instance stores just the model
+  // — its serving provider resolves at run time), so dedupe here.
+  const modelRows = rosterQuery.data?.models;
+  const models = useMemo(() => {
+    const seen = new Set<string>();
+    return (modelRows ?? []).filter((model) => {
+      if (seen.has(model.id)) return false;
+      seen.add(model.id);
+      return true;
+    });
+  }, [modelRows]);
   const harnessBySlug = useMemo(() => {
     const map = new Map<string, HarnessOption>();
     for (const option of harnesses) map.set(option.harness, option);
