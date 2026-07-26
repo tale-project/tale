@@ -8,7 +8,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import type { IntegrationAuthMethodName } from '@/lib/shared/schemas/integrations';
+import type { StorableAuthMethodName } from '@/lib/shared/schemas/integrations';
 
 import type { IntegrationConnectorSummary } from '../hooks/backend';
 import { useCreateCredential } from '../hooks/mutations';
@@ -32,7 +32,7 @@ interface CredentialCreateDialogProps {
   connector: IntegrationConnectorSummary;
   /** The connector's hand-entered methods — `oauth2` is excluded by the
    * section, which offers consent instead of a form. */
-  methods: IntegrationAuthMethodName[];
+  methods: StorableAuthMethodName[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -59,12 +59,12 @@ export function CredentialCreateDialog({
   const { toast } = useToast();
   const create = useCreateCredential();
 
-  const fallbackMethod: IntegrationAuthMethodName = methods[0] ?? 'api-key';
+  const fallbackMethod: StorableAuthMethodName = methods[0] ?? 'api-key';
   // Confluence and Shopify name their own instance per credential; the others
   // talk to one fixed vendor host.
   const needsEndpoint = connector.endpointMode === 'per-credential';
 
-  const [method, setMethod] = useState<IntegrationAuthMethodName | null>(null);
+  const [method, setMethod] = useState<StorableAuthMethodName | null>(null);
   const [name, setName] = useState('');
   const [secret, setSecret] = useState<SecretDraft>(emptySecretDraft);
   const [endpointUrl, setEndpointUrl] = useState('');

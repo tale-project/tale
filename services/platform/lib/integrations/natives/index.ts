@@ -22,6 +22,15 @@ import {
   type MailboxConfigResolver,
   type MailTransport,
 } from './imap-smtp';
+import {
+  platformDocumentNatives,
+  type WorkflowDocumentStore,
+} from './platform-documents';
+import { platformTaskNatives, type WorkflowTaskStore } from './platform-tasks';
+import {
+  sandboxScriptNatives,
+  type SandboxScriptRunner,
+} from './sandbox-script';
 import { webdavNatives, type WebdavStore } from './webdav';
 
 export {
@@ -55,6 +64,23 @@ export {
   parseOrgPath,
   type OrgPath,
 } from './webdav-paths';
+export {
+  sandboxScriptNatives,
+  type SandboxScriptOutcome,
+  type SandboxScriptRun,
+  type SandboxScriptRunner,
+} from './sandbox-script';
+export {
+  platformTaskNatives,
+  type WorkflowTaskComment,
+  type WorkflowTaskStore,
+  type WorkflowTaskView,
+} from './platform-tasks';
+export {
+  platformDocumentNatives,
+  type WorkflowDocumentStore,
+  type WorkflowFolderFile,
+} from './platform-documents';
 
 /**
  * What the natives need from the platform.
@@ -66,6 +92,14 @@ export {
  */
 export interface NativeIntegrationDeps {
   readonly webdav: WebdavStore;
+  /** The sandbox script runner — required for the same reason the store is:
+   * `sandbox.run_script` has nothing to act through without it, and a
+   * default would be a second, unpoliced door into org sandboxes. */
+  readonly sandboxScripts: SandboxScriptRunner;
+  /** The task and document domains — same rationale: platform capabilities
+   * act on org data only through the domain's own internal functions. */
+  readonly tasks: WorkflowTaskStore;
+  readonly documents: WorkflowDocumentStore;
   readonly mailTransport?: MailTransport;
   readonly mailConfig?: MailboxConfigResolver;
 }
@@ -73,8 +107,15 @@ export interface NativeIntegrationDeps {
 /** The impl ids the six shipped native actions declare — the contract this
  * module fulfils, and what a wiring test asserts against. */
 export const NATIVE_IMPL_IDS = [
+  'document.create',
+  'document.list',
   'imap-smtp.list_messages',
   'imap-smtp.send',
+  'sandbox.run_script',
+  'task.comment',
+  'task.get',
+  'task.list_comments',
+  'task.update_status',
   'webdav.delete',
   'webdav.list',
   'webdav.read',
@@ -97,6 +138,9 @@ export function registerNativeIntegrations(
       transport: deps.mailTransport ?? nodeMailTransport(),
       ...(deps.mailConfig !== undefined && { resolveConfig: deps.mailConfig }),
     }),
+    ...platformDocumentNatives(deps.documents),
+    ...platformTaskNatives(deps.tasks),
+    ...sandboxScriptNatives(deps.sandboxScripts),
     ...webdavNatives(deps.webdav),
   };
 

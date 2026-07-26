@@ -96,13 +96,22 @@ export const listConnectors = action({
     const integrationsDir = resolveIntegrationsDir();
     const summaries: ConnectorSummary[] = [];
     for (const connector of loadIntegrationConnectors()) {
+      // Platform-auth connectors are the platform's own capabilities — there
+      // is nothing to connect, so the settings list never offers them.
+      if (connector.auth.some((method) => method.method === 'platform')) {
+        continue;
+      }
       const summary: ConnectorSummary = {
         slug: connector.name,
         displayName: connector.displayName,
         description: connector.description,
         tags: connector.tags,
         endpointMode: connector.endpointMode,
-        authMethods: connector.auth.map((method) => method.method),
+        // `platform` was excluded above, so the storable-method narrowing is
+        // a fact, not a hope.
+        authMethods: connector.auth
+          .map((method) => method.method)
+          .filter((method) => method !== 'platform'),
         actionCount: connector.actions.length,
       };
       const iconUrl = readConnectorIcon(integrationsDir, connector.name);

@@ -59,8 +59,14 @@ const displayNameSchema = z.string().min(1).max(200);
  *  - `basic`   — username + password (HTTP Basic; also SMTP/IMAP login).
  *  - `oauth2`  — an OAuth app: client id/secret + the authorize/token URLs and
  *                default scopes the connector's flow uses.
+ *  - `platform` — the platform itself is the identity: no stored credential,
+ *                no connect flow. Only native-backed platform capabilities
+ *                (sandbox scripts, task/document actions) declare it, it
+ *                stands alone, and such connectors never appear in the
+ *                integrations settings list.
  */
 const integrationAuthMethodSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('platform') }).strict(),
   z.object({ method: z.literal('api-key') }).strict(),
   z
     .object({
@@ -89,6 +95,12 @@ const integrationAuthMethodSchema = z.discriminatedUnion('method', [
 ]);
 export type IntegrationAuthMethod = z.infer<typeof integrationAuthMethodSchema>;
 export type IntegrationAuthMethodName = IntegrationAuthMethod['method'];
+/** Auth methods a credential row can store — every method but `platform`,
+ * which by definition never has a credential. */
+export type StorableAuthMethodName = Exclude<
+  IntegrationAuthMethodName,
+  'platform'
+>;
 
 /** Whether an action changes the outside world — write actions gate behind
  * the approvals policy and are recorded as effects; read actions don't. */
@@ -218,7 +230,14 @@ export const integrationConnectorSchema = z
       .min(1)
       .refine((m) => new Set(m.map((e) => e.method)).size === m.length, {
         message: 'auth methods must be unique per connector',
-      }),
+      })
+      .refine(
+        (m) => !m.some((e) => e.method === 'platform') || m.length === 1,
+        {
+          message:
+            'platform auth stands alone — a connector is either the platform itself or it holds vendor credentials, never both',
+        },
+      ),
     actions: z
       .array(integrationActionSchema)
       .min(1)

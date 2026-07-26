@@ -248,7 +248,7 @@ afterEach(() => {
 
 describe('resolution', () => {
   it('loads every shipped connector into the catalog', () => {
-    expect(shipped.length).toBe(13);
+    expect(shipped.length).toBe(16);
   });
 
   it('names a near-miss connector', async () => {

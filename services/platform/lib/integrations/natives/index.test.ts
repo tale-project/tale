@@ -15,7 +15,10 @@ import {
   NATIVE_IMPL_IDS,
   registerNativeIntegrations,
   type MailTransport,
+  type SandboxScriptRunner,
   type WebdavStore,
+  type WorkflowDocumentStore,
+  type WorkflowTaskStore,
 } from './index';
 
 /**
@@ -82,6 +85,53 @@ const NATIVE_ACTIONS: Array<{
     action: 'delete',
     input: { path: '/reports/old.md' },
   },
+  {
+    impl: 'sandbox.run_script',
+    connector: 'sandbox',
+    action: 'run_script',
+    input: { skill: 'swiss-vat-return', entry: 'scripts/run_quarter.py' },
+  },
+  {
+    impl: 'task.get',
+    connector: 'task',
+    action: 'get',
+    input: { taskId: 'tsk_1' },
+  },
+  {
+    impl: 'task.update_status',
+    connector: 'task',
+    action: 'update_status',
+    input: { taskId: 'tsk_1', status: 'in_progress' },
+  },
+  {
+    impl: 'task.comment',
+    connector: 'task',
+    action: 'comment',
+    input: { taskId: 'tsk_1', body: 'Prepared the return.' },
+  },
+  {
+    impl: 'task.list_comments',
+    connector: 'task',
+    action: 'list_comments',
+    input: { taskId: 'tsk_1', authorTypes: ['user'], limit: 20 },
+  },
+  {
+    impl: 'document.list',
+    connector: 'document',
+    action: 'list',
+    input: { folderId: 'fld_1' },
+  },
+  {
+    impl: 'document.create',
+    connector: 'document',
+    action: 'create',
+    input: {
+      folderId: 'fld_1',
+      name: 'return.xml',
+      storageId: 'blob_1',
+      contentType: 'application/xml',
+    },
+  },
 ];
 
 /** The store double: enough shape for the actions, no Convex. */
@@ -120,6 +170,65 @@ const transport: MailTransport = {
       send: () => Promise.resolve({ messageId: '<sent-1@example.com>' }),
       close: () => Promise.resolve(),
     }),
+};
+
+/** The script-runner double: the declared shape, no sandbox. Mirrors the
+ * connector mock's result keys so the live-vs-mock shape comparison holds. */
+const scriptRunner: SandboxScriptRunner = ({ skill, entry }) =>
+  Promise.resolve({
+    ok: true,
+    status: 'completed',
+    result: {
+      status: 'ok',
+      verdict: { passed: true, issues: [] },
+      period: { label: 'LIVE-PERIOD' },
+      report: { n_transactions: 2 },
+      history: { warnings: [] },
+    },
+    files: [
+      {
+        name: 'return.xml',
+        storageId: 'blob_live_return',
+        size: 512,
+        contentType: 'application/xml',
+      },
+    ],
+    exitCode: 0,
+    stdoutPreview: `ran ${skill}/${entry}`,
+    stderrPreview: '',
+    durationMs: 5,
+  });
+
+/** Task and document store doubles — the declared shapes, no Convex. */
+const taskStore: WorkflowTaskStore = {
+  get: ({ taskId }) =>
+    Promise.resolve({
+      taskId,
+      title: 'VAT return — 2026Q1',
+      status: 'todo',
+      projectId: 'proj_double',
+      externalSystem: 'vatplus',
+      externalId: 'fld_quarter',
+      externalUrl: 'fld_setup',
+    }),
+  updateStatus: () => Promise.resolve({ ok: true }),
+  comment: () => Promise.resolve({ messageId: 'msg_1' }),
+  listComments: () =>
+    Promise.resolve([
+      {
+        authorType: 'user' as const,
+        authorId: 'usr_double',
+        body: 'Please re-check box 400.',
+        createdAt: 1_750_000_000_000,
+      },
+    ]),
+};
+
+const documentStore: WorkflowDocumentStore = {
+  listFolder: () =>
+    Promise.resolve([{ name: 'invoice-001.pdf', storageId: 'blob_a' }]),
+  create: ({ name }) =>
+    Promise.resolve({ documentId: `doc_${name.length}`, action: 'created' }),
 };
 
 const credentials: CredentialResolver = {
@@ -162,6 +271,9 @@ beforeAll(() => {
 beforeEach(() => {
   dispose = registerNativeIntegrations({
     webdav: store,
+    sandboxScripts: scriptRunner,
+    tasks: taskStore,
+    documents: documentStore,
     mailTransport: transport,
     mailConfig: () => ({
       imap: { host: 'mail.example.com', port: 993, secure: true },
@@ -192,6 +304,9 @@ describe('registration', () => {
     // Re-register so afterEach's dispose stays a no-op rather than a surprise.
     dispose = registerNativeIntegrations({
       webdav: store,
+      sandboxScripts: scriptRunner,
+      tasks: taskStore,
+      documents: documentStore,
       mailTransport: transport,
     });
   });
@@ -239,6 +354,9 @@ describe('dispatching the shipped native actions', () => {
 
     dispose = registerNativeIntegrations({
       webdav: store,
+      sandboxScripts: scriptRunner,
+      tasks: taskStore,
+      documents: documentStore,
       mailTransport: transport,
     });
   });

@@ -60,11 +60,13 @@ import { lockKeyFromParsed } from '../../lib/webdav/paths';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
+import { workflowScriptRunner } from '../automations/script_host';
 import { loadIntegrationConnectors } from '../integration_credentials/connector_catalog';
 import { resolveIntegrationCredential } from '../integration_credentials/resolve_credential';
 import { fetchBlobArrayBuffer } from '../lib/storage/blob_read_any';
 import { codeRunnerForSession } from '../node_only/sandbox/engine_exec_runner';
 import { signHostcallToken } from './hostcall_token';
+import { workflowDocumentStore, workflowTaskStore } from './platform_stores';
 
 /**
  * Install the seams one invocation needs. Cheap and idempotent — the catalog
@@ -85,7 +87,12 @@ function assembleIntegrationHost(ctx: ActionCtx): void {
   const connectors = loadIntegrationConnectors();
   installConnectorCatalog(connectors);
   for (const connector of connectors) registerConnector(connector);
-  registerNativeIntegrations({ webdav: webdavStore(ctx) });
+  registerNativeIntegrations({
+    webdav: webdavStore(ctx),
+    sandboxScripts: workflowScriptRunner(ctx),
+    tasks: workflowTaskStore(ctx),
+    documents: workflowDocumentStore(ctx),
+  });
 }
 
 /** The host-call endpoint as a sandbox session's CONTAINER reaches it — the

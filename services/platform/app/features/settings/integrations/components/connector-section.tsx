@@ -58,7 +58,7 @@ export function ConnectorSection({
   // may declare both kinds; then both buttons appear.
   const offersConsent = connector.authMethods.includes('oauth2');
   const formMethods = connector.authMethods.filter(
-    (method) => method !== 'oauth2',
+    (method) => method !== 'oauth2' && method !== 'platform',
   );
 
   return (

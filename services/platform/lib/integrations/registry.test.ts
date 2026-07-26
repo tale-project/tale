@@ -26,7 +26,7 @@ beforeAll(() => {
 
 describe('connector registry', () => {
   it('registers every shipped action as a node type', () => {
-    expect(loaded.connectors).toHaveLength(13);
+    expect(loaded.connectors).toHaveLength(16);
     const actionCount = loaded.connectors.reduce(
       (n, c) => n + c.actions.length,
       0,
@@ -35,6 +35,7 @@ describe('connector registry', () => {
     // Node types are addressed as <connector>.<action>.
     expect(loaded.nodeTypes).toContain('github.create_issue');
     expect(loaded.nodeTypes).toContain('tavily.search');
+    expect(loaded.nodeTypes).toContain('sandbox.run_script');
   });
 
   it('exposes each action to the engine with its schema and signature', () => {

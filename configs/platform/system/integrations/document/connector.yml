@@ -1,0 +1,74 @@
+# Platform capability — the organization's document tree as automation
+# actions: list a folder's stored files, and claim a produced blob (or inline
+# text) into a folder as a visible document. Native-backed; `platform` auth.
+name: document
+displayName: Documents
+description: >-
+  List a folder's stored files and file produced artifacts into folders —
+  the platform's own document tree as automation steps.
+tags:
+  - Platform
+auth:
+  - method: platform
+actions:
+  - name: list
+    description: The files stored directly inside one folder (no recursion).
+    effects: read
+    input:
+      type: object
+      additionalProperties: false
+      properties:
+        folderId: { type: string, description: The folder id. }
+        folderPath:
+          {
+            type: string,
+            description: 'Human-readable path, e.g. "Clients/Acme".',
+          }
+    output: '{ count: number, files: Array<{ name: string, storageId: string }> }'
+    mock: |
+      return {
+        count: 2,
+        files: [
+          { name: 'invoice-001.pdf', storageId: 'blob_a' },
+          { name: 'summary.xlsx', storageId: 'blob_b' },
+        ],
+      };
+    backend:
+      kind: native
+      impl: document.list
+    exampleInput: { folderId: 'fld_1' }
+  - name: create
+    description: >-
+      File a document into a folder: claim a harvested blob by storageId, or
+      store inline text. Idempotent per (folder, name) — re-running refreshes
+      the artifact instead of duplicating it.
+    effects: write
+    input:
+      type: object
+      required: [folderId, name]
+      additionalProperties: false
+      properties:
+        folderId: { type: string, description: The destination folder id. }
+        name: { type: string, description: File name including extension. }
+        storageId:
+          { type: string, description: A harvested blob reference to claim. }
+        content:
+          {
+            type: string,
+            description: Inline UTF-8 text (instead of storageId).,
+          }
+        contentType: { type: string, description: MIME type when known. }
+        externalItemId: { type: string, description: Idempotency key override. }
+    output: '{ documentId: string, action: string }'
+    mock: |
+      return { documentId: `doc_${String(input.name ?? '').length}`, action: 'created' };
+    backend:
+      kind: native
+      impl: document.create
+    exampleInput:
+      {
+        folderId: 'fld_1',
+        name: 'return.xml',
+        storageId: 'blob_1',
+        contentType: 'application/xml',
+      }

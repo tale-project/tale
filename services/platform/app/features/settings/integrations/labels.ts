@@ -7,17 +7,16 @@
  * something honest.
  */
 
-import type { IntegrationAuthMethodName } from '@/lib/shared/schemas/integrations';
+import type { StorableAuthMethodName } from '@/lib/shared/schemas/integrations';
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
 const AUTH_METHODS = new Set<string>(['api-key', 'bearer', 'basic', 'oauth2']);
 
-/** Narrows a picker's raw string back to the connector vocabulary, so a value
- * from outside it is ignored instead of asserted into the union. */
-export function isAuthMethod(
-  value: string,
-): value is IntegrationAuthMethodName {
+/** Narrows a picker's raw string back to the STORABLE connector vocabulary
+ * (`platform` never reaches a picker), so a value from outside it is ignored
+ * instead of asserted into the union. */
+export function isAuthMethod(value: string): value is StorableAuthMethodName {
   return AUTH_METHODS.has(value);
 }
 

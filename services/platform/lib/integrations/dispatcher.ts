@@ -107,6 +107,11 @@ export interface NativeIntegrationContext extends IntegrationContext {
   organizationId: string;
   credentialId: string;
   authMethod: string;
+  /** Who asked — a platform capability that acts on the caller's own scope
+   * (the sandbox script runner binding to its workflow run's session) reads
+   * it; vendor-facing natives ignore it. Optional so their tests need not
+   * fabricate one. */
+  caller?: IntegrationCaller;
 }
 
 export type NativeIntegrationImpl = (
@@ -683,38 +688,53 @@ export async function executeIntegrationAction(
     }
   }
 
-  if (!ctx.credentials) {
-    throw new IntegrationError(
-      'CREDENTIAL_RESOLVER_MISSING',
-      `a live ${nodeType} call needs a credential resolver`,
-      {
-        ...where,
-        hint: 'pass ctx.credentials — the Convex surface wires the credentials domain',
-      },
-    );
-  }
+  // A platform connector authenticates as the platform itself — there is no
+  // vendor credential to resolve or store, so the credential gate is skipped
+  // and the backend receives a synthetic identity. The schema refuses
+  // `platform` alongside any other method, so this branch is all-or-nothing.
+  const platformAuth = connector.auth.some(
+    (method) => method.method === 'platform',
+  );
 
   let credential: ResolvedCredential;
-  try {
-    credential = await ctx.credentials.resolve(
-      ctx.organizationId,
-      connector.name,
-      credentialRef,
-    );
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    await record('error', { error: message });
-    throw new IntegrationError(
-      'CREDENTIAL_UNRESOLVED',
-      `no usable credential for ${connector.name}: ${message}`,
-      {
-        ...where,
-        cause,
-        hint: credentialRef
-          ? `credential "${credentialRef}" — check it exists for this organization and is active`
-          : 'connect the integration, or mark one of its credentials as the default',
-      },
-    );
+  if (platformAuth) {
+    credential = {
+      credentialId: 'platform',
+      authMethod: 'platform',
+      secrets: {},
+    };
+  } else {
+    if (!ctx.credentials) {
+      throw new IntegrationError(
+        'CREDENTIAL_RESOLVER_MISSING',
+        `a live ${nodeType} call needs a credential resolver`,
+        {
+          ...where,
+          hint: 'pass ctx.credentials — the Convex surface wires the credentials domain',
+        },
+      );
+    }
+    try {
+      credential = await ctx.credentials.resolve(
+        ctx.organizationId,
+        connector.name,
+        credentialRef,
+      );
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      await record('error', { error: message });
+      throw new IntegrationError(
+        'CREDENTIAL_UNRESOLVED',
+        `no usable credential for ${connector.name}: ${message}`,
+        {
+          ...where,
+          cause,
+          hint: credentialRef
+            ? `credential "${credentialRef}" — check it exists for this organization and is active`
+            : 'connect the integration, or mark one of its credentials as the default',
+        },
+      );
+    }
   }
 
   const buildHost = ctx.hostFactory ?? createLiveHost;
@@ -773,6 +793,7 @@ export async function executeIntegrationAction(
           organizationId: ctx.organizationId,
           credentialId: credential.credentialId,
           authMethod: credential.authMethod,
+          caller,
         });
       } else if (backend.kind === 'yaml-js') {
         output = await liveRunner.runBody(
