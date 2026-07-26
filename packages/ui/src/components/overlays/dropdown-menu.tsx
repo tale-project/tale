@@ -236,11 +236,11 @@ function renderItem(item: DropdownMenuItem, key: number) {
             </svg>
           </DropdownMenuPrimitive.SubTrigger>
           <DropdownMenuPrimitive.SubContent
-            // A 16px visual gap to the parent panel — the same distance the
-            // panel keeps to its own anchor. Radix measures from the trigger
-            // item, which sits inside the panel's 4px padding and 1px border,
-            // so those are added back here.
-            sideOffset={21}
+            // An 8px visual gap to the parent panel — the same distance the
+            // rail menus keep to the nav edge. Radix measures from the
+            // trigger item, which sits inside the panel's 4px padding and
+            // 1px border, so those are added back here.
+            sideOffset={13}
             collisionPadding={16}
             className={cn(
               'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
