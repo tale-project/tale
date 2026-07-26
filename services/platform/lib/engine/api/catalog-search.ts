@@ -71,7 +71,7 @@ function lev1(a: string, b: string): boolean {
 
 /** Split a query into the terms worth scoring — single characters carry no
  * signal and would match almost everything. */
-export function fuzzyQueryTerms(query: string): string[] {
+function fuzzyQueryTerms(query: string): string[] {
   return query
     .toLowerCase()
     .split(/[^a-z0-9]+/)
@@ -82,10 +82,7 @@ export function fuzzyQueryTerms(query: string): string[] {
  * Score one document against pre-split query terms. Zero means "no signal at
  * all" — callers drop those rather than showing an arbitrary tail.
  */
-export function fuzzyScore(
-  terms: readonly string[],
-  doc: FuzzyDocument,
-): number {
+function fuzzyScore(terms: readonly string[], doc: FuzzyDocument): number {
   const name = doc.name.toLowerCase();
   const words = `${doc.name} ${doc.body ?? ''}`
     .toLowerCase()
@@ -159,11 +156,4 @@ export function searchCatalog(query: string, limit = 8): CatalogMatch[] {
     input_schema: def.integration.inputSchema,
     output: def.integration.outputSignature,
   }));
-}
-
-/** Every registered integration, for docs generation. */
-export function allIntegrations() {
-  return [...nodeTypes().values()].flatMap((d) =>
-    d.kind === 'integration' && d.integration ? [d.integration] : [],
-  );
 }

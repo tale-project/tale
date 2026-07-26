@@ -38,12 +38,12 @@ import { isRecord } from '../utils/type-utils';
 /** Repo-relative location of the per-org seed catalog. */
 const REPO_CUSTOM_CATALOG = ['configs', 'platform', 'custom'] as const;
 
-export const AUTOMATION_MANIFEST_FILE = 'automation.yml';
-export const AUTOMATION_WORKFLOW_FILE = 'workflow.yml';
+const AUTOMATION_MANIFEST_FILE = 'automation.yml';
+const AUTOMATION_WORKFLOW_FILE = 'workflow.yml';
 
 /** Slug depth cap, and therefore the recursion bound of the walk below: a
  * path the reader accepts can never be a path the walk refuses to reach. */
-export const MAX_PACK_DEPTH = 4;
+const MAX_PACK_DEPTH = 4;
 
 /** One pack file may not exceed this — a pack is configuration. */
 const MAX_PACK_BYTES = 256 * 1024;
@@ -176,7 +176,7 @@ function findRepoCatalog(startDir: string): string | null {
 }
 
 /** The directory the packs live in. */
-export function resolveAutomationsDir(options: LoadPacksOptions = {}): string {
+function resolveAutomationsDir(options: LoadPacksOptions = {}): string {
   const root = options.root ?? findRepoCatalog(process.cwd());
   if (root === null) {
     throw new Error(
@@ -210,7 +210,7 @@ function asAutomationDocument(value: unknown, file: string): Automation {
 }
 
 /** Read one pack directory. `slug` is its path below `automations/`. */
-export function loadAutomationPack(dir: string, slug: string): AutomationPack {
+function loadAutomationPack(dir: string, slug: string): AutomationPack {
   const manifestFile = path.join(dir, AUTOMATION_MANIFEST_FILE);
   const parsed = automationPackManifestSchema.safeParse(
     readYamlFile(manifestFile),

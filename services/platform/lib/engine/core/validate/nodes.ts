@@ -19,7 +19,7 @@ import type { Issue, NodeDef } from '../types';
 import { compileSchema } from './schema';
 import { closestName } from './similar';
 
-export const ID_RE = /^[a-z][a-z0-9_]{0,49}$/;
+const ID_RE = /^[a-z][a-z0-9_]{0,49}$/;
 
 const CONTROL_FIELDS = [
   'id',

@@ -40,7 +40,7 @@ export function templateExprsIn(value: unknown): string[] {
   return out;
 }
 
-export function walkStrings(v: unknown, fn: (s: string) => void): void {
+function walkStrings(v: unknown, fn: (s: string) => void): void {
   if (typeof v === 'string') fn(v);
   else if (Array.isArray(v)) {
     for (const x of v) walkStrings(x, fn);

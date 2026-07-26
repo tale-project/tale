@@ -10,13 +10,7 @@
  * hosts assemble against one module.
  */
 
-export {
-  codeRunner,
-  hasCodeRunner,
-  setCodeRunner,
-  type CodeRunner,
-  type RunnerLimits,
-} from './runner';
+export { setCodeRunner } from './runner';
 
 // --------------------------------------------------------------- node types
 

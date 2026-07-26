@@ -40,6 +40,10 @@ export default {
     // empty until sources land, but the generator always emits the file.
     'services/web/app/generated/image-manifest.ts',
   ],
+  // A type used only by its own module's exported signatures (a function that
+  // RETURNS an exported interface) is API shape, not dead code — flag only
+  // types nothing references at all.
+  ignoreExportsUsedInFile: { interface: true, type: true },
   workspaces: {
     'services/platform': {
       vite: { config: ['vite.config.ts'] },
@@ -103,10 +107,8 @@ export default {
       // ----------------------------------------------------------------
       ignore: [
         'lib/agents/**',
-        'lib/automations/**',
         'lib/automations_builder/**',
         'lib/chat/**',
-        'lib/engine/**',
         'lib/knowledge/**',
         'lib/pii/**',
         'lib/skills/**',

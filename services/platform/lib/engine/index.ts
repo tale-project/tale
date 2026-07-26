@@ -1,67 +1,16 @@
 /**
- * The automation engine — public surface.
+ * The automation engine — the few names hosts assemble against as one module.
  *
- * A host assembles a working engine by installing the slots (a CodeRunner
- * for untrusted JS, optionally a StoreAdapter, an LlmService, and any
- * capability node types) and then driving everything through `dispatch`. The
- * core stays pure: it imports no `node:*`, no Bun globals, and no Convex —
- * the layering is enforced by `selftest/purity.test.ts`.
+ * Deliberately narrow: a host installs the slots it needs (`setCodeRunner`
+ * plus whatever capability node types it registers), validates documents, and
+ * executes them. Everything else — the store adapters, the repair helpers,
+ * the catalog search, the dispatch surface — is imported from its own module
+ * by the one consumer that needs it, so this file never regrows into a barrel
+ * of dead re-exports. The core stays pure: it imports no `node:*`, no Bun
+ * globals, and no Convex — the layering is enforced by
+ * `selftest/purity.test.ts`.
  */
 
-export type {
-  Automation,
-  AutomationTest,
-  Effect,
-  Issue,
-  Json,
-  NodeDef,
-  NodeStatus,
-  NodeTrace,
-  RunError,
-  RunResult,
-} from './core/types';
-export { CODES, type IssueCode } from './core/errors';
-export {
-  hasCodeRunner,
-  llmService,
-  nodeTypes,
-  registerNodeType,
-  setCodeRunner,
-  setLlmService,
-  setStoreAdapter,
-  storeAdapter,
-  typeNames,
-  type CodeRunner,
-  type IntegrationLike,
-  type LlmService,
-  type NodeTypeDef,
-  type OutputKind,
-  type RunnerLimits,
-  type StoreAdapter,
-} from './core/slots';
+export { nodeTypes, setCodeRunner } from './core/slots';
 export { validate } from './core/validate';
-export { execute, type ExecuteOptions } from './core/execute';
-export {
-  isParseFailure,
-  parseAgentReply,
-  repairJson,
-  type AgentAction,
-  type ParsedReply,
-} from './core/repair';
-export { nodeVmRunner } from './runners/node-vm';
-export { memoryStore, type MemoryStore } from './store/memory';
-export { agentDocs, DOC_EXAMPLE } from './api/docs';
-export { searchCatalog, allIntegrations } from './api/catalog-search';
-export { runAutomationTests, type TestReport } from './api/tests';
-export {
-  dispatch,
-  METHODS,
-  type DispatchContext,
-  type DispatchStore,
-  type Method,
-  type RunDetail,
-  type RunSummary,
-  type TriggerSpec,
-  type TriggerView,
-  type VersionSummary,
-} from './api/dispatch';
+export { execute } from './core/execute';

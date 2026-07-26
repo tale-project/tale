@@ -729,29 +729,3 @@ export function translateTemplate(
   }
   return { text: out + source.slice(last), issues };
 }
-
-/** Translate every template string nested anywhere inside a value. */
-export function translateValue(
-  value: unknown,
-  scope: ExpressionScope,
-): { value: unknown; issues: string[] } {
-  const issues: string[] = [];
-  const walk = (current: unknown): unknown => {
-    if (typeof current === 'string') {
-      const translated = translateTemplate(current, scope);
-      for (const issue of translated.issues) {
-        if (!issues.includes(issue)) issues.push(issue);
-      }
-      return translated.text;
-    }
-    if (Array.isArray(current)) return current.map((entry) => walk(entry));
-    if (current !== null && typeof current === 'object') {
-      const out: Record<string, unknown> = {};
-      for (const [key, entry] of Object.entries(current))
-        out[key] = walk(entry);
-      return out;
-    }
-    return current;
-  };
-  return { value: walk(value), issues };
-}
