@@ -1037,3 +1037,57 @@ export const mentionTriggerPreview = query({
     return rows;
   },
 });
+
+const taskAgentRunCardValidator = v.object({
+  _id: v.id('projectAgentRuns'),
+  status: v.string(),
+  agentId: v.string(),
+  harness: v.string(),
+  model: v.string(),
+  error: v.optional(v.string()),
+  resultText: v.optional(v.string()),
+  startedAt: v.number(),
+  settledAt: v.optional(v.number()),
+});
+
+/**
+ * The task's LATEST agent run, for the task modal's run card: a live run
+ * renders progress + Cancel, a failed one its error + Retry, a settled one
+ * points at the result comment. `null` when the task never ran an agent —
+ * and, fail-closed, when the task or its project isn't readable.
+ */
+export const getLatestTaskAgentRunForTask = query({
+  args: { organizationId: v.string(), taskId: v.id('tasks') },
+  returns: v.union(taskAgentRunCardValidator, v.null()),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task || task.organizationId !== args.organizationId) return null;
+    try {
+      await loadAccessibleProject(ctx, task.projectId, args.organizationId);
+    } catch (error) {
+      console.warn('[tasks] agent-run card access refused', error);
+      return null;
+    }
+    const runs = await ctx.db
+      .query('projectAgentRuns')
+      .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
+      .collect();
+    const latest = runs.sort((a, b) => b.startedAt - a.startedAt)[0];
+    if (latest === undefined) return null;
+    return {
+      _id: latest._id,
+      status: latest.status,
+      agentId: latest.agentId,
+      harness: latest.harness,
+      model: latest.model,
+      ...(latest.error !== undefined ? { error: latest.error } : {}),
+      ...(latest.resultText !== undefined
+        ? { resultText: latest.resultText }
+        : {}),
+      startedAt: latest.startedAt,
+      ...(latest.settledAt !== undefined
+        ? { settledAt: latest.settledAt }
+        : {}),
+    };
+  },
+});

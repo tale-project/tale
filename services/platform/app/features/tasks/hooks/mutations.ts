@@ -76,3 +76,11 @@ export function useDeleteBoardView() {
 export function useRespondToTaskReview() {
   return useConvexMutation(api.tasks.review_mutations.respondToTaskReview);
 }
+
+export function useStartTaskAgentRun() {
+  return useConvexMutation(api.tasks.mutations.startTaskAgentRun);
+}
+
+export function useCancelTaskAgentRun() {
+  return useConvexMutation(api.tasks.mutations.cancelTaskAgentRun);
+}

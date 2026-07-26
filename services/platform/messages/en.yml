@@ -7506,6 +7506,19 @@ tasks:
     noProgressYet: The run has not reached any node yet.
     effectsTitle: Actions performed
     noEffectsYet: Nothing performed yet.
+  agentRun:
+    started: The agent is on it — it reports back to this task for review.
+    alreadyRunning: This task's agent is already running.
+    notStarted: The agent run could not start.
+    cancelled: The agent run was cancelled.
+    status:
+      queued: Agent run queued
+      running: Agent working…
+      settled: Reported for review
+      failed: Agent run failed
+      cancelled: Agent run cancelled
+    retry: Retry
+    cancel: Cancel run
   automation:
     hint: 'Operated by {name} — status changes route through its workflow.'
     will:

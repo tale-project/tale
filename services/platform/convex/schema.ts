@@ -129,6 +129,7 @@ import {
 import {
   boardViewsTable,
   taskActivityTable,
+  projectAgentRunsTable,
   taskDependenciesTable,
   taskDiscussionMessageMetaTable,
   tasksTable,
@@ -258,6 +259,7 @@ export default defineSchema({
   // `provider_credentials/schema.ts`.
   providerCredentials: providerCredentialsTable,
   tasks: tasksTable,
+  projectAgentRuns: projectAgentRunsTable,
   taskDiscussionMessageMeta: taskDiscussionMessageMetaTable,
   taskActivity: taskActivityTable,
   taskDependencies: taskDependenciesTable,

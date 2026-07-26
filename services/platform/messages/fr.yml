@@ -7583,6 +7583,19 @@ tasks:
     noProgressYet: "L'exécution n'a encore atteint aucune étape."
     effectsTitle: Actions effectuées
     noEffectsYet: Rien d'effectué pour l'instant.
+  agentRun:
+    started: L'agent s'y met — il rendra compte sur cette tâche pour relecture.
+    alreadyRunning: L'agent de cette tâche tourne déjà.
+    notStarted: L'exécution de l'agent n'a pas pu démarrer.
+    cancelled: L'exécution de l'agent a été annulée.
+    status:
+      queued: Exécution de l'agent en attente
+      running: L'agent travaille…
+      settled: Rendu pour relecture
+      failed: Exécution de l'agent en échec
+      cancelled: Exécution de l'agent annulée
+    retry: Relancer
+    cancel: Annuler l'exécution
   automation:
     hint: 'Opérée par {name} — les changements de statut passent par son workflow.'
     will:

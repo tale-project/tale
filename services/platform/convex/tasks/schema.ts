@@ -390,3 +390,47 @@ export const boardViewsTable = defineTable({
 })
   .index('by_project', ['projectId'])
   .index('by_project_owner', ['projectId', 'ownerId']);
+
+export const projectAgentRunStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('running'),
+  v.literal('settled'),
+  v.literal('failed'),
+  v.literal('cancelled'),
+);
+
+/**
+ * One run of a project agent against one task — the task-side twin of an
+ * automation run. Kicked when an agent-owned task moves to `in_progress`
+ * (or Retry / request-changes re-kicks); driven by
+ * `tasks/agent_run_host.ts`; settled exactly once. Success posts the result
+ * as an agent task comment and parks the task at `in_review` (agents never
+ * complete work). Failure keeps the task at `in_progress` — a failed run is
+ * the RUN's state, not the task's; the run card offers Retry.
+ *
+ * The sandbox session is the agent's STANDING one
+ * (`sessionIdForProjectAgent`) — the workspace persists across runs, so an
+ * agent keeps its working state between assignments.
+ */
+export const projectAgentRunsTable = defineTable({
+  organizationId: v.string(),
+  projectId: v.id('projects'),
+  taskId: v.id('tasks'),
+  agentId: v.id('projectAgents'),
+  execId: v.string(),
+  sessionId: v.string(),
+  status: projectAgentRunStatusValidator,
+  harness: v.string(),
+  model: v.string(),
+  error: v.optional(v.string()),
+  resultText: v.optional(v.string()),
+  /** The settled result's task-comment message id (success only). */
+  resultMessageId: v.optional(v.string()),
+  startedBy: v.string(),
+  startedAt: v.number(),
+  deadlineAt: v.number(),
+  settledAt: v.optional(v.number()),
+  updatedAt: v.number(),
+})
+  .index('by_task', ['taskId'])
+  .index('by_agent', ['agentId']);

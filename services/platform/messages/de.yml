@@ -7471,6 +7471,19 @@ tasks:
     noProgressYet: Der Lauf hat noch keinen Schritt erreicht.
     effectsTitle: Ausgeführte Aktionen
     noEffectsYet: Noch nichts ausgeführt.
+  agentRun:
+    started: Der Agent ist dran — er meldet sich zur Prüfung an dieser Aufgabe zurück.
+    alreadyRunning: Der Agent dieser Aufgabe läuft bereits.
+    notStarted: Der Agenten-Lauf konnte nicht starten.
+    cancelled: Der Agenten-Lauf wurde abgebrochen.
+    status:
+      queued: Agenten-Lauf wartet
+      running: Agent arbeitet…
+      settled: Zur Prüfung gemeldet
+      failed: Agenten-Lauf fehlgeschlagen
+      cancelled: Agenten-Lauf abgebrochen
+    retry: Erneut ausführen
+    cancel: Lauf abbrechen
   automation:
     hint: 'Betrieben von {name} — Statusänderungen laufen über dessen Workflow.'
     will:

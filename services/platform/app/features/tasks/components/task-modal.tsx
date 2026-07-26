@@ -66,6 +66,7 @@ import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
 import { StatusPicker } from './status-picker';
+import { TaskAgentRunCard } from './task-agent-run-card';
 import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
@@ -839,6 +840,14 @@ function EditTaskBody({
 
             {ownedBy !== null && (
               <TaskRunCard organizationId={task.organizationId} task={task} />
+            )}
+
+            {task.assigneeType === 'agent' && (
+              <TaskAgentRunCard
+                organizationId={task.organizationId}
+                taskId={task._id}
+                canEdit={canMutate}
+              />
             )}
 
             {ownedBy !== null &&

@@ -756,6 +756,8 @@ import type * as support_cases_helpers from "../support_cases/helpers.js";
 import type * as support_cases_mutations from "../support_cases/mutations.js";
 import type * as support_cases_queries from "../support_cases/queries.js";
 import type * as tasks_access from "../tasks/access.js";
+import type * as tasks_agent_run_host from "../tasks/agent_run_host.js";
+import type * as tasks_agent_runs from "../tasks/agent_runs.js";
 import type * as tasks_attachments from "../tasks/attachments.js";
 import type * as tasks_audit_actions from "../tasks/audit_actions.js";
 import type * as tasks_date_keys from "../tasks/date_keys.js";
@@ -1608,6 +1610,8 @@ declare const fullApi: ApiFromModules<{
   "support_cases/mutations": typeof support_cases_mutations;
   "support_cases/queries": typeof support_cases_queries;
   "tasks/access": typeof tasks_access;
+  "tasks/agent_run_host": typeof tasks_agent_run_host;
+  "tasks/agent_runs": typeof tasks_agent_runs;
   "tasks/attachments": typeof tasks_attachments;
   "tasks/audit_actions": typeof tasks_audit_actions;
   "tasks/date_keys": typeof tasks_date_keys;

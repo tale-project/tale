@@ -70,7 +70,7 @@ export function workflowAgentDeadlineMs(): number {
 /** Gateway budget for one agent turn, in cents — the chat turn's default. */
 const DEFAULT_AGENT_BUDGET_CENTS = 500;
 
-function workflowAgentBudgetCents(): number {
+export function workflowAgentBudgetCents(): number {
   const configured = Number(process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS);
   return Number.isFinite(configured) && configured > 0
     ? configured
@@ -214,7 +214,7 @@ export function automationAgentHost(
  * the op row terminal. Safe to race — `claimSessionOpFinalize` elects one
  * winner and a loser does nothing.
  */
-async function releaseTurnKey(
+export async function releaseTurnKey(
   ctx: ActionCtx,
   args: {
     organizationId: string;
@@ -380,7 +380,7 @@ export async function stageSkillBundle(
 
 /** Stage the node's declared skills under the session skills dir and return
  * the instructions addendum describing them (empty when none). */
-async function stageWorkflowSkills(
+export async function stageWorkflowSkills(
   ctx: ActionCtx,
   organizationId: string,
   sessionId: string,

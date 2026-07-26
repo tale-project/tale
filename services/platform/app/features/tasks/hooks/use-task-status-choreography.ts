@@ -11,6 +11,7 @@ import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
+import { useCancelTaskAgentRun, useStartTaskAgentRun } from './mutations';
 import {
   resolveTaskOwnership,
   useTaskContractAutomations,
@@ -131,6 +132,8 @@ export function useTaskStatusChoreography(
   const cancelRun = useConvexAction(
     api.tasks.public_actions.cancelTaskWorkflow,
   );
+  const { mutateAsync: startAgentRun } = useStartTaskAgentRun();
+  const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
 
@@ -139,9 +142,44 @@ export function useTaskStatusChoreography(
       task: ChoreographedTask,
       to: string,
     ): Promise<TaskTransitionOutcome> => {
-      // Only automation-owned tasks choreograph — agent- and human-owned
-      // tasks keep their native verbs (the agent loop / a plain write).
       const ownership = resolveTaskOwnership(task, automations);
+
+      // Agent-owned: the board verbs drive the task-agent run loop. Dragging
+      // to In progress (from anywhere — including In review, which IS
+      // "request changes") kicks a run; leaving In progress cancels a live
+      // one first, then the plain move still happens.
+      if (ownership.kind === 'agent') {
+        if (to === 'in_progress') {
+          try {
+            const result = await startAgentRun({ taskId: task._id });
+            if (result.started) {
+              toast({ title: t('agentRun.started'), variant: 'success' });
+              return 'handled';
+            }
+            if (result.reason === 'already_running') {
+              toast({ title: t('agentRun.alreadyRunning') });
+              return 'handled';
+            }
+            toast({ title: t('agentRun.notStarted'), variant: 'destructive' });
+            return 'blocked';
+          } catch (error) {
+            console.error('[tasks] agent-run start failed', error);
+            toast({ title: t('agentRun.notStarted'), variant: 'destructive' });
+            return 'blocked';
+          }
+        }
+        if (task.status === 'in_progress') {
+          try {
+            await cancelAgentRun({ taskId: task._id });
+          } catch (error) {
+            // The move still proceeds — a stuck run is cut by its deadline.
+            console.warn('[tasks] agent-run cancel failed', error);
+          }
+        }
+        return 'move';
+      }
+
+      // Human-owned tasks keep their native verbs (a plain write).
       if (ownership.kind !== 'automation') return 'move';
       const { contract } = ownership;
 
@@ -229,6 +267,16 @@ export function useTaskStatusChoreography(
         }
       }
     },
-    [automations, cancelRun, client, organizationId, startRun, t, tCommon],
+    [
+      automations,
+      cancelAgentRun,
+      cancelRun,
+      client,
+      organizationId,
+      startAgentRun,
+      startRun,
+      t,
+      tCommon,
+    ],
   );
 }
