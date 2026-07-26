@@ -135,11 +135,23 @@ test('projects tab renders the picker in the toolbar and a stable header', async
   await expect(
     page.getByRole('heading', { name: t('tasks.metrics.title'), level: 3 }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The project picker is a section of the shared toolbar filter button
+  // (ahead of Period), not a standalone select; opening the button proves
+  // `metrics.projects.selectLabel` resolves — its section header is a plain
+  // button named by the translated title.
+  const filterButton = page.getByRole('button', {
+    name: t('common.labels.filter'),
+    exact: true,
+  });
+  await expect(filterButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await filterButton.click();
   await expect(
-    page.getByRole('combobox', { name: t('metrics.projects.selectLabel') }),
+    page.getByRole('button', {
+      name: t('metrics.projects.selectLabel'),
+      exact: true,
+    }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  // By role: the picker placeholder ("Select a project…") contains the same
-  // words as the empty-state title, so a plain text query double-matches.
+  await page.keyboard.press('Escape');
   await expect(
     page.getByRole('heading', {
       name: t('metrics.projects.emptyTitle'),
