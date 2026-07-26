@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TaskRow } from '../components/task-card';
 import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
 import { useMoveTask } from './mutations';
+import { useTaskStatusChoreography } from './use-task-status-choreography';
 
 export type TaskColumns = Record<TaskStatus, string[]>;
 
@@ -71,6 +72,13 @@ export interface TaskBoardDnd {
  */
 export function useTaskBoardDnd(tasks: TaskRow[]): TaskBoardDnd {
   const moveTask = useMoveTask();
+  // Cross-column drags on automation-owned tasks route through the owning
+  // workflow's choreography (drag to In progress = start, drag out = cancel)
+  // instead of a bare status write. Rows all belong to one org + project.
+  const choreograph = useTaskStatusChoreography(
+    tasks[0]?.organizationId ?? '',
+    tasks[0]?.projectId,
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -211,16 +219,29 @@ export function useTaskBoardDnd(tasks: TaskRow[]): TaskBoardDnd {
       }
 
       // Resolve back to typed task ids via the row map (no unsafe casts).
-      const taskId = byId.get(activeIdStr)?._id;
-      if (!taskId) return;
-      moveTask.mutate({
-        taskId,
-        status: container,
-        beforeTaskId: beforeIdStr ? byId.get(beforeIdStr)?._id : undefined,
-        afterTaskId: afterIdStr ? byId.get(afterIdStr)?._id : undefined,
+      const row = byId.get(activeIdStr);
+      if (!row) return;
+      const move = () =>
+        moveTask.mutate({
+          taskId: row._id,
+          status: container,
+          beforeTaskId: beforeIdStr ? byId.get(beforeIdStr)?._id : undefined,
+          afterTaskId: afterIdStr ? byId.get(afterIdStr)?._id : undefined,
+        });
+      if (origContainer === container) {
+        move();
+        return;
+      }
+      // Cross-column: let the owning automation's choreography interpret the
+      // board verb first. 'move' → the plain write still lands the drop;
+      // 'handled' → the workflow drives the status (keep the optimistic
+      // placement); 'blocked' → snap the card back where it came from.
+      void choreograph(row, container).then((outcome) => {
+        if (outcome === 'move') move();
+        else if (outcome === 'blocked') setColumns(columnsFromProps);
       });
     },
-    [byId, columnsFromProps, moveTask, setColumns],
+    [byId, choreograph, columnsFromProps, moveTask, setColumns],
   );
 
   const onDragCancel = useCallback(() => {

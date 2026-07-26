@@ -642,6 +642,7 @@ automations:
       live ist.
     versionCount: '{count, plural, one {# Version} other {# Versionen}}'
     notDeployed: Nicht live
+    projectBound: Projekt
     loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
     empty:
       title: Noch keine Automatisierungen
@@ -817,6 +818,19 @@ automations:
     testsPassed: Tests bestanden
     testsFailed: Tests fehlgeschlagen
     noMessage: Keine Notiz
+  upload:
+    trigger: Paket hochladen
+    title: Ein Automatisierungs-Paket hochladen
+    description: Die workflow.yml eines Packs (erforderlich) und die automation.yml (optional — ihr subjects-Block wird zum Task-Vertrag). Das Dokument wird vor dem Speichern validiert; die hochgeladene Version bleibt ein Entwurf, bis du sie deployst.
+    filesLabel: Paketdateien
+    filesHelp: Wähle workflow.yml — und automation.yml, wenn das Pack eine mitbringt.
+    targetLabel: Installieren in
+    targetOrg: Organisation
+    targetHelp: Der erste Upload bindet die Automatisierung dauerhaft an diese Oberfläche — eine Organisations-Automatisierung bleibt auf der Org-Seite, eine Projekt-Automatisierung lebt im Automations-Tab des Projekts.
+    submit: Hochladen
+    submitting: Validieren und speichern…
+    uploaded: '{name} v{version} hochgeladen — deploye sie, wenn du bereit bist.'
+    warnings: '{count, plural, one {# Validierungswarnung} other {# Validierungswarnungen}} — öffne die Automatisierung zur Prüfung.'
   runs:
     approval:
       title: 'Wartet auf deine Freigabe: {operation}'
@@ -7446,13 +7460,34 @@ projectSecrets:
       Projekt-Administratoren können sie ansehen oder verwalten.
     PROJECT_NOT_FOUND: Dieses Projekt existiert nicht mehr.
 tasks:
-  startAutomation:
-    run: Automatisierung starten
-    runNamed: '{automation} starten'
-    pick: Automatisierung
-    started: Der Lauf ist gestartet — verfolge ihn im Automations-Tab des Projekts.
+  run:
+    started: Der Lauf ist gestartet — der Workflow steuert den Status dieser Aufgabe ab jetzt.
     alreadyRunning: Für diese Aufgabe läuft bereits ein Lauf.
     notStarted: Der Lauf konnte nicht starten — ist die Automatisierung deployt?
+    cancelled: Der Lauf wurde abgebrochen.
+    missingInput: Lege zuerst die Eingabedateien der Aufgabe ab — der gebundene Ordner ist noch leer.
+    working: '{name} arbeitet an dieser Aufgabe.'
+    viewRun: Lauf ansehen
+  automation:
+    hint: 'Betrieben von {name} — Statusänderungen laufen über dessen Workflow.'
+    will:
+      start: 'Startet den {name}-Lauf.'
+      request_changes: 'Schickt sie mit deinen Kommentaren an {name} zurück.'
+      cancel: 'Bricht zuerst den laufenden {name}-Lauf ab.'
+  inputFiles:
+    title: Eingabedateien
+    empty: Noch keine Dateien — der Lauf liest diesen Ordner; lege die Dokumente des Quartals hier ab.
+    untitled: Ohne Titel
+    uploading: Wird hochgeladen…
+    dropHint: Dateien hier ablegen oder klicken zum Auswählen
+    uploadFailed: Der Upload ist fehlgeschlagen — versuche es erneut.
+  template:
+    blank: Leere Aufgabe
+    nameLabel: Name
+    invalidName: 'Muss dem Muster {pattern} entsprechen.'
+    created: Aufgabe erstellt — lege die Eingabedateien ab und ziehe sie dann auf In Bearbeitung.
+    exists: Für dieses Subjekt existiert bereits eine Aufgabe.
+    setupMissing: 'Der Ordner {folder} fehlt — lege ihn zuerst im Projekt an.'
   attachments:
     label: Anhänge
     add: Anhänge hinzufügen
@@ -8044,7 +8079,6 @@ projects:
     overview: Allgemein
     files: Wissen
     threads: Chats
-    automations: Automatisierungen
     agents: Agenten
     settings: Einstellungen
   list:

@@ -22,10 +22,13 @@ import { listNodeTypesRef } from './backend';
 export function useAutomations(
   organizationId: string,
   projectId?: Id<'projects'>,
+  /** Org page: merge project-pinned automations into the listing. */
+  includeProjectBound?: boolean,
 ) {
   return useConvexQuery(api.automations.queries.listAutomations, {
     organizationId,
     ...(projectId !== undefined && { projectId }),
+    ...(includeProjectBound === true && { includeProjectBound: true }),
   });
 }
 

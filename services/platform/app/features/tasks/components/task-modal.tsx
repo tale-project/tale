@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
@@ -10,7 +11,7 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
-import { Archive, ArchiveRestore, Plus } from 'lucide-react';
+import { Archive, ArchiveRestore, Plus, Workflow } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
@@ -21,10 +22,13 @@ import {
   type FileAttachment,
   useConvexFileUpload,
 } from '@/app/features/shared/files/use-convex-file-upload';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
@@ -39,6 +43,15 @@ import {
 } from '../hooks/mutations';
 import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  plannedTransitionKind,
+  useTaskStatusChoreography,
+} from '../hooks/use-task-status-choreography';
+import {
+  useTaskSubjectContract,
+  useTaskSubjectTemplates,
+  type ResolvedTaskSubjectContract,
+} from '../hooks/use-task-subject-contract';
 import {
   type TaskActorType,
   type TaskPriority,
@@ -56,12 +69,14 @@ import { StatusPicker } from './status-picker';
 import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
+import { TaskAutomationBadge } from './task-automation-badge';
 import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
+import { TaskInputFilesCard } from './task-input-files';
 import { TaskReviewCard } from './task-review-card';
+import { TaskRunCard } from './task-run-card';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
-import { TaskStartAutomation } from './task-start-automation';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskTimeline } from './task-timeline';
 
@@ -227,6 +242,205 @@ function PanelDivider() {
 
 // ───────────────────────────────── Create ─────────────────────────────────
 
+/** Switcher between the blank create form and the board's subject templates
+ *  (contracts with `create.enabled`) — hidden when none is deployed. */
+function TemplateChips({
+  templates,
+  active,
+  onPick,
+}: {
+  templates: ResolvedTaskSubjectContract[];
+  active: string | null;
+  onPick: (slug: string | null) => void;
+}) {
+  const { t } = useT('tasks');
+  if (templates.length === 0) return null;
+  return (
+    <Row gap={2} className="flex-wrap">
+      <Button
+        size="sm"
+        variant={active === null ? 'secondary' : 'ghost'}
+        onClick={() => onPick(null)}
+      >
+        {t('template.blank')}
+      </Button>
+      {templates.map((entry) => (
+        <Button
+          key={entry.automationSlug}
+          size="sm"
+          variant={active === entry.automationSlug ? 'secondary' : 'ghost'}
+          onClick={() => onPick(entry.automationSlug)}
+        >
+          <Workflow className="size-3.5" aria-hidden />
+          {entry.automationSlug}
+        </Button>
+      ))}
+    </Row>
+  );
+}
+
+/** Anchored-regex gate from the contract's `input.naming`. An invalid
+ *  pattern fails OPEN (create proceeds) but logs — a broken contract should
+ *  not brick the create dialog. */
+function matchesNaming(naming: string, value: string): boolean {
+  try {
+    return new RegExp(naming).test(value);
+  } catch (error) {
+    console.warn('[tasks] invalid contract naming pattern', naming, error);
+    return true;
+  }
+}
+
+/**
+ * The one-field template create: the subject's natural key (e.g. a quarter
+ * folder name) is the only input — the contract derives the title, provisions
+ * the bound input folder, and stamps the automation as owner. The run itself
+ * starts later, through the status choreography.
+ */
+function TemplateCreateBody({
+  organizationId,
+  projectId,
+  template,
+  chips,
+  onClose,
+}: {
+  organizationId: string;
+  projectId: Id<'projects'>;
+  template: ResolvedTaskSubjectContract;
+  chips: ReactNode;
+  onClose: () => void;
+}) {
+  const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  const { locale } = useLocale();
+  const createFromTemplate = useConvexAction(
+    api.tasks.public_actions.createTaskFromExternalIssue,
+  );
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const { automationSlug, contract } = template;
+  const { i18n: fieldI18n, ...fieldBase } = contract.create?.field ?? {};
+  const baseLocale = locale.split('-')[0] ?? locale;
+  const text = {
+    ...fieldBase,
+    ...fieldI18n?.[baseLocale],
+    ...fieldI18n?.[locale],
+  };
+  const naming =
+    contract.input?.kind === 'folder' ? contract.input.naming : undefined;
+  const trimmed = name.trim();
+  const nameOk =
+    trimmed.length > 0 &&
+    (naming === undefined || matchesNaming(naming, trimmed));
+  const showInvalid = trimmed.length > 0 && !nameOk && naming !== undefined;
+
+  const submit = async () => {
+    if (!nameOk || submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await createFromTemplate.mutateAsync({
+        organizationId,
+        projectId,
+        externalSystem: contract.externalSystem ?? automationSlug,
+        ...(contract.input?.kind === 'folder'
+          ? {
+              ensureFolder: {
+                name: trimmed,
+                ...(contract.input.setupFolderName !== undefined && {
+                  setupFolderName: contract.input.setupFolderName,
+                }),
+              },
+            }
+          : { externalId: trimmed }),
+        title:
+          contract.create?.titleTemplate?.replace('{name}', trimmed) ?? trimmed,
+        ...(contract.create?.description !== undefined && {
+          description: contract.create.description,
+        }),
+        automationSlug,
+      });
+      toast({
+        title: result.created ? t('template.created') : t('template.exists'),
+        variant: result.created ? 'success' : undefined,
+      });
+      onClose();
+    } catch (error) {
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'SETUP_FOLDER_MISSING'
+      ) {
+        toast({
+          title: t('template.setupMissing', {
+            folder: contract.input?.setupFolderName ?? '',
+          }),
+          variant: 'destructive',
+        });
+      } else {
+        console.error('[tasks] template create failed', error);
+        toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      }
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalLayout
+      header={
+        <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
+          {t('actions.create')}
+        </ResponsiveDialogTitle>
+      }
+      main={
+        <>
+          {chips}
+          <Input
+            id="task-template-name"
+            label={text.label ?? t('template.nameLabel')}
+            placeholder={text.placeholder}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={submitting}
+            autoFocus
+            required
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+          />
+          {(showInvalid || text.help !== undefined) && (
+            <Text as="p" variant="muted">
+              {showInvalid
+                ? t('template.invalidName', { pattern: naming ?? '' })
+                : text.help}
+            </Text>
+          )}
+        </>
+      }
+      panel={
+        <Text as="p" variant="muted">
+          {t('automation.hint', { name: automationSlug })}
+        </Text>
+      }
+      footer={
+        <Row gap={2} justify="end">
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>
+            {tCommon('actions.cancel')}
+          </Button>
+          <Button
+            onClick={() => void submit()}
+            disabled={submitting || !nameOk}
+          >
+            {t('actions.create')}
+          </Button>
+        </Row>
+      }
+    />
+  );
+}
+
 function CreateTaskBody({
   organizationId,
   projectId,
@@ -241,6 +455,12 @@ function CreateTaskBody({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const createTask = useCreateTask();
+  // Subject templates ("new quarter"): contracts with `create.enabled` offer
+  // a one-field create beside the blank form.
+  const templates = useTaskSubjectTemplates(organizationId, projectId);
+  const [templateSlug, setTemplateSlug] = useState<string | null>(null);
+  const activeTemplate =
+    templates.find((entry) => entry.automationSlug === templateSlug) ?? null;
   const { attachments, uploadingFiles, uploadFiles, removeAttachment } =
     useConvexFileUpload({
       organizationId,
@@ -288,6 +508,26 @@ function CreateTaskBody({
     }
   };
 
+  const chips = (
+    <TemplateChips
+      templates={templates}
+      active={activeTemplate?.automationSlug ?? null}
+      onPick={setTemplateSlug}
+    />
+  );
+
+  if (activeTemplate !== null) {
+    return (
+      <TemplateCreateBody
+        organizationId={organizationId}
+        projectId={projectId}
+        template={activeTemplate}
+        chips={chips}
+        onClose={onClose}
+      />
+    );
+  }
+
   return (
     <ModalLayout
       header={
@@ -297,6 +537,7 @@ function CreateTaskBody({
       }
       main={
         <>
+          {chips}
           <Input
             id="task-title"
             label={t('fields.title')}
@@ -430,6 +671,13 @@ function EditTaskBody({
 
   const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
+  // Status verbs on an automation-owned task route through the owning
+  // workflow's choreography; a plain task keeps the bare write.
+  const choreograph = useTaskStatusChoreography(
+    task?.organizationId ?? '',
+    task?.projectId,
+  );
+  const ownedBy = useTaskSubjectContract(task?.organizationId ?? '', task);
   const assignTask = useAssignTask();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
@@ -589,14 +837,30 @@ function EditTaskBody({
               )}
             </section>
 
-            <TaskAttachments
-              attachments={task.attachments ?? []}
-              uploadingFiles={uploadingFiles}
-              canEdit={canMutate}
-              organizationId={task.organizationId}
-              onUpload={onUploadAttachments}
-              onRemove={onRemoveAttachment}
-            />
+            {ownedBy !== null && (
+              <TaskRunCard organizationId={task.organizationId} task={task} />
+            )}
+
+            {ownedBy !== null &&
+            ownedBy.contract.input?.kind === 'folder' &&
+            typeof task.externalId === 'string' &&
+            task.externalId !== '' ? (
+              <TaskInputFilesCard
+                organizationId={task.organizationId}
+                projectId={task.projectId}
+                folderId={toId<'folders'>(task.externalId)}
+                canEdit={canMutate}
+              />
+            ) : (
+              <TaskAttachments
+                attachments={task.attachments ?? []}
+                uploadingFiles={uploadingFiles}
+                canEdit={canMutate}
+                organizationId={task.organizationId}
+                onUpload={onUploadAttachments}
+                onRemove={onRemoveAttachment}
+              />
+            )}
 
             <Stack as="section" gap={2}>
               <Row gap={2}>
@@ -708,24 +972,46 @@ function EditTaskBody({
         }
         panel={
           <>
+            {ownedBy !== null && (
+              <TaskAutomationBadge
+                organizationId={task.organizationId}
+                task={task}
+                showName
+              />
+            )}
             <PropertyField label={t('fields.status')}>
               <StatusPicker
                 status={task.status}
                 disabled={!canMutate}
                 align="end"
+                optionDescription={
+                  ownedBy === null
+                    ? undefined
+                    : (option) => {
+                        const kind = plannedTransitionKind(
+                          ownedBy.contract,
+                          task.status,
+                          option,
+                          task.status === 'in_progress',
+                        );
+                        return kind === null
+                          ? undefined
+                          : t(`automation.will.${kind}`, {
+                              name: ownedBy.automationSlug,
+                            });
+                      }
+                }
                 onChange={(status) =>
-                  void updateStatus
-                    .mutateAsync({ taskId: task._id, status })
-                    .catch(onMutationError)
+                  void (async () => {
+                    const outcome = await choreograph(task, status);
+                    if (outcome !== 'move') return;
+                    await updateStatus
+                      .mutateAsync({ taskId: task._id, status })
+                      .catch(onMutationError);
+                  })()
                 }
               />
             </PropertyField>
-            <TaskStartAutomation
-              organizationId={task.organizationId}
-              projectId={task.projectId}
-              taskId={task._id}
-              disabled={!canMutate}
-            />
             <PropertyField label={t('fields.priority')}>
               <PriorityPicker
                 priority={task.priority ?? null}

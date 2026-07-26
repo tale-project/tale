@@ -640,6 +640,7 @@ automations:
       qui est en service.
     versionCount: '{count, plural, one {# version} other {# versions}}'
     notDeployed: Pas en service
+    projectBound: Projet
     loadFailed: 'Impossible de charger les automatisations : {error}'
     empty:
       title: Aucune automatisation pour l’instant
@@ -815,6 +816,19 @@ automations:
     testsPassed: Tests réussis
     testsFailed: Tests en échec
     noMessage: Aucune note
+  upload:
+    trigger: Téléverser un paquet
+    title: Téléverser un paquet d'automatisation
+    description: "Le workflow.yml d'un pack (requis) et l'automation.yml (optionnel — son bloc subjects devient le contrat de tâches). Le document est validé avant tout enregistrement ; la version téléversée reste un brouillon jusqu'au déploiement."
+    filesLabel: Fichiers du paquet
+    filesHelp: 'Choisis workflow.yml — et automation.yml si le pack en fournit un.'
+    targetLabel: Installer dans
+    targetOrg: Organisation
+    targetHelp: "Le premier téléversement lie définitivement l'automatisation à cette surface — une automatisation d'organisation reste sur la page de l'org, une automatisation de projet vit dans l'onglet Automatisations du projet."
+    submit: Téléverser
+    submitting: Validation et enregistrement…
+    uploaded: '{name} v{version} téléversé — déploie-la quand tu es prêt.'
+    warnings: "{count, plural, one {# avertissement de validation} other {# avertissements de validation}} — ouvre l'automatisation pour vérifier."
   runs:
     approval:
       title: 'En attente de ton approbation : {operation}'
@@ -7557,13 +7571,34 @@ projectSecrets:
       administrateurs du projet peuvent les consulter ou les gérer.
     PROJECT_NOT_FOUND: Ce projet n'existe plus.
 tasks:
-  startAutomation:
-    run: Démarrer l'automatisation
-    runNamed: 'Démarrer {automation}'
-    pick: Automatisation
-    started: L'exécution a démarré — suis-la dans l'onglet Automatisations du projet.
+  run:
+    started: "L'exécution a démarré — le workflow pilote désormais le statut de cette tâche."
     alreadyRunning: Une exécution est déjà en cours pour cette tâche.
     notStarted: "L'exécution n'a pas pu démarrer — l'automatisation est-elle déployée ?"
+    cancelled: "L'exécution a été annulée."
+    missingInput: "Dépose d'abord les fichiers d'entrée de la tâche — le dossier lié est encore vide."
+    working: '{name} travaille sur cette tâche.'
+    viewRun: "Voir l'exécution"
+  automation:
+    hint: 'Opérée par {name} — les changements de statut passent par son workflow.'
+    will:
+      start: "Démarre l'exécution {name}."
+      request_changes: 'La renvoie à {name} avec tes commentaires.'
+      cancel: "Annule d'abord l'exécution {name} en cours."
+  inputFiles:
+    title: "Fichiers d'entrée"
+    empty: "Aucun fichier pour l'instant — l'exécution lit ce dossier ; dépose ici les documents du trimestre."
+    untitled: Sans titre
+    uploading: Téléversement…
+    dropHint: Dépose des fichiers ici, ou clique pour parcourir
+    uploadFailed: Le téléversement a échoué — réessaie.
+  template:
+    blank: Tâche vierge
+    nameLabel: Nom
+    invalidName: 'Doit correspondre au motif {pattern}.'
+    created: "Tâche créée — dépose les fichiers d'entrée, puis passe-la à En cours."
+    exists: Une tâche existe déjà pour ce sujet.
+    setupMissing: "Le dossier {folder} est manquant — crée-le d'abord dans le projet."
   attachments:
     label: Pièces jointes
     add: Ajouter des pièces jointes
@@ -8154,7 +8189,6 @@ projects:
     overview: Général
     files: Connaissances
     threads: Chats
-    automations: Automatisations
     agents: Agents
     settings: Paramètres
   list:

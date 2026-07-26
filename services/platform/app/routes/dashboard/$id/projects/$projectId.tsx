@@ -129,16 +129,11 @@ function ProjectDetailLayout() {
       // Bound automations' views as first-class tabs (1 view = 1 tab) —
       // the operator surfaces, ahead of the management tabs below.
       ...viewTabs,
-      // The project's own automations. With the views subsystem retired
-      // (viewTabs is empty until #2709 returns) and the org Automations page
-      // listing org-scoped automations only, this tab is the ONE reachable
-      // entry to a project-pinned automation — without it the list route
-      // exists but nothing links there.
-      {
-        label: t('navigation.automations'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/automations`,
-        matchMode: 'exact',
-      },
+      // No Automations tab: project-side, TASKS are the automation interface
+      // (status verbs run the workflow; approvals and input files live in the
+      // task modal). Admin surfaces stay reachable — the org Automations page
+      // lists project-pinned automations too and links into the project-
+      // scoped routes, which this shell still mounts.
       {
         label: t('navigation.agents'),
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,

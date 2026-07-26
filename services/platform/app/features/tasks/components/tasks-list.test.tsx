@@ -29,6 +29,16 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
 }));
 
+// The contract/choreography hooks reach Convex (provider-backed); the board
+// render tests care about lanes and rows, so stub them at the module seam.
+vi.mock('../hooks/use-task-status-choreography', () => ({
+  useTaskStatusChoreography: () => async () => 'move',
+}));
+
+vi.mock('../hooks/use-task-subject-contract', () => ({
+  useTaskSubjectContract: () => null,
+}));
+
 function makeTask(
   title: string,
   status: TaskRow['status'],

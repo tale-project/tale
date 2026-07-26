@@ -608,6 +608,7 @@ automations:
       live.
     versionCount: '{count, plural, one {# version} other {# versions}}'
     notDeployed: Not deployed
+    projectBound: Project
     loadFailed: 'Automations could not be loaded: {error}'
     empty:
       title: No automations yet
@@ -779,6 +780,19 @@ automations:
     testsPassed: Tests passed
     testsFailed: Tests failed
     noMessage: No message
+  upload:
+    trigger: Upload package
+    title: Upload an automation package
+    description: A pack's workflow.yml (required) and automation.yml (optional — its subjects block becomes the task contract). The document is validated before anything is stored, and the uploaded version stays a draft until you deploy it.
+    filesLabel: Package files
+    filesHelp: Pick workflow.yml — and automation.yml when the pack ships one.
+    targetLabel: Install into
+    targetOrg: Organization
+    targetHelp: The first upload pins the automation to this surface for good — an organization automation stays on the org page, a project automation lives on that project's Automations tab.
+    submit: Upload
+    submitting: Validating and saving…
+    uploaded: 'Uploaded {name} v{version} — deploy it when ready.'
+    warnings: '{count, plural, one {# validation warning} other {# validation warnings}} — open the automation to review.'
   runs:
     approval:
       title: 'Waiting for your approval: {operation}'
@@ -5130,7 +5144,6 @@ projects:
     overview: General
     files: Knowledge
     threads: Chats
-    automations: Automations
     agents: Agents
     settings: Settings
   list:
@@ -7443,13 +7456,34 @@ projectSecrets:
       administrators can view or manage them.
     PROJECT_NOT_FOUND: This project no longer exists.
 tasks:
-  startAutomation:
-    run: Start automation
-    runNamed: 'Start {automation}'
-    pick: Automation
-    started: The run has started — follow it on the project's Automations tab.
+  run:
+    started: The run has started — the workflow drives this task's status from here.
     alreadyRunning: A run for this task is already in flight.
     notStarted: The run could not start — is the automation deployed?
+    cancelled: The run was cancelled.
+    missingInput: Add the task's input files first — the folder this task is bound to is still empty.
+    working: '{name} is working on this task.'
+    viewRun: View the run
+  automation:
+    hint: 'Operated by {name} — status changes route through its workflow.'
+    will:
+      start: 'Starts the {name} run.'
+      request_changes: 'Sends it back to {name} with your comments.'
+      cancel: 'Cancels the running {name} run first.'
+  inputFiles:
+    title: Input files
+    empty: No files yet — the run reads this folder; drop the quarter's documents here.
+    untitled: Untitled
+    uploading: Uploading…
+    dropHint: Drop files here, or click to browse
+    uploadFailed: The upload failed — try again.
+  template:
+    blank: Blank task
+    nameLabel: Name
+    invalidName: 'Must match the pattern {pattern}.'
+    created: Task created — add its input files, then move it to In progress.
+    exists: A task for this subject already exists.
+    setupMissing: 'The {folder} folder is missing — create it in the project first.'
   attachments:
     label: Attachments
     add: Add attachments

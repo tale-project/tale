@@ -6,6 +6,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
+// The org listing resolves project names for its project chips; the link
+// tests only assert hrefs, so stub the provider-backed projects hook.
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjects: () => ({ projects: [], isLoading: false }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,

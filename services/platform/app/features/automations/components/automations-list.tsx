@@ -7,10 +7,16 @@ import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Link } from '@tanstack/react-router';
-import { CheckCircle2, CircleDashed, Workflow } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleDashed,
+  FolderKanban,
+  Workflow,
+} from 'lucide-react';
 import { useId } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
@@ -19,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
 import { NewAutomationDialog } from './new-automation-dialog';
+import { UploadAutomationDialog } from './upload-automation-dialog';
 
 function ListLoading() {
   return (
@@ -55,7 +62,18 @@ export function AutomationsList({
   const { t } = useT('automations');
   const headingId = useId();
   const ability = useAbility();
-  const automationsQuery = useAutomations(organizationId, projectId);
+  // The org page lists EVERY automation — project-pinned rows carry a chip
+  // and link into their project — since project navigation has no
+  // Automations tab (tasks are the project-side interface).
+  const automationsQuery = useAutomations(
+    organizationId,
+    projectId,
+    projectId === undefined,
+  );
+  const { projects } = useProjects(organizationId);
+  const projectNames = new Map<string, string>(
+    projects.map((project) => [project._id, project.name]),
+  );
   // Mirrors the backend gate: authoring is an owner/admin/developer act
   // (`requireOrgAdminOrDeveloper`), so nobody else gets a button that can
   // only fail server-side.
@@ -75,10 +93,16 @@ export function AutomationsList({
           description={t('list.description')}
           action={
             canAuthor ? (
-              <NewAutomationDialog
-                organizationId={organizationId}
-                {...(projectId !== undefined && { projectId })}
-              />
+              <div className="flex items-center gap-2">
+                <UploadAutomationDialog
+                  organizationId={organizationId}
+                  {...(projectId !== undefined && { projectId })}
+                />
+                <NewAutomationDialog
+                  organizationId={organizationId}
+                  {...(projectId !== undefined && { projectId })}
+                />
+              </div>
             ) : undefined
           }
         />
@@ -118,12 +142,13 @@ export function AutomationsList({
                   'deployedVersion' in automation
                     ? automation.deployedVersion
                     : undefined;
-                const linkTarget = projectId
+                const rowProjectId = projectId ?? automation.projectId;
+                const linkTarget = rowProjectId
                   ? {
                       to: '/dashboard/$id/projects/$projectId/automations/$automationSlug' as const,
                       params: {
                         id: organizationId,
-                        projectId,
+                        projectId: rowProjectId,
                         automationSlug: automationSlugToParam(automation.name),
                       },
                     }
@@ -143,6 +168,13 @@ export function AutomationsList({
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">
                         {automation.name}
                       </span>
+                      {projectId === undefined &&
+                        automation.projectId !== undefined && (
+                          <Badge variant="blue" icon={FolderKanban}>
+                            {projectNames.get(automation.projectId) ??
+                              t('list.projectBound')}
+                          </Badge>
+                        )}
                       <Badge variant="slate">
                         {t('list.versionCount', { count: automation.latest })}
                       </Badge>
