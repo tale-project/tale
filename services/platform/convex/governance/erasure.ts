@@ -764,7 +764,6 @@ const perCategoryValidator = v.object({
   taskSubscriptions: rowsAndHoldValidator,
   taskReviewDecisions: rowsAndHoldValidator,
   wfExecutions: rowsAndHoldValidator,
-  promptTemplates: rowsAndHoldValidator,
 });
 
 export const finalizeProcessing = internalMutation({
@@ -873,13 +872,10 @@ export const finalizeProcessing = internalMutation({
       ragDocumentsRemoved:
         (row.ragDocumentsRemoved ?? 0) + args.ragDocumentsRemoved,
       documentsErased: (row.documentsErased ?? 0) + (args.documentsErased ?? 0),
-      // wfExecutions / promptTemplates totals derived from perCategory.
+      // wfExecutions totals derived from perCategory.
       wfExecutionsErased:
         (row.wfExecutionsErased ?? 0) +
         (args.perCategory?.wfExecutions.rows ?? 0),
-      promptTemplatesErased:
-        (row.promptTemplatesErased ?? 0) +
-        (args.perCategory?.promptTemplates.rows ?? 0),
       documentsSkippedByHold:
         documentsSkippedByHold > 0 ? documentsSkippedByHold : undefined,
       errorMessage: args.errorMessage,
@@ -1756,42 +1752,6 @@ export const eraseSubjectWfExecutions = internalMutation({
   },
 });
 
-/**
- * H7 — personal-scope `promptTemplates` authored by the subject. Team
- * and global templates are organisational artifacts and stay; only
- * `scope === 'personal'` rows are subject-private content.
- */
-export const eraseSubjectPromptTemplates = internalMutation({
-  args: { organizationId: v.string(), userId: v.string() },
-  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
-  handler: async (ctx, args) => {
-    const iter = () =>
-      ctx.db
-        .query('promptTemplates')
-        .withIndex('by_org_createdBy', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('createdBy', args.userId),
-        );
-    const guard = await countOrSkip(ctx, args.organizationId, args.userId, () =>
-      (async function* () {
-        for await (const row of iter()) {
-          if (row.scope === 'personal') yield row;
-        }
-      })(),
-    );
-    if (guard.heldByOrgOrUser)
-      return { rows: 0, skippedByHold: guard.skippedByHold };
-    let rows = 0;
-    for await (const row of iter()) {
-      if (row.scope !== 'personal') continue;
-      await ctx.db.delete(row._id);
-      rows++;
-    }
-    return { rows, skippedByHold: 0 };
-  },
-});
-
 export const eraseSubjectLoginAttempts = internalMutation({
   // Tables are email-keyed and global, but the GDPR request is org-scoped.
   // Re-read holds for the requesting org so a mid-flight hold blocks this
@@ -1907,7 +1867,6 @@ export const processErasureRequest = internalAction({
       taskSubscriptions: { rows: 0, skippedByHold: 0 },
       taskReviewDecisions: { rows: 0, skippedByHold: 0 },
       wfExecutions: { rows: 0, skippedByHold: 0 },
-      promptTemplates: { rows: 0, skippedByHold: 0 },
     };
     let errorMessage: string | undefined;
 
@@ -2169,16 +2128,9 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
-      // H7: subject's workflow executions and personal prompts.
+      // H7: subject's workflow executions.
       perCategory.wfExecutions = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectWfExecutions,
-        {
-          organizationId: state.organizationId,
-          userId: state.targetUserId,
-        },
-      );
-      perCategory.promptTemplates = await ctx.runMutation(
-        internal.governance.erasure.eraseSubjectPromptTemplates,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
@@ -2286,7 +2238,6 @@ interface PerCategoryCounts {
   taskSubscriptions: RowsAndHold;
   taskReviewDecisions: RowsAndHold;
   wfExecutions: RowsAndHold;
-  promptTemplates: RowsAndHold;
 }
 
 // =============================================================================

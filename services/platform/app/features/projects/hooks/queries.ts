@@ -19,12 +19,23 @@ export function useProjectExternalAgents(organizationId: string) {
   );
 }
 
-/** The org's skills + enabled connectors a project can bind to an agent. */
-export function useProjectCapabilityCatalog(organizationId: string) {
+/**
+ * The skills + enabled connectors THIS PROJECT's agents can equip. Resolved
+ * with the project's own visibility — org-wide skills plus team skills
+ * shared with the project's teams — never with the configuring member's, so
+ * an agent can only ever be equipped with what every project member's runs
+ * may stage.
+ */
+export function useProjectCapabilityCatalog(
+  organizationId: string,
+  projectId: Id<'projects'> | undefined,
+) {
   return useActionQuery(
-    ['projects', 'capability-catalog', organizationId],
-    api.chat.composer.listComposerCapabilities,
-    { organizationId },
+    ['projects', 'capability-catalog', organizationId, projectId ?? ''],
+    api.chat.composer.listProjectCapabilities,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `enabled` below skips the query while projectId is undefined
+    { organizationId, projectId: projectId as Id<'projects'> },
+    { enabled: projectId !== undefined },
   );
 }
 

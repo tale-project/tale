@@ -15,7 +15,6 @@ import {
   Users,
   UsersRound,
   Variable,
-  Wand2,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -71,20 +70,14 @@ export function useSettingsMenuGroups(
       },
     ];
 
-    // Order mirrors the desktop rail: who we are (organization, members,
-    // teams), then what the workspace runs on (providers, skills,
-    // integrations), then the rest.
+    // Order mirrors the desktop rail: who we are (organization, teams,
+    // members), then what the workspace runs on (providers, integrations),
+    // then the rest.
     const organizationConfig: SectionConfig[] = [
       {
         key: 'organization',
         icon: Building2,
         path: 'organization',
-        can: ['read', 'orgSettings'],
-      },
-      {
-        key: 'members',
-        icon: UsersRound,
-        path: 'members',
         can: ['read', 'orgSettings'],
       },
       {
@@ -94,15 +87,15 @@ export function useSettingsMenuGroups(
         can: ['read', 'orgSettings'],
       },
       {
+        key: 'members',
+        icon: UsersRound,
+        path: 'members',
+        can: ['read', 'orgSettings'],
+      },
+      {
         key: 'providers',
         icon: Sparkles,
         path: 'providers',
-        can: ['read', 'developerSettings'],
-      },
-      {
-        key: 'skills',
-        icon: Wand2,
-        path: 'skills',
         can: ['read', 'developerSettings'],
       },
       {

@@ -459,3 +459,69 @@ describe('Composer accessibility', () => {
     ).toBeEnabled();
   });
 });
+
+describe('Composer slash command', () => {
+  const SLASH_SKILLS: ComposerCapabilityOption[] = [
+    { slug: 'pdf', label: 'pdf', description: 'Work with PDFs' },
+    { slug: 'write-docs', label: 'write-docs' },
+    { slug: 'agent-only', label: 'agent-only', usageMode: 'agent' },
+  ];
+
+  it('opens a listbox of chat-usable skills when the message starts with /', async () => {
+    const { user } = renderComposer({ skills: SLASH_SKILLS });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    await user.type(field, '/');
+
+    const listbox = screen.getByRole('listbox');
+    const options = screen.getAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual([
+      expect.stringContaining('/pdf'),
+      expect.stringContaining('/write-docs'),
+    ]);
+    // The field takes the combobox contract only while the menu is open.
+    expect(screen.getByRole('combobox')).toHaveAttribute(
+      'aria-controls',
+      listbox.id,
+    );
+  });
+
+  it('completes the highlighted skill on Enter without sending', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({ skills: SLASH_SKILLS, onSend });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    await user.type(field, '/w');
+    await user.keyboard('{Enter}');
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(field).toHaveValue('/write-docs ');
+    // The token is complete, so the menu is gone and Enter sends again.
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('closes on Escape and sends the raw text verbatim', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({ skills: SLASH_SKILLS, onSend });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    await user.type(field, '/p');
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+    // Typing on re-arms the menu; the space after the token retires it for
+    // good, so Enter is a plain send of exactly what was typed.
+    await user.type(field, 'df extract the tables');
+    await user.keyboard('{Enter}');
+    expect(onSend).toHaveBeenCalledWith('/pdf extract the tables');
+  });
+
+  it('never opens mid-text', async () => {
+    const { user } = renderComposer({ skills: SLASH_SKILLS });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    await user.type(field, 'see /pdf');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+});

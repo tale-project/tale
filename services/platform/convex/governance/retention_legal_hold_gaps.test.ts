@@ -226,11 +226,6 @@ describe('retention mutations thread the right authorUserId (source-grep regress
     const body = bodyOf('deleteExpiredUsageLedgerRow');
     expect(body).toMatch(/authorUserId:\s*row\.userId/);
   });
-
-  it('deleteExpiredPromptTemplate cascades through row.createdBy', () => {
-    const body = bodyOf('deleteExpiredPromptTemplate');
-    expect(body).toMatch(/authorUserId:\s*row\.createdBy/);
-  });
 });
 
 describe('retention_cleanup action-layer pre-filters via custodian cascade (source-grep regression)', () => {
@@ -268,11 +263,6 @@ describe('retention_cleanup action-layer pre-filters via custodian cascade (sour
   it('cleanupWorkflowLogs pre-filters via execution.userId', () => {
     const body = bodyOf('cleanupWorkflowLogs');
     expect(body).toMatch(/holds\.userMembershipIds\.has\(execution\.userId\)/);
-  });
-
-  it('cleanupPromptTemplates pre-filters by holds.userMembershipIds via createdBy', () => {
-    const body = bodyOf('cleanupPromptTemplates');
-    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.createdBy\)/);
   });
 });
 

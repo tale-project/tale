@@ -16,8 +16,6 @@ loginAttemptEnabled: true
 loginAttemptRetentionDays: 90
 chatFilterEventsEnabled: false
 chatFilterEventsRetentionDays: 90
-promptTemplatesEnabled: false
-promptTemplatesRetentionDays: 730
 messageFeedbackEnabled: false
 messageFeedbackRetentionDays: 365
 contactsEnabled: false

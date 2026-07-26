@@ -95,19 +95,13 @@ export function SettingsRail({
     if (!showAccountTab) personal.shift();
 
     // Order is the designer's reading sequence: who we are (organization,
-    // members, teams), then what the workspace runs on (providers, skills,
+    // teams, members), then what the workspace runs on (providers,
     // integrations), then the rest.
     const organization: RailItem[] = [
       {
         kind: 'leaf',
         labelKey: 'organization',
         path: 'organization',
-        can: ['read', 'orgSettings'],
-      },
-      {
-        kind: 'leaf',
-        labelKey: 'members',
-        path: 'members',
         can: ['read', 'orgSettings'],
       },
       {
@@ -119,15 +113,14 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
-        labelKey: 'providers',
-        path: 'providers',
-        matchMode: 'startsWith',
-        can: ['read', 'developerSettings'],
+        labelKey: 'members',
+        path: 'members',
+        can: ['read', 'orgSettings'],
       },
       {
         kind: 'leaf',
-        labelKey: 'skills',
-        path: 'skills',
+        labelKey: 'providers',
+        path: 'providers',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
       },

@@ -1,97 +1,111 @@
 ---
 title: Bibliothèque de skills
-description: La bibliothèque de skills de l'organisation — des bundles de fichiers que n'importe quel agent lit à l'exécution, gardés privés ou partagés par un seul champ.
+description: La bibliothèque de skills dans le composer du chat — des bundles de fichiers que chaque chat et chaque agent lisent, créés par n'importe quel membre et partagés en privé, avec des équipes ou avec toute l'organisation.
 ---
 
-Un skill est une consigne que tu écris une fois et que chaque conversation et chaque agent peuvent ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. C'est sous **Paramètres > Skills** que tu parcours et lis ces bundles. La bibliothèque est en lecture seule à dessein : un bundle arrive et change par téléversement de paquet, jamais par une modification sur place — ce que tu lis ici est exactement ce qui a été livré. Supprimer un skill demande des droits Admin ou Developer.
+Un skill est une consigne que tu écris une fois et que chaque conversation et chaque agent peuvent ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. La **Bibliothèque de skills** est l'endroit où tu crées, téléverses et entretiens ces bundles. Tu l'ouvres depuis le composer du chat : le menu **+**, puis **Bibliothèque de skills**. Chaque membre peut créer des skills ; ce que tu peux modifier se décide bundle par bundle.
 
-Cette page explique ce qu'est un skill, de quel fichier il est fait, qui a le droit de le voir, et comment il arrive, se remplace et se retire. Le versant agent est sur [Skills d'agent](/fr/platform/agents/skills) : lis-le dès qu'un agent précis doit aller chercher un bundle précis.
+Cette page couvre ce qu'est un skill, le fichier dont il est fait, qui le voit, et comment tu en ajoutes ou en retires un. Lis le côté agent sur [Les skills sur les agents](/fr/platform/agents/skills) dès qu'un agent — ou un seul message de chat — doit aller chercher un bundle précis.
 
-## Ce qu'un skill est, et ce qu'il n'est pas
+## Ce qu'est un skill, et ce qu'il n'est pas
 
-Un skill est un **paquet de connaissances**. Son corps est une consigne qu'un modèle lit quand le travail l'appelle : une voix rédactionnelle maison, une checklist que ton équipe suit, la façon dont ton organisation formule un refus. Un modèle repère le bundle à sa description, déplie le corps quand cette description colle à la tâche, puis ouvre les fichiers du bundle là où le corps y renvoie.
+Un skill est un **paquet de connaissances**. Son corps est une consigne qu'un modèle lit quand le travail le demande : une voix maison pour l'écriture, une checklist que ton équipe suit, la façon dont ton organisation formule un refus. Un modèle trouve le bundle par sa description, lit le corps quand cette description correspond à la tâche, et ouvre les fichiers du bundle quand le corps pointe vers eux.
 
-Un skill n'est jamais exécuté. Un bundle ne contient ni point d'entrée, ni commande, ni environnement d'exécution : un fichier sous `scripts/` est de la matière qu'un modèle peut lire et reprendre, pas un programme que Tale lance à ta place. C'est cette frontière qui rend sans risque l'adoption d'un bundle venu d'ailleurs — tu fais entrer dans ton organisation de la prose et des fichiers de référence, rien qui puisse agir de soi-même.
+Un skill n'est jamais quelque chose que la plateforme exécute. Un bundle n'a ni point d'entrée, ni commande, ni runtime — un fichier sous `scripts/` est du matériel qu'un modèle peut lire et adapter, pas un programme que Tale lance pour toi. C'est cette limite qui rend un bundle acceptable venu de l'extérieur : importer le skill de quelqu'un d'autre apporte à ton organisation de la prose et des fichiers de référence, et rien qui puisse agir tout seul.
 
 ## Le fichier SKILL.md
 
-Chaque bundle contient exactement une `SKILL.md` à sa racine : un bloc de frontmatter YAML, puis le corps de la consigne en markdown.
+Chaque bundle a exactement une `SKILL.md` à sa racine — un frontmatter YAML, puis le corps de la consigne en markdown.
 
 ```markdown
 ---
 name: release-notes
-description: Transforme une liste de changements fusionnés en notes de version dans notre voix maison. À utiliser quand on demande un changelog, des notes de version ou un résumé de ce qui est parti en production.
-visibility: org
+description: Transforme une liste de changements mergés en notes de version dans notre voix maison. À utiliser quand on demande un changelog, des notes de version ou un résumé de ce qui a été livré.
+visibility: team
+teams:
+  - jx7d…
+usage-mode: all
 license: CC-BY-4.0
-recommended-packages:
-  python:
-    - markdown-it-py
 ---
 
-Rédige les notes de version en trois sections — Ajouté, Modifié, Corrigé — et
+Écris les notes de version en trois sections — Added, Changed, Fixed — et
 commence chaque ligne par le verbe...
 ```
 
-Les clés suivent la convention agentskills.io, en kebab-case, et toute clé que Tale ne connaît pas est conservée telle quelle : un bundle écrit pour un autre outil survit donc à une modification et à un enregistrement sans rien perdre.
+Les clés suivent la convention agentskills.io en kebab-case, et toute clé que Tale ne reconnaît pas est conservée telle quelle : un bundle écrit pour un autre outil survit à une édition et un enregistrement sans changer.
 
-| Clé                        | Ce qu'elle porte                                                                                                                                                           |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                     | Le slug, qui doit correspondre au nom du dossier du bundle — minuscules, chiffres et traits d'union simples, 64 caractères au plus. `anthropic` et `claude` sont réservés. |
-| `description`              | Jusqu'à 1024 caractères, et le champ qui décide si un modèle ira chercher le skill. Dis ce qu'il fait et quand il s'applique.                                              |
-| `visibility`               | `private` ou `org`. Absent, cela compte comme `org`.                                                                                                                       |
-| `owner`                    | Le membre à qui appartient le bundle. Obligatoire sur un skill `private` ; sur un skill `org`, c'est une simple attribution.                                               |
-| `license`                  | Texte libre, pour un bundle que tu as importé ou que tu comptes transmettre.                                                                                               |
-| `recommended-packages`     | Des paquets Python ou Node que l'auteur suggère. Purement indicatif — Tale n'installe jamais rien pour le compte d'un skill.                                               |
-| `disable-model-invocation` | À `true`, un modèle ne doit pas aller chercher le skill de lui-même. Il reste disponible pour un rappel explicite.                                                         |
-| `icon` et `labels`         | Un identifiant Iconify et jusqu'à huit puces, pour la carte du skill dans la bibliothèque.                                                                                 |
+| Clé                        | Ce qu'elle porte                                                                                                                                                        |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                     | Le slug, qui doit être égal au nom du dossier du bundle — lettres minuscules, chiffres et tirets simples, 64 caractères au plus. `anthropic` et `claude` sont réservés. |
+| `description`              | Jusqu'à 1024 caractères — le champ qui décide si un modèle va chercher le skill. Dis ce qu'il fait et quand il s'applique.                                              |
+| `visibility`               | `private`, `team` ou `org`. Absente, elle vaut `org`.                                                                                                                   |
+| `teams`                    | Les ids des équipes avec lesquelles un skill `team` est partagé — obligatoire là, rejeté ailleurs. Le sélecteur de partage de la bibliothèque le remplit pour toi.      |
+| `owner`                    | Le membre à qui appartient le bundle. Obligatoire sur un skill `private` ; sur un skill partagé, c'est de l'attribution.                                                |
+| `usage-mode`               | `chat`, `agent` ou `all` (le défaut) : quelles surfaces peuvent équiper le skill — le composer du chat et la commande `/`, les agents et automatisations, ou les deux.  |
+| `license`                  | Texte libre, pour un bundle importé ou que tu comptes transmettre.                                                                                                      |
+| `recommended-packages`     | Des paquets Python ou Node que l'auteur suggère. Purement indicatif — Tale n'installe jamais rien au nom d'un skill.                                                    |
+| `disable-model-invocation` | À `true`, un modèle ne doit pas aller chercher le skill de lui-même. Il reste disponible pour un rappel explicite.                                                      |
+| `icon` et `labels`         | Un id Iconify et jusqu'à huit puces, pour la carte du skill dans la bibliothèque.                                                                                       |
 
-Deux plafonds s'appliquent : le bloc de frontmatter peut monter à 16 Ko, et la `SKILL.md` entière à 512 Ko. Les assets du bundle sortent de ce budget.
+Deux plafonds s'appliquent : le frontmatter peut atteindre 16 Ko, et la `SKILL.md` entière 512 Ko. Les assets du bundle vivent hors de ce budget.
 
-## Qui peut le voir
+## Qui le voit
 
-Le partage tient dans un champ, pas dans une table de permissions. `visibility: private` veut dire que seul l'`owner` du bundle le voit dans la bibliothèque, et c'est pour cela qu'un skill privé doit en nommer un. `visibility: org` veut dire que tous les membres le voient. Il n'y a pas de hiérarchie de portées en dessous : partager un skill, c'est une modification qui bascule `visibility` sur `org`, et le reprendre le remet sur `private`.
+Le partage tient dans un champ, pas dans une table de permissions. `visibility: private` signifie que seul l'`owner` du bundle le voit — c'est pourquoi un skill privé doit en nommer un. `visibility: team` le partage avec les équipes listées sous `teams` ; choisis-les dans la section **Visibilité** de la bibliothèque. `visibility: org` signifie que chaque membre le voit. N'importe quel membre peut partager un skill avec des équipes ou toute l'organisation ; modifier ou supprimer le skill partagé de quelqu'un d'autre demande un admin de l'organisation — et un skill privé ne répond qu'à son propriétaire, même un admin ne le lit pas.
 
 <Note>
 
-Un bundle sans `visibility` du tout compte comme un skill d'organisation. Un bundle non marqué a atterri dans l'arborescence de l'organisation à dessein — un import communautaire, la copie d'un skill livré — et le traiter comme privé le rendrait invisible pour tout le monde d'un coup.
+Un bundle sans aucune `visibility` compte comme un skill d'organisation — un bundle non marqué a été posé dans l'arborescence de l'organisation délibérément, et le traiter comme privé le cacherait à tout le monde d'un coup. La seule exception est un bundle non marqué que tu **téléverses** : il arrive comme ton skill privé, et l'aperçu te le dit avant que tu confirmes.
 
 </Note>
 
-## D'où viennent les skills
+Restreindre le partage d'un skill — d'organisation à équipe, ou retirer une équipe — demande d'abord confirmation : qui perd le skill de vue le perd aussi dans chaque chat et agent qui l'équipait à travers lui.
 
-Chaque organisation démarre avec les skills de documents livrés, et les nouveaux bundles arrivent par téléversement : un paquet d'automatisation téléversé en zip installe les skills qu'il embarque directement dans cette bibliothèque, avec une confirmation devant chaque skill existant qu'il remplacerait. Ce chemin — et la façon dont un paquet déclare ses skills — vit sur [Ajouter des automatisations à ton organisation](/fr/platform/automations/catalog). Rien ne se rédige dans l'app : un bundle s'écrit là où vit son pack, dans des fichiers, et se livre en entier.
+## Ajouter un skill à la bibliothèque
 
-## Remplacer et retirer
+Ouvre le menu **+** dans le composer du chat et choisis **Bibliothèque de skills**. **Ajouter un skill** propose trois points de départ.
 
-Remplacer le contenu d'un bundle passe par ce même téléversement de paquet : un skill embarqué dont le slug existe déjà demande confirmation, puis remplace le bundle entier et garde l'ancien `SKILL.md` dans l'historique du skill. **Supprimer**, sur la page du skill, retire le bundle du disque : chaque agent lié y perd l'accès, et la liaison ne se rabat sur rien.
+<Steps>
 
-<Warning>
+<Step title="Partir de zéro">
 
-Remplacer et supprimer prennent effet immédiatement, et rien ne fige une version. Un agent lié à un skill lit toujours le bundle exactement tel qu'il est à cet instant.
+**Skill vierge** demande un nom — le slug, en lettres minuscules, chiffres et tirets simples — plus la description, le partage et l'usage, et un corps de consigne que tu écris sur place. Un nouveau skill démarre privé, chez toi.
 
-</Warning>
+</Step>
 
-## Ce qu'il y a dans le bundle
+<Step title="Ou téléverser un bundle">
 
-La page du skill affiche **Bundle** — l'arborescence telle qu'elle existe sur le disque, avec la `SKILL.md` épinglée en haut — et chaque fichier cliqué s'ouvre en lecture seule à côté de l'arbre : le code avec coloration syntaxique, le markdown rendu, et un message clair pour une image ou un binaire que le navigateur ne sait pas afficher. La `SKILL.md` elle-même se rend de la même façon — les faits du frontmatter (description, visibilité, labels) au-dessus du corps, exactement tel qu'un modèle le lit. Le skill utile le plus petit tient en un seul fichier, et la plupart grandissent un dossier à la fois.
+**Téléverser un zip** prend un `.zip` avec `SKILL.md` à la racine, à côté de dossiers comme `scripts/`, `references/` ou `assets/` ; **Téléverser un dossier** prend le dossier lui-même et le zippe pour toi. Dans les deux cas, Tale lit le frontmatter avant d'écrire quoi que ce soit et te montre ce qu'il a trouvé — la description, le partage avec lequel le bundle arrivera, la licence et la liste complète des fichiers avec leurs tailles. Tu approuves donc un bundle que tu as réellement vu. Si le slug existe déjà, Tale demande d'abord si tu veux remplacer.
+
+</Step>
+
+<Step title="Écrire le corps">
+
+Ouvre le skill et écris la consigne sous **Instructions (corps)**. C'est le texte que le modèle lit — écris-le comme tu brieferais une collègue : à quoi sert le skill, quand il s'applique, et à quoi ressemble un bon résultat.
+
+</Step>
+
+</Steps>
+
+## Ce que contient le bundle
+
+La vue détaillée d'un skill montre **Bundle** — l'arborescence telle qu'elle existe sur le disque — avec un visualiseur pour chaque fichier que tu cliques. Le plus petit skill utile tient dans un seul fichier ; la plupart grandissent dossier par dossier.
 
 ```text
 release-notes/
 ├── SKILL.md
 ├── references/
-│   └── voix-et-ton.md
+│   └── voice-and-tone.md
 └── scripts/
     └── group-changes.py
 ```
 
-<Frame caption="La page d'un skill — l'arborescence du bundle à gauche, le fichier sélectionné en lecture seule à droite.">
+Garde les assets petits et lisibles. Un texte qu'un modèle ouvre à peu de frais sert ; un gros binaire reste là sans être lu, et le visualiseur dit franchement qu'il ne peut pas l'afficher.
 
-![La page de détail d'un skill avec l'arborescence du bundle, la SKILL.md épinglée, et un fichier de script ouvert dans la visionneuse en lecture seule.](/images/platform/skills-bundle-tree.webp)
+## Retirer un skill
 
-</Frame>
+**Supprimer le skill** dans la vue détaillée retire le bundle du disque ; chaque chat et chaque agent qui l'équipait perd l'accès, sans solution de repli. Il n'y a pas d'épinglage de version — un skill est toujours lu exactement tel qu'il est maintenant, et c'est aussi ce qui le rend précieux : une modification atteint tout le monde.
 
-Garde des assets courts et lisibles. Un texte qu'un modèle ouvre à peu de frais finit par servir ; un gros binaire reste là sans être lu, et la visionneuse te dit franchement qu'elle ne sait pas l'afficher.
+## Où cela s'inscrit
 
-## Où cela se place
-
-La bibliothèque de skills est la forme de réutilisation la plus légère de Tale : un fichier, un champ pour le partage, et rien à tenir synchronisé entre les personnes concernées. C'est là qu'une formulation que tu retapes sans arrêt cesse d'être quelque chose que tu retapes. Une fois le bundle en bibliothèque, il ne reste qu'à décider quel agent ira le chercher : c'est [Skills d'agent](/fr/platform/agents/skills), qui couvre la liaison, le plafond par agent et le chemin d'un bundle jusqu'à une sandbox.
+La bibliothèque de skills est la réutilisation la plus légère que Tale offre : un fichier, un champ pour le partage, rien à garder synchronisé entre les personnes qui en ont besoin. C'est là qu'une formulation que tu retapes sans arrêt cesse d'être quelque chose que tu retapes. Une fois le bundle dans la bibliothèque, reste à décider où il sert — c'est [Les skills sur les agents](/fr/platform/agents/skills) : équiper un chat, la commande `/`, les agents de projet et le chemin d'un bundle vers la sandbox.

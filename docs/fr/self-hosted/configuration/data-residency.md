@@ -15,7 +15,7 @@ Cette page couvre ce qui peut être déplacé, le seul prérequis qui mord (Para
 TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-Si l'allowlist est vide ou non définie, les sections de déploiement montrent toujours la configuration actuelle aux administrateurs, mais en lecture seule — Enregistrer, Tester et Appliquer & redémarrer refusent pour tout le monde. Seul un admin connecté dont le courriel figure sur la liste rend ces sections modifiables ; la page t'indique quel courriel ajouter. Les entrypoints consomment le fichier de configuration quelle que soit l'allowlist, donc un opérateur qui préfère éditer le fichier à la main sur le disque peut le faire sans nommer d'éditeurs UI.
+Si l'allowlist est vide ou non définie, les sections de déploiement montrent toujours la configuration actuelle aux administrateurs, mais en lecture seule — les actions d'en-tête **Enregistrer le déploiement** et **Appliquer & redémarrer** n'apparaissent que pour les opérateurs de l'allowlist. Seul un admin connecté dont le courriel figure sur la liste rend ces sections modifiables ; la page t'indique quel courriel ajouter. Les entrypoints consomment le fichier de configuration quelle que soit l'allowlist, donc un opérateur qui préfère éditer le fichier à la main sur le disque peut le faire sans nommer d'éditeurs UI.
 
 ## Ce que tu peux relocaliser
 
@@ -41,12 +41,19 @@ La connexion vit dans le répertoire de configuration propre à l'organisation, 
 
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — hôte, port, base, utilisateur et sslmode.
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — le mot de passe, chiffré avec SOPS dès qu'une clé age SOPS est configurée (voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops)).
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/embedding.json` — le modèle d'embedding de l'organisation : fournisseur, identifiants stockés optionnels, tag du modèle, largeur des vecteurs et URL de base optionnelle compatible OpenAI.
 
 Le même prérequis ParadeDB s'applique. L'org valide sa base candidate avec un test de connexion à l'échelle de l'organisation qui signale la disponibilité de `pgvector` et `pg_search` avant de basculer ; une cible avec seulement pgvector réduit la recherche de cette org au vectoriel seul. La base peut démarrer vide — Tale crée les schémas `private_knowledge` et `public_web` au premier accès, tu n'appliques donc jamais les migrations de base à la main.
 
 Ce chemin retombe sans risque. Une organisation sans `connection.json` garde le `knowledge-db` par défaut du déploiement exactement comme avant, la fonctionnalité ne change donc rien pour les orgs qui n'y adhèrent pas. Deux organisations qui pointent vers la même base partagent un seul pool de connexions et — contrairement aux banques au niveau du déploiement — un changement par org ne demande aucun redémarrage de conteneur : la prochaine requête de cette org est routée vers sa propre base.
 
 Un propriétaire ou un admin de l'organisation peut aussi gérer cette connexion depuis l'UI : les sections par organisation de **Paramètres > Résidence des données** lisent et écrivent exactement ces fichiers, avec le même test de connexion avant de basculer. Ces sections restent modifiables pour un propriétaire ou un admin d'org, que l'allowlist d'opérateurs les nomme ou non, parce que les fichiers qu'elles touchent appartiennent à l'organisation et non au déploiement. Les fichiers JSON sur le disque restent la source de vérité — un opérateur qui préfère les éditer à la main n'a besoin d'aucune étape UI.
+
+### Le modèle d'embedding de l'organisation
+
+La recherche de connaissances demande un réglage de plus par organisation avant de pouvoir tourner : le **modèle d'embedding** — quel fournisseur et quel modèle transforment documents et requêtes en vecteurs, et à quelle largeur exacte. Sans lui, l'indexation et la recherche refusent avec une erreur actionnable plutôt que de deviner un modèle. Règle-le dans la section **Modèle d'embedding** de **Paramètres > Résidence des données** (ou écris `embedding.json` à la main) : choisis un fournisseur pour lequel des identifiants sont stockés, nomme le tag du modèle comme le fournisseur l'écrit, et déclare la largeur que produit le modèle — elle n'est jamais déduite du nom du modèle, parce qu'une mauvaise supposition écrit des vecteurs que la recherche ne peut silencieusement plus exploiter.
+
+La largeur est fixée **par base de données** à l'écriture du premier vecteur. Sur le `knowledge-db` partagé du déploiement, toutes les organisations doivent donc s'accorder sur une largeur ; une organisation qui veut un autre modèle d'embedding à une autre largeur est exactement le cas de la base de connaissances dédiée ci-dessus.
 
 ## Stockage d'objets par organisation
 
@@ -65,9 +72,11 @@ Les admins d'org gèrent aussi cette connexion dans les mêmes sections par orga
 
 ### Déplacer les fichiers pré-existants dans le bucket
 
-Connecter le bucket ne réachemine que les **nouveaux** téléversements ; les blobs écrits avant la connexion restent dans le `_storage` de Convex et continuent de fonctionner via les références mixtes ci-dessus. Pour amener aussi cet historique sur ta propre infrastructure — tout l'intérêt de la résidence des données — lance le **backfill de blobs** : une action d'opérateur qui copie chaque blob pré-existant dans le bucket de l'org, vérifie qu'il revient identique octet pour octet, réécrit chaque ligne qui le référence et supprime la copie Convex.
+Connecter le bucket ne réachemine que les **nouveaux** téléversements ; les blobs écrits avant la connexion restent dans le `_storage` de Convex et continuent de fonctionner via les références mixtes ci-dessus. Pour amener aussi cet historique sur ta propre infrastructure — tout l'intérêt de la résidence des données — lance le **backfill de blobs** : il copie chaque blob pré-existant dans le bucket de l'org, vérifie qu'il revient identique octet pour octet, réécrit chaque ligne qui le référence et supprime la copie Convex.
 
-Lance-le depuis un shell ayant accès à la CLI Convex, en passant l'id de l'organisation. Fais d'abord un essai à blanc pour voir ce qui serait déplacé, puis le vrai lancement :
+Un admin d'org le lance depuis l'UI : une fois la connexion au bucket enregistrée, la section Stockage d'objets de **Paramètres > Résidence des données** affiche **Déplacer les fichiers existants** — confirme, et le déplacement tourne en arrière-plan pendant que les téléversements continuent ; une ligne de statut dans la même section rapporte la progression et l'issue du dernier lancement.
+
+Un opérateur ayant accès à la CLI Convex peut lancer le même moteur depuis un shell, en passant l'id de l'organisation. Fais d'abord un essai à blanc pour voir ce qui serait déplacé, puis le vrai lancement :
 
 ```bash
 # Essai à blanc — compte et échantillonne ce qui serait déplacé, n'écrit rien :

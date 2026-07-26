@@ -21,7 +21,16 @@
  * against the domain root so a planted link cannot reach outside the tree.
  */
 
-import { lstat, readdir, readFile, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import {
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+} from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -175,22 +184,14 @@ function isBundleWalkExcluded(name: string): boolean {
 }
 
 /**
- * Every file of one bundle, base64-encoded and sorted by path, for staging
- * into a sandbox session — `SKILL.md` verbatim (frontmatter included) plus
- * its assets, which is what makes the staged copy the bundle "exactly as it
- * is on disk". Returns `null` when the org has no such bundle.
- *
- * Same defensive posture as {@link readSkillMdText}: a symlink anywhere in
- * the bundle throws rather than being skipped, and the walk refuses bundles
- * over the staging caps — an operator has to see a broken or mis-imported
- * bundle, not a silently thinned copy of it.
+ * Resolve one bundle's directory for reading: `null` when the org has no
+ * such bundle, a symlink-refusing, realpath-verified path otherwise.
  */
-export async function readSkillBundleFiles(
+async function resolveExistingBundleDir(
   orgSlug: string,
   slug: string,
-): Promise<SkillBundleFileContent[] | null> {
+): Promise<string | null> {
   const skillDir = resolveSkillDir(orgSlug, slug);
-
   let bundleStats;
   try {
     bundleStats = await lstat(skillDir);
@@ -202,10 +203,18 @@ export async function readSkillBundleFiles(
     throw new Error(`${skillDir}: skill bundle directory is a symlink`);
   }
   await verifyPathWithinBase(skillDir, resolveSkillsDir(orgSlug));
+  return skillDir;
+}
 
-  const files: SkillBundleFileContent[] = [];
-  let totalBytes = 0;
-
+/**
+ * Walk one bundle's files depth-first, applying the shared exclusion rules
+ * and refusing symlinks anywhere. `visitFile` receives each regular file's
+ * absolute path and bundle-relative POSIX path.
+ */
+async function walkBundleFiles(
+  skillDir: string,
+  visitFile: (absPath: string, relPath: string) => Promise<void>,
+): Promise<void> {
   async function walk(dir: string, relPrefix: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
@@ -221,31 +230,145 @@ export async function readSkillBundleFiles(
         continue;
       }
       if (!entry.isFile()) continue;
-
-      if (files.length >= MAX_SKILL_BUNDLE_FILES) {
-        throw new Error(
-          `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
-        );
-      }
-      const content = await readFile(absPath);
-      if (content.byteLength > MAX_SKILL_BUNDLE_FILE_BYTES) {
-        throw new Error(
-          `${absPath}: bundle file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
-        );
-      }
-      totalBytes += content.byteLength;
-      if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
-        throw new Error(
-          `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes in total`,
-        );
-      }
-      files.push({ path: relPath, contentBase64: content.toString('base64') });
+      await visitFile(absPath, relPath);
     }
   }
-
   await walk(skillDir, '');
+}
+
+/**
+ * Every file of one bundle, base64-encoded and sorted by path, for staging
+ * into a sandbox session — `SKILL.md` verbatim (frontmatter included) plus
+ * its assets, which is what makes the staged copy the bundle "exactly as it
+ * is on disk". Returns `null` when the org has no such bundle.
+ *
+ * Same defensive posture as {@link readSkillMdText}: a symlink anywhere in
+ * the bundle throws rather than being skipped, and the walk refuses bundles
+ * over the staging caps — an operator has to see a broken or mis-imported
+ * bundle, not a silently thinned copy of it.
+ */
+export async function readSkillBundleFiles(
+  orgSlug: string,
+  slug: string,
+): Promise<SkillBundleFileContent[] | null> {
+  const skillDir = await resolveExistingBundleDir(orgSlug, slug);
+  if (skillDir === null) return null;
+
+  const files: SkillBundleFileContent[] = [];
+  let totalBytes = 0;
+
+  await walkBundleFiles(skillDir, async (absPath, relPath) => {
+    if (files.length >= MAX_SKILL_BUNDLE_FILES) {
+      throw new Error(
+        `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
+      );
+    }
+    const content = await readFile(absPath);
+    if (content.byteLength > MAX_SKILL_BUNDLE_FILE_BYTES) {
+      throw new Error(
+        `${absPath}: bundle file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+      );
+    }
+    totalBytes += content.byteLength;
+    if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
+      throw new Error(
+        `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes in total`,
+      );
+    }
+    files.push({ path: relPath, contentBase64: content.toString('base64') });
+  });
+
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return files;
+}
+
+/** One file of a bundle named without its bytes. */
+export interface SkillBundleFileEntry {
+  readonly path: string;
+  readonly size: number;
+}
+
+/**
+ * The names and sizes of one bundle's files, sorted by path, for showing a
+ * bundle's contents without reading a byte of them. Returns `null` when the
+ * org has no such bundle. Applies the same exclusion and symlink rules as
+ * {@link readSkillBundleFiles}, so it lists exactly what staging would ship.
+ */
+export async function listSkillBundleFileEntries(
+  orgSlug: string,
+  slug: string,
+): Promise<SkillBundleFileEntry[] | null> {
+  const skillDir = await resolveExistingBundleDir(orgSlug, slug);
+  if (skillDir === null) return null;
+
+  const entries: Array<{ path: string; size: number }> = [];
+  await walkBundleFiles(skillDir, async (absPath, relPath) => {
+    if (entries.length >= MAX_SKILL_BUNDLE_FILES) {
+      throw new Error(
+        `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
+      );
+    }
+    const stats = await lstat(absPath);
+    entries.push({ path: relPath, size: stats.size });
+  });
+
+  entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return entries;
+}
+
+/**
+ * True when `relPath` names a file the bundle walk could have produced: a
+ * relative POSIX path whose segments are plain names — no traversal, no
+ * dot-entries, none of the excluded directories.
+ */
+function isSafeBundleRelPath(relPath: string): boolean {
+  if (relPath.length === 0 || relPath.includes('\0')) return false;
+  if (relPath.includes('\\') || relPath.startsWith('/')) return false;
+  const segments = relPath.split('/');
+  return segments.every(
+    (segment) =>
+      segment.length > 0 &&
+      segment !== '.' &&
+      segment !== '..' &&
+      !isBundleWalkExcluded(segment),
+  );
+}
+
+/**
+ * One named file of a bundle, base64-encoded, or `null` when the bundle or
+ * the file does not exist. A path the walk would never produce reads as
+ * absent rather than throwing — the file tree is the only legitimate source
+ * of paths, so anything else is a probe, not a mistake to explain.
+ */
+export async function readSkillBundleAsset(
+  orgSlug: string,
+  slug: string,
+  relPath: string,
+): Promise<SkillBundleFileContent | null> {
+  if (!isSafeBundleRelPath(relPath)) return null;
+  const skillDir = await resolveExistingBundleDir(orgSlug, slug);
+  if (skillDir === null) return null;
+
+  const filePath = safeJoinWithinDir(skillDir, relPath);
+  let stats;
+  try {
+    stats = await lstat(filePath);
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return null;
+    throw err;
+  }
+  if (stats.isSymbolicLink()) {
+    throw new Error(`${filePath}: skill bundle contains a symlink`);
+  }
+  if (!stats.isFile()) return null;
+  if (stats.size > MAX_SKILL_BUNDLE_FILE_BYTES) {
+    throw new Error(
+      `${filePath}: bundle file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+    );
+  }
+  await verifyPathWithinBase(filePath, skillDir);
+  const content = await readFile(filePath);
+  return { path: relPath, contentBase64: content.toString('base64') };
 }
 
 /**
@@ -284,198 +407,52 @@ export async function writeSkillMdText(
   await atomicWrite(filePath, content);
 }
 
-function validateAssetRelPath(relPath: string): void {
-  if (relPath.length === 0 || relPath.length > 200) {
-    throw new Error('Asset path must be 1..200 characters');
-  }
-  if (relPath.includes('\0')) {
-    throw new Error('Asset path must not contain NUL bytes');
-  }
-  if (path.isAbsolute(relPath)) {
-    throw new Error('Asset path must be relative');
-  }
-  // Reject Windows drive prefixes even on POSIX (defense-in-depth).
-  if (/^[A-Za-z]:/.test(relPath)) {
-    throw new Error('Asset path must not contain a drive prefix');
-  }
-  // Split on SINGLE separators so `a//b` surfaces its empty segment instead
-  // of being silently collapsed to `a/b`.
-  const segments = relPath.split(/[\\/]/);
-  for (const seg of segments) {
-    if (seg === '' || seg === '..') {
-      throw new Error('Asset path must not contain `..` or empty segments');
-    }
-    if (seg.startsWith('.')) {
-      throw new Error('Asset path segments must not start with `.`');
-    }
-  }
-}
-
-/**
- * Resolve a bundle-relative asset path to its absolute location, refusing
- * traversal and the `SKILL.md` slot itself — the document has its own reader
- * and writer, and letting an asset path address it would bypass both the
- * history trail and the frontmatter validation. The lockout is case-folded:
- * on a case-insensitive filesystem `skill.md` is the same inode.
- */
-export function resolveSkillAssetPath(
-  orgSlug: string,
-  slug: string,
-  relPath: string,
-): string {
-  validateAssetRelPath(relPath);
-  const skillDir = resolveSkillDir(orgSlug, slug);
-  const resolved = safeJoinWithinDir(skillDir, relPath);
-  if (
-    path.dirname(resolved) === path.resolve(skillDir) &&
-    path.basename(resolved).toLowerCase() === 'skill.md'
-  ) {
-    throw new Error(
-      'SKILL.md is not addressable as an asset; use the skill markdown reader/writer instead',
-    );
-  }
-  return resolved;
-}
-
-/**
- * Safe variant of {@link resolveSkillAssetPath} that also realpath-checks the
- * resolution. Use it on every READ of a bundle file so a symlink planted as
- * an intermediate directory cannot escape the skill root. (Writes go through
- * {@link writeSkillBundleFiles}, which owns the whole directory.)
- */
-export async function resolveSkillAssetPathChecked(
-  orgSlug: string,
-  slug: string,
-  relPath: string,
-): Promise<string> {
-  const resolved = resolveSkillAssetPath(orgSlug, slug, relPath);
-  await verifyPathWithinBase(resolved, resolveSkillDir(orgSlug, slug));
-  return resolved;
-}
-
-/** One bundle asset as the listing reports it — path and size only. */
-export interface SkillBundleAsset {
+/** One file of a bundle about to be written. */
+export interface SkillBundleFileWrite {
+  /** Bundle-relative POSIX path, already validated by the zip parser. */
   readonly path: string;
-  readonly size: number;
-}
-
-export interface SkillBundleAssetListing {
-  /** Sorted by path; `SKILL.md` excluded (reported via {@link skillMdBytes}). */
-  readonly assets: SkillBundleAsset[];
-  readonly skillMdBytes: number;
+  readonly content: Buffer;
 }
 
 /**
- * Stat-only twin of {@link readSkillBundleFiles} for the detail page's file
- * tree: every file's path and size without reading a byte of content. Same
- * exclusions and symlink refusals as the content walk, so the tree never
- * lists a file the staging read would refuse. Returns `null` when the org
- * has no such bundle.
- */
-export async function listSkillBundleAssets(
-  orgSlug: string,
-  slug: string,
-): Promise<SkillBundleAssetListing | null> {
-  const skillDir = resolveSkillDir(orgSlug, slug);
-
-  let bundleStats;
-  try {
-    bundleStats = await lstat(skillDir);
-  } catch (err) {
-    if (errnoCode(err) === 'ENOENT') return null;
-    throw err;
-  }
-  if (bundleStats.isSymbolicLink()) {
-    throw new Error(`${skillDir}: skill bundle directory is a symlink`);
-  }
-  await verifyPathWithinBase(skillDir, resolveSkillsDir(orgSlug));
-
-  const assets: SkillBundleAsset[] = [];
-  let skillMdBytes = 0;
-
-  async function walk(dir: string, relPrefix: string): Promise<void> {
-    const entries = await readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (isBundleWalkExcluded(entry.name)) continue;
-      const absPath = path.join(dir, entry.name);
-      const relPath =
-        relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
-      if (entry.isSymbolicLink()) {
-        throw new Error(`${absPath}: skill bundle contains a symlink`);
-      }
-      if (entry.isDirectory()) {
-        await walk(absPath, relPath);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      const stats = await stat(absPath);
-      if (relPath === SKILL_DOCUMENT_NAME) {
-        skillMdBytes = stats.size;
-        continue;
-      }
-      assets.push({ path: relPath, size: stats.size });
-    }
-  }
-
-  await walk(skillDir, '');
-  assets.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return { assets, skillMdBytes };
-}
-
-/** One file of a bundle write: bundle-relative POSIX path plus bytes. */
-export interface SkillBundleWriteFile {
-  readonly path: string;
-  readonly content: Uint8Array;
-}
-
-/**
- * Replace a skill bundle with exactly the given files — the fan-out writer
- * behind the package upload.
+ * Write a WHOLE bundle — `SKILL.md` plus assets — replacing whatever the
+ * slug currently holds.
  *
- * Replace, not merge: the superseded `SKILL.md` goes into the domain history
- * trail first, then the bundle directory is removed whole, so an asset the
- * new bundle no longer carries does not linger and poison the next staging
- * read. `SKILL.md` is written LAST — the listing treats a directory without
- * one as not-a-skill, so the bundle is never observable half-written.
+ * The write is a stage-then-rename swap: files land in a
+ * `<slug>.staging-<8hex>` sibling first (the dot fails the slug shape, so
+ * {@link listSkillSlugs} structurally never lists a half-written bundle),
+ * then the current bundle moves aside and the staging directory takes its
+ * name — with the aside-move rolled back if the commit rename fails, so the
+ * previous bundle survives every failure before the commit point.
+ *
+ * The superseded `SKILL.md` is snapshotted into the domain's history trail
+ * like every editor save; assets are not historied (size), which the
+ * history viewer's contract already states.
+ *
+ * Callers serialize concurrent writes per (org, slug) themselves — the
+ * upload action holds its claim-row lock around this call.
  */
 export async function writeSkillBundleFiles(
   orgSlug: string,
   slug: string,
-  files: readonly SkillBundleWriteFile[],
+  files: readonly SkillBundleFileWrite[],
 ): Promise<void> {
-  const skillMd = files.find((file) => file.path === SKILL_DOCUMENT_NAME);
-  if (skillMd === undefined) {
-    throw new Error(`skill "${slug}": a bundle write must carry SKILL.md`);
-  }
-  if (files.length > MAX_SKILL_BUNDLE_FILES) {
-    throw new Error(
-      `skill "${slug}": bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
-    );
-  }
-  let totalBytes = 0;
-  const assetWrites: { resolved: string; content: Uint8Array }[] = [];
-  for (const file of files) {
-    if (file.content.byteLength > MAX_SKILL_BUNDLE_FILE_BYTES) {
-      throw new Error(
-        `skill "${slug}": ${file.path} exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
-      );
-    }
-    totalBytes += file.content.byteLength;
-    if (file.path === SKILL_DOCUMENT_NAME) continue;
-    // Resolving up front also validates the path — traversal, dotfiles and
-    // the case-folded SKILL.md slot all refuse before anything is touched.
-    assetWrites.push({
-      resolved: resolveSkillAssetPath(orgSlug, slug, file.path),
-      content: file.content,
-    });
-  }
-  if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
-    throw new Error(
-      `skill "${slug}": bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes in total`,
-    );
-  }
+  const bundleDir = resolveSkillDir(orgSlug, slug);
+  const skillsRoot = resolveSkillsDir(orgSlug);
+  await mkdir(skillsRoot, { recursive: true });
 
-  const current = await readSkillMdText(orgSlug, slug);
+  // Snapshot the current SKILL.md before it is replaced. A bundle whose
+  // document is unreadable (malformed is fine — unreadable means symlinked
+  // or oversized) just skips the snapshot: the upload is the repair.
+  let current: string | null = null;
+  try {
+    current = await readSkillMdText(orgSlug, slug);
+  } catch (err) {
+    console.warn(
+      `[skills] ${orgSlug}/${slug}: skipping history snapshot of unreadable SKILL.md:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
   if (current !== null) {
     const historyDir = resolveSkillHistoryDir(orgSlug, slug);
     await atomicWrite(
@@ -485,16 +462,68 @@ export async function writeSkillBundleFiles(
     await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
   }
 
-  // History (outside the bundle dir) survives; stale assets do not.
-  await removeDirSafe(resolveSkillDir(orgSlug, slug));
+  const stagingDir = `${bundleDir}.staging-${randomUUID().slice(0, 8)}`;
+  const replacingDir = `${bundleDir}.replacing-${randomUUID().slice(0, 8)}`;
 
-  for (const write of assetWrites) {
-    await atomicWriteBuffer(write.resolved, Buffer.from(write.content));
+  try {
+    // Realpath the staging root once so every per-file check compares
+    // like against like (macOS tmp trees sit behind a `/var → /private/var`
+    // symlink, where a mixed resolved/unresolved comparison always fails).
+    await mkdir(stagingDir, { recursive: true });
+    const realStagingDir = await realpath(stagingDir);
+    for (const file of files) {
+      if (!isSafeBundleRelPath(file.path)) {
+        throw new Error(`unsafe bundle path: ${file.path}`);
+      }
+      const dest = path.join(realStagingDir, file.path);
+      await mkdir(path.dirname(dest), { recursive: true });
+      await verifyPathWithinBase(dest, realStagingDir);
+      await atomicWriteBuffer(dest, file.content);
+    }
+
+    // Atomic swap. Once `bundleDir → replacingDir` succeeds, the old bundle
+    // is preserved; the next rename is the commit point.
+    let hadExisting = true;
+    try {
+      await rename(bundleDir, replacingDir);
+    } catch (err) {
+      if (errnoCode(err) !== 'ENOENT') throw err;
+      hadExisting = false;
+    }
+    try {
+      await rename(stagingDir, bundleDir);
+    } catch (err) {
+      // Roll back the aside-move so the user still has the old content.
+      // Best-effort: log and rethrow.
+      if (hadExisting) {
+        await rename(replacingDir, bundleDir).catch((rollbackErr) => {
+          console.error(
+            '[skills] failed to roll back previous bundle:',
+            rollbackErr,
+          );
+        });
+      }
+      throw err;
+    }
+    if (hadExisting) {
+      await rm(replacingDir, { recursive: true, force: true }).catch((err) => {
+        // Data is safe at this point; an orphaned `.replacing-*` is a leak
+        // for ops to clean up, not a correctness issue.
+        console.warn(
+          '[skills] failed to remove replaced bundle dir; leaving for manual cleanup:',
+          err,
+        );
+      });
+    }
+  } catch (err) {
+    // Pre-commit failure path: clean up staging, surface the error.
+    await rm(stagingDir, { recursive: true, force: true }).catch(
+      (cleanupErr) => {
+        console.warn('[skills] staging cleanup failed:', cleanupErr);
+      },
+    );
+    throw err;
   }
-  await atomicWrite(
-    resolveSkillMdPath(orgSlug, slug),
-    new TextDecoder().decode(skillMd.content),
-  );
 }
 
 /**

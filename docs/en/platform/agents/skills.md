@@ -1,45 +1,45 @@
 ---
-title: Agent skills
-description: Binding a skill from the organization's library to one agent — the allowlist on the Skills tab, its ceiling, and how a bundle reaches a sandbox session.
+title: Skills on agents
+description: How a skill from the library reaches a conversation or an agent — the chat equip menu, the one-turn / command, project agents, and whose visibility counts where.
 ---
 
-An agent reaches a skill only when you bind it. The organization's [skill library](/platform/workspace/skills) holds the bundles, and an agent's **Skills** tab is the allowlist naming which of them this persona may expand. Bind one bundle to three agents and the behaviour stays in a single file, maintained once.
+A chat or an agent reaches a skill only when it is equipped, and equipping is a pick from the organization's [skill library](/platform/workspace/skills). This page is about the surfaces that pick — the chat composer, the `/` command, and a project's agents. One rule decides what each surface may pick: **in a chat, your visibility counts; in a project, the project's own does.**
 
-This page is the agent side of skills: what a binding decides, what the ceiling is, and what changes when the turn runs in a sandbox. Writing and sharing the bundles themselves happens in the library.
+## What equipping decides
 
-## What a binding decides
+An equipped skill is offered to the model by its description. When the model judges that description relevant to what you asked, it reads the `SKILL.md` body, then opens individual bundle files where the body points at them. Nothing is executed and nothing is pasted in up front, so a skill costs context only on the turns where the model actually reaches for it.
 
-A bound skill is offered to the agent by its description. When the model judges that description relevant to what you asked, it expands the bundle — it reads the `SKILL.md` body, then opens individual bundle files where the body points at them. Nothing is executed and nothing is pasted in up front, so a skill costs context only on the turns where the agent actually reaches for it.
+A bundle whose frontmatter carries `disable-model-invocation: true` behaves differently. It stays equipped and stays readable, but the model must not reach for it unprompted; it waits for a turn where somebody names it.
 
-A bundle whose frontmatter carries `disable-model-invocation: true` behaves differently. It stays bound and stays readable, but the model must not reach for it unprompted; it waits for a turn where somebody names it.
+A skill's `usage-mode` decides which surfaces offer it at all: `chat` keeps it to conversations (the equip menu and the `/` command), `agent` keeps it to agents and automations, and `all` — the default — offers it everywhere.
 
-## Bind a skill to an agent
+## Equip a conversation
 
-Open the agent, switch to **Skills**, and pick from the organization's library. A counter beside the list shows what you have used against the ceiling: an agent may bind **at most ten skills**. Ten is deliberate — a binding list is a hard allowlist someone maintains by hand, and past a handful it stops being one.
+The capability menu beside the chat composer's model picker lists every chat-usable skill you can see, next to the enabled connectors. What you check there is the conversation's equipment: it stages into the agent's session and stays equipped for the whole thread.
 
-Treat the list as an allowlist rather than a hint. An agent whose list is empty expands no skills at all; there is no implicit fallback to everything the organization happens to share. Binding is per agent and symmetric — two agents can bind the same bundle, and unbinding takes effect from the next request.
+Because a chat is yours, the list follows **your** visibility — your private skills, your teams' skills, and the organization's. A skill you lose sight of (reshared away, deleted) simply stops staging on your next turn.
 
-<Note>
+## Invoke one skill for one message
 
-Which bundles you can pick from is decided in the library, not here: an `org` skill is offered across the organization, a `private` one only where its owner works. Sharing a bundle is an edit to its `visibility` field on the [skill library](/platform/workspace/skills) page.
+Type `/` as the first character of the message and the composer offers the chat-usable skills you can see; keep typing to narrow, arrows to move, Enter to complete. A message like
 
-</Note>
+```text
+/release-notes everything merged since Tuesday
+```
 
-## When the bundle changes underneath
+invokes that one skill for that one message: the bundle stages for the turn, the model is told to read it first and treat the rest of the message as its arguments, and the conversation's stored equipment is untouched. A `/something` that matches no skill you can use in chat sends as ordinary text — that fallthrough is the escape hatch, so there is nothing to escape.
 
-A binding names a slug, never a snapshot. Replace a bundle in the library and every agent bound to it reads the new text from its next request — there is no version to pin and no re-binding to do afterwards. That is what makes a skill worth extracting in the first place: one edit reaches every agent that holds it.
+## Equip a project's agents
 
-<Warning>
+A [project agent](/platform/agents/create) carries its own equipment, picked in the same capability menu on the agent's dialog. The list there follows the **project's** visibility, not yours: organization-wide skills, plus team skills shared with any of the project's teams. An org-wide project sees organization skills only, and nobody's private skills ever appear — a project agent runs for every member of the project, so its equipment must never smuggle in something only its author could see.
 
-Deleting a skill removes the bundle from disk, and every agent bound to it loses access with nothing to fall back on. Replace the bundle instead when you want to change what it says, and delete only once you have checked which agents still name it.
-
-</Warning>
+The same scope holds at run time. A task run stages the agent's skills as the project; an org-level automation stages as the organization. A skill that stops being visible to that scope fails the run by name rather than quietly running without it — deliberate equipment silently missing is worse than a failed run.
 
 ## Skills in a sandbox session
 
-When a turn runs in a sandbox, bound bundles do not arrive through a tool call. They are staged into the session as files, in the layout the runtime already knows how to discover, so the third-party agent finds them the way it would find a skill on any machine it works on.
+When a turn runs in a sandbox, equipped bundles do not arrive through a tool call. They are staged into the session as files, in the layout the runtime already knows how to discover, so the third-party agent finds them the way it would find a skill on any machine it works on.
 
-One rule governs collisions: the repository wins. If the checked-out repository ships a skill under the same slug as one Tale would stage, Tale withholds its copy and the repository's version stands. A repository can always override what the platform would otherwise teach the agent, and the session never holds two bundles claiming the same name. Matching is exact, so a slug that differs by a single character is a different skill and both get staged.
+One rule governs collisions: the repository wins. If the checked-out repository ships a skill under the same slug as one Tale would stage, Tale withholds its copy and the repository's version stands. A repository can always override what the platform would otherwise teach the agent, and the session never holds two bundles claiming the same name.
 
 ## Skill or instructions
 
@@ -55,4 +55,4 @@ Instructions are the right shape for one agent's own character. A skill is the r
 
 ## Where this fits
 
-Binding is the narrow half of skills: the library decides what exists and who may see it, and the **Skills** tab decides which persona may expand what. Keep the lists short, prefer replacing a bundle over cloning it, and let a repository override what the platform stages when an agent works inside one. The other half of the story — writing a `SKILL.md`, uploading a zip, and sharing a bundle across the organization — is the [skill library](/platform/workspace/skills).
+Equipping is the narrow half of skills: the library decides what exists and who may see it; the chat menu, the `/` command, and a project's agent dialog decide where it gets used — each through its own visibility. Keep equipment lists short, prefer replacing a bundle over cloning it, and let a repository override what the platform stages when an agent works inside one. The other half of the story — writing a `SKILL.md`, uploading a folder, and sharing a bundle — is the [skill library](/platform/workspace/skills).

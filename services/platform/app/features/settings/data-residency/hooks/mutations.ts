@@ -77,3 +77,67 @@ export function useTestOrgObjectStorageConnection() {
     api.object_storage.actions.testObjectStorageConnection,
   );
 }
+
+/**
+ * Kick off the blob backfill (move pre-existing built-in-storage blobs into
+ * the org's bucket). No invalidation — progress arrives through the reactive
+ * `useObjectStorageBackfillStatus` query.
+ */
+export function useStartObjectStorageBackfill() {
+  return useConvexAction(
+    api.object_storage.actions.startObjectStorageBlobBackfill,
+  );
+}
+
+function useInvalidateOrgKnowledge(organizationId: string) {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.invalidateQueries({
+      queryKey: ['config', 'org-knowledge', organizationId],
+    });
+}
+
+/** Persist the org's knowledge-DB connection (+ optional password sidecar). */
+export function useSaveOrgKnowledgeConnection(organizationId: string) {
+  const invalidate = useInvalidateOrgKnowledge(organizationId);
+  return useConvexAction(api.knowledge.actions.saveKnowledgeConnection, {
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** Remove the org's knowledge-DB connection (revert to the deployment DB). */
+export function useDeleteOrgKnowledgeConnection(organizationId: string) {
+  const invalidate = useInvalidateOrgKnowledge(organizationId);
+  return useConvexAction(api.knowledge.actions.deleteKnowledgeConnection, {
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** Probe a candidate knowledge Postgres (pgvector/ParadeDB availability). */
+export function useTestOrgKnowledgeConnection() {
+  return useConvexAction(api.knowledge.actions.testKnowledgeConnection);
+}
+
+function useInvalidateOrgEmbedding(organizationId: string) {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.invalidateQueries({
+      queryKey: ['config', 'org-embedding', organizationId],
+    });
+}
+
+/** Persist the org's embedding model config. */
+export function useSaveOrgKnowledgeEmbedding(organizationId: string) {
+  const invalidate = useInvalidateOrgEmbedding(organizationId);
+  return useConvexAction(api.knowledge.actions.saveKnowledgeEmbedding, {
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** Remove the org's embedding config (knowledge search then refuses again). */
+export function useDeleteOrgKnowledgeEmbedding(organizationId: string) {
+  const invalidate = useInvalidateOrgEmbedding(organizationId);
+  return useConvexAction(api.knowledge.actions.deleteKnowledgeEmbedding, {
+    onSuccess: () => invalidate(),
+  });
+}

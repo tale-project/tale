@@ -24,17 +24,6 @@ export {
   type ChunkOptions,
   type ContextualChunk,
 } from './chunking';
-export {
-  KNOWLEDGE_CONFIG_DOMAIN,
-  KNOWLEDGE_CONNECTION_KEY,
-  KNOWLEDGE_EMBEDDING_KEY,
-  knowledgeConnectionSchema,
-  knowledgeConnectionSecretsSchema,
-  knowledgeEmbeddingSchema,
-  type KnowledgeConnection,
-  type KnowledgeConnectionSecrets,
-  type KnowledgeEmbeddingConfig,
-} from './config';
 export { fuseByRank, RRF_K, type FuseOptions, type FusedItem } from './fusion';
 export {
   planIngest,

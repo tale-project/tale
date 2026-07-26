@@ -69,7 +69,7 @@ R = read, W = write, — = no access. The matrix is the authoritative descriptio
 
 ## The Settings surface and the menu
 
-Members, Editors, and Disabled users do not see the configuration surface — only their own personal settings. Developers see the organization settings but not the governance sub-tree (except read views). Admins and Owners see everything. The settings menu is grouped into **Personal** (Account, Preferences, Environment — every role), **Organization** (the Members section, Teams, AI providers, Branding, Governance, and the rest — Admin-and-Owner, with Developers seeing a subset), and **Development** (the API and data-residency surface). Governance is an item inside the Organization group, not a group of its own, and it needs Admin access.
+Members, Editors, and Disabled users do not see the configuration surface — only their own personal settings. Developers see the organization settings but not the governance sub-tree (except read views). Admins and Owners see everything. The settings menu is grouped into **Personal** (Account, Preferences, Environment — every role), **Organization** (Teams, the Members section, AI providers, Branding, Governance, and the rest — Admin-and-Owner, with Developers seeing a subset), and **Development** (the API and data-residency surface). Governance is an item inside the Organization group, not a group of its own, and it needs Admin access.
 
 ## Edge cases
 

@@ -10,16 +10,28 @@
 
 import { v } from 'convex/values';
 
-import type { SkillVisibility } from '../../lib/shared/schemas/skills';
+import type {
+  SkillUsageMode,
+  SkillVisibility,
+} from '../../lib/shared/schemas/skills';
+import type { SkillSurface, SkillViewer } from '../../lib/skills/visibility';
 
 /**
- * `private | org` at the wire boundary. The frontmatter schema's
+ * `private | team | org` at the wire boundary. The frontmatter schema's
  * `SKILL_VISIBILITIES` stays the source of truth for the set; the type
  * parameters here fail the build if a literal ever stops belonging to it.
  */
 export const skillVisibilityValidator = v.union(
   v.literal<SkillVisibility>('private'),
+  v.literal<SkillVisibility>('team'),
   v.literal<SkillVisibility>('org'),
+);
+
+/** `chat | agent | all` — which surfaces may equip a skill. */
+export const skillUsageModeValidator = v.union(
+  v.literal<SkillUsageMode>('chat'),
+  v.literal<SkillUsageMode>('agent'),
+  v.literal<SkillUsageMode>('all'),
 );
 
 /** The fields every skill view carries. */
@@ -27,21 +39,33 @@ const skillSummaryFields = {
   slug: v.string(),
   description: v.string(),
   visibility: skillVisibilityValidator,
+  /** Team ids a `team` skill is shared with; absent otherwise. */
+  teams: v.optional(v.array(v.string())),
   owner: v.optional(v.string()),
   icon: v.optional(v.string()),
   labels: v.optional(v.array(v.string())),
   /** True when the model must not reach for the skill on its own. */
   disableModelInvocation: v.optional(v.boolean()),
+  /** Which surfaces may equip the skill; absent reads as `all`. */
+  usageMode: v.optional(skillUsageModeValidator),
   /** Whether the asking member may change this bundle. */
   canEdit: v.boolean(),
 };
 
 export const skillSummaryValidator = v.object(skillSummaryFields);
 
+/** One bundle file named without its bytes, for the detail file tree. */
+export const skillFileEntryValidator = v.object({
+  path: v.string(),
+  size: v.number(),
+});
+
 /** A skill with its markdown body — the knowledge an agent expands. */
 export const skillDocumentValidator = v.object({
   ...skillSummaryFields,
   body: v.string(),
+  /** Every file of the bundle (including `SKILL.md`), sorted by path. */
+  files: v.array(skillFileEntryValidator),
 });
 
 /**
@@ -57,32 +81,6 @@ export const skillBundleFileValidator = v.object({
 export const skillBundleValidator = v.object({
   files: v.array(skillBundleFileValidator),
 });
-
-/** One bundle asset as the detail page's file tree lists it — no content. */
-export const skillAssetValidator = v.object({
-  path: v.string(),
-  size: v.number(),
-});
-
-export const skillAssetListValidator = v.object({
-  assets: v.array(skillAssetValidator),
-  /** Size of `SKILL.md`, which the tree pins outside the asset list. */
-  skillMdBytes: v.number(),
-});
-
-/**
- * One asset read for the viewer. Base64 rather than text because an asset may
- * be an image or other binary — the client decides how to render it. A read
- * refused by the per-file staging cap reports `too_large` instead of shipping
- * megabytes to a read-only preview.
- */
-export const skillAssetReadValidator = v.union(
-  v.object({ ok: v.literal(true), contentBase64: v.string() }),
-  v.object({
-    ok: v.literal(false),
-    error: v.union(v.literal('not_found'), v.literal('too_large')),
-  }),
-);
 
 /**
  * A bundle that failed to load. `path` is relative to the org's config tree
@@ -107,33 +105,74 @@ export const skillEditArgs = {
   /**
    * Absent keeps an existing skill's current visibility and makes a new one
    * `private` — a skill starts as its author's own, and sharing it is an
-   * explicit edit to `org`.
+   * explicit edit to `team` or `org`.
    */
   visibility: v.optional(skillVisibilityValidator),
+  /**
+   * Team ids for a `team` skill. Absent keeps an existing skill's teams;
+   * the save handler rejects a `team` skill that would end up with none and
+   * strips the list when visibility resolves to anything else.
+   */
+  teams: v.optional(v.array(v.string())),
+  /** Absent keeps an existing skill's usage mode (new skills read as `all`). */
+  usageMode: v.optional(skillUsageModeValidator),
   icon: v.optional(v.string()),
   labels: v.optional(v.array(v.string())),
 };
 
-/** How the caller is identified to the file layer behind a public action. */
-export const skillViewerArgs = {
-  viewerUserId: v.string(),
-  /** True when the member may administer the org's shared configuration. */
-  isOrgAdmin: v.boolean(),
-};
+/**
+ * The identity a skill is read for, mirroring `lib/skills/visibility.ts`'s
+ * `SkillViewer`: a member (their own teams + admin bit), a project (its
+ * teams), or org-level machinery. The type parameters fail the build if the
+ * wire shape drifts from the pure predicate's.
+ */
+export const skillViewerValidator = v.union(
+  v.object({
+    kind: v.literal<SkillViewer['kind'] & 'user'>('user'),
+    userId: v.string(),
+    teamIds: v.array(v.string()),
+    isOrgAdmin: v.boolean(),
+  }),
+  v.object({
+    kind: v.literal<SkillViewer['kind'] & 'project'>('project'),
+    teamIds: v.array(v.string()),
+  }),
+  v.object({
+    kind: v.literal<SkillViewer['kind'] & 'org'>('org'),
+  }),
+);
+
+/**
+ * The product surface a listing or read serves. `any` is the management
+ * surface (library, REST) and applies no usage-mode narrowing.
+ */
+export const skillSurfaceValidator = v.union(
+  v.literal<SkillSurface>('chat'),
+  v.literal<SkillSurface>('agent'),
+  v.literal<SkillSurface>('any'),
+);
 
 export interface SkillSummaryView {
   slug: string;
   description: string;
   visibility: SkillVisibility;
+  teams?: string[];
   owner?: string;
   icon?: string;
   labels?: string[];
   disableModelInvocation?: boolean;
+  usageMode?: SkillUsageMode;
   canEdit: boolean;
+}
+
+export interface SkillFileEntryView {
+  path: string;
+  size: number;
 }
 
 export interface SkillDocumentView extends SkillSummaryView {
   body: string;
+  files: SkillFileEntryView[];
 }
 
 export interface SkillBundleFileView {
@@ -144,20 +183,6 @@ export interface SkillBundleFileView {
 export interface SkillBundleView {
   files: SkillBundleFileView[];
 }
-
-export interface SkillAssetView {
-  path: string;
-  size: number;
-}
-
-export interface SkillAssetListView {
-  assets: SkillAssetView[];
-  skillMdBytes: number;
-}
-
-export type SkillAssetReadView =
-  | { ok: true; contentBase64: string }
-  | { ok: false; error: 'not_found' | 'too_large' };
 
 export interface SkillLoadFailureView {
   slug: string;

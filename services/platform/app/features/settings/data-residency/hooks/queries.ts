@@ -1,4 +1,5 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
 /**
@@ -31,5 +32,39 @@ export function useOrgObjectStorageConnection(organizationId: string) {
     ['config', 'org-object-storage', organizationId],
     api.object_storage.actions.getObjectStorageConnection,
     { organizationId },
+  );
+}
+
+/** The org's knowledge-DB connection (masked — never carries the password). */
+export function useOrgKnowledgeConnection(organizationId: string) {
+  return useActionQuery(
+    ['config', 'org-knowledge', organizationId],
+    api.knowledge.actions.getKnowledgeConnection,
+    { organizationId },
+  );
+}
+
+/** The org's embedding model config (nothing secret in it). */
+export function useOrgKnowledgeEmbedding(organizationId: string) {
+  return useActionQuery(
+    ['config', 'org-embedding', organizationId],
+    api.knowledge.actions.getKnowledgeEmbedding,
+    { organizationId },
+  );
+}
+
+/**
+ * The latest blob-backfill run of this org, or null. A reactive Convex query —
+ * progress streams in without polling. The server gates it to `write
+ * orgSettings` (it THROWS for plain members), so callers must pass
+ * `canView: false` to skip it rather than merely hiding the result.
+ */
+export function useObjectStorageBackfillStatus(
+  organizationId: string,
+  canView: boolean,
+) {
+  return useConvexQuery(
+    api.object_storage.backfill_queries.getObjectStorageBackfillStatus,
+    canView ? { organizationId } : 'skip',
   );
 }

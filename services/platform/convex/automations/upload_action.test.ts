@@ -127,6 +127,9 @@ function fakeCtx(options?: {
       calls.intentDeleted += 1;
       return null;
     },
+    // The skills viewer-context lookup is a V8 query — absent here, so the
+    // handler falls back to deriving org-admin from the stubbed member role.
+    runQuery: async () => null,
   };
   return { ctx, calls };
 }

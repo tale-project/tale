@@ -42,7 +42,10 @@ import { registerConnector } from '../../lib/integrations/registry';
 import { defineAbilityFor } from '../../lib/permissions/ability';
 import { MAX_AUTOMATION_BUNDLE_TOTAL_BYTES } from '../../lib/shared/schemas/automations';
 import { readOrgSkill } from '../../lib/skills/listing';
-import { canEditSkill, type SkillViewer } from '../../lib/skills/visibility';
+import {
+  canEditSkill,
+  type UserSkillViewer,
+} from '../../lib/skills/visibility';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
@@ -206,7 +209,7 @@ function bundlesEqual(
 async function planSkillWrites(
   orgSlug: string,
   carried: readonly CarriedSkill[],
-  viewer: SkillViewer,
+  viewer: UserSkillViewer,
   overwriteSkills: readonly string[],
 ): Promise<
   | {
@@ -237,7 +240,7 @@ async function planSkillWrites(
       );
       editable =
         current === null
-          ? viewer.isOrgAdmin === true
+          ? viewer.isOrgAdmin
           : canEditSkill(current.meta, viewer);
     } catch (error) {
       // The existing bundle is malformed — replacing it is a repair, which
@@ -245,7 +248,7 @@ async function planSkillWrites(
       console.warn(
         `[automations] ${orgSlug}: existing skill "${skill.slug}" unreadable during upload — ${error instanceof Error ? error.message : String(error)}`,
       );
-      editable = viewer.isOrgAdmin === true;
+      editable = viewer.isOrgAdmin;
     }
     if (!editable) {
       forbidden.push(skill.slug);
@@ -424,12 +427,17 @@ export const uploadAutomation = action({
         }
       }
 
-      const viewer: SkillViewer = {
+      const viewerContext = await ctx.runQuery(
+        internal.skills.viewer_context.getUserSkillViewerContext,
+        { organizationId: args.organizationId, userId: auth.userId },
+      );
+      const viewer: UserSkillViewer = {
+        kind: 'user',
         userId: auth.userId,
-        isOrgAdmin: defineAbilityFor(auth.member.role).can(
-          'write',
-          'orgSettings',
-        ),
+        teamIds: viewerContext?.teamIds ?? [],
+        isOrgAdmin:
+          viewerContext?.isOrgAdmin ??
+          defineAbilityFor(auth.member.role).can('write', 'orgSettings'),
       };
       const outcome = await planSkillWrites(
         auth.orgSlug,
@@ -454,7 +462,10 @@ export const uploadAutomation = action({
           await writeSkillBundleFiles(
             auth.orgSlug,
             entry.skill.slug,
-            entry.skill.files,
+            entry.skill.files.map((file) => ({
+              path: file.path,
+              content: Buffer.from(file.content),
+            })),
           );
         } catch (error) {
           refuse(

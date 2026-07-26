@@ -58,11 +58,20 @@ import {
   type ResolvedAgentView,
 } from './validators';
 
+/**
+ * Agents only know `private | org`, so the member's teams never influence
+ * agent visibility — the viewer carries an empty team list by construction.
+ */
 function viewerFrom(args: {
   viewerUserId: string;
   isOrgAdmin: boolean;
-}): AgentViewer {
-  return { userId: args.viewerUserId, isOrgAdmin: args.isOrgAdmin };
+}): AgentViewer & { kind: 'user' } {
+  return {
+    kind: 'user',
+    userId: args.viewerUserId,
+    teamIds: [],
+    isOrgAdmin: args.isOrgAdmin,
+  };
 }
 
 function toSummary(agent: OrgAgent, viewer: AgentViewer): AgentSummaryView {

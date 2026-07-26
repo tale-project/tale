@@ -17,7 +17,6 @@
 import { resolveAgentsDir } from '../../agents/file_utils';
 import { resolveSsoDir } from '../../enterprise_sso/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
-import { resolvePromptsDir } from '../../prompts/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
 import { resolveProvidersDir } from '../providers/org_connectors';
 
@@ -28,13 +27,6 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   governance: resolveGovernanceDir,
   // `sso` is nested under governance — resolves to `<org>/governance/sso/`.
   sso: resolveSsoDir,
-  // `prompts` isn't a Layer-A `CONFIG_DOMAINS` entry yet (the minimal
-  // registry currently registers only governance + sso), but the prompts
-  // provisioner (`prompts/provision_defaults.ts`) resolves its catalog dir
-  // through `listCatalogArea('prompts', …)` → `resolveDomainDir`, independent
-  // of the scaffolder's domain loop. Register it here so that lookup doesn't
-  // throw ahead of `prompts` re-registering as a real config domain.
-  prompts: resolvePromptsDir,
   // Org-defined custom AI-provider connectors (`<org>/providers/*.yml`),
   // read node-direct by the provider-resolution modules.
   providers: resolveProvidersDir,

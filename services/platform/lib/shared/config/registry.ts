@@ -61,8 +61,8 @@ export type ReadContext = 'node-direct' | 'v8-action' | 'v8-sync';
  *                      a re-derivable cache (`configCache`).
  *  - `runtime-state` — the file holds the definition; the DB holds only
  *                      per-org runtime state (install rows, trigger rows).
- * (The pre-rewrite `seeded-user-data` model — prompts — retires with the
- * prompt library; no v2 domain may reintroduce a DB-authoritative config.)
+ * (The pre-rewrite `seeded-user-data` model — the prompt library — is
+ * retired; no v2 domain may reintroduce a DB-authoritative config.)
  */
 export type ConfigDataModel = 'config' | 'runtime-state';
 

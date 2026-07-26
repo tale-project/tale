@@ -211,7 +211,6 @@ export const upsertRetentionPolicyAction = action({
       ['usageLedger', cfg?.usageLedgerRetentionDays],
       ['loginAttempt', cfg?.loginAttemptRetentionDays],
       ['chatFilterEvents', cfg?.chatFilterEventsRetentionDays],
-      ['promptTemplates', cfg?.promptTemplatesRetentionDays],
       ['messageFeedback', cfg?.messageFeedbackRetentionDays],
       ['contacts', cfg?.contactsRetentionDays],
       ['externalConversations', cfg?.externalConversationsRetentionDays],

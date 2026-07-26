@@ -9,6 +9,8 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
 import { forwardRef, useId } from 'react';
 
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { FieldShell } from './field-shell';
@@ -84,6 +86,13 @@ interface SelectProps extends Omit<
   error?: boolean;
   /** Description text displayed below the select */
   description?: ReactNode;
+  /**
+   * Tooltip shown on the disabled control while `options` is empty — why
+   * there is nothing to pick and what creates the first option (e.g. "Add an
+   * AI provider first"). Falls back to a generic line; an empty dropdown is
+   * never left as a silent dead control.
+   */
+  emptyHint?: ReactNode;
   /** Additional class name for the trigger */
   className?: string;
   /** Additional class name for the outer label+trigger+description wrapper. */
@@ -114,6 +123,7 @@ const SelectBase = forwardRef<
       required,
       error,
       description,
+      emptyHint,
       className,
       wrapperClassName,
       id: providedId,
@@ -132,6 +142,7 @@ const SelectBase = forwardRef<
     },
     ref,
   ) => {
+    const { t } = useT('common');
     const generatedId = useId();
     const id = providedId ?? generatedId;
     const descriptionId = `${id}-description`;
@@ -141,7 +152,14 @@ const SelectBase = forwardRef<
     // caller supplied an explicit name), so labelled selects have a name.
     const resolvedLabelledBy = ariaLabelledBy ?? (label ? labelId : undefined);
 
-    const trigger = (
+    // Nothing to pick ⇒ the control renders as an `aria-disabled` stand-in
+    // that explains itself in a tooltip instead of opening an empty popover.
+    // aria-disabled (not DOM `disabled`) keeps it hover- and focusable, so the
+    // explanation is reachable by mouse AND keyboard — a DOM-disabled button
+    // swallows both.
+    const isEmpty = options.length === 0;
+
+    const selectRoot = (
       <SelectPrimitive.Root
         disabled={disabled}
         value={value}
@@ -209,6 +227,46 @@ const SelectBase = forwardRef<
           </SelectPrimitive.Content>
         </SelectPrimitive.Portal>
       </SelectPrimitive.Root>
+    );
+
+    const emptyHintText = emptyHint ?? t('select.noOptionsHint');
+    const emptyHintId = `${id}-empty-hint`;
+    const trigger = isEmpty ? (
+      <>
+        <Tooltip content={emptyHintText}>
+          <button
+            ref={ref}
+            type="button"
+            id={id}
+            aria-disabled="true"
+            aria-label={ariaLabel}
+            aria-labelledby={resolvedLabelledBy}
+            // The reason is the control's accessible DESCRIPTION, not just a
+            // hover tooltip: Radix tooltip content is announced unreliably,
+            // and a disabled control that never says why is a dead end for
+            // anyone not using a mouse.
+            aria-describedby={cn(
+              description ? descriptionId : undefined,
+              emptyHintId,
+            )}
+            className={cn(
+              selectTriggerClasses({ error }),
+              'cursor-not-allowed opacity-50',
+              className,
+            )}
+          >
+            <span className="text-muted-foreground line-clamp-1">
+              {placeholder}
+            </span>
+            <ChevronDown className="size-4 opacity-50" aria-hidden="true" />
+          </button>
+        </Tooltip>
+        <span id={emptyHintId} className="sr-only">
+          {emptyHintText}
+        </span>
+      </>
+    ) : (
+      selectRoot
     );
 
     if (!label && !description) {

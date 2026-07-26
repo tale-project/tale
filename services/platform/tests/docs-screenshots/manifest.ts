@@ -116,7 +116,7 @@ export const SHOTS: readonly Shot[] = [
       // The composer strip plus its pickers — the region a new user acts in.
       //
       // Cropping to the textbox's PARENT caught only the placeholder line
-      // floating in white space: the toolbar row (+, prompt library, agent and
+      // floating in white space: the toolbar row (+, agent and
       // model pickers, mic, send) lives in a sibling. Take the innermost element
       // that holds BOTH the input and the send button — document order puts the
       // outermost ancestor first, so the last match is the composer itself.
@@ -595,19 +595,6 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
-    // A skill's detail page — the bundle file tree (SKILL.md pinned) beside
-    // the read-only asset viewer; the seeded pdf skill ships script assets.
-    name: 'skills-bundle-tree',
-    section: 'platform',
-    route: '/dashboard/:orgId/settings/skills?slug=pdf',
-    prepare: async (page) => {
-      await page
-        .getByRole('treeitem', { name: 'reference.md', exact: true })
-        .click();
-    },
-    readyWhen: (page) => page.getByText('reference.md').nth(1),
-  },
-  {
     // The automation's workflow editor tab — step graph on the canvas with
     // the AI editor panel toggled open alongside (the hidden autoInstall
     // triage automation renders the same editor every automation gets).
@@ -741,21 +728,6 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/environment',
     readyWhen: (page) => page.getByText(t('userEnv.page.title')).first(),
-  },
-  {
-    // The Prompt library dialog over the chat composer, with the provisioned
-    // starter prompts, scope tabs, and filters.
-    name: 'prompt-library-dialog',
-    section: 'platform',
-    route: '/dashboard/:orgId/chat',
-    prepare: async (page) => {
-      await page
-        .getByRole('button', { name: t('chat.promptLibrary') })
-        .first()
-        .click();
-    },
-    // One of the provisioned default prompts every fresh org carries.
-    readyWhen: (page) => page.getByText('Weigh Pros and Cons').first(),
   },
   {
     // Settings > AI providers with the provider drawer open on the models

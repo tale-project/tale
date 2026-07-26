@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { KnowledgeConnection } from '../../lib/knowledge/config';
+import type { KnowledgeConnection } from '../../lib/shared/schemas/knowledge';
 import {
   buildConnectionUrl,
   readOrgConnection,

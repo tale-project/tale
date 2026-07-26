@@ -83,8 +83,8 @@ export const retryProvisioning = action({
 
     // Re-run the same post-scaffold provisioning `afterCreateOrganization`
     // schedules, so restored files become live (config caches for V8 readers,
-    // default prompt installs, starter content). All are idempotent; the
-    // scaffold ran inline above, so no head-start delay is needed.
+    // starter content). All are idempotent; the scaffold ran inline above, so
+    // no head-start delay is needed.
     await ctx.scheduler.runAfter(
       0,
       internal.lib.config_cache.sync_org.syncOrgConfigCaches,
@@ -94,13 +94,6 @@ export const retryProvisioning = action({
       0,
       internal.provisioning.provision_default_automations
         .provisionDefaultAutomations,
-      { organizationId: args.organizationId, orgSlug },
-    );
-    // Locale intentionally omitted: the prompt provisioner resolves the org's
-    // `defaultLocale` metadata itself when the arg is absent.
-    await ctx.scheduler.runAfter(
-      0,
-      internal.prompts.provision_defaults.syncDefaultPromptInstallations,
       { organizationId: args.organizationId, orgSlug },
     );
     // Default agent installs re-provision here.

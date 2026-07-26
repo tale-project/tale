@@ -30,6 +30,13 @@ const mockProvision = vi.fn();
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
   provisionSessionGatewayKey: (...args: unknown[]) => mockProvision(...args),
 }));
+// The slash resolution and skill staging resolve the org slug; the real
+// helper hits the Better Auth component, whose refs this file's name-based
+// ctx cannot answer.
+vi.mock('../lib/helpers/org_slug', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  orgSlugFromId: () => Promise.resolve('acme'),
+}));
 const mockResolveIntegrationCredential = vi.fn();
 vi.mock('../integration_credentials/resolve_credential', () => ({
   resolveIntegrationCredential: (...args: unknown[]) =>
@@ -90,6 +97,8 @@ interface CtxOverrides {
   activeSession?: Record<string, unknown> | null;
   externalState?: Record<string, unknown> | null;
   ownerIdentity?: { name: string; email: string } | null;
+  /** What `skills/file_actions:readSkill` answers a slash resolution with. */
+  slashSkill?: Record<string, unknown> | null;
 }
 
 /** A mocked ActionCtx that answers by function name and records the order of
@@ -139,6 +148,9 @@ function createCtx(overrides: CtxOverrides = {}) {
     if (name.endsWith('getExternalTurnOpForFinalize')) {
       return Promise.resolve({ startedAt: 1 });
     }
+    if (name.endsWith('getUserSkillViewerContext')) {
+      return Promise.resolve({ teamIds: [], isOrgAdmin: false });
+    }
     return Promise.resolve(null);
   });
 
@@ -162,6 +174,21 @@ function createCtx(overrides: CtxOverrides = {}) {
     tape.push({ event: `action:${name}`, args });
     if (name.endsWith('listComposerModels')) {
       return Promise.resolve(overrides.listing ?? MODEL_LISTING);
+    }
+    if (name.endsWith('file_actions:readSkill')) {
+      return Promise.resolve(
+        overrides.slashSkill === undefined ? null : overrides.slashSkill,
+      );
+    }
+    if (name.endsWith('file_actions:readSkillBundle')) {
+      return Promise.resolve({
+        files: [
+          {
+            path: 'SKILL.md',
+            contentBase64: Buffer.from('# Skill\n').toString('base64'),
+          },
+        ],
+      });
     }
     return Promise.resolve(null);
   });
@@ -572,5 +599,158 @@ describe('runExternalTurnStart — async honesty', () => {
     expect(events(tape).some((e) => e.includes('recordCredentialAccess'))).toBe(
       false,
     );
+  });
+});
+
+describe('runExternalTurnStart — the slash command', () => {
+  const START_ARGS = {
+    organizationId: ORG,
+    threadId: THREAD,
+    userId: USER,
+    userText: '/pdf extract the tables',
+    harness: 'claude-code',
+    providerSlug: 'openrouter',
+    modelId: 'deepseek/deepseek-v3.2',
+    gatewayModel: 'openrouter/deepseek/deepseek-v3.2',
+    serving: 'gateway' as const,
+    execId: EXEC,
+    streamId: 'stream_1',
+    messageId: 'msg_assistant' as never,
+    deadlineAt: Date.now() + 60_000,
+  };
+
+  /** The drained exec, as matchable text plus the decoded stdin message. */
+  function drainedExec(): { text: string; stdin: string } {
+    const call = mockDrain.mock.calls[0] ?? [];
+    const body = call[1] as { stdinBase64?: string } | undefined;
+    return {
+      text: JSON.stringify(call).replaceAll(String.raw`\"`, '"'),
+      stdin: Buffer.from(body?.stdinBase64 ?? '', 'base64').toString('utf-8'),
+    };
+  }
+
+  function armHappyPath() {
+    mockSessionIsAlive.mockResolvedValue(true);
+    mockProvision.mockResolvedValue({
+      token: 'sk-bf-test',
+      keyId: 'vk_test_1',
+      keyHash: 'hash',
+    });
+    mockStageFiles.mockResolvedValue({ staged: [], skipped: [] });
+    mockDrain.mockResolvedValue({
+      status: 'completed',
+      exitCode: 1,
+      durationMs: 5,
+      stdoutBase64: '',
+      stderrBase64: '',
+      truncated: { stdout: false, stderr: false },
+    });
+  }
+
+  it('stages the invoked skill for the turn and carries the directive, prompt verbatim', async () => {
+    const { ctx, tape } = createCtx({ slashSkill: { slug: 'pdf' } });
+    armHappyPath();
+
+    await runExternalTurnStart(ctx as never, START_ARGS);
+
+    // Resolved with the owner's chat-surface viewer.
+    const resolve = tape.find(
+      (t) => t.event.includes('readSkill') && !t.event.includes('Bundle'),
+    );
+    expect(resolve).toBeDefined();
+    expect(resolve?.args).toMatchObject({
+      orgSlug: 'acme',
+      slug: 'pdf',
+      surface: 'chat',
+      viewer: { kind: 'user', userId: USER },
+    });
+
+    // The bundle staged like any equipped skill…
+    const stagedPaths = (
+      (mockStageFiles.mock.calls[0]?.[1] ?? []) as Array<{ path: string }>
+    ).map((f) => f.path);
+    expect(stagedPaths).toContain('workspace/.tale/skills/pdf/SKILL.md');
+
+    // …and the exec carries both the equip line and the one-turn directive
+    // (the glue embeds instructions harness-specifically, so the assertion
+    // reads the whole drained call), while the raw message rides the stdin
+    // envelope verbatim, slash prefix included.
+    const drained = drainedExec();
+    expect(drained.text).toContain('/user/workspace/.tale/skills/pdf/SKILL.md');
+    expect(drained.text).toContain('invokes the skill "pdf"');
+    expect(drained.text).toContain("skill's arguments");
+    expect(drained.text).not.toContain('none were given');
+    expect(drained.stdin).toContain('/pdf extract the tables');
+
+    // The thread's stored equipment is never written by a slash turn.
+    expect(events(tape).some((e) => e.includes('setThreadCapabilities'))).toBe(
+      false,
+    );
+  });
+
+  it('notes when the invocation carried no arguments', async () => {
+    const { ctx } = createCtx({ slashSkill: { slug: 'pdf' } });
+    armHappyPath();
+
+    await runExternalTurnStart(ctx as never, {
+      ...START_ARGS,
+      userText: '/pdf',
+    });
+
+    expect(drainedExec().text).toContain('none were given');
+  });
+
+  it('sends an unknown or invisible slug as ordinary text, with no directive', async () => {
+    const { ctx, tape } = createCtx({ slashSkill: null });
+    armHappyPath();
+
+    await runExternalTurnStart(ctx as never, {
+      ...START_ARGS,
+      userText: '/nope do something',
+    });
+
+    // It asked, learned the skill is not usable here, and moved on.
+    expect(
+      events(tape).some(
+        (e) => e.includes('readSkill') && !e.includes('Bundle'),
+      ),
+    ).toBe(true);
+    expect(mockStageFiles).not.toHaveBeenCalled();
+    const drained = drainedExec();
+    expect(drained.text).not.toContain('invokes the skill');
+    expect(drained.stdin).toContain('/nope do something');
+  });
+
+  it('never resolves anything for a message that is not a command', async () => {
+    const { ctx, tape } = createCtx();
+    armHappyPath();
+
+    await runExternalTurnStart(ctx as never, {
+      ...START_ARGS,
+      userText: 'hello there',
+    });
+
+    expect(
+      events(tape).some(
+        (e) => e.includes('readSkill') && !e.includes('Bundle'),
+      ),
+    ).toBe(false);
+  });
+
+  it('stages a slash slug the thread already equips exactly once', async () => {
+    const { ctx } = createCtx({
+      slashSkill: { slug: 'pdf' },
+      thread: { capabilities: { skills: ['pdf'], connectors: [] } },
+    });
+    armHappyPath();
+
+    await runExternalTurnStart(ctx as never, START_ARGS);
+
+    const stagedPaths = (
+      (mockStageFiles.mock.calls[0]?.[1] ?? []) as Array<{ path: string }>
+    ).map((f) => f.path);
+    expect(
+      stagedPaths.filter((p) => p === 'workspace/.tale/skills/pdf/SKILL.md'),
+    ).toHaveLength(1);
   });
 });

@@ -30,11 +30,13 @@ import {
   argsOf,
   called,
   jsonBody,
-  restCtx,
+  restCtx as bareRestCtx,
   restRequest,
   testSession,
   TEST_ORG_SLUG,
   TEST_USER_ID,
+  type RestCtxOptions,
+  type StubRoutes,
 } from '../lib/rest/handler_kit.testkit';
 import type { HttpCtx } from '../lib/rest/helpers';
 import { deleteSkill, getSkill, listSkills, putSkill } from './rest_api';
@@ -45,6 +47,29 @@ const LIST = 'skills/file_actions:listSkills';
 const READ = 'skills/file_actions:readSkill';
 const SAVE = 'skills/file_actions:saveSkill';
 const DELETE = 'skills/file_actions:deleteSkill';
+const VIEWER_CONTEXT = 'skills/viewer_context:getUserSkillViewerContext';
+
+/**
+ * Every skills handler resolves the caller's viewer context first. Answering
+ * `null` (member not found in the mirror) exercises the documented fallback:
+ * no teams, `isOrgAdmin` from the key holder's role.
+ */
+function restCtx(
+  routes: StubRoutes = {},
+  options: RestCtxOptions = {},
+): ReturnType<typeof bareRestCtx> {
+  return bareRestCtx({ [VIEWER_CONTEXT]: () => null, ...routes }, options);
+}
+
+/** The viewer shape the fallback path hands the file layer. */
+function fallbackViewer(isOrgAdmin: boolean) {
+  return {
+    kind: 'user',
+    userId: TEST_USER_ID,
+    teamIds: [],
+    isOrgAdmin,
+  };
+}
 
 function skillDocument() {
   return {
@@ -85,8 +110,27 @@ describe('GET /api/v1/skills', () => {
     expect(response.status).toBe(200);
     expect(argsOf(calls, LIST)).toEqual({
       orgSlug: TEST_ORG_SLUG,
-      viewerUserId: TEST_USER_ID,
-      isOrgAdmin: true,
+      viewer: fallbackViewer(true),
+    });
+  });
+
+  it('carries the mirror-resolved teams and admin bit when present', async () => {
+    const { ctx, calls } = restCtx({
+      [VIEWER_CONTEXT]: () => ({ teamIds: ['team_red'], isOrgAdmin: false }),
+      [LIST]: () => ({ skills: [], failures: [] }),
+    });
+    await (listSkills as unknown as Handler)(
+      ctx,
+      restRequest('/api/v1/skills'),
+    );
+    expect(argsOf(calls, LIST)).toEqual({
+      orgSlug: TEST_ORG_SLUG,
+      viewer: {
+        kind: 'user',
+        userId: TEST_USER_ID,
+        teamIds: ['team_red'],
+        isOrgAdmin: false,
+      },
     });
   });
 });
@@ -134,13 +178,55 @@ describe('PUT /api/v1/skills/:slug', () => {
     expect(argsOf(calls, SAVE)).toEqual({
       orgSlug: TEST_ORG_SLUG,
       slug: 'invoice-audit',
-      viewerUserId: TEST_USER_ID,
-      isOrgAdmin: false,
+      viewer: fallbackViewer(false),
       description: 'How we audit an invoice',
       body: '# Invoice audit\n',
       visibility: 'org',
       labels: ['finance'],
     });
+  });
+
+  it('passes team sharing and the usage mode through', async () => {
+    const { ctx, calls } = restCtx({ [SAVE]: () => skillDocument() });
+    const response = await put(
+      ctx,
+      restRequest('/api/v1/skills/invoice-audit', {
+        method: 'PUT',
+        json: {
+          description: 'How we audit an invoice',
+          body: '# Invoice audit\n',
+          visibility: 'team',
+          teams: ['team_red', 'team_blue'],
+          usageMode: 'chat',
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(argsOf(calls, SAVE)).toEqual({
+      orgSlug: TEST_ORG_SLUG,
+      slug: 'invoice-audit',
+      viewer: fallbackViewer(false),
+      description: 'How we audit an invoice',
+      body: '# Invoice audit\n',
+      visibility: 'team',
+      teams: ['team_red', 'team_blue'],
+      usageMode: 'chat',
+    });
+  });
+
+  it('refuses an unknown visibility or usage mode (400)', async () => {
+    const { ctx, calls } = restCtx({ [SAVE]: () => skillDocument() });
+    for (const json of [
+      { description: 'x', body: '# x', visibility: 'everyone' },
+      { description: 'x', body: '# x', usageMode: 'sometimes' },
+    ]) {
+      const response = await put(
+        ctx,
+        restRequest('/api/v1/skills/invoice-audit', { method: 'PUT', json }),
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(called(calls, SAVE)).toBe(false);
   });
 
   it('refuses a save with no description or no body (400)', async () => {

@@ -28,6 +28,7 @@ import { Cpu, PanelLeftClose, PanelLeftOpen, PlugZap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
+import { SkillLibraryDialog } from '@/app/features/skills/components/skill-library-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useToast } from '@/app/hooks/use-toast';
@@ -110,6 +111,7 @@ export function ChatSurface({
   const modelPreference = useChatModelPreference(organizationId);
 
   const [selection, setSelection] = useState(NO_SELECTION);
+  const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
 
   // Chat sub-panel (thread list) visibility on desktop, toggled from the
   // conversation column. Org-scoped, NOT user-scoped, on purpose: the
@@ -529,9 +531,20 @@ export function ChatSurface({
               !threadsAvailable ||
               (threadId !== undefined && !messagesAvailable)
             }
+            onOpenSkillLibrary={() => setSkillLibraryOpen(true)}
           />
         </div>
       </Stack>
+
+      {/* Mounted only while open: its skill reads are Convex actions, and a
+          closed library must cost a chat view nothing. */}
+      {skillLibraryOpen && (
+        <SkillLibraryDialog
+          organizationId={organizationId}
+          open={skillLibraryOpen}
+          onOpenChange={setSkillLibraryOpen}
+        />
+      )}
 
       <CanvasPanel
         sources={canvas.status === 'ready' ? canvas.data : undefined}

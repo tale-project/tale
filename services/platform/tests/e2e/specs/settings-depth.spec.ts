@@ -355,7 +355,8 @@ test.describe('settings depth — teams', () => {
   });
 });
 
-// The skills page render + upload-affordance smoke moved to a component test:
-// app/features/skills/components/skills-catalog.test.tsx (pure render, no real
+// The skills settings page is retired — the skill library lives in the chat
+// composer's + menu now, covered by component tests under
+// app/features/skills/ (pure render, no real
 // backend/upload seam — installing a skill needs an on-disk SKILL.md bundle and
 // is non-hermetic, so the e2e only ever asserted the empty-state chrome).

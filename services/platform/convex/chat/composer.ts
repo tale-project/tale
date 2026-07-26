@@ -19,11 +19,11 @@
  * and the org's custom connectors is filesystem work.
  */
 
-import { v, type Infer } from 'convex/values';
+import { ConvexError, v, type Infer } from 'convex/values';
 
 import { loadIntegrationConnectors } from '../../lib/integrations/catalog';
-import { api } from '../_generated/api';
-import { action } from '../_generated/server';
+import { api, internal } from '../_generated/api';
+import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
 import { credentialAuthFor } from '../lib/providers/credential_auth';
@@ -183,6 +183,12 @@ const composerCapabilityValidator = v.object({
   slug: v.string(),
   label: v.string(),
   description: v.optional(v.string()),
+  /** Iconify id from the skill's frontmatter, for the pickers' cards. */
+  icon: v.optional(v.string()),
+  /** `chat | agent | all`; absent reads as `all`. Connectors never carry it. */
+  usageMode: v.optional(
+    v.union(v.literal('chat'), v.literal('agent'), v.literal('all')),
+  ),
 });
 
 type ComposerCapability = Infer<typeof composerCapabilityValidator>;
@@ -192,13 +198,64 @@ interface ComposerCapabilityListing {
   connectors: ComposerCapability[];
 }
 
+const capabilityListingValidator = v.object({
+  skills: v.array(composerCapabilityValidator),
+  connectors: v.array(composerCapabilityValidator),
+});
+
+function toSkillCapability(skill: {
+  slug: string;
+  description: string;
+  icon?: string;
+  usageMode?: 'chat' | 'agent' | 'all';
+}): ComposerCapability {
+  const option: ComposerCapability = {
+    slug: skill.slug,
+    label: skill.slug,
+  };
+  if (skill.description !== '') option.description = skill.description;
+  if (skill.icon !== undefined) option.icon = skill.icon;
+  if (skill.usageMode !== undefined) option.usageMode = skill.usageMode;
+  return option;
+}
+
 /**
- * What a conversation can equip an agent with: the organization's skills and
- * its ENABLED connectors — a connector counts as enabled when the org holds
- * an active credential for it, the same credential-gated rule the model
- * listing follows. Listing is non-secret capability metadata, open to any
- * member; what a selection DOES is decided where it is consumed (a
- * third-party agent's session provisioning), never here.
+ * The connectors a selection may equip: a connector is offered when the org
+ * holds an ACTIVE credential for it — the same credential-gated rule the
+ * model listing follows. An equipped connector reaches the turn for real: it
+ * becomes the session token's integration grant and mounts the in-sandbox
+ * `tale-integrations-mcp` bridge (read-only in V1).
+ */
+async function listEnabledConnectors(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<ComposerCapability[]> {
+  const credentials = await ctx.runQuery(
+    api.integration_credentials.queries.listCredentials,
+    { organizationId },
+  );
+  const enabledSlugs = new Set(
+    credentials
+      .filter((credential) => credential.status === 'active')
+      .map((credential) => credential.connectorSlug),
+  );
+  return loadIntegrationConnectors()
+    .filter((connector) => enabledSlugs.has(connector.name))
+    .map((connector) => ({
+      slug: connector.name,
+      label: connector.displayName,
+      description: connector.description,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/**
+ * What a CONVERSATION can equip: the skills the asking member may use in
+ * chat — their own visibility (private + their teams' + org), narrowed to
+ * the `chat` surface so an agent-only skill never shows up in the composer
+ * or the `/` command — plus the org's enabled connectors. Listing is
+ * non-secret capability metadata, open to any member; what a selection DOES
+ * is decided where it is consumed, never here.
  *
  * The handler's return type is annotated explicitly — it calls back through
  * the generated `api`, and an unannotated return would flow that cycle into
@@ -206,50 +263,92 @@ interface ComposerCapabilityListing {
  */
 export const listComposerCapabilities = action({
   args: { organizationId: v.string() },
-  returns: v.object({
-    skills: v.array(composerCapabilityValidator),
-    connectors: v.array(composerCapabilityValidator),
-  }),
+  returns: capabilityListingValidator,
   handler: async (ctx, args): Promise<ComposerCapabilityListing> => {
-    await requireOrgMembershipById(ctx, args.organizationId);
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const context = await ctx.runQuery(
+      internal.skills.viewer_context.getUserSkillViewerContext,
+      { organizationId: args.organizationId, userId: auth.userId },
+    );
 
-    const skillListing = await ctx.runAction(api.skills.actions.listSkills, {
-      organizationId: args.organizationId,
-    });
+    const skillListing = await ctx.runAction(
+      internal.skills.file_actions.listSkills,
+      {
+        orgSlug: auth.orgSlug,
+        viewer: {
+          kind: 'user' as const,
+          userId: auth.userId,
+          teamIds: context?.teamIds ?? [],
+          isOrgAdmin: context?.isOrgAdmin ?? false,
+        },
+        surface: 'chat' as const,
+      },
+    );
     const skills = skillListing.skills
-      .map((skill) => {
-        const option: ComposerCapability = {
-          slug: skill.slug,
-          label: skill.slug,
-        };
-        if (skill.description !== '') option.description = skill.description;
-        return option;
-      })
+      .map(toSkillCapability)
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    // A connector is offered when the org holds an ACTIVE credential for it —
-    // the same credential-gated rule the model listing follows. An equipped
-    // connector now reaches the turn for real: it becomes the session token's
-    // integration grant and mounts the in-sandbox `tale-integrations-mcp`
-    // bridge (read-only in V1), so the picker no longer hides them.
-    const credentials = await ctx.runQuery(
-      api.integration_credentials.queries.listCredentials,
-      { organizationId: args.organizationId },
+    return {
+      skills,
+      connectors: await listEnabledConnectors(ctx, args.organizationId),
+    };
+  },
+});
+
+/**
+ * What a PROJECT's agents can equip: the skills visible to the project
+ * itself — org-wide ones plus team skills shared with any of the project's
+ * teams; an org-wide project sees org skills only — narrowed to the `agent`
+ * surface. Deliberately NOT the configuring member's visibility: a project
+ * agent runs for every project member, so its equipment must never smuggle
+ * in something only its author could see. The caller still has to be a
+ * member with access to the project.
+ */
+export const listProjectCapabilities = action({
+  args: { organizationId: v.string(), projectId: v.id('projects') },
+  returns: capabilityListingValidator,
+  handler: async (ctx, args): Promise<ComposerCapabilityListing> => {
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const access = await ctx.runQuery(
+      internal.projects.internal_queries.assertProjectAccessForChat,
+      {
+        projectId: args.projectId,
+        organizationId: args.organizationId,
+        userId: auth.userId,
+      },
     );
-    const enabledSlugs = new Set(
-      credentials
-        .filter((credential) => credential.status === 'active')
-        .map((credential) => credential.connectorSlug),
+    if (!access.allowed) {
+      throw new ConvexError({
+        code:
+          access.reason === 'not_found'
+            ? 'PROJECT_NOT_FOUND'
+            : 'PROJECT_FORBIDDEN',
+        message: 'You do not have access to this project.',
+      });
+    }
+    const scope = await ctx.runQuery(
+      internal.projects.internal_queries.getProjectSkillScope,
+      { projectId: args.projectId },
     );
-    const connectors = loadIntegrationConnectors()
-      .filter((connector) => enabledSlugs.has(connector.name))
-      .map((connector) => ({
-        slug: connector.name,
-        label: connector.displayName,
-        description: connector.description,
-      }))
+
+    const skillListing = await ctx.runAction(
+      internal.skills.file_actions.listSkills,
+      {
+        orgSlug: auth.orgSlug,
+        viewer: {
+          kind: 'project' as const,
+          teamIds: scope?.teamIds ?? [],
+        },
+        surface: 'agent' as const,
+      },
+    );
+    const skills = skillListing.skills
+      .map(toSkillCapability)
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    return { skills, connectors };
+    return {
+      skills,
+      connectors: await listEnabledConnectors(ctx, args.organizationId),
+    };
   },
 });

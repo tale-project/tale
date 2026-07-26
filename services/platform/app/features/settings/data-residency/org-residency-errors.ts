@@ -1,5 +1,6 @@
 /**
- * Map a thrown error from a per-org object-storage action into an admin-facing
+ * Map a thrown error from a per-org data-residency action (knowledge DB,
+ * embedding model, object storage, blob backfill) into an admin-facing
  * message. Duck-types `ConvexError.data` because Vite chunk splitting can
  * produce multiple `ConvexError` class copies that break `instanceof` — same
  * rationale as `deployment-errors.ts`, which this sits beside (the code set
@@ -7,27 +8,19 @@
  * connection, not the deployment file).
  */
 
+import {
+  pickString,
+  readConvexErrorData,
+} from '../governance/convex-error-data';
+
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
-function readConvexErrorData(
-  err: unknown,
-): Record<string, unknown> | undefined {
-  if (err == null || typeof err !== 'object') return undefined;
-  if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime-checked above
-  return data as Record<string, unknown>;
+/** Duck-typed `ConvexError.data.code` of an org data-residency failure. */
+export function orgResidencyErrorCode(err: unknown): string | undefined {
+  return pickString(readConvexErrorData(err), 'code');
 }
 
-function pickString(data: unknown, key: string): string | undefined {
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime-checked above
-  const v = (data as Record<string, unknown>)[key];
-  return typeof v === 'string' ? v : undefined;
-}
-
-/** Admin-facing message for an org object-storage action failure. */
+/** Admin-facing message for an org data-residency action failure. */
 export function mapOrgResidencyError(err: unknown, t: Translator): string {
   const data = readConvexErrorData(err);
   const code = pickString(data, 'code');
@@ -50,6 +43,19 @@ export function mapOrgResidencyError(err: unknown, t: Translator): string {
       return t('dataResidency.orgStorage.errors.credentialsPair');
     case 'CREDENTIALS_REQUIRED':
       return t('dataResidency.orgStorage.errors.credentialsRequired');
+    case 'INVALID_EMBEDDING':
+      // Like INVALID_CONNECTION: the server message carries the Zod issues.
+      return serverMessage ?? t('dataResidency.orgEmbedding.errors.invalid');
+    case 'CREDENTIAL_NOT_FOUND':
+      return t('dataResidency.orgEmbedding.errors.credentialNotFound');
+    case 'CREDENTIAL_PROVIDER_MISMATCH':
+      return t('dataResidency.orgEmbedding.errors.credentialMismatch');
+    case 'CREDENTIAL_DISABLED':
+      return t('dataResidency.orgEmbedding.errors.credentialDisabled');
+    case 'NOT_CONFIGURED':
+      return t('dataResidency.orgStorage.backfill.errors.notConfigured');
+    case 'BACKFILL_ALREADY_RUNNING':
+      return t('dataResidency.orgStorage.backfill.errors.alreadyRunning');
     default:
       return fallback;
   }

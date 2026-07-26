@@ -1,29 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Card } from '@tale/ui/card';
-import { EmptyState } from '@tale/ui/empty-state';
-import { Row } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import {
-  DataTableFilters,
-  type FilterConfig,
-} from '@/app/components/ui/data-table/data-table-filters';
+import { DataTable } from '@/app/components/ui/data-table/data-table';
+import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
@@ -47,9 +33,6 @@ interface Props {
 // after the round-2 V2 P1-A/B cleanup, so this is now an alias.
 const VISIBLE_RESOURCE_TYPES: readonly SoftDeleteResourceType[] =
   SOFT_DELETE_RESOURCE_TYPES;
-
-/** Placeholder rows shown while the first page loads (see `TrashPageView`). */
-const PLACEHOLDER_ROW_COUNT = 5;
 
 interface RestoreTarget {
   resourceType: SoftDeleteResourceType;
@@ -75,12 +58,12 @@ interface TrashCursor {
 }
 
 // =============================================================================
-// Single page — owns data fetching, pagination/filter state, the access check,
-// the restore mutation, and the loading state. Renders the REAL `SettingsSection` +
-// trash table once, always, wrapped in `<Skeletonize>` (no horizontal/vertical
-// shift on load). While loading, the table renders fixed PLACEHOLDER rows (same
-// cell count/height) so an empty body never reads as "nothing trashed"; the
-// real empty-state shows only once loaded with zero rows.
+// Single page — owns data fetching, cursor pagination/filter state, the access
+// check, and the restore mutation. Rendering is the shared `DataTable`, so the
+// loading skeleton, the empty state (inside the bordered frame, headers
+// hidden), the filtered-empty state (headers kept, "no results" copy), the
+// disabled filter button on a genuinely empty trash, and the load-more chrome
+// all read exactly like every other table.
 // =============================================================================
 export function TrashPage({ organizationId }: Props) {
   const { t } = useT('governance');
@@ -97,7 +80,7 @@ export function TrashPage({ organizationId }: Props) {
 
   // Cursor-based pagination: `cursor` is what we're currently fetching
   // with (null = first page); `loadedPages` accumulates earlier pages
-  // once the user clicks Load more.
+  // once the user loads more.
   const [cursor, setCursor] = useState<TrashCursor | null>(null);
   const [loadedPages, setLoadedPages] = useState<TrashRow[][]>([]);
 
@@ -206,16 +189,138 @@ export function TrashPage({ organizationId }: Props) {
 
   const isFirstPageLoading =
     trash.isLoading && cursor === null && loadedPages.length === 0;
-  // Subsequent-page fetch (Load more clicked): keep showing the accumulated
-  // rows; only the load-more affordance reflects the in-flight state.
+  // Subsequent-page fetch (load more): keep showing the accumulated rows;
+  // only the load-more affordance reflects the in-flight state.
   const isLoadingMore = trash.isLoading && !isFirstPageLoading;
   const hasMore = Boolean(trash.data?.nextCursor);
-  const loading = isFirstPageLoading;
-  const rows = visibleRows;
-  const onClearFilters =
-    selectedTypes.length > 0 ? handleClearFilters : undefined;
-  const onLoadMore = handleLoadMore;
-  const onRequestRestore = setRestoreTarget;
+
+  const columns = useMemo<ColumnDef<TrashRow>[]>(
+    () => [
+      {
+        id: 'type',
+        header: t('trash.column.type', 'Type'),
+        cell: ({ row }) => {
+          const label = t(
+            `trash.tab.${row.original.resourceType}`,
+            row.original.resourceType,
+          );
+          return (
+            <Text
+              as="span"
+              variant="muted"
+              truncate
+              title={label}
+              className="text-xs"
+            >
+              {label}
+            </Text>
+          );
+        },
+        // Wide enough for the longest category label across locales
+        // ("Externe Konversationen"); anything longer truncates with a title.
+        size: 140,
+      },
+      {
+        id: 'name',
+        header: t('trash.column.name', 'Name'),
+        // The one prose-ish column: it alone absorbs the container slack
+        // while the siblings keep their declared px.
+        meta: { flex: true },
+        cell: ({ row }) => {
+          const name = row.original.displayName ?? row.original.id;
+          return (
+            <Text as="span" truncate title={name} className="font-mono text-xs">
+              {name}
+            </Text>
+          );
+        },
+        size: 150,
+      },
+      {
+        id: 'owner',
+        header: t('trash.column.owner', 'Owner'),
+        cell: ({ row }) => (
+          <Text
+            as="span"
+            variant="muted"
+            truncate
+            className={row.original.ownerName ? 'text-xs' : 'font-mono text-xs'}
+          >
+            {row.original.ownerName ?? row.original.ownerId ?? '—'}
+          </Text>
+        ),
+        size: 130,
+      },
+      {
+        id: 'status',
+        header: t('trash.column.status', 'Status'),
+        cell: ({ row }) => (
+          <span
+            className={
+              row.original.status === 'expired'
+                ? 'rounded bg-orange-500/20 px-2 py-0.5 text-xs text-orange-700 dark:text-orange-300'
+                : 'rounded bg-yellow-500/20 px-2 py-0.5 text-xs text-yellow-700 dark:text-yellow-300'
+            }
+          >
+            {t(`trash.status.${row.original.status}`, row.original.status)}
+          </span>
+        ),
+        // Fits the widest status badge across locales ("Mis à la corbeille",
+        // ~112px) on one line.
+        size: 128,
+      },
+      {
+        id: 'statusChangedAt',
+        header: t('trash.column.statusChangedAt', 'Trashed'),
+        cell: ({ row }) => (
+          <TableDateCell
+            date={row.original.statusChangedAt ?? row.original.createdAt}
+            preset="relative"
+            className="text-xs"
+          />
+        ),
+        // Relative dates run long ("il y a quelques secondes", ~141px) and
+        // the cell doesn't wrap — keep enough room that the text never
+        // slides under the Restore column.
+        size: 156,
+      },
+      {
+        id: 'actions',
+        header: () => (
+          <span className="sr-only">
+            {t('trash.column.actions', 'Actions')}
+          </span>
+        ),
+        // Wider than the canonical 3-dot actions column: restore is the
+        // page's whole purpose, so it stays a labelled inline button
+        // instead of collapsing into a dropdown. Sized for the widest
+        // label across locales ("Wiederherstellen", ~171px rendered).
+        size: 188,
+        meta: { isAction: true },
+        cell: ({ row }) => (
+          <Button
+            variant="secondary"
+            icon={Undo2}
+            onClick={() =>
+              setRestoreTarget({
+                resourceType: row.original.resourceType,
+                rowId: row.original.id,
+                displayName: row.original.displayName ?? row.original.id,
+                status: row.original.status,
+              })
+            }
+          >
+            {/* Icon-only on mobile; the label stays in the a11y tree via
+                `sr-only` so the button keeps its accessible name. */}
+            <span className="max-sm:sr-only">
+              {t('trash.restore.label', 'Restore')}
+            </span>
+          </Button>
+        ),
+      },
+    ],
+    [t],
+  );
 
   // Access gate is a real authorization branch, not a loading swap.
   if (ability.cannot('write', 'orgSettings')) {
@@ -231,183 +336,41 @@ export function TrashPage({ organizationId }: Props) {
           'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
         )}
       >
-        {/* Filters live OUTSIDE the Skeletonize so the type checkboxes and
-            clear-all stay interactive (and unmasked) while a filter change
-            refetches the first page — only the table body should skeletonize. */}
-        <DataTableFilters filters={filterConfigs} onClearAll={onClearFilters} />
-
-        <Skeletonize loading={loading} label={t('trash.title', 'Trash')}>
-          {!loading && rows.length === 0 ? (
-            <EmptyState
-              icon={Trash2}
-              title={t('trash.emptyTitle', 'Trash is empty')}
-              description={t(
-                'trash.empty',
-                'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
-              )}
-            />
-          ) : (
-            <Card padding="none" className="overflow-hidden">
-              <Table className="min-w-[44rem]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="whitespace-nowrap">
-                      {t('trash.column.type', 'Type')}
-                    </TableHead>
-                    <TableHead className="whitespace-nowrap">
-                      {t('trash.column.name', 'Name')}
-                    </TableHead>
-                    <TableHead className="whitespace-nowrap">
-                      {t('trash.column.owner', 'Owner')}
-                    </TableHead>
-                    <TableHead className="whitespace-nowrap">
-                      {t('trash.column.status', 'Status')}
-                    </TableHead>
-                    <TableHead className="whitespace-nowrap">
-                      {t('trash.column.statusChangedAt', 'Trashed')}
-                    </TableHead>
-                    <TableHead className="text-right whitespace-nowrap">
-                      {t('trash.column.actions', 'Actions')}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading
-                    ? Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
-                        (_, i) => (
-                          <TableRow key={`placeholder-${i}`}>
-                            <TableCell>
-                              <SkeletonBox>
-                                <div className="h-3.5 w-16" />
-                              </SkeletonBox>
-                            </TableCell>
-                            <TableCell>
-                              <SkeletonBox>
-                                <div className="h-3.5 w-32" />
-                              </SkeletonBox>
-                            </TableCell>
-                            <TableCell>
-                              <SkeletonBox>
-                                <div className="h-3.5 w-24" />
-                              </SkeletonBox>
-                            </TableCell>
-                            <TableCell>
-                              <SkeletonBox>
-                                <div className="h-5 w-16 rounded" />
-                              </SkeletonBox>
-                            </TableCell>
-                            <TableCell>
-                              <SkeletonBox>
-                                <div className="h-3.5 w-20" />
-                              </SkeletonBox>
-                            </TableCell>
-                            <TableCell>
-                              <SkeletonBox fullWidth>
-                                <div className="ml-auto h-8 w-20 rounded-md" />
-                              </SkeletonBox>
-                            </TableCell>
-                          </TableRow>
-                        ),
-                      )
-                    : rows.map((row) => (
-                        <TableRow
-                          key={`${row.resourceType}:${row.id}`}
-                          className="hover:bg-muted/20"
-                        >
-                          <TableCell className="text-muted-foreground text-xs">
-                            {t(
-                              `trash.tab.${row.resourceType}`,
-                              row.resourceType,
-                            )}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {row.displayName ?? row.id}
-                          </TableCell>
-                          <TableCell
-                            className={
-                              row.ownerName
-                                ? 'text-muted-foreground text-xs'
-                                : 'text-muted-foreground font-mono text-xs'
-                            }
-                          >
-                            {row.ownerName ?? row.ownerId ?? '—'}
-                          </TableCell>
-                          <TableCell>
-                            <span
-                              className={
-                                row.status === 'expired'
-                                  ? 'rounded bg-orange-500/20 px-2 py-0.5 text-xs text-orange-700 dark:text-orange-300'
-                                  : 'rounded bg-yellow-500/20 px-2 py-0.5 text-xs text-yellow-700 dark:text-yellow-300'
-                              }
-                            >
-                              {t(`trash.status.${row.status}`, row.status)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-xs">
-                            <TableDateCell
-                              date={row.statusChangedAt ?? row.createdAt}
-                              preset="relative"
-                              className="text-xs"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="secondary"
-                              icon={Undo2}
-                              onClick={() =>
-                                onRequestRestore({
-                                  resourceType: row.resourceType,
-                                  rowId: row.id,
-                                  displayName: row.displayName ?? row.id,
-                                  status: row.status,
-                                })
-                              }
-                            >
-                              {/* Icon-only on mobile; the label stays in the
-                                a11y tree via `sr-only` so the button keeps
-                                its accessible name. */}
-                              <span className="max-sm:sr-only">
-                                {t('trash.restore.label', 'Restore')}
-                              </span>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                </TableBody>
-              </Table>
-              {/* The load-more row reserves its height in both states (masked
-              while the first page loads), so revealing it never pushes the
-              page. It only shows the real button once more pages exist. */}
-              {(loading || hasMore) && (
-                <Row
-                  gap={0}
-                  align="stretch"
-                  justify="center"
-                  // Same footer chrome as the shared DataTable's load-more —
-                  // centered, no divider — so paging reads identically on
-                  // every table.
-                  className="py-3"
-                >
-                  {loading ? (
-                    <SkeletonBox>
-                      <div className="h-8 w-24 rounded-md" />
-                    </SkeletonBox>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      disabled={isLoadingMore}
-                      onClick={onLoadMore}
-                    >
-                      {isLoadingMore
-                        ? tCommon('actions.loading')
-                        : t('trash.loadMore', 'Load more')}
-                    </Button>
-                  )}
-                </Row>
-              )}
-            </Card>
-          )}
-        </Skeletonize>
+        <DataTable<TrashRow>
+          columns={columns}
+          data={visibleRows}
+          isLoading={isFirstPageLoading}
+          // `undefined` while the first page (or a filter change) is in
+          // flight — DataTable shows its standard skeleton instead of
+          // flashing the empty state before the count is known.
+          approxRowCount={
+            trash.data === undefined ? undefined : visibleRows.length
+          }
+          getRowId={(row) => `${row.resourceType}:${row.id}`}
+          filters={filterConfigs}
+          onClearFilters={handleClearFilters}
+          infiniteScroll={{
+            // Keep the affordance up while a page fetch is in flight so the
+            // footer doesn't flash "showing all" between pages.
+            hasMore: hasMore || isLoadingMore,
+            onLoadMore: handleLoadMore,
+            isLoadingMore,
+            isInitialLoading: isFirstPageLoading,
+            entityLabel: {
+              one: t('trash.entityLabelOne', 'record'),
+              other: t('trash.entityLabel', 'records'),
+            },
+          }}
+          emptyState={{
+            icon: Trash2,
+            title: t('trash.emptyTitle', 'Trash is empty'),
+            description: t(
+              'trash.empty',
+              'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
+            ),
+          }}
+          caption={t('trash.title', 'Trash')}
+        />
       </SettingsSection>
 
       <ConfirmDialog

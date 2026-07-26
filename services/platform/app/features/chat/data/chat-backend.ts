@@ -461,6 +461,18 @@ interface ComposerCapabilityCatalog {
 const composerCapabilitiesCache = new Map<string, ComposerCapabilityCatalog>();
 
 /**
+ * Drop an org's cached capability catalog so the next composer mount
+ * refetches it. The skill library calls this after every save, upload or
+ * delete — a freshly created skill must show up in the equip menu without a
+ * full reload.
+ */
+export function invalidateComposerCapabilitiesCache(
+  organizationId: string,
+): void {
+  composerCapabilitiesCache.delete(organizationId);
+}
+
+/**
  * What a conversation can equip an agent with: the org's skills and its
  * enabled connectors. File- and credential-backed like the model listing, so
  * — same style — an aggregator ACTION resolved on mount, degrading to

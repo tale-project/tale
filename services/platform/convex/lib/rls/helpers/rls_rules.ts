@@ -10,7 +10,6 @@ import type { DataModel, Doc, Id } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
 import { hasKnowledgeHubDocumentAccess } from '../../../documents/access';
 import { getUserTeamIds } from '../../get_user_teams';
-import { hasTeamAccess } from '../../team_access';
 import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import type {
@@ -48,8 +47,7 @@ export async function rlsRules(
   );
 
   // Team IDs cost a cross-component Better Auth round-trip, but only the
-  // handful of team-scoped tables below (documents, promptTemplates,
-  // promptCategories) ever consult them. The vast majority of wrapped queries
+  // handful of team-scoped tables below (documents) ever consult them. The vast majority of wrapped queries
   // touch none of those tables, so resolving teams eagerly here burned a
   // round-trip per query for nothing. Resolve them lazily and memoize: the
   // cost is paid once, only when a team-scoped row policy actually runs.
@@ -492,120 +490,6 @@ export async function rlsRules(
           (m) => m.organizationId === website.organizationId,
         );
         return authorizeRls(membership?.role, 'websites', 'write');
-      },
-    },
-
-    // Prompt Templates - organization-scoped, team-filtered
-    promptTemplates: {
-      read: async (_, prompt) => {
-        if (!user) return false;
-        if (!userOrgIds.has(prompt.organizationId)) return false;
-        if (!hasTeamAccess(prompt, await resolveTeamIds())) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === prompt.organizationId,
-        );
-        return authorizeRls(membership?.role, 'promptTemplates', 'read');
-      },
-      modify: async (_, prompt) => {
-        if (!user) return false;
-        if (!userOrgIds.has(prompt.organizationId)) return false;
-        if (!hasTeamAccess(prompt, await resolveTeamIds())) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === prompt.organizationId,
-        );
-        return authorizeRls(membership?.role, 'promptTemplates', 'write');
-      },
-      insert: async ({ user: ruleUser }, prompt) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(prompt.organizationId)) return false;
-        if (!hasTeamAccess(prompt, await resolveTeamIds())) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === prompt.organizationId,
-        );
-        return authorizeRls(membership?.role, 'promptTemplates', 'write');
-      },
-    },
-
-    // Prompt Categories - organization-scoped, scope-filtered
-    // (personal: creator; team: team members; global: any org member).
-    // Coarse RLS — the handler still does scope-specific create gating
-    // (admins for team/global, creator-only for personal modify).
-    promptCategories: {
-      read: async (_, category) => {
-        if (!user) return false;
-        if (!userOrgIds.has(category.organizationId)) return false;
-        if (category.scope === 'global') {
-          // visible to any org member
-        } else if (category.scope === 'team') {
-          if (
-            !category.teamId ||
-            !(await resolveTeamIds()).has(category.teamId)
-          )
-            return false;
-        } else if (category.scope === 'personal') {
-          if (category.createdBy !== user.userId) return false;
-        } else {
-          return false;
-        }
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === category.organizationId,
-        );
-        return authorizeRls(membership?.role, 'promptCategories', 'read');
-      },
-      modify: async (_, category) => {
-        if (!user) return false;
-        if (!userOrgIds.has(category.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === category.organizationId,
-        );
-        if (!authorizeRls(membership?.role, 'promptCategories', 'write')) {
-          return false;
-        }
-        // Mirror the scope model on the write path so the row policy
-        // doesn't rely on every caller to remember the matrix:
-        //   personal — only the creator
-        //   team     — admins/owners of the org who are members of the team
-        //   global   — admins/owners only
-        const isAdminRole =
-          membership?.role === 'admin' || membership?.role === 'owner';
-        if (category.scope === 'personal') {
-          return category.createdBy === user.userId;
-        }
-        if (category.scope === 'team') {
-          if (!isAdminRole) return false;
-          return (
-            !!category.teamId && (await resolveTeamIds()).has(category.teamId)
-          );
-        }
-        if (category.scope === 'global') {
-          return isAdminRole;
-        }
-        return false;
-      },
-      insert: async ({ user: ruleUser }, category) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(category.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === category.organizationId,
-        );
-        if (!authorizeRls(membership?.role, 'promptCategories', 'write')) {
-          return false;
-        }
-        const isAdminRole =
-          membership?.role === 'admin' || membership?.role === 'owner';
-        if (category.scope === 'personal') {
-          return category.createdBy === ruleUser.userId;
-        }
-        if (category.scope === 'team') {
-          if (!isAdminRole) return false;
-          return (
-            !!category.teamId && (await resolveTeamIds()).has(category.teamId)
-          );
-        }
-        if (category.scope === 'global') {
-          return isAdminRole;
-        }
-        return false;
       },
     },
 

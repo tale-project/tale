@@ -126,6 +126,10 @@ export interface ComposerCapabilityOption {
   readonly slug: string;
   readonly label: string;
   readonly description?: string;
+  /** A skill's Iconify id, for the pickers' rows. Connectors never carry it. */
+  readonly icon?: string;
+  /** A skill's usage mode; absent reads as `all`. */
+  readonly usageMode?: 'chat' | 'agent' | 'all';
 }
 
 /** What the composer sends. */

@@ -43,7 +43,6 @@
  * organization's corpus with another's credential.
  */
 
-import type { KnowledgeEmbeddingConfig } from '../../lib/knowledge/config';
 import { retrieve, type CorpusReader } from '../../lib/knowledge/retrieve';
 import type {
   KnowledgeSearchBackend,
@@ -55,6 +54,7 @@ import {
   type KnowledgeQuery,
   type KnowledgeResult,
 } from '../../lib/knowledge/types';
+import type { KnowledgeEmbeddingConfig } from '../../lib/shared/schemas/knowledge';
 import type { ActionCtx } from '../_generated/server';
 import { readOrgEmbeddingConfig } from './connection';
 import { DocumentCorpusReader, WebCorpusReader } from './corpus';

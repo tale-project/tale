@@ -49,8 +49,6 @@ The everyday entry point: agents, attachments, citations, voice — and Arena.
   </tr>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/prompt-library-dialog.webp"><img src="services/docs/public/images/platform/prompt-library-dialog.webp" alt="The prompt library dialog open over the chat composer, listing provisioned starter prompts with scope tabs and a filter row" width="100%"></a>
-      <br/><sub><b>Prompt library</b> — provisioned, shareable starter prompts</sub>
     </td>
     <td width="50%">
       <a href="services/docs/public/images/platform/chat-share-dialog.webp"><img src="services/docs/public/images/platform/chat-share-dialog.webp" alt="The Share chat dialog open over a thread, with the Enable sharing toggle still off and a note that anyone in the organization holding the link can view the chat" width="100%"></a>

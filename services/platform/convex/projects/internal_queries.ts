@@ -14,7 +14,7 @@ import type { Id } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
-import { hasProjectAccess } from './access';
+import { getProjectTeamIds, hasProjectAccess } from './access';
 
 /**
  * Load a project record for chat-time injection. Returns the minimal
@@ -86,6 +86,39 @@ async function projectIdForThread(
     .first();
   return meta?.projectId ?? null;
 }
+
+/**
+ * The skill-viewer scope of a project: its owning + shared team ids, where
+ * an empty list means an org-wide project. `null` when the project does not
+ * resolve. Skill listing and staging read team skills through this scope —
+ * a project's equipment sees what the PROJECT may see, never what the member
+ * configuring it may (see `lib/skills/visibility.ts`).
+ */
+export const getProjectSkillScope = internalQuery({
+  args: { projectId: v.id('projects') },
+  returns: v.union(v.object({ teamIds: v.array(v.string()) }), v.null()),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return null;
+    return { teamIds: getProjectTeamIds(project) };
+  },
+});
+
+/**
+ * The skill-viewer scope of a project agent's project, resolved from the
+ * agent row task runs carry. `null` when the agent or its project is gone.
+ */
+export const getProjectAgentSkillScope = internalQuery({
+  args: { agentId: v.id('projectAgents') },
+  returns: v.union(v.object({ teamIds: v.array(v.string()) }), v.null()),
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) return null;
+    const project = await ctx.db.get(agent.projectId);
+    if (!project) return null;
+    return { teamIds: getProjectTeamIds(project) };
+  },
+});
 
 /**
  * Load the projectId for a thread, if any. Used by chat runtime to

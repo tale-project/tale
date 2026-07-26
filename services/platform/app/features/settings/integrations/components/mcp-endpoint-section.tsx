@@ -9,7 +9,7 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
-import { MCP_TOOLS } from '@/lib/mcp/tools';
+import { MCP_TOOL_GROUPS, MCP_TOOLS } from '@/lib/mcp/tools';
 import { useSiteUrl } from '@/lib/site-url-context';
 
 /**
@@ -17,11 +17,11 @@ import { useSiteUrl } from '@/lib/site-url-context';
  * IDE, a desktop assistant, an external agent) points at the endpoint with an
  * org API key and gets the same tools the in-platform builder drives, plus the
  * organization's capability surface. The list renders `MCP_TOOLS` — the very
- * inventory the endpoint answers `tools/list` with — so this section can never
- * advertise a tool the server would refuse. Lives on the Integrations page so
- * every way of connecting outside software is managed in one place. (Managing
- * OUTBOUND MCP servers for agents is a separate, retired surface; it returns
- * with the capability registrations.)
+ * inventory the endpoint answers `tools/list` with, in the same three groups
+ * the endpoint docs draw — so this section can never advertise a tool the
+ * server would refuse. Lives on the API settings page with the other inbound
+ * surfaces. (Managing OUTBOUND MCP servers for agents is a separate, retired
+ * surface; it returns with the capability registrations.)
  */
 export function McpEndpointSection({
   organizationId,
@@ -67,18 +67,24 @@ export function McpEndpointSection({
           />
         </SettingsFieldRow>
 
-        <SettingsFieldRow
-          label={t('mcpEndpoint.toolsTitle')}
-          description={t('mcpEndpoint.toolsHelp')}
-        >
-          <ul className="grid grid-cols-2 gap-1">
-            {MCP_TOOLS.map((tool) => (
-              <li key={tool.name}>
-                <code className="text-xs">{tool.name}</code>
-              </li>
-            ))}
-          </ul>
-        </SettingsFieldRow>
+        {/* The inventory in the same three groups the docs table draws —
+            authoring, run & trigger management, capabilities & knowledge —
+            so a reader can map this list onto the MCP endpoint docs 1:1. */}
+        {MCP_TOOL_GROUPS.map((group) => (
+          <SettingsFieldRow
+            key={group}
+            label={t(`mcpEndpoint.tools.${group}.title`)}
+            description={t(`mcpEndpoint.tools.${group}.description`)}
+          >
+            <ul className="grid grid-cols-2 gap-1">
+              {MCP_TOOLS.filter((tool) => tool.group === group).map((tool) => (
+                <li key={tool.name}>
+                  <code className="text-xs">{tool.name}</code>
+                </li>
+              ))}
+            </ul>
+          </SettingsFieldRow>
+        ))}
 
         <SettingsFieldRow
           label={t('mcpEndpoint.exampleTitle')}

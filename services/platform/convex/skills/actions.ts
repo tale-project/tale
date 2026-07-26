@@ -1,6 +1,7 @@
 /**
  * The organization-facing surface of the `skills` config domain: list, read,
- * save and delete a skill bundle.
+ * save and delete a skill bundle, and read one bundle asset for the library's
+ * file viewer.
  *
  * These are actions rather than queries and mutations because a skill lives
  * in the organization's config tree, and only a `'use node'` runtime may read
@@ -12,12 +13,16 @@
  * Every handler starts from `requireOrgMembershipById`, which is what makes
  * the org slug — and therefore the directory every path is resolved under —
  * trustworthy. A caller who is not a member of the organization they name
- * never reaches the filesystem at all.
+ * never reaches the filesystem at all. These are management surfaces, so
+ * they read with the caller's full member identity and no usage-mode
+ * narrowing; the chat and agent surfaces get their narrowed listings from
+ * `chat/composer.ts`.
  */
 
 import { v } from 'convex/values';
 
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import type { UserSkillViewer } from '../../lib/skills/visibility';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import {
@@ -25,13 +30,11 @@ import {
   type OrgMembershipAuth,
 } from '../lib/auth/require_org_membership';
 import {
-  skillAssetListValidator,
-  skillAssetReadValidator,
+  skillBundleFileValidator,
   skillDocumentValidator,
   skillEditArgs,
   skillListingValidator,
-  type SkillAssetListView,
-  type SkillAssetReadView,
+  type SkillBundleFileView,
   type SkillDocumentView,
   type SkillListingView,
 } from './validators';
@@ -39,15 +42,15 @@ import {
 /** Who is asking, as the file layer needs to know them. */
 interface SkillCaller {
   readonly orgSlug: string;
-  readonly viewerUserId: string;
-  readonly isOrgAdmin: boolean;
+  readonly viewer: UserSkillViewer;
 }
 
 /**
- * Verify membership of `organizationId` and derive the caller's identity for
- * the file layer. Administering the org's shared configuration is the
- * `orgSettings` write capability, which is what lets an admin curate an
- * org-visible skill they do not own.
+ * Verify membership of `organizationId` and derive the caller's full viewer
+ * identity for the file layer: their teams (for `team` skills) and whether
+ * they administer the org's shared configuration — the `orgSettings` write
+ * capability, which is what lets an admin curate a shared skill they do not
+ * own.
  */
 async function resolveSkillCaller(
   ctx: ActionCtx,
@@ -57,10 +60,20 @@ async function resolveSkillCaller(
     ctx,
     organizationId,
   );
+  const context = await ctx.runQuery(
+    internal.skills.viewer_context.getUserSkillViewerContext,
+    { organizationId, userId: auth.userId },
+  );
   return {
     orgSlug: auth.orgSlug,
-    viewerUserId: auth.userId,
-    isOrgAdmin: defineAbilityFor(auth.member.role).can('write', 'orgSettings'),
+    viewer: {
+      kind: 'user',
+      userId: auth.userId,
+      teamIds: context?.teamIds ?? [],
+      isOrgAdmin:
+        context?.isOrgAdmin ??
+        defineAbilityFor(auth.member.role).can('write', 'orgSettings'),
+    },
   };
 }
 
@@ -87,6 +100,23 @@ export const getSkill = action({
   },
 });
 
+/**
+ * One named file of a skill's bundle, base64-encoded, or `null` when there
+ * is no such skill or file for this caller.
+ */
+export const getSkillAsset = action({
+  args: { organizationId: v.string(), slug: v.string(), path: v.string() },
+  returns: v.union(v.null(), skillBundleFileValidator),
+  handler: async (ctx, args): Promise<SkillBundleFileView | null> => {
+    const caller = await resolveSkillCaller(ctx, args.organizationId);
+    return ctx.runAction(internal.skills.file_actions.readSkillAsset, {
+      ...caller,
+      slug: args.slug,
+      path: args.path,
+    });
+  },
+});
+
 /** Create or update a skill bundle in this organization. */
 export const saveSkill = action({
   args: {
@@ -103,8 +133,48 @@ export const saveSkill = action({
       description: args.description,
       body: args.body,
       visibility: args.visibility,
+      teams: args.teams,
+      usageMode: args.usageMode,
       icon: args.icon,
       labels: args.labels,
+    });
+  },
+});
+
+/**
+ * Persist a skill-bundle zip a member staged into Convex storage (the
+ * presign + intent hops live in `upload_mutations.ts`). Returns
+ * `needs_confirm` instead of replacing an existing bundle until the caller
+ * repeats the upload with `force`.
+ */
+export const uploadSkillBundle = action({
+  args: {
+    organizationId: v.string(),
+    storageId: v.id('_storage'),
+    force: v.optional(v.boolean()),
+  },
+  returns: v.union(
+    v.object({ ok: v.literal(true), slug: v.string() }),
+    v.object({
+      ok: v.literal(false),
+      status: v.literal('needs_confirm'),
+      slug: v.string(),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    | { ok: true; slug: string }
+    | { ok: false; status: 'needs_confirm'; slug: string }
+  > => {
+    const caller = await resolveSkillCaller(ctx, args.organizationId);
+    return ctx.runAction(internal.skills.file_actions.uploadSkillBundle, {
+      organizationId: args.organizationId,
+      orgSlug: caller.orgSlug,
+      viewer: caller.viewer,
+      storageId: args.storageId,
+      force: args.force,
     });
   },
 });
@@ -118,37 +188,6 @@ export const deleteSkill = action({
     return ctx.runAction(internal.skills.file_actions.deleteSkill, {
       ...caller,
       slug: args.slug,
-    });
-  },
-});
-
-/** The file tree of one bundle — paths and sizes for the detail page. */
-export const getSkillAssets = action({
-  args: { organizationId: v.string(), slug: v.string() },
-  returns: v.union(v.null(), skillAssetListValidator),
-  handler: async (ctx, args): Promise<SkillAssetListView | null> => {
-    const caller = await resolveSkillCaller(ctx, args.organizationId);
-    return ctx.runAction(internal.skills.file_actions.listSkillAssets, {
-      ...caller,
-      slug: args.slug,
-    });
-  },
-});
-
-/** One bundle asset's bytes for the read-only viewer. */
-export const getSkillAsset = action({
-  args: {
-    organizationId: v.string(),
-    slug: v.string(),
-    assetPath: v.string(),
-  },
-  returns: v.union(v.null(), skillAssetReadValidator),
-  handler: async (ctx, args): Promise<SkillAssetReadView | null> => {
-    const caller = await resolveSkillCaller(ctx, args.organizationId);
-    return ctx.runAction(internal.skills.file_actions.readSkillAssetText, {
-      ...caller,
-      slug: args.slug,
-      assetPath: args.assetPath,
     });
   },
 });

@@ -25,10 +25,10 @@
 
 import OpenAI from 'openai';
 
-import type { KnowledgeEmbeddingConfig } from '../../lib/knowledge/config';
 import { logger } from '../../lib/knowledge/logger';
 import type { QueryEmbedder } from '../../lib/knowledge/retrieve';
 import type { EmbeddingModel } from '../../lib/knowledge/types';
+import type { KnowledgeEmbeddingConfig } from '../../lib/shared/schemas/knowledge';
 import type { ActionCtx } from '../_generated/server';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { assertVectorWidth } from './dimensions';

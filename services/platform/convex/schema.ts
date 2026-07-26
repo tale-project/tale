@@ -104,11 +104,6 @@ import {
   agentSecretAccessTable,
   projectSecretsTable,
 } from './projects/secrets/schema';
-import {
-  promptCategoriesTable,
-  promptDefaultProvisionsTable,
-  promptTemplatesTable,
-} from './prompts/schema';
 import { providerCredentialsTable } from './provider_credentials/schema';
 import {
   sandboxAdmissionTicketsTable,
@@ -122,6 +117,7 @@ import {
   sandboxTurnEventsTable,
   sandboxUserEnvTable,
 } from './sandbox/sessions_schema';
+import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import {
   supportCaseActivityTable,
   supportCaseCommentsTable,
@@ -197,15 +193,18 @@ export default defineSchema({
   policyAcknowledgements: policyAcknowledgementsTable,
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
-  promptTemplates: promptTemplatesTable,
-  promptCategories: promptCategoriesTable,
-  promptDefaultProvisions: promptDefaultProvisionsTable,
   messageFeedback: messageFeedbackTable,
   // App-native cache of Better Auth `member` rows for the RLS hot path
   // (getUserOrganizations / isOrgMember). Performance optimization only —
   // never the authoritative gate. See `members/schema.ts`.
   memberMirror: memberMirrorTable,
   memberMirrorReconcileCursor: memberMirrorReconcileCursorTable,
+  // Transient plumbing for skill-bundle zip uploads — a per-(org, slug)
+  // exclusion lock and the storageId→(org, user) binding. NOT skill data:
+  // skills themselves are org-config files under `<org>/skills/`. See
+  // `skills/schema.ts`.
+  skillUploadClaims: skillUploadClaimTable,
+  skillUploadIntents: skillUploadIntentTable,
   // Local mirror of Better Auth's `teamMember` table — the team-level
   // counterpart of memberMirror, so getUserTeamIds (the other half of the RLS
   // prime) also reads locally instead of cross-component. See members/schema.ts.

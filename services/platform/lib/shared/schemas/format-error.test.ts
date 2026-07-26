@@ -6,7 +6,7 @@ import {
   zodErrorMessage,
 } from './format-error';
 import { piiConfigSchema } from './pii';
-import { promptJsonSchema } from './prompts';
+import { skillFrontmatterSchema } from './skills';
 
 /** No raw zod/v4 issue-array JSON dump — the failure mode this module exists
  *  to prevent (`error.message` on a ZodError renders as `[{"expected":...`). */
@@ -44,14 +44,14 @@ describe('formatZodError', () => {
     expectNoRawDump(message);
   });
 
-  it('names the field path and a human phrase for a bad prompt config', () => {
-    // `content` is required and missing.
-    const result = promptJsonSchema.safeParse({ title: 'A prompt' });
+  it('names the field path and a human phrase for a bad skill frontmatter', () => {
+    // `description` is required and missing.
+    const result = skillFrontmatterSchema.safeParse({ name: 'a-skill' });
     expect(result.success).toBe(false);
     if (result.success) throw new Error('unreachable');
 
     const message = formatZodError(result.error);
-    expect(message).toContain('content');
+    expect(message).toContain('description');
     expectNoRawDump(message);
   });
 

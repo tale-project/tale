@@ -138,15 +138,19 @@ personalization:
   page:
     customInstructions:
       placeholder: z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen.
-prompts:
-  form:
-    bytesOverLimitAlert:
-      Inhalt überschreitet das Grössenlimit von {limit}. Kürze
-      den Prompt, um zu speichern.
 settings:
   agents:
     knowledge:
       fileTooLarge: Datei zu gross
+  dataResidency:
+    orgStorage:
+      backfill:
+        confirm:
+          description:
+            Dateien dieser Organisation aus dem eingebauten Speicher des
+            Deployments werden in deinen Bucket kopiert und von dort
+            ausgeliefert. Das läuft im Hintergrund und kann bei grossen
+            Dateibeständen eine Weile dauern.
   integrations:
     enterpriseSso:
       excludeGroupsLabel: Gruppen ausschliessen

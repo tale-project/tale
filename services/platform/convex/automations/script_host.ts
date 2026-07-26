@@ -32,6 +32,7 @@ import {
 } from '../node_only/sandbox/session_exec';
 import {
   ensureWorkflowSession,
+  resolveRunSkillViewer,
   stageSkillBundle,
   stageWorkflowFiles,
 } from './agent_host';
@@ -81,6 +82,7 @@ export function workflowScriptRunner(ctx: ActionCtx): SandboxScriptRunner {
       sessionId,
       run.skill,
       `code/skills/${run.skill}`,
+      await resolveRunSkillViewer(ctx, run.organizationId, run.runId),
     );
     await stageWorkflowFiles(
       ctx,

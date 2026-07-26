@@ -330,10 +330,13 @@ entries:
 
   # Skill load-error detail titles: skill-load-error.ts maps machine error codes
   # (yaml_syntax, not_found, …) to `skills.loadErrorDetail.title.*` /
-  # `skills.notFound` keys in a plain object, resolved later via the `settings`
+  # `skills.notFound` keys in a plain object, resolved later via the `skills`
   # scope — an enum-driven dispatch the regex scanner can't follow.
-  - 'settings.skills.loadErrorDetail'
-  - 'settings.skills.notFound'
+  - 'skills.loadErrorDetail'
+  - 'skills.notFound'
+  - 'skills.library.tabs'
+  - 'skills.upload.errors'
+  - 'skills.upload.sharingAs'
   # `common.aria.selectAll` / `common.aria.selectRow` label the data-table
   # selection checkboxes
   # (`app/components/ui/data-table/column-builders.tsx#createSelectColumn`, used
@@ -367,16 +370,9 @@ entries:
   - 'locationRequest'
   - 'operator'
   - 'planApproval'
-  - 'prompts'
   - 'todoList'
 
   - 'analytics.chatHealth'
-  # The skill library went browse-only (changes flow through package uploads),
-  # but the standalone skill-zip upload surface is still planned — its strings
-  # stay parked, narrowly, so the rest of settings.skills is orphan-guarded.
-  - 'settings.skills.upload'
-  - 'settings.skills.uploadSkill'
-  - 'settings.skills.actions.replaceBundle'
   - 'projects.agents'
   - 'projects.automations'
   - 'settings.agents'

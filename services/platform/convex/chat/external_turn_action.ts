@@ -35,10 +35,12 @@ import { randomUUID } from 'node:crypto';
 
 import { v } from 'convex/values';
 
+import { parseSlashInvocation } from '../../lib/skills/slash';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { sessionCancelExec } from '../node_only/sandbox/helpers/session_client';
 import { stageIntegrationSkills } from '../node_only/sandbox/integration_skills';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
@@ -353,12 +355,51 @@ export async function runExternalTurnStart(
       return;
     }
 
+    // A message that IS a slash command — `/slug args` at character 0 —
+    // invokes that skill for THIS turn only (Claude Code semantics): the
+    // bundle stages alongside the equipped ones and a directive tells the
+    // agent to follow it, while `thread.capabilities` is never written. The
+    // stored message stays verbatim, and a slug the owner cannot use in chat
+    // (missing, invisible, agent-only) falls through to ordinary text — that
+    // fallthrough is the escape hatch, so no error surfaces here.
+    const invocation = parseSlashInvocation(args.userText);
+    let invokedSkillSlug: string | null = null;
+    if (invocation !== null) {
+      const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+      const viewerContext = await ctx.runQuery(
+        internal.skills.viewer_context.getUserSkillViewerContext,
+        { organizationId: args.organizationId, userId: args.userId },
+      );
+      if (viewerContext !== null) {
+        const invoked = await ctx.runAction(
+          internal.skills.file_actions.readSkill,
+          {
+            orgSlug,
+            slug: invocation.slug,
+            viewer: {
+              kind: 'user' as const,
+              userId: args.userId,
+              teamIds: viewerContext.teamIds,
+              isOrgAdmin: viewerContext.isOrgAdmin,
+            },
+            surface: 'chat' as const,
+          },
+        );
+        if (invoked !== null) invokedSkillSlug = invocation.slug;
+      }
+    }
+
     // The conversation's own composer picks are the turn's equipment.
     // (Project-level equipment now lives on `projectAgents` instances, which
     // task runs consume — a chat thread carries only what its composer
     // assembled.) Resolved BEFORE the token mint: the connector set is the
     // token's integration grant set.
-    const skillSlugs = [...new Set(thread.capabilities?.skills ?? [])];
+    const skillSlugs = [
+      ...new Set([
+        ...(thread.capabilities?.skills ?? []),
+        ...(invokedSkillSlug === null ? [] : [invokedSkillSlug]),
+      ]),
+    ];
     // A subscription turn carries no session virtual key, and the key IS the
     // bridge's auth — so connectors and workspace tools stay off it (v1
     // parity with byo runs); skills still stage as plain files.
@@ -471,7 +512,21 @@ export async function runExternalTurnStart(
       skillsDir: SKILLS_DIR,
       grants: connectorSlugs,
     });
-    const instructions = [skillInstructions, integrationInstructions]
+    const slashDirective =
+      invokedSkillSlug === null || invocation === null
+        ? ''
+        : [
+            `This message invokes the skill "${invokedSkillSlug}" with a slash command.`,
+            `Before doing anything else, read /user/${SKILLS_DIR}/${invokedSkillSlug}/SKILL.md and follow it for this turn.`,
+            `Treat the message text after "/${invokedSkillSlug}" as the skill's arguments${
+              invocation.args === '' ? ' (none were given)' : ''
+            }.`,
+          ].join('\n');
+    const instructions = [
+      skillInstructions,
+      integrationInstructions,
+      slashDirective,
+    ]
       .filter((section) => section !== '')
       .join('\n\n');
     const exec = buildExternalTurnExec({

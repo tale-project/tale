@@ -2164,12 +2164,6 @@ schemas:
         maximum: 9007199254740991
         minimum: 0
         type: integer
-      promptTemplatesEnabled:
-        type: boolean
-      promptTemplatesRetentionDays:
-        maximum: 9007199254740991
-        minimum: 0
-        type: integer
       usageLedgerEnabled:
         type: boolean
       usageLedgerRetentionDays:
@@ -2501,6 +2495,14 @@ schemas:
             - additionalProperties: false
               properties:
                 method:
+                  const: platform
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
                   const: api-key
                   type: string
               required:
@@ -2626,6 +2628,69 @@ schemas:
       - configFields
       - auth
       - actions
+    type: object
+  knowledge.knowledgeConnectionSchema:
+    additionalProperties: false
+    properties:
+      database:
+        minLength: 1
+        type: string
+      host:
+        minLength: 1
+        pattern: ^[A-Za-z0-9._:[\]-]+$
+        type: string
+      port:
+        maximum: 65535
+        minimum: 1
+        type: integer
+      sslmode:
+        enum:
+          - disable
+          - prefer
+          - require
+          - verify-ca
+          - verify-full
+        type: string
+      user:
+        minLength: 1
+        type: string
+    required:
+      - host
+      - port
+      - database
+      - user
+      - sslmode
+    type: object
+  knowledge.knowledgeConnectionSecretsSchema:
+    additionalProperties: false
+    properties:
+      password:
+        minLength: 1
+        type: string
+    type: object
+  knowledge.knowledgeEmbeddingSchema:
+    additionalProperties: false
+    properties:
+      baseUrl:
+        format: uri
+        type: string
+      credentialId:
+        minLength: 1
+        type: string
+      dimensions:
+        maximum: 16000
+        minimum: 1
+        type: integer
+      model:
+        minLength: 1
+        type: string
+      providerSlug:
+        minLength: 1
+        type: string
+    required:
+      - providerSlug
+      - model
+      - dimensions
     type: object
   object_storage.objectStorageConnectionFileSchema:
     additionalProperties: false
@@ -3060,60 +3125,6 @@ schemas:
           - minLength: 1
             type: string
           - type: 'null'
-    type: object
-  prompts.promptJsonSchema:
-    additionalProperties: false
-    properties:
-      category:
-        maxLength: 100
-        type: string
-      content:
-        minLength: 1
-        type: string
-      description:
-        maxLength: 2000
-        type: string
-      i18n:
-        additionalProperties:
-          additionalProperties: false
-          properties:
-            category:
-              maxLength: 100
-              type: string
-            content:
-              minLength: 1
-              type: string
-            description:
-              maxLength: 2000
-              type: string
-            title:
-              maxLength: 200
-              minLength: 1
-              type: string
-          type: object
-        propertyNames:
-          type: string
-        type: object
-      metadata:
-        additionalProperties: {}
-        properties:
-          autoInstall:
-            type: boolean
-        type: object
-      tags:
-        items:
-          maxLength: 50
-          minLength: 1
-          type: string
-        maxItems: 20
-        type: array
-      title:
-        maxLength: 200
-        minLength: 1
-        type: string
-    required:
-      - title
-      - content
     type: object
   providers.apiFormatSchema:
     enum:
@@ -4772,32 +4783,6 @@ schemas:
           - default
           - unit
         type: object
-      promptTemplates:
-        additionalProperties: false
-        properties:
-          default:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          max:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          min:
-            maximum: 9007199254740991
-            minimum: 0
-            type: integer
-          unit:
-            enum:
-              - days
-              - hours
-            type: string
-        required:
-          - min
-          - max
-          - default
-          - unit
-        type: object
       usageLedger:
         additionalProperties: false
         properties:
@@ -4949,14 +4934,102 @@ schemas:
             maxItems: 20
             type: array
         type: object
+      teams:
+        items:
+          maxLength: 128
+          minLength: 1
+          type: string
+        maxItems: 32
+        minItems: 1
+        type: array
+      usage-mode:
+        enum:
+          - chat
+          - agent
+          - all
+        type: string
       visibility:
         enum:
           - private
+          - team
           - org
         type: string
     required:
       - name
       - description
+    type: object
+  task_contract.taskSubjectContractSchema:
+    additionalProperties: false
+    properties:
+      create:
+        additionalProperties: false
+        properties:
+          description:
+            type: string
+          enabled:
+            type: boolean
+          field:
+            additionalProperties: false
+            properties:
+              help:
+                type: string
+              i18n:
+                additionalProperties:
+                  additionalProperties: false
+                  properties:
+                    help:
+                      type: string
+                    label:
+                      type: string
+                    placeholder:
+                      type: string
+                  type: object
+                propertyNames:
+                  type: string
+                type: object
+              label:
+                type: string
+              placeholder:
+                type: string
+            type: object
+          titleTemplate:
+            type: string
+        required:
+          - enabled
+        type: object
+      externalSystem:
+        minLength: 1
+        type: string
+      input:
+        additionalProperties: false
+        properties:
+          kind:
+            const: folder
+            type: string
+          naming:
+            type: string
+          setupFolderName:
+            type: string
+        required:
+          - kind
+        type: object
+      review:
+        additionalProperties: false
+        properties:
+          requestChanges:
+            type: boolean
+        type: object
+      start:
+        additionalProperties: false
+        properties:
+          when:
+            type: string
+        type: object
+      workflow:
+        minLength: 1
+        type: string
+    required:
+      - workflow
     type: object
   users.roleSchema:
     enum:

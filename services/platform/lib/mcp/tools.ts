@@ -2,7 +2,7 @@
  * The platform MCP endpoint's tool inventory — one list, three readers.
  *
  * `convex/automations_builder/mcp_http.ts` answers `tools/list` from it and
- * routes `tools/call` by it; the Integrations settings section renders it. The
+ * routes `tools/call` by it; the API → MCP settings section renders it. The
  * list lives here rather than in the endpoint because the settings page cannot
  * import a Convex HTTP module (that would pull the auth stack into the browser
  * bundle), and a hand-copied list on a screen is how a UI starts advertising
@@ -23,8 +23,18 @@
 
 import { METHODS, type Method } from '../engine/api/dispatch';
 
+/** The three groups the inventory is presented in — the settings page and the
+ * docs table both read the list in this order. */
+export const MCP_TOOL_GROUPS = [
+  'authoring',
+  'management',
+  'capability',
+] as const;
+
+export type McpToolGroup = (typeof MCP_TOOL_GROUPS)[number];
+
 /** One tool exactly as `tools/list` advertises it, plus which surface answers
- * it — the endpoint routes on `kind`, and the UI groups on it. */
+ * it — the endpoint routes on `kind`; the settings page groups on `group`. */
 interface McpToolSpec {
   readonly name: string;
   readonly description: string;
@@ -32,6 +42,7 @@ interface McpToolSpec {
   /** `engine` goes to the automation engine's dispatch table; `capability` goes
    * to the organization's capability surface. */
   readonly kind: 'engine' | 'capability';
+  readonly group: McpToolGroup;
 }
 
 /** One-line tool descriptions; `get_docs` is the deep reference. */
@@ -60,6 +71,34 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   list_triggers: 'What starts the automations (never the webhook secret).',
   delete_trigger:
     "Unbind an automation's trigger; its versions and run history stay.",
+};
+
+/** The engine methods split into the two groups the docs table draws: the
+ * AUTHORING methods work on automation documents, the MANAGEMENT methods on
+ * what the host has persisted — runs, versions and triggers (`set_trigger`
+ * writes one, so it belongs with the trigger management, not the authoring
+ * loop). Exhaustive over `Method`, so a new engine method cannot ship
+ * unclassified. */
+const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
+  get_docs: 'authoring',
+  get_catalog: 'authoring',
+  search_catalog: 'authoring',
+  validate_automation: 'authoring',
+  run_automation: 'authoring',
+  test_automation: 'authoring',
+  save_automation: 'authoring',
+  get_automation: 'authoring',
+  list_automations: 'authoring',
+  deploy_automation: 'authoring',
+  set_trigger: 'management',
+  run_deployed: 'management',
+  start_run: 'management',
+  list_runs: 'management',
+  get_run: 'management',
+  cancel_run: 'management',
+  list_versions: 'management',
+  list_triggers: 'management',
+  delete_trigger: 'management',
 };
 
 /** The capability tools — NOT engine methods. They reach the organization's own
@@ -225,12 +264,14 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     description: METHOD_DESCRIPTIONS[name],
     inputSchema: METHOD_SCHEMAS[name] ?? OPEN_SCHEMA,
     kind: 'engine' as const,
+    group: METHOD_GROUPS[name],
   })),
   ...CAPABILITY_TOOL_NAMES.map((name) => ({
     name,
     description: CAPABILITY_TOOL_DESCRIPTIONS[name],
     inputSchema: CAPABILITY_TOOL_SCHEMAS[name],
     kind: 'capability' as const,
+    group: 'capability' as const,
   })),
 ];
 

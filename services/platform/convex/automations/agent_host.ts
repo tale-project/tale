@@ -21,7 +21,9 @@ import { randomUUID } from 'node:crypto';
 
 import { v } from 'convex/values';
 
+import type { SkillViewer } from '../../lib/skills/visibility';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import {
@@ -342,11 +344,41 @@ export async function ensureWorkflowSession(
 }
 
 /**
- * Stage one org skill's WHOLE bundle at `destDir` (a `/user`-relative path).
- * Visibility is the organization's: the automation passed the admin/dev
- * deploy gate, so the run reads org skills as the org, not as any one member.
- * A missing or empty skill throws by name — a run against a skill that is not
- * there must not quietly proceed without it.
+ * The skill-viewer scope of one automation run: a project-pinned run reads
+ * as its project (org skills plus team skills of the project's teams), an
+ * org-level run — or one whose project is gone — as the org (org skills
+ * only). Never a member's own scope: a deployed automation runs on behalf of
+ * whoever triggers it, so a narrower-than-org skill must be shared with the
+ * run's project to be reachable.
+ */
+export async function resolveRunSkillViewer(
+  ctx: ActionCtx,
+  organizationId: string,
+  runId: Id<'automationRuns'> | string,
+): Promise<SkillViewer> {
+  const projectId = await ctx.runQuery(
+    internal.automations.queries.getRunProjectId,
+    {
+      organizationId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper hands the durable run id through as a string
+      runId: runId as Id<'automationRuns'>,
+    },
+  );
+  if (projectId === null) return { kind: 'org' };
+  const scope = await ctx.runQuery(
+    internal.projects.internal_queries.getProjectSkillScope,
+    { projectId },
+  );
+  if (scope === null) return { kind: 'org' };
+  return { kind: 'project', teamIds: scope.teamIds };
+}
+
+/**
+ * Stage one skill's WHOLE bundle at `destDir` (a `/user`-relative path),
+ * read as `viewer` — the run's own scope, resolved by
+ * {@link resolveRunSkillViewer} or the task host. A missing skill and one the
+ * scope may not equip fail the same way, by name — a run against a skill
+ * that is not reachable must not quietly proceed without it.
  */
 export async function stageSkillBundle(
   ctx: ActionCtx,
@@ -354,15 +386,16 @@ export async function stageSkillBundle(
   sessionId: string,
   slug: string,
   destDir: string,
+  viewer: SkillViewer,
 ): Promise<number> {
   const orgSlug = await orgSlugFromId(ctx, organizationId);
   const bundle = await ctx.runAction(
     internal.skills.file_actions.readSkillBundle,
-    { orgSlug, slug, viewerUserId: 'system:automation', isOrgAdmin: true },
+    { orgSlug, slug, viewer, surface: 'agent' },
   );
   if (bundle === null || bundle.files.length === 0) {
     throw new Error(
-      `the skill "${slug}" does not exist in this organization — stage it under the org's skills before running the automation`,
+      `the skill "${slug}" is not available to this run — it does not exist, is not shared with the run's scope, or is chat-only`,
     );
   }
   const files = bundle.files.map((file) => ({
@@ -385,6 +418,7 @@ export async function stageWorkflowSkills(
   organizationId: string,
   sessionId: string,
   skillSlugs: readonly string[],
+  viewer: SkillViewer,
 ): Promise<string> {
   if (skillSlugs.length === 0) return '';
   for (const slug of skillSlugs) {
@@ -394,6 +428,7 @@ export async function stageWorkflowSkills(
       sessionId,
       slug,
       `${SKILLS_DIR}/${slug}`,
+      viewer,
     );
   }
   return [
@@ -552,11 +587,17 @@ export const startWorkflowAgentTurn = internalAction({
     try {
       await ensureWorkflowSession(ctx, args.organizationId, args.runId);
 
+      const skillViewer = await resolveRunSkillViewer(
+        ctx,
+        args.organizationId,
+        args.runId,
+      );
       const skillsAddendum = await stageWorkflowSkills(
         ctx,
         args.organizationId,
         args.sessionId,
         args.request.skills ?? [],
+        skillViewer,
       );
       const mounts = await stageWorkflowFiles(
         ctx,

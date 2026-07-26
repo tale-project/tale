@@ -222,6 +222,12 @@ export function ProjectAgentDialog({
           value={binding}
           onChange={setBinding}
         />
+        {/* Team skills resolve against the PROJECT's teams here, not the
+            member configuring the agent — the agent runs for everyone in
+            the project. */}
+        <Text variant="caption" className="text-muted-foreground">
+          {t('agents.equipmentVisibilityHint')}
+        </Text>
       </Stack>
       <Textarea
         id="project-agent-instructions"

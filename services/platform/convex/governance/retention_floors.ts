@@ -355,7 +355,6 @@ const CONFIG_FIELD_TO_CATEGORY: Record<string, RetentionCategory> = {
   usageLedgerRetentionDays: 'usageLedger',
   loginAttemptRetentionDays: 'loginAttempt',
   chatFilterEventsRetentionDays: 'chatFilterEvents',
-  promptTemplatesRetentionDays: 'promptTemplates',
   messageFeedbackRetentionDays: 'messageFeedback',
   contactsRetentionDays: 'contacts',
   externalConversationsRetentionDays: 'externalConversations',

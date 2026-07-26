@@ -381,12 +381,12 @@ terms:
     en: Composer
     fr: Composeur
     _note: Chat input area. Capitalise when naming the UI element.
-  - key: feature_promptLibrary
+  - key: feature_skillLibrary
     category: feature
-    en: Prompt library
-    de: Prompt-Bibliothek
-    fr: Bibliothèque de prompts
-    _note: Sentence case in prose. Matches UI label `chat.promptLibrary`.
+    en: Skill library
+    de: Skill-Bibliothek
+    fr: Bibliothèque de skills
+    _note: Sentence case in prose. Matches UI label `skills.library.title`.
   - key: feature_arenaMode
     category: feature
     en: Arena Mode

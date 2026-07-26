@@ -69,7 +69,7 @@ R = lesen, W = schreiben, — = kein Zugriff. Die Matrix ist die autoritative Be
 
 ## Die Einstellungs-Oberfläche und das Menü
 
-Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre eigenen persönlichen Einstellungen. Entwickler sehen die Organisationseinstellungen, aber nicht den Governance-Unterzweig (außer Lese-Ansichten). Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Umgebung — jede Rolle), **Organisation** (der Mitglieder-Abschnitt, Teams, KI-Anbieter, Branding, Governance und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Entwicklung** (die API- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
+Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre eigenen persönlichen Einstellungen. Entwickler sehen die Organisationseinstellungen, aber nicht den Governance-Unterzweig (außer Lese-Ansichten). Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Umgebung — jede Rolle), **Organisation** (Teams, der Mitglieder-Abschnitt, KI-Anbieter, Branding, Governance und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Entwicklung** (die API- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
 
 ## Randfälle
 

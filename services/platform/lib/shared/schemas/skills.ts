@@ -14,10 +14,12 @@
  * be dropped into an org tree and read back unchanged. Internal code consumes
  * the camelCase {@link SkillFrontmatter} shape.
  *
- * Two fields are Tale's own and carry the sharing model: `visibility`
- * (`private` — only its owner sees it; `org` — every member does) and
- * `owner`. There is no sharing table anywhere: "share this skill" is an edit
- * that flips `visibility` to `org`.
+ * Four fields are Tale's own: `visibility` (`private` — only its owner sees
+ * it; `team` — members of the listed teams do; `org` — every member does),
+ * `teams` (the team ids a `team` skill is shared with), `owner`, and
+ * `usage-mode` (which product surfaces may equip the skill). There is no
+ * sharing table anywhere: "share this skill" is an edit that changes
+ * `visibility` and `teams`.
  *
  * Layer A: imports ONLY `zod/v4` and the shared config helpers — no `node:*`,
  * no `convex/_generated` — so it is safe to import from V8 Convex code,
@@ -65,8 +67,24 @@ export const MAX_SKILL_BUNDLE_FILE_BYTES = 4 * 1024 * 1024;
 export const MAX_SKILL_BUNDLE_TOTAL_BYTES = 32 * 1024 * 1024;
 
 /** How a skill is shared inside its organization. */
-export const SKILL_VISIBILITIES = ['private', 'org'] as const;
+export const SKILL_VISIBILITIES = ['private', 'team', 'org'] as const;
 export type SkillVisibility = (typeof SKILL_VISIBILITIES)[number];
+
+/** Cap on how many teams one skill may be shared with. */
+export const MAX_SKILL_TEAMS = 32;
+
+/**
+ * Which product surfaces may equip a skill: `chat` — conversations only (the
+ * composer's capability menu and the `/` command); `agent` — agent
+ * configuration only (project agents, file-backed agent bindings, automation
+ * nodes); `all` — both. Orthogonal to `disable-model-invocation`, which gates
+ * whether the model may reach for an already-staged skill on its own.
+ */
+export const SKILL_USAGE_MODES = ['chat', 'agent', 'all'] as const;
+export type SkillUsageMode = (typeof SKILL_USAGE_MODES)[number];
+
+/** Default when a `SKILL.md` carries no `usage-mode`. */
+export const DEFAULT_SKILL_USAGE_MODE: SkillUsageMode = 'all';
 
 /**
  * Default when a `SKILL.md` carries no `visibility`. An unmarked bundle was
@@ -107,9 +125,19 @@ export const skillFrontmatterSchema = z
      */
     visibility: z.enum(SKILL_VISIBILITIES).optional(),
     /**
+     * Better Auth team ids a `team` skill is shared with — the same ids
+     * projects store in `teamId`/`sharedWithTeamIds`. Required for a `team`
+     * skill and meaningless on any other, so it is rejected there.
+     */
+    teams: z
+      .array(z.string().min(1).max(128))
+      .min(1)
+      .max(MAX_SKILL_TEAMS)
+      .optional(),
+    /**
      * The member who owns the bundle, as a user id. Required for a `private`
-     * skill (nobody could see an ownerless one); on an `org` skill it is
-     * attribution only.
+     * skill (nobody could see an ownerless one); on a `team` or `org` skill
+     * it is attribution only.
      */
     owner: z.string().min(1).max(128).optional(),
     license: z.string().max(120).optional(),
@@ -134,6 +162,11 @@ export const skillFrontmatterSchema = z
      * available for an explicit `expand_skill` recall.
      */
     'disable-model-invocation': z.boolean().optional(),
+    /**
+     * Which surfaces may equip this skill. Absent means
+     * {@link DEFAULT_SKILL_USAGE_MODE}.
+     */
+    'usage-mode': z.enum(SKILL_USAGE_MODES).optional(),
     /** Iconify id (`set:name`) shown on the skill's card. */
     icon: z
       .string()
@@ -156,6 +189,24 @@ export const skillFrontmatterSchema = z
       message: 'owner is required when visibility is "private"',
       path: ['owner'],
     },
+  )
+  .refine(
+    (raw) => raw.visibility !== 'team' || raw.teams !== undefined,
+    // A team skill with no teams would be readable by nobody, the same hole
+    // an ownerless private skill would be.
+    {
+      message: 'teams is required when visibility is "team"',
+      path: ['teams'],
+    },
+  )
+  .refine(
+    (raw) => raw.teams === undefined || raw.visibility === 'team',
+    // An inert `teams` list on a private or org skill would leave the file
+    // with two plausible readings; there must be exactly one.
+    {
+      message: 'teams is only allowed when visibility is "team"',
+      path: ['visibility'],
+    },
   );
 
 type RawSkillFrontmatter = z.infer<typeof skillFrontmatterSchema>;
@@ -166,6 +217,8 @@ export interface SkillFrontmatter {
   name: string;
   description: string;
   visibility: SkillVisibility;
+  /** Team ids a `team` skill is shared with; never set otherwise. */
+  teams?: string[];
   owner?: string;
   license?: string;
   recommendedPackages?: {
@@ -173,6 +226,12 @@ export interface SkillFrontmatter {
     node?: string[];
   };
   disableModelInvocation?: boolean;
+  /**
+   * Which surfaces may equip the skill. Left unset when the file carries no
+   * `usage-mode` so an unchanged bundle re-serializes byte-identically;
+   * consumers read it as `?? DEFAULT_SKILL_USAGE_MODE`.
+   */
+  usageMode?: SkillUsageMode;
   icon?: string;
   labels?: string[];
   metadata?: Record<string, unknown>;
@@ -188,10 +247,12 @@ const KNOWN_FRONTMATTER_KEYS: ReadonlySet<string> = new Set([
   'name',
   'description',
   'visibility',
+  'teams',
   'owner',
   'license',
   'recommended-packages',
   'disable-model-invocation',
+  'usage-mode',
   'icon',
   'labels',
   'metadata',
@@ -227,6 +288,7 @@ function normalizeFrontmatter(raw: RawSkillFrontmatter): SkillFrontmatter {
     visibility: raw.visibility ?? DEFAULT_SKILL_VISIBILITY,
     extra,
   };
+  if (raw.teams !== undefined) meta.teams = raw.teams;
   if (raw.owner !== undefined) meta.owner = raw.owner;
   if (raw.license !== undefined) meta.license = raw.license;
   if (raw['recommended-packages'] !== undefined) {
@@ -235,6 +297,7 @@ function normalizeFrontmatter(raw: RawSkillFrontmatter): SkillFrontmatter {
   if (raw['disable-model-invocation'] !== undefined) {
     meta.disableModelInvocation = raw['disable-model-invocation'];
   }
+  if (raw['usage-mode'] !== undefined) meta.usageMode = raw['usage-mode'];
   if (raw.icon !== undefined) meta.icon = raw.icon;
   if (raw.labels !== undefined) meta.labels = raw.labels;
   if (raw.metadata !== undefined) meta.metadata = raw.metadata;
@@ -254,6 +317,7 @@ export function skillFrontmatterToRaw(
     description: meta.description,
     visibility: meta.visibility,
   };
+  if (meta.teams !== undefined) raw.teams = meta.teams;
   if (meta.owner !== undefined) raw.owner = meta.owner;
   if (meta.license !== undefined) raw.license = meta.license;
   if (meta.recommendedPackages !== undefined) {
@@ -262,6 +326,7 @@ export function skillFrontmatterToRaw(
   if (meta.disableModelInvocation !== undefined) {
     raw['disable-model-invocation'] = meta.disableModelInvocation;
   }
+  if (meta.usageMode !== undefined) raw['usage-mode'] = meta.usageMode;
   if (meta.icon !== undefined) raw.icon = meta.icon;
   if (meta.labels !== undefined) raw.labels = meta.labels;
   if (meta.metadata !== undefined) raw.metadata = meta.metadata;

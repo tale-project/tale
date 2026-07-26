@@ -24,11 +24,6 @@ vi.mock('../_generated/api', () => ({
         sync_org: { syncOrgConfigCaches: 'syncOrgConfigCaches' },
       },
     },
-    prompts: {
-      provision_defaults: {
-        syncDefaultPromptInstallations: 'syncDefaultPromptInstallations',
-      },
-    },
     provisioning: {
       provision_default_automations: {
         provisionDefaultAutomations: 'provisionDefaultAutomations',
@@ -184,9 +179,9 @@ describe('retryProvisioning', () => {
       true,
     );
     expect(result).toEqual({ ok: true, failedDomains: [] });
-    // Config caches, automation packs, prompts provisioner, starter content.
+    // Config caches, automation packs, starter content.
     // Agent installs stay a chat-rebuild stub (not scheduled).
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(4);
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(3);
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,
       'syncOrgConfigCaches',
@@ -195,11 +190,6 @@ describe('retryProvisioning', () => {
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,
       'provisionDefaultAutomations',
-      { organizationId: 'org-1', orgSlug: 'acme' },
-    );
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
-      0,
-      'syncDefaultPromptInstallations',
       { organizationId: 'org-1', orgSlug: 'acme' },
     );
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(

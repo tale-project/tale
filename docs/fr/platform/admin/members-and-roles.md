@@ -69,7 +69,7 @@ R = lecture, W = écriture, — = aucun accès. La matrice est la description fa
 
 ## La surface Paramètres et le menu
 
-Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de configuration — seulement leurs propres paramètres personnels. Les Développeurs voient les paramètres d’organisation mais pas le sous-arbre gouvernance (sauf vues en lecture). Les Administrateurs et Propriétaires voient tout. Le menu des paramètres est groupé en **Personnel** (Compte, Préférences, Environnement — chaque rôle), **Organisation** (la section Membres, Équipes, Fournisseurs IA, Branding, Gouvernance et le reste — Admin et Propriétaire, les Développeurs en voyant un sous-ensemble) et **Développement** (la surface API et résidence des données). La gouvernance est un élément dans le groupe Organisation, pas un groupe à part, et demande l’accès Admin.
+Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de configuration — seulement leurs propres paramètres personnels. Les Développeurs voient les paramètres d’organisation mais pas le sous-arbre gouvernance (sauf vues en lecture). Les Administrateurs et Propriétaires voient tout. Le menu des paramètres est groupé en **Personnel** (Compte, Préférences, Environnement — chaque rôle), **Organisation** (Équipes, la section Membres, Fournisseurs IA, Branding, Gouvernance et le reste — Admin et Propriétaire, les Développeurs en voyant un sous-ensemble) et **Développement** (la surface API et résidence des données). La gouvernance est un élément dans le groupe Organisation, pas un groupe à part, et demande l’accès Admin.
 
 ## Cas limites
 

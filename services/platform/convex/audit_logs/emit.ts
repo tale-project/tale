@@ -30,7 +30,7 @@ interface EmitAuditSuccessOptions {
  *
  * Routing through the internal `createAuditLog` mutation runs the write on a
  * raw (non-RLS) ctx that bypasses the matrix, atomically within the parent
- * mutation's transaction. This mirrors `prompts/mutations.ts`'s
+ * mutation's transaction. This mirrors the config surfaces'
  * `emitPromptAudit`, the established pattern for the same need.
  */
 export async function emitAuditSuccess(

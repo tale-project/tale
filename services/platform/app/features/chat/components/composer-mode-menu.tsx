@@ -12,7 +12,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { Paperclip, Plus, Volume2 } from 'lucide-react';
+import { BookOpen, Paperclip, Plus, Volume2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -22,6 +22,8 @@ interface ComposerModeMenuProps {
   voiceOutput: boolean;
   onVoiceOutputChange: (next: boolean) => void;
   onAttachFiles?: () => void;
+  /** Open the skill library — browse, create, upload, share skills. */
+  onOpenSkillLibrary?: () => void;
   disabled?: boolean;
 }
 
@@ -29,6 +31,7 @@ export function ComposerModeMenu({
   voiceOutput,
   onVoiceOutputChange,
   onAttachFiles,
+  onOpenSkillLibrary,
   disabled,
 }: ComposerModeMenuProps) {
   const { t } = useT('composer');
@@ -37,16 +40,24 @@ export function ComposerModeMenu({
   const items = useMemo<DropdownMenuGroup[]>(() => {
     const groups: DropdownMenuGroup[] = [];
 
+    const actions: DropdownMenuGroup = [];
     if (onAttachFiles) {
-      groups.push([
-        {
-          type: 'item',
-          label: t('addFiles'),
-          icon: Paperclip,
-          onClick: onAttachFiles,
-        },
-      ]);
+      actions.push({
+        type: 'item',
+        label: t('addFiles'),
+        icon: Paperclip,
+        onClick: onAttachFiles,
+      });
     }
+    if (onOpenSkillLibrary) {
+      actions.push({
+        type: 'item',
+        label: t('skillLibrary'),
+        icon: BookOpen,
+        onClick: onOpenSkillLibrary,
+      });
+    }
+    if (actions.length > 0) groups.push(actions);
 
     groups.push([
       { type: 'label', content: t('modeHeader') },
@@ -60,7 +71,14 @@ export function ComposerModeMenu({
     ]);
 
     return groups;
-  }, [onAttachFiles, voiceOutput, onVoiceOutputChange, t, tChat]);
+  }, [
+    onAttachFiles,
+    onOpenSkillLibrary,
+    voiceOutput,
+    onVoiceOutputChange,
+    t,
+    tChat,
+  ]);
 
   return (
     <DropdownMenu

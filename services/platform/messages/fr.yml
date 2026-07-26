@@ -99,7 +99,6 @@ accessDenied:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
   agents: Tu dois disposer des permissions Admin ou Développeur pour gérer les agents. Demande à un administrateur si tu as besoin d’un agent pour le chat.
-  skills: Tu dois disposer des permissions Admin ou Développeur pour gérer les skills.
   branding: Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.
   knowledge: Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.
   workspaceNotFound: L'espace de travail que tu recherches n'existe pas ou a été supprimé.
@@ -1180,6 +1179,10 @@ chat:
     humanInputPending: Ta réponse est nécessaire
     humanInputAnswered: Répondu
     blocked: 'Bloqué par une règle de sécurité : {reason}'
+  slash:
+    listLabel: Skills
+    noMatches: Aucun skill correspondant — le message part tel quel.
+    browseLibrary: Parcourir la bibliothèque de skills
   errorGeneratingDescription:
     Une erreur est survenue lors de la génération de la
     réponse. Merci de réessayer.
@@ -1231,6 +1234,10 @@ chat:
 common:
   optional: facultatif
   or: ou
+  select:
+    noOptionsHint: Rien à choisir pour l'instant.
+    noProvidersHint: Ajoute d'abord un fournisseur IA — dans Paramètres → Fournisseurs IA.
+    pickProviderFirstHint: Choisis d'abord un fournisseur — ses modèles apparaissent ici.
   dates:
     today: Aujourd'hui
     yesterday: Hier
@@ -1309,28 +1316,6 @@ common:
       supprimés}} avec succès'
     deleteFailed: Échec de la suppression de certains éléments
     deleting: Suppression...
-  upload:
-    clickToUpload: Clique pour téléverser
-    supportedFormats: .xlsx, .xls ou .csv
-    pickADate: Choisir une date
-    dropFilesHere: Dépose les fichiers ici pour téléverser
-    dropOrClick: Dépose des fichiers JSON ou .zip ici
-    acceptHint: Fichiers JSON, dossiers ou archives .zip
-    uploadFolderInstead: Sélectionner un dossier à la place
-    importBlocked: Rien à importer. Corrige les fichiers invalides ci-dessus, ou
-      modifie l'option d'écrasement en cas de conflit.
-    summary: '{total} entrées · {saved} enregistrées · {queued} en attente'
-    conflictHeading:
-      '{count, plural, one {# entrée existe déjà} other {# entrées
-      existent déjà}}'
-    conflictHint:
-      Les entrées existantes seront écrasées. La version précédente est
-      enregistrée dans l'historique. Décoche ci-dessous pour les ignorer à la
-      place.
-    overwriteToggle: Écraser les entrées existantes
-    statusExists: Existe déjà — sera ignorée
-    willOverwrite: Existe déjà — sera écrasée
-    statusSkipped: Ignorée
   labels:
     phone: Téléphone
     source: Source
@@ -1496,6 +1481,7 @@ common:
 composer:
   openMenu: Ouvrir le menu du chat
   addFiles: Ajouter photos et fichiers
+  skillLibrary: Bibliothèque de skills
   modeHeader: Modes
 connectivity:
   tabTitle: Reconnexion
@@ -2252,8 +2238,9 @@ emptyStates:
   skills:
     title: Aucun skill pour l'instant
     description:
-      Les skills sont des recettes réutilisables à attacher aux agents —
-      un playbook plus des scripts sandbox optionnels.
+      Les skills sont des paquets d’instructions réutilisables pour les chats
+      et les agents — comme un playbook plus des scripts optionnels. Crées-en
+      un depuis le menu + du composer.
   members:
     title: Aucun membre trouvé
     description: Ajoute des membres d'équipe pour commencer
@@ -3214,7 +3201,6 @@ governance:
       Rien dans la corbeille. La rétention y déplacera les lignes expirées une
       fois leur fenêtre de grâce ouverte.
     filterTitle: Catégorie
-    loadMore: Charger plus
     column:
       type: Type
       name: Nom
@@ -3254,6 +3240,8 @@ governance:
       failedToast: Échec de la restauration
       failedDescription: Échec de la restauration de cet enregistrement.
     emptyTitle: La corbeille est vide
+    entityLabelOne: enregistrement
+    entityLabel: enregistrements
   legalHold:
     targetTypes:
       thread: Thread
@@ -3577,7 +3565,6 @@ governance:
       documentsErased: Documents effacés
       documentsSkippedByHold: Documents ignorés (rétention)
       wfExecutionsErased: Exécutions d'automatisation effacées
-      promptTemplatesErased: Prompts personnels effacés
       startedAt: Démarré
       completedAt: Terminé
       errorMessage: Erreur
@@ -4057,10 +4044,6 @@ metadata:
   agents:
     title: Agents
     description: Crée et gère des agents IA pour répondre aux contacts.
-  skills:
-    title: Skills
-    description: Recettes réutilisables à attacher aux agents — playbooks plus
-      scripts sandbox optionnels.
   integrations:
     title: Intégrations
     description: Connecte des services tiers.
@@ -4109,9 +4092,6 @@ metadata:
   agentTools:
     title: Outils de l'agent
     description: Sélectionne et configure les outils disponibles pour ton agent.
-  agentSkills:
-    title: Skills de l'agent
-    description: Lie les skills que l'agent peut lire à l'exécution.
   agentWebhook:
     title: Webhooks de l'agent
     description: Gère les URL de webhooks pour ton agent.
@@ -4178,7 +4158,6 @@ navigation:
   environment: Environnement
   account: Compte
   agents: Agents
-  skills: Skills
   mcp: MCP
   webdav: WebDAV
   teamFilter:
@@ -4565,175 +4544,188 @@ products:
       fullDescription: Description complète
       source: Source
       productId: ID du produit
-prompts:
-  tabs:
-    all: Tous
-    team: Équipe
-    personal: Personnel
-    global: Global
+skills:
+  searchPlaceholder: Rechercher des skills
+  deleteSkill: Supprimer le skill
+  notFound: Skill introuvable
+  skillDeleted: Skill supprimé
+  skillDeleteFailed: Échec de la suppression du skill
+  deleteConfirmation:
+    Cela supprime le bundle du skill "{slug}" du disque. Tout chat ou agent
+    qui l'a équipé perd l'accès.
+  listFailed: Impossible de charger la bibliothèque de skills. Recharge et réessaie.
+  openSkill: Ouvrir le skill {slug}
+  readOnly: Tu peux lire ce skill mais pas le modifier — son propriétaire (ou un
+    admin de l'organisation pour les skills partagés) le gère.
   library:
-    title: Bibliothèque de prompts
-    description: Parcours, enregistre et partage des modèles de prompts.
-    searchPlaceholder: Rechercher des prompts
-    loading: Chargement des prompts...
-    loadMore: Charger plus
-    loadingMore: Chargement...
-    teamContextLabel: Équipe
-    noTeamsHint: Tu ne fais encore partie d'aucune équipe. Demande à une
-      administratrice de t'ajouter pour utiliser les prompts d'équipe.
-  emptyState:
-    title: Aucun prompt pour le moment
-    description:
-      Crée ton premier prompt pour le sauvegarder et le réutiliser dans
-      tes conversations
-    filteredTitle: Aucun prompt correspondant
-    filteredDescription: Efface ta recherche ou tes filtres.
-    filteredCanLoadMore:
-      Aucun résultat sur cette page. Charge plus pour continuer
-      la recherche, ou efface les filtres.
-    clearFilters: Effacer les filtres
-  actions:
-    create: Créer un prompt
-    edit: Modifier
-    delete: Supprimer
-    more: Plus d'actions
-    copy: Copier
-    copied: Copié !
-    viewHistory: Historique des versions
-    viewHistoryDisabled: Aucune version antérieure
-    copyFailed: Impossible de copier dans le presse-papiers
-  deleteConfirm:
-    title: Supprimer le prompt
-    description: Es-tu sûr de vouloir supprimer « {title} » ? Cette action est irréversible.
-  scope:
-    global: Global (tout le monde)
-    team: Équipe
-    personal: Personnel
-  form:
-    createTitle: Créer un prompt
-    createDescription: Crée un nouveau modèle de prompt.
-    editTitle: Modifier le prompt
-    editDescription: Mets à jour le modèle de prompt.
-    titleLabel: Titre
-    titlePlaceholder: Saisir le titre du prompt...
-    contentLabel: Contenu
-    contentPlaceholder: Saisir le contenu du prompt...
-    scopeLabel: Visibilité
-    teamLabel: Équipe
-    teamPlaceholder: Sélectionner une équipe...
-    noTeamsAvailable:
-      Tu n'es dans aucune équipe. Demande à un admin de t'ajouter à
-      une équipe, ou enregistre ce prompt comme Personnel.
-    titleAutoGenHint: Laisse vide pour générer automatiquement depuis le contenu.
-    categoryLabel: Catégorie
-    tagsLabel: Tags
-    tagsPlaceholder: Étiquettes séparées par des virgules...
-    save: Enregistrer
-    create: Créer
-    charsUsed: '{used} caractères'
-    versionConflictTitle: Nouvelle version disponible
-    versionConflictDescription: Quelqu'un a enregistré v{version} pendant ton
-      édition. Charge la dernière version avant d'enregistrer.
-    versionConflictDirtyWarning: Tes modifications non enregistrées seront perdues.
-    versionConflictDiscardConfirm: Charger la dernière version et abandonner tes
-      modifications non enregistrées ?
-    loadLatest: Charger la dernière
-    bytesOverLimitAlert: Le contenu dépasse la limite de {limit}. Raccourcis le
-      prompt pour pouvoir enregistrer.
-  saveAs:
-    title: Enregistrer le prompt
-    saveTo: Enregistrer sous
-  toast:
-    savedTo: Enregistré sous {scope}
-    saved: Enregistré en tant que v{version}
-    savedNoChanges: Enregistré (aucun changement)
-    created: Prompt créé
-    saveFailed: Impossible d'enregistrer le prompt
-    deleteFailed: Impossible de supprimer le prompt
-    versionConflict: Nouvelle version détectée — charge la dernière avant d'enregistrer
-    restored: Restauré en tant que v{version}
-    restoreFailed: Impossible de restaurer la version
-    restoreStale: L'historique des versions a changé — actualise et réessaie
-    rateLimited: Enregistrement trop rapide — patiente un instant avant de réessayer
-    forbidden: Tu n'as pas la permission pour ce prompt
-    notFound: Ce prompt n'existe plus
-    tooLarge: Un champ dépasse la longueur autorisée
-    emptyContent: Le contenu du prompt ne peut pas être vide
-    legalHold: La suppression est bloquée par un legal hold actif
-  version:
-    badge: v{version}
-  history:
-    dialogTitle: Historique des versions — {name}
-    dialogDescription: Comparer et restaurer les versions précédentes de ce prompt.
-    loading: Chargement de l'historique...
-    current: Actuelle
-    compare: Comparer avec l'actuelle
-    compareTitle: Comparer l'actuelle avec v{version}
-    compareDescription: Publié {date}
-    noDifferences: Aucune différence entre ces versions.
-    backToList: Retour à l'historique
-    restore: Restaurer
-    restoreConfirmTitleVersioned: Restaurer v{version} ?
-    restoreConfirmDescription: Restaurer le contenu de v{source} en tant que
-      v{target}. Les versions existantes sont conservées.
-    compareVersionAria: Comparer v{version} avec la version actuelle
-    restoreVersionAria: Restaurer v{version}
-    diffAriaLabel: Différence de contenu
-    empty: Aucune version précédente
-    loadFailed: Impossible de charger l'historique des versions
-    publishedByOn: Par {name} · {date}
-    versionsLabel: Historique des versions
-    metadataChanged: Métadonnées modifiées
-    metadataDiffLabel: Modifications de métadonnées
-    keyboardHint: Entrée compare · R ou Maj+Entrée restaure
-    diffLegend: Différences avec v{snapshot} — − actuelle (v{current}) serait
-      remplacée, + v{snapshot} serait restaurée
-    lineAdded: 'Ligne ajoutée :'
-    lineRemoved: 'Ligne retirée :'
-    metadataField:
-      title: Titre
-      description: Description
-      category: Catégorie
-      tags: Étiquettes
-      scope: Portée
-  categoryFilter:
-    title: Par catégorie
-    titleWithCount: Par catégorie ({count} actives)
-  tagFilter:
-    title: Par étiquette
-    titleWithCount: Par étiquette ({count} actives)
-  addCategory:
-    inputPlaceholder: Nom de la catégorie
-    add: Ajouter
-  categories:
-    pickerPlaceholder: Choisir une catégorie
-    create: Créer
-    rename: Renommer
-    renameSave: Enregistrer le nom
-    renameCancel: Annuler le renommage
-    delete: Supprimer
-    deleteConfirmTitle: Supprimer la catégorie ?
-    deleteConfirmDescription:
-      Les prompts liés à « {name} » repasseront à « — Aucune
-      — ». Cette action est définitive.
-    deleteSuccess: « {name} » supprimée
-    duplicate: Une catégorie portant ce nom existe déjà
-    createForbidden: Seuls les admins peuvent créer des catégories à cette portée
-    cannotManage: Tu ne peux pas gérer cette catégorie
-    deletedLabel: (supprimée)
-    empty: Aucune catégorie pour le moment
-    actions: Actions pour {name}
-    scopeGroup:
+    title: Bibliothèque de skills
+    backToLibrary: Retour à la bibliothèque
+    labelFilterLabel: Filtrer par libellé
+    tabs:
+      all: Tous
+      org: Organisation
+      team: Équipes
       personal: Personnel
-      team: Équipe
-      global: Global
-  sidebar:
-    sectionTitle: Bibliothèque de prompts
-  tagsInput:
-    tooLong: L'étiquette ne doit pas dépasser {max} caractères
-    atCap: Tu as atteint la limite de {max} étiquettes
-    removeAria: Retirer l'étiquette {tag}
-    counter: '{count} / {max} étiquettes'
+  columns:
+    loadError: Impossible de lire SKILL.md
+  loadErrorDetail:
+    title:
+      yamlSyntax: Le frontmatter n'a pas pu être analysé
+      missingFrontmatter: Frontmatter manquant
+      unclosedFrontmatter: Frontmatter non fermé
+      frontmatterTooLarge: Frontmatter trop volumineux
+      invalidFrontmatter: Frontmatter invalide
+      emptyFrontmatter: Frontmatter vide
+      symlink: SKILL.md est un lien symbolique
+      inaccessible: Impossible de lire ce skill
+      generic: Ce skill n'a pas pu être chargé
+  form:
+    description: Description
+  section:
+    body: Instructions (corps)
+  viewer:
+    toggleWrap: Basculer le retour à la ligne
+    imageNotice:
+      L'aperçu d'image n'est pas disponible dans le navigateur. Utilise
+      la CLI pour inspecter cet asset.
+    binaryNotice: Ce type de fichier n'est pas prévisualisable dans le navigateur.
+    largeFile: Fichier volumineux — coloration syntaxique désactivée pour les
+      performances.
+    notFound:
+      Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
+      l'arborescence.
+  detail:
+    tree:
+      heading: Bundle
+      empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
+        references/ ou assets/.
+      headingCount: Bundle · {fileCount} fichiers
+  upload:
+    dialogTitle: Téléverser un skill
+    uploadDescription:
+      Téléverse un zip — ou choisis un dossier — avec SKILL.md à la racine,
+      plus tous les scripts, références ou assets optionnels.
+    dropZoneLabel: Téléverser un bundle de skill
+    dropOrClick: Dépose un .zip ici ou clique pour parcourir
+    dropHere: Dépose le bundle ici
+    acceptedFormats: Zip contenant SKILL.md à la racine
+    parsing: Lecture du bundle…
+    zipRequired: Le bundle doit être un fichier .zip.
+    folderDropUnsupported: Les dossiers ne peuvent pas être déposés ici —
+      utilise « Choisir un dossier » en dessous.
+    singleFileOnly: Dépose un seul fichier .zip, pas plusieurs fichiers.
+    chooseFolder: Choisir un dossier
+    chooseFolderHelp: Sélectionne un dossier de skill avec SKILL.md à la
+      racine et le zippe pour toi.
+    bundleFiles: Fichiers du bundle
+    fileCount: '{count, plural, one {# fichier} other {# fichiers}}'
+    frontmatter: Frontmatter
+    license: Licence
+    recommendedPython: Python recommandé
+    recommendedNode: Node recommandé
+    disableModelInvocation: Skill masqué au modèle — invocation explicite uniquement.
+    unknownKeys: '{count, plural, one {# entrée frontmatter supplémentaire
+      conservée} other {# entrées frontmatter supplémentaires conservées}}'
+    sharingHeading: Partage
+    sharingAs:
+      private: Arrive comme ton skill privé
+      team: Arrive partagé avec les équipes que son frontmatter déclare
+      org: Arrive partagé avec toute l'organisation
+    sharingEditableAfter: tu peux changer le partage et l'usage après le téléversement.
+    submit: Téléverser le bundle
+    submitting: Téléversement…
+    uploadSuccess: Bundle de skill téléversé
+    uploadFailed: Échec du téléversement du bundle
+    replaceTitle: Remplacer le skill existant ?
+    replaceDescription: Un skill nommé "{slug}" existe déjà. Le téléversement
+      écrasera son contenu actuel.
+    replaceConfirm: Remplacer
+    replaceSuccess: Bundle de skill remplacé
+    errors:
+      notZip: Le bundle doit être un fichier .zip.
+      invalidZip: 'Archive zip invalide : {detail}'
+      emptyZip: Le bundle est vide.
+      tooManyEntries: Le bundle contient {count} entrées (maximum {max}).
+      unsafePath: "Chemin d'entrée non sûr dans le bundle : {path}"
+      absolutePath: 'Chemin absolu dans le bundle : {path}'
+      missingSkillMd: Il manque SKILL.md à la racine du bundle.
+      frontmatterRejected: 'Frontmatter de SKILL.md rejeté : {detail}'
+      invalidSlug: Le nom du frontmatter "{slug}" n'est pas un slug de skill valide.
+      skillMdTooLarge: SKILL.md dépasse la limite de {max} par fichier.
+      assetTooLarge: '"{path}" dépasse la limite de {max} par fichier.'
+      totalTooLarge: Le bundle décompressé dépasse {max}.
+  addMenu:
+    label: Ajouter un skill
+  createMenu:
+    blank: Skill vierge
+    uploadZip: Téléverser un zip
+    uploadFolder: Téléverser un dossier
+  createDialog:
+    title: Créer un skill
+    nameLabel: Nom
+    namePlaceholder: mon-skill
+    nameHelp:
+      Identifiant unique — lettres minuscules, chiffres et tirets simples.
+      Ce nom devient le slug du skill.
+    namePatternError: Utilise des lettres minuscules, des chiffres et des tirets
+      simples (ex. mon-skill).
+    submit: Créer
+    creating: Création...
+    created: Skill créé
+    exists: Un skill avec ce nom existe déjà.
+    createFailed: Impossible de créer le skill
+  noResults:
+    title: Aucun skill correspondant
+    description: Aucun skill ne correspond à ta recherche. Essaie un autre terme.
+  visibility:
+    label: Visibilité
+    org: Organisation
+    orgHelp: Chaque membre peut le lire ; les agents peuvent le charger pour tout le monde.
+    team: Équipes
+    teamHelp: Seuls les membres des équipes choisies le voient et l'utilisent.
+    teamsLabel: Partagé avec les équipes
+    teamsPlaceholder: Choisis au moins une équipe
+    teamsRequired: Choisis au moins une équipe, ou une autre visibilité.
+    noTeamsHint: Ton organisation n'a pas encore d'équipes — crée-en une
+      d'abord sous Paramètres > Équipes.
+    unknownTeam: Équipe inconnue
+    teamBadgeMore: '{team} +{count}'
+    private: Privé
+    privateHelp: Toi seul le vois, et seuls tes chats le chargent.
+    narrowingTitle: Restreindre qui voit ce skill ?
+    narrowingWarning: Quelqu'un qui voit ce skill maintenant perdra l'accès —
+      et chaque chat ou agent qui l'équipe à travers lui cessera de le charger.
+  usage:
+    label: Où il peut servir
+    all: Chat et agents
+    allHelp: Proposé dans le composer du chat et attachable aux agents.
+    chat: Chat uniquement
+    chatHelp: Accessible depuis le menu d'équipement du chat et la commande / ;
+      jamais proposé aux agents.
+    agent: Agents uniquement
+    agentHelp: Attachable aux agents et aux automatisations ; masqué dans le
+      composer du chat et la commande /.
+    chatBadge: Chat uniquement
+    agentBadge: Agents uniquement
+  iconPicker:
+    label: Icône
+    trigger: Changer l'icône
+    searchPlaceholder: Rechercher des icônes
+    none: Aucune icône
+    refine: '{count, plural, one {# icône de plus — continue à taper pour
+      affiner} other {# icônes de plus — continue à taper pour affiner}}'
+  editor:
+    saved: Skill enregistré
+    saveFailed: Échec de l'enregistrement du skill
+    descriptionHelp:
+      Une ou deux phrases sur ce que couvre le skill — c'est ce qui indique
+      au modèle quand le lire.
+    labels: Libellés
+    labelsPlaceholder: recherche, pdf, finance
+    labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
+    bodyHelp:
+      Le markdown que le modèle lit quand il charge le skill — playbooks,
+      conventions, référence. Jamais exécuté.
 pwa:
   updateAvailableTitle: Mise à jour disponible
   updateAvailableDescription: Une nouvelle version de Tale est prête.
@@ -4769,9 +4761,6 @@ settings:
       description: Connecte des applications externes à ton espace de travail.
     providers:
       description: Utilise tes propres clés API pour OpenAI, Anthropic et d'autres.
-    skills:
-      description: Skills que tes agents peuvent charger pour gérer des types de
-        fichiers ou des tâches spécifiques.
     apiKeys:
       description: Jetons d'accès programmatique à l'API Tale.
     api:
@@ -4799,11 +4788,21 @@ settings:
       "Authentifie-toi avec une clé API de l'organisation en jeton Bearer :
       tu crées et gères les clés sous"
     authLink: Clés API REST.
-    toolsTitle: Outils
-    toolsHelp: Deux surfaces derrière un seul endpoint — les méthodes du
-      moteur d'automatisation, et le catalogue de capacités de cette
-      organisation. get_docs explique la grammaire des automatisations ;
-      search_capabilities trouve ce que l'organisation sait faire d'autre.
+    tools:
+      authoring:
+        title: Écriture
+        description: Travailler le document d'automatisation — rédiger,
+          valider, tester, enregistrer, déployer. get_docs enseigne la
+          grammaire.
+      management:
+        title: Gestion des exécutions & déclencheurs
+        description: Piloter ce qui est déployé — lancer et suivre les
+          exécutions, parcourir les versions, poser et retirer les
+          déclencheurs.
+      capability:
+        title: Capacités & connaissances
+        description: La surface propre à l'organisation — chercher ce qu'elle
+          sait faire, invoquer une capacité, récupérer des connaissances.
     exampleTitle: Essaie
     exampleHelp: Liste les outils — remplace par ta clé API.
     copyExample: Copier la requête d'exemple
@@ -5041,7 +5040,6 @@ settings:
       instructions: Instructions
       instructionsModel: Instructions et modèles
       tools: Outils
-      skills: Skills
       knowledge: Base de connaissances
       webhook: Webhooks
       conversationStarters: Amorces
@@ -5136,25 +5134,11 @@ settings:
       noAutomationsAvailable: Aucune automatisation active disponible.
       bindIntegrationsPlaceholder: Lier des intégrations…
       bindAutomationsPlaceholder: Lier des automatisations…
-      bindSkillsPlaceholder: Lier des skills…
-      sectionSkillBindings: Skills liés
-      sectionSkillBindingsDescription:
-        Skills que l'agent peut lire à l'exécution.
-        Laisser vide pour un agent sans skills — pas de repli implicite sur une
-        visibilité à l'échelle de l'organisation.
-      sectionSkillBindingsExternalDescription:
-        Les disciplines workflow (fix-bug,
-        write-notes, etc.) se chargent automatiquement dans le sandbox — lie ici
-        uniquement des skills org supplémentaires. Chaque skill lié est injecté
-        dans la session à chaque tour.
       skillBindingsExternalNoCustomSkillsDescription:
         Aucun skill org supplémentaire à
         lier pour l'instant — les disciplines workflow se chargent quand même
         automatiquement. Crée un skill personnalisé dans les paramètres Skills
         si cet agent en a besoin.
-      skillBindingsCounter: '{count}/{max} liés'
-      skillBindingsNoSkillsInOrgDescription: Aucun skill n'existe encore dans cette organisation.
-      skillBindingsNoSkillsInOrgCta: En créer un dans les paramètres Skills
       sectionKnowledgeDescription: Configure l'accès à la base de connaissances
       knowledgeHint:
         La base de connaissances recherche dans les documents téléversés
@@ -5233,7 +5217,6 @@ settings:
         dragHandle: Glisser pour réorganiser le modèle
       structuredResponsesInjectedPrompt: 'Les instructions suivantes seront
         automatiquement ajoutées au prompt système :'
-      browsePrompts: Parcourir les prompts
       systemInstructionsCharCount: '{count, plural, one {# caractère} other {# caractères}}'
       byo:
         sectionTitle: Identifiants
@@ -5502,90 +5485,6 @@ settings:
         étapes d'automatisation et exécutions externes. Cochez « Secret » pour
         chiffrer une valeur ; les secrets sont en écriture seule.
     automationBadge: Automatisation
-  skills:
-    uploadSkill: Téléverser un skill
-    searchPlaceholder: Rechercher des skills
-    deleteSkill: Supprimer le skill
-    notFound: Skill introuvable
-    backToList: Retour aux skills
-    skillDeleted: Skill supprimé
-    skillDeleteFailed: Échec de la suppression du skill
-    deleteConfirmation: Cela supprime le bundle du skill du disque. Tout agent
-      l'ayant attaché perdra l'accès.
-    actions:
-      replaceBundle: Remplacer le bundle
-    columns:
-      loadError: Impossible de lire SKILL.md
-    loadErrorDetail:
-      fixHint: Remplace le bundle par un zip valide, ou supprime ce skill.
-      technicalDetails: Détails techniques
-      title:
-        yamlSyntax: Le frontmatter n'a pas pu être analysé
-        missingFrontmatter: Frontmatter manquant
-        unclosedFrontmatter: Frontmatter non fermé
-        invalidFrontmatter: Frontmatter invalide
-        emptyFrontmatter: Frontmatter vide
-        frontmatterTooLarge: Frontmatter trop volumineux
-        symlink: SKILL.md est un lien symbolique
-        inaccessible: Impossible de lire ce skill
-        generic: Ce skill n'a pas pu être chargé
-    viewer:
-      toggleWrap: Basculer le retour à la ligne
-      imageNotice:
-        L'aperçu d'image n'est pas disponible dans le navigateur. Utilise
-        la CLI pour inspecter cet asset.
-      binaryNotice: Ce type de fichier n'est pas prévisualisable dans le navigateur.
-      largeFile: Fichier volumineux — coloration syntaxique désactivée pour les
-        performances.
-      notFound:
-        Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
-        l'arborescence.
-    detail:
-      tree:
-        heading: Bundle
-        empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
-          references/ ou assets/.
-        headingCount: Bundle · {fileCount} fichiers
-    upload:
-      dialogTitle: Téléverser un bundle de skill
-      uploadDescription:
-        Téléverse un zip contenant SKILL.md à la racine, plus tous
-        les scripts, références ou assets optionnels.
-      dropZoneLabel: Téléverser un bundle de skill
-      dropOrClick: Dépose un .zip ici ou clique pour parcourir
-      dropHere: Dépose le bundle ici
-      acceptedFormats: Zip contenant SKILL.md à la racine
-      parsing: Lecture du bundle…
-      zipRequired: Le bundle doit être un fichier .zip.
-      folderUnsupported: Les dossiers ne sont pas pris en charge — zippe d'abord le dossier.
-      singleFileOnly: Dépose un seul fichier .zip, pas plusieurs fichiers.
-      unexpectedError: Une erreur inattendue s'est produite
-      bundleFiles: Fichiers du bundle
-      fileCount: '{count, plural, one {# fichier} other {# fichiers}}'
-      frontmatter: Frontmatter
-      license: Licence
-      recommendedPython: Python recommandé
-      recommendedNode: Node recommandé
-      disableModelInvocation: Skill masqué au modèle — invocation explicite uniquement.
-      unknownKeys: '{count, plural, one {# entrée frontmatter supplémentaire
-        conservée} other {# entrées frontmatter supplémentaires conservées}}'
-      submit: Téléverser le bundle
-      submitting: Téléversement…
-      uploadSuccess: Bundle de skill téléversé
-      uploadFailed: Échec du téléversement du bundle
-      replaceTitle: Remplacer le skill existant ?
-      replaceDescription: Un skill nommé "{slug}" existe déjà. Le téléversement
-        écrasera son contenu actuel.
-      replaceConfirm: Remplacer
-      replaceSuccess: Bundle de skill remplacé
-    noResults:
-      title: Aucun skill correspondant
-      description: Aucun skill ne correspond à ta recherche. Essaie un autre terme.
-    listFailed: Impossible de charger la bibliothèque de skills. Recharge et réessaie.
-    openSkill: Ouvrir le skill {slug}
-    visibility:
-      org: Organisation
-      private: Privé
   integrations:
     catalog:
       title: Connecteurs
@@ -6651,8 +6550,8 @@ settings:
       orPrefix: (ou
       tail: pour le Zero-Downtime). La plateforme elle-même n'a pas besoin de
         redémarrer.
-    save: Enregistrer
     saving: Enregistrement…
+    saveDeployment: Enregistrer le déploiement
     applyRestart: Appliquer & redémarrer
     applyRestartTitle:
       Redémarre rag + convex via le controller (si activé), sinon
@@ -6688,6 +6587,94 @@ settings:
         Confirme l'écrasement pour le remplacer.
       configUnreadable: La configuration du déploiement sur le disque ne peut pas être lue.
       readFailed: 'Impossible de charger la configuration du déploiement : {error}'
+    orgKnowledge:
+      title: Base de connaissances
+      description:
+        La base Postgres qui contient le corpus de connaissances de cette
+        organisation pour la recherche et la récupération.
+      statusDefault: Défaut du déploiement
+      readOnlyBody:
+        Des permissions Admin sont requises pour modifier l'emplacement du
+        corpus de connaissances de cette organisation.
+      note: Désactivée, les connaissances de cette organisation restent dans la
+        base intégrée du déploiement, isolées par organisation. Activée, le
+        corpus vit dans la base ci-dessus — une base vide est préparée
+        automatiquement, mais les entrées indexées avant le changement ne
+        migrent pas avec elle.
+      cleared: Connexion supprimée — la recherche de connaissances de cette
+        organisation utilise à nouveau la base intégrée du déploiement.
+      clearConfirm:
+        title: Supprimer la connexion à la base de connaissances ?
+        description:
+          La recherche de connaissances de cette organisation repasse par la
+          base intégrée du déploiement. Les entrées déjà écrites dans ta base y
+          restent, mais Tale ne peut plus les lire tant que la connexion n'est
+          pas rétablie.
+        confirm: Supprimer la connexion
+      errors:
+        readFailed: 'Impossible de charger la connexion enregistrée : {error}'
+        hostRequired: Saisis l'hôte de la base de données.
+        hostInvalid: Uniquement lettres, chiffres, points, tirets, deux-points et crochets.
+        portInvalid: Saisis un port entre 1 et 65535.
+        databaseRequired: Saisis le nom de la base de données.
+        userRequired: Saisis l'utilisateur de la base de données.
+    orgEmbedding:
+      title: Modèle d'embedding
+      description:
+        Le modèle qui transforme les documents et les requêtes de cette
+        organisation en vecteurs pour la recherche de connaissances — requis
+        avant toute recherche, quelle que soit la base.
+      statusConfigured: Configuré
+      statusNotConfigured: Non configuré
+      notConfiguredWarning:
+        La recherche de connaissances est indisponible tant qu'aucun modèle
+        d'embedding n'est configuré.
+      readOnlyBody:
+        Des permissions Admin sont requises pour modifier le modèle d'embedding
+        de cette organisation.
+      noCredentials:
+        Aucun identifiant de fournisseur IA n'est encore stocké — ajoutes-en un
+        dans Paramètres → Fournisseurs IA pour choisir un fournisseur ici.
+      provider: Fournisseur
+      providerPlaceholder: Choisis un fournisseur
+      credential: Identifiants
+      credentialDefault: Défaut du fournisseur
+      credentialHint:
+        Les identifiants stockés qui autorisent les appels d'embedding ; par
+        défaut, ceux du fournisseur.
+      model: Modèle
+      modelHint: Le tag du modèle exactement comme le fournisseur l'écrit.
+      dimensions: Largeur des vecteurs
+      dimensionsHint:
+        "Déclarée, jamais devinée : le nombre exact de dimensions que produit
+        ce modèle. La changer plus tard rend inutilisables les vecteurs déjà
+        écrits à l'ancienne largeur."
+      baseUrl: URL de base
+      baseUrlHint: Endpoint compatible OpenAI ; vide pour celui du fournisseur.
+      sharedDbNote:
+        Sur la base partagée du déploiement, toutes les organisations partagent
+        une même largeur de vecteurs — elle est fixée à l'écriture du premier
+        vecteur. Donne à cette organisation sa propre base de connaissances
+        pour choisir librement.
+      removed: Modèle d'embedding supprimé — la recherche de connaissances est
+        indisponible tant qu'un nouveau modèle n'est pas configuré.
+      removeConfirm:
+        title: Supprimer le modèle d'embedding ?
+        description:
+          La recherche de connaissances de cette organisation ne fonctionne
+          plus tant qu'un nouveau modèle d'embedding n'est pas configuré. Les
+          vecteurs déjà écrits restent dans le corpus.
+        confirm: Supprimer le modèle
+      errors:
+        readFailed: "Impossible de charger la configuration d'embedding enregistrée : {error}"
+        invalid: Les paramètres d'embedding sont invalides. Vérifie les champs et réessaie.
+        providerRequired: Choisis un fournisseur.
+        modelRequired: Saisis le tag du modèle.
+        dimensionsInvalid: Saisis un nombre entier entre 1 et 16000.
+        baseUrlInvalid: Saisis une URL http(s), ou laisse le champ vide.
+        credentialNotFound: Les identifiants choisis n'existent plus — choisis-en d'autres.
+        credentialMismatch: Les identifiants choisis appartiennent à un autre fournisseur.
+        credentialDisabled: Les identifiants choisis sont désactivés — réactive-les ou choisis-en d'autres.
     orgStorage:
       title: Stockage d'objets
       description:
@@ -6718,9 +6705,6 @@ settings:
         intégré du déploiement, isolés par organisation. Activé, les nouveaux
         téléversements vont dans le bucket ci-dessus ; les fichiers stockés
         avant le changement restent lisibles là où ils sont.
-      saved:
-        Enregistré — les nouveaux téléversements de cette organisation vont dans
-        ton bucket.
       cleared:
         Connexion supprimée — les nouveaux téléversements retournent dans le
         stockage intégré du déploiement. Les fichiers déjà dans ton bucket y
@@ -6734,6 +6718,29 @@ settings:
           bucket y restent, mais Tale ne peut plus les lire tant que la
           connexion n'est pas rétablie.
         confirm: Supprimer la connexion
+      backfill:
+        start: Déplacer les fichiers existants
+        description:
+          Copie les fichiers stockés avant le changement depuis le stockage
+          intégré du déploiement vers ton bucket, pour que tout vive au même
+          endroit. S'exécute en arrière-plan ; les téléversements continuent
+          pendant ce temps.
+        confirm:
+          title: Déplacer les fichiers existants vers ton bucket ?
+          description:
+            Les fichiers que cette organisation a stockés dans le stockage
+            intégré du déploiement sont copiés dans ton bucket et servis depuis
+            là. L'opération s'exécute en arrière-plan et peut prendre du temps
+            pour de gros volumes.
+          confirm: Déplacer les fichiers
+        status:
+          running: 'Déplacement en cours… {migrated} déplacés, {failed} en échec.'
+          completed: 'Terminé — {migrated} fichiers déplacés, {failed} en échec.'
+          completedDry: 'Essai à blanc — {candidates} fichiers seraient déplacés.'
+          failed: "Le déplacement s'est arrêté sur une erreur : {error}"
+        errors:
+          alreadyRunning: Un déplacement est déjà en cours — attends qu'il se termine.
+          notConfigured: Enregistre la connexion au bucket avant de déplacer les fichiers existants.
       errors:
         forbidden:
           Tu n'es pas autorisé à gérer la résidence des données de cette
@@ -6746,6 +6753,9 @@ settings:
           Saisis une Access Key ID et une Secret Access Key — elles
           sont requises à la première configuration du stockage d'objets.
         readFailed: 'Impossible de charger la connexion enregistrée : {error}'
+        regionRequired: Saisis la région du bucket.
+        endpointInvalid: Saisis une URL http(s), ou laisse vide pour AWS.
+        bucketRequired: Saisis le nom du bucket.
 inbox:
   taskAssigned: Tâche assignée
   taskAssignedBody: « {title} » t'a été assignée.
@@ -7527,6 +7537,8 @@ projects:
     modelLabel: Modèle
     modelPlaceholder: Choisis le modèle qu'il appelle
     equipmentLabel: Skills & connecteurs
+    equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
+      équipes du projet, pas ta visibilité personnelle.
     instructionsLabel: Instructions
     instructionsPlaceholder:
       Ce que cet agent prend en charge, comment il doit travailler et les

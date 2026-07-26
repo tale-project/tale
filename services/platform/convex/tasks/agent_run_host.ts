@@ -198,11 +198,21 @@ export const startTaskAgentTurn = internalAction({
         args.sessionId,
       );
 
+      // A project agent's equipment is the PROJECT's: team skills resolve
+      // against the project's teams, never against whoever configured the
+      // agent or whoever triggers the run.
+      const projectScope = await ctx.runQuery(
+        internal.projects.internal_queries.getProjectAgentSkillScope,
+        { agentId: args.agentId },
+      );
       const skillsAddendum = await stageWorkflowSkills(
         ctx,
         args.organizationId,
         args.sessionId,
         args.skills,
+        projectScope === null
+          ? { kind: 'org' }
+          : { kind: 'project', teamIds: projectScope.teamIds },
       );
 
       const brief = await ctx.runQuery(

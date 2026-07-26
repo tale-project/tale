@@ -14,6 +14,7 @@
  * FLAT name, so it needs no URL codec.
  */
 
+import type { UserSkillViewer } from '../../lib/skills/visibility';
 import { internal } from '../_generated/api';
 import {
   extractPathParts,
@@ -27,6 +28,7 @@ import {
   requiredString,
   restCallerIsOrgAdmin,
   withRestAuth,
+  type RestContext,
 } from '../lib/rest/helpers';
 
 const PREFIX = '/api/v1/skills/';
@@ -35,14 +37,31 @@ const PREFIX = '/api/v1/skills/';
 const MAX_SLUG = 200;
 const MAX_DESCRIPTION = 1024;
 const MAX_BODY = 1_000_000;
+const MAX_TEAMS_ARG = 32;
+
+/**
+ * The key holder's viewer identity: the key acts as its user, so team skills
+ * follow the user's own team memberships.
+ */
+async function restSkillViewer(rc: RestContext): Promise<UserSkillViewer> {
+  const context = await rc.ctx.runQuery(
+    internal.skills.viewer_context.getUserSkillViewerContext,
+    { organizationId: rc.org.organizationId, userId: rc.user.userId },
+  );
+  return {
+    kind: 'user',
+    userId: rc.user.userId,
+    teamIds: context?.teamIds ?? [],
+    isOrgAdmin: context?.isOrgAdmin ?? (await restCallerIsOrgAdmin(rc)),
+  };
+}
 
 export const listSkills = withRestAuth('rest:api', async (rc) => {
   const listing = await rc.ctx.runAction(
     internal.skills.file_actions.listSkills,
     {
       orgSlug: rc.org.orgSlug,
-      viewerUserId: rc.user.userId,
-      isOrgAdmin: await restCallerIsOrgAdmin(rc),
+      viewer: await restSkillViewer(rc),
     },
   );
   return jsonOk(listing);
@@ -59,8 +78,7 @@ export const getSkill = withRestAuth('rest:api', async (rc, request) => {
   const skill = await rc.ctx.runAction(internal.skills.file_actions.readSkill, {
     orgSlug: rc.org.orgSlug,
     slug: id,
-    viewerUserId: rc.user.userId,
-    isOrgAdmin: await restCallerIsOrgAdmin(rc),
+    viewer: await restSkillViewer(rc),
   });
   if (!skill) return jsonError('Skill not found', 404);
   return jsonOk(skill);
@@ -80,7 +98,14 @@ export const putSkill = withRestAuth('rest:api', async (rc, request) => {
   const skillBody = requiredString(body, 'body', MAX_BODY);
   const visibility = optionalEnum(body, 'visibility', [
     'private',
+    'team',
     'org',
+  ] as const);
+  const teams = optionalStringArray(body, 'teams', MAX_TEAMS_ARG);
+  const usageMode = optionalEnum(body, 'usageMode', [
+    'chat',
+    'agent',
+    'all',
   ] as const);
   const icon = optionalString(body, 'icon', 200);
   const labels = optionalStringArray(body, 'labels', 50);
@@ -88,11 +113,12 @@ export const putSkill = withRestAuth('rest:api', async (rc, request) => {
   const saved = await rc.ctx.runAction(internal.skills.file_actions.saveSkill, {
     orgSlug: rc.org.orgSlug,
     slug: id,
-    viewerUserId: rc.user.userId,
-    isOrgAdmin: await restCallerIsOrgAdmin(rc),
+    viewer: await restSkillViewer(rc),
     description,
     body: skillBody,
     ...(visibility !== undefined && { visibility }),
+    ...(teams !== undefined && { teams }),
+    ...(usageMode !== undefined && { usageMode }),
     ...(icon !== undefined && { icon }),
     ...(labels !== undefined && { labels }),
   });
@@ -113,8 +139,7 @@ export const deleteSkill = withRestAuth('rest:api', async (rc, request) => {
     {
       orgSlug: rc.org.orgSlug,
       slug: id,
-      viewerUserId: rc.user.userId,
-      isOrgAdmin: await restCallerIsOrgAdmin(rc),
+      viewer: await restSkillViewer(rc),
     },
   );
   if (!deleted) return jsonError('Skill not found', 404);

@@ -40,9 +40,25 @@ function readerFor(fleet: Fleet, orgSlug: string): AgentFileReader {
   };
 }
 
-const alice = { userId: 'user_alice' };
-const bob = { userId: 'user_bob' };
-const admin = { userId: 'user_admin', isOrgAdmin: true };
+// Agents only know `private | org`, so every viewer carries no teams.
+const alice = {
+  kind: 'user' as const,
+  userId: 'user_alice',
+  teamIds: [],
+  isOrgAdmin: false,
+};
+const bob = {
+  kind: 'user' as const,
+  userId: 'user_bob',
+  teamIds: [],
+  isOrgAdmin: false,
+};
+const admin = {
+  kind: 'user' as const,
+  userId: 'user_admin',
+  teamIds: [],
+  isOrgAdmin: true,
+};
 
 describe('listing an organization’s agents', () => {
   const fleet: Fleet = {

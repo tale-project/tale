@@ -610,6 +610,10 @@ tables:
         tableName: projects
         type: id
       optional: true
+    taskContract:
+      ft:
+        type: any
+      optional: true
     testsPassed:
       ft:
         type: boolean
@@ -1796,10 +1800,6 @@ tables:
     perCategorySnapshot:
       ft:
         type: any
-      optional: true
-    promptTemplatesErased:
-      ft:
-        type: number
       optional: true
     ragDocumentsRemoved:
       ft:
@@ -3231,6 +3231,139 @@ tables:
                   type: string
               optional: true
       optional: true
+  projectAgentRuns:
+    agentId:
+      ft:
+        tableName: projectAgents
+        type: id
+      optional: false
+    deadlineAt:
+      ft:
+        type: number
+      optional: false
+    error:
+      ft:
+        type: string
+      optional: true
+    execId:
+      ft:
+        type: string
+      optional: false
+    harness:
+      ft:
+        type: string
+      optional: false
+    model:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: false
+    resultMessageId:
+      ft:
+        type: string
+      optional: true
+    resultText:
+      ft:
+        type: string
+      optional: true
+    sessionId:
+      ft:
+        type: string
+      optional: false
+    settledAt:
+      ft:
+        type: number
+      optional: true
+    startedAt:
+      ft:
+        type: number
+      optional: false
+    startedBy:
+      ft:
+        type: string
+      optional: false
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: queued
+          - type: literal
+            value: running
+          - type: literal
+            value: settled
+          - type: literal
+            value: failed
+          - type: literal
+            value: cancelled
+      optional: false
+    taskId:
+      ft:
+        tableName: tasks
+        type: id
+      optional: false
+    updatedAt:
+      ft:
+        type: number
+      optional: false
+  projectAgents:
+    connectors:
+      ft:
+        type: array
+        value:
+          type: string
+      optional: false
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    createdBy:
+      ft:
+        type: string
+      optional: false
+    harness:
+      ft:
+        type: string
+      optional: false
+    instructions:
+      ft:
+        type: string
+      optional: true
+    model:
+      ft:
+        type: string
+      optional: true
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: false
+    skills:
+      ft:
+        type: array
+        value:
+          type: string
+      optional: false
+    updatedAt:
+      ft:
+        type: number
+      optional: false
   projects:
     agentCapabilities:
       ft:
@@ -3451,205 +3584,6 @@ tables:
       ft:
         type: string
       optional: false
-  promptCategories:
-    createdBy:
-      ft:
-        type: string
-      optional: false
-    name:
-      ft:
-        type: string
-      optional: false
-    nameLower:
-      ft:
-        type: string
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    scope:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: global
-          - type: literal
-            value: team
-          - type: literal
-            value: personal
-      optional: false
-    teamId:
-      ft:
-        type: string
-      optional: true
-  promptDefaultProvisions:
-    contentHash:
-      ft:
-        type: string
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    promptId:
-      ft:
-        tableName: promptTemplates
-        type: id
-      optional: false
-    promptSlug:
-      ft:
-        type: string
-      optional: false
-    provisionedAt:
-      ft:
-        type: number
-      optional: false
-  promptTemplates:
-    category:
-      ft:
-        type: string
-      optional: true
-    categoryId:
-      ft:
-        tableName: promptCategories
-        type: id
-      optional: true
-    content:
-      ft:
-        type: string
-      optional: false
-    createdBy:
-      ft:
-        type: string
-      optional: false
-    description:
-      ft:
-        type: string
-      optional: true
-    lifecycleStatus:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: active
-          - type: literal
-            value: trashed
-          - type: literal
-            value: expired
-          - type: literal
-            value: deleted
-      optional: true
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    scope:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: global
-          - type: literal
-            value: team
-          - type: literal
-            value: personal
-      optional: false
-    sourceMessageId:
-      ft:
-        type: string
-      optional: true
-    statusChangedAt:
-      ft:
-        type: number
-      optional: true
-    tags:
-      ft:
-        type: array
-        value:
-          type: string
-      optional: true
-    teamId:
-      ft:
-        type: string
-      optional: true
-    title:
-      ft:
-        type: string
-      optional: false
-    usageCount:
-      ft:
-        type: number
-      optional: false
-    version:
-      ft:
-        type: number
-      optional: true
-    versionHistory:
-      ft:
-        type: array
-        value:
-          type: object
-          value:
-            category:
-              fieldType:
-                type: string
-              optional: true
-            categoryId:
-              fieldType:
-                tableName: promptCategories
-                type: id
-              optional: true
-            content:
-              fieldType:
-                type: string
-              optional: false
-            description:
-              fieldType:
-                type: string
-              optional: true
-            publishedAt:
-              fieldType:
-                type: number
-              optional: false
-            publishedBy:
-              fieldType:
-                type: string
-              optional: false
-            publishNote:
-              fieldType:
-                type: string
-              optional: true
-            scope:
-              fieldType:
-                type: union
-                value:
-                  - type: literal
-                    value: global
-                  - type: literal
-                    value: team
-                  - type: literal
-                    value: personal
-              optional: false
-            tags:
-              fieldType:
-                type: array
-                value:
-                  type: string
-              optional: true
-            teamId:
-              fieldType:
-                type: string
-              optional: true
-            title:
-              fieldType:
-                type: string
-              optional: false
-            version:
-              fieldType:
-                type: number
-              optional: false
-      optional: true
   providerCredentials:
     authMethod:
       ft:
@@ -4471,6 +4405,41 @@ tables:
       ft:
         type: string
       optional: true
+  skillUploadClaims:
+    claimedAt:
+      ft:
+        type: number
+      optional: false
+    expiresAt:
+      ft:
+        type: number
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    slug:
+      ft:
+        type: string
+      optional: false
+  skillUploadIntents:
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    storageId:
+      ft:
+        tableName: _storage
+        type: id
+      optional: false
+    userId:
+      ft:
+        type: string
+      optional: false
   slackTeamRoutes:
     createdAt:
       ft:
@@ -5068,6 +5037,8 @@ tables:
             value: user
           - type: literal
             value: agent
+          - type: literal
+            value: app
       optional: true
     attachments:
       ft:

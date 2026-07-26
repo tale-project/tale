@@ -91,7 +91,6 @@ accessDenied:
   automations: You need Admin or Developer permissions to access automations.
   organization: You need Admin permissions to access organization settings.
   agents: You need Admin or Developer permissions to manage agents. Ask an admin if you need an agent installed for chat.
-  skills: You need Admin or Developer permissions to manage skills.
   branding: You need Admin permissions to access branding settings.
   knowledge: Your account does not have permission to access knowledge.
   workspaceNotFound: The workspace you're looking for doesn't exist or may have been removed.
@@ -1133,6 +1132,10 @@ chat:
     humanInputPending: Your answer is needed
     humanInputAnswered: Answered
     blocked: 'Stopped by a guardrail: {reason}'
+  slash:
+    listLabel: Skills
+    noMatches: No matching skill — the message sends as typed.
+    browseLibrary: Browse the skill library
   errorGeneratingDescription: There was an error generating a response. Please try again.
   errorHintAuthError: The API key is invalid or does not have access to this
     model. Contact your administrator.
@@ -1178,6 +1181,10 @@ chat:
 common:
   optional: optional
   or: or
+  select:
+    noOptionsHint: Nothing to choose yet.
+    noProvidersHint: Add an AI provider first — under Settings → AI providers.
+    pickProviderFirstHint: Pick a provider first — its models appear here.
   dates:
     today: Today
     yesterday: Yesterday
@@ -1253,26 +1260,6 @@ common:
     deleteSuccess: Successfully deleted {count, plural, one {# item} other {# items}}
     deleteFailed: Failed to delete some items
     deleting: Deleting...
-  upload:
-    clickToUpload: Click to upload
-    supportedFormats: .xlsx, .xls or .csv
-    pickADate: Pick a date
-    dropFilesHere: Drop files here to upload
-    dropOrClick: Drop JSON files or .zip here
-    acceptHint: JSON files, folders, or .zip archives
-    uploadFolderInstead: Select a folder instead
-    importBlocked: Nothing ready to import. Fix invalid files above, or adjust
-      overwrite settings for conflicts.
-    summary: '{total} entries · {saved} saved · {queued} pending'
-    conflictHeading:
-      '{count, plural, one {# entry already exists} other {# entries
-      already exist}}'
-    conflictHint: Existing entries will be overwritten. The previous version is
-      saved to history. Uncheck below to skip them instead.
-    overwriteToggle: Overwrite existing entries
-    statusExists: Already exists — will be skipped
-    willOverwrite: Already exists — will overwrite
-    statusSkipped: Skipped
   labels:
     phone: Phone
     source: Source
@@ -1433,6 +1420,7 @@ common:
 composer:
   openMenu: Open chat menu
   addFiles: Add photos & files
+  skillLibrary: Skill library
   modeHeader: Modes
 connectivity:
   tabTitle: Reconnecting
@@ -2141,8 +2129,9 @@ emptyStates:
   skills:
     title: No skills yet
     description:
-      Skills are reusable instruction bundles you can attach to agents —
-      like a playbook plus optional scripts.
+      Skills are reusable instruction bundles for chats and agents — like a
+      playbook plus optional scripts. Create one from the chat composer’s
+      + menu.
   members:
     title: No members found
     description: Add team members to get started
@@ -3032,7 +3021,6 @@ governance:
       Nothing in the trash. Retention will move expired rows here once their
       grace window starts.
     filterTitle: Category
-    loadMore: Load more
     column:
       type: Type
       name: Name
@@ -3071,6 +3059,8 @@ governance:
       failedToast: Failed to restore
       failedDescription: Failed to restore this record.
     emptyTitle: Trash is empty
+    entityLabelOne: record
+    entityLabel: records
   legalHold:
     targetTypes:
       thread: Thread
@@ -3382,7 +3372,6 @@ governance:
       documentsErased: Documents erased
       documentsSkippedByHold: Documents skipped by hold
       wfExecutionsErased: Automation runs erased
-      promptTemplatesErased: Personal prompts erased
       startedAt: Started
       completedAt: Completed
       errorMessage: Error
@@ -3849,11 +3838,6 @@ metadata:
   agents:
     title: Agents
     description: Create and manage AI agents for contact support.
-  skills:
-    title: Skills
-    description:
-      Reusable instruction bundles you can attach to agents — playbooks
-      plus optional sandbox scripts.
   integrations:
     title: Integrations
     description: Connect third-party services.
@@ -3902,9 +3886,6 @@ metadata:
   agentTools:
     title: Agent tools
     description: Select and configure tools available to your agent.
-  agentSkills:
-    title: Agent skills
-    description: Bind skills the agent can read at runtime.
   agentWebhook:
     title: Agent webhooks
     description: Manage webhook URLs for your agent.
@@ -3970,7 +3951,6 @@ navigation:
   environment: Environment
   account: Account
   agents: Agents
-  skills: Skills
   mcp: MCP
   webdav: WebDAV
   teamFilter:
@@ -4337,169 +4317,181 @@ products:
       fullDescription: Full description
       source: Source
       productId: Product ID
-prompts:
-  tabs:
-    all: All
-    team: Team
-    personal: Personal
-    global: Global
+skills:
+  searchPlaceholder: Search skills
+  deleteSkill: Delete skill
+  notFound: Skill not found
+  skillDeleted: Skill deleted
+  skillDeleteFailed: Failed to delete skill
+  deleteConfirmation:
+    This removes the skill bundle "{slug}" from disk. Any chat or agent
+    currently equipped with it loses access.
+  listFailed: Couldn't load the skill library. Reload to retry.
+  openSkill: Open skill {slug}
+  readOnly: You can read this skill but not change it — its owner (or an org
+    admin, for shared skills) manages it.
   library:
-    title: Prompt library
-    description: Browse, save, and share prompt templates.
-    searchPlaceholder: Search prompts
-    loading: Loading prompts...
-    loadMore: Load more
-    loadingMore: Loading...
-    teamContextLabel: Team
-    noTeamsHint:
-      You're not a member of any team yet. Ask an admin to add you to one
-      to use team prompts.
-  emptyState:
-    title: No prompts yet
-    description: Create your first prompt to save and reuse it across conversations
-    filteredTitle: No matching prompts
-    filteredDescription: Try clearing your search or filters.
-    filteredCanLoadMore: No matches on this page. Load more to keep searching, or clear filters.
-    clearFilters: Clear filters
-  actions:
-    create: Create prompt
-    edit: Edit
-    delete: Delete
-    more: More actions
-    copy: Copy
-    copied: Copied!
-    viewHistory: Version history
-    viewHistoryDisabled: No previous versions
-    copyFailed: Could not copy to clipboard
-  deleteConfirm:
-    title: Delete prompt
-    description: Are you sure you want to delete "{title}"? This action cannot be undone.
-  scope:
-    global: Global (everyone)
-    team: Team
-    personal: Personal
-  form:
-    createTitle: Create prompt
-    createDescription: Create a new prompt template.
-    editTitle: Edit prompt
-    editDescription: Update the prompt template.
-    titleLabel: Title
-    titlePlaceholder: Enter prompt title...
-    contentLabel: Content
-    contentPlaceholder: Enter prompt content...
-    scopeLabel: Visibility
-    teamLabel: Team
-    teamPlaceholder: Select a team...
-    noTeamsAvailable: You're not in any team. Ask an admin to add you to one, or
-      save this prompt as Personal.
-    titleAutoGenHint: Leave blank to auto-generate from the content.
-    categoryLabel: Category
-    tagsLabel: Tags
-    tagsPlaceholder: Comma-separated tags...
-    save: Save
-    create: Create
-    charsUsed: '{used} characters'
-    versionConflictTitle: Newer version available
-    versionConflictDescription: Someone saved v{version} while you were editing.
-      Load the latest to re-anchor before saving.
-    versionConflictDirtyWarning: Your unsaved edits will be discarded.
-    versionConflictDiscardConfirm: Load the latest version and discard your unsaved edits?
-    loadLatest: Load latest
-    bytesOverLimitAlert: Content exceeds the {limit} limit. Shorten the prompt to enable Save.
-  saveAs:
-    title: Save prompt
-    saveTo: Save to
-  toast:
-    savedTo: Saved to {scope}
-    saved: Saved as v{version}
-    savedNoChanges: Saved (no changes)
-    created: Prompt created
-    saveFailed: Could not save prompt
-    deleteFailed: Could not delete prompt
-    versionConflict: Newer version detected — load the latest before saving
-    restored: Restored as v{version}
-    restoreFailed: Could not restore version
-    restoreStale: Version history changed — refresh to retry
-    rateLimited: Saving too quickly — wait a moment before trying again
-    forbidden: You don't have permission for this prompt
-    notFound: This prompt no longer exists
-    tooLarge: A field exceeds the allowed length
-    emptyContent: Prompt content cannot be empty
-    legalHold: Delete is blocked by an active legal hold
-  version:
-    badge: v{version}
-  history:
-    dialogTitle: Version history — {name}
-    dialogDescription: Compare and restore past versions of this prompt.
-    loading: Loading history...
-    current: Current
-    compare: Compare with current
-    compareTitle: Compare current with v{version}
-    compareDescription: Published {date}
-    noDifferences: No differences between these versions.
-    backToList: Back to history
-    restore: Restore
-    restoreConfirmTitleVersioned: Restore v{version}?
-    restoreConfirmDescription:
-      Restore content from v{source} as v{target}. Existing
-      versions are preserved.
-    compareVersionAria: Compare v{version} with current
-    restoreVersionAria: Restore v{version}
-    diffAriaLabel: Content difference
-    empty: No previous versions
-    loadFailed: Could not load version history
-    publishedByOn: By {name} · {date}
-    versionsLabel: Version history
-    metadataChanged: Metadata changed
-    metadataDiffLabel: Metadata changes
-    keyboardHint: Enter compares · R or Shift+Enter restores
-    diffLegend:
-      Diff against v{snapshot} — − current (v{current}) would be replaced,
-      + v{snapshot} would be restored
-    lineAdded: 'Added line:'
-    lineRemoved: 'Removed line:'
-    metadataField:
-      title: Title
-      description: Description
-      category: Category
-      tags: Tags
-      scope: Scope
-  categoryFilter:
-    title: By category
-    titleWithCount: By category ({count} active)
-  tagFilter:
-    title: By tag
-    titleWithCount: By tag ({count} active)
-  addCategory:
-    inputPlaceholder: Category name
-    add: Add
-  categories:
-    pickerPlaceholder: Choose a category
-    create: Create
-    rename: Rename
-    renameSave: Save name
-    renameCancel: Cancel rename
-    delete: Delete
-    deleteConfirmTitle: Delete category?
-    deleteConfirmDescription: Prompts using "{name}" will be moved to "— None —". This cannot be undone.
-    deleteSuccess: Deleted "{name}"
-    duplicate: A category with that name already exists
-    createForbidden: Only admins can create categories at this scope
-    cannotManage: You cannot manage this category
-    deletedLabel: (deleted)
-    empty: No categories yet
-    actions: Actions for {name}
-    scopeGroup:
+    title: Skill library
+    backToLibrary: Back to the library
+    labelFilterLabel: Filter by label
+    tabs:
+      all: All
+      org: Organization
+      team: Teams
       personal: Personal
-      team: Team
-      global: Global
-  sidebar:
-    sectionTitle: Prompt library
-  tagsInput:
-    tooLong: Tag must be {max} characters or fewer
-    atCap: You’ve reached the {max}-tag limit
-    removeAria: Remove tag {tag}
-    counter: '{count} / {max} tags'
+  columns:
+    loadError: Failed to read SKILL.md
+  loadErrorDetail:
+    title:
+      yamlSyntax: Frontmatter couldn't be parsed
+      missingFrontmatter: Frontmatter is missing
+      unclosedFrontmatter: Frontmatter isn't closed
+      frontmatterTooLarge: Frontmatter is too large
+      invalidFrontmatter: Frontmatter is invalid
+      emptyFrontmatter: Frontmatter is empty
+      symlink: SKILL.md is a symlink
+      inaccessible: Couldn't read this skill
+      generic: This skill couldn't be loaded
+  form:
+    description: Description
+  section:
+    body: Instructions (body)
+  viewer:
+    toggleWrap: Toggle line wrap
+    imageNotice: Image preview is not available in the browser. Use the CLI to
+      inspect this asset.
+    binaryNotice: This file type is not previewable in the browser.
+    largeFile: Large file — syntax highlighting disabled for performance.
+    notFound: This file is no longer in the bundle. Pick another file from the tree.
+  detail:
+    tree:
+      heading: Bundle
+      empty: Only SKILL.md — bundle assets live under scripts/, references/, or
+        assets/.
+      headingCount: Bundle · {fileCount} files
+  upload:
+    dialogTitle: Upload skill
+    uploadDescription: Upload a zip — or pick a folder — with SKILL.md at the
+      root, plus any optional scripts, references, or assets.
+    dropZoneLabel: Upload skill bundle
+    dropOrClick: Drop a .zip here or click to browse
+    dropHere: Drop the bundle here
+    acceptedFormats: Zip containing SKILL.md at the root
+    parsing: Reading bundle…
+    zipRequired: Bundle must be a .zip file.
+    folderDropUnsupported: Folders can't be dropped here — use "Choose folder"
+      below instead.
+    singleFileOnly: Drop a single .zip bundle, not multiple files.
+    chooseFolder: Choose folder
+    chooseFolderHelp: Picks a skill folder with SKILL.md at its root and zips
+      it for you.
+    bundleFiles: Bundle files
+    fileCount: '{count, plural, one {# file} other {# files}}'
+    frontmatter: Frontmatter
+    license: License
+    recommendedPython: Recommended Python
+    recommendedNode: Recommended Node
+    disableModelInvocation: Skill is hidden from the model — explicit invocation only.
+    unknownKeys:
+      '{count, plural, one {# additional frontmatter key preserved} other
+      {# additional frontmatter keys preserved}}'
+    sharingHeading: Sharing
+    sharingAs:
+      private: Uploads as your private skill
+      team: Uploads shared with the teams its frontmatter declares
+      org: Uploads shared with the whole organization
+    sharingEditableAfter: you can change sharing and usage after the upload.
+    submit: Upload bundle
+    submitting: Uploading…
+    uploadSuccess: Skill bundle uploaded
+    uploadFailed: Failed to upload skill bundle
+    replaceTitle: Replace existing skill?
+    replaceDescription: A skill named "{slug}" already exists. Uploading will
+      overwrite its current contents.
+    replaceConfirm: Replace
+    replaceSuccess: Skill bundle replaced
+    errors:
+      notZip: Bundle must be a .zip file.
+      invalidZip: 'Not a valid zip archive: {detail}'
+      emptyZip: The bundle is empty.
+      tooManyEntries: Bundle has {count} entries (max {max}).
+      unsafePath: 'Bundle entry path is unsafe: {path}'
+      absolutePath: 'Bundle entry uses an absolute path: {path}'
+      missingSkillMd: Bundle is missing SKILL.md at the root.
+      frontmatterRejected: 'SKILL.md frontmatter rejected: {detail}'
+      invalidSlug: Frontmatter name "{slug}" is not a valid skill slug.
+      skillMdTooLarge: SKILL.md exceeds the per-file cap of {max}.
+      assetTooLarge: '"{path}" exceeds the per-file cap of {max}.'
+      totalTooLarge: The unpacked bundle exceeds {max}.
+  addMenu:
+    label: Add skill
+  createMenu:
+    blank: Blank skill
+    uploadZip: Upload zip
+    uploadFolder: Upload folder
+  createDialog:
+    title: Create skill
+    nameLabel: Name
+    namePlaceholder: my-skill
+    nameHelp: Unique id — lowercase letters, numbers, and single hyphens. This
+      becomes the skill’s slug.
+    namePatternError: Use lowercase letters, numbers, and single hyphens (e.g. my-skill).
+    submit: Create
+    creating: Creating...
+    created: Skill created
+    exists: A skill with this name already exists.
+    createFailed: Couldn't create the skill
+  noResults:
+    title: No matching skills
+    description: No skills match your search. Try a different term.
+  visibility:
+    label: Visibility
+    org: Organization
+    orgHelp: Every member can read it; agents can load it for anyone.
+    team: Teams
+    teamHelp: Only members of the teams you pick see and use it.
+    teamsLabel: Shared with teams
+    teamsPlaceholder: Pick at least one team
+    teamsRequired: Pick at least one team, or choose another visibility.
+    noTeamsHint: Your organization has no teams yet — create one under
+      Settings > Teams first.
+    unknownTeam: Unknown team
+    teamBadgeMore: '{team} +{count}'
+    private: Private
+    privateHelp: Only you can see it and only your chats can load it.
+    narrowingTitle: Narrow who sees this skill?
+    narrowingWarning: Someone who can see this skill now will lose access —
+      and every chat or agent that equips it through them stops staging it.
+  usage:
+    label: Where it can be used
+    all: Chat and agents
+    allHelp: Offered in the chat composer and equippable on agents.
+    chat: Chat only
+    chatHelp: Reachable from the chat equip menu and the / command; never
+      offered to agents.
+    agent: Agents only
+    agentHelp: Equippable on agents and automations; hidden from the chat
+      composer and the / command.
+    chatBadge: Chat only
+    agentBadge: Agents only
+  iconPicker:
+    label: Icon
+    trigger: Change icon
+    searchPlaceholder: Search icons
+    none: No icon
+    refine: '{count, plural, one {# more icon — keep typing to narrow} other
+      {# more icons — keep typing to narrow}}'
+  editor:
+    saved: Skill saved
+    saveFailed: Failed to save skill
+    descriptionHelp:
+      One or two sentences on what the skill covers — this is what tells
+      the model when to read it.
+    labels: Labels
+    labelsPlaceholder: research, pdf, finance
+    labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
+    bodyHelp: Markdown the model reads when it loads the skill — playbooks,
+      conventions, reference material. Never executed.
 projects:
   title: Projects
   entityLabel: projects
@@ -4647,6 +4639,8 @@ projects:
     modelLabel: Model
     modelPlaceholder: Choose the model it calls
     equipmentLabel: Skills & connectors
+    equipmentVisibilityHint: Skills offered here follow the project’s
+      team access, not your personal visibility.
     instructionsLabel: Instructions
     instructionsPlaceholder:
       What this agent owns, how it should work, and the boundaries it must
@@ -4865,8 +4859,6 @@ settings:
       description: Connect external apps to your workspace.
     providers:
       description: Bring your own API keys for OpenAI, Anthropic, and others.
-    skills:
-      description: Skills your agents can load to handle specific file types or tasks.
     apiKeys:
       description: Programmatic access tokens for the Tale API.
     api:
@@ -4893,11 +4885,19 @@ settings:
       'Authenticate with an organization API key as a bearer token: create
       and manage keys under'
     authLink: REST API keys.
-    toolsTitle: Tools
-    toolsHelp: Two surfaces behind one endpoint — the automation engine's
-      methods, and this organization's capability catalog. get_docs teaches the
-      automation grammar; search_capabilities finds what else the organization
-      can do.
+    tools:
+      authoring:
+        title: Authoring
+        description: Work on automation documents — draft, validate, test,
+          save and deploy them. get_docs teaches the grammar.
+      management:
+        title: Run & trigger management
+        description: Operate what is deployed — start and poll durable runs,
+          browse versions, bind and unbind triggers.
+      capability:
+        title: Capabilities & knowledge
+        description: This organization's own surface — search what it can do,
+          invoke one capability, retrieve knowledge.
     exampleTitle: Try it
     exampleHelp: Lists the tools with your API key in place.
     copyExample: Copy example request
@@ -5132,7 +5132,6 @@ settings:
       instructions: Instructions
       instructionsModel: Instructions & models
       tools: Tools
-      skills: Skills
       knowledge: Knowledge
       webhook: Webhooks
       conversationStarters: Starters
@@ -5219,23 +5218,10 @@ settings:
       noAutomationsAvailable: No active automations available.
       bindIntegrationsPlaceholder: Bind integrations…
       bindAutomationsPlaceholder: Bind automations…
-      bindSkillsPlaceholder: Bind skills…
-      sectionSkillBindings: Bound skills
-      sectionSkillBindingsDescription:
-        Skills the agent can read at runtime. Leave
-        empty for an agent with no skills — there is no implicit fallback to
-        org-wide visibility.
-      sectionSkillBindingsExternalDescription: Workflow disciplines (fix-bug,
-        write-notes, and the rest) load automatically in the sandbox — bind only
-        extra org skills here. Each bound skill is staged into the agent session
-        each turn.
       skillBindingsExternalNoCustomSkillsDescription:
         No extra org skills to bind yet
         — workflow disciplines still load automatically. Create a custom skill
         in Skills settings if this agent needs one.
-      skillBindingsCounter: '{count}/{max} bound'
-      skillBindingsNoSkillsInOrgDescription: No skills exist in this organization yet.
-      skillBindingsNoSkillsInOrgCta: Create one in Skills settings
       sectionKnowledgeDescription: Configure access to the knowledge base
       knowledgeHint: The knowledge base searches documents uploaded to your organization.
       knowledgeHintLink: Manage documents
@@ -5304,7 +5290,6 @@ settings:
         dragHandle: Drag to reorder model
       structuredResponsesInjectedPrompt: 'The following instructions will be
         automatically appended to the system prompt:'
-      browsePrompts: Browse prompts
       systemInstructionsCharCount: '{count, plural, one {# character} other {# characters}}'
       byo:
         sectionTitle: Credentials
@@ -5549,88 +5534,6 @@ settings:
         steps and external runs. Mark a value as a secret to encrypt it; secrets
         are write-only.
     automationBadge: Automation
-  skills:
-    uploadSkill: Upload skill
-    searchPlaceholder: Search skills
-    deleteSkill: Delete skill
-    notFound: Skill not found
-    backToList: Back to skills
-    skillDeleted: Skill deleted
-    skillDeleteFailed: Failed to delete skill
-    deleteConfirmation:
-      This removes the skill bundle from disk. Any agent currently
-      bound to it will lose access.
-    actions:
-      replaceBundle: Replace bundle
-    columns:
-      loadError: Failed to read SKILL.md
-    loadErrorDetail:
-      fixHint: Replace the bundle with a valid zip, or delete this skill.
-      technicalDetails: Technical details
-      title:
-        yamlSyntax: Frontmatter couldn't be parsed
-        missingFrontmatter: Frontmatter is missing
-        unclosedFrontmatter: Frontmatter isn't closed
-        frontmatterTooLarge: Frontmatter is too large
-        invalidFrontmatter: Frontmatter is invalid
-        emptyFrontmatter: Frontmatter is empty
-        symlink: SKILL.md is a symlink
-        inaccessible: Couldn't read this skill
-        generic: This skill couldn't be loaded
-    viewer:
-      toggleWrap: Toggle line wrap
-      imageNotice: Image preview is not available in the browser. Use the CLI to
-        inspect this asset.
-      binaryNotice: This file type is not previewable in the browser.
-      largeFile: Large file — syntax highlighting disabled for performance.
-      notFound: This file is no longer in the bundle. Pick another file from the tree.
-    detail:
-      tree:
-        heading: Bundle
-        empty:
-          Only SKILL.md — bundle assets live under scripts/, references/, or
-          assets/.
-        headingCount: Bundle · {fileCount} files
-    upload:
-      dialogTitle: Upload skill bundle
-      uploadDescription: Upload a zip containing SKILL.md at the root, plus any
-        optional scripts, references, or assets.
-      dropZoneLabel: Upload skill bundle
-      dropOrClick: Drop a .zip here or click to browse
-      dropHere: Drop the bundle here
-      acceptedFormats: Zip containing SKILL.md at the root
-      parsing: Reading bundle…
-      zipRequired: Bundle must be a .zip file.
-      folderUnsupported: Folders aren't supported — please zip the folder first.
-      singleFileOnly: Drop a single .zip bundle, not multiple files.
-      unexpectedError: An unexpected error occurred
-      bundleFiles: Bundle files
-      fileCount: '{count, plural, one {# file} other {# files}}'
-      frontmatter: Frontmatter
-      license: License
-      recommendedPython: Recommended Python
-      recommendedNode: Recommended Node
-      disableModelInvocation: Skill is hidden from the model — explicit invocation only.
-      unknownKeys:
-        '{count, plural, one {# additional frontmatter key preserved} other
-        {# additional frontmatter keys preserved}}'
-      submit: Upload bundle
-      submitting: Uploading…
-      uploadSuccess: Skill bundle uploaded
-      uploadFailed: Failed to upload skill bundle
-      replaceTitle: Replace existing skill?
-      replaceDescription: A skill named "{slug}" already exists. Uploading will
-        overwrite its current contents.
-      replaceConfirm: Replace
-      replaceSuccess: Skill bundle replaced
-    noResults:
-      title: No matching skills
-      description: No skills match your search. Try a different term.
-    listFailed: Couldn't load the skill library. Reload to retry.
-    openSkill: Open skill {slug}
-    visibility:
-      org: Organization
-      private: Private
   integrations:
     catalog:
       title: Connectors
@@ -6643,8 +6546,8 @@ settings:
       runPrefix: Run
       orPrefix: (or
       tail: for zero-downtime). The platform itself does not need restarting.
-    save: Save
     saving: Saving…
+    saveDeployment: Save deployment
     applyRestart: Apply & restart
     applyRestartTitle: Restart rag + convex via the controller (if enabled), or
       shows the manual command
@@ -6679,6 +6582,94 @@ settings:
         overwrite to replace it.
       configUnreadable: The deployment configuration on disk can't be read.
       readFailed: "Couldn't load the deployment configuration: {error}"
+    orgKnowledge:
+      title: Knowledge database
+      description:
+        The Postgres database holding this organization's knowledge corpus
+        for search and retrieval.
+      statusDefault: Deployment default
+      readOnlyBody:
+        Admin permissions are required to change where this organization's
+        knowledge corpus is stored.
+      note:
+        Off, this organization's knowledge lives in the deployment's built-in
+        database, isolated per organization. On, the corpus lives in the
+        database above — an empty database is prepared automatically, but
+        entries indexed before the switch do not move with it.
+      cleared:
+        Connection removed — this organization's knowledge search uses the
+        deployment's built-in database again.
+      clearConfirm:
+        title: Remove the knowledge database connection?
+        description:
+          Knowledge search for this organization goes back to the deployment's
+          built-in database. Entries already written to your database stay
+          there, but Tale can no longer read them until the connection is
+          added again.
+        confirm: Remove connection
+      errors:
+        readFailed: "Couldn't load the stored connection: {error}"
+        hostRequired: Enter the database host.
+        hostInvalid: Only letters, digits, dots, dashes, colons, and brackets.
+        portInvalid: Enter a port between 1 and 65535.
+        databaseRequired: Enter the database name.
+        userRequired: Enter the database user.
+    orgEmbedding:
+      title: Embedding model
+      description:
+        The model that turns this organization's documents and queries into
+        vectors for knowledge search — required before knowledge search can
+        run, on any database.
+      statusConfigured: Configured
+      statusNotConfigured: Not configured
+      notConfiguredWarning:
+        Knowledge search is unavailable until an embedding model is
+        configured.
+      readOnlyBody:
+        Admin permissions are required to change this organization's embedding
+        model.
+      noCredentials:
+        No AI provider credentials are stored yet — add one under Settings →
+        AI providers to choose a provider here.
+      provider: Provider
+      providerPlaceholder: Choose a provider
+      credential: Credential
+      credentialDefault: Provider default
+      credentialHint:
+        Which stored credential authorizes the embedding calls; the default is
+        the provider's default credential.
+      model: Model
+      modelHint: The model tag exactly as the provider spells it.
+      dimensions: Vector width
+      dimensionsHint:
+        'Stated, never guessed: the exact dimension count this model produces.
+        Changing it later strands vectors already written at the old width.'
+      baseUrl: Base URL
+      baseUrlHint: OpenAI-compatible endpoint; leave blank for the provider's own.
+      sharedDbNote:
+        On the deployment's shared database, all organizations share one
+        vector width — it is pinned when the first vector is written. Give
+        this organization its own knowledge database to choose freely.
+      removed:
+        Embedding model removed — knowledge search is unavailable until a new
+        one is configured.
+      removeConfirm:
+        title: Remove the embedding model?
+        description:
+          Knowledge search for this organization stops working until a new
+          embedding model is configured. Vectors already written stay in the
+          corpus.
+        confirm: Remove model
+      errors:
+        readFailed: "Couldn't load the stored embedding config: {error}"
+        invalid: The embedding settings are invalid. Check the fields and try again.
+        providerRequired: Choose a provider.
+        modelRequired: Enter the model tag.
+        dimensionsInvalid: Enter a whole number between 1 and 16000.
+        baseUrlInvalid: Enter an http(s) URL, or leave blank.
+        credentialNotFound: The selected credential no longer exists — choose another.
+        credentialMismatch: The selected credential belongs to a different provider.
+        credentialDisabled: The selected credential is disabled — re-enable it or pick another.
     orgStorage:
       title: Object storage
       description:
@@ -6706,7 +6697,6 @@ settings:
         Off, this organization's files live in the deployment's built-in storage,
         isolated per organization. On, new uploads go to the bucket above; files
         stored before the switch stay readable where they are.
-      saved: Saved — this organization's new uploads go to your bucket.
       cleared:
         Connection removed — new uploads go back to the deployment's built-in
         storage. Files already in your bucket stay there but are unavailable to
@@ -6718,6 +6708,27 @@ settings:
           built-in storage. Files already written to your bucket stay there, but
           Tale can no longer read them until the connection is added again.
         confirm: Remove connection
+      backfill:
+        start: Move existing files
+        description:
+          Copies files stored before the switch from the deployment's built-in
+          storage into your bucket, so everything lives in one place. Runs in
+          the background; uploads keep working meanwhile.
+        confirm:
+          title: Move existing files into your bucket?
+          description:
+            Files this organization stored in the deployment's built-in storage
+            are copied into your bucket and served from there. This runs in the
+            background and can take a while for large file sets.
+          confirm: Move files
+        status:
+          running: 'Moving files… {migrated} moved, {failed} failed so far.'
+          completed: 'Done — {migrated} files moved, {failed} failed.'
+          completedDry: 'Dry run — {candidates} files would move.'
+          failed: 'The move stopped with an error: {error}'
+        errors:
+          alreadyRunning: A move is already running — wait for it to finish.
+          notConfigured: Save the bucket connection before moving existing files.
       errors:
         forbidden: You're not allowed to manage this organization's data residency.
         invalidConnection: The connection settings are invalid. Check the fields and try again.
@@ -6726,6 +6737,9 @@ settings:
           Enter an access key ID and secret access key — they're
           required the first time object storage is configured.
         readFailed: "Couldn't load the stored connection: {error}"
+        regionRequired: Enter the bucket's region.
+        endpointInvalid: Enter an http(s) URL, or leave blank for AWS.
+        bucketRequired: Enter the bucket name.
 inbox:
   taskAssigned: Task assigned to you
   taskAssignedBody: You were assigned "{title}".

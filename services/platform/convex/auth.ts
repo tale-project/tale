@@ -17,7 +17,6 @@ import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
 import { organizationNameSchema } from '../lib/shared/schemas/organizations';
 import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
-import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
 import { isRecord, getString } from '../lib/utils/type-utils';
 import { components, internal } from './_generated/api';
 import type { DataModel } from './_generated/dataModel';
@@ -73,7 +72,6 @@ const platformResourceStatements = {
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read', 'write'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
 } as const;
 
@@ -102,7 +100,6 @@ const admin = ac.newRole({
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read', 'write'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
 });
 
@@ -122,7 +119,6 @@ const developer = ac.newRole({
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
 });
 
@@ -143,7 +139,6 @@ const editor = ac.newRole({
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
   // No access to: settings, workflows (frontend menu restricted)
 });
@@ -164,7 +159,6 @@ const member = ac.newRole({
   websites: ['read'],
   auditLogs: ['read'],
   governancePolicies: ['read'],
-  promptTemplates: ['read'],
   messageFeedback: ['read', 'write'],
   // No access to: settings, workflows (frontend menu restricted)
 });
@@ -185,7 +179,6 @@ const disabled = ac.newRole({
   websites: [],
   auditLogs: [],
   governancePolicies: [],
-  promptTemplates: [],
   messageFeedback: [],
 });
 
@@ -207,7 +200,6 @@ const owner = ac.newRole({
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read', 'write'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
 });
 
@@ -776,31 +768,14 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   { organizationId: data.organization.id },
                 );
                 // Seed the shipped automation packs into the org's automation
-                // store as drafts (nothing deploys itself). Deferred like the
-                // prompt provisioner below; idempotent, so a lost beat is
-                // healed by the next deploy's all-orgs run.
+                // store as drafts (nothing deploys itself). Deferred so the
+                // scaffold finishes copying files first; idempotent, so a
+                // lost beat is healed by the next deploy's all-orgs run.
                 await runCtx.scheduler.runAfter(
                   10_000,
                   internal.provisioning.provision_default_automations
                     .provisionDefaultAutomations,
                   { organizationId: data.organization.id, orgSlug: slug },
-                );
-                // Seed the default prompt-library catalog (global prompts) in
-                // the org's chosen language (from the wizard, persisted as the
-                // `defaultLocale` metadata). Same deferral rationale as the
-                // workflow pack — the provisioner self-retries while the
-                // scaffold copies files.
-                await runCtx.scheduler.runAfter(
-                  10_000,
-                  internal.prompts.provision_defaults
-                    .syncDefaultPromptInstallations,
-                  {
-                    organizationId: data.organization.id,
-                    orgSlug: slug,
-                    locale: getOrganizationDefaultLocale(
-                      data.organization.metadata,
-                    ),
-                  },
                 );
                 // The default-agent auto-install re-schedules
                 // here when the chat rebuild lands its slim-agent provisioner.

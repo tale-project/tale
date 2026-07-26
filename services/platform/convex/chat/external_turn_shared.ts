@@ -291,6 +291,12 @@ export async function ensureAgentSession(
  * Stage the thread's equipped skills into the session and return the
  * instructions addendum describing them (empty when nothing staged).
  *
+ * A chat is always the acting member's, even inside a project, so the
+ * bundles are read with the thread owner's own viewer identity on the `chat`
+ * surface: a skill they can no longer see — reshared away, deleted, or
+ * turned agent-only — simply stops staging and stops appearing in the
+ * addendum.
+ *
  * A skill ships as its WHOLE bundle — `SKILL.md` verbatim plus every asset
  * beside it — because a script-driven skill (the document skills' `scripts/`
  * trees) is inert without them; `sessionStageFiles` chunks the payload, so
@@ -304,6 +310,16 @@ export async function stageSkills(
 ): Promise<string> {
   if (skillSlugs.length === 0) return '';
   const orgSlug = await orgSlugFromId(ctx, scope.organizationId);
+  const viewerContext = await ctx.runQuery(
+    internal.skills.viewer_context.getUserSkillViewerContext,
+    { organizationId: scope.organizationId, userId: scope.userId },
+  );
+  if (viewerContext === null) {
+    console.warn(
+      `[external-turn] ${scope.threadId}: turn owner is no longer an org member; staging no skills`,
+    );
+    return '';
+  }
   const files: Array<{ path: string; contentBase64: string }> = [];
   const staged: string[] = [];
   for (const slug of skillSlugs) {
@@ -312,8 +328,13 @@ export async function stageSkills(
       {
         orgSlug,
         slug,
-        viewerUserId: scope.userId,
-        isOrgAdmin: false,
+        viewer: {
+          kind: 'user' as const,
+          userId: scope.userId,
+          teamIds: viewerContext.teamIds,
+          isOrgAdmin: viewerContext.isOrgAdmin,
+        },
+        surface: 'chat' as const,
       },
     );
     if (bundle === null || bundle.files.length === 0) continue;

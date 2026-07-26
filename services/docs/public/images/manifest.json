@@ -385,18 +385,6 @@
       "height": 1800
     },
     {
-      "file": "images/platform/skills-bundle-tree.webp",
-      "shot": "skills-bundle-tree",
-      "route": "/dashboard/:orgId/settings/skills?slug=pdf",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/platform/websites-add-dialog.webp",
       "shot": "websites-add-dialog",
       "route": "/dashboard/:orgId/websites",

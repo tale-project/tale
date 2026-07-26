@@ -23,6 +23,7 @@
 
 import path from 'node:path';
 
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import {
   KNOWLEDGE_CONFIG_DOMAIN,
   KNOWLEDGE_CONNECTION_KEY,
@@ -32,8 +33,7 @@ import {
   knowledgeEmbeddingSchema,
   type KnowledgeConnection,
   type KnowledgeEmbeddingConfig,
-} from '../../lib/knowledge/config';
-import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
+} from '../../lib/shared/schemas/knowledge';
 import {
   errnoCode,
   getConfigRoot,

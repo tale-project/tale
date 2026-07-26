@@ -8,9 +8,22 @@ import {
   type SkillBundleReader,
 } from './listing';
 import { SkillParseError } from './parse';
+import type { SkillViewer } from './visibility';
 
-const alice = { userId: 'user_alice' };
-const bob = { userId: 'user_bob' };
+function user(
+  userId: string,
+  opts: { teamIds?: string[]; isOrgAdmin?: boolean } = {},
+): SkillViewer {
+  return {
+    kind: 'user',
+    userId,
+    teamIds: opts.teamIds ?? [],
+    isOrgAdmin: opts.isOrgAdmin ?? false,
+  };
+}
+
+const alice = user('user_alice', { teamIds: ['team_red'] });
+const bob = user('user_bob');
 
 function skillMd(fields: Record<string, string>, body = 'Body.\n'): string {
   const frontmatter = Object.entries(fields)
@@ -51,6 +64,19 @@ const acme = fakeReader('acme', {
     description: 'Bob’s scratch prompts.',
     visibility: 'private',
     owner: 'user_bob',
+  }),
+  'red-notes': skillMd({
+    name: 'red-notes',
+    description: 'The red team’s shared notes.',
+    visibility: 'team',
+    teams: '[team_red]',
+    owner: 'user_carol',
+  }),
+  'chat-helper': skillMd({
+    name: 'chat-helper',
+    description: 'Rewrites a message; makes no sense equipped on an agent.',
+    visibility: 'org',
+    'usage-mode': 'chat',
   }),
 });
 
@@ -124,6 +150,8 @@ describe('readOrgSkills', () => {
     expect(skills.map((skill) => skill.slug)).toEqual([
       'alice-drafts',
       'bob-drafts',
+      'chat-helper',
+      'red-notes',
       'write-notes',
     ]);
   });
@@ -136,12 +164,46 @@ describe('listOrgSkills', () => {
 
     expect(forAlice.skills.map((skill) => skill.slug)).toEqual([
       'alice-drafts',
+      'chat-helper',
+      'red-notes',
       'write-notes',
     ]);
     expect(forBob.skills.map((skill) => skill.slug)).toEqual([
       'bob-drafts',
+      'chat-helper',
       'write-notes',
     ]);
+  });
+
+  it('resolves team skills for a project viewer by team overlap', async () => {
+    const redProject = await listOrgSkills(acme, {
+      kind: 'project',
+      teamIds: ['team_red'],
+    });
+    const orgWideProject = await listOrgSkills(acme, {
+      kind: 'project',
+      teamIds: [],
+    });
+
+    expect(redProject.skills.map((skill) => skill.slug)).toEqual([
+      'chat-helper',
+      'red-notes',
+      'write-notes',
+    ]);
+    expect(orgWideProject.skills.map((skill) => skill.slug)).toEqual([
+      'chat-helper',
+      'write-notes',
+    ]);
+  });
+
+  it('narrows to the asking surface', async () => {
+    const chat = await listOrgSkills(acme, alice, 'chat');
+    const agent = await listOrgSkills(acme, alice, 'agent');
+
+    expect(chat.skills.map((skill) => skill.slug)).toContain('chat-helper');
+    expect(agent.skills.map((skill) => skill.slug)).not.toContain(
+      'chat-helper',
+    );
   });
 
   it('keeps one organization’s library out of another, in both directions', async () => {
@@ -180,12 +242,14 @@ describe('listOrgSkills', () => {
 });
 
 describe('resolveSkillsForAgent', () => {
-  it('reaches every visible skill when no allowlist is configured', async () => {
+  it('reaches every visible agent-surface skill when no allowlist is configured', async () => {
     const { skills } = await readOrgSkills(acme);
 
+    // `chat-helper` is visible to Alice but chat-only, so the agent surface
+    // never reaches it.
     expect(
       resolveSkillsForAgent(skills, alice).map((skill) => skill.slug),
-    ).toEqual(['alice-drafts', 'write-notes']);
+    ).toEqual(['alice-drafts', 'red-notes', 'write-notes']);
   });
 
   it('treats an allowlist as a closed set', async () => {
@@ -203,6 +267,12 @@ describe('resolveSkillsForAgent', () => {
     const { skills } = await readOrgSkills(acme);
 
     expect(resolveSkillsForAgent(skills, bob, ['alice-drafts'])).toEqual([]);
+  });
+
+  it('never lets an allowlist reach a chat-only skill', async () => {
+    const { skills } = await readOrgSkills(acme);
+
+    expect(resolveSkillsForAgent(skills, alice, ['chat-helper'])).toEqual([]);
   });
 
   it('ignores an allowlisted slug the org no longer has', async () => {

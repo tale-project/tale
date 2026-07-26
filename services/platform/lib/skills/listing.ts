@@ -19,7 +19,12 @@ import {
   type SkillFrontmatter,
 } from '../shared/schemas/skills';
 import { parseSkillMd, SkillParseError } from './parse';
-import { canViewSkill, type SkillViewer } from './visibility';
+import {
+  canViewSkill,
+  matchesSkillSurface,
+  type SkillSurface,
+  type SkillViewer,
+} from './visibility';
 
 /**
  * Access to one organization's skill bundles. Implementations bind the org
@@ -111,36 +116,46 @@ export async function readOrgSkills(
 }
 
 /**
- * The skills `viewer` may see in this organization: every `org`-visible
- * bundle plus the viewer's own `private` ones. Failures are reported
- * unfiltered — a broken bundle is an operator problem regardless of who it
- * would have belonged to.
+ * The skills `viewer` may see in this organization from `surface`: every
+ * bundle {@link canViewSkill} admits whose usage mode admits the surface.
+ * Failures are reported unfiltered — a broken bundle is an operator problem
+ * regardless of who it would have belonged to.
  */
 export async function listOrgSkills(
   reader: SkillBundleReader,
   viewer: SkillViewer,
+  surface: SkillSurface = 'any',
 ): Promise<SkillListing> {
   const { skills, failures } = await readOrgSkills(reader);
   return {
-    skills: skills.filter((skill) => canViewSkill(skill.meta, viewer)),
+    skills: skills.filter(
+      (skill) =>
+        canViewSkill(skill.meta, viewer) &&
+        matchesSkillSurface(skill.meta, surface),
+    ),
     failures,
   };
 }
 
 /**
- * The skills an agent turn may reach: what the acting member can see,
- * narrowed by an optional hard allowlist. An allowlist is a closed set — a
- * slug it does not name is unreachable even when the member could see it,
- * and a slug that no longer exists simply contributes nothing. Passing
- * `undefined` means "no allowlist configured", which leaves every visible
- * skill reachable.
+ * The skills an agent turn may reach: what the acting scope can see on the
+ * `agent` surface, narrowed by an optional hard allowlist. An allowlist is a
+ * closed set — a slug it does not name is unreachable even when the scope
+ * could see it, and a slug that no longer exists simply contributes nothing.
+ * Passing `undefined` means "no allowlist configured", which leaves every
+ * visible skill reachable.
  */
 export function resolveSkillsForAgent(
   skills: readonly OrgSkill[],
   viewer: SkillViewer,
   allowedSlugs?: readonly string[],
+  surface: SkillSurface = 'agent',
 ): OrgSkill[] {
-  const visible = skills.filter((skill) => canViewSkill(skill.meta, viewer));
+  const visible = skills.filter(
+    (skill) =>
+      canViewSkill(skill.meta, viewer) &&
+      matchesSkillSurface(skill.meta, surface),
+  );
   if (allowedSlugs === undefined) return visible;
   const allowed = new Set(allowedSlugs);
   return visible.filter((skill) => allowed.has(skill.slug));

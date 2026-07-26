@@ -702,6 +702,21 @@ export const getOrgAutomationMetrics = query({
 // ---------------------------------------------------------------- internal
 
 /**
+ * The project a run is pinned to, or `null` for an org-level automation.
+ * Skill staging derives the run's viewer scope from this: a project-pinned
+ * run reads team skills as its project, an org-level run as the org.
+ */
+export const getRunProjectId = internalQuery({
+  args: { organizationId: v.string(), runId: v.id('automationRuns') },
+  returns: v.union(v.id('projects'), v.null()),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.runId);
+    if (!row || row.organizationId !== args.organizationId) return null;
+    return row.projectId ?? null;
+  },
+});
+
+/**
  * The run row the stepper is executing, with the document of the exact version
  * it started against — resolved together so a redeploy mid-run cannot swap the
  * document under a running execution.

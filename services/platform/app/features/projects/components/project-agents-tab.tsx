@@ -44,7 +44,7 @@ export function ProjectAgentsTab({
   const { t } = useT('projects');
   const { project } = useProject(projectId);
   const rosterQuery = useProjectExternalAgents(organizationId);
-  const catalogQuery = useProjectCapabilityCatalog(organizationId);
+  const catalogQuery = useProjectCapabilityCatalog(organizationId, projectId);
   const { agents } = useProjectAgents(projectId);
   const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
 

@@ -275,7 +275,6 @@ export const getErasureRequest = query({
         documentsErased: row.documentsErased,
         documentsSkippedByHold: row.documentsSkippedByHold,
         wfExecutionsErased: row.wfExecutionsErased,
-        promptTemplatesErased: row.promptTemplatesErased,
         errorMessage: row.errorMessage,
         startedAt: row.startedAt,
         completedAt: row.completedAt,

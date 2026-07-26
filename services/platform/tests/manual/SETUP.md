@@ -247,7 +247,6 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/settings/api/runtimes`              | connect-a-daemon instructions                                  |
 | `/dashboard/{org}/settings/providers`                 | provider list                                                  |
 | `/dashboard/{org}/settings/token-sources`             | list or empty state                                            |
-| `/dashboard/{org}/settings/skills`                    | skills list                                                    |
 | `/dashboard/{org}/settings/deployment`                | data-residency page (read-only notice for non-operators)       |
 | `/dashboard/{org}/settings/governance/content-models` | governance entry (index redirects here)                        |
 | `/dashboard/changelog`                                | release notes                                                  |

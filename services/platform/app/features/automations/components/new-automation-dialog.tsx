@@ -45,6 +45,7 @@ export function NewAutomationDialog({
   projectId?: Id<'projects'>;
 }) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const goalId = useId();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -179,6 +180,7 @@ export function NewAutomationDialog({
         <Select
           label={t('builder.providerLabel')}
           placeholder={t('builder.providerPlaceholder')}
+          emptyHint={tCommon('select.noProvidersHint')}
           options={providers.map((provider) => ({
             value: provider.name,
             label: provider.displayName || provider.name,
@@ -195,6 +197,7 @@ export function NewAutomationDialog({
         <Select
           label={t('builder.modelLabel')}
           placeholder={t('builder.modelPlaceholder')}
+          emptyHint={tCommon('select.pickProviderFirstHint')}
           options={models.map((model) => ({
             value: model.id,
             label: model.id,
