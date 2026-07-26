@@ -774,9 +774,17 @@ automations:
   upload:
     trigger: Upload package
     title: Upload an automation package
-    description: A pack's workflow.yml (required) and automation.yml (optional — its subjects block becomes the task contract). The document is validated before anything is stored, and the uploaded version stays a draft until you deploy it.
+    description: A pack's workflow.yml (required) and automation.yml (optional — its subjects block becomes the task contract), or the whole pack directory as one .zip, which may also carry skill bundles under skills/. The document is validated before anything is stored, and the uploaded version stays a draft until you deploy it.
     filesLabel: Package files
-    filesHelp: Pick workflow.yml — and automation.yml when the pack ships one.
+    filesHelp: Pick workflow.yml (plus automation.yml), or one .zip of the pack directory — skills/ included.
+    uploading: Uploading the package…
+    zipOnly: Upload the zip on its own — it already carries the whole pack.
+    zipTooLarge: The zip is over the 20 MiB package cap.
+    skillsSummary: 'Skills: {created} installed, {replaced} replaced, {unchanged} unchanged.'
+    skillConflictTitle: '{count, plural, one {# skill already exists with different content} other {# skills already exist with different content}}'
+    skillConflictDescription: Confirming replaces each listed skill with the package's version. The superseded SKILL.md stays in the skill's history.
+    skillConflictConfirm: '{count, plural, one {Replace the skill} other {Replace # skills}}'
+    skillConflictCancel: Keep the existing skills
     removeFile: 'Remove {name}'
     targetLabel: Install into
     targetOrg: Organization

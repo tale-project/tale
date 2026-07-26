@@ -814,9 +814,17 @@ automations:
   upload:
     trigger: Paket hochladen
     title: Ein Automatisierungs-Paket hochladen
-    description: Die workflow.yml eines Packs (erforderlich) und die automation.yml (optional — ihr subjects-Block wird zum Task-Vertrag). Das Dokument wird vor dem Speichern validiert; die hochgeladene Version bleibt ein Entwurf, bis du sie deployst.
+    description: Die workflow.yml eines Packs (erforderlich) und die automation.yml (optional — ihr subjects-Block wird zum Task-Vertrag), oder das ganze Pack-Verzeichnis als eine .zip, die auch Skill-Bundles unter skills/ mitbringen kann. Das Dokument wird vor dem Speichern validiert; die hochgeladene Version bleibt ein Entwurf, bis du sie deployst.
     filesLabel: Paketdateien
-    filesHelp: Wähle workflow.yml — und automation.yml, wenn das Pack eine mitbringt.
+    filesHelp: Wähle workflow.yml (plus automation.yml) — oder eine .zip des Pack-Verzeichnisses, skills/ inklusive.
+    uploading: Lädt das Paket hoch…
+    zipOnly: Lade die .zip allein hoch — sie bringt das ganze Pack schon mit.
+    zipTooLarge: Die .zip liegt über der 20-MiB-Paketgrenze.
+    skillsSummary: 'Skills: {created} installiert, {replaced} ersetzt, {unchanged} unverändert.'
+    skillConflictTitle: '{count, plural, one {# Skill existiert bereits mit anderem Inhalt} other {# Skills existieren bereits mit anderem Inhalt}}'
+    skillConflictDescription: Bestätigen ersetzt jeden gelisteten Skill durch die Version aus dem Paket. Die abgelöste SKILL.md bleibt im Verlauf des Skills erhalten.
+    skillConflictConfirm: '{count, plural, one {Skill ersetzen} other {# Skills ersetzen}}'
+    skillConflictCancel: Bestehende Skills behalten
     removeFile: '{name} entfernen'
     targetLabel: Installieren in
     targetOrg: Organisation

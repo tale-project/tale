@@ -812,9 +812,17 @@ automations:
   upload:
     trigger: Téléverser un paquet
     title: Téléverser un paquet d'automatisation
-    description: "Le workflow.yml d'un pack (requis) et l'automation.yml (optionnel — son bloc subjects devient le contrat de tâches). Le document est validé avant tout enregistrement ; la version téléversée reste un brouillon jusqu'au déploiement."
+    description: "Le workflow.yml d'un pack (requis) et l'automation.yml (optionnel — son bloc subjects devient le contrat de tâches), ou le dossier du pack entier en une seule .zip, qui peut aussi embarquer des bundles de skills sous skills/. Le document est validé avant tout enregistrement ; la version téléversée reste un brouillon jusqu'au déploiement."
     filesLabel: Fichiers du paquet
-    filesHelp: 'Choisis workflow.yml — et automation.yml si le pack en fournit un.'
+    filesHelp: 'Choisis workflow.yml (plus automation.yml), ou une seule .zip du dossier du pack — skills/ compris.'
+    uploading: Téléversement du paquet…
+    zipOnly: Téléverse la .zip seule — elle contient déjà tout le pack.
+    zipTooLarge: La .zip dépasse la limite des 20 MiB par paquet.
+    skillsSummary: 'Skills : {created} installés, {replaced} remplacés, {unchanged} inchangés.'
+    skillConflictTitle: '{count, plural, one {# skill existe déjà avec un contenu différent} other {# skills existent déjà avec un contenu différent}}'
+    skillConflictDescription: Confirmer remplace chaque skill listé par la version du paquet. L'ancien SKILL.md reste dans l'historique du skill.
+    skillConflictConfirm: '{count, plural, one {Remplacer le skill} other {Remplacer # skills}}'
+    skillConflictCancel: Garder les skills existants
     removeFile: 'Retirer {name}'
     targetLabel: Installer dans
     targetOrg: Organisation
