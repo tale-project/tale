@@ -19,21 +19,18 @@ const mockAgents: AssignableAgent[] = [
     id: 'research-bot',
     name: 'Research Bot',
     displayCategory: 'agent',
-    taskDispatchHintKey: 'agent-platform',
   },
   {
     type: 'agent',
     id: 'software-developer',
     name: 'Software Developer',
     displayCategory: 'coding-agent',
-    taskDispatchHintKey: 'coding-sandbox-only',
   },
   {
     type: 'agent',
     id: 'image-bot',
     name: 'Image Bot',
     displayCategory: 'image-agent',
-    taskDispatchHintKey: null,
   },
 ];
 
@@ -67,7 +64,7 @@ describe('AssigneePicker', () => {
     );
   });
 
-  it('groups platform agents and external agents with section headers', async () => {
+  it('lists every assignable agent under one plain Agents section', async () => {
     const { user } = render(
       <AssigneePicker
         organizationId="org-1"
@@ -82,8 +79,8 @@ describe('AssigneePicker', () => {
 
     expect(screen.getByText('tasks.assignee.agents')).toBeInTheDocument();
     expect(
-      screen.getByText('tasks.assignee.externalAgents'),
-    ).toBeInTheDocument();
+      screen.queryByText('tasks.assignee.externalAgents'),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('Research Bot')).toBeInTheDocument();
     expect(screen.getByText('Software Developer')).toBeInTheDocument();
     expect(screen.queryByText('Image Bot')).not.toBeInTheDocument();
@@ -103,11 +100,11 @@ describe('AssigneePicker', () => {
     );
 
     expect(
-      screen.queryByText('tasks.assignee.dispatchHints.codingSandboxOnly'),
+      screen.queryByText('tasks.assignee.agentsInfo'),
     ).not.toBeInTheDocument();
     expect(
       screen.getAllByRole('button', { name: 'common.aria.moreInfo' }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it('shows non-code warning when an external agent is assigned to a generic task', () => {

@@ -27,6 +27,7 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { emitEvent } from '../events/emit';
+import { assertAgentAssigneeInProject } from '../projects/resolve_project_access';
 import { canClaimTask, normalizeAssignee } from './access';
 import {
   TASK_AUDIT_ACTIONS,
@@ -740,6 +741,13 @@ export const agentAssignTask = internalMutation({
       assigneeId: args.assigneeId,
     });
     await assertAgentAssigneeLive(ctx, args.organizationId, assignee);
+    if (assignee?.assigneeType === 'agent') {
+      await assertAgentAssigneeInProject(
+        ctx,
+        task.projectId,
+        assignee.assigneeId,
+      );
+    }
     const previousAssigneeId = task.assigneeId ?? null;
     await ctx.db.patch(args.taskId, {
       assigneeType: assignee?.assigneeType,

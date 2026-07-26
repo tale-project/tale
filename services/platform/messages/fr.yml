@@ -7695,26 +7695,19 @@ tasks:
     unassigned: Non assigné
     assignToMe: M’assigner
     agents: Agents
-    externalAgents: Agents tiers
-    externalAgentsInfo:
-      Le dispatch sur le board dépend de chaque agent — tale-daemon
-      sur ta machine, bac à sable durable, ou boucle plateforme quand seul le
-      chat utilise un bac à sable.
+    agentsInfo:
+      Tourne dans un bac à sable sur le harness choisi à la création de
+      l'agent — pré-équipé de ses skills, connecteurs et instructions.
     unassign: Désassigner
     you: Vous
     search: Rechercher des personnes…
     liveAgentsOnly:
-      Seuls les agents installés et activés sont affichés — connecter
-      une intégration n'active pas ses agents automatiquement.
-    dispatchHints:
-      agentPlatform: Utilise les outils de la plateforme et publie un commentaire de tâche.
-      codingDaemon: S'exécute sur ta machine dans un workspace git.
-      codingDurable: S'exécute dans un bac à sable ; écrit un fichier de synthèse.
-      codingSandboxOnly: Le chat utilise un bac à sable ; les tâches du board
-        utilisent la boucle plateforme.
-    nonCodeWarning: Cet agent tiers est optimisé pour le travail sur dépôt. Pour
-      la recherche, la rédaction ou des livrables personnels, assigne une
-      personne ou un Agent.
+      Seuls les agents de ce projet apparaissent ici — crée-les dans
+      l'onglet Agents du projet.
+    nonCodeWarning:
+      Cet agent tourne sur un harness de code optimisé pour le travail sur
+      dépôt. Pour la recherche, la rédaction ou des livrables personnels,
+      assigne plutôt une personne.
   activity:
     created: Créé
     updated: Mis à jour

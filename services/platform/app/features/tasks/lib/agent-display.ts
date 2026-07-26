@@ -1,19 +1,11 @@
 /**
- * Task-side remnant of the retired agent taxonomy. The full classifier lived
- * with the agents backend, which is offline while it is rebuilt; tasks keep
- * only what their own UI still needs — the category/hint types that shape
- * `AssignableAgent`, and the pure code-task heuristic behind the
- * coding-agent guidance in the assignee picker. Re-unify with the agents
- * taxonomy when the rebuilt backend ships it again.
+ * Task-side agent display taxonomy: the category that shapes
+ * `AssignableAgent` (project-agent instances are `coding-agent` — they run on
+ * coding harnesses in a sandbox), and the pure code-task heuristic behind the
+ * coding-agent guidance in the assignee picker.
  */
 
 export type AgentDisplayCategory = 'agent' | 'coding-agent' | 'image-agent';
-
-export type TaskDispatchHintKey =
-  | 'agent-platform'
-  | 'coding-daemon'
-  | 'coding-durable'
-  | 'coding-sandbox-only';
 
 const CODE_TASK_LABELS = new Set([
   'bug',

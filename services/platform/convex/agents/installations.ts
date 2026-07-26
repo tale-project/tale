@@ -2,38 +2,35 @@ import { ConvexError } from 'convex/values';
 
 import type { QueryCtx } from '../_generated/server';
 
-// The real agent catalog/installation system (install/enable/
-// uninstall mutations, the `agentInstallations` catalog queries) was retired
-// wholesale with the chat/agents domain. `assertAgentAssigneeLive` is the one
-// export `tasks/mutations.ts` and `tasks/internal_mutations.ts` need (task
-// CRUD must keep working for HUMAN assignees).
-//
-// The `agentInstallations` table was dropped with the 0.4 baseline reset
-// (fresh-deploy-only release — no pre-rewrite rows can exist), and the
-// run-dispatch pipeline is offline until the agent runtime rebuild lands.
-// Assigning a task to an agent would look like a normal assignment and then
-// silently never be picked up, which is worse than an upfront rejection. So
-// this always throws
-// for an agent assignee (reusing the SAME `AGENT_NOT_LIVE` code/shape the
-// real check used for "not installed or disabled" — true today for every
-// agent, not just literally-uninstalled ones) while human assignment passes
-// through untouched.
+// The org-level agent catalog (install/enable/uninstall, `agentInstallations`)
+// was retired with the chat/agents domain; the assignable workers are now
+// `projectAgents` rows — the user-created instances on a project's Agents
+// tab. This module keeps the one export task CRUD needs: the liveness gate an
+// agent assignee passes before an assignment lands. Project membership is the
+// separate `assertAgentAssigneeInProject` gate in
+// `projects/resolve_project_access.ts`.
 
 /**
- * Always rejects an agent assignee (see file header);
- * still a no-op for `null`/human assignees so task CRUD keeps working.
+ * An AGENT assignee must name an existing project agent of this organization
+ * — assigning a task to a missing or foreign agent would look like a normal
+ * assignment and then never be picked up. No-op for `null`, human, and
+ * automation assignees so the rest of task CRUD passes through untouched.
  */
 export async function assertAgentAssigneeLive(
-  _ctx: QueryCtx,
-  _organizationId: string,
+  ctx: QueryCtx,
+  organizationId: string,
   assignee: {
     assigneeType: 'user' | 'agent' | 'app';
     assigneeId: string;
   } | null,
 ): Promise<void> {
   if (!assignee || assignee.assigneeType !== 'agent') return;
-  throw new ConvexError({
-    code: 'AGENT_NOT_LIVE',
-    message: `Agent "${assignee.assigneeId}" is offline while the platform AI backend is rewritten.`,
-  });
+  const agentId = ctx.db.normalizeId('projectAgents', assignee.assigneeId);
+  const agent = agentId === null ? null : await ctx.db.get(agentId);
+  if (agent === null || agent.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: 'AGENT_NOT_LIVE',
+      message: `No agent "${assignee.assigneeId}" exists in this organization.`,
+    });
+  }
 }

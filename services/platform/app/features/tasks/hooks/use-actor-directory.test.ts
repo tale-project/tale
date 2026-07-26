@@ -4,10 +4,27 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { useActorDirectory } from './use-actor-directory';
 
-// While the agents/automations backend is rebuilt the directory serves
-// members only: no agent is assignable, and historical agent actors resolve
-// to their raw slug. These tests pin that degraded contract so the member
-// paths can't regress while the agent paths are offline.
+// The directory serves members from the org roster and agents from the
+// PROJECT's user-created instances (`projectAgents` rows): with a project the
+// instances are assignable and resolve to their names; without one no agent
+// is assignable, and an unknown/foreign agent actor resolves to its raw id.
+
+const PROJECT_AGENTS = [
+  {
+    _id: 'pa_1',
+    name: 'PR Reviewer',
+    harness: 'claude-code',
+    skills: ['review'],
+    connectors: [],
+  },
+  {
+    _id: 'pa_2',
+    name: 'Docs Writer',
+    harness: 'codex',
+    skills: [],
+    connectors: [],
+  },
+];
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
@@ -29,7 +46,12 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
 }));
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProject: () => ({ project: undefined }),
+  // Arg-sensitive like the real hook: no project id → the query skips and the
+  // list is empty.
+  useProjectAgents: (projectId?: string) => ({
+    agents: projectId ? PROJECT_AGENTS : [],
+    isLoading: false,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-convex-query', () => ({
@@ -44,7 +66,7 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 
-describe('useActorDirectory — members-only while the agents backend is rebuilt', () => {
+describe('useActorDirectory — members + project-agent instances', () => {
   it('lists org members as assignable and resolves their names', () => {
     const { result } = renderHook(() => useActorDirectory('org-1'));
     expect(result.current.members.map((m) => m.id)).toEqual([
@@ -58,13 +80,39 @@ describe('useActorDirectory — members-only while the agents backend is rebuilt
     });
   });
 
-  it('exposes no assignable agents', () => {
+  it('exposes no assignable agents without a project', () => {
     const { result } = renderHook(() => useActorDirectory('org-1'));
     expect(result.current.agents).toEqual([]);
   });
 
-  it('falls back to the raw slug for a historical agent actor', () => {
-    const { result } = renderHook(() => useActorDirectory('org-1'));
+  it("lists the project's instances as assignable coding agents", () => {
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.agents).toEqual([
+      {
+        type: 'agent',
+        id: 'pa_1',
+        name: 'PR Reviewer',
+        displayCategory: 'coding-agent',
+      },
+      {
+        type: 'agent',
+        id: 'pa_2',
+        name: 'Docs Writer',
+        displayCategory: 'coding-agent',
+      },
+    ]);
+  });
+
+  it('resolves an instance actor to its name', () => {
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.resolveActor('agent', 'pa_1')).toMatchObject({
+      name: 'PR Reviewer',
+      isAgent: true,
+    });
+  });
+
+  it('falls back to the raw id for an unknown agent actor', () => {
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
     expect(result.current.resolveActor('agent', 'research-bot')).toMatchObject({
       name: 'research-bot',
       isAgent: true,

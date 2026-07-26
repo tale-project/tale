@@ -7583,26 +7583,20 @@ tasks:
     unassigned: Nicht zugewiesen
     assignToMe: Mir zuweisen
     agents: Agenten
-    externalAgents: Drittanbieter-Agenten
-    externalAgentsInfo:
-      Der Board-Dispatch hängt vom Agenten ab — tale-daemon auf
-      deinem Rechner, durable Sandbox oder die Plattform-Schleife, wenn nur der
-      Chat eine Sandbox nutzt.
+    agentsInfo:
+      Läuft in einer Sandbox auf dem Harness, das beim Erstellen des Agenten
+      gewählt wurde — vorausgerüstet mit seinen Skills, Connectors und
+      Anweisungen.
     unassign: Zuweisung aufheben
     you: Du
     search: Personen suchen…
     liveAgentsOnly:
-      Nur installierte und aktivierte Agenten werden angezeigt — eine
-      verbundene Integration aktiviert ihre Agenten nicht automatisch.
-    dispatchHints:
-      agentPlatform: Nutzt Plattform-Tools und postet einen Task-Kommentar.
-      codingDaemon: Läuft auf deinem Rechner in einem Git-Workspace.
-      codingDurable: Läuft in einer Sandbox; schreibt eine Summary-Datei.
-      codingSandboxOnly: Chat nutzt eine Sandbox; Board-Tasks nutzen die Plattform-Schleife.
-    nonCodeWarning: Dieser Drittanbieter-Agent ist für Repo-Arbeit optimiert.
-      Für
-      Recherche, Texte oder persönliche Deliverables weise eine Person oder
-      einen Agent zu.
+      Hier erscheinen nur die Agenten dieses Projekts — erstelle sie im
+      Tab "Agenten" des Projekts.
+    nonCodeWarning:
+      Dieser Agent läuft auf einem Coding-Harness und ist für Repo-Arbeit
+      optimiert. Für Recherche, Texte oder persönliche Deliverables weise
+      besser eine Person zu.
   activity:
     created: Erstellt
     updated: Aktualisiert

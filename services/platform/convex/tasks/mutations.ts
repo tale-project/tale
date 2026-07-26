@@ -39,7 +39,8 @@ import {
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import {
-  assertAgentAssigneeAllowedByProject,
+  agentAssigneeInProject,
+  assertAgentAssigneeInProject,
   assertHumanAssigneeAccess,
   resolveUserAccessContext,
 } from '../projects/resolve_project_access';
@@ -47,7 +48,6 @@ import {
   canClaimTask,
   checkProjectAccess,
   hasProjectAccess,
-  isAgentAllowedByProject,
   normalizeAssignee,
 } from './access';
 import {
@@ -374,7 +374,11 @@ export const createTask = mutation({
         callerId: auth.userId,
       });
     } else if (assignee?.assigneeType === 'agent') {
-      assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+      await assertAgentAssigneeInProject(
+        ctx,
+        args.projectId,
+        assignee.assigneeId,
+      );
     } else if (assignee?.assigneeType === 'app') {
       await assertAutomationAssigneeDeployed(
         ctx,
@@ -754,7 +758,11 @@ export const assignTask = mutation({
         callerId: auth.userId,
       });
     } else if (assignee?.assigneeType === 'agent') {
-      assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+      await assertAgentAssigneeInProject(
+        ctx,
+        task.projectId,
+        assignee.assigneeId,
+      );
     } else if (assignee?.assigneeType === 'app') {
       await assertAutomationAssigneeDeployed(
         ctx,
@@ -1670,8 +1678,9 @@ export const bulkUpdateTasks = mutation({
             if (!assigneeProject) {
               allowed = false;
             } else if (assignee.assigneeType === 'agent') {
-              allowed = isAgentAllowedByProject(
-                assigneeProject,
+              allowed = await agentAssigneeInProject(
+                ctx,
+                task.projectId,
                 assignee.assigneeId,
               );
             } else if (assignee.assigneeId === auth.userId) {

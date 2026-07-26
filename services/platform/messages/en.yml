@@ -7616,24 +7616,17 @@ tasks:
     unassigned: Unassigned
     assignToMe: Assign to me
     agents: Agents
-    externalAgents: Third-party agents
-    externalAgentsInfo:
-      Board dispatch depends on each agent — tale-daemon on your
-      machine, a durable sandbox, or the platform loop when only chat uses a
-      sandbox.
+    agentsInfo:
+      Runs in a sandbox on the harness chosen when the agent was created,
+      pre-equipped with its skills, connectors, and instructions.
     unassign: Unassign
     you: You
     search: Search people…
-    liveAgentsOnly: Only installed & enabled agents are shown — connecting an
-      integration alone doesn't enable its agents.
-    dispatchHints:
-      agentPlatform: Uses platform tools and posts a task comment.
-      codingDaemon: Runs on your machine in a git workspace.
-      codingDurable: Runs in a sandbox container; writes a summary file.
-      codingSandboxOnly: Chat uses a sandbox; board tasks use the platform loop.
+    liveAgentsOnly: Only this project's agents appear here — create them on
+      the project's Agents tab.
     nonCodeWarning:
-      This third-party agent is optimized for repo work. For research,
-      writing, or personal deliverables, assign a person or an Agent.
+      This agent runs on a coding harness optimized for repo work. For
+      research, writing, or personal deliverables, assign a person instead.
   activity:
     created: Created
     updated: Updated

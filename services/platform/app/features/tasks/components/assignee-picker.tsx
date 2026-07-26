@@ -123,15 +123,6 @@ export function AssigneePicker({
     />
   );
 
-  const platformAgents = useMemo(
-    () => assignableAgents.filter((a) => a.displayCategory === 'agent'),
-    [assignableAgents],
-  );
-  const externalAgents = useMemo(
-    () => assignableAgents.filter((a) => a.displayCategory === 'coding-agent'),
-    [assignableAgents],
-  );
-
   const options = useMemo<SearchableSelectOption[]>(() => {
     const sortedMembers = [...assignableMembers].sort((a, b) =>
       a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
@@ -155,33 +146,23 @@ export function AssigneePicker({
       label: agent.name,
     });
 
+    // One plain "Agents" section — the entries are the project's own created
+    // agents, not a third-party roster, so no platform/external split.
     const agentSections: SearchableSelectOption[] = [];
-    if (platformAgents.length > 0) {
+    if (assignableAgents.length > 0) {
       agentSections.push({
         value: '__section:agents',
         label: t('assignee.agents'),
         isSectionHeader: true,
-        labelBadge: sectionInfoButton(
-          t('assignee.dispatchHints.agentPlatform'),
-        ),
+        labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
       });
-      agentSections.push(...platformAgents.map(agentOption));
-    }
-    if (externalAgents.length > 0) {
-      agentSections.push({
-        value: '__section:external-agents',
-        label: t('assignee.externalAgents'),
-        isSectionHeader: true,
-        labelBadge: sectionInfoButton(t('assignee.externalAgentsInfo')),
-      });
-      agentSections.push(...externalAgents.map(agentOption));
+      agentSections.push(...assignableAgents.map(agentOption));
     }
 
     return [...memberOptions, ...agentSections];
   }, [
     assignableMembers,
-    platformAgents,
-    externalAgents,
+    assignableAgents,
     currentUserId,
     t,
     sectionInfoButton,

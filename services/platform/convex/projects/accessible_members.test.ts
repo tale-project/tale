@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest';
 
 import { api } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
+import { assertAgentAssigneeLive } from '../agents/installations';
 import schema from '../schema';
 import { getProjectAccessibleUserIds } from './accessible_members';
 import {
-  assertAgentAssigneeAllowedByProject,
+  assertAgentAssigneeInProject,
   assertHumanAssigneeAccess,
 } from './resolve_project_access';
 
@@ -353,35 +354,113 @@ describe('assertHumanAssigneeAccess', () => {
   });
 });
 
-describe('assertAgentAssigneeAllowedByProject', () => {
-  it('permits any agent in a non-restricted project', () => {
-    expect(() =>
-      assertAgentAssigneeAllowedByProject({ agentMode: 'all' }, 'anything'),
-    ).not.toThrow();
-    expect(() =>
-      assertAgentAssigneeAllowedByProject({}, 'anything'),
-    ).not.toThrow();
+async function seedProjectAgent(
+  t: T,
+  projectId: Id<'projects'>,
+  organizationId = ORG,
+): Promise<Id<'projectAgents'>> {
+  return t.run((ctx) =>
+    ctx.db.insert('projectAgents', {
+      organizationId,
+      projectId,
+      name: 'Scout',
+      harness: 'claude-code',
+      skills: [],
+      connectors: [],
+      createdBy: 'u_creator',
+      createdAt: 0,
+      updatedAt: 0,
+    }),
+  );
+}
+
+describe('assertAgentAssigneeInProject', () => {
+  it("permits the project's own agent", async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t);
+    const agentId = await seedProjectAgent(t, projectId);
+
+    const code = await catchCode(() =>
+      t.run((ctx) => assertAgentAssigneeInProject(ctx, projectId, agentId)),
+    );
+    expect(code).toBeUndefined();
   });
 
-  it('permits an allow-listed agent in a restricted project', () => {
-    expect(() =>
-      assertAgentAssigneeAllowedByProject(
-        { agentMode: 'restricted', allowedAgentSlugs: ['scout'] },
-        'scout',
+  it("rejects another project's agent", async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t);
+    const otherProjectId = await seedProject(t);
+    const foreignAgentId = await seedProjectAgent(t, otherProjectId);
+
+    const code = await catchCode(() =>
+      t.run((ctx) =>
+        assertAgentAssigneeInProject(ctx, projectId, foreignAgentId),
       ),
-    ).not.toThrow();
+    );
+    expect(code).toBe('AGENT_NOT_ALLOWED_IN_PROJECT');
   });
 
-  it('rejects a non-allowed agent in a restricted project', () => {
-    let code: string | undefined;
-    try {
-      assertAgentAssigneeAllowedByProject(
-        { agentMode: 'restricted', allowedAgentSlugs: ['scout'] },
-        'intruder',
-      );
-    } catch (err) {
-      code = codeOf(err);
-    }
+  it('rejects an id that is not a project agent at all', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t);
+
+    const code = await catchCode(() =>
+      t.run((ctx) =>
+        assertAgentAssigneeInProject(ctx, projectId, 'legacy-slug'),
+      ),
+    );
     expect(code).toBe('AGENT_NOT_ALLOWED_IN_PROJECT');
+  });
+});
+
+describe('assertAgentAssigneeLive', () => {
+  const AGENT_ASSIGNEE = (id: string) =>
+    ({ assigneeType: 'agent', assigneeId: id }) as const;
+
+  it('permits an existing agent of the organization', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t);
+    const agentId = await seedProjectAgent(t, projectId);
+
+    const code = await catchCode(() =>
+      t.run((ctx) =>
+        assertAgentAssigneeLive(ctx, ORG, AGENT_ASSIGNEE(agentId)),
+      ),
+    );
+    expect(code).toBeUndefined();
+  });
+
+  it("rejects another organization's agent", async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, { organizationId: OTHER_ORG });
+    const agentId = await seedProjectAgent(t, projectId, OTHER_ORG);
+
+    const code = await catchCode(() =>
+      t.run((ctx) =>
+        assertAgentAssigneeLive(ctx, ORG, AGENT_ASSIGNEE(agentId)),
+      ),
+    );
+    expect(code).toBe('AGENT_NOT_LIVE');
+  });
+
+  it('rejects a missing agent and passes non-agent assignees through', async () => {
+    const t = convexTest(schema, modules);
+
+    const missing = await catchCode(() =>
+      t.run((ctx) =>
+        assertAgentAssigneeLive(ctx, ORG, AGENT_ASSIGNEE('gone-slug')),
+      ),
+    );
+    expect(missing).toBe('AGENT_NOT_LIVE');
+
+    const human = await catchCode(() =>
+      t.run((ctx) =>
+        assertAgentAssigneeLive(ctx, ORG, {
+          assigneeType: 'user',
+          assigneeId: 'u_member_a',
+        }),
+      ),
+    );
+    expect(human).toBeUndefined();
   });
 });

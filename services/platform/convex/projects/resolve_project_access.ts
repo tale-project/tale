@@ -14,7 +14,6 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import {
   checkProjectAccess,
   hasProjectAccess,
-  isAgentAllowedByProject,
   type ProjectAccessResult,
 } from './access';
 
@@ -107,16 +106,31 @@ export async function assertHumanAssigneeAccess(
 }
 
 /**
- * Guard an AGENT task assignee against the project's agent restriction: a
- * `restricted`-mode project only permits its `allowedAgentSlugs`. Throws
- * `AGENT_NOT_ALLOWED_IN_PROJECT`. (Liveness is a separate gate,
- * `assertAgentAssigneeLive`.)
+ * A project-agent assignee belongs to THIS project ⟺ a `projectAgents` row
+ * with that id exists under it. The instance IS the permission — agents are
+ * created per project on the Agents tab, so row membership replaced the
+ * retired `allowedAgentSlugs` roster gate. (Liveness/org scoping is the
+ * separate `assertAgentAssigneeLive` gate.)
  */
-export function assertAgentAssigneeAllowedByProject(
-  project: Pick<Doc<'projects'>, 'agentMode' | 'allowedAgentSlugs'>,
-  agentSlug: string,
-): void {
-  if (!isAgentAllowedByProject(project, agentSlug)) {
+export async function agentAssigneeInProject(
+  ctx: QueryCtx | MutationCtx,
+  projectId: Id<'projects'>,
+  assigneeId: string,
+): Promise<boolean> {
+  const agentId = ctx.db.normalizeId('projectAgents', assigneeId);
+  if (agentId === null) return false;
+  const agent = await ctx.db.get(agentId);
+  return agent !== null && agent.projectId === projectId;
+}
+
+/** Throwing form of {@link agentAssigneeInProject} —
+ * `AGENT_NOT_ALLOWED_IN_PROJECT`. */
+export async function assertAgentAssigneeInProject(
+  ctx: QueryCtx | MutationCtx,
+  projectId: Id<'projects'>,
+  assigneeId: string,
+): Promise<void> {
+  if (!(await agentAssigneeInProject(ctx, projectId, assigneeId))) {
     throw new ConvexError({ code: 'AGENT_NOT_ALLOWED_IN_PROJECT' });
   }
 }
