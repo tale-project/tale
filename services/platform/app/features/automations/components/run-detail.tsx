@@ -39,6 +39,7 @@ import {
 import { AutomationCanvas } from './automation-canvas';
 import { EffectList } from './effect-list';
 import { NodeInspector } from './node-inspector';
+import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunBadge } from './run-status-badge';
 
 /**
@@ -188,12 +189,28 @@ export function RunDetail({
       {refusal !== null && (
         <Alert variant="destructive" description={refusal} />
       )}
-      {run.detail !== undefined && (
-        <Alert
-          variant={status === 'failed' ? 'destructive' : 'info'}
-          description={run.detail}
-        />
-      )}
+      {(() => {
+        // A live run parked on a write approval carries `approval:<id>` as
+        // its detail — render the decision card instead of the raw string.
+        // On a finished run that reference is history, so nothing renders.
+        const approvalId = approvalIdFromDetail(run.detail);
+        if (approvalId !== undefined) {
+          if (isRunFinished(status)) return null;
+          return (
+            <RunApprovalCard
+              organizationId={organizationId}
+              approvalId={approvalId}
+            />
+          );
+        }
+        if (run.detail === undefined) return null;
+        return (
+          <Alert
+            variant={status === 'failed' ? 'destructive' : 'info'}
+            description={run.detail}
+          />
+        );
+      })()}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-h-[24rem] flex-col">

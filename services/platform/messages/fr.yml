@@ -816,6 +816,15 @@ automations:
     testsFailed: Tests en échec
     noMessage: Aucune note
   runs:
+    approval:
+      title: 'En attente de ton approbation : {operation}'
+      node: 'Demandé par le nœud « {node} » — approuver le laisse agir au prochain poll ; rejeter le fait échouer.'
+      pending: "Approuver laisse l'étape en attente agir au prochain poll ; rejeter la fait échouer."
+      approved: "{operation} a été approuvé — l'exécution reprend au prochain poll."
+      rejected: "{operation} a été rejeté — l'étape échoue et l'exécution s'arrête."
+      input: "L'étape appellerait avec"
+      approve: Approuver
+      reject: Rejeter
     title: Exécutions
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
@@ -7548,6 +7557,13 @@ projectSecrets:
       administrateurs du projet peuvent les consulter ou les gérer.
     PROJECT_NOT_FOUND: Ce projet n'existe plus.
 tasks:
+  startAutomation:
+    run: Démarrer l'automatisation
+    runNamed: 'Démarrer {automation}'
+    pick: Automatisation
+    started: L'exécution a démarré — suis-la dans l'onglet Automatisations du projet.
+    alreadyRunning: Une exécution est déjà en cours pour cette tâche.
+    notStarted: "L'exécution n'a pas pu démarrer — l'automatisation est-elle déployée ?"
   attachments:
     label: Pièces jointes
     add: Ajouter des pièces jointes
@@ -8138,6 +8154,7 @@ projects:
     overview: Général
     files: Connaissances
     threads: Chats
+    automations: Automatisations
     agents: Agents
     settings: Paramètres
   list:

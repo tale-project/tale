@@ -821,7 +821,10 @@ export const finishRun = internalMutation({
       ...(args.output !== undefined && { output: args.output }),
       trace: args.trace,
       effects: args.effects,
-      ...(args.detail !== undefined && { detail: args.detail }),
+      // A finishing detail (a failure message) replaces; finishing WITHOUT
+      // one clears whatever wait detail is still on the row — a completed
+      // run must not keep advertising the approval it once parked on.
+      detail: args.detail,
       checkpoints: { nodes: checkpoints.nodes, executions: args.executions },
       finishedAt: Date.now(),
     });

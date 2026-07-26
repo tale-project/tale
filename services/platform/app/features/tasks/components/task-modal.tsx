@@ -61,6 +61,7 @@ import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskReviewCard } from './task-review-card';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
+import { TaskStartAutomation } from './task-start-automation';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskTimeline } from './task-timeline';
 
@@ -719,6 +720,12 @@ function EditTaskBody({
                 }
               />
             </PropertyField>
+            <TaskStartAutomation
+              organizationId={task.organizationId}
+              projectId={task.projectId}
+              taskId={task._id}
+              disabled={!canMutate}
+            />
             <PropertyField label={t('fields.priority')}>
               <PriorityPicker
                 priority={task.priority ?? null}

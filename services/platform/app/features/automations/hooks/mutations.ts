@@ -32,6 +32,14 @@ export function useDeployAutomation() {
   });
 }
 
+/** Resolve a run's write-approval card: approve lets the parked node act on
+ * the next stepper poll; reject fails it. */
+export function useResolveRunApproval() {
+  return useConvexMutation(api.approvals.mutations.updateApprovalStatus, {
+    errorToast: false,
+  });
+}
+
 /** Start a run — `mock` performs no IO, `live` may reach the outside world. */
 export function useStartAutomationRun() {
   return useConvexMutation(api.automations.mutations.startRun, {

@@ -818,6 +818,15 @@ automations:
     testsFailed: Tests fehlgeschlagen
     noMessage: Keine Notiz
   runs:
+    approval:
+      title: 'Wartet auf deine Freigabe: {operation}'
+      node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
+      pending: Mit der Freigabe führt der wartende Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.
+      approved: '{operation} wurde freigegeben — der Lauf setzt beim nächsten Poll fort.'
+      rejected: '{operation} wurde abgelehnt — der Schritt schlägt fehl und der Lauf stoppt.'
+      input: Der Schritt würde aufrufen mit
+      approve: Freigeben
+      reject: Ablehnen
     title: Läufe
     heading: 'Lauf von {automation}'
     empty: Diese Automatisierung ist noch nicht gelaufen.
@@ -7437,6 +7446,13 @@ projectSecrets:
       Projekt-Administratoren können sie ansehen oder verwalten.
     PROJECT_NOT_FOUND: Dieses Projekt existiert nicht mehr.
 tasks:
+  startAutomation:
+    run: Automatisierung starten
+    runNamed: '{automation} starten'
+    pick: Automatisierung
+    started: Der Lauf ist gestartet — verfolge ihn im Automations-Tab des Projekts.
+    alreadyRunning: Für diese Aufgabe läuft bereits ein Lauf.
+    notStarted: Der Lauf konnte nicht starten — ist die Automatisierung deployt?
   attachments:
     label: Anhänge
     add: Anhänge hinzufügen
@@ -8028,6 +8044,7 @@ projects:
     overview: Allgemein
     files: Wissen
     threads: Chats
+    automations: Automatisierungen
     agents: Agenten
     settings: Einstellungen
   list:

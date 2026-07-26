@@ -780,6 +780,15 @@ automations:
     testsFailed: Tests failed
     noMessage: No message
   runs:
+    approval:
+      title: 'Waiting for your approval: {operation}'
+      node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'
+      pending: Approving lets the parked step act on the next poll; rejecting fails it.
+      approved: '{operation} was approved — the run resumes on its next poll.'
+      rejected: '{operation} was rejected — the step fails and the run stops.'
+      input: The step would call with
+      approve: Approve
+      reject: Reject
     title: Runs
     heading: 'Run of {automation}'
     empty: This automation has not run yet.
@@ -5121,6 +5130,7 @@ projects:
     overview: General
     files: Knowledge
     threads: Chats
+    automations: Automations
     agents: Agents
     settings: Settings
   list:
@@ -7433,6 +7443,13 @@ projectSecrets:
       administrators can view or manage them.
     PROJECT_NOT_FOUND: This project no longer exists.
 tasks:
+  startAutomation:
+    run: Start automation
+    runNamed: 'Start {automation}'
+    pick: Automation
+    started: The run has started — follow it on the project's Automations tab.
+    alreadyRunning: A run for this task is already in flight.
+    notStarted: The run could not start — is the automation deployed?
   attachments:
     label: Attachments
     add: Add attachments

@@ -79,6 +79,18 @@ export function useAutomationRun(
   );
 }
 
+/** The approval a waiting run is parked on — `skip` until the run's detail
+ * names one. Reactive: approving elsewhere flips the card here. */
+export function useRunApproval(
+  organizationId: string,
+  approvalId: Id<'approvals'> | undefined,
+) {
+  return useConvexQuery(
+    api.approvals.queries.getApproval,
+    approvalId === undefined ? 'skip' : { organizationId, approvalId },
+  );
+}
+
 /** What starts one automation. */
 export function useAutomationTriggers(organizationId: string, name: string) {
   return useConvexQuery(api.automations.queries.listTriggers, {

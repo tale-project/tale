@@ -129,11 +129,16 @@ function ProjectDetailLayout() {
       // Bound automations' views as first-class tabs (1 view = 1 tab) —
       // the operator surfaces, ahead of the management tabs below.
       ...viewTabs,
-      // No project-level "Automations" management tab: an automation's
-      // operator surfaces are the bound view tabs above, and its
-      // management (Configuration, bound projects, uninstall) lives on the
-      // org Automations page. The project-nested detail route stays
-      // reachable by URL (bare outlet above) — it just isn't a strip tab.
+      // The project's own automations. With the views subsystem retired
+      // (viewTabs is empty until #2709 returns) and the org Automations page
+      // listing org-scoped automations only, this tab is the ONE reachable
+      // entry to a project-pinned automation — without it the list route
+      // exists but nothing links there.
+      {
+        label: t('navigation.automations'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/automations`,
+        matchMode: 'exact',
+      },
       {
         label: t('navigation.agents'),
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
