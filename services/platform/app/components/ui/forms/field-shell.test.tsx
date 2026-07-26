@@ -70,4 +70,17 @@ describe('FieldShell', () => {
       screen.getByRole('textbox', { name: 'Workspace name' }),
     ).toBeInTheDocument();
   });
+  it('threads height through the frame and control column for fillHeight', () => {
+    const { container } = render(
+      <FieldShell fillHeight>
+        <textarea aria-label="Body" />
+      </FieldShell>,
+    );
+
+    const frame = container.firstElementChild;
+    expect(frame).toHaveClass('min-h-0', 'flex-1');
+    // The control column (the frame's only div child here) stretches too —
+    // without it the frame's height would never reach the control.
+    expect(frame?.querySelector('div')).toHaveClass('min-h-0', 'flex-1');
+  });
 });

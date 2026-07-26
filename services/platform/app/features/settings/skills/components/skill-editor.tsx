@@ -191,11 +191,9 @@ export function SkillEditor({
             loading={assetsQuery.isPending}
           />
         </div>
-        <div className="min-w-0 flex-1 overflow-y-auto">
+        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           {selectedPath === 'SKILL.md' ? (
-            <div className="p-4">
-              <SkillMdForm editor={editor} readOnly={readOnly} t={t} />
-            </div>
+            <SkillMdForm editor={editor} readOnly={readOnly} t={t} />
           ) : (
             <SkillAssetViewer
               organizationId={organizationId}
@@ -231,10 +229,16 @@ function SkillMdForm({
 }) {
   const { register, watch, setValue } = editor.form;
   return (
-    // The metadata keeps a readable measure; the body is the editor's star
-    // and takes the pane's full width and remaining height.
-    <form onSubmit={editor.submit}>
-      <Stack gap={4} className="max-w-2xl">
+    // The metadata keeps a readable measure and its natural height; the body
+    // is the editor's star — it takes the pane's full width and every
+    // remaining pixel of height, scrolling internally. Only when the pane is
+    // too short for the metadata plus the body's floor does the pane itself
+    // scroll (the flex chain runs through the Textarea's fillHeight shell).
+    <form
+      onSubmit={editor.submit}
+      className="flex min-h-0 flex-1 flex-col gap-4 p-4"
+    >
+      <Stack gap={4} className="max-w-2xl shrink-0">
         <Stack gap={1}>
           <label htmlFor="skill-description" className="text-sm font-medium">
             {t('skills.form.description')}
@@ -298,19 +302,22 @@ function SkillMdForm({
         </Stack>
       </Stack>
 
-      <Stack gap={1} className="mt-4">
+      <Stack gap={1} className="min-h-[16rem] flex-1">
         <label htmlFor="skill-body" className="text-sm font-medium">
           {t('skills.section.body')}
         </label>
         <Textarea
           id="skill-body"
           disabled={readOnly}
-          rows={18}
-          className="min-h-[26rem] resize-y font-mono text-sm"
+          fillHeight
+          className="font-mono text-sm"
           aria-describedby="skill-body-help"
           {...register('body')}
         />
-        <p id="skill-body-help" className="text-muted-foreground text-xs">
+        <p
+          id="skill-body-help"
+          className="text-muted-foreground shrink-0 text-xs"
+        >
           {t('skills.editor.bodyHelp')}
         </p>
       </Stack>

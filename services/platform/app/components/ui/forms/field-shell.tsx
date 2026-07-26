@@ -57,6 +57,13 @@ export interface FieldShellProps {
    * the room (a tall textarea, a JSON editor, a table-like picker).
    */
   wideControl?: boolean;
+  /**
+   * Let the control fill the height its flex parent grants — for the one
+   * control that IS a pane's body (the skill editor's markdown textarea).
+   * Threads `min-h-0 flex-1` through the frame and the control column, which
+   * otherwise size to content and would swallow the parent's height.
+   */
+  fillHeight?: boolean;
 }
 
 export function FieldShell({
@@ -66,11 +73,19 @@ export function FieldShell({
   children,
   className,
   wideControl = false,
+  fillHeight = false,
 }: FieldShellProps) {
   const hasLabelColumn = label !== undefined || description !== undefined;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', FRAME_ROW, className)}>
+    <div
+      className={cn(
+        'flex flex-col gap-1.5',
+        FRAME_ROW,
+        fillHeight && 'min-h-0 flex-1',
+        className,
+      )}
+    >
       {hasLabelColumn && (
         <div className={cn('flex flex-col gap-1', LABEL_COLUMN_ROW)}>
           {label}
@@ -82,6 +97,7 @@ export function FieldShell({
           'flex min-w-0 flex-col gap-1.5',
           !wideControl && CONTROL_COLUMN_ROW,
           wideControl && 'in-data-[field-layout=row]:sm:w-full',
+          fillHeight && 'min-h-0 flex-1',
         )}
       >
         {children}

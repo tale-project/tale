@@ -27,6 +27,12 @@ interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
    * control column — for a tall textarea that IS the section's whole body.
    */
   wideControl?: boolean;
+  /**
+   * Fill the height the flex parent grants (see `FieldShell`): the textarea
+   * stretches to the remaining pane space and scrolls internally — for an
+   * editor-style body rather than a form field.
+   */
+  fillHeight?: boolean;
 }
 
 // Plain control — the real textarea field. No skeleton logic of its own.
@@ -40,6 +46,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       errorMessage,
       counterMax,
       wideControl,
+      fillHeight,
       id: providedId,
       ...props
     },
@@ -81,6 +88,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <FieldShell
         {...(wideControl !== undefined ? { wideControl } : {})}
+        {...(fillHeight !== undefined ? { fillHeight } : {})}
         {...(label !== undefined
           ? {
               label: (
@@ -117,6 +125,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           id={id}
           className={cn(
             'border-(--color-border-input) bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[120px] w-full rounded-md border px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+            fillHeight && 'min-h-0 flex-1 resize-none',
             hasError && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className,
