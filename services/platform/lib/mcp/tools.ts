@@ -25,7 +25,7 @@ import { METHODS, type Method } from '../engine/api/dispatch';
 
 /** One tool exactly as `tools/list` advertises it, plus which surface answers
  * it — the endpoint routes on `kind`, and the UI groups on it. */
-export interface McpToolSpec {
+interface McpToolSpec {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Record<string, unknown>;

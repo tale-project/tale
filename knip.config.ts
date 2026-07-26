@@ -1,13 +1,24 @@
+import { existsSync } from 'node:fs';
+
 export default {
   // `uvx` (the uv tool runner) is invoked by the root `format`/`format:check`
   // scripts to run pinned `ruff` for Python — it's a system binary provided by
   // uv, not an npm-installed package, so knip can't resolve it.
   ignoreBinaries: ['uvx'],
   ignore: [
-    // The e2e fixtures' `default/integrations` is a symlink to the shipped
-    // integrations catalog (sucrase-transpiled runtime connectors, never
-    // imported) — ignore like the config tree itself.
-    'services/platform/tests/e2e/fixtures/config/**',
+    // The e2e fixture org dirs beyond the tracked `default` are untracked
+    // local dev state (a nested .gitignore knip doesn't honor) and can carry
+    // standalone skill sources with their own tests. CI checks out none of
+    // them, and knip hints an ignore pattern unused where it matches nothing —
+    // so the suppression exists only where the dirs do.
+    ...(existsSync(
+      new URL(
+        'services/platform/tests/e2e/fixtures/config/test',
+        import.meta.url,
+      ),
+    )
+      ? ['services/platform/tests/e2e/fixtures/config/**']
+      : []),
     'tools/plop/templates/**',
     // Maintenance script run by hand (`bun tools/opengrep/vendor-rules.ts`) to
     // refresh the pinned registry snapshot — never imported, not a workspace.
@@ -124,10 +135,8 @@ export default {
         'lib/shared/schemas/providers.ts',
         'lib/shared/text-matching/**',
         'lib/shared/video-link-markdown.ts',
-        // E2E helpers for the parked chat/automations specs.
-        'tests/e2e/helpers/automations.ts',
+        // E2E helper for the parked chat specs.
         'tests/e2e/helpers/chat.ts',
-        'tests/e2e/helpers/seed.ts',
       ],
       ignoreDependencies: [
         // Listed in `optimizeDeps.include` in vite.config.ts as string literals so vite prebundles them;
