@@ -491,26 +491,37 @@ export type WindowOutcome =
   | { kind: 'continue' }
   | { kind: 'gone' };
 
+/** What one harness window observed — the lane-neutral core result. */
+export type HarnessWindowResult =
+  | { kind: 'gone' }
+  | { kind: 'running'; text: string }
+  | {
+      kind: 'terminal';
+      text: string;
+      ended?: Extract<HarnessEvent, { type: 'turn-ended' }>;
+      execResult?: SessionExecResult;
+      exited: boolean;
+    };
+
 /**
- * Drain ONE window of an external turn. Re-attaches from the ring-buffer start,
- * re-parses the full output-so-far, streams it into the assistant message,
- * and settles the turn when the harness ends. `start` is set on the start
- * action's first window (it starts the exec with the gateway token in the
- * env); a drain window omits it and only attaches.
+ * The lane-neutral window core: start or re-attach to a harness exec, drain
+ * one window, and report what it saw. Owns the parser, the `turn-ended` grace
+ * cut, staged-input staging on the start window, and the linger reap — but
+ * knows nothing about threads, messages, or runs. The chat turn wraps it with
+ * message streaming and finalize; the automation agent host wraps it with the
+ * run's own settle.
  */
-export async function drainExternalTurnWindow(
-  ctx: ActionCtx,
-  args: {
-    scope: ExternalTurnScope;
-    sessionId: string;
-    execId: string;
-    messageId: Id<'messages'>;
-    harness: string;
-    providerSlug: string;
-    gatewayModel: string;
-    start?: HarnessExec;
-  },
-): Promise<WindowOutcome> {
+export async function drainHarnessWindow(args: {
+  sessionId: string;
+  execId: string;
+  harness: string;
+  start?: HarnessExec;
+  /** Throttled full-text-so-far callback (at most ~1/s), for live display. */
+  onText?: (text: string) => void;
+  /** Called once on a start window, after staging and just before the exec
+   * launches — the moment "queued" stops being true. */
+  onStarted?: () => Promise<void>;
+}): Promise<HarnessWindowResult> {
   const glue = getHarnessGlue(
     isHarnessSlug(args.harness) ? args.harness : 'claude-code',
     loadHarnesses(),
@@ -526,31 +537,17 @@ export async function drainExternalTurnWindow(
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
 
-  // Stream the text-so-far into the assistant message while the exec runs —
-  // throttled, serialized, best-effort — so the reply reads live instead of
-  // landing once per window. Each write carries the FULL text-so-far (the SET
-  // is idempotent), so a failed write is healed by the next one.
-  let lastStreamedText = '';
-  let lastStreamAt = 0;
-  let streamChain: Promise<unknown> = Promise.resolve();
-  const streamTextSoFar = () => {
+  let lastNotifiedText = '';
+  let lastNotifyAt = 0;
+  const notifyTextSoFar = () => {
+    if (args.onText === undefined) return;
     const now = Date.now();
-    if (now - lastStreamAt < STREAM_TEXT_THROTTLE_MS) return;
+    if (now - lastNotifyAt < STREAM_TEXT_THROTTLE_MS) return;
     const text = textFromEvents(events);
-    if (text === '' || text === lastStreamedText) return;
-    lastStreamAt = now;
-    lastStreamedText = text;
-    streamChain = streamChain.then(() =>
-      ctx
-        .runMutation(internal.chat.messages.setAssistantTextInternal, {
-          organizationId: args.scope.organizationId,
-          messageId: args.messageId,
-          text,
-        })
-        .catch((err) =>
-          console.warn('[external-turn] mid-window text write failed:', err),
-        ),
-    );
+    if (text === '' || text === lastNotifiedText) return;
+    lastNotifyAt = now;
+    lastNotifiedText = text;
+    args.onText(text);
   };
 
   const onStdout = (chunk: string) => {
@@ -563,7 +560,7 @@ export async function drainExternalTurnWindow(
         );
       }
     }
-    streamTextSoFar();
+    notifyTextSoFar();
   };
 
   const body: SessionExecBody = args.start
@@ -591,8 +588,8 @@ export async function drainExternalTurnWindow(
         timeoutMs: EXTERNAL_TURN_DEADLINE_MS,
       };
 
-  // On the start action's first window we STAGE the exec's input files, then start
-  // it; drain windows attach from the ring-buffer start (resumeSinceSeq 0).
+  // On the start window we STAGE the exec's input files, then start it; drain
+  // windows attach from the ring-buffer start (resumeSinceSeq 0).
   if (
     args.start?.stagedFiles !== undefined &&
     args.start.stagedFiles.length > 0
@@ -611,18 +608,8 @@ export async function drainExternalTurnWindow(
     }
   }
 
-  // The start action's first window is about to START the exec — flip the
-  // generation
-  // out of 'queued' NOW. The only other flip is the cursor advance at this
-  // window's END, up to DRAIN_WINDOW_MS away, and until then the UI would
-  // show "waiting to start" for a turn that is already running in the
-  // sandbox. Setup (session ensure, key mint, staging) is over, so 'queued'
-  // has told its truth.
-  if (args.start !== undefined) {
-    await ctx.runMutation(internal.chat.generations.heartbeatInternal, {
-      organizationId: args.scope.organizationId,
-      threadId: args.scope.threadId,
-    });
+  if (args.start !== undefined && args.onStarted !== undefined) {
+    await args.onStarted();
   }
 
   const windowSignal = AbortSignal.timeout(DRAIN_WINDOW_MS);
@@ -645,13 +632,122 @@ export async function drainExternalTurnWindow(
     // lingering exec — either way not a drain failure.
   } finally {
     if (turnEndedGrace !== undefined) clearTimeout(turnEndedGrace);
-    // Order the terminal full-text write below after any in-flight streamed
-    // one, and never leave a write dangling past the action.
-    await streamChain;
   }
   for (const e of parser.end()) events.push(e);
 
   const text = textFromEvents(events);
+  const ended = lastTurnEnded(events);
+  const terminal = exited || ended !== undefined;
+  if (!terminal) return { kind: 'running', text };
+
+  // A harness that lingers after its turn (held-open stdin) has ended the turn
+  // but not the process — reap it so it can't hold the session.
+  if (!exited && ended !== undefined) {
+    await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
+      console.warn('[harness-window] linger reap failed:', err),
+    );
+  }
+
+  return {
+    kind: 'terminal',
+    text,
+    ...(ended !== undefined ? { ended } : {}),
+    ...(execResult !== undefined ? { execResult } : {}),
+    exited,
+  };
+}
+
+/** How a terminal window classifies: the agent's own `turn-ended.isError`
+ * wins when it exists; an exit without `turn-ended` is a crash by
+ * definition, with the exec's own error carried as the reason. */
+export function classifyHarnessEnd(result: {
+  ended?: Extract<HarnessEvent, { type: 'turn-ended' }>;
+  execResult?: SessionExecResult;
+  exited: boolean;
+}): { errored: boolean; crashReason?: string } {
+  const crashedNoResult = result.ended === undefined && result.exited;
+  const errored =
+    result.ended !== undefined
+      ? result.ended.isError === true
+      : crashedNoResult;
+  const crashReason = crashedNoResult
+    ? result.execResult?.errorMessage !== undefined &&
+      result.execResult.errorMessage !== ''
+      ? `The third-party agent stopped: ${result.execResult.errorMessage}`
+      : `The third-party agent exited unexpectedly${
+          typeof result.execResult?.exitCode === 'number'
+            ? ` (exit code ${result.execResult.exitCode})`
+            : ''
+        } without completing the turn.`
+    : undefined;
+  return { errored, ...(crashReason !== undefined ? { crashReason } : {}) };
+}
+
+/**
+ * Drain ONE window of an external turn. Re-attaches from the ring-buffer start,
+ * re-parses the full output-so-far, streams it into the assistant message,
+ * and settles the turn when the harness ends. `start` is set on the start
+ * action's first window (it starts the exec with the gateway token in the
+ * env); a drain window omits it and only attaches.
+ */
+export async function drainExternalTurnWindow(
+  ctx: ActionCtx,
+  args: {
+    scope: ExternalTurnScope;
+    sessionId: string;
+    execId: string;
+    messageId: Id<'messages'>;
+    harness: string;
+    providerSlug: string;
+    gatewayModel: string;
+    start?: HarnessExec;
+  },
+): Promise<WindowOutcome> {
+  // Stream the text-so-far into the assistant message while the exec runs —
+  // throttled by the window core, serialized, best-effort — so the reply reads
+  // live instead of landing once per window. Each write carries the FULL
+  // text-so-far (the SET is idempotent), so a failed write is healed by the
+  // next one.
+  let lastStreamedText = '';
+  let streamChain: Promise<unknown> = Promise.resolve();
+  const window = await drainHarnessWindow({
+    sessionId: args.sessionId,
+    execId: args.execId,
+    harness: args.harness,
+    ...(args.start !== undefined ? { start: args.start } : {}),
+    onText: (text) => {
+      lastStreamedText = text;
+      streamChain = streamChain.then(() =>
+        ctx
+          .runMutation(internal.chat.messages.setAssistantTextInternal, {
+            organizationId: args.scope.organizationId,
+            messageId: args.messageId,
+            text,
+          })
+          .catch((err) =>
+            console.warn('[external-turn] mid-window text write failed:', err),
+          ),
+      );
+    },
+    // The start window is about to START the exec — flip the generation out of
+    // 'queued' NOW. The only other flip is the cursor advance at this window's
+    // END, up to DRAIN_WINDOW_MS away, and until then the UI would show
+    // "waiting to start" for a turn that is already running in the sandbox.
+    // Setup (session ensure, key mint, staging) is over, so 'queued' has told
+    // its truth.
+    onStarted: async () => {
+      await ctx.runMutation(internal.chat.generations.heartbeatInternal, {
+        organizationId: args.scope.organizationId,
+        threadId: args.scope.threadId,
+      });
+    },
+  });
+  // Order the terminal full-text write below after any in-flight streamed one,
+  // and never leave a write dangling past the action.
+  await streamChain;
+  if (window.kind === 'gone') return { kind: 'gone' };
+
+  const text = window.text;
   if (text !== '' && text !== lastStreamedText) {
     await ctx.runMutation(internal.chat.messages.setAssistantTextInternal, {
       organizationId: args.scope.organizationId,
@@ -660,9 +756,7 @@ export async function drainExternalTurnWindow(
     });
   }
 
-  const ended = lastTurnEnded(events);
-  const terminal = exited || ended !== undefined;
-  if (!terminal) {
+  if (window.kind === 'running') {
     // Still running: heartbeat BOTH the generation row (live-turn signal) and
     // the op row (the recovery watchdog's staleness clock) + let the next
     // window continue.
@@ -683,30 +777,11 @@ export async function drainExternalTurnWindow(
     return { kind: 'continue' };
   }
 
-  // A harness that lingers after its turn (held-open stdin) has ended the turn
-  // but not the process — reap it so it can't hold the session.
-  if (!exited && ended !== undefined) {
-    await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
-      console.warn('[external-turn] linger reap failed:', err),
-    );
-  }
-
-  // The exec terminated WITHOUT a `turn-ended` event: the harness crashed or was
-  // killed. Don't launder that into an empty success — carry the exit as an
-  // explicit failure reason (the agent's own `turn-ended.isError` wins when it
-  // exists; a bare crash is errored by definition).
-  const crashedNoResult = ended === undefined && exited;
-  const errored =
-    ended !== undefined ? ended.isError === true : crashedNoResult;
-  const crashReason = crashedNoResult
-    ? execResult?.errorMessage !== undefined && execResult.errorMessage !== ''
-      ? `The third-party agent stopped: ${execResult.errorMessage}`
-      : `The third-party agent exited unexpectedly${
-          typeof execResult?.exitCode === 'number'
-            ? ` (exit code ${execResult.exitCode})`
-            : ''
-        } without completing the turn.`
-    : undefined;
+  // Terminal. The window core already reaped a lingering exec; classify the
+  // end (the agent's own `turn-ended.isError` wins; an exit without
+  // `turn-ended` is a crash, never laundered into an empty success) and settle.
+  const { ended, execResult } = window;
+  const { errored, crashReason } = classifyHarnessEnd(window);
 
   await finalizeExternalTurn(ctx, {
     scope: args.scope,

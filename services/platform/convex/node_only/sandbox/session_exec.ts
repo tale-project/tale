@@ -485,10 +485,7 @@ export async function runAndHarvestInSession(
 ): Promise<SessionExecResultShape> {
   const startedAt = Date.now();
   const execId = randomUUID();
-  const { sessionId, workspaceThreadId, organizationId } = args;
-  // Backend routing for harvested outputs: the org's own bucket when
-  // configured, else Convex `_storage` (also the unresolvable-slug fallback).
-  const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+  const { sessionId, organizationId } = args;
 
   const run = await runStepsInSession(sessionId, {
     stepPaths: args.stepPaths,
@@ -498,24 +495,63 @@ export async function runAndHarvestInSession(
     ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
   });
 
-  // Harvest top-level /user/output, upserting only new/changed files (sha256).
-  // Install-only runs skip it — an install can't produce deliverables, and the
-  // sha256 dedupe would re-read every existing output file for nothing.
-  // A file that CANNOT come back (over the read cap, workspace quota, storage
-  // hiccup) is recorded in `harvestSkipped` and never fails the run — the
-  // script did its work; losing the whole result over one oversize deliverable
-  // punished exactly the successful case.
-  const files: Array<{
-    path: string;
-    storageId: string;
-    size: number;
-    contentType: string;
-  }> = [];
-  const harvestSkipped: Array<{ path: string; reason: string }> = [];
-  const entries =
+  // Install-only runs skip the harvest — an install can't produce
+  // deliverables, and the sha256 dedupe would re-read every existing output
+  // file for nothing.
+  const { files, harvestSkipped } =
     args.stepPaths.length === 0
-      ? []
-      : ((await sessionListFiles(sessionId, OUTPUT_DIR)) ?? []);
+      ? { files: [], harvestSkipped: [] }
+      : await harvestSessionOutput(ctx, { organizationId, sessionId });
+
+  return {
+    executionId: execId,
+    status: run.status,
+    exitCode: run.exitCode,
+    ...(run.errorCode !== undefined && { errorCode: run.errorCode }),
+    ...(run.errorMessage !== undefined && { errorMessage: run.errorMessage }),
+    stdoutPreview: run.stdout.slice(0, 4096),
+    stderrPreview: run.stderr.slice(0, 4096),
+    durationMs: Date.now() - startedAt,
+    files,
+    ...(harvestSkipped.length > 0 && { harvestSkipped }),
+  };
+}
+
+/** One file harvested out of a session's `/user/output`. */
+export interface HarvestedOutputFile {
+  path: string;
+  storageId: string;
+  size: number;
+  contentType: string;
+}
+
+/**
+ * Harvest top-level `/user/output` into blob storage: each file becomes a
+ * stored blob plus a `fileMetadata` row (`source: 'agent'`, no documentId —
+ * retention-eligible until a consumer such as a workflow `document.create`
+ * claims it). Lane-neutral: chat run_code and the automation agent/script
+ * hosts all settle their outputs through this one door.
+ *
+ * A file that CANNOT come back (over the read cap, workspace quota, storage
+ * hiccup) is recorded in `harvestSkipped` and never fails the harvest — the
+ * work is done; losing the whole result over one oversize deliverable would
+ * punish exactly the successful case.
+ */
+export async function harvestSessionOutput(
+  ctx: ActionCtx,
+  args: { organizationId: string; sessionId: string },
+): Promise<{
+  files: HarvestedOutputFile[];
+  harvestSkipped: Array<{ path: string; reason: string }>;
+}> {
+  const { sessionId, organizationId } = args;
+  // Backend routing for harvested outputs: the org's own bucket when
+  // configured, else Convex `_storage` (also the unresolvable-slug fallback).
+  const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+
+  const files: HarvestedOutputFile[] = [];
+  const harvestSkipped: Array<{ path: string; reason: string }> = [];
+  const entries = (await sessionListFiles(sessionId, OUTPUT_DIR)) ?? [];
   for (const e of entries) {
     if (e.type !== 'file') continue;
     const absPath = `${OUTPUT_DIR}/${e.name}`;
@@ -578,7 +614,7 @@ export async function runAndHarvestInSession(
       // is offline while the chat backend is rebuilt. The blob above and the
       // fileMetadata row below still land, so run outputs stay retrievable.
       console.debug(
-        `[session_exec] thread-file mirror skipped for ${absPath} (thread ${workspaceThreadId}, sha ${sha256.slice(0, 8)}) — chat backend offline`,
+        `[session_exec] thread-file mirror skipped for ${absPath} (session ${sessionId}, sha ${sha256.slice(0, 8)}) — chat backend offline`,
       );
     } catch (err) {
       // Quota/validation rejection after the blob copy — reap the orphan
@@ -634,18 +670,7 @@ export async function runAndHarvestInSession(
     });
   }
 
-  return {
-    executionId: execId,
-    status: run.status,
-    exitCode: run.exitCode,
-    ...(run.errorCode !== undefined && { errorCode: run.errorCode }),
-    ...(run.errorMessage !== undefined && { errorMessage: run.errorMessage }),
-    stdoutPreview: run.stdout.slice(0, 4096),
-    stderrPreview: run.stderr.slice(0, 4096),
-    durationMs: Date.now() - startedAt,
-    files,
-    ...(harvestSkipped.length > 0 && { harvestSkipped }),
-  };
+  return { files, harvestSkipped };
 }
 
 /** Arg mutex for {@link executeCodeInSession}: script XOR inline — or, for an
