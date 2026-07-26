@@ -257,6 +257,10 @@ jobs:
       - name: Prerender SEO suite (web)
         if: matrix.service == 'web'
         run: bunx turbo run test:prerender --filter=@tale/web
+        env:
+          # fetch-releases calls api.github.com; unauthenticated shared-runner
+          # IPs get rate-limited (403), so hand it the workflow token.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Playwright report
         if: failure()
