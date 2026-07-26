@@ -81,20 +81,24 @@ export function UploadAutomationDialog({
             }
           : {}),
       });
-      toast({
-        title: t('upload.uploaded', {
-          name: result.name,
-          version: result.version,
-        }),
-        variant: 'success',
-      });
-      if (result.warnings.length > 0) {
+      // The text lane can never ask for skill-overwrite confirmation — only
+      // the zip lane carries skills.
+      if (result.ok) {
         toast({
-          title: t('upload.warnings', { count: result.warnings.length }),
+          title: t('upload.uploaded', {
+            name: result.name,
+            version: result.version,
+          }),
+          variant: 'success',
         });
+        if (result.warnings.length > 0) {
+          toast({
+            title: t('upload.warnings', { count: result.warnings.length }),
+          });
+        }
+        setOpen(false);
+        reset();
       }
-      setOpen(false);
-      reset();
     } catch (error) {
       setRefusal(automationErrorMessage(error));
     } finally {
