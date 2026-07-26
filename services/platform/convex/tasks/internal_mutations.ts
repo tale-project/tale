@@ -53,7 +53,8 @@ import {
 import {
   type CommentEventComment,
   taskActivityAttributionValidator,
-  taskActorTypeValidator,
+  taskAssigneeTypeValidator,
+  taskCreatorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
@@ -359,6 +360,11 @@ export const agentUpsertTaskByExternalRef = internalMutation({
      *  creation — the desks' "create now, Start after the files arrive" shape.
      *  Wins over the `runWorkflowSlug` derivation when both are present. */
     automationSlug: v.optional(v.string()),
+    /** Attribute the CREATE to this actor type, with `actorId` as the id —
+     *  the template-create path passes `'user'`: a HUMAN created the task;
+     *  the owning automation is the ASSIGNEE, not the author. Absent = the
+     *  derived app/agent attribution (sync and workflow callers). */
+    creatorType: v.optional(taskCreatorTypeValidator),
     /** Dedup scope for the external natural key (see the doc comment):
      *  `'project'` keys on the project (one task per issue per project);
      *  `'org'` (default) keys on the org (one task per issue per org). */
@@ -520,6 +526,10 @@ export const agentUpsertTaskByExternalRef = internalMutation({
             args.runWorkflowSlug,
           )
         : null);
+    // Creator vs owner: the creator is WHO made the task (a human on the
+    // template path), the owning automation becomes the ASSIGNEE — the
+    // worker-class trichotomy (user/agent/automation) lives on assignment.
+    const createdByUser = args.creatorType === 'user';
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId,
@@ -534,8 +544,14 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       externalId: args.externalId,
       externalUrl: args.externalUrl,
       completedAt: status === 'done' ? now : undefined,
-      createdBy: ownerAutomation ?? args.actorId,
-      createdByType: ownerAutomation ? 'app' : 'agent',
+      createdBy: createdByUser
+        ? args.actorId
+        : (ownerAutomation ?? args.actorId),
+      createdByType: createdByUser ? 'user' : ownerAutomation ? 'app' : 'agent',
+      ...(ownerAutomation !== null && {
+        assigneeType: 'app' as const,
+        assigneeId: ownerAutomation,
+      }),
       createdAt: now,
       updatedAt: now,
       statusChangedAt: now,
@@ -544,7 +560,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     if (task) {
       await recordActivity(ctx, {
         task,
-        actorType: 'agent',
+        actorType: createdByUser ? 'user' : 'agent',
         actorId: args.actorId,
         action: 'created',
         toValue: status,
@@ -713,7 +729,7 @@ export const agentAssignTask = internalMutation({
     organizationId: v.string(),
     actorId: v.string(),
     taskId: v.id('tasks'),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     attribution: optionalAttribution,
   },
@@ -1319,7 +1335,7 @@ const sweepRowShape = {
   taskId: v.id('tasks'),
   projectId: v.id('projects'),
   title: v.string(),
-  assigneeType: v.optional(taskActorTypeValidator),
+  assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
   dueDate: v.number(),
   /** `projects.createdBy` — the level-4 escalation target. */
@@ -1365,7 +1381,7 @@ export const sweepDueSoonTasks = internalMutation({
       taskId: Id<'tasks'>;
       projectId: Id<'projects'>;
       title: string;
-      assigneeType?: 'user' | 'agent';
+      assigneeType?: 'user' | 'agent' | 'app';
       assigneeId?: string;
       dueDate: number;
       projectCreatorId?: string;
@@ -1425,7 +1441,7 @@ export const sweepOverdueLadder = internalMutation({
       taskId: Id<'tasks'>;
       projectId: Id<'projects'>;
       title: string;
-      assigneeType?: 'user' | 'agent';
+      assigneeType?: 'user' | 'agent' | 'app';
       assigneeId?: string;
       dueDate: number;
       projectCreatorId?: string;

@@ -17,9 +17,9 @@ export {
 
 import { ConvexError, type Infer } from 'convex/values';
 
-import type { taskActorTypeValidator } from './schema';
+import type { taskAssigneeTypeValidator } from './schema';
 
-type TaskActorType = Infer<typeof taskActorTypeValidator>;
+type TaskActorType = Infer<typeof taskAssigneeTypeValidator>;
 
 /** Shape of a task as far as claim/assign logic cares (DB-agnostic). */
 interface TaskAssignableInput {

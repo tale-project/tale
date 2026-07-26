@@ -17,7 +17,7 @@ import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getThreadMessages } from '../threads/get_thread_messages';
 import { TERMINAL_STATUSES } from './helpers';
 import { parseIssueNumber, parseRepoRef } from './issue_ref';
-import { taskActorTypeValidator, taskStatusValidator } from './schema';
+import { taskAssigneeTypeValidator, taskStatusValidator } from './schema';
 
 const AGENT_TASK_LIST_CAP = 200;
 const TASK_COMMENTS_CAP = 500;
@@ -110,7 +110,7 @@ export const listTasksForAgent = internalQuery({
     organizationId: v.string(),
     projectId: v.optional(v.id('projects')),
     status: v.optional(taskStatusValidator),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     includeArchived: v.optional(v.boolean()),
   },
@@ -283,7 +283,7 @@ export const getSubtaskProgress = internalQuery({
     hasParent: v.boolean(),
     parentTaskId: v.optional(v.id('tasks')),
     parentStatus: v.optional(taskStatusValidator),
-    parentAssigneeType: v.optional(taskActorTypeValidator),
+    parentAssigneeType: v.optional(taskAssigneeTypeValidator),
     parentAssigneeId: v.optional(v.string()),
     parentArchived: v.boolean(),
     total: v.number(),
@@ -344,7 +344,7 @@ export const listDependentTasks = internalQuery({
       projectId: v.id('projects'),
       title: v.string(),
       status: taskStatusValidator,
-      assigneeType: v.optional(taskActorTypeValidator),
+      assigneeType: v.optional(taskAssigneeTypeValidator),
       assigneeId: v.optional(v.string()),
       openBlockerCount: v.number(),
       agentRunsPaused: v.boolean(),
@@ -364,7 +364,7 @@ export const listDependentTasks = internalQuery({
       projectId: Doc<'tasks'>['projectId'];
       title: string;
       status: Doc<'tasks'>['status'];
-      assigneeType?: 'user' | 'agent';
+      assigneeType?: 'user' | 'agent' | 'app';
       assigneeId?: string;
       openBlockerCount: number;
       agentRunsPaused: boolean;
@@ -435,7 +435,7 @@ export const countSubtasksCreatedSince = internalQuery({
 export const listOpenTasksForAssignee = internalQuery({
   args: {
     organizationId: v.string(),
-    assigneeType: taskActorTypeValidator,
+    assigneeType: taskAssigneeTypeValidator,
     assigneeId: v.string(),
   },
   returns: v.array(

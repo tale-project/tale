@@ -41,7 +41,31 @@ describe('taskSubjectEntries', () => {
 });
 
 describe('resolveTaskOwnership', () => {
-  it('automation: the write-once creation stamp wins', () => {
+  it('automation: the automation ASSIGNEE is the strongest claim', () => {
+    const ownership = resolveTaskOwnership(
+      task({
+        createdByType: 'user',
+        createdBy: 'user_1',
+        assigneeType: 'app',
+        assigneeId: 'vat-desk',
+      }),
+      [vat],
+    );
+    expect(ownership).toMatchObject({
+      kind: 'automation',
+      automationSlug: 'vat-desk',
+    });
+  });
+
+  it('an automation assignee with no deployed contract falls through', () => {
+    const ownership = resolveTaskOwnership(
+      task({ assigneeType: 'app', assigneeId: 'retired-desk' }),
+      [vat],
+    );
+    expect(ownership).toEqual({ kind: 'human' });
+  });
+
+  it('automation: the creation stamp claims unassigned rows', () => {
     const ownership = resolveTaskOwnership(
       task({
         createdByType: 'app',
@@ -51,10 +75,8 @@ describe('resolveTaskOwnership', () => {
       }),
       [vat],
     );
-    expect(ownership).toMatchObject({
-      kind: 'automation',
-      automationSlug: 'vat-desk',
-    });
+    // An agent assignee outranks the stamp — the assignment is the ownership.
+    expect(ownership).toEqual({ kind: 'agent', agentId: 'helper' });
   });
 
   it('stamp-or-nothing: a gone automation never falls through to another', () => {
@@ -67,6 +89,17 @@ describe('resolveTaskOwnership', () => {
       [vat],
     );
     expect(ownership).toEqual({ kind: 'human' });
+  });
+
+  it('automation: an unassigned app-created row resolves via its stamp', () => {
+    const ownership = resolveTaskOwnership(
+      task({ createdByType: 'app', createdBy: 'vat-desk' }),
+      [vat],
+    );
+    expect(ownership).toMatchObject({
+      kind: 'automation',
+      automationSlug: 'vat-desk',
+    });
   });
 
   it('agent: an explicit agent assignee beats the externalSystem fallback', () => {

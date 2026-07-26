@@ -259,8 +259,10 @@ export const createTaskFromExternalIssue = action({
         description: args.description,
         labels: args.labels,
         externalState: 'open',
-        // Attributes the task to the owning app (createdByType:'app') so generic
-        // task automation defers to the app's workflow — see the upsert mutation.
+        // The authenticated member is the CREATOR; the owning automation
+        // (runWorkflowSlug/automationSlug) becomes the ASSIGNEE — see the
+        // upsert mutation's worker-class attribution.
+        creatorType: 'user',
         runWorkflowSlug: args.runWorkflowSlug,
         automationSlug: args.automationSlug,
         // An explicit project (a project-scoped app) dedups per project so two

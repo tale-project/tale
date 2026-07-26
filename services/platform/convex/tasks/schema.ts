@@ -13,11 +13,13 @@ import { blobRefValidator } from '../lib/storage/blob_ref';
  * There is no task-level ACL.
  *
  * Polymorphic single assignee (locked product decision): a task is assigned to
- * exactly one actor that is EITHER a human user OR an AI agent. `assigneeType`
- * + `assigneeId` are set/cleared together (invariant enforced in the mutation
- * layer, mirroring the `projects` teamId/projectId mutual-exclusivity style).
- * `assigneeId` is a `string` — not a typed Id — because it polymorphically
- * holds either a Better Auth userId or an agent slug.
+ * exactly one actor — a human user, an AI agent, or an automation (the
+ * ownership signal the task board's status choreography arbitrates on).
+ * `assigneeType` + `assigneeId` are set/cleared together (invariant enforced
+ * in the mutation layer, mirroring the `projects` teamId/projectId
+ * mutual-exclusivity style). `assigneeId` is a `string` — not a typed Id —
+ * because it polymorphically holds a Better Auth userId, an agent slug, or an
+ * automation store name.
  *
  * Board ordering uses a lexicographic fractional `rank` (LexoRank-style) so a
  * drag-reorder is an O(1) "insert between neighbours" write rather than a
@@ -44,13 +46,27 @@ export const taskPriorityValidator = v.union(
 );
 
 /**
- * Polymorphic actor type for tasks: a human user or an AI agent. Distinct from
- * the governance `auditLogActorTypeValidator` (which models user/system/api/
- * workflow) — task-domain attribution tracks human-vs-agent authorship.
+ * Polymorphic actor type for task ATTRIBUTION — comments, mentions, and
+ * activity actors are authored by a human (`user`) or an AI agent (`agent`).
+ * Distinct from the governance `auditLogActorTypeValidator` (which models
+ * user/system/api/workflow) and from {@link taskAssigneeTypeValidator}, the
+ * worker trichotomy.
  */
 export const taskActorTypeValidator = v.union(
   v.literal('user'),
   v.literal('agent'),
+);
+
+/**
+ * The WORKER a task belongs to — exactly one of three classes: a human
+ * (`user`), an AI agent (`agent`), or an automation (`app` — `assigneeId`
+ * then holds the automation's store name, and the board's status verbs run
+ * its workflow).
+ */
+export const taskAssigneeTypeValidator = v.union(
+  v.literal('user'),
+  v.literal('agent'),
+  v.literal('app'),
 );
 
 /**
@@ -60,8 +76,9 @@ export const taskActorTypeValidator = v.union(
  * task) — in which case `createdBy` holds the app slug. This is the ownership
  * signal generic task automation arbitrates on: a task with `createdByType:
  * 'app'` is driven by that app's own workflow, so the generic loops bail. Kept
- * SEPARATE from `taskActorTypeValidator` because `assigneeType` must stay
- * user|agent (a task cannot be assigned to an app). Write-once at creation.
+ * the same literals as `taskActorTypeValidator`, but this one records
+ * PROVENANCE (who created it) — ownership lives on the assignee. Write-once
+ * at creation.
  */
 export const taskCreatorTypeValidator = v.union(
   v.literal('user'),
@@ -111,7 +128,7 @@ export const tasksTable = defineTable({
   labels: v.optional(v.array(v.string())),
 
   // Polymorphic single assignee (set/cleared together).
-  assigneeType: v.optional(taskActorTypeValidator),
+  assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
 
   // Hierarchy (subtasks). Root tasks have parentTaskId undefined.

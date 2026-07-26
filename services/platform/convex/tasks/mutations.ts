@@ -87,7 +87,7 @@ import {
   boardViewTypeValidator,
   boardViewScopeValidator,
   type CommentEventComment,
-  taskActorTypeValidator,
+  taskAssigneeTypeValidator,
   taskAttachmentValidator,
   taskPriorityValidator,
   taskStatusValidator,
@@ -301,6 +301,27 @@ async function fanOutCommentEditMentions(
 // Create
 // ---------------------------------------------------------------------------
 
+/** An automation assignee must NAME a deployed automation — `assigneeId` is
+ * the store name; a typo would otherwise create a task nothing operates. */
+async function assertAutomationAssigneeDeployed(
+  ctx: MutationCtx,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  const deployment = await ctx.db
+    .query('automationDeployments')
+    .withIndex('by_org_name', (q) =>
+      q.eq('organizationId', organizationId).eq('name', name),
+    )
+    .unique();
+  if (!deployment) {
+    throw new ConvexError({
+      code: 'TASK_ASSIGNEE_INVALID',
+      message: `No deployed automation named "${name}" in this organization`,
+    });
+  }
+}
+
 export const createTask = mutation({
   args: {
     organizationId: v.string(),
@@ -311,7 +332,7 @@ export const createTask = mutation({
     status: v.optional(taskStatusValidator),
     priority: v.optional(taskPriorityValidator),
     labels: v.optional(v.array(v.string())),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     parentTaskId: v.optional(v.id('tasks')),
     dueDate: v.optional(v.number()),
@@ -354,6 +375,12 @@ export const createTask = mutation({
       });
     } else if (assignee?.assigneeType === 'agent') {
       assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+    } else if (assignee?.assigneeType === 'app') {
+      await assertAutomationAssigneeDeployed(
+        ctx,
+        project.organizationId,
+        assignee.assigneeId,
+      );
     }
 
     if (args.parentTaskId) {
@@ -703,7 +730,7 @@ export const updateTaskStatus = mutation({
 export const assignTask = mutation({
   args: {
     taskId: v.id('tasks'),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
   },
   returns: v.null(),
@@ -728,6 +755,12 @@ export const assignTask = mutation({
       });
     } else if (assignee?.assigneeType === 'agent') {
       assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+    } else if (assignee?.assigneeType === 'app') {
+      await assertAutomationAssigneeDeployed(
+        ctx,
+        project.organizationId,
+        assignee.assigneeId,
+      );
     }
     const previousAssigneeId = task.assigneeId ?? null;
 
@@ -1516,7 +1549,7 @@ export const bulkUpdateTasks = mutation({
     taskIds: v.array(v.id('tasks')),
     status: v.optional(taskStatusValidator),
     priority: v.optional(v.union(taskPriorityValidator, v.null())),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     clearAssignee: v.optional(v.boolean()),
     archived: v.optional(v.boolean()),

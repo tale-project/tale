@@ -260,7 +260,9 @@ export async function notifyTaskAssigned(
   ctx: MutationCtx,
   args: {
     task: Doc<'tasks'>;
-    assigneeType: ActorType | null;
+    /** The full worker trichotomy — only a HUMAN assignee gets a
+     * notification; agents and automations have no inbox. */
+    assigneeType: 'user' | 'agent' | 'app' | null;
     assigneeId: string | null;
     actorType: ActorType;
     actorId: string;

@@ -15,7 +15,7 @@ export interface TaskOwnershipFields {
   createdBy: string;
   createdByType: 'user' | 'agent' | 'app';
   externalSystem?: string;
-  assigneeType?: 'user' | 'agent';
+  assigneeType?: 'user' | 'agent' | 'app';
   assigneeId?: string;
 }
 
@@ -88,15 +88,16 @@ export type TaskOwnership =
   | { kind: 'human' };
 
 /**
- * Classify a task into its ownership class. Arbitration order, strongest
- * claim first:
+ * Classify a task into its ownership class. Ownership IS the assignment —
+ * the worker the task belongs to — so the ASSIGNEE decides first:
  *
- * 1. The write-once creation stamp (`createdByType: 'app'`, `createdBy:
- *    <automation name>`) — stamp-or-nothing: an app-created task whose
- *    automation is gone never falls through to another automation.
- * 2. An explicit agent assignee.
- * 3. A UNIQUE `externalSystem` match among the deployed contracts (tasks born
- *    before stamping) — ambiguity resolves to none; never guess an owner.
+ * 1. An automation assignee (`assigneeType: 'app'`, `assigneeId` = store
+ *    name) whose deployed contract resolves.
+ * 2. An agent assignee.
+ * 3. Fallbacks for unassigned rows: the creation stamp (`createdByType:
+ *    'app'` — stamp-or-nothing: a task whose automation is gone never falls
+ *    through to another), then a UNIQUE `externalSystem` match among the
+ *    deployed contracts — ambiguity resolves to none; never guess an owner.
  *
  * Pure, so the rule is unit-testable.
  */
@@ -105,20 +106,23 @@ export function resolveTaskOwnership(
   automations: ContractAutomationEntry[],
 ): TaskOwnership {
   const entries = taskSubjectEntries(automations);
+  if (task.assigneeType === 'app' && task.assigneeId !== undefined) {
+    const assigned = entries.find(
+      (entry) => entry.automationSlug === task.assigneeId,
+    );
+    if (assigned) return { kind: 'automation', ...assigned };
+  }
+  if (task.assigneeType === 'agent' && task.assigneeId !== undefined) {
+    return { kind: 'agent', agentId: task.assigneeId };
+  }
   if (task.createdByType === 'app') {
     const stamped = entries.find(
       (entry) => entry.automationSlug === task.createdBy,
     );
     if (stamped) return { kind: 'automation', ...stamped };
+    return { kind: 'human' };
   }
-  if (task.assigneeType === 'agent' && task.assigneeId !== undefined) {
-    return { kind: 'agent', agentId: task.assigneeId };
-  }
-  if (
-    task.createdByType !== 'app' &&
-    task.externalSystem !== undefined &&
-    task.externalSystem !== ''
-  ) {
+  if (task.externalSystem !== undefined && task.externalSystem !== '') {
     const matches = entries.filter(
       (entry) => entry.contract.externalSystem === task.externalSystem,
     );

@@ -82,7 +82,7 @@ export function isSystemSentinel(actorType: string, actorId: string): boolean {
 export function isPreviewableTaskActor(
   actorType: string,
   actorId: string,
-): boolean {
+): actorType is 'user' | 'agent' {
   if (isSystemSentinel(actorType, actorId)) return false;
   return actorType === 'agent';
 }

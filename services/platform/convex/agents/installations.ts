@@ -26,7 +26,10 @@ import type { QueryCtx } from '../_generated/server';
 export async function assertAgentAssigneeLive(
   _ctx: QueryCtx,
   _organizationId: string,
-  assignee: { assigneeType: 'user' | 'agent'; assigneeId: string } | null,
+  assignee: {
+    assigneeType: 'user' | 'agent' | 'app';
+    assigneeId: string;
+  } | null,
 ): Promise<void> {
   if (!assignee || assignee.assigneeType !== 'agent') return;
   throw new ConvexError({
