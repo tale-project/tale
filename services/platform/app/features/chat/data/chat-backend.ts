@@ -22,6 +22,10 @@
  * case rather than crashing. Every hook still calls the exact same hooks in the
  * same order on every render — the status is decided from values, never by
  * calling a hook conditionally.
+ *
+ * Reads keep their last answer for the session and refresh it live, so a
+ * remounted surface repaints content instead of flashing its loading state —
+ * the live generation alone opts out, because its absence IS its signal.
  */
 
 import { useConvex } from 'convex/react';
@@ -70,16 +74,33 @@ export type ChatQuery<T> =
 const UNAVAILABLE = { status: 'unavailable' } as const;
 
 /**
+ * The last answer each live read served, keyed like the watches themselves
+ * (function name + args), kept for the session. A watch is torn down on
+ * unmount and the client then drops its local result, so without this every
+ * remount of the surface answers `undefined` for one round-trip — the
+ * skeleton/spinner flash on every navigation into chat. A remount starts from
+ * the cached answer and the fresh watch's own result replaces it as soon as
+ * it lands. Skipped reads never touch the cache, and a read whose ABSENCE is
+ * a signal (the live generation) opts out — stale content is fine, a stale
+ * signal is not. Capped with delete+set recency, like the paginated cache.
+ */
+const MAX_LIVE_RESULT_CACHE_ENTRIES = 50;
+const liveResultCache = new Map<string, unknown>();
+
+/**
  * Subscribe to a chat query through the live Convex client. Returns
  * `unavailable` when there is no client in context (so a provider-less render
  * never throws), `loading` while the subscription has no result, and `ready`
- * with the result once it arrives. Passing `'skip'` holds the subscription
+ * with the result once it arrives — or, on a remount, with the last answer
+ * this session already served for the same (function, args), refreshed by the
+ * live watch within a round-trip. Passing `'skip'` holds the subscription
  * closed — for a read that has no argument to run on yet, like a thread view
  * with no thread selected.
  */
 function useChatQuery<Ref extends FunctionReference<'query'>>(
   fnRef: Ref,
   args: FunctionArgs<Ref> | 'skip',
+  options?: { readonly cache?: boolean },
 ): ChatQuery<FunctionReturnType<Ref>> {
   const convex = useConvex();
   const skip = args === 'skip';
@@ -130,9 +151,41 @@ function useChatQuery<Ref extends FunctionReference<'query'>>(
 
   const data = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
+  // Render-phase cache maintenance, mirroring useCachedPaginatedQuery: the
+  // write is idempotent, and the value must be current for this render's own
+  // read below. `getSnapshot` stays a pure view of the live watch — the
+  // substitution happens here, in the return path only.
+  const cacheable = options?.cache !== false && !skip && convex !== undefined;
+  const cacheKey = `${fnKey}:${argsKey}`;
+  if (cacheable && data !== undefined) {
+    liveResultCache.delete(cacheKey);
+    liveResultCache.set(cacheKey, data);
+    if (liveResultCache.size > MAX_LIVE_RESULT_CACHE_ENTRIES) {
+      const oldestKey = liveResultCache.keys().next().value;
+      if (oldestKey !== undefined) liveResultCache.delete(oldestKey);
+    }
+  }
+
+  let value = data;
+  if (value === undefined && cacheable) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only this hook writes the cache, under the same (function, args) key it reads, so the entry is this query's own return type
+    value = liveResultCache.get(cacheKey) as
+      | FunctionReturnType<Ref>
+      | undefined;
+  }
+
+  // One stable object per answer: while a remount serves the cached value its
+  // identity holds across renders, exactly like a live result's would.
+  const result = useMemo<ChatQuery<FunctionReturnType<Ref>>>(
+    () =>
+      value === undefined
+        ? { status: 'loading' }
+        : { status: 'ready', data: value },
+    [value],
+  );
+
   if (!convex) return UNAVAILABLE;
-  if (data === undefined) return { status: 'loading' };
-  return { status: 'ready', data };
+  return result;
 }
 
 /** The thread list in the chat sub-panel. */
@@ -219,6 +272,10 @@ export function useChatGeneration(
   return useChatQuery(
     api.chat.generations.getGeneration,
     threadId ? { organizationId, threadId } : 'skip',
+    // Never served from the session cache: a turn that settled while the
+    // surface was unmounted deleted its row, so replaying the last answer
+    // would flash a "still streaming" state for a turn that is over.
+    { cache: false },
   );
 }
 
@@ -309,44 +366,61 @@ export function useComposerModels(
 }
 
 /**
+ * The last agent roster each org answered with, kept for the session — same
+ * contract as the composer catalog cache above, for the same reason: a
+ * remount must not blank the picker for the round-trip its refresh takes.
+ */
+const chatAgentsCache = new Map<string, readonly ChatAgentOption[]>();
+
+/**
  * The slim agents the agent picker lists. Agent configurations are FILES, so
- * this read is an ACTION (no reactive watch); it loads once per org and again
- * per mount, which is the freshness a picker needs. Failures degrade to
+ * this read is an ACTION (no reactive watch); a remount serves the org's last
+ * answer and refreshes in the background, so roster edits reflect on the next
+ * chat mount without the picker emptying while they load. Failures degrade to
  * `unavailable` — the picker says "not connected" rather than showing agents
- * that cannot be selected. Roster edits reflect on the next chat mount.
+ * that cannot be selected — unless a previous answer exists, which then keeps
+ * serving.
  */
 export function useChatAgents(
   organizationId: string,
 ): ChatQuery<readonly ChatAgentOption[]> {
   const convex = useConvex();
-  const [state, setState] = useState<ChatQuery<readonly ChatAgentOption[]>>({
-    status: 'loading',
-  });
+  const [state, setState] = useState<ChatQuery<readonly ChatAgentOption[]>>(
+    () => {
+      const cached = chatAgentsCache.get(organizationId);
+      return cached ? { status: 'ready', data: cached } : { status: 'loading' };
+    },
+  );
 
   useEffect(() => {
     if (!convex || !organizationId) return () => {};
     let cancelled = false;
-    setState({ status: 'loading' });
+    const cached = chatAgentsCache.get(organizationId);
+    setState(
+      cached ? { status: 'ready', data: cached } : { status: 'loading' },
+    );
     convex.action(api.agents.actions.listAgents, { organizationId }).then(
       (listing) => {
         if (cancelled) return;
-        setState({
-          status: 'ready',
-          data: listing.agents.map((agent) => ({
-            slug: agent.slug,
-            label: agent.displayName,
-            ...(agent.description !== undefined
-              ? { description: agent.description }
-              : {}),
-          })),
-        });
+        const data = listing.agents.map((agent) => ({
+          slug: agent.slug,
+          label: agent.displayName,
+          ...(agent.description !== undefined
+            ? { description: agent.description }
+            : {}),
+        }));
+        chatAgentsCache.set(organizationId, data);
+        setState({ status: 'ready', data });
       },
       (error: unknown) => {
         if (cancelled) return;
         // Pre-auth or backend failure: report honestly; the picker renders
-        // its unavailable state instead of an empty roster.
+        // its unavailable state instead of an empty roster. A stale roster,
+        // when one exists, beats blanking a working picker.
         console.warn('[chat] could not list agents for the picker', error);
-        setState(UNAVAILABLE);
+        if (!chatAgentsCache.has(organizationId)) {
+          setState(UNAVAILABLE);
+        }
       },
     );
     return () => {
@@ -358,42 +432,62 @@ export function useChatAgents(
   return state;
 }
 
+interface ComposerCapabilityCatalog {
+  readonly skills: readonly ComposerCapabilityOption[];
+  readonly connectors: readonly ComposerCapabilityOption[];
+}
+
+/**
+ * The last capability catalog each org answered with, kept for the session —
+ * same contract as the model catalog cache above: a remount serves it and
+ * refreshes in the background instead of emptying the Skills/Connectors
+ * menus for a round-trip on every navigation.
+ */
+const composerCapabilitiesCache = new Map<string, ComposerCapabilityCatalog>();
+
 /**
  * What a conversation can equip an agent with: the org's skills and its
  * enabled connectors. File- and credential-backed like the model listing, so
  * — same style — an aggregator ACTION resolved on mount, degrading to
- * `unavailable` instead of offering picks nothing could serve.
+ * `unavailable` instead of offering picks nothing could serve — unless a
+ * previous answer exists, which then keeps serving.
  */
-export function useComposerCapabilities(organizationId: string): ChatQuery<{
-  readonly skills: readonly ComposerCapabilityOption[];
-  readonly connectors: readonly ComposerCapabilityOption[];
-}> {
+export function useComposerCapabilities(
+  organizationId: string,
+): ChatQuery<ComposerCapabilityCatalog> {
   const convex = useConvex();
-  const [state, setState] = useState<
-    ChatQuery<{
-      readonly skills: readonly ComposerCapabilityOption[];
-      readonly connectors: readonly ComposerCapabilityOption[];
-    }>
-  >({ status: 'loading' });
+  const [state, setState] = useState<ChatQuery<ComposerCapabilityCatalog>>(
+    () => {
+      const cached = composerCapabilitiesCache.get(organizationId);
+      return cached ? { status: 'ready', data: cached } : { status: 'loading' };
+    },
+  );
 
   useEffect(() => {
     if (!convex || !organizationId) return () => {};
     let cancelled = false;
-    setState({ status: 'loading' });
+    const cached = composerCapabilitiesCache.get(organizationId);
+    setState(
+      cached ? { status: 'ready', data: cached } : { status: 'loading' },
+    );
     convex
       .action(api.chat.composer.listComposerCapabilities, { organizationId })
       .then(
         (data) => {
           if (cancelled) return;
+          composerCapabilitiesCache.set(organizationId, data);
           setState({ status: 'ready', data });
         },
         (error: unknown) => {
           if (cancelled) return;
+          // A stale catalog, when one exists, beats emptying working menus.
           console.warn(
             '[chat] could not list capabilities for the composer',
             error,
           );
-          setState(UNAVAILABLE);
+          if (!composerCapabilitiesCache.has(organizationId)) {
+            setState(UNAVAILABLE);
+          }
         },
       );
     return () => {

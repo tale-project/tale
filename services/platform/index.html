@@ -54,10 +54,11 @@
       })();
     </script>
     <!-- Pre-hydration boot-shell state: when the navigation targets a chat
-         route (shared-view routes excluded — they render no panel) and the
-         persisted chat sub-panel state is open, reveal the panel skeleton
-         baked into the served boot shell before any JS or CSS runs. Key
-         mirrors ChatLayoutProvider's `chat-history-panel-open-<orgId>`
+         route (shared-view routes excluded — they render no panel) or an
+         org root (which always redirects to chat) and the persisted chat
+         sub-panel state is open, reveal the panel skeleton baked into the
+         served boot shell before any JS or CSS runs. Key mirrors
+         ChatLayoutProvider's `chat-history-panel-open-<orgId>`
          (org-scoped precisely so this script can read it pre-auth); the
          class is consumed by ChatSubPanelPlaceholder's
          `[.boot-chat-panel-open_&]` variant. -->
@@ -65,9 +66,11 @@
       (function () {
         try {
           var match = window.location.pathname.match(
-            /\/dashboard\/([^/]+)\/chat(?:\/(?!shared\/)|$)/,
+            /\/dashboard\/([^/]+)(?:\/chat(?:\/(?!shared\/)|$)|\/?$)/,
           );
-          if (!match) return;
+          // `switching` is the only literal (non-org) segment under
+          // /dashboard/ — the org-switch interstitial renders no panel.
+          if (!match || match[1] === 'switching') return;
           var stored = localStorage.getItem(
             'chat-history-panel-open-' + match[1],
           );
