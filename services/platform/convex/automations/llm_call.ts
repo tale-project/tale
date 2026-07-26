@@ -73,8 +73,12 @@ function describe(error: unknown): string {
  * direct-capable count, the credential's allowlist is honored, and an
  * unreachable catalog skips the connector rather than failing the node —
  * unless nothing else serves the model, in which case the failure names it.
+ *
+ * Exported for the agent host: an `agent` node names its model with the same
+ * explicitness as an `llm` node, and its gateway key must be scoped to the
+ * same serving connector this scan finds.
  */
-async function resolveServingTarget(
+export async function resolveServingTarget(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,

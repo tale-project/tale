@@ -41,19 +41,62 @@ export interface NodeCheckpoint {
   effects: Effect[];
 }
 
+/** A file an agent turn produced, as harvested into blob storage. */
+export interface AgentTurnFile {
+  name: string;
+  storageId: string;
+  size: number;
+  contentType: string;
+}
+
+/** The settled result of one workflow agent turn, written into the cursor by
+ * the agent host's finalize and consumed by the stepper's next entry. */
+export interface AgentTurnResult {
+  errored: boolean;
+  reason?: string;
+  text: string;
+  files: AgentTurnFile[];
+  status?: string;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    costEstimateUsd?: number;
+  };
+}
+
+/**
+ * The in-flight state of an `agent` node: the exec the host kicked, where it
+ * runs, when it must be cut, and — once the drive chain settles it — the
+ * result the next stepper entry consumes. `input` is the resolved request,
+ * kept here so the settle turn records the same trace/effect the kick turn
+ * computed instead of re-evaluating templates.
+ */
+export interface AgentCursor {
+  execId: string;
+  sessionId: string;
+  deadlineAt: number;
+  providerSlug: string;
+  gatewayModel: string;
+  harness: string;
+  input: Record<string, unknown>;
+  result?: AgentTurnResult;
+}
+
 /**
  * Where the stepper is inside a node that is not finished yet: which `forEach`
  * item it is on, how many `repeatUntil` passes that item has had, and the
  * per-item outputs collected so far. Its presence is what lets a poll-style
  * `repeatUntil` suspend the run between passes instead of holding an action
  * open, and what lets a long `forEach` resume mid-array without re-sending the
- * items it already sent.
+ * items it already sent. An `agent` node parks its in-flight turn under
+ * `agent` the same way.
  */
 export interface NodeCursor {
   node: string;
   index: number;
   passes: number;
   outs: unknown[];
+  agent?: AgentCursor;
 }
 
 export interface RunCheckpoints {

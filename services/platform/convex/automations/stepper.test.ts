@@ -38,6 +38,7 @@ import schema from '../schema';
 import { readCheckpoints } from './checkpoints';
 import type { AutomationLlmRequest } from './llm_call';
 import {
+  setAutomationAgentHostFactory,
   setAutomationApprovalGate,
   setAutomationLlmCallFactory,
 } from './stepper';
@@ -129,6 +130,9 @@ afterEach(() => {
   delete process.env.TALE_AUTOMATION_STEP_BUDGET_MS;
   setAutomationApprovalGate(null);
   setAutomationLlmCallFactory(null);
+  setAutomationAgentHostFactory(null);
+  agentKicks.length = 0;
+  agentCancels.length = 0;
   vi.unstubAllGlobals();
 });
 
@@ -797,5 +801,252 @@ describe('durable stepper — llm nodes', () => {
     expect(llmCalls).toHaveLength(0);
     const row = await runRow(t, runId);
     expect(row.output).toMatch(/^MOCK_LLM_RESPONSE\[vendor\/small-1:/);
+  });
+});
+
+const readInvoices: Automation = {
+  version: 1,
+  name: 'ops/read-invoices',
+  nodes: [
+    {
+      id: 'extract',
+      type: 'agent',
+      model: 'vendor/coder-1',
+      prompt: 'Read invoices for {{ input.quarter }}',
+      skills: ['swiss-vat-return'],
+      files: { input: '{{ input.folderId }}' },
+    },
+  ],
+  output: '{{ nodes.extract.output }}',
+};
+
+/** Every kick/cancel the stepper asked the agent door for. */
+const agentKicks: Array<{ runId: string; nodeId: string; request: unknown }> =
+  [];
+const agentCancels: Array<{ sessionId: string; execId: string }> = [];
+
+/** A recording agent host: kicks park, polls see nothing (the settle writes
+ * straight into the cursor, which the next turn reads), cancels record. */
+function recordingAgentFactory(kick?: () => never): void {
+  setAutomationAgentHostFactory((_ctx, _organizationId) => ({
+    kick: async ({ runId, nodeId, request }) => {
+      if (kick !== undefined) kick();
+      agentKicks.push({ runId, nodeId, request });
+      return {
+        execId: 'exec-1',
+        sessionId: 'wf-session-1',
+        deadlineAt: Date.now() + 60_000,
+        providerSlug: 'vendor',
+        gatewayModel: 'vendor/coder-1',
+        harness: 'claude-code',
+      };
+    },
+    poll: async () => null,
+    cancel: async ({ sessionId, execId }) => {
+      agentCancels.push({ sessionId, execId });
+    },
+  }));
+}
+
+describe('durable stepper — agent nodes', () => {
+  it('answers a mock run with the deterministic envelope and records the effect', async () => {
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(
+      t,
+      'ops/read-invoices',
+      { quarter: '2026Q1', folderId: 'fld_1' },
+      'mock',
+    );
+
+    expect(await drive(t, runId)).toBe('success');
+    const row = await runRow(t, runId);
+    expect(row.output).toMatchObject({
+      files: [],
+      status: 'ok',
+    });
+    expect((row.output as { text: string }).text).toMatch(
+      /^MOCK_AGENT_RESPONSE\[vendor\/coder-1:/,
+    );
+    expect(row.effects).toEqual([
+      {
+        node: 'extract',
+        integration: 'agent',
+        input: {
+          model: 'vendor/coder-1',
+          prompt: 'Read invoices for 2026Q1',
+          skills: ['swiss-vat-return'],
+          files: { input: 'fld_1' },
+        },
+      },
+    ]);
+    // Mock mode never consults the host.
+    expect(agentKicks).toHaveLength(0);
+  });
+
+  it('kicks a live turn once, parks the run, and consumes the settled envelope', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    // Turn 1: the kick parks the run with the in-flight turn in the cursor.
+    await turn(t, runId);
+    const parked = await runRow(t, runId);
+    expect(parked.status).toBe('waiting');
+    expect(parked.detail).toBe('agent:extract');
+    const cursor = readCheckpoints(parked.checkpoints).cursor;
+    expect(cursor?.node).toBe('extract');
+    expect(cursor?.agent).toMatchObject({
+      execId: 'exec-1',
+      sessionId: 'wf-session-1',
+    });
+    expect(agentKicks).toEqual([
+      {
+        runId,
+        nodeId: 'extract',
+        request: {
+          model: 'vendor/coder-1',
+          prompt: 'Read invoices for 2026Q1',
+          skills: ['swiss-vat-return'],
+          files: { input: 'fld_1' },
+        },
+      },
+    ]);
+
+    // A poll turn before the settle keeps the run parked, without re-kicking.
+    await turn(t, runId);
+    expect((await runRow(t, runId)).status).toBe('waiting');
+    expect(agentKicks).toHaveLength(1);
+
+    // The agent host settles: result into the cursor, stepper poked.
+    const recorded = await t.mutation(
+      internal.automations.mutations.recordAgentTurnSettled,
+      {
+        organizationId: ORG,
+        runId,
+        nodeId: 'extract',
+        execId: 'exec-1',
+        result: {
+          errored: false,
+          text: 'extracted 2 invoices',
+          files: [
+            {
+              name: 'a.ocr.json',
+              storageId: 'st_1',
+              size: 128,
+              contentType: 'application/json',
+            },
+          ],
+          status: 'ok',
+        },
+      },
+    );
+    expect(recorded).toEqual({ recorded: true });
+
+    expect(await drive(t, runId)).toBe('success');
+    const row = await runRow(t, runId);
+    expect(row.output).toEqual({
+      text: 'extracted 2 invoices',
+      files: [
+        {
+          name: 'a.ocr.json',
+          storageId: 'st_1',
+          size: 128,
+          contentType: 'application/json',
+        },
+      ],
+      status: 'ok',
+    });
+    expect(row.effects).toEqual([
+      {
+        node: 'extract',
+        integration: 'agent',
+        input: {
+          model: 'vendor/coder-1',
+          prompt: 'Read invoices for 2026Q1',
+          skills: ['swiss-vat-return'],
+          files: { input: 'fld_1' },
+        },
+      },
+    ]);
+    expect(agentKicks).toHaveLength(1);
+  });
+
+  it('fails the node cleanly when the kick refuses', async () => {
+    recordingAgentFactory(() => {
+      throw new Error(
+        'no configured provider serves model "vendor/coder-1" — an llm node\'s model must be listed in a connected provider\'s catalog',
+      );
+    });
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    expect(await drive(t, runId)).toBe('failed');
+    const row = await runRow(t, runId);
+    expect(row.detail).toContain('no configured provider serves model');
+    const trace = row.trace as Array<{ node: string; status: string }>;
+    expect(trace.map((entry) => [entry.node, entry.status])).toEqual([
+      ['extract', 'error'],
+    ]);
+  });
+
+  it('an errored settle fails the node with its reason', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    await t.mutation(internal.automations.mutations.recordAgentTurnSettled, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-1',
+      result: {
+        errored: true,
+        reason: 'the agent turn could not start: staging skills failed',
+        text: '',
+        files: [],
+      },
+    });
+
+    expect(await drive(t, runId)).toBe('failed');
+    const row = await runRow(t, runId);
+    expect(row.detail).toContain('staging skills failed');
+  });
+
+  it('a stale settle records nothing and resurrects nothing', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+    await turn(t, runId);
+
+    const recorded = await t.mutation(
+      internal.automations.mutations.recordAgentTurnSettled,
+      {
+        organizationId: ORG,
+        runId,
+        nodeId: 'extract',
+        execId: 'exec-STALE',
+        result: { errored: false, text: 'x', files: [] },
+      },
+    );
+    expect(recorded).toEqual({ recorded: false });
+    expect((await runRow(t, runId)).status).toBe('waiting');
   });
 });

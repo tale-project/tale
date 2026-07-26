@@ -25,6 +25,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -825,5 +826,125 @@ export const finishRun = internalMutation({
       finishedAt: Date.now(),
     });
     return { status: args.status };
+  },
+});
+
+/**
+ * The agent host's settle: write a finished agent turn's result into the
+ * parked run's cursor and poke the stepper to consume it.
+ *
+ * Deliberately tolerant where the stepper's own mutations throw: the turn may
+ * have been orphaned (run cancelled, node failed by its deadline, a newer
+ * exec kicked) — a stale settle then changes nothing and schedules nothing.
+ * The exactly-once guarantees live upstream (`claimSessionOpFinalize`); this
+ * mutation only refuses to resurrect state that moved on.
+ */
+export const recordAgentTurnSettled = internalMutation({
+  args: {
+    organizationId: v.string(),
+    runId: v.id('automationRuns'),
+    nodeId: v.string(),
+    execId: v.string(),
+    result: v.any(),
+  },
+  returns: v.object({ recorded: v.boolean() }),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.runId);
+    if (!row || row.organizationId !== args.organizationId) {
+      return { recorded: false };
+    }
+    if (
+      row.status !== 'waiting' &&
+      row.status !== 'running' &&
+      row.status !== 'queued'
+    ) {
+      return { recorded: false };
+    }
+    const checkpoints = readCheckpoints(row.checkpoints);
+    const cursor = checkpoints.cursor;
+    if (
+      cursor === undefined ||
+      cursor.node !== args.nodeId ||
+      cursor.agent === undefined ||
+      cursor.agent.execId !== args.execId ||
+      cursor.agent.result !== undefined
+    ) {
+      return { recorded: false };
+    }
+    await ctx.db.patch(args.runId, {
+      checkpoints: {
+        nodes: checkpoints.nodes,
+        cursor: {
+          ...cursor,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the agent host owns the result shape; the row stores it as JSON
+          agent: { ...cursor.agent, result: args.result as never },
+        },
+        executions: checkpoints.executions,
+      },
+    });
+    await ctx.scheduler.runAfter(0, internal.automations.stepper.stepRun, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+    });
+    return { recorded: true };
+  },
+});
+
+/**
+ * Start the deployed automation a task's Start action names, as a live run
+ * carrying the task as its input — the task-surface entry the retired engine
+ * used to serve. Authorization is the CALLER's: the public task action has
+ * already verified org membership, and the deploy gate (admin/dev) was the
+ * privileged act; running a deployed task workflow is a member act, exactly
+ * as it was on the old desk.
+ *
+ * Refuses a duplicate: one live run per (automation, task) at a time.
+ */
+export const startTaskWorkflowRun = internalMutation({
+  args: {
+    organizationId: v.string(),
+    name: v.string(),
+    taskId: v.string(),
+    input: v.any(),
+    startedBy: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      runId: v.id('automationRuns'),
+      alreadyRunning: v.optional(v.boolean()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    // One live run per (automation, task): scan this automation's recent runs
+    // for a non-terminal one carrying the same task.
+    const recent = await ctx.db
+      .query('automationRuns')
+      .withIndex('by_org_name', (q) =>
+        q.eq('organizationId', args.organizationId).eq('name', args.name),
+      )
+      .order('desc')
+      .take(25);
+    const live = recent.find(
+      (row) =>
+        (row.status === 'queued' ||
+          row.status === 'running' ||
+          row.status === 'waiting') &&
+        isRecord(row.input) &&
+        isRecord(row.input.task) &&
+        row.input.task.id === args.taskId,
+    );
+    if (live !== undefined) {
+      return { runId: live._id, alreadyRunning: true };
+    }
+    const started = await beginRun(ctx, {
+      organizationId: args.organizationId,
+      name: args.name,
+      input: args.input,
+      mode: 'live',
+      startedBy: args.startedBy,
+    });
+    if (!started) return null;
+    return { runId: started.runId };
   },
 });

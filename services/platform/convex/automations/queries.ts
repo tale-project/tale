@@ -25,6 +25,7 @@ import type { QueryCtx } from '../_generated/server';
 import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { readCheckpoints } from './checkpoints';
 import {
   deploymentRow,
   listAutomationsFor,
@@ -863,5 +864,34 @@ export const storeListTriggers = internalQuery({
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .collect();
     return rows.sort((a, b) => a.name.localeCompare(b.name)).map(toTriggerView);
+  },
+});
+
+/**
+ * The parked run's cursor, for the agent host: the drive chain's orphan check
+ * and the stepper's fresh poll both read it. Returns `null` for a missing or
+ * foreign-org run — the caller treats that as "turn is an orphan".
+ */
+export const readAgentCursor = internalQuery({
+  args: { organizationId: v.string(), runId: v.id('automationRuns') },
+  returns: v.union(
+    v.null(),
+    v.object({
+      status: v.string(),
+      detail: v.optional(v.string()),
+      cursor: v.optional(v.any()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.runId);
+    if (!row || row.organizationId !== args.organizationId) return null;
+    const checkpoints = readCheckpoints(row.checkpoints);
+    return {
+      status: row.status,
+      ...(row.detail !== undefined ? { detail: row.detail } : {}),
+      ...(checkpoints.cursor !== undefined
+        ? { cursor: checkpoints.cursor }
+        : {}),
+    };
   },
 });

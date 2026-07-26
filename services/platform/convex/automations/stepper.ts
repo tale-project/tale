@@ -40,6 +40,7 @@ import { refsOf, topoSort } from '../../lib/engine/core/execute/controlflow';
 import {
   cloneData,
   makeScope,
+  mockAgentText,
   mockLlmText,
   stubFromSchema,
 } from '../../lib/engine/core/execute/scope';
@@ -61,7 +62,17 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
-import type { NodeCheckpoint, NodeCursor, RunCheckpoints } from './checkpoints';
+import {
+  automationAgentHost,
+  type AutomationAgentHost,
+  type WorkflowAgentRequest,
+} from './agent_host';
+import type {
+  AgentCursor,
+  NodeCheckpoint,
+  NodeCursor,
+  RunCheckpoints,
+} from './checkpoints';
 import {
   effectsFrom,
   outputsFrom,
@@ -99,6 +110,10 @@ const REPEAT_DELAY_MS = 5_000;
 /** How often a run parked on a human decision re-checks it. */
 const APPROVAL_POLL_MS = 30_000;
 
+/** Poll backstop for a parked agent turn — the settle pokes the run the
+ * moment it lands, so this only catches a lost poke. */
+const AGENT_POLL_MS = 30_000;
+
 // These mirror the in-memory executor's guards (`core/execute/index.ts`). They
 // are duplicated rather than imported because the executor keeps them private;
 // changing one means changing both, and the stepper tests pin the behaviour.
@@ -107,9 +122,9 @@ const DEFAULT_MAX_REPEATS = 5;
 const REPEATS_HARD_CAP = 20;
 const DEFAULT_MAX_NODE_EXECUTIONS = 100;
 
-/** The three node types the engine implements itself; everything else is a
+/** The four node types the engine implements itself; everything else is a
  * connector action addressed as `<connector>.<action>`. */
-const CORE_TYPES = new Set(['transform', 'llm', 'subautomation']);
+const CORE_TYPES = new Set(['transform', 'llm', 'agent', 'subautomation']);
 
 // -------------------------------------------------------------- approvals
 
@@ -165,6 +180,23 @@ export function setAutomationLlmCallFactory(
   factory: AutomationLlmCallFactory | null,
 ): void {
   llmCallFactory = factory;
+}
+
+/** How a run gets its agent door — the llm seam's sibling: the real host
+ * reaches the sandbox, which the stepper suite forbids, so a test installs a
+ * recording factory. */
+export type AutomationAgentHostFactory = (
+  ctx: ActionCtx,
+  organizationId: string,
+) => AutomationAgentHost;
+
+let agentHostFactory: AutomationAgentHostFactory | null = null;
+
+/** Install a substitute agent host factory; `null` restores the real one. */
+export function setAutomationAgentHostFactory(
+  factory: AutomationAgentHostFactory | null,
+): void {
+  agentHostFactory = factory;
 }
 
 /** A connector node's declared effect, read from the shipped catalog. `read`
@@ -301,6 +333,9 @@ interface RunContext {
   deadline: number;
   /** The llm door for this run's organization; live llm nodes go through it. */
   llm: AutomationLlmCall;
+  /** The agent door for this run's organization; live agent nodes kick, poll
+   * and cancel their sandbox turns through it. */
+  agent: AutomationAgentHost;
 }
 
 /** A resolved template destined for prompt text: strings pass through,
@@ -393,6 +428,40 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       : { text: mockLlmText(model, prompt) };
   }
 
+  if (node.type === 'agent') {
+    const model = node.model ?? '';
+    const prompt = asPromptText(
+      await evalTemplates(node.prompt ?? '', scope()),
+    );
+    const system = node.system
+      ? asPromptText(await evalTemplates(node.system, scope()))
+      : undefined;
+    const files =
+      node.files === undefined
+        ? undefined
+        : await evalTemplates(node.files, scope());
+    const agentInput = {
+      model,
+      prompt,
+      ...(system !== undefined && { system }),
+      ...(node.harness !== undefined && { harness: node.harness }),
+      ...(node.skills !== undefined && { skills: node.skills }),
+      ...(node.connectors !== undefined && { connectors: node.connectors }),
+      ...(files !== undefined && { files }),
+    };
+    if (record) trace.input = agentInput;
+    effects.push({ node: node.id, integration: 'agent', input: agentInput });
+    if (run.mode === 'live') {
+      // Unreachable: stepNode routes live agent nodes to stepAgentNode before
+      // any body runs. Kept as a guard so a future path cannot silently mock
+      // a step the author expects to act.
+      throw new Error(
+        'internal: a live agent node reached the mock body — stepAgentNode should have handled it',
+      );
+    }
+    return { text: mockAgentText(model, prompt), files: [], status: 'ok' };
+  }
+
   if (node.type === 'subautomation') {
     const ref = node.automation ?? '';
     if (args.depth >= MAX_SUBAUTOMATION_DEPTH) {
@@ -457,7 +526,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   const separator = node.type.indexOf('.');
   if (separator <= 0 || separator === node.type.length - 1) {
     throw new Error(
-      `unknown node type "${node.type}" — expected transform, llm, subautomation, or a connector action "<connector>.<action>"`,
+      `unknown node type "${node.type}" — expected transform, llm, agent, subautomation, or a connector action "<connector>.<action>"`,
     );
   }
   const connector = node.type.slice(0, separator);
@@ -690,6 +759,23 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       }
     }
 
+    // A live agent node runs as an asynchronous sandbox turn spanning
+    // suspensions — its own step path, the approval park's sibling. Mock mode
+    // falls through to the deterministic body below.
+    if (run.mode === 'live' && node.type === 'agent') {
+      return await stepAgentNode({
+        run,
+        node,
+        input,
+        checkpoints,
+        sink,
+        outputs,
+        trace,
+        effects,
+        record,
+      });
+    }
+
     // Where in the node this turn starts: mid-array and mid-repeat when a
     // previous turn parked here, at the beginning otherwise.
     const cursor: NodeCursor =
@@ -834,6 +920,166 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   }
 }
 
+interface AgentStepArgs {
+  run: RunContext;
+  node: NodeDef;
+  input: unknown;
+  checkpoints: RunCheckpoints;
+  sink: RunSink;
+  outputs: Record<string, { output: unknown }>;
+  trace: NodeTrace;
+  effects: Effect[];
+  record: (checkpoint: NodeCheckpoint) => Promise<StepOutcome>;
+}
+
+/**
+ * Advance a LIVE agent node: kick the sandbox turn and park the run, keep
+ * parking while it runs, and consume the settled result the agent host wrote
+ * into the cursor. The turn spans suspensions, so this is stepNode's async
+ * sibling rather than a runNodeBody branch — a body must finish inside its
+ * turn, and an agent turn by definition does not.
+ */
+async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
+  const { run, node, checkpoints, sink, outputs, trace, effects, record } =
+    args;
+  if (
+    typeof node.forEach === 'string' ||
+    typeof node.repeatUntil === 'string'
+  ) {
+    throw new Error(
+      'an agent node cannot iterate (forEach/repeatUntil) yet — give each item its own agent node',
+    );
+  }
+
+  const parked =
+    checkpoints.cursor?.node === node.id ? checkpoints.cursor.agent : undefined;
+
+  if (parked === undefined) {
+    // First entry: resolve the request and kick the turn.
+    const scope = makeScope(args.input, outputs);
+    const model = node.model ?? '';
+    const prompt = asPromptText(await evalTemplates(node.prompt ?? '', scope));
+    const system = node.system
+      ? asPromptText(await evalTemplates(node.system, scope))
+      : undefined;
+    const files =
+      node.files === undefined
+        ? undefined
+        : await evalTemplates(node.files, scope);
+    const request: WorkflowAgentRequest = {
+      model,
+      prompt,
+      ...(system !== undefined && { system }),
+      ...(node.harness !== undefined && { harness: node.harness }),
+      ...(node.skills !== undefined && { skills: node.skills }),
+      ...(node.connectors !== undefined && { connectors: node.connectors }),
+      ...(files !== undefined && {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- evalTemplates preserves the record shape of `files`
+        files: files as Record<string, unknown>,
+      }),
+    };
+    checkpoints.executions++;
+    if (checkpoints.executions > DEFAULT_MAX_NODE_EXECUTIONS) {
+      throw new Error(
+        `run exceeded the ${DEFAULT_MAX_NODE_EXECUTIONS}-execution guard — a forEach over a huge array or a runaway repeat; split the automation`,
+      );
+    }
+    const kicked = await run.agent.kick({
+      runId: run.runId,
+      nodeId: node.id,
+      request,
+    });
+    const agent: AgentCursor = {
+      execId: kicked.execId,
+      sessionId: kicked.sessionId,
+      deadlineAt: kicked.deadlineAt,
+      providerSlug: kicked.providerSlug,
+      gatewayModel: kicked.gatewayModel,
+      harness: kicked.harness,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolved request is plain JSON by construction
+      input: request as unknown as Record<string, unknown>,
+    };
+    const cursor: NodeCursor = {
+      node: node.id,
+      index: 0,
+      passes: 0,
+      outs: [],
+      agent,
+    };
+    const waited = await sink.wait({
+      detail: `agent:${node.id}`,
+      cursor,
+      executions: checkpoints.executions,
+      resumeInMs: AGENT_POLL_MS,
+    });
+    if (waited === 'cancelled') return { kind: 'cancelled' };
+    if (waited === 'suspended') {
+      checkpoints.cursor = cursor;
+      return { kind: 'suspended' };
+    }
+    // 'continue' is the inline sink — a subautomation cannot park its parent.
+    throw new Error(
+      'an agent node cannot run inside a subautomation — hoist it to the top level of the calling automation',
+    );
+  }
+
+  // Parked: the resolved request recorded at kick time is this entry's trace
+  // input and effect, whatever happens next — the turn ran either way.
+  trace.input = parked.input;
+  effects.push({ node: node.id, integration: 'agent', input: parked.input });
+
+  // The settle may have landed after this turn loaded its checkpoints, so a
+  // missing in-memory result polls fresh once before parking again.
+  const settled =
+    parked.result ??
+    (await run.agent.poll({ runId: run.runId, execId: parked.execId })) ??
+    undefined;
+
+  if (settled === undefined) {
+    if (Date.now() > parked.deadlineAt) {
+      await run.agent.cancel({
+        sessionId: parked.sessionId,
+        execId: parked.execId,
+      });
+      throw new Error('the agent turn ran past its time limit and was stopped');
+    }
+    const waited = await sink.wait({
+      detail: `agent:${node.id}`,
+      cursor: checkpoints.cursor ?? {
+        node: node.id,
+        index: 0,
+        passes: 0,
+        outs: [],
+        agent: parked,
+      },
+      executions: checkpoints.executions,
+      resumeInMs: AGENT_POLL_MS,
+    });
+    if (waited === 'cancelled') return { kind: 'cancelled' };
+    if (waited === 'suspended') return { kind: 'suspended' };
+    throw new Error(
+      'an agent node cannot run inside a subautomation — hoist it to the top level of the calling automation',
+    );
+  }
+
+  if (settled.errored) {
+    throw new Error(
+      settled.reason ??
+        (settled.text !== ''
+          ? `the agent turn failed: ${settled.text.slice(0, 300)}`
+          : 'the agent turn ended without producing a reply'),
+    );
+  }
+  const output = {
+    text: settled.text,
+    files: settled.files,
+    status: settled.status ?? 'ok',
+  };
+  trace.status = 'ok';
+  trace.output = output;
+  return await record({ status: 'ok', output, trace, effects });
+}
+
 // ------------------------------------------------------------------- action
 
 /**
@@ -889,6 +1135,10 @@ export const stepRun = internalAction({
       // Built fresh every turn, like the approval gate below: the door closes
       // over this invocation's ctx and the run's own organization.
       llm: (llmCallFactory ?? automationLlmCall)(ctx, args.organizationId),
+      agent: (agentHostFactory ?? automationAgentHost)(
+        ctx,
+        args.organizationId,
+      ),
     };
 
     // Install the real approval gate for THIS run before any node is stepped,
