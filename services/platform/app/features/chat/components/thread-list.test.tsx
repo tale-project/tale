@@ -133,7 +133,10 @@ describe('ThreadList', () => {
     render(<ThreadList organizationId="org-1" threads={THREADS} />);
 
     expect(screen.getByLabelText('Sandbox')).toBeInTheDocument();
-    expect(screen.getByText('Generating response')).toBeInTheDocument();
+    // Streaming reads as the leading dot, not a text label.
+    expect(
+      screen.getByRole('status', { name: 'Generating response' }),
+    ).toBeInTheDocument();
   });
 
   it('marks the open thread as the current page', () => {

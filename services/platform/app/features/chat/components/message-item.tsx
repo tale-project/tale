@@ -16,6 +16,7 @@ import { Button } from '@tale/ui/button';
 import { Pencil, TriangleAlert } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -135,10 +136,16 @@ function UserBubble({
   onEditSubmit?: (message: ChatMessageView, text: string) => void;
 }) {
   const { t } = useT('chat');
+  const { formatDateHeader, formatDate } = useFormatDate();
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const [editing, setEditing] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  // "Today, 14:32" / "Yesterday, 09:15" / a localized date + time — revealed
+  // on hover alongside the edit affordance.
+  const sentAt = new Date(message.createdAt);
+  const sentLabel = `${formatDateHeader(sentAt)}, ${formatDate(sentAt, 'time')}`;
 
   // Measure the clamp only while clamped — once expanded, scrollHeight equals
   // clientHeight and would read as "fits", hiding the Show less toggle.
@@ -174,6 +181,9 @@ function UserBubble({
         <MessageParts parts={message.parts} />
       </div>
       <div className="flex items-center gap-0.5">
+        <span className="text-muted-foreground/70 mt-1 text-xs opacity-0 transition-opacity group-hover/message:opacity-100 pointer-coarse:opacity-100">
+          {sentLabel}
+        </span>
         {(overflowing || expanded) && (
           <Button
             size="sm"

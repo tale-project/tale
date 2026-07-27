@@ -918,6 +918,19 @@ chat:
   archived:
     title: Archived
     empty: No archived chats
+  markAsRead: Mark as read
+  export:
+    button: Export
+    title: Export chat
+    description: Select messages and download in your preferred format.
+    selectAll: Select all
+    deselectAll: Deselect all
+    messagesCount: '{count, plural, one {# of {total} message selected} other {# of {total} messages selected}}'
+    downloadPdf: Print to PDF
+    downloadMarkdown: Download Markdown
+    noMessages: No messages to export
+    you: You
+    assistant: Assistant
   moveToProject: Move to project…
   removeFromProject: Remove from project
   removeFromProjectFailed: Failed to remove chat from project

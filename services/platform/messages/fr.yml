@@ -961,6 +961,19 @@ chat:
   archived:
     title: Archivés
     empty: Aucune conversation archivée
+  markAsRead: Marquer comme lu
+  export:
+    button: Exporter
+    title: Exporter le chat
+    description: Sélectionne les messages et télécharge-les dans le format de ton choix.
+    selectAll: Tout sélectionner
+    deselectAll: Tout désélectionner
+    messagesCount: '{count, plural, one {# sur {total} message sélectionné} other {# sur {total} messages sélectionnés}}'
+    downloadPdf: Imprimer en PDF
+    downloadMarkdown: Télécharger en Markdown
+    noMessages: Aucun message à exporter
+    you: Toi
+    assistant: Assistant
   moveToProject: Déplacer vers un projet…
   removeFromProject: Retirer du projet
   removeFromProjectFailed: Échec du retrait du chat du projet

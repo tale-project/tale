@@ -4,11 +4,11 @@ import {
   SearchCommand,
   type SearchCommandLabels,
   type SearchResult,
-  type SearchSource,
 } from '@tale/ui/search';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo } from 'react';
 
+import { createChatSearchSource } from '@/app/features/chat/data/chat-search-source';
 import { useIsMac } from '@/app/hooks/use-is-mac';
 import { useT } from '@/lib/i18n/client';
 
@@ -17,15 +17,6 @@ import { useSidebar } from './sidebar-context';
 export interface SidebarSearchCommandProps {
   organizationId: string;
 }
-
-// Chat search is offline while the chat backend is rebuilt: the palette keeps
-// its shell-level ⌘K binding and chrome, but the source returns no results for
-// any query (the palette shows its "no results" empty state). The real
-// threads-backed source returns together with the chat rebuild.
-const emptySearchSource: SearchSource = () => ({
-  results: [],
-  status: 'ready',
-});
 
 /**
  * The shell-level chat-search palette: the shared `@tale/ui` SearchCommand
@@ -39,6 +30,13 @@ export function SidebarSearchCommand({
   const navigate = useNavigate();
   const isMac = useIsMac();
   const { t: tDialogs } = useT('dialogs');
+
+  // Memoised so the hook-shaped source keeps ONE identity per org — the
+  // SearchCommand calls it every render and its inner hooks must keep order.
+  const chatSearchSource = useMemo(
+    () => createChatSearchSource({ organizationId }),
+    [organizationId],
+  );
 
   // Chat-specific copy comes from the `dialogs.searchChat` keys; the rest of
   // the chrome resolves from the shared `search` namespace.
@@ -79,11 +77,11 @@ export function SidebarSearchCommand({
     <SearchCommand
       open={isSearchOpen}
       onOpenChange={setSearchOpen}
-      source={emptySearchSource}
+      source={chatSearchSource}
       labels={searchLabels}
       getGroupLabel={(key) => key}
       recentsStorageKey="tale.platform.chat.recentSearches.v1"
-      minQueryLength={1}
+      minQueryLength={2}
       onSelect={handleSelectThread}
     />
   );

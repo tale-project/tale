@@ -100,7 +100,7 @@ const liveResultCache = new Map<string, unknown>();
  * closed — for a read that has no argument to run on yet, like a thread view
  * with no thread selected.
  */
-function useChatQuery<Ref extends FunctionReference<'query'>>(
+export function useChatQuery<Ref extends FunctionReference<'query'>>(
   fnRef: Ref,
   args: FunctionArgs<Ref> | 'skip',
   options?: { readonly cache?: boolean },

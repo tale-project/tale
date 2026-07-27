@@ -22,6 +22,7 @@ import {
   Archive,
   ArchiveRestore,
   Boxes,
+  CheckCheck,
   FolderInput,
   FolderMinus,
   Link2,
@@ -39,6 +40,7 @@ import {
   useSubPanelRowTreatment,
 } from '@/app/components/layout/sub-panel-list';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useCopy } from '@/app/hooks/use-copy';
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { toast } from '@/app/hooks/use-toast';
@@ -111,6 +113,21 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
           )}
           {...(treatment.style !== undefined ? { style: treatment.style } : {})}
         >
+          {/* The leading state dot: blue while a reply streams, green for a
+              finished reply not yet read, nothing otherwise. */}
+          {thread.generating ? (
+            <span
+              role="status"
+              aria-label={t('history.generating')}
+              className="bg-info size-2 shrink-0 animate-pulse rounded-full motion-reduce:animate-none"
+            />
+          ) : hasNewResponse ? (
+            <span
+              role="status"
+              aria-label={t('newResponse')}
+              className="bg-success size-2 shrink-0 rounded-full"
+            />
+          ) : null}
           {thread.kind === 'sandbox' && (
             <Boxes
               aria-label={t('sandbox.label')}
@@ -126,25 +143,13 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
           <span className="truncate leading-snug">
             {thread.title ?? t('history.untitled')}
           </span>
-          {hasNewResponse && (
-            <span
-              role="status"
-              aria-label={t('newResponse')}
-              className="bg-primary size-1.5 shrink-0 rounded-full"
-            />
-          )}
-          {thread.generating ? (
-            <span className="text-muted-foreground ml-auto shrink-0 text-xs">
-              {t('history.generating')}
+          {age !== null && (
+            // Hides on hover (desktop) — the actions menu lands on this edge
+            // and the age would show through it. Absent while streaming (the
+            // dot carries that state).
+            <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs tabular-nums md:group-hover:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
+              {age}
             </span>
-          ) : (
-            age !== null && (
-              // Hides on hover (desktop) — the actions menu lands on this
-              // edge and the age would show through it.
-              <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs tabular-nums md:group-hover:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
-                {age}
-              </span>
-            )
           )}
         </Link>
       )}
@@ -411,8 +416,8 @@ function ThreadRowMenu({
               icon: ArchiveRestore,
               onClick: () => handleSetArchived(false),
             },
+            ...deleteGroup,
           ],
-          deleteGroup,
         ]
       : [
           ...heldNotice,
@@ -426,6 +431,12 @@ function ThreadRowMenu({
             },
             {
               type: 'item',
+              label: t('markAsRead'),
+              icon: CheckCheck,
+              onClick: () => actions.markRead(thread.id),
+            },
+            {
+              type: 'item',
               label: t('history.renameChat'),
               icon: Pencil,
               onClick: onStartRename,
@@ -436,9 +447,22 @@ function ThreadRowMenu({
               icon: FolderInput,
               items: [
                 [
+                  // The project rows read like the folder list itself —
+                  // avatar + name, the current home checked.
                   ...projects.map((project) => ({
                     type: 'item' as const,
-                    label: project.name,
+                    label: (
+                      <span className="flex min-w-0 items-center gap-2">
+                        <ProjectAvatar
+                          name={project.name}
+                          icon={project.icon}
+                          color={project.color}
+                          size={16}
+                          variant="plain"
+                        />
+                        <span className="truncate">{project.name}</span>
+                      </span>
+                    ),
                     selected: project.id === thread.projectId,
                     onClick: () => handleMoveToProject(project.id),
                   })),
@@ -454,13 +478,6 @@ function ThreadRowMenu({
                     : []),
                 ],
               ],
-            },
-            {
-              type: 'item',
-              label: t('archive'),
-              icon: Archive,
-              disabled: held,
-              onClick: () => handleSetArchived(true),
             },
           ],
           [
@@ -481,7 +498,16 @@ function ThreadRowMenu({
                 ]
               : []),
           ],
-          deleteGroup,
+          [
+            {
+              type: 'item',
+              label: t('archive'),
+              icon: Archive,
+              disabled: held,
+              onClick: () => handleSetArchived(true),
+            },
+            ...deleteGroup,
+          ],
         ];
 
   return (

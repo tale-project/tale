@@ -21,15 +21,25 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Cpu, PanelLeftClose, PanelLeftOpen, PlugZap } from 'lucide-react';
+import {
+  Cpu,
+  Download,
+  Ellipsis,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PlugZap,
+  Share2,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
 import { SkillLibraryDialog } from '@/app/features/skills/components/skill-library-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useCopy } from '@/app/hooks/use-copy';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -51,6 +61,7 @@ import {
   useThreadFeedback,
 } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
+import { useThreadSharing } from '../data/thread-sharing';
 import {
   forkGroupsForPath,
   forkKey,
@@ -70,6 +81,7 @@ import {
   withDefaultModel,
 } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
+import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
 import { MessageThread } from './message-thread';
 import { ThreadList } from './thread-list';
@@ -164,6 +176,24 @@ export function ChatSurface({
 
   const [selection, setSelection] = useState(NO_SELECTION);
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+
+  // The header's Share mirrors the row menu: publish (or refresh) the
+  // snapshot link and put the URL on the clipboard in one gesture.
+  const sharing = useThreadSharing(organizationId);
+  const { copy } = useCopy();
+  const handleHeaderShare = async () => {
+    if (threadId === undefined) return;
+    const shareToken = await sharing.share(threadId);
+    if (!shareToken) {
+      toast({ title: t('share.shareFailed'), variant: 'destructive' });
+      return;
+    }
+    const url = `${window.location.origin}/dashboard/${organizationId}/chat/shared/${shareToken}`;
+    if (await copy(url)) {
+      toast({ title: t('share.copied') });
+    }
+  };
 
   // Chat sub-panel (thread list) visibility on desktop, toggled from the
   // conversation column. Org-scoped, NOT user-scoped, on purpose: the
@@ -597,6 +627,41 @@ export function ChatSurface({
                 <PanelLeftOpen className="text-muted-foreground size-5 p-0.25" />
               )}
             </Button>
+            <div className="min-w-0 flex-1" />
+            {threadId !== undefined && (
+              <div className="pointer-events-auto flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  onClick={() => void handleHeaderShare()}
+                  className="text-muted-foreground gap-1.5"
+                >
+                  <Share2 aria-hidden className="size-4" />
+                  {t('share.button')}
+                </Button>
+                <DropdownMenu
+                  align="end"
+                  trigger={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t('moreActions')}
+                    >
+                      <Ellipsis className="text-muted-foreground size-5 p-0.25" />
+                    </Button>
+                  }
+                  items={[
+                    [
+                      {
+                        type: 'item',
+                        label: t('export.button'),
+                        icon: Download,
+                        onClick: () => setExportOpen(true),
+                      },
+                    ],
+                  ]}
+                />
+              </div>
+            )}
           </div>
         </div>
         {messagesAvailable ? (
@@ -739,6 +804,18 @@ export function ChatSurface({
           organizationId={organizationId}
           open={skillLibraryOpen}
           onOpenChange={setSkillLibraryOpen}
+        />
+      )}
+
+      {/* Same on-demand mounting; exports read the view thread — the sibling
+          actually on screen. */}
+      {exportOpen && viewThreadId !== undefined && (
+        <ExportChatDialog
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          organizationId={organizationId}
+          threadId={viewThreadId}
+          threadTitle={activeThread?.title}
         />
       )}
 
