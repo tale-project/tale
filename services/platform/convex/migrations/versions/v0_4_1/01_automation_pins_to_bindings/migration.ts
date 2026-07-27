@@ -74,7 +74,10 @@ export const migration = defineDbMigration({
         boundBy: 'migration:automation_pins_to_bindings',
       });
     }
-    await ctx.db.patch(doc._id, { projectId: undefined });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the runner paginates `table`, so the doc is an automations row
+    await ctx.db.patch(doc._id as GenericId<'automations'>, {
+      projectId: undefined,
+    });
   },
 
   async down(ctx, doc) {
@@ -100,6 +103,7 @@ export const migration = defineDbMigration({
       if (row.projectId === boundProject) continue;
       await ctx.db.patch(row._id, { projectId: boundProject });
     }
-    await ctx.db.delete(doc._id);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the runner paginates `downTable`, so the doc is a binding row
+    await ctx.db.delete(doc._id as GenericId<'automationProjectBindings'>);
   },
 });
