@@ -7,10 +7,24 @@
 // V8-safe: node/reference migrations contribute inline meta literals only —
 // their handler modules ('use node' / test-only) are never imported here.
 
+import { composeDb } from './compose';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
+import { migration as m0_4_1_01 } from '../versions/v0_4_1/01_automation_pins_to_bindings/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
 export const ALL_META: readonly MigrationMeta[] = [
+  {
+    id: "0.4.1/01_automation_pins_to_bindings",
+    semver: "0.4.1",
+    numericId: 1,
+    slug: "automation_pins_to_bindings",
+    title: "Move automation project pins into binding rows",
+    description: "up inserts one automationProjectBindings row per pinned automation name and clears the deprecated automations.projectId scalar on every version row; down walks the populated bindings table, restores the scalar pin onto every version row of each bound name, and deletes the binding rows.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -26,6 +40,7 @@ export function requireMeta(id: string): MigrationMeta {
 
 /** Runnable `db` migrations, keyed by meta.id. */
 export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
+  "0.4.1/01_automation_pins_to_bindings": composeDb(requireMeta("0.4.1/01_automation_pins_to_bindings"), m0_4_1_01),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

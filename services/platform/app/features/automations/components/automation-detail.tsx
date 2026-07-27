@@ -43,6 +43,7 @@ import { buildGraph } from '../lib/graph';
 import { nodeStatusMap, projectRun } from '../lib/run-view';
 import { AutomationCanvas } from './automation-canvas';
 import { NodeInspector } from './node-inspector';
+import { ProjectBindingsSection } from './project-bindings-section';
 import { RunList } from './run-list';
 import { TriggerEditor } from './trigger-editor';
 import { VersionList } from './version-list';
@@ -304,8 +305,9 @@ export function AutomationDetail({
         organizationId,
         automation,
         ...(saveMessage !== '' && { message: saveMessage }),
-        // Pins a NEW automation to this project; an existing one
-        // keeps its owner (the store refuses a mismatch).
+        // Binds a NEW automation to this project on its first save; an
+        // existing one keeps its bindings (membership is managed in the
+        // Projects panel, never moved by saving a version).
         ...(projectId !== undefined && { projectId }),
       });
       pendingSaveRef.current = null;
@@ -476,6 +478,12 @@ export function AutomationDetail({
         </div>
 
         <TriggerEditor
+          organizationId={organizationId}
+          name={automationSlug}
+          canEdit={canAuthor}
+        />
+
+        <ProjectBindingsSection
           organizationId={organizationId}
           name={automationSlug}
           canEdit={canAuthor}

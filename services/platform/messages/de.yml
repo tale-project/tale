@@ -802,6 +802,20 @@ automations:
       forEachDescription: Läuft einmal pro Element des Arrays, das der Ausdruck ergibt.
       repeatUntil: Wiederholen bis
       repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
+  bindings:
+    title: Projekte
+    orgBadge: Organisationsweit
+    countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
+    hint: Die Projekte, deren Task-Boards diese Automatisierung sehen. Ohne
+      Auswahl gilt sie für die ganze Organisation; mit Auswahl erscheint sie
+      genau in diesen Projekten. Ein Projekt lässt sich nicht löschen, solange
+      eine Automatisierung daran gebunden ist.
+    placeholder: Organisationsweit — keine Projekte ausgewählt
+    searchPlaceholder: Projekte durchsuchen…
+    empty: Keine passenden Projekte
+    noProjects: Diese Organisation hat noch keine Projekte.
+    save: Projekte speichern
+    nothingToSave: Keine Änderungen zu speichern
   versions:
     title: Versionen
     empty: Es wurde noch keine Version gespeichert.
@@ -829,7 +843,7 @@ automations:
     removeFile: '{name} entfernen'
     targetLabel: Installieren in
     targetOrg: Organisation
-    targetHelp: Der erste Upload bindet die Automatisierung dauerhaft an diese Oberfläche — eine Organisations-Automatisierung bleibt auf der Org-Seite, eine Projekt-Automatisierung lebt im Automations-Tab des Projekts.
+    targetHelp: Installieren in ein Projekt bindet die Automatisierung an dieses Projekt — im Bereich Projekte auf ihrer Seite fügst du jederzeit Projekte hinzu oder entfernst sie. Organisation installiert sie organisationsweit, sichtbar auf dem Task-Board jedes Projekts.
     submit: Hochladen
     submitting: Validieren und speichern…
     uploaded: '{name} v{version} hochgeladen — deploye sie, wenn du bereit bist.'
@@ -7627,11 +7641,10 @@ projects:
     ORG_FORBIDDEN: Diese Ressource gehört einer anderen Organisation.
     THREAD_NO_ORG: Dieser Chat ist noch keiner Organisation zugeordnet.
     PROJECT_HAS_BOUND_AUTOMATIONS:
-      Deinstalliere zuerst die Automatisierungen, die
-      dieses Projekt nutzen, dann lösche es.
-    PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Deinstalliere zuerst die
-      Automatisierungen, die dieses Projekt nutzen, dann lösche es:
-      {automations}.'
+      Entferne dieses Projekt zuerst aus den Automatisierungen, an die es
+      gebunden ist, dann lösche es.
+    PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Entferne dieses Projekt zuerst aus
+      diesen Automatisierungen, dann lösche es: {automations}.'
   sharing:
     effectiveAudience: Tatsächliche Reichweite
     noTeamsHint: Noch keine Teams.

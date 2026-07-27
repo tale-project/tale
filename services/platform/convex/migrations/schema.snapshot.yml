@@ -500,6 +500,28 @@ tables:
       ft:
         type: number
       optional: false
+  automationProjectBindings:
+    automationName:
+      ft:
+        type: string
+      optional: false
+    boundAt:
+      ft:
+        type: number
+      optional: false
+    boundBy:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: false
   automationRuns:
     checkpoints:
       ft:
@@ -679,6 +701,24 @@ tables:
     updatedAt:
       ft:
         type: number
+      optional: false
+  automationUploadIntents:
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    storageId:
+      ft:
+        tableName: _storage
+        type: id
+      optional: false
+    userId:
+      ft:
+        type: string
       optional: false
   backendControl:
     drainExpiresAt:

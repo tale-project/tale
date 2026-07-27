@@ -800,6 +800,20 @@ automations:
       forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
       repeatUntil: Répéter jusqu’à
       repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
+  bindings:
+    title: Projets
+    orgBadge: Toute l’organisation
+    countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
+    hint: Les projets dont les boards de tâches voient cette automatisation.
+      Sans sélection, elle sert toute l’organisation ; avec une sélection,
+      elle apparaît exactement dans ces projets. Un projet ne peut pas être
+      supprimé tant qu’une automatisation y est liée.
+    placeholder: Toute l’organisation — aucun projet sélectionné
+    searchPlaceholder: Rechercher des projets…
+    empty: Aucun projet ne correspond
+    noProjects: Cette organisation n’a pas encore de projets.
+    save: Enregistrer les projets
+    nothingToSave: Aucune modification à enregistrer
   versions:
     title: Versions
     empty: Aucune version n’a encore été enregistrée.
@@ -827,7 +841,7 @@ automations:
     removeFile: 'Retirer {name}'
     targetLabel: Installer dans
     targetOrg: Organisation
-    targetHelp: "Le premier téléversement lie définitivement l'automatisation à cette surface — une automatisation d'organisation reste sur la page de l'org, une automatisation de projet vit dans l'onglet Automatisations du projet."
+    targetHelp: Installer dans un projet lie l’automatisation à ce projet — tu ajoutes ou retires des projets à tout moment dans le panneau Projets de sa page. Organisation l’installe pour toute l’organisation, visible sur le board de tâches de chaque projet.
     submit: Téléverser
     submitting: Validation et enregistrement…
     uploaded: '{name} v{version} téléversé — déploie-la quand tu es prêt.'
@@ -7716,11 +7730,9 @@ projects:
     THREAD_NOT_IN_PROJECT: Ce chat n'est dans aucun projet.
     ORG_FORBIDDEN: Cette ressource appartient à une autre organisation.
     THREAD_NO_ORG: Ce chat n'est pas encore lié à une organisation.
-    PROJECT_HAS_BOUND_AUTOMATIONS: Désinstallez d'abord les automatisations qui
-      utilisent ce projet, puis supprimez-le.
-    PROJECT_HAS_BOUND_AUTOMATIONS_NAMED:
-      "Désinstallez d'abord les automatisations
-      qui utilisent ce projet, puis supprimez-le : {automations}."
+    PROJECT_HAS_BOUND_AUTOMATIONS: Retire d’abord ce projet des automatisations
+      qui y sont liées, puis supprime-le.
+    PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Retire d’abord ce projet de ces automatisations, puis supprime-le : {automations}.'
   sharing:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.

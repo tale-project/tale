@@ -484,9 +484,13 @@ export const restListAutomations = internalQuery({
     return {
       page: slice.map((entry) => {
         const deployedVersion = live.get(entry.name);
-        return deployedVersion === undefined
-          ? entry
-          : { ...entry, deployedVersion };
+        // Name + latest only: project membership stays a dashboard concern
+        // until the REST shape grows a documented field for it.
+        return {
+          name: entry.name,
+          latest: entry.latest,
+          ...(deployedVersion !== undefined && { deployedVersion }),
+        };
       }),
       isDone,
       continueCursor: isDone ? '' : (slice[slice.length - 1]?.name ?? ''),

@@ -1598,6 +1598,31 @@ export const restoreProject = mutation({
 // ---------------------------------------------------------------------------
 
 /**
+ * An automation bound to the project blocks its delete — in BOTH modes: a
+ * binding row must never dangle, and cascade silently dropping the last
+ * binding would rescope the automation to org-wide (every project's task
+ * board would suddenly see it). The error names the automations so the
+ * operator knows what to unbind first (the automation page's Projects panel).
+ */
+export async function assertNoBoundAutomations(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+): Promise<void> {
+  const bindings = await ctx.db
+    .query('automationProjectBindings')
+    .withIndex('by_project', (q) => q.eq('projectId', projectId))
+    .collect();
+  if (bindings.length === 0) return;
+  const automations = [
+    ...new Set(bindings.map((row) => row.automationName)),
+  ].sort();
+  throw new ConvexError({
+    code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
+    automations,
+  });
+}
+
+/**
  * Delete a project.
  *
  * Two modes:
@@ -1633,11 +1658,7 @@ export const deleteProject = mutation({
     assertReadable(project, auth);
     assertAdmin(auth);
 
-    // The PROJECT_HAS_BOUND_AUTOMATIONS guard lived here: it blocked the
-    // delete while `automationProjectBindings` rows referenced this project.
-    // The 0.4 baseline reset dropped that app-install bookkeeping (those
-    // tables can never hold a row again), so the guard is gone; a rebuilt
-    // app-install model must bring its own project-deletion guard.
+    await assertNoBoundAutomations(ctx, args.projectId);
 
     if (args.mode === 'cascade') {
       // H1: case-insensitive compare so "Q2 Sales" vs stored "Q2 sales"

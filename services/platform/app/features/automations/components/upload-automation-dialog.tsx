@@ -43,11 +43,11 @@ interface SkillReport {
  * upload, and a slug that would overwrite a differing existing bundle comes
  * back as a confirmation round-trip before anything is written.
  *
- * Binding is the store's install semantics: the first save pins the
- * automation name to the chosen surface for good, so the destination is
- * picked HERE, not moved later. The server validates the document with the
- * engine before anything is stored; the uploaded version stays a draft behind
- * the normal deploy gate.
+ * The destination is an install target, not a pin: a project choice binds the
+ * automation to that project (additively for an existing name), and the
+ * automation page's Projects panel manages the set afterwards. The server
+ * validates the document with the engine before anything is stored; the
+ * uploaded version stays a draft behind the normal deploy gate.
  *
  * Controlled: the trigger lives in the list header's create menu, alongside
  * the builder lane's.

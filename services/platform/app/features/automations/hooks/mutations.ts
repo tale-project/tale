@@ -69,6 +69,14 @@ export function useDeleteAutomationTrigger() {
   });
 }
 
+/** Reconcile the automation's project bindings to exactly the given set —
+ * empty makes it org-level. */
+export function useSetAutomationProjects() {
+  return useConvexMutation(api.automations.mutations.setAutomationProjects, {
+    errorToast: false,
+  });
+}
+
 /**
  * Run one authoring session from a goal. An ACTION, not a mutation — a
  * session spans minutes of model turns. TanStack's mutation state carries the

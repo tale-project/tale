@@ -39,7 +39,7 @@ Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automat
 - **Die Dateien** — `workflow.yml`, plus `automation.yml`, wenn das Pack eine mitbringt. Richtig für ein Pack, das nur aus seinem Dokument besteht.
 - **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Markdown-Notizen außerhalb von `skills/` — etwa ein README — ignoriert der Upload; zippe das Verzeichnis also, wie es ist. Die Zip bleibt unter 20 MiB.
 
-Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisation oder ein Projekt: Der erste Upload bindet sie dauerhaft an diese Oberfläche.
+Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisation oder ein Projekt. Die Wahl ist nicht endgültig: Die Installation in ein Projekt bindet die Automatisierung daran, und im Bereich **Projekte** auf ihrer Seite verwaltest du die Bindungen später — binde weitere Projekte oder entferne alle, dann gilt sie organisationsweit.
 
 <Frame caption="Ein Automatisierungs-Paket hochladen — die Dateien oder eine Zip, und die Oberfläche, an die die Automatisierung gebunden wird.">
 
@@ -49,7 +49,7 @@ Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisatio
 
 Der Server validiert, bevor irgendetwas gespeichert wird. Das Dokument durchläuft dieselbe Engine-Validierung wie im Editor — ein Upload, der nicht laufen würde, wird mit den Meldungen der Engine abgelehnt statt kaputt gespeichert — und der `subjects`-Block des Manifests wird zum Task-Vertrag der Automatisierung, genau wie ein Save vom Canvas ihn setzen würde. Was landet, ist eine **Entwurfsversion** hinter dem normalen Deploy-Gate: Kein Trigger läuft, bevor du sie auf der Seite der Automatisierung deployst.
 
-Lädst du das Pack einer bestehenden Automatisierung erneut hoch, entsteht die nächste Version — der Store überschreibt nie Geschichte, jede frühere Version bleibt exakt, wo sie war.
+Lädst du das Pack einer bestehenden Automatisierung erneut hoch, entsteht die nächste Version — der Store überschreibt nie Geschichte, jede frühere Version bleibt exakt, wo sie war. Wählst du dabei ein Projekt als Ziel, kommt dessen Bindung zu den bestehenden hinzu.
 
 ## Skills, die das Paket mitbringt
 

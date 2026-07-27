@@ -275,8 +275,9 @@ async function planSkillWrites(
 export const uploadAutomation = action({
   args: {
     organizationId: v.string(),
-    /** Bind a NEW automation to this project (the store pins the name to it
-     * forever); absent = org-level. */
+    /** Install target: bind the automation to this project (idempotent —
+     * a new name binds on first save, an existing one gains the binding).
+     * Absent = no binding change; a brand-new name then lands org-level. */
     projectId: v.optional(v.id('projects')),
     /** Text lane: the package's text files, as picked in the dialog. */
     files: v.optional(
@@ -362,6 +363,16 @@ export const uploadAutomation = action({
           ...(taskContract !== undefined ? { taskContract } : {}),
         },
       );
+      // Installing an EXISTING automation into a project adds the binding
+      // (idempotent; the first save of a new name already bound it).
+      if (args.projectId !== undefined) {
+        await ctx.runMutation(internal.automations.mutations.storeBindProject, {
+          organizationId: args.organizationId,
+          actor: auth.userId,
+          automationName: saved.name,
+          projectId: args.projectId,
+        });
+      }
       return { ok: true, ...saved, warnings, skills: [] };
     }
 
@@ -489,6 +500,16 @@ export const uploadAutomation = action({
           ...(taskContract !== undefined ? { taskContract } : {}),
         },
       );
+      // Installing an EXISTING automation into a project adds the binding
+      // (idempotent; the first save of a new name already bound it).
+      if (args.projectId !== undefined) {
+        await ctx.runMutation(internal.automations.mutations.storeBindProject, {
+          organizationId: args.organizationId,
+          actor: auth.userId,
+          automationName: saved.name,
+          projectId: args.projectId,
+        });
+      }
       return {
         ok: true,
         ...saved,

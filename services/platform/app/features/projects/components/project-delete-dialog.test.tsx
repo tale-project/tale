@@ -70,7 +70,7 @@ describe('ProjectDeleteDialog', () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         title:
-          'Uninstall the automations using this project first, then delete it: Invoices, CRM.',
+          'Remove this project from these automations first, then delete it: Invoices, CRM.',
         variant: 'destructive',
       }),
     );
@@ -92,7 +92,7 @@ describe('ProjectDeleteDialog', () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         title:
-          'Uninstall the automations using this project first, then delete it.',
+          'Remove this project from the automations bound to it first, then delete it.',
         variant: 'destructive',
       }),
     );
@@ -117,7 +117,7 @@ describe('ProjectDeleteDialog', () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         title:
-          'Uninstall the automations using this project first, then delete it.',
+          'Remove this project from the automations bound to it first, then delete it.',
         variant: 'destructive',
       }),
     );

@@ -9,7 +9,7 @@ This page is the hands-on half of automations: what you click, in what order, to
 
 Open **Automations** in the sidebar. The list shows every automation in the organization with how many versions it has and either the version that is live or **Not deployed** when it has none yet. Click one and you land on its page.
 
-That page is a single scrolling surface rather than a set of tabs. At the top sit the automation's name, the version you are looking at, the live version, and the run control. Below that is the canvas with a node panel beside it, then the save bar, and at the bottom the **Versions** and **Runs** lists side by side.
+That page is a single scrolling surface rather than a set of tabs. At the top sit the automation's name, the version you are looking at, the live version, and the run control. Below that is the canvas with a node panel beside it, then the save bar, the **Trigger** panel, and the **Projects** panel — which projects' task boards see the automation; none means the whole organization — and at the bottom the **Versions** and **Runs** lists side by side.
 
 ## Read the canvas
 

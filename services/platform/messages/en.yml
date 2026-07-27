@@ -762,6 +762,20 @@ automations:
       forEachDescription: Run once per item of the array the expression resolves to.
       repeatUntil: Repeat until
       repeatUntilDescription: Re-run this node until the expression is truthy.
+  bindings:
+    title: Projects
+    orgBadge: Organization-wide
+    countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
+    hint: The projects whose task boards see this automation. With none
+      selected it serves the whole organization; with a selection it appears
+      in exactly those projects. A project cannot be deleted while an
+      automation is still bound to it.
+    placeholder: Organization-wide — no projects selected
+    searchPlaceholder: Search projects…
+    empty: No projects match
+    noProjects: This organization has no projects yet.
+    save: Save projects
+    nothingToSave: No changes to save
   versions:
     title: Versions
     empty: No version has been saved yet.
@@ -789,7 +803,7 @@ automations:
     removeFile: 'Remove {name}'
     targetLabel: Install into
     targetOrg: Organization
-    targetHelp: The first upload pins the automation to this surface for good — an organization automation stays on the org page, a project automation lives on that project's Automations tab.
+    targetHelp: Installing into a project binds the automation to it — add or remove projects any time in the Projects panel on the automation's page. Organization installs it org-wide, visible to every project's task board.
     submit: Upload
     submitting: Validating and saving…
     uploaded: 'Uploaded {name} v{version} — deploy it when ready.'
@@ -4805,9 +4819,9 @@ projects:
     THREAD_NOT_FOUND: Chat not found.
     THREAD_NOT_IN_PROJECT: This chat isn't in a project.
     RATE_LIMITED: You're doing that too often. Try again in a moment.
-    PROJECT_HAS_BOUND_AUTOMATIONS: Uninstall the automations using this project first, then delete it.
-    PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Uninstall the automations using this
-      project first, then delete it: {automations}.'
+    PROJECT_HAS_BOUND_AUTOMATIONS: Remove this project from the automations bound to it first, then delete it.
+    PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Remove this project from these
+      automations first, then delete it: {automations}.'
   sharing:
     effectiveAudience: Effective audience
     noTeamsHint: No teams yet.

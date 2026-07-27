@@ -189,7 +189,14 @@ export function AutomationsList({
                   'deployedVersion' in automation
                     ? automation.deployedVersion
                     : undefined;
-                const rowProjectId = projectId ?? automation.projectId;
+                // A single-bound automation opens inside its project shell;
+                // org-level and multi-bound ones open the org detail page —
+                // there is no one project to route into.
+                const soleProjectId =
+                  automation.projectIds.length === 1
+                    ? automation.projectIds[0]
+                    : undefined;
+                const rowProjectId = projectId ?? soleProjectId;
                 const linkTarget = rowProjectId
                   ? {
                       to: '/dashboard/$id/projects/$projectId/automations/$automationSlug' as const,
@@ -216,12 +223,16 @@ export function AutomationsList({
                         {automation.name}
                       </span>
                       {projectId === undefined &&
-                        automation.projectId !== undefined && (
-                          <Badge variant="blue" icon={FolderKanban}>
-                            {projectNames.get(automation.projectId) ??
+                        automation.projectIds.map((boundProjectId) => (
+                          <Badge
+                            key={boundProjectId}
+                            variant="blue"
+                            icon={FolderKanban}
+                          >
+                            {projectNames.get(boundProjectId) ??
                               t('list.projectBound')}
                           </Badge>
-                        )}
+                        ))}
                       <Badge variant="slate">
                         {t('list.versionCount', { count: automation.latest })}
                       </Badge>

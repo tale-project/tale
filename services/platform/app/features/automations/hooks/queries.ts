@@ -94,6 +94,14 @@ export function useRunApproval(
   );
 }
 
+/** The projects one automation is bound to — empty means org-level. */
+export function useAutomationProjects(organizationId: string, name: string) {
+  return useConvexQuery(api.automations.queries.listAutomationProjects, {
+    organizationId,
+    name,
+  });
+}
+
 /** What starts one automation. */
 export function useAutomationTriggers(organizationId: string, name: string) {
   return useConvexQuery(api.automations.queries.listTriggers, {

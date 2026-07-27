@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { within } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -52,7 +53,12 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 let automationsData:
-  | Array<{ name: string; latest: number; deployedVersion?: number }>
+  | Array<{
+      name: string;
+      latest: number;
+      projectIds: string[];
+      deployedVersion?: number;
+    }>
   | undefined;
 vi.mock('../hooks/queries', () => ({
   useAutomations: () => ({
@@ -65,11 +71,13 @@ vi.mock('../hooks/queries', () => ({
 import { AutomationsList } from './automations-list';
 
 // The list serves two surfaces: the org page and a project's Automations tab.
-// These tests pin the link split — a project row must stay inside the project
-// shell, an org row on the org routes.
+// These tests pin the link split — a single-bound row stays inside its
+// project shell, org-level and multi-bound rows stay on the org routes.
 describe('AutomationsList link targets', () => {
   it('links an org-page row to the org automation route', () => {
-    automationsData = [{ name: 'org/digest', latest: 2, deployedVersion: 2 }];
+    automationsData = [
+      { name: 'org/digest', latest: 2, projectIds: [], deployedVersion: 2 },
+    ];
     render(<AutomationsList organizationId="org-1" />);
 
     const link = screen.getByRole('link', { name: /org\/digest/ });
@@ -80,7 +88,9 @@ describe('AutomationsList link targets', () => {
   });
 
   it('links a project-tab row into the project shell', () => {
-    automationsData = [{ name: 'desk/prepare-return', latest: 1 }];
+    automationsData = [
+      { name: 'desk/prepare-return', latest: 1, projectIds: [] },
+    ];
     render(
       <AutomationsList
         organizationId="org-1"
@@ -93,6 +103,41 @@ describe('AutomationsList link targets', () => {
       'href',
       '/dashboard/org-1/projects/proj_1/automations/desk__prepare-return',
     );
+  });
+
+  it('routes a single-bound org-page row into its project shell', () => {
+    automationsData = [
+      { name: 'desk/prepare-return', latest: 1, projectIds: ['proj_1'] },
+    ];
+    render(<AutomationsList organizationId="org-1" />);
+
+    const link = screen.getByRole('link', { name: /desk\/prepare-return/ });
+    expect(link).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/projects/proj_1/automations/desk__prepare-return',
+    );
+  });
+
+  it('keeps a multi-bound row on the org route and shows every project chip', () => {
+    automationsData = [
+      {
+        name: 'desk/prepare-return',
+        latest: 1,
+        projectIds: ['proj_1', 'proj_2'],
+      },
+    ];
+    render(<AutomationsList organizationId="org-1" />);
+
+    const link = screen.getByRole('link', { name: /desk\/prepare-return/ });
+    expect(link).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/automations/desk__prepare-return',
+    );
+    // No project names are loaded in this test, so both chips fall back to
+    // the generic label (the i18n mock echoes the key) — one per binding.
+    expect(
+      within(link).getAllByText('automations.list.projectBound'),
+    ).toHaveLength(2);
   });
 });
 

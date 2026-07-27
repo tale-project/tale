@@ -41,10 +41,12 @@ export interface AutomationStoreScope {
   organizationId: string;
   actor: Actor;
   /**
-   * Owning project for a NEW automation this store creates. Ownership is a
-   * property of the name: the first version pins it, later saves keep it,
-   * and a save that names a DIFFERENT project than the existing rows refuses
-   * rather than silently moving the automation between surfaces.
+   * Install target for a NEW automation this store creates: the first save
+   * also binds the name to this project (a row in
+   * `automationProjectBindings`), atomically with the version insert. Saves
+   * of an EXISTING name ignore it — project membership is managed explicitly
+   * (`setAutomationProjects`, the upload lane's install target), never moved
+   * as a side effect of saving a version.
    */
   projectId?: Id<'projects'>;
 }
@@ -189,53 +191,82 @@ export async function triggerRow(
     .unique();
 }
 
+/** One automation's project bindings. The binding set is the scope: empty
+ * means org-level, non-empty means exactly those projects. */
+export async function bindingsOf(
+  ctx: QueryCtx,
+  organizationId: string,
+  name: string,
+): Promise<Array<Doc<'automationProjectBindings'>>> {
+  return await ctx.db
+    .query('automationProjectBindings')
+    .withIndex('by_org_name_project', (q) =>
+      q.eq('organizationId', organizationId).eq('automationName', name),
+    )
+    .collect();
+}
+
+/**
+ * The single project an automation is bound to, when that is unambiguous —
+ * what a run started WITHOUT a project context (a trigger firing, a manual
+ * run) is attributed to. Multi-bound and org-level automations resolve to
+ * nothing: their runs belong to no one project unless the caller says so.
+ */
+export async function soleBindingProject(
+  ctx: QueryCtx,
+  organizationId: string,
+  name: string,
+): Promise<Id<'projects'> | undefined> {
+  const bindings = await bindingsOf(ctx, organizationId, name);
+  return bindings.length === 1 ? bindings[0]?.projectId : undefined;
+}
+
 /** The organization's automations with their latest version — `list()`'s data,
  * shared with the read surface so the two can never disagree. */
 export async function listAutomationsFor(
   ctx: QueryCtx,
   organizationId: string,
   /**
-   * Surface filter: an id lists ONE project's automations, `null` lists the
-   * org page's (project-less only), and `undefined` — the engine's view —
-   * lists everything, so subautomation resolution and the chat capability
-   * registry see project automations too.
+   * Surface filter: an id lists ONE project's automations (the names bound to
+   * it), `null` lists the org-level ones (no bindings), and `undefined` — the
+   * engine's view — lists everything, so subautomation resolution and the
+   * chat capability registry see project automations too.
    */
   projectId?: Id<'projects'> | null,
 ): Promise<
-  Array<{ name: string; latest: number; projectId?: Id<'projects'> }>
+  Array<{ name: string; latest: number; projectIds: Array<Id<'projects'>> }>
 > {
-  const rows =
-    projectId === undefined
-      ? await ctx.db
-          .query('automations')
-          .withIndex('by_org', (q) => q.eq('organizationId', organizationId))
-          .collect()
-      : await ctx.db
-          .query('automations')
-          .withIndex('by_org_project', (q) =>
-            q
-              .eq('organizationId', organizationId)
-              .eq('projectId', projectId ?? undefined),
-          )
-          .collect();
-  const latest = new Map<
-    string,
-    { latest: number; projectId?: Id<'projects'> }
-  >();
+  const rows = await ctx.db
+    .query('automations')
+    .withIndex('by_org', (q) => q.eq('organizationId', organizationId))
+    .collect();
+  const bindings = await ctx.db
+    .query('automationProjectBindings')
+    .withIndex('by_org_name_project', (q) =>
+      q.eq('organizationId', organizationId),
+    )
+    .collect();
+  const bound = new Map<string, Array<Id<'projects'>>>();
+  for (const binding of bindings) {
+    const list = bound.get(binding.automationName) ?? [];
+    list.push(binding.projectId);
+    bound.set(binding.automationName, list);
+  }
+  const latest = new Map<string, number>();
   for (const row of rows) {
-    const prev = latest.get(row.name)?.latest ?? 0;
-    latest.set(row.name, {
-      latest: Math.max(prev, row.version),
-      // The name→project pin is version-invariant, so any row's value works.
-      ...(row.projectId !== undefined ? { projectId: row.projectId } : {}),
-    });
+    latest.set(row.name, Math.max(latest.get(row.name) ?? 0, row.version));
   }
   return [...latest.entries()]
-    .map(([name, entry]) =>
-      entry.projectId === undefined
-        ? { name, latest: entry.latest }
-        : { name, latest: entry.latest, projectId: entry.projectId },
-    )
+    .map(([name, latestVersion]) => ({
+      name,
+      latest: latestVersion,
+      projectIds: bound.get(name) ?? [],
+    }))
+    .filter((entry) => {
+      if (projectId === undefined) return true;
+      if (projectId === null) return entry.projectIds.length === 0;
+      return entry.projectIds.includes(projectId);
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -249,7 +280,12 @@ export function automationReadStore(
   organizationId: string,
 ): StoreAdapter {
   return {
-    list: () => listAutomationsFor(ctx, organizationId),
+    // The adapter's contract is name+latest only — project membership is a
+    // surface concern the engine has no business seeing.
+    list: async () =>
+      (await listAutomationsFor(ctx, organizationId)).map(
+        ({ name, latest }) => ({ name, latest }),
+      ),
     async get(name, version) {
       const row = await versionRow(ctx, organizationId, name, version);
       if (!row) return null;
@@ -263,6 +299,92 @@ export function automationReadStore(
 }
 
 // ------------------------------------------------------------------ writes
+
+/**
+ * Bind one automation name to one project — idempotent, and transactional
+ * with whatever mutation hosts it (the first save's install intent, the
+ * upload lane's target, the reconcile mutation). Refuses a project that does
+ * not exist or lives in another organization, so a binding row is only ever
+ * a true statement.
+ */
+export async function bindAutomationToProject(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    automationName: string;
+    projectId: Id<'projects'>;
+    actor: Actor;
+  },
+): Promise<{ bound: boolean }> {
+  const project = await ctx.db.get(args.projectId);
+  if (!project || project.organizationId !== args.organizationId) {
+    throw new Error(
+      `cannot bind "${args.automationName}" — the project does not exist in this organization`,
+    );
+  }
+  const existing = await ctx.db
+    .query('automationProjectBindings')
+    .withIndex('by_org_name_project', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('automationName', args.automationName)
+        .eq('projectId', args.projectId),
+    )
+    .unique();
+  if (existing) return { bound: false };
+  await ctx.db.insert('automationProjectBindings', {
+    organizationId: args.organizationId,
+    automationName: args.automationName,
+    projectId: args.projectId,
+    boundAt: Date.now(),
+    boundBy: args.actor,
+  });
+  return { bound: true };
+}
+
+/**
+ * Reconcile one automation's binding set to exactly `projectIds` — the
+ * Projects panel saves the whole selection, so add and remove land in one
+ * transaction and two concurrent saves converge on one of the two complete
+ * selections rather than an interleaving. Empty = org-level. Refuses an
+ * unknown name: a binding must always point at a real automation.
+ */
+export async function reconcileAutomationProjects(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    actor: Actor;
+    name: string;
+    projectIds: ReadonlyArray<Id<'projects'>>;
+  },
+): Promise<{ bound: number; unbound: number }> {
+  const name = assertAutomationName(args.name);
+  const versions = await versionsOf(ctx, args.organizationId, name);
+  if (versions.length === 0) {
+    throw new Error(`"${name}" has no versions in this organization`);
+  }
+  const desired = new Set(args.projectIds);
+  const existing = await bindingsOf(ctx, args.organizationId, name);
+  const current = new Set(existing.map((row) => row.projectId));
+  let bound = 0;
+  let unbound = 0;
+  for (const row of existing) {
+    if (desired.has(row.projectId)) continue;
+    await ctx.db.delete(row._id);
+    unbound++;
+  }
+  for (const projectId of desired) {
+    if (current.has(projectId)) continue;
+    await bindAutomationToProject(ctx, {
+      organizationId: args.organizationId,
+      automationName: name,
+      projectId,
+      actor: args.actor,
+    });
+    bound++;
+  }
+  return { bound, unbound };
+}
 
 /**
  * The full store for one organization. `ctx` must be a mutation context: the
@@ -292,24 +414,10 @@ export function automationStore(
       const name = assertAutomationName(automation.name ?? '');
       const rows = await versionsOf(ctx, organizationId, name);
       const version = (rows.at(-1)?.version ?? 0) + 1;
-      // Ownership is pinned by the first version: later saves inherit it,
-      // and a caller naming a DIFFERENT project refuses — an automation
-      // never silently moves between the org page and a project tab.
-      const owner = rows.length > 0 ? rows[0].projectId : scope.projectId;
-      if (
-        rows.length > 0 &&
-        scope.projectId !== undefined &&
-        scope.projectId !== owner
-      ) {
-        throw new Error(
-          `"${name}" belongs to a different surface — it cannot be saved into another project`,
-        );
-      }
       await ctx.db.insert('automations', {
         organizationId,
         name,
         version,
-        ...(owner !== undefined && { projectId: owner }),
         document: automation,
         ...(message !== undefined && message !== '' && { message }),
         ...(options?.testsPassed !== undefined && {
@@ -321,6 +429,18 @@ export function automationStore(
         createdBy: actor,
         createdAt: Date.now(),
       });
+      // A NEW automation saved from a project surface starts bound to it —
+      // the install intent lands atomically with the first version. Later
+      // saves never touch bindings: membership is managed explicitly, so
+      // saving a version cannot move an automation between surfaces.
+      if (rows.length === 0 && scope.projectId !== undefined) {
+        await bindAutomationToProject(ctx, {
+          organizationId,
+          automationName: name,
+          projectId: scope.projectId,
+          actor,
+        });
+      }
       return { name, version };
     },
 
@@ -409,16 +529,15 @@ export function automationStore(
      */
     async recordRun(name, version, result, mode) {
       const now = Date.now();
-      // Denormalize the owning project from the version row so a project's
-      // run log never joins over names.
-      const versioned = await versionRow(ctx, organizationId, name, version);
+      // A one-piece run has no caller project context, so it is attributed
+      // to the automation's sole bound project when that is unambiguous —
+      // the same rule `beginRun` applies to trigger-started runs.
+      const soleProject = await soleBindingProject(ctx, organizationId, name);
       await ctx.db.insert('automationRuns', {
         organizationId,
         name,
         version,
-        ...(versioned?.projectId !== undefined && {
-          projectId: versioned.projectId,
-        }),
+        ...(soleProject !== undefined && { projectId: soleProject }),
         status: result.status === 'success' ? 'success' : 'failed',
         mode,
         startedBy: actor,

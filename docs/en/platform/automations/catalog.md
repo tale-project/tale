@@ -39,9 +39,9 @@ To upload one, open **Automations**, pick **Upload package** from the **New auto
 - **The files** — `workflow.yml`, plus `automation.yml` when the pack ships one. Right for a pack that is only its document.
 - **One `.zip` of the pack directory** — required when the pack carries skills, since only the zip can hold their folders. Markdown notes outside `skills/` — a README, a design record — are ignored, so zip the directory as it is; the zip stays under 20 MiB.
 
-Pick where the automation installs — the organization, or one project — before you submit: the first upload pins it to that surface for good.
+Pick where the automation installs — the organization, or one project — before you submit. The choice is not final: installing into a project binds the automation to it, and the **Projects** panel on the automation's page manages the whole set afterwards — bind more projects, or none to serve the whole organization.
 
-<Frame caption="Upload an automation package — the files or one zip, and the surface the automation is pinned to.">
+<Frame caption="Upload an automation package — the files or one zip, and the surface the automation installs into.">
 
 ![The upload package dialog with its file drop zone and the Install into picker set to Organization.](/images/platform/automations-upload-dialog.webp)
 
@@ -49,7 +49,7 @@ Pick where the automation installs — the organization, or one project — befo
 
 The server validates before anything is stored. The document runs through the same engine validation the editor uses — an upload that would not run is refused with the engine's own issues, not saved broken — and the manifest's `subjects` block becomes the automation's task contract, exactly as a save from the canvas would set it. What lands is a **draft version** behind the normal deploy gate: nothing triggers run until you deploy it from the automation's page.
 
-Uploading an existing automation's pack again appends the next version — the store never overwrites history, so every earlier version stays exactly where it was.
+Uploading an existing automation's pack again appends the next version — the store never overwrites history, so every earlier version stays exactly where it was. Choosing a project as the target also binds the existing automation to that project, on top of whatever projects it already serves.
 
 ## Skills the package carries
 

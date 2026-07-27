@@ -227,6 +227,24 @@ export async function seedWorldDb(
     createdBy: WORLD_USERS.alphaOwner,
     createdAt: T0 + 6_000,
   });
+  // A PROJECT-PINNED automation in the retired single-pin shape (the pin is
+  // stamped on every version row) — the 0.4.1 pins-to-bindings migration
+  // moves it into `automationProjectBindings`, so the chain exercises the
+  // real transform, its per-name dedupe, and the byte-identical restore.
+  for (const version of [1, 2]) {
+    await ctx.db.insert('automations', {
+      organizationId: alpha,
+      name: 'vat/return-desk',
+      version,
+      projectId: alphaProject,
+      document: {
+        version,
+        steps: [{ id: 'collect', kind: 'noop' }],
+      },
+      createdBy: WORLD_USERS.alphaOwner,
+      createdAt: T0 + 6_500 + version,
+    });
+  }
   await ctx.db.insert('automationDeployments', {
     organizationId: alpha,
     name: 'ops/daily-digest',

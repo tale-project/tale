@@ -9,7 +9,7 @@ Cette page est la moitié pratique des automatisations : ce que tu cliques, et d
 
 Ouvre **Automatisations** dans la barre latérale. La liste montre chaque automatisation de l’organisation avec son nombre de versions et soit la version en service, soit **Pas en service** tant qu’il n’y en a aucune. Clique sur l’une d’elles et tu arrives sur sa page.
 
-Cette page est une seule surface qui défile, pas une série d’onglets. En haut se trouvent le nom de l’automatisation, la version que tu regardes, celle qui est en service et le bouton de lancement. En dessous vient le canvas avec le panneau du nœud à côté, puis la barre d’enregistrement, et tout en bas les listes **Versions** et **Exécutions** côte à côte.
+Cette page est une seule surface qui défile, pas une série d’onglets. En haut se trouvent le nom de l’automatisation, la version que tu regardes, celle qui est en service et le bouton de lancement. En dessous vient le canvas avec le panneau du nœud à côté, puis la barre d’enregistrement, le panneau **Déclencheur** et le panneau **Projets** — les projets dont les boards de tâches voient l’automatisation ; aucun veut dire toute l’organisation — et tout en bas les listes **Versions** et **Exécutions** côte à côte.
 
 ## Lire le canvas
 

@@ -40,7 +40,10 @@ import type { StoredTrigger } from './store';
 import {
   assertAutomationName,
   automationStore,
+  bindAutomationToProject,
   deploymentRow,
+  reconcileAutomationProjects,
+  soleBindingProject,
   triggerRow,
   versionRow,
   versionsOf,
@@ -112,8 +115,9 @@ export const saveAutomation = mutation({
     automation: v.any(),
     message: v.optional(v.string()),
     testsPassed: v.optional(v.boolean()),
-    /** Owning project for a NEW automation; an existing name keeps its
-     * owner and refuses a mismatch (see the store's save). */
+    /** Install target for a NEW automation — the first save binds the name
+     * to this project. Saves of an existing name ignore it (membership is
+     * managed via `setAutomationProjects`). */
     projectId: v.optional(v.id('projects')),
     /** Task-surface contract for this version (see task_contract schema). */
     taskContract: v.optional(v.any()),
@@ -216,6 +220,36 @@ export const deleteTrigger = mutation({
     const row = await triggerRow(ctx, args.organizationId, args.name);
     if (row) await ctx.db.delete(row._id);
     return null;
+  },
+});
+
+/**
+ * Reconcile the automation's project bindings to exactly this set — the
+ * detail page's Projects panel saves the whole selection, so add and remove
+ * land in one transaction and two admins saving concurrently converge on one
+ * of the two complete selections rather than an interleaving. An empty set
+ * makes the automation org-level (every project's task board sees it);
+ * versions, deployment, triggers and run history are untouched either way.
+ */
+export const setAutomationProjects = mutation({
+  args: {
+    organizationId: v.string(),
+    name: v.string(),
+    projectIds: v.array(v.id('projects')),
+  },
+  returns: v.object({ bound: v.number(), unbound: v.number() }),
+  handler: async (ctx, args) => {
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    try {
+      return await reconcileAutomationProjects(ctx, {
+        organizationId: args.organizationId,
+        actor: auth.userId,
+        name: args.name,
+        projectIds: args.projectIds,
+      });
+    } catch (error) {
+      return asStoreError(error, 'AUTOMATION_BIND_REJECTED');
+    }
   },
 });
 
@@ -327,6 +361,14 @@ export interface BeginRunArgs {
   mode: 'mock' | 'live';
   /** What started it: a trigger row id, or `user:<id>` for a manual run. */
   startedBy: string;
+  /**
+   * The project context the run operates in — the task's project for a
+   * task-surface start. Absent, the run is attributed to the automation's
+   * sole bound project when that is unambiguous, and to no project otherwise
+   * (a trigger firing a multi-bound automation cannot know which project the
+   * run will end up serving).
+   */
+  projectId?: Id<'projects'>;
 }
 
 /**
@@ -349,13 +391,18 @@ export async function beginRun(
   const row = await versionRow(ctx, args.organizationId, args.name, version);
   if (!row) return null;
 
+  // The caller's project context wins (a task-surface run belongs to the
+  // TASK's project whatever the automation's own scope); without one, the
+  // sole bound project — when unambiguous — keeps trigger and manual runs
+  // attributed exactly as the single-surface model did.
+  const projectId =
+    args.projectId ??
+    (await soleBindingProject(ctx, args.organizationId, args.name));
   const runId = await ctx.db.insert('automationRuns', {
     organizationId: args.organizationId,
     name: args.name,
     version,
-    // Denormalized from the version row's owner: the run belongs to whatever
-    // surface the automation lives on, regardless of who started it.
-    ...(row.projectId !== undefined && { projectId: row.projectId }),
+    ...(projectId !== undefined && { projectId }),
     status: 'queued',
     mode: args.mode,
     startedBy: args.startedBy,
@@ -389,8 +436,9 @@ export const storeSave = internalMutation({
     automation: v.any(),
     message: v.optional(v.string()),
     testsPassed: v.optional(v.boolean()),
-    /** Owning project for a NEW automation; an existing name keeps its
-     * owner and refuses a mismatch (see the store's save). */
+    /** Install target for a NEW automation — the first save binds the name
+     * to this project. Saves of an existing name ignore it (membership is
+     * managed via `setAutomationProjects`). */
     projectId: v.optional(v.id('projects')),
     /** Task-surface contract for this version (see task_contract schema). */
     taskContract: v.optional(v.any()),
@@ -409,6 +457,30 @@ export const storeSave = internalMutation({
       ...(contract !== undefined && { taskContract: contract }),
     });
   },
+});
+
+/**
+ * Bind an automation to one more project on behalf of an action-side caller —
+ * the upload lane's "Install into" for a name that already exists (for a NEW
+ * name the first save binds atomically; this is then an idempotent no-op).
+ * Additive on purpose: installing into project B never unbinds project A —
+ * removal is `setAutomationProjects`' job.
+ */
+export const storeBindProject = internalMutation({
+  args: {
+    organizationId: v.string(),
+    actor: v.string(),
+    automationName: v.string(),
+    projectId: v.id('projects'),
+  },
+  returns: v.object({ bound: v.boolean() }),
+  handler: async (ctx, args) =>
+    await bindAutomationToProject(ctx, {
+      organizationId: args.organizationId,
+      automationName: args.automationName,
+      projectId: args.projectId,
+      actor: args.actor,
+    }),
 });
 
 /** Promote a version on behalf of an action-side caller. The store applies the
@@ -982,6 +1054,10 @@ export const startTaskWorkflowRun = internalMutation({
     organizationId: v.string(),
     name: v.string(),
     taskId: v.string(),
+    /** The task's project — the run is attributed to it whatever the
+     * automation's own scope, so the task modal's live-run lookup and the
+     * project run log see runs of org-level automations too. */
+    projectId: v.id('projects'),
     input: v.any(),
     startedBy: v.string(),
   },
@@ -1020,6 +1096,7 @@ export const startTaskWorkflowRun = internalMutation({
       input: args.input,
       mode: 'live',
       startedBy: args.startedBy,
+      projectId: args.projectId,
     });
     if (!started) return null;
     return { runId: started.runId };

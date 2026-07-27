@@ -39,7 +39,7 @@ Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet**
 - **Les fichiers** — `workflow.yml`, plus `automation.yml` si le pack en fournit un. Le bon choix pour un pack qui n’est que son document.
 - **Un seul `.zip` du dossier du pack** — obligatoire quand le pack embarque des skills, puisque seul le zip peut porter leurs dossiers. Les notes Markdown hors de `skills/` (un README, par exemple) sont ignorées, alors zippe le dossier tel quel. Le zip reste sous 20 MiB.
 
-Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet : le premier téléversement la lie définitivement à cette surface.
+Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet. Le choix n’est pas définitif : installer dans un projet lie l’automatisation à ce projet, et le panneau **Projets** de sa page gère l’ensemble ensuite — lie d’autres projets, ou aucun pour qu’elle serve toute l’organisation.
 
 <Frame caption="Téléverser un paquet d’automatisation — les fichiers ou un zip, et la surface à laquelle l’automatisation est liée.">
 
@@ -49,7 +49,7 @@ Choisis avant d’envoyer où l’automatisation s’installe — l’organisati
 
 Le serveur valide avant d’enregistrer quoi que ce soit. Le document passe par la même validation moteur que l’éditeur — un téléversement qui ne tournerait pas est refusé avec les messages du moteur, pas enregistré cassé — et le bloc `subjects` du manifeste devient le contrat de tâches de l’automatisation, exactement comme le ferait un enregistrement depuis le canvas. Ce qui atterrit est une **version brouillon** derrière la barrière de déploiement habituelle : aucun déclencheur ne tourne avant que tu la déploies depuis la page de l’automatisation.
 
-Téléverser à nouveau le pack d’une automatisation existante ajoute la version suivante — le store n’écrase jamais l’historique, chaque version antérieure reste exactement où elle était.
+Téléverser à nouveau le pack d’une automatisation existante ajoute la version suivante — le store n’écrase jamais l’historique, chaque version antérieure reste exactement où elle était. Choisir un projet comme cible lie aussi l’automatisation existante à ce projet, en plus de ceux qu’elle sert déjà.
 
 ## Les skills que le paquet embarque
 

@@ -28,6 +28,8 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { readCheckpoints } from './checkpoints';
 import {
+  automationReadStore,
+  bindingsOf,
   deploymentRow,
   listAutomationsFor,
   triggerRow,
@@ -133,10 +135,11 @@ function toTriggerView(row: Doc<'automationTriggers'>) {
 export const listAutomations = query({
   args: {
     organizationId: v.string(),
-    /** One project's automations; absent = the org page. */
+    /** One project's automations (the names bound to it); absent = the
+     * org-level ones. */
     projectId: v.optional(v.id('projects')),
-    /** Org page only: ALSO list project-pinned automations (each row carries
-     * its `projectId`) — the org Automations page is the single admin
+    /** Org page only: ALSO list project-bound automations (each row carries
+     * its `projectIds`) — the org Automations page is the single admin
      * surface now that project navigation has no Automations tab. */
     includeProjectBound: v.optional(v.boolean()),
   },
@@ -144,8 +147,8 @@ export const listAutomations = query({
     v.object({
       name: v.string(),
       latest: v.number(),
-      /** Set on project-pinned rows of the merged org listing. */
-      projectId: v.optional(v.id('projects')),
+      /** The projects the automation is bound to; empty = org-level. */
+      projectIds: v.array(v.id('projects')),
       deployedVersion: v.optional(v.number()),
       /** The DEPLOYED version's task-surface contract, when it carries one —
        * what the task board's choreography and badges consume. */
@@ -186,6 +189,18 @@ export const listAutomations = query({
       });
     }
     return out;
+  },
+});
+
+/** The projects one automation is bound to — the detail page's Projects
+ * panel reads this; empty means org-level. */
+export const listAutomationProjects = query({
+  args: { organizationId: v.string(), name: v.string() },
+  returns: v.array(v.id('projects')),
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.organizationId);
+    const bindings = await bindingsOf(ctx, args.organizationId, args.name);
+    return bindings.map((row) => row.projectId);
   },
 });
 
@@ -312,9 +327,11 @@ export const listRuns = query({
     organizationId: v.string(),
     name: v.optional(v.string()),
     limit: v.optional(v.number()),
-    /** A project's run log; absent = no project filter. With `name` set the
-     * name path is used (a name is unique per org, so it already implies the
-     * owner) and the filter only guards a mismatched deep link. */
+    /** A project's run log; absent = no project filter. Runs carry the
+     * project context they OPERATE in (a task's project, or the automation's
+     * sole binding), so one automation's runs may span projects — with
+     * `name` set the name path is scanned and this narrows it to the runs
+     * that served the named project. */
     projectId: v.optional(v.id('projects')),
   },
   returns: v.array(runSummaryValidator),
@@ -702,9 +719,9 @@ export const getOrgAutomationMetrics = query({
 // ---------------------------------------------------------------- internal
 
 /**
- * The project a run is pinned to, or `null` for an org-level automation.
- * Skill staging derives the run's viewer scope from this: a project-pinned
- * run reads team skills as its project, an org-level run as the org.
+ * The project context a run operates in, or `null` when it has none. Skill
+ * staging derives the run's viewer scope from this: a run attributed to a
+ * project reads team skills as that project, one without reads as the org.
  */
 export const getRunProjectId = internalQuery({
   args: { organizationId: v.string(), runId: v.id('automationRuns') },
@@ -808,7 +825,7 @@ export const storeList = internalQuery({
   args: { organizationId: v.string() },
   returns: v.array(v.object({ name: v.string(), latest: v.number() })),
   handler: async (ctx, args) =>
-    await listAutomationsFor(ctx, args.organizationId),
+    await automationReadStore(ctx, args.organizationId).list(),
 });
 
 /** One version's document — the LATEST when none is named, which is the

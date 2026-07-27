@@ -3,12 +3,13 @@ import { v } from 'convex/values';
 
 /**
  * The automation store — the Convex host behind the automation engine's
- * `DispatchStore`. Four tables, each answering one question:
+ * `DispatchStore`. Five tables, each answering one question:
  *
- *  - `automations`           — what versions exist (immutable history)
- *  - `automationDeployments` — which single version triggers run
- *  - `automationTriggers`    — what starts a run
- *  - `automationRuns`        — what happened, step by step
+ *  - `automations`                — what versions exist (immutable history)
+ *  - `automationProjectBindings`  — which project surfaces it belongs to
+ *  - `automationDeployments`      — which single version triggers run
+ *  - `automationTriggers`         — what starts a run
+ *  - `automationRuns`             — what happened, step by step
  *
  * The tables were minted under the engine's original workflow names and were
  * renamed to the automation noun before the store ever shipped a release, so
@@ -35,10 +36,11 @@ export const automationsTable = defineTable({
   /** 1-based, contiguous per (organization, name). */
   version: v.number(),
   /**
-   * Owning project, when the automation lives in a project's Automations tab
-   * rather than the org page. Ownership is a property of the NAME: every
-   * version of one automation carries the same value (the store enforces it),
-   * and the org listing shows only project-less rows.
+   * DEPRECATED — the retired single-pin owner. Project membership lives in
+   * `automationProjectBindings` now (one row per bound project); the
+   * pins-to-bindings migration moved every pin there and cleared this field,
+   * and nothing writes it since. It stays declared so pre-migration rows
+   * remain readable and the migration stays reversible.
    */
   projectId: v.optional(v.id('projects')),
   /** The v1 automation document as authored. */
@@ -60,6 +62,37 @@ export const automationsTable = defineTable({
   .index('by_org_name', ['organizationId', 'name'])
   .index('by_org_name_version', ['organizationId', 'name', 'version'])
   .index('by_org_project', ['organizationId', 'projectId']);
+
+/**
+ * One row per (organization, automation name, project): the automation's
+ * membership in a project's surface. The binding SET is the scope — an
+ * automation with no rows here is org-level (every project's task board sees
+ * it), one with rows is scoped to exactly those projects. Bindings belong to
+ * the NAME, not to a version: every version of an automation shares them, the
+ * same way deployments and triggers do. Rows are managed explicitly
+ * (`setAutomationProjects`, the upload lane's install target) — deleting a
+ * project refuses while bindings reference it, so a row never dangles and an
+ * automation is never silently rescoped to org-wide.
+ */
+export const automationProjectBindingsTable = defineTable({
+  organizationId: v.string(),
+  /** The automation's store name — bindings survive every version append. */
+  automationName: v.string(),
+  projectId: v.id('projects'),
+  boundAt: v.number(),
+  /** Who bound it — a user id, or a system marker (see `Actor`). */
+  boundBy: v.string(),
+})
+  // One project's automations (task-board surface, project-delete guard).
+  .index('by_project', ['projectId'])
+  // Prefix-queried three ways: all bindings of an org (listing), all bindings
+  // of one automation (scope resolution, reconcile), the exact row (idempotent
+  // bind/unbind).
+  .index('by_org_name_project', [
+    'organizationId',
+    'automationName',
+    'projectId',
+  ]);
 
 /**
  * The one live-eligible version per automation. Separate from `automations` so
@@ -153,8 +186,11 @@ export const automationRunsTable = defineTable({
   organizationId: v.string(),
   name: v.string(),
   version: v.number(),
-  /** Denormalized from the automation version's owner, so a project's run log
-   * is one index read — never a join over names. */
+  /** The project context the run operates in, stamped at start so a project's
+   * run log is one index read — never a join over names. A task-surface run
+   * carries the TASK's project whatever the automation's own scope; other
+   * starts carry the automation's sole bound project when that is unambiguous,
+   * and nothing otherwise. */
   projectId: v.optional(v.id('projects')),
   status: v.union(
     v.literal('queued'),

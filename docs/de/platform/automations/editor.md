@@ -9,7 +9,7 @@ Diese Seite ist die praktische Hälfte der Automatisierungen: was du klickst und
 
 Öffne **Automatisierungen** in der Seitenleiste. Die Liste zeigt jede Automatisierung der Organisation mit der Anzahl ihrer Versionen und entweder der Version, die live ist, oder **Nicht live**, solange es keine gibt. Klick eine an, und du landest auf ihrer Seite.
 
-Diese Seite ist eine einzige durchgehende Fläche statt einer Reihe von Tabs. Oben stehen der Name der Automatisierung, die Version, die du ansiehst, die Live-Version und die Schaltfläche zum Starten. Darunter liegt der Canvas mit dem Node-Panel daneben, dann die Speicherleiste und ganz unten die Listen **Versionen** und **Läufe** nebeneinander.
+Diese Seite ist eine einzige durchgehende Fläche statt einer Reihe von Tabs. Oben stehen der Name der Automatisierung, die Version, die du ansiehst, die Live-Version und die Schaltfläche zum Starten. Darunter liegt der Canvas mit dem Node-Panel daneben, dann die Speicherleiste, der Bereich **Trigger** und der Bereich **Projekte** — welche Projekt-Task-Boards die Automatisierung sehen; keiner heißt die ganze Organisation — und ganz unten die Listen **Versionen** und **Läufe** nebeneinander.
 
 ## Den Canvas lesen
 

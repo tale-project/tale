@@ -139,12 +139,11 @@ describe('projects error-code ↔ i18n key consistency', () => {
       // at the regex match position, and intentionally lives outside the
       // PROJECT_/DOCUMENT_/THREAD_ namespaces so the regex skips it.
       'RATE_LIMITED',
-      // Dormant since the 0.4 baseline reset dropped the
-      // `automationProjectBindings`/`automationInstallations` tables and with
-      // them `deleteProject`'s bound-automations guard. The delete dialog
-      // still handles both keys (generic + `{automations}`-named variant), so
-      // they stay for the rebuilt app-install model's project-deletion guard.
-      'PROJECT_HAS_BOUND_AUTOMATIONS',
+      // Client-side variant of PROJECT_HAS_BOUND_AUTOMATIONS (which
+      // `deleteProject`'s bound-automations guard throws): the dialog picks
+      // this `{automations}`-named message when the error data carries the
+      // automation names, so the key exists in en.yml but no Convex code
+      // throws it as a code.
       'PROJECT_HAS_BOUND_AUTOMATIONS_NAMED',
     ]);
 

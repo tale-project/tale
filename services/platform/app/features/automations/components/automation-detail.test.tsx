@@ -43,6 +43,12 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbilityLoading: () => false,
 }));
 
+// The Projects panel resolves project names through this hook; the page
+// under test needs no real projects.
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjects: () => ({ projects: [], isLoading: false }),
+}));
+
 vi.mock('../hooks/queries', () => ({
   useAutomation: () => ({
     data: { document: state.document, version: 3, deployedVersion: 2 },
@@ -66,6 +72,7 @@ vi.mock('../hooks/queries', () => ({
   }),
   useAutomationRuns: () => ({ data: [] }),
   useAutomationTriggers: () => ({ data: [] }),
+  useAutomationProjects: () => ({ data: [] }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
 }));
 
@@ -75,6 +82,7 @@ vi.mock('../hooks/mutations', () => ({
   useDeployAutomation: () => deploy,
   useSetAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetAutomationProjects: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 // The canvas is a React Flow viewport and jsdom performs no layout; the page

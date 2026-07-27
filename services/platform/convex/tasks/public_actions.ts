@@ -40,6 +40,10 @@ async function startWorkflowForTask(
         organizationId: args.organizationId,
         name: args.workflowSlug,
         taskId: String(args.task._id),
+        // The run operates THIS task, so it is attributed to the task's
+        // project — org-level automations included — which is what the task
+        // modal's live-run lookup and the project run log key on.
+        projectId: args.task.projectId,
         startedBy: `user:${args.startedByUserId}`,
         input: {
           task: {

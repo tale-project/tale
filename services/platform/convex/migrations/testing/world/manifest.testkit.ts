@@ -100,7 +100,11 @@ export const baselineDomains: string[] = [
  * registers itself here. `migrationLedger`/`migrationSnapshots` are
  * framework bookkeeping and never listed.
  */
-export const produces: Record<string, string[]> = {};
+export const produces: Record<string, string[]> = {
+  // pins-to-bindings mints the junction rows from the retired scalar pin —
+  // the table has no baseline seed because it did not exist at 0.4.0.
+  '0.4.1/01_automation_pins_to_bindings': ['automationProjectBindings'],
+};
 
 /**
  * Deliberate corpus properties worth naming (consumed by humans and the

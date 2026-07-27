@@ -24,6 +24,7 @@ import {
 } from './audit_logs/schema';
 import {
   automationDeploymentsTable,
+  automationProjectBindingsTable,
   automationRunsTable,
   automationsTable,
   automationTriggersTable,
@@ -148,6 +149,7 @@ export default defineSchema({
   // side effects. Tenant isolation: every row carries `organizationId` and
   // every read goes through a `by_org…` index. See `automations/schema.ts`.
   automations: automationsTable,
+  automationProjectBindings: automationProjectBindingsTable,
   automationDeployments: automationDeploymentsTable,
   automationTriggers: automationTriggersTable,
   automationRuns: automationRunsTable,
