@@ -857,6 +857,17 @@ automations:
       noneForNode: This node changed nothing outside the platform.
       byNode: 'from {node}'
       inputLabel: Called with
+  settings:
+    loading: Loading settings…
+    loadFailed: The settings could not be loaded — close the dialog and try again.
+    save: Save
+    saveAndContinue: Save and continue
+    saved: Settings saved.
+    saveFailed: The settings could not be saved — try again.
+    errors:
+      required: This field is required.
+      number: Enter a number.
+      pattern: This doesn't match the expected format.
 changelog:
   toast:
     title: Upgraded to v{version}
@@ -6863,6 +6874,11 @@ tasks:
     created: Task created — add its input files, then move it to In progress.
     exists: A task for this subject already exists.
     setupMissing: 'The {folder} folder is missing — create it in the project first.'
+    setupIntro: 'Set up {name} for this project first. These values are saved as
+      files in the {folder} folder, and every run reads them from there.'
+    settingsOpen: Settings
+    settingsTitle: '{name} — settings'
+    settingsBack: Back
   attachments:
     label: Attachments
     add: Add attachments

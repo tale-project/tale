@@ -47,7 +47,7 @@ Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisatio
 
 </Frame>
 
-Der Server validiert, bevor irgendetwas gespeichert wird. Das Dokument durchläuft dieselbe Engine-Validierung wie im Editor — ein Upload, der nicht laufen würde, wird mit den Meldungen der Engine abgelehnt statt kaputt gespeichert — und der `subjects`-Block des Manifests wird zum Task-Vertrag der Automatisierung, genau wie ein Save vom Canvas ihn setzen würde. Was landet, ist eine **Entwurfsversion** hinter dem normalen Deploy-Gate: Kein Trigger läuft, bevor du sie auf der Seite der Automatisierung deployst.
+Der Server validiert, bevor irgendetwas gespeichert wird. Das Dokument durchläuft dieselbe Engine-Validierung wie im Editor — ein Upload, der nicht laufen würde, wird mit den Meldungen der Engine abgelehnt statt kaputt gespeichert — und die Blöcke `subjects` und `settings` des Manifests werden zum Task-Vertrag und zu den [Einstellungsformularen](#einstellungen-die-das-paket-deklariert) der Automatisierung, genau wie ein Save vom Canvas sie setzen würde. Was landet, ist eine **Entwurfsversion** hinter dem normalen Deploy-Gate: Kein Trigger läuft, bevor du sie auf der Seite der Automatisierung deployst.
 
 Lädst du das Pack einer bestehenden Automatisierung erneut hoch, entsteht die nächste Version — der Store überschreibt nie Geschichte, jede frühere Version bleibt exakt, wo sie war. Wählst du dabei ein Projekt als Ziel, kommt dessen Bindung zu den bestehenden hinzu.
 
@@ -72,6 +72,32 @@ Jedes mitgebrachte Bundle wird als echter Skill validiert — Frontmatter gepars
 - **Anderer Inhalt** — der Upload hält an und listet die kollidierenden Slugs. Bestätige, um sie durch die Versionen aus dem Paket zu ersetzen; die abgelöste `SKILL.md` bleibt im Verlauf des jeweiligen Skills. Nichts — weder die Automatisierung noch irgendein Skill — wird geschrieben, bevor du bestätigst.
 
 Ein Dokument, das einen Skill referenziert, den weder das Paket mitbringt noch die Bibliothek hält, lädt trotzdem hoch — die fehlende Referenz kommt als Warnung zurück, damit ein Pack einen Skill benennen kann, den du später installierst.
+
+## Einstellungen, die das Paket deklariert
+
+Liest eine Automatisierung bei ihren Läufen Konfiguration, die den Betreibenden gehört — die rechtliche Identität eines Kunden, eine Umrechnungsregel —, kann das Manifest sie als **Einstellungsformulare** deklarieren. Die Plattform zeigt sie im Erstellen-Dialog des Aufgabenboards und speichert jedes Formular als flache YAML-Datei in einem Projektordner: Niemand bearbeitet eine Datei von Hand, um die Automatisierung zu konfigurieren, und jedes Projekt behält seine eigenen Werte.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - file: fx-policy.yaml
+      title: FX conversion policy
+      required: true
+      fields:
+        - key: method
+          label: FX conversion method
+          type: select
+          default: estv_monthly
+          options:
+            - value: estv_monthly
+              label: ESTV monthly average (standard)
+```
+
+Ein Formular besitzt seine Datei: Speichern schreibt `Setup/fx-policy.yaml` komplett aus den Formularwerten neu, und das Formular füllt sich aus dem, was die Datei enthält — egal ob das Formular sie geschrieben hat oder jemand sie von Hand hochgeladen hat. Felder sind `text`, `number`, `boolean` oder `select`; jeder Wert landet als String, ein `text`-Feld kann ein `pattern` festlegen, und Titel, Beschriftungen, Hilfetexte und Optionsnamen lokalisieren über `i18n`-Blöcke am jeweiligen Eintrag. Alles, was reicher ist als eine flache Schlüssel-Wert-Datei — verschachtelte Blöcke, Listen —, gehört in eine separate, von Hand gepflegte Datei, die der Workflow daneben liest.
+
+Markierst du ein Formular mit `required: true`, erzwingt der Erstellen-Dialog es pro Projekt: Wählt jemand die Aufgabenvorlage der Automatisierung zum ersten Mal in einem Projekt, das noch nicht eingerichtet ist, erscheinen die Formulare vor dem eigentlichen Aufgabenfeld, und das Erstellen geht erst weiter, wenn sie gespeichert sind. Von da an öffnet der Button **Einstellungen** im selben Dialog die Formulare zum Bearbeiten — jedes mit eigenem **Speichern**, aktiv nur, wenn sich etwas geändert hat.
 
 ## Wo das hingehört
 

@@ -29,6 +29,7 @@ import { z } from 'zod/v4';
 
 import type { Automation } from '../engine/core/types';
 import { parseYamlOrThrow } from '../shared/config/yaml';
+import { automationSettingsSchema } from '../shared/schemas/automation_settings';
 import { MAX_PACK_SKILLS } from '../shared/schemas/automations';
 import { zodErrorMessage } from '../shared/schemas/format-error';
 import { isValidSkillSlug } from '../shared/schemas/skills';
@@ -123,6 +124,9 @@ export const automationPackManifestSchema = z
       .object({ task: taskSubjectContractSchema.optional() })
       .strict()
       .optional(),
+    /** Operator-editable configuration rendered as forms and persisted as
+     * flat-YAML files in a project folder (see automation_settings schema). */
+    settings: automationSettingsSchema.optional(),
     i18n: packI18nSchema.optional(),
   })
   .strict();

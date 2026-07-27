@@ -897,6 +897,17 @@ automations:
       noneForNode: Diese Node hat außerhalb der Plattform nichts verändert.
       byNode: 'aus {node}'
       inputLabel: Aufgerufen mit
+  settings:
+    loading: Lädt Einstellungen…
+    loadFailed: Die Einstellungen konnten nicht geladen werden — schließe den Dialog und versuche es erneut.
+    save: Speichern
+    saveAndContinue: Speichern und weiter
+    saved: Einstellungen gespeichert.
+    saveFailed: Die Einstellungen konnten nicht gespeichert werden — versuche es erneut.
+    errors:
+      required: Dieses Feld ist erforderlich.
+      number: Gib eine Zahl ein.
+      pattern: Das entspricht nicht dem erwarteten Format.
 changelog:
   toast:
     title: Aktualisiert auf v{version}
@@ -6786,6 +6797,12 @@ tasks:
     created: Aufgabe erstellt — lege die Eingabedateien ab und ziehe sie dann auf In Bearbeitung.
     exists: Für dieses Subjekt existiert bereits eine Aufgabe.
     setupMissing: 'Der Ordner {folder} fehlt — lege ihn zuerst im Projekt an.'
+    setupIntro:
+      'Richte {name} zuerst für dieses Projekt ein. Die Werte landen als
+      Dateien im Ordner {folder}, und jeder Lauf liest sie von dort.'
+    settingsOpen: Einstellungen
+    settingsTitle: '{name} — Einstellungen'
+    settingsBack: Zurück
   attachments:
     label: Anhänge
     add: Anhänge hinzufügen

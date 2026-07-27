@@ -153,6 +153,9 @@ export const listAutomations = query({
       /** The DEPLOYED version's task-surface contract, when it carries one —
        * what the task board's choreography and badges consume. */
       taskContract: v.optional(v.any()),
+      /** The DEPLOYED version's settings declaration, when it carries one —
+       * what the settings forms render and the create-task gate checks. */
+      settings: v.optional(v.any()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -186,6 +189,7 @@ export const listAutomations = query({
         ...(row?.taskContract !== undefined
           ? { taskContract: row.taskContract }
           : {}),
+        ...(row?.settings !== undefined ? { settings: row.settings } : {}),
       });
     }
     return out;

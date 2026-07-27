@@ -60,6 +60,9 @@ export interface SaveOptions {
   /** The version's task-surface contract (already zod-validated by the
    * caller); stored beside the document. */
   taskContract?: unknown;
+  /** The version's settings declaration (already zod-validated by the
+   * caller); stored beside the document. */
+  settings?: unknown;
 }
 
 /** What `setTrigger` may persist. Mirrors the engine's `TriggerSpec` plus the
@@ -425,6 +428,9 @@ export function automationStore(
         }),
         ...(options?.taskContract !== undefined && {
           taskContract: options.taskContract,
+        }),
+        ...(options?.settings !== undefined && {
+          settings: options.settings,
         }),
         createdBy: actor,
         createdAt: Date.now(),

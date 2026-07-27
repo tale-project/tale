@@ -25,6 +25,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { automationSettingsSchema } from '../../lib/shared/schemas/automation_settings';
 import { taskSubjectContractSchema } from '../../lib/shared/schemas/task_contract';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
@@ -62,6 +63,25 @@ function parseContractOrThrow(value: unknown): unknown {
         .slice(0, 3)
         .map(
           (issue) => `${issue.path.join('.') || 'contract'} ${issue.message}`,
+        )
+        .join('; ')}`,
+    });
+  }
+  return parsed.data;
+}
+
+/** A save's settings declaration must be the real shape or absent — same
+ * fail-at-the-door rule as the task contract. */
+function parseSettingsOrThrow(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+  const parsed = automationSettingsSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new ConvexError({
+      code: 'AUTOMATION_SETTINGS_INVALID',
+      message: `settings is not a valid settings declaration: ${parsed.error.issues
+        .slice(0, 3)
+        .map(
+          (issue) => `${issue.path.join('.') || 'settings'} ${issue.message}`,
         )
         .join('; ')}`,
     });
@@ -121,11 +141,14 @@ export const saveAutomation = mutation({
     projectId: v.optional(v.id('projects')),
     /** Task-surface contract for this version (see task_contract schema). */
     taskContract: v.optional(v.any()),
+    /** Settings declaration for this version (see automation_settings). */
+    settings: v.optional(v.any()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const contract = parseContractOrThrow(args.taskContract);
+    const settings = parseSettingsOrThrow(args.settings);
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: auth.userId,
@@ -138,6 +161,7 @@ export const saveAutomation = mutation({
           testsPassed: args.testsPassed,
         }),
         ...(contract !== undefined && { taskContract: contract }),
+        ...(settings !== undefined && { settings }),
       });
     } catch (error) {
       return asStoreError(error, 'AUTOMATION_SAVE_REJECTED');
@@ -442,10 +466,13 @@ export const storeSave = internalMutation({
     projectId: v.optional(v.id('projects')),
     /** Task-surface contract for this version (see task_contract schema). */
     taskContract: v.optional(v.any()),
+    /** Settings declaration for this version (see automation_settings). */
+    settings: v.optional(v.any()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
     const contract = parseContractOrThrow(args.taskContract);
+    const settings = parseSettingsOrThrow(args.settings);
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: args.actor,
@@ -455,6 +482,7 @@ export const storeSave = internalMutation({
     return await store.save(args.automation as Automation, args.message, {
       ...(args.testsPassed !== undefined && { testsPassed: args.testsPassed }),
       ...(contract !== undefined && { taskContract: contract }),
+      ...(settings !== undefined && { settings }),
     });
   },
 });
@@ -698,6 +726,7 @@ const seedPackValidator = v.object({
   document: v.any(),
   trigger: v.optional(v.any()),
   taskContract: v.optional(v.any()),
+  settings: v.optional(v.any()),
 });
 
 /**
@@ -738,8 +767,10 @@ export const seedDefaultPacks = internalMutation({
         continue;
       }
       const contract = parseContractOrThrow(pack.taskContract);
+      const settings = parseSettingsOrThrow(pack.settings);
       await store.save(document, 'Shipped default pack', {
         ...(contract !== undefined && { taskContract: contract }),
+        ...(settings !== undefined && { settings }),
       });
       const boundTrigger = await triggerRow(ctx, args.organizationId, name);
       if (pack.trigger !== undefined && boundTrigger === null) {

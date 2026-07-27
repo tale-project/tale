@@ -6,6 +6,10 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import {
+  type AutomationSettings,
+  parseAutomationSettings,
+} from '@/lib/shared/schemas/automation_settings';
+import {
   parseTaskSubjectContract,
   type TaskSubjectContract,
 } from '@/lib/shared/schemas/task_contract';
@@ -23,6 +27,9 @@ export interface ResolvedTaskSubjectContract {
   /** The automation's store name — also the workflow the choreography runs. */
   automationSlug: string;
   contract: TaskSubjectContract;
+  /** The deployed version's settings declaration (tolerant: unparsable reads
+   * as none) — the create-template setup gate and the Settings entry. */
+  settings: AutomationSettings | null;
 }
 
 /** One listed automation, as the contract surfaces need it. */
@@ -30,6 +37,7 @@ interface ContractAutomationEntry {
   name: string;
   deployedVersion?: number;
   taskContract?: unknown;
+  settings?: unknown;
 }
 
 /**
@@ -69,7 +77,13 @@ export function taskSubjectEntries(
     const contract = parseTaskSubjectContract(automation.taskContract);
     return contract === null
       ? []
-      : [{ automationSlug: automation.name, contract }];
+      : [
+          {
+            automationSlug: automation.name,
+            contract,
+            settings: parseAutomationSettings(automation.settings),
+          },
+        ];
   });
 }
 
@@ -141,7 +155,11 @@ export function resolveTaskSubjectContract(
 ): ResolvedTaskSubjectContract | null {
   const ownership = resolveTaskOwnership(task, automations);
   return ownership.kind === 'automation'
-    ? { automationSlug: ownership.automationSlug, contract: ownership.contract }
+    ? {
+        automationSlug: ownership.automationSlug,
+        contract: ownership.contract,
+        settings: ownership.settings,
+      }
     : null;
 }
 

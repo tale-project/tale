@@ -47,7 +47,7 @@ Pick where the automation installs — the organization, or one project — befo
 
 </Frame>
 
-The server validates before anything is stored. The document runs through the same engine validation the editor uses — an upload that would not run is refused with the engine's own issues, not saved broken — and the manifest's `subjects` block becomes the automation's task contract, exactly as a save from the canvas would set it. What lands is a **draft version** behind the normal deploy gate: nothing triggers run until you deploy it from the automation's page.
+The server validates before anything is stored. The document runs through the same engine validation the editor uses — an upload that would not run is refused with the engine's own issues, not saved broken — and the manifest's `subjects` and `settings` blocks become the automation's task contract and [settings forms](#settings-the-pack-declares), exactly as a save from the canvas would set them. What lands is a **draft version** behind the normal deploy gate: nothing triggers run until you deploy it from the automation's page.
 
 Uploading an existing automation's pack again appends the next version — the store never overwrites history, so every earlier version stays exactly where it was. Choosing a project as the target also binds the existing automation to that project, on top of whatever projects it already serves.
 
@@ -72,6 +72,32 @@ Each carried bundle is validated as a real skill — frontmatter parsed, `name` 
 - **Different content** — the upload stops and lists the colliding slugs. Confirm to replace them with the package's versions; the superseded `SKILL.md` stays in each skill's history. Nothing — not the automation, not any skill — is written until you confirm.
 
 A document that references a skill the package doesn't carry and the library doesn't hold still uploads — the missing reference comes back as a warning, so a pack can name a skill you install later.
+
+## Settings the pack declares
+
+An automation whose runs read operator-owned configuration — a client's legal identity, a conversion policy — can declare it as **settings forms** in the manifest. The platform renders them in the task board's create dialog and saves each form as a flat YAML file in a project folder, so nobody hand-edits a file to configure the automation, and every project keeps its own values.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - file: fx-policy.yaml
+      title: FX conversion policy
+      required: true
+      fields:
+        - key: method
+          label: FX conversion method
+          type: select
+          default: estv_monthly
+          options:
+            - value: estv_monthly
+              label: ESTV monthly average (standard)
+```
+
+A form owns its file: saving rewrites `Setup/fx-policy.yaml` from the form's values, and the form pre-fills from whatever the file holds — whether the form wrote it or someone uploaded it by hand. Fields are `text`, `number`, `boolean`, or `select`; every value lands as a string, a `text` field may pin a `pattern`, and titles, labels, help lines, and option labels localize through per-entry `i18n` blocks. Anything richer than a flat key–value file — nested blocks, lists — belongs in a separate hand-authored file the workflow reads alongside.
+
+Mark a form `required: true` and the create dialog enforces it per project: the first time someone picks the automation's task template in a project that hasn't been set up, the forms appear before the task's own field, and creating continues only once they're saved. From then on a **Settings** button in the same dialog reopens the forms for editing — each with its own **Save**, active only when something changed.
 
 ## Where this fits
 

@@ -349,6 +349,7 @@ export const uploadAutomation = action({
       }
       const warnings = await validateDocument(document);
       const taskContract = manifest?.subjects?.task;
+      const settings = manifest?.settings;
 
       const saved: { name: string; version: number } = await ctx.runMutation(
         internal.automations.mutations.storeSave,
@@ -361,6 +362,7 @@ export const uploadAutomation = action({
             ? { projectId: args.projectId }
             : {}),
           ...(taskContract !== undefined ? { taskContract } : {}),
+          ...(settings !== undefined ? { settings } : {}),
         },
       );
       // Installing an EXISTING automation into a project adds the binding
@@ -487,6 +489,7 @@ export const uploadAutomation = action({
       }
 
       const taskContract = manifest?.subjects?.task;
+      const settings = manifest?.settings;
       const saved: { name: string; version: number } = await ctx.runMutation(
         internal.automations.mutations.storeSave,
         {
@@ -498,6 +501,7 @@ export const uploadAutomation = action({
             ? { projectId: args.projectId }
             : {}),
           ...(taskContract !== undefined ? { taskContract } : {}),
+          ...(settings !== undefined ? { settings } : {}),
         },
       );
       // Installing an EXISTING automation into a project adds the binding

@@ -468,6 +468,45 @@ describe('automation store — the action-side surface', () => {
       output: { ok: true },
     });
   });
+
+  it('stores a validated settings declaration with the version and refuses a malformed one', async () => {
+    const t = convexTest(schema, modules);
+
+    const settings = {
+      forms: [
+        {
+          file: 'fx-policy.yaml',
+          title: 'FX conversion policy',
+          fields: [{ key: 'method', label: 'Method', type: 'text' }],
+        },
+      ],
+    };
+    await t.mutation(internal.automations.mutations.storeSave, {
+      organizationId: ORG,
+      actor: ACTOR,
+      automation: automation('desk/settings-carrier', 'return 1'),
+      settings,
+    });
+    const row = await t.run(
+      async (ctx) =>
+        await ctx.db
+          .query('automations')
+          .withIndex('by_org_name', (q) =>
+            q.eq('organizationId', ORG).eq('name', 'desk/settings-carrier'),
+          )
+          .unique(),
+    );
+    expect(row?.settings).toEqual(settings);
+
+    await expect(
+      t.mutation(internal.automations.mutations.storeSave, {
+        organizationId: ORG,
+        actor: ACTOR,
+        automation: automation('desk/settings-carrier', 'return 2'),
+        settings: { forms: [] },
+      }),
+    ).rejects.toThrowError(/not a valid settings declaration/);
+  });
 });
 
 /**

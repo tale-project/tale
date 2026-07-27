@@ -55,6 +55,10 @@ export const automationsTable = defineTable({
    * automation owns. Versioned with the document; validated by the writers
    * (zod), stored as JSON like the document itself. */
   taskContract: v.optional(v.any()),
+  /** The automation's settings declaration (`automationSettingsSchema`) —
+   * operator-editable forms persisted as flat-YAML project files. Versioned
+   * and validated exactly like the task contract. */
+  settings: v.optional(v.any()),
   createdBy: v.string(),
   createdAt: v.number(),
 })

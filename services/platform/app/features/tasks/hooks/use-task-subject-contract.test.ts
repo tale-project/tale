@@ -38,6 +38,24 @@ describe('taskSubjectEntries', () => {
     ]);
     expect(entries.map((entry) => entry.automationSlug)).toEqual(['vat-desk']);
   });
+
+  it('carries a parsable settings declaration and nulls a malformed one', () => {
+    const settings = {
+      forms: [
+        {
+          file: 'fx-policy.yaml',
+          title: 'FX conversion policy',
+          fields: [{ key: 'method', label: 'Method', type: 'text' }],
+        },
+      ],
+    };
+    const entries = taskSubjectEntries([
+      { ...vat, settings },
+      { ...payroll, settings: { forms: [] } },
+    ]);
+    expect(entries[0]?.settings?.forms[0]?.file).toBe('fx-policy.yaml');
+    expect(entries[1]?.settings).toBeNull();
+  });
 });
 
 describe('resolveTaskOwnership', () => {

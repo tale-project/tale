@@ -194,3 +194,36 @@ describe('the manifest skills declaration', () => {
     ).toBe(false);
   });
 });
+
+describe('the manifest settings declaration', () => {
+  const base = { name: 'Carrier' };
+  const form = {
+    file: 'fx-policy.yaml',
+    title: 'FX conversion policy',
+    fields: [
+      {
+        key: 'method',
+        label: 'FX conversion method',
+        type: 'select',
+        options: [{ value: 'estv_monthly', label: 'ESTV monthly average' }],
+      },
+    ],
+  };
+
+  it('accepts a settings block and carries it through', () => {
+    const parsed = automationPackManifestSchema.parse({
+      ...base,
+      settings: { folder: 'Setup', forms: [form] },
+    });
+    expect(parsed.settings?.forms[0]?.file).toBe('fx-policy.yaml');
+  });
+
+  it('refuses a malformed settings block at the manifest door', () => {
+    expect(
+      automationPackManifestSchema.safeParse({
+        ...base,
+        settings: { forms: [{ ...form, fields: [] }] },
+      }).success,
+    ).toBe(false);
+  });
+});

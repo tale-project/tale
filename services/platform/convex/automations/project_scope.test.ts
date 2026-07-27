@@ -141,6 +141,62 @@ describe('project-bound automations', () => {
     ]);
   });
 
+  it('surfaces the DEPLOYED version contract and settings on the listing', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seed(t);
+    const asMember = t.withIdentity({ subject: MEMBER });
+
+    const taskContract = { workflow: 'desk/prepare-return' };
+    const settings = {
+      forms: [
+        {
+          file: 'fx-policy.yaml',
+          title: 'FX conversion policy',
+          fields: [{ key: 'method', label: 'Method', type: 'text' }],
+        },
+      ],
+    };
+    await t.run(async (ctx) => {
+      const store = automationStore(ctx, {
+        organizationId: ORG,
+        actor: MEMBER,
+        projectId,
+      });
+      await store.save(AUTOMATION('desk/prepare-return'), undefined, {
+        taskContract,
+        settings,
+      });
+    });
+
+    // Draft only — the listing carries neither payload yet.
+    const drafts = await asMember.query(
+      api.automations.queries.listAutomations,
+      { organizationId: ORG, projectId },
+    );
+    expect(drafts[0]).not.toHaveProperty('settings');
+    expect(drafts[0]).not.toHaveProperty('taskContract');
+
+    await t.run(async (ctx) => {
+      const store = automationStore(ctx, {
+        organizationId: ORG,
+        actor: MEMBER,
+        projectId,
+      });
+      await store.deploy('desk/prepare-return', 1);
+    });
+
+    const deployed = await asMember.query(
+      api.automations.queries.listAutomations,
+      { organizationId: ORG, projectId },
+    );
+    expect(deployed[0]).toMatchObject({
+      name: 'desk/prepare-return',
+      deployedVersion: 1,
+      taskContract,
+      settings,
+    });
+  });
+
   it('binds through the action-side storeSave too', async () => {
     const t = convexTest(schema, modules);
     const projectId = await seed(t);

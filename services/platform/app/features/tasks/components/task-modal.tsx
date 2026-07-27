@@ -11,12 +11,21 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
-import { Archive, ArchiveRestore, Plus, Workflow } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  Plus,
+  Settings2,
+  Workflow,
+} from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { AutomationSettingsForm } from '@/app/features/automations/components/automation-settings-form';
+import { useAutomationSettingsValues } from '@/app/features/automations/hooks/use-settings-values';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import {
   type FileAttachment,
@@ -33,6 +42,10 @@ import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
+import {
+  resolveSettingsFolder,
+  settingsFormSatisfied,
+} from '@/lib/shared/schemas/automation_settings';
 import { cn } from '@/lib/utils/cn';
 
 import {
@@ -313,6 +326,7 @@ function TemplateCreateBody({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
+  const { t: tAutomations } = useT('automations');
   const { locale } = useLocale();
   const createFromTemplate = useConvexAction(
     api.tasks.public_actions.createTaskFromExternalIssue,
@@ -320,7 +334,42 @@ function TemplateCreateBody({
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const { automationSlug, contract } = template;
+  const { automationSlug, contract, settings } = template;
+  const settingsFolder =
+    settings === null ? null : resolveSettingsFolder(settings, contract);
+  const requiredForms =
+    settings?.forms.filter((form) => form.required === true) ?? [];
+
+  // First-time gate: a template whose settings declare REQUIRED forms reads
+  // the project's files before offering the name field — a project that has
+  // never been set up walks through setup right here, and the settings form
+  // it mounts shares this very query. A read that FAILS falls through to the
+  // create step: the create action still fails closed on a missing setup
+  // folder, so a hiccup must not brick the dialog.
+  const stored = useAutomationSettingsValues(
+    organizationId,
+    projectId,
+    settingsFolder,
+    settings,
+  );
+  const setupNeeded =
+    requiredForms.length > 0 &&
+    stored.data !== undefined &&
+    !requiredForms.every((form) =>
+      settingsFormSatisfied(form, stored.data[form.file] ?? {}),
+    );
+  // The user's own navigation wins over the derived phase (Save-and-continue,
+  // the Settings entry, Back).
+  const [chosenPhase, setChosenPhase] = useState<'create' | 'settings' | null>(
+    null,
+  );
+  const phase: 'checking' | 'setup' | 'create' | 'settings' =
+    chosenPhase ??
+    (requiredForms.length > 0 && stored.isPending
+      ? 'checking'
+      : setupNeeded
+        ? 'setup'
+        : 'create');
   const { i18n: fieldI18n, ...fieldBase } = contract.create?.field ?? {};
   const baseLocale = locale.split('-')[0] ?? locale;
   const text = {
@@ -385,13 +434,117 @@ function TemplateCreateBody({
     }
   };
 
+  const header = (
+    <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
+      {t('actions.create')}
+    </ResponsiveDialogTitle>
+  );
+  const panel = (
+    <Stack gap={3}>
+      <Text as="p" variant="muted">
+        {t('automation.hint', { name: automationSlug })}
+      </Text>
+      {settings !== null && phase === 'create' && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start"
+          onClick={() => setChosenPhase('settings')}
+        >
+          <Settings2 className="size-3.5" aria-hidden />
+          {t('template.settingsOpen')}
+        </Button>
+      )}
+    </Stack>
+  );
+  const cancelButton = (
+    <Button variant="secondary" onClick={onClose} disabled={submitting}>
+      {tCommon('actions.cancel')}
+    </Button>
+  );
+
+  if (phase === 'checking') {
+    return (
+      <ModalLayout
+        header={header}
+        main={
+          <>
+            {chips}
+            <Text as="p" variant="muted">
+              {tAutomations('settings.loading')}
+            </Text>
+          </>
+        }
+        panel={panel}
+        footer={
+          <Row gap={2} justify="end">
+            {cancelButton}
+          </Row>
+        }
+      />
+    );
+  }
+
+  if (phase !== 'create' && settings !== null && settingsFolder !== null) {
+    // 'setup' (first-time gate) and 'settings' (edit entry) share the form;
+    // setup continues into the create step once every form is written.
+    return (
+      <ModalLayout
+        header={header}
+        main={
+          <>
+            {chips}
+            {phase === 'setup' ? (
+              <Text as="p" variant="muted">
+                {t('template.setupIntro', {
+                  name: automationSlug,
+                  folder: settingsFolder,
+                })}
+              </Text>
+            ) : (
+              <Row gap={2}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setChosenPhase('create')}
+                >
+                  <ArrowLeft className="size-3.5" aria-hidden />
+                  {t('template.settingsBack')}
+                </Button>
+                <Text as="h3" className="text-sm font-medium">
+                  {t('template.settingsTitle', { name: automationSlug })}
+                </Text>
+              </Row>
+            )}
+            <AutomationSettingsForm
+              organizationId={organizationId}
+              projectId={projectId}
+              settings={settings}
+              folder={settingsFolder}
+              mode={phase === 'setup' ? 'setup' : 'edit'}
+              onSaved={() => {
+                toast({
+                  title: tAutomations('settings.saved'),
+                  variant: 'success',
+                });
+                setChosenPhase('create');
+              }}
+            />
+          </>
+        }
+        panel={panel}
+        footer={
+          <Row gap={2} justify="end">
+            {cancelButton}
+          </Row>
+        }
+      />
+    );
+  }
+
   return (
     <ModalLayout
-      header={
-        <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
-          {t('actions.create')}
-        </ResponsiveDialogTitle>
-      }
+      header={header}
       main={
         <>
           {chips}
@@ -420,16 +573,10 @@ function TemplateCreateBody({
           )}
         </>
       }
-      panel={
-        <Text as="p" variant="muted">
-          {t('automation.hint', { name: automationSlug })}
-        </Text>
-      }
+      panel={panel}
       footer={
         <Row gap={2} justify="end">
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            {tCommon('actions.cancel')}
-          </Button>
+          {cancelButton}
           <Button
             onClick={() => void submit()}
             disabled={submitting || !nameOk}
@@ -520,6 +667,9 @@ function CreateTaskBody({
   if (activeTemplate !== null) {
     return (
       <TemplateCreateBody
+        // Keyed so a template switch REMOUNTS the body: the setup-gate check
+        // and its phase state are mount-scoped per automation.
+        key={activeTemplate.automationSlug}
         organizationId={organizationId}
         projectId={projectId}
         template={activeTemplate}

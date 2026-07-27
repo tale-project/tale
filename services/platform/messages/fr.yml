@@ -896,6 +896,17 @@ automations:
       noneForNode: Ce nœud n’a rien changé hors de la plateforme.
       byNode: 'depuis {node}'
       inputLabel: Appelé avec
+  settings:
+    loading: Chargement des paramètres…
+    loadFailed: Impossible de charger les paramètres — ferme le dialogue et réessaie.
+    save: Enregistrer
+    saveAndContinue: Enregistrer et continuer
+    saved: Paramètres enregistrés.
+    saveFailed: Impossible d'enregistrer les paramètres — réessaie.
+    errors:
+      required: Ce champ est requis.
+      number: Saisis un nombre.
+      pattern: Ne correspond pas au format attendu.
 changelog:
   toast:
     title: Mis à jour vers v{version}
@@ -6885,6 +6896,13 @@ tasks:
     created: "Tâche créée — dépose les fichiers d'entrée, puis passe-la à En cours."
     exists: Une tâche existe déjà pour ce sujet.
     setupMissing: "Le dossier {folder} est manquant — crée-le d'abord dans le projet."
+    setupIntro:
+      "Configure d'abord {name} pour ce projet. Les valeurs sont enregistrées
+      comme fichiers dans le dossier {folder}, où chaque exécution vient les
+      lire."
+    settingsOpen: Paramètres
+    settingsTitle: '{name} — Paramètres'
+    settingsBack: Retour
   attachments:
     label: Pièces jointes
     add: Ajouter des pièces jointes

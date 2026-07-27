@@ -40,6 +40,10 @@ import { resolveBuiltinCatalogRoot } from '../lib/config_store/builtin_catalog';
 export interface SeedablePack {
   document: Automation;
   trigger?: AutomationTrigger;
+  /** The manifest's `subjects.task` block, when declared. */
+  taskContract?: unknown;
+  /** The manifest's `settings` block, when declared. */
+  settings?: unknown;
 }
 
 /**
@@ -93,6 +97,9 @@ export function loadSeedablePacks(
       ...(triggers[0] !== undefined && { trigger: triggers[0] }),
       ...(pack.manifest.subjects?.task !== undefined && {
         taskContract: pack.manifest.subjects.task,
+      }),
+      ...(pack.manifest.settings !== undefined && {
+        settings: pack.manifest.settings,
       }),
     });
   }
