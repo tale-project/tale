@@ -60,7 +60,7 @@ export function useSetProjectPinned() {
 }
 
 export function useSetThreadSharedWithProject() {
-  return useConvexMutation(api.projects.mutations.setThreadSharedWithProject);
+  return useConvexMutation(api.chat.threads.setThreadSharedWithProject);
 }
 
 export function useArchiveProject() {

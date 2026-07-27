@@ -961,6 +961,8 @@ chat:
     title: Archiviert
     empty: Keine archivierten Chats
   markAsRead: Als gelesen markieren
+  markAsUnread: Als ungelesen markieren
+  readOnlyShared: Mit dem Projekt geteilt — nur Lesen
   export:
     button: Exportieren
     title: Chat exportieren
@@ -7518,9 +7520,6 @@ projects:
       Anweisungen für andere Mitglieder unsichtbar.
     shareSuccess: Chat mit Projekt geteilt
     unshareSuccess: Chat aus Projekt ausgeblendet
-    shareDisabledPersonalization: Die Personalisierung wurde für diesen Chat
-      deaktiviert, damit deine Erinnerungen und Anweisungen für andere
-      Mitglieder privat bleiben.
     shareError: Freigabe konnte nicht aktualisiert werden
   agents:
     agentsHeading: Agenten
@@ -7654,6 +7653,12 @@ projects:
     sharingNarrowingWarning:
       Diese Änderung schränkt den Zugriff ein. Mitglieder,
       die den Zugriff verlieren, sehen dieses Projekt nicht mehr.
+  dangerZone:
+    title: Gefahrenzone
+    description: Destruktive Aktionen für dieses Projekt.
+    archiveHelp: Archivieren blendet das Projekt und seine Chats aus den täglichen Listen aus; du kannst es hier jederzeit wiederherstellen.
+    restoreHelp: Wiederherstellen bringt das Projekt und seine Chats zurück in die täglichen Listen.
+    deleteHelp: Löschen entfernt das Projekt endgültig, einschließlich seiner Dateien und Einstellungen. Das lässt sich nicht rückgängig machen.
   rowActions:
     duplicate: Duplizieren
     rename: Umbenennen

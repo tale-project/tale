@@ -26,9 +26,10 @@ export interface ThreadActions {
     threadId: string,
     archived: boolean,
   ) => Promise<boolean>;
-  /** Stamp the owner's read watermark. Fire-and-forget: a failure only means
-   * the unread dot lingers, so it logs instead of surfacing. */
-  readonly markRead: (threadId: string) => void;
+  /** Move the owner's read watermark (forward, or back to unread with
+   * `read: false`). Fire-and-forget: a failure only means the unread dot
+   * lingers, so it logs instead of surfacing. */
+  readonly markRead: (threadId: string, read?: boolean) => void;
   /** Move the thread to Trash (restorable for the org's grace period).
    * False when refused — foreign thread, a running turn, or a legal hold. */
   readonly trash: (threadId: string) => Promise<boolean>;
@@ -89,12 +90,13 @@ export function useThreadActions(organizationId: string): ThreadActions {
   );
 
   const markRead = useCallback(
-    (threadId: string): void => {
+    (threadId: string, read = true): void => {
       if (!convex) return;
       convex
         .mutation(api.chat.threads.markThreadRead, {
           organizationId,
           threadId,
+          ...(read ? {} : { read: false }),
         })
         .catch((error: unknown) => {
           console.warn('[chat] marking the thread read failed', error);

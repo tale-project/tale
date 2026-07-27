@@ -131,8 +131,11 @@ export function MessageToolbar({
       gap={1}
       className={cn(
         'mt-1',
+        // `has-[[data-state=open]]` keeps the toolbar on screen while its
+        // overflow menu is open — the menu portals outside the hover group,
+        // so without it opening the menu faded its own trigger away.
         !alwaysVisible &&
-          'opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100',
+          'opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100',
       )}
     >
       <Row gap={1}>

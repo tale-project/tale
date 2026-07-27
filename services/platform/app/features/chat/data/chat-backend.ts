@@ -311,6 +311,21 @@ export function useChatMessages(
 }
 
 /**
+ * One thread's summary by id — unlike the list (which only carries the
+ * caller's own rows), this also answers for a project-shared conversation
+ * the caller may read, with `viewerIsOwner: false`.
+ */
+export function useChatThread(
+  organizationId: string,
+  threadId: string | undefined,
+): ChatQuery<ChatThreadSummary | null> {
+  return useChatQuery(
+    api.chat.threads.getThread,
+    threadId ? { organizationId, threadId } : 'skip',
+  );
+}
+
+/**
  * A root's branch lineage — the edit/regenerate siblings plus the root's
  * stored selection map — in one watch. The chat surface resolves which leaf
  * to render from this (see `lib/branch-selection.ts`).

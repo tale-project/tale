@@ -16,8 +16,6 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { blobRefValidator } from '../lib/storage/blob_ref';
-import { listByOrganizationHandler } from '../members/queries';
-import { isHiddenFromChatHistory } from '../threads/list_threads';
 import {
   checkProjectAccess,
   hasProjectAccess,
@@ -113,9 +111,9 @@ const projectListItemValidator = v.object({
  * walks `by_organization_updatedAt` to preserve recency ordering.
  *
  * Performance note: this query is unpaginated. For orgs with thousands of
- * projects, follow up with `paginationOptsValidator` (see
- * `convex/threads/list_threads.ts` for the pattern). UI today consumes
- * the full list and filters in-memory.
+ * projects, follow up with a cursor page like the chat archive's
+ * `listArchivedThreads`. UI today consumes the full list and filters
+ * in-memory.
  */
 export const listProjects = query({
   args: {
@@ -327,18 +325,20 @@ export const getProjectStats = query({
       (d) => ragProjections.get(String(d._id))?.indexed === true,
     ).length;
 
+    // Chat conversations live in the chat-v2 `threads` table; hidden branch
+    // siblings and trashed rows are versions/limbo, not countable chats.
     const threads = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_organizationId_and_projectId', (q) =>
+      .query('threads')
+      .withIndex('by_org_project', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
       )
       .take(PROJECT_STATS_CAP + 1);
     const threadsTruncated = threads.length > PROJECT_STATS_CAP;
-    const threadsPage = threadsTruncated
-      ? threads.slice(0, PROJECT_STATS_CAP)
-      : threads;
+    const threadsPage = (
+      threadsTruncated ? threads.slice(0, PROJECT_STATS_CAP) : threads
+    ).filter((t) => t.lifecycleStatus === undefined && t.hidden === undefined);
     const sharedThreadCount = threadsPage.filter(
       (t) => t.sharedWithProject === true,
     ).length;
@@ -346,7 +346,7 @@ export const getProjectStats = query({
     const allActivityTimestamps: number[] = [
       project.updatedAt,
       ...docsPage.map((d) => d._creationTime),
-      ...threadsPage.map((t) => t.updatedAt ?? t.createdAt),
+      ...threadsPage.map((t) => t.updatedAt),
     ].filter((n): n is number => typeof n === 'number');
 
     const lastActivityAt =
@@ -619,123 +619,6 @@ export const getProjectSetupFolder = query({
     );
     if (!folder) return null;
     return { _id: folder._id, name: folder.name };
-  },
-});
-
-/**
- * List threads inside a project. The caller chooses scope:
- *   - 'mine'   only the caller's threads (regardless of shared flag)
- *   - 'shared' threads with sharedWithProject=true (regardless of owner)
- *   - 'all'    union of the above (visible per §6.3 of the plan)
- */
-export const listProjectThreads = query({
-  args: {
-    projectId: v.id('projects'),
-    scope: v.union(v.literal('mine'), v.literal('shared'), v.literal('all')),
-  },
-  returns: v.array(
-    v.object({
-      _id: v.id('threadMetadata'),
-      threadId: v.string(),
-      userId: v.string(),
-      /** Author's display name, resolved from org membership. Absent when the
-       *  author is no longer a member or the org exceeds the listing cap;
-       *  callers fall back to a userId fragment. */
-      authorName: v.optional(v.string()),
-      title: v.optional(v.string()),
-      createdAt: v.number(),
-      updatedAt: v.optional(v.number()),
-      sharedWithProject: v.optional(v.boolean()),
-      status: v.string(),
-      agentSlug: v.optional(v.string()),
-      generationStatus: v.optional(
-        v.union(v.literal('generating'), v.literal('idle')),
-      ),
-      isShared: v.optional(v.boolean()),
-      pinnedAt: v.optional(v.number()),
-      lastReplyAt: v.optional(v.number()),
-      lastReadAt: v.optional(v.number()),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const project = await ctx.db.get(args.projectId);
-    if (!project) return [];
-    const auth = await getAuthContext(ctx, project.organizationId);
-    if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
-
-    // Resolve author display names once so shared threads show a name rather
-    // than a raw userId fragment. Degrades gracefully to the fallback when a
-    // member can't be resolved.
-    const authorNames = new Map<string, string>();
-    try {
-      const members = await listByOrganizationHandler(ctx, {
-        organizationId: project.organizationId,
-      });
-      for (const member of members) {
-        if (member.displayName)
-          authorNames.set(member.userId, member.displayName);
-      }
-    } catch (error) {
-      console.warn(
-        '[projects] listProjectThreads: author name resolution failed',
-        error,
-      );
-    }
-
-    const threadsQuery = ctx.db
-      .query('threadMetadata')
-      .withIndex('by_organizationId_and_projectId', (q) =>
-        q
-          .eq('organizationId', project.organizationId)
-          .eq('projectId', args.projectId),
-      );
-
-    const result = [];
-    for await (const t of threadsQuery) {
-      // Task-comment threads and fork branches reuse threadMetadata but are
-      // not chats — they live under their own surfaces, not the project's
-      // chat list. Same rule as the main chat history (see
-      // `excludeNonChatHistoryThreads`).
-      if (isHiddenFromChatHistory(t)) continue;
-      // A deleted/trashed/expired chat leaves the project entirely (parity
-      // with the chat list): deleting a project chat removes it from the
-      // project view. `archived` is intentionally KEPT so an archived chat
-      // stays reachable through its project.
-      if (
-        t.status === 'deleted' ||
-        t.status === 'trashed' ||
-        t.status === 'expired'
-      ) {
-        continue;
-      }
-      if (args.scope === 'mine' && t.userId !== auth.userId) continue;
-      if (args.scope === 'shared' && t.sharedWithProject !== true) continue;
-      if (
-        args.scope === 'all' &&
-        t.userId !== auth.userId &&
-        t.sharedWithProject !== true
-      ) {
-        continue;
-      }
-      result.push({
-        _id: t._id,
-        threadId: t.threadId,
-        userId: t.userId,
-        authorName: authorNames.get(t.userId),
-        title: t.title,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-        sharedWithProject: t.sharedWithProject,
-        status: t.status,
-        agentSlug: t.agentSlug,
-        generationStatus: t.generationStatus,
-        isShared: t.isShared,
-        pinnedAt: t.pinnedAt,
-        lastReplyAt: t.lastReplyAt,
-        lastReadAt: t.lastReadAt,
-      });
-    }
-    return result;
   },
 });
 

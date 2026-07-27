@@ -175,7 +175,8 @@ function UserBubble({
         ref={bodyRef}
         className={cn(
           'bg-muted text-foreground rounded-2xl px-4 py-3',
-          !expanded && 'max-h-96 overflow-hidden',
+          // ~10 lines of text-sm; anything longer collapses behind Show more.
+          !expanded && 'max-h-60 overflow-hidden',
         )}
       >
         <MessageParts parts={message.parts} />

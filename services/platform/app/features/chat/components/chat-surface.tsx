@@ -24,6 +24,7 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Cpu,
@@ -52,6 +53,7 @@ import {
   useChatMessages,
   useChatModelPreference,
   useChatSend,
+  useChatThread,
   useChatThreads,
   useComposerCapabilities,
   useComposerModels,
@@ -157,6 +159,13 @@ export function ChatSurface({
 
   const messages = useChatMessages(organizationId, viewThreadId);
   const generation = useChatGeneration(organizationId, viewThreadId);
+  // Also answers for a project-shared conversation the caller may read but
+  // not write — everything that composes or mutates gates on this.
+  const openThread = useChatThread(organizationId, threadId);
+  const viewerIsOwner =
+    openThread.status !== 'ready' ||
+    openThread.data === null ||
+    openThread.data.viewerIsOwner !== false;
   const composerOptions = useComposerModels(organizationId);
   const capabilityCatalog = useComposerCapabilities(organizationId);
   const harnessHealth = useHarnessHealth(organizationId);
@@ -364,6 +373,8 @@ export function ChatSurface({
     !chatSend.available ||
     threads.status === 'unavailable' ||
     (threadId !== undefined && messages.status === 'unavailable') ||
+    // A project-shared conversation someone else owns is read-only here.
+    !viewerIsOwner ||
     needsProviderSetup;
 
   // Stop is wired for external turns only — the harness runs independently in the
@@ -665,26 +676,39 @@ export function ChatSurface({
           </div>
         </div>
         {messagesAvailable ? (
-          <MessageThread
-            messages={messages.data}
-            generation={
-              generation.status === 'ready' ? generation.data : undefined
-            }
-            organizationId={organizationId}
-            threadId={viewThreadId}
-            feedback={feedbackByMessage}
-            forkGroups={forkGroups}
-            onEditSubmit={handleEditSubmit}
-            // Regenerating picks the composer's current DIRECT model — a
-            // sandbox thread's turns run elsewhere, so it has no re-run here.
-            onRegenerate={
-              activeThread?.kind === 'sandbox' ? undefined : handleRegenerate
-            }
-            onFork={handleFork}
-            // Clears the floating glass bar at rest; scrolled content still
-            // passes beneath its blur (overflow clips at the padding box).
-            className="md:pt-13"
-          />
+          <Stack gap={0} className="min-h-0 min-w-0 flex-1">
+            {!viewerIsOwner && (
+              <Text
+                role="note"
+                variant="muted"
+                className="border-border bg-muted/40 mx-auto mt-2 w-fit rounded-full border px-4 py-1.5 text-xs md:mt-14"
+              >
+                {t('readOnlyShared')}
+              </Text>
+            )}
+            <MessageThread
+              messages={messages.data}
+              generation={
+                generation.status === 'ready' ? generation.data : undefined
+              }
+              organizationId={organizationId}
+              threadId={viewerIsOwner ? viewThreadId : undefined}
+              feedback={viewerIsOwner ? feedbackByMessage : undefined}
+              forkGroups={viewerIsOwner ? forkGroups : undefined}
+              onEditSubmit={viewerIsOwner ? handleEditSubmit : undefined}
+              // Regenerating picks the composer's current DIRECT model — a
+              // sandbox thread's turns run elsewhere, so it has no re-run here.
+              onRegenerate={
+                viewerIsOwner && activeThread?.kind !== 'sandbox'
+                  ? handleRegenerate
+                  : undefined
+              }
+              onFork={viewerIsOwner ? handleFork : undefined}
+              // Clears the floating glass bar at rest; scrolled content still
+              // passes beneath its blur (overflow clips at the padding box).
+              className={viewerIsOwner ? 'md:pt-13' : undefined}
+            />
+          </Stack>
         ) : threadId !== undefined ? (
           messages.status === 'unavailable' ? (
             <EmptyState

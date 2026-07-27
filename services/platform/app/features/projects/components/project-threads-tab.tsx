@@ -1,5 +1,12 @@
 'use client';
 
+/**
+ * The project's Chats tab: the caller's own conversations filed here — each
+ * with the "share with project" switch — and, below, the ones other members
+ * shared. Reads the chat-v2 tables through `listThreadsForProject`; the
+ * switch writes the owner-gated share flag on the thread itself.
+ */
+
 import { Button } from '@tale/ui/button';
 import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
 import { HStack } from '@tale/ui/layout';
@@ -13,13 +20,12 @@ import { MessageSquare } from 'lucide-react';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetThreadSharedWithProject } from '../hooks/mutations';
-import { useProjectThreadSegments } from '../hooks/queries';
+import { useProjectChatThreads } from '../hooks/queries';
 
 interface ProjectThreadsTabProps {
   organizationId: string;
@@ -32,12 +38,7 @@ export function ProjectThreadsTab({
 }: ProjectThreadsTabProps) {
   const { t } = useT('projects');
   const navigate = useNavigate();
-  const { data: currentUser } = useCurrentUser();
-  const userId = currentUser?.userId;
-  const { yours, shared: sharedThreads } = useProjectThreadSegments(
-    projectId,
-    userId,
-  );
+  const { mine, shared: sharedThreads } = useProjectChatThreads(projectId);
   const { mutateAsync: setShared } = useSetThreadSharedWithProject();
 
   const handleNewChat = () => {
@@ -50,17 +51,11 @@ export function ProjectThreadsTab({
 
   const handleToggleShare = async (threadId: string, nextShared: boolean) => {
     try {
-      const { autoDisabledPersonalization } = await setShared({
-        threadId,
-        shared: nextShared,
-      });
+      await setShared({ organizationId, threadId, shared: nextShared });
       toast({
         title: nextShared
           ? t('threads.shareSuccess')
           : t('threads.unshareSuccess'),
-        description: autoDisabledPersonalization
-          ? t('threads.shareDisabledPersonalization')
-          : undefined,
         variant: 'success',
       });
     } catch (error) {
@@ -92,7 +87,7 @@ export function ProjectThreadsTab({
       />
 
       <FormSection>
-        {yours.length === 0 ? (
+        {mine.length === 0 ? (
           <EmptyPlaceholder icon={MessageSquare}>
             {t('threads.emptyYours')}
           </EmptyPlaceholder>
@@ -102,9 +97,9 @@ export function ProjectThreadsTab({
               {t('threads.shareToggleDisclosure')}
             </Text>
             <div className="divide-y rounded-lg border">
-              {yours.map((thread) => (
+              {mine.map((thread) => (
                 <HStack
-                  key={thread._id}
+                  key={thread.id}
                   gap={3}
                   align="center"
                   className="px-4 py-3"
@@ -117,16 +112,16 @@ export function ProjectThreadsTab({
                     to="/dashboard/$id/chat/$threadId"
                     params={{
                       id: organizationId,
-                      threadId: thread.threadId,
+                      threadId: thread.id,
                     }}
                     className="min-w-0 flex-1 truncate text-sm hover:underline"
                   >
-                    {thread.title ?? thread.threadId}
+                    {thread.title ?? thread.id}
                   </Link>
                   <Switch
                     checked={thread.sharedWithProject === true}
                     onCheckedChange={(checked) =>
-                      void handleToggleShare(thread.threadId, checked)
+                      void handleToggleShare(thread.id, checked)
                     }
                     label={t('threads.shareToggle')}
                   />
@@ -150,7 +145,7 @@ export function ProjectThreadsTab({
           <div className="divide-y rounded-lg border">
             {sharedThreads.map((thread) => (
               <HStack
-                key={thread._id}
+                key={thread.id}
                 gap={3}
                 align="center"
                 className="px-4 py-3"
@@ -163,11 +158,11 @@ export function ProjectThreadsTab({
                   to="/dashboard/$id/chat/$threadId"
                   params={{
                     id: organizationId,
-                    threadId: thread.threadId,
+                    threadId: thread.id,
                   }}
                   className="min-w-0 flex-1 truncate text-sm hover:underline"
                 >
-                  {thread.title ?? thread.threadId}
+                  {thread.title ?? thread.id}
                 </Link>
                 <Text variant="caption">
                   {thread.authorName ?? thread.userId.slice(0, 8)}

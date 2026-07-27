@@ -919,6 +919,8 @@ chat:
     title: Archived
     empty: No archived chats
   markAsRead: Mark as read
+  markAsUnread: Mark as unread
+  readOnlyShared: Shared with the project — read-only
   export:
     button: Export
     title: Export chat
@@ -4714,9 +4716,6 @@ projects:
     shareToggleDisclosure: Sharing hides your personal memories and instructions from other members.
     shareSuccess: Chat shared with project
     unshareSuccess: Chat hidden from project
-    shareDisabledPersonalization:
-      Personalization was turned off for this chat, so
-      your memories and instructions stay private from other members.
     shareError: Couldn't update sharing
   agents:
     agentsHeading: Agents
@@ -4837,6 +4836,12 @@ projects:
       delete everything.
     sharingNarrowingWarning: This change narrows access. Members who lose access
       will no longer see this project.
+  dangerZone:
+    title: Danger zone
+    description: Destructive actions for this project.
+    archiveHelp: Archiving hides the project and its chats from everyday lists; you can restore it here at any time.
+    restoreHelp: Restoring returns the project and its chats to the everyday lists.
+    deleteHelp: Deleting removes the project permanently, including its files and settings. This cannot be undone.
   rowActions:
     duplicate: Duplicate
     rename: Rename

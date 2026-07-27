@@ -962,6 +962,8 @@ chat:
     title: Archivés
     empty: Aucune conversation archivée
   markAsRead: Marquer comme lu
+  markAsUnread: Marquer comme non lu
+  readOnlyShared: Partagé avec le projet — lecture seule
   export:
     button: Exporter
     title: Exporter le chat
@@ -7616,10 +7618,6 @@ projects:
       restent cachés des autres membres.
     shareSuccess: Chat partagé avec le projet
     unshareSuccess: Chat retiré du projet
-    shareDisabledPersonalization:
-      La personnalisation a été désactivée pour ce chat,
-      afin que tes souvenirs et instructions restent privés vis-à-vis des autres
-      membres.
     shareError: Impossible de mettre à jour le partage
   agents:
     agentsHeading: Agents
@@ -7749,6 +7747,12 @@ projects:
     sharingNarrowingWarning:
       Cette modification restreint l'accès. Les membres qui
       perdent l'accès ne verront plus ce projet.
+  dangerZone:
+    title: Zone de danger
+    description: Actions destructrices pour ce projet.
+    archiveHelp: L'archivage masque le projet et ses chats des listes quotidiennes ; tu peux le restaurer ici à tout moment.
+    restoreHelp: La restauration ramène le projet et ses chats dans les listes quotidiennes.
+    deleteHelp: La suppression retire définitivement le projet, y compris ses fichiers et ses réglages. Cette action est irréversible.
   rowActions:
     duplicate: Dupliquer
     rename: Renommer

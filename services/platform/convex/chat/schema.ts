@@ -56,6 +56,9 @@ export const threadsTable = defineTable({
    * context. (Discussion/task threads carry their link on `threadMetadata`
    * instead — resolvers check both.) */
   projectId: v.optional(v.id('projects')),
+  /** Owner's opt-in: the conversation is readable (never writable) by every
+   * member with access to its project — the project page's "Chats" tab. */
+  sharedWithProject: v.optional(v.boolean()),
   /** The harness's own conversation handle from the last turn, so the next
    * turn resumes it (its state lives in the preserved workspace). */
   externalResume: v.optional(v.string()),
@@ -137,6 +140,9 @@ export const threadsTable = defineTable({
   // A root's branch lineage — the navigator's listing and the trash flows'
   // cascade walk it.
   .index('by_branchRoot', ['branchRootId'])
+  // A project's conversations, newest first — the project page's Chats tab
+  // and its stats counter.
+  .index('by_org_project', ['organizationId', 'projectId', 'updatedAt'])
   .index('by_shareToken', ['shareToken']);
 
 /**

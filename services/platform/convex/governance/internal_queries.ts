@@ -520,7 +520,8 @@ export const listExpiredChatThreads = internalQuery({
  * elapsed. `statusChangedAt` is always stamped by the trash flows, but a
  * missing one falls back to `now` — the row stays in the grace window until
  * an explicit transition stamps a real timestamp (same safety rationale as
- * the legacy twin above).
+ * the legacy twin above). Project-shared threads defer their hard-delete
+ * while the project is still active, exactly like the legacy walk.
  */
 export const listGraceExpiredChatThreads = internalQuery({
   args: {
@@ -541,6 +542,20 @@ export const listGraceExpiredChatThreads = internalQuery({
         )) {
         const ts = thread.statusChangedAt ?? Date.now();
         if (ts >= args.graceCutoffMs) continue;
+
+        if (thread.sharedWithProject === true && thread.projectId) {
+          const project = await ctx.db.get(thread.projectId);
+          const defer = shouldDeferProjectSharedExpiry(
+            {
+              threadSharedWithProject: thread.sharedWithProject,
+              projectExists: project !== null,
+              projectArchivedAt: project?.archivedAt ?? null,
+            },
+            args.graceCutoffMs,
+          );
+          if (defer) continue;
+        }
+
         threads.push(thread);
         if (threads.length >= args.batchSize) break;
       }

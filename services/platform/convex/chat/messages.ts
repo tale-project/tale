@@ -32,6 +32,7 @@ import { internalMutation, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { loadProjectSharedThread } from './threads';
 
 const messageRoleValidator = v.union(
   v.literal('user'),
@@ -74,15 +75,24 @@ export const listMessages = query({
     const threadId = ctx.db.normalizeId('threads', args.threadId);
     if (!threadId) return [];
     const thread = await ctx.db.get(threadId);
-    if (
-      !thread ||
-      thread.organizationId !== args.organizationId ||
-      thread.userId !== authUser.userId ||
+    const owned =
+      thread !== null &&
+      thread.organizationId === args.organizationId &&
+      thread.userId === authUser.userId &&
       // Trashed reads as gone — restore is the only way back.
-      thread.lifecycleStatus !== undefined
-    ) {
-      return [];
+      thread.lifecycleStatus === undefined;
+    if (!owned) {
+      // The one read-grant beside share links: a project member may read a
+      // conversation its owner shared with the project (never write it).
+      const shared = await loadProjectSharedThread(
+        ctx,
+        args.organizationId,
+        authUser.userId,
+        args.threadId,
+      );
+      if (!shared) return [];
     }
+    if (!thread) return [];
 
     const messages = await ctx.db
       .query('messages')

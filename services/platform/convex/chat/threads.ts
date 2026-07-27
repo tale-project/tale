@@ -56,6 +56,7 @@ const threadSummaryValidator = v.object({
   capabilities: v.optional(threadCapabilitiesValidator),
   /** The project the thread is filed under (absent = the loose Chats list). */
   projectId: v.optional(v.id('projects')),
+  sharedWithProject: v.optional(v.boolean()),
   archived: v.boolean(),
   pinnedAt: v.optional(v.number()),
   /** Unread tracking: newest assistant activity vs. the owner's watermark. */
@@ -65,6 +66,9 @@ const threadSummaryValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
   generating: v.boolean(),
+  /** False when a project member reads someone else's project-shared
+   * conversation — the surface renders read-only then. */
+  viewerIsOwner: v.boolean(),
 });
 
 /** The one projection from a thread row to its list summary — shared by every
@@ -72,6 +76,7 @@ const threadSummaryValidator = v.object({
 function toThreadSummary(
   thread: Doc<'threads'>,
   generating: boolean,
+  viewerIsOwner = true,
 ): {
   id: Doc<'threads'>['_id'];
   title?: string;
@@ -80,6 +85,7 @@ function toThreadSummary(
   harness?: string;
   capabilities?: { skills: string[]; connectors: string[] };
   projectId?: Doc<'projects'>['_id'];
+  sharedWithProject?: boolean;
   archived: boolean;
   pinnedAt?: number;
   lastReplyAt?: number;
@@ -88,6 +94,7 @@ function toThreadSummary(
   createdAt: number;
   updatedAt: number;
   generating: boolean;
+  viewerIsOwner: boolean;
 } {
   return {
     id: thread._id,
@@ -97,6 +104,7 @@ function toThreadSummary(
     harness: thread.harness,
     capabilities: thread.capabilities,
     projectId: thread.projectId,
+    sharedWithProject: thread.sharedWithProject,
     archived: thread.archived,
     pinnedAt: thread.pinnedAt,
     lastReplyAt: thread.lastReplyAt,
@@ -105,7 +113,39 @@ function toThreadSummary(
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
     generating,
+    viewerIsOwner,
   };
+}
+
+/**
+ * The one deliberate read-grant beside share links: a project member may READ
+ * a conversation its owner shared with the project. Returns the thread when
+ * the caller's project access checks out — never for writes. Shared with
+ * `messages.ts`, whose listing honors the same grant.
+ */
+export async function loadProjectSharedThread(
+  ctx: QueryCtx,
+  organizationId: string,
+  userId: string,
+  threadId: string,
+): Promise<Doc<'threads'> | null> {
+  const normalized = ctx.db.normalizeId('threads', threadId);
+  if (!normalized) return null;
+  const thread = await ctx.db.get(normalized);
+  if (
+    !thread ||
+    thread.organizationId !== organizationId ||
+    thread.lifecycleStatus !== undefined ||
+    thread.sharedWithProject !== true ||
+    thread.projectId === undefined
+  ) {
+    return null;
+  }
+  const access = await ctx.runQuery(
+    internal.projects.internal_queries.assertProjectAccessForChat,
+    { projectId: thread.projectId, organizationId, userId },
+  );
+  return access.allowed ? thread : null;
 }
 
 /** A conversation may equip its agent with at most this many skills /
@@ -337,24 +377,84 @@ export const listArchivedThreads = query({
   },
 });
 
-/** One thread, or null when it is not the caller's. */
+/** One thread: the caller's own, or — read-only — a project-shared one the
+ * caller's project access covers. Null otherwise. */
 export const getThread = query({
   args: { organizationId: v.string(), threadId: v.string() },
   returns: v.union(threadSummaryValidator, v.null()),
   handler: async (ctx, args) => {
     const userId = await requireOrgUser(ctx, args.organizationId);
-    const thread = await loadOwnedThread(
+    const owned = await loadOwnedThread(
       ctx,
       args.organizationId,
       userId,
       args.threadId,
     );
+    const thread =
+      owned ??
+      (await loadProjectSharedThread(
+        ctx,
+        args.organizationId,
+        userId,
+        args.threadId,
+      ));
     if (!thread) return null;
     const generation = await ctx.db
       .query('generations')
       .withIndex('by_thread', (q) => q.eq('threadId', thread._id))
       .first();
-    return toThreadSummary(thread, generation !== null);
+    return toThreadSummary(thread, generation !== null, owned !== null);
+  },
+});
+
+/**
+ * The owner's opt-in to make the conversation readable by everyone with
+ * access to its project. Requires the thread to be filed in a project;
+ * audited on the project, like every project-sharing change.
+ */
+export const setThreadSharedWithProject = mutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    shared: v.boolean(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      authUser.userId,
+      args.threadId,
+    );
+    if (!thread) return false;
+    if (thread.projectId === undefined) {
+      throw new ConvexError({ code: 'THREAD_NOT_IN_PROJECT' });
+    }
+
+    await ctx.db.patch(thread._id, { sharedWithProject: args.shared });
+
+    const project = await ctx.db.get(thread.projectId);
+    if (project) {
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: authUser.userId,
+        actorEmail: authUser.email,
+        actorType: 'user',
+        action: args.shared
+          ? 'project.thread.shared'
+          : 'project.thread.unshared',
+        category: 'data',
+        resourceType: 'project',
+        resourceId: String(project._id),
+        resourceName: project.name,
+        status: 'success',
+        newState: { threadId: String(thread._id), shared: args.shared },
+      });
+    }
+    return true;
   },
 });
 
@@ -659,12 +759,18 @@ export const setThreadPinned = mutation({
 });
 
 /**
- * Stamp the owner's read watermark — the unread dot clears the moment the
- * conversation is on screen. Best-effort by design: it runs on every thread
- * open, so a missing or foreign row is a silent no-op, never an error toast.
+ * Move the owner's read watermark — forward (the unread dot clears the moment
+ * the conversation is on screen) or, with `read: false`, back to unread so
+ * the dot returns. Best-effort by design: it runs on every thread open, so a
+ * missing or foreign row is a silent no-op, never an error toast.
  */
 export const markThreadRead = mutation({
-  args: { organizationId: v.string(), threadId: v.string() },
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    /** Absent reads as true. */
+    read: v.optional(v.boolean()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const userId = await requireOrgUser(ctx, args.organizationId);
@@ -675,6 +781,17 @@ export const markThreadRead = mutation({
       args.threadId,
     );
     if (!thread) return null;
+    if (args.read === false) {
+      await ctx.db.patch(thread._id, {
+        lastReadAt: undefined,
+        // A conversation with no reply yet still needs a watermark for the
+        // dot to compare against — the newest activity stands in.
+        ...(thread.lastReplyAt === undefined
+          ? { lastReplyAt: thread.updatedAt }
+          : {}),
+      });
+      return null;
+    }
     await ctx.db.patch(thread._id, { lastReadAt: Date.now() });
     return null;
   },

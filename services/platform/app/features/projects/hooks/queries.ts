@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -110,15 +108,21 @@ export function useProjectFolders(projectId: Id<'projects'> | undefined) {
   return { folders: data ?? [], isLoading };
 }
 
-export function useProjectThreads(
-  projectId: Id<'projects'> | undefined,
-  scope: 'mine' | 'shared' | 'all' = 'all',
-) {
+/** The Chats tab's data: the caller's own conversations in the project and
+ * the ones other members shared with it, from the chat-v2 tables. */
+export function useProjectChatThreads(projectId: Id<'projects'> | undefined) {
+  const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.listProjectThreads,
-    projectId ? { projectId, scope } : 'skip',
+    api.chat.project_threads.listThreadsForProject,
+    projectId && organizationId
+      ? { organizationId, projectId: String(projectId) }
+      : 'skip',
   );
-  return { threads: data ?? [], isLoading };
+  return {
+    mine: data?.mine ?? [],
+    shared: data?.shared ?? [],
+    isLoading,
+  };
 }
 
 export function useSidebarProjects(organizationId: string) {
@@ -137,23 +141,4 @@ export function useProjectsSearch(organizationId: string, query: string) {
       : 'skip',
   );
   return { results: data ?? [], isLoading };
-}
-
-/**
- * Partition project threads into "yours" / "shared with project" segments
- * client-side. Uses the `scope: 'all'` query for both segments at once.
- */
-export function useProjectThreadSegments(
-  projectId: Id<'projects'> | undefined,
-  callerUserId: string | undefined,
-) {
-  const { threads, isLoading } = useProjectThreads(projectId, 'all');
-  return useMemo(() => {
-    if (!callerUserId) return { yours: [], shared: [], isLoading };
-    const yours = threads.filter((t) => t.userId === callerUserId);
-    const shared = threads.filter(
-      (t) => t.userId !== callerUserId && t.sharedWithProject === true,
-    );
-    return { yours, shared, isLoading };
-  }, [threads, callerUserId, isLoading]);
 }

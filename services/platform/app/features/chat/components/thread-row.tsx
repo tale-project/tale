@@ -23,6 +23,7 @@ import {
   ArchiveRestore,
   Boxes,
   CheckCheck,
+  CircleDot,
   FolderInput,
   FolderMinus,
   Link2,
@@ -307,6 +308,11 @@ function ThreadRowMenu({
   // The server enforces every hold on the mutation; this only explains the
   // disabled destructive items up front.
   const held = orgHeld || heldThreadIds.has(thread.id);
+  // Unread from the same watermark the row's dot reads — the menu offers the
+  // opposite transition.
+  const threadUnread =
+    thread.lastReplyAt !== undefined &&
+    thread.lastReplyAt > (thread.lastReadAt ?? 0);
 
   const leaveIfActive = () => {
     if (!active) return;
@@ -431,9 +437,9 @@ function ThreadRowMenu({
             },
             {
               type: 'item',
-              label: t('markAsRead'),
-              icon: CheckCheck,
-              onClick: () => actions.markRead(thread.id),
+              label: threadUnread ? t('markAsRead') : t('markAsUnread'),
+              icon: threadUnread ? CheckCheck : CircleDot,
+              onClick: () => actions.markRead(thread.id, threadUnread),
             },
             {
               type: 'item',

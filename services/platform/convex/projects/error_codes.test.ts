@@ -116,6 +116,9 @@ describe('projects error-code ↔ i18n key consistency', () => {
     // set, restricted-model select) or RBAC errors thrown by shared
     // helpers — explicitly carried for the UI's typed error handling.
     const ALLOWED_NON_THROWN = new Set([
+      // Thrown by the chat domain (`convex/chat/threads.ts`
+      // setThreadSharedWithProject) — outside this scan's projects/ scope.
+      'THREAD_NOT_IN_PROJECT',
       // Thrown by the chat entry points (thread-project binding check),
       // which are offline while the chat backend is rebuilt; the message
       // stays so the rebuilt chat ships with it intact.

@@ -28,6 +28,7 @@ import { convexErrorCode } from '@/lib/utils/convex-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
+import { ProjectDangerZone } from './project-danger-zone';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSharingSection } from './project-sharing-section';
@@ -272,6 +273,17 @@ function ProjectOverviewContent({
           canAdminister={canAdminister}
         />
       </SettingsSection>
+
+      {/* Archive and delete live HERE — the chat sidebar's folder menu and
+          the projects list both point at this one guarded home. */}
+      {canAdminister ? (
+        <ProjectDangerZone
+          organizationId={organizationId}
+          projectId={projectId}
+          projectName={project.name}
+          isArchived={project.archivedAt !== undefined}
+        />
+      ) : null}
     </ContentArea>
   );
 }

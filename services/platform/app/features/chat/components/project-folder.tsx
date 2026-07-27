@@ -15,11 +15,13 @@ import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import {
+  Archive,
   ChevronDown,
   MoreHorizontal,
   Pin,
   PinOff,
   SquarePen,
+  Trash2,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -55,6 +57,7 @@ export function ProjectFolder({
   onSetCollapsed: (collapsed: boolean) => void;
 }) {
   const { t } = useT('chat');
+  const { t: tProjects } = useT('projects');
   const navigate = useNavigate();
   const { organizationId, activeThreadId } = useThreadListFrame();
   const { setPinned } = useProjectPin();
@@ -78,6 +81,17 @@ export function ProjectFolder({
     });
   };
 
+  // Archive and Delete NAVIGATE to the project's danger zone rather than
+  // acting from a hover menu — a project deletion deserves its guarded home,
+  // and the general page spells out what each action cascades to.
+  const handleOpenDangerZone = () => {
+    void navigate({
+      to: '/dashboard/$id/projects/$projectId',
+      params: { id: organizationId, projectId: project.id },
+      hash: 'project-danger',
+    });
+  };
+
   const menuItems: DropdownMenuGroup[] = [
     [
       {
@@ -91,6 +105,21 @@ export function ProjectFolder({
         label: isPinned ? t('unpinProject') : t('pinProject'),
         icon: isPinned ? PinOff : Pin,
         onClick: handleTogglePin,
+      },
+    ],
+    [
+      {
+        type: 'item',
+        label: tProjects('rowActions.archive'),
+        icon: Archive,
+        onClick: handleOpenDangerZone,
+      },
+      {
+        type: 'item',
+        label: tProjects('rowActions.delete'),
+        icon: Trash2,
+        destructive: true,
+        onClick: handleOpenDangerZone,
       },
     ],
   ];

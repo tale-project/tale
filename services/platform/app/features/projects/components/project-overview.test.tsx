@@ -153,19 +153,24 @@ describe('ProjectOverview', () => {
     expect(screen.queryByText('Get started')).not.toBeInTheDocument();
   });
 
-  // The page is a configuration surface: all three blocks are settings
+  // The page is a configuration surface: all four blocks are settings
   // sections, so the shared marker-driven divider rule draws the hairline
   // between each pair — including the one separating Description from
   // Instructions. Lose a marker and the page silently reads as one undivided
   // run of fields.
-  it('frames Project, Instructions, and Sharing as settings sections', () => {
+  it('frames Project, Instructions, Sharing, and the danger zone as settings sections', () => {
     const { container } = renderOverview();
 
     expect(container.querySelectorAll('[data-settings-section]')).toHaveLength(
-      3,
+      4,
     );
-    // The Sharing section keeps its anchor so deep links still land on it.
+    // Both anchored sections keep their ids so deep links still land on
+    // them — Sharing from the org pages, the danger zone from the chat
+    // sidebar's folder menu.
     expect(container.querySelector('#project-sharing')).toHaveAttribute(
+      'data-settings-section',
+    );
+    expect(container.querySelector('#project-danger')).toHaveAttribute(
       'data-settings-section',
     );
   });

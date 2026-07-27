@@ -17,6 +17,7 @@ import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 import { ChatRowsSkeleton } from '@/app/components/layout/chat-history-skeleton';
+import { SubPanelSectionHeader } from '@/app/components/layout/sub-panel-list';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -36,24 +37,32 @@ export function ArchivedSection() {
   const [cursors, setCursors] = useState<readonly number[]>([]);
 
   return (
-    <section className="border-border mt-2 shrink-0 border-t pt-2">
-      <button
-        type="button"
-        onClick={() => setExpanded((open) => !open)}
-        aria-expanded={expanded}
-        className="text-muted-foreground/70 hover:text-foreground flex h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-2 text-[11px] font-normal tracking-wider uppercase transition-colors"
-      >
-        <ChevronDown
-          aria-hidden
-          className={cn(
-            'size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
-            !expanded && '-rotate-90',
-          )}
-        />
-        {t('archived.title')}
-      </button>
+    <section className="border-border mt-1.5 shrink-0 border-t pt-2">
+      {/* Same header vocabulary as PROJECTS and CHATS; the trailing chevron
+          is the disclosure. */}
+      <SubPanelSectionHeader
+        label={t('archived.title')}
+        action={
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setExpanded((open) => !open)}
+            aria-expanded={expanded}
+            aria-label={t('archived.title')}
+            className="text-muted-foreground -my-1 -mr-1.5 size-7 shrink-0"
+          >
+            <ChevronDown
+              aria-hidden
+              className={cn(
+                'size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
+                !expanded && '-rotate-90',
+              )}
+            />
+          </Button>
+        }
+      />
       {expanded && (
-        <div className="max-h-64 overflow-y-auto">
+        <div className="max-h-64 overflow-y-auto px-0 pt-0.5">
           <ArchivedPage
             cursor={undefined}
             isLastLoaded={cursors.length === 0}

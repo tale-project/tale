@@ -31,6 +31,8 @@ export interface ChatThreadSummary {
   };
   /** The project the thread is filed under (absent = the loose Chats list). */
   readonly projectId?: string;
+  /** Owner's opt-in: readable by everyone with access to its project. */
+  readonly sharedWithProject?: boolean;
   readonly archived: boolean;
   /** Present while pinned — pinned rows float to the top of the list. */
   readonly pinnedAt?: number;
@@ -43,6 +45,10 @@ export interface ChatThreadSummary {
   readonly updatedAt: number;
   /** True while a generation row exists for the thread. */
   readonly generating: boolean;
+  /** False when a project member reads someone else's project-shared
+   * conversation — the surface renders read-only then. Absent reads as
+   * true (every list row is the caller's own). */
+  readonly viewerIsOwner?: boolean;
 }
 
 /** One project folder of the chat sub-panel, reduced to what a folder row
