@@ -4,7 +4,7 @@ import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type { ChatProjectSummary, ChatThreadSummary } from '../types';
 
@@ -64,6 +64,7 @@ const THREADS: ChatThreadSummary[] = [
     id: 't1',
     title: 'Quarterly report',
     kind: 'direct',
+    createdAt: 2,
     archived: false,
     updatedAt: 2,
     generating: false,
@@ -72,6 +73,7 @@ const THREADS: ChatThreadSummary[] = [
     id: 't2',
     title: 'Refactor the importer',
     kind: 'sandbox',
+    createdAt: 1,
     archived: false,
     updatedAt: 1,
     generating: true,
@@ -81,6 +83,7 @@ const THREADS: ChatThreadSummary[] = [
     title: 'Landing copy',
     kind: 'direct',
     projectId: 'p1',
+    createdAt: 3,
     archived: false,
     updatedAt: 3,
     generating: false,
@@ -164,7 +167,15 @@ describe('ThreadList', () => {
       <ThreadList organizationId="org-1" threads={THREADS} />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    // Thread rows carry their own More-actions menu now — scope to the
+    // project folder's row.
+    const folderRow = screen
+      .getByRole('button', { name: 'Website revamp' })
+      .closest('div.group');
+    if (!(folderRow instanceof HTMLElement)) throw new Error('no folder row');
+    await user.click(
+      within(folderRow).getByRole('button', { name: 'More actions' }),
+    );
     await user.click(screen.getByRole('menuitem', { name: 'New chat' }));
 
     expect(navigateMock).toHaveBeenCalledWith({
@@ -180,7 +191,13 @@ describe('ThreadList', () => {
       <ThreadList organizationId="org-1" threads={THREADS} />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    const folderRow = screen
+      .getByRole('button', { name: 'Website revamp' })
+      .closest('div.group');
+    if (!(folderRow instanceof HTMLElement)) throw new Error('no folder row');
+    await user.click(
+      within(folderRow).getByRole('button', { name: 'More actions' }),
+    );
     await user.click(screen.getByRole('menuitem', { name: 'Pin project' }));
 
     expect(setPinnedMock).toHaveBeenCalledWith('p1', true);

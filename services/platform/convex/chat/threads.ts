@@ -30,6 +30,7 @@ import {
   query,
   type QueryCtx,
 } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { chatKindValidator } from './schema';
@@ -56,10 +57,56 @@ const threadSummaryValidator = v.object({
   /** The project the thread is filed under (absent = the loose Chats list). */
   projectId: v.optional(v.id('projects')),
   archived: v.boolean(),
+  pinnedAt: v.optional(v.number()),
+  /** Unread tracking: newest assistant activity vs. the owner's watermark. */
+  lastReplyAt: v.optional(v.number()),
+  lastReadAt: v.optional(v.number()),
   isShared: v.optional(v.boolean()),
+  createdAt: v.number(),
   updatedAt: v.number(),
   generating: v.boolean(),
 });
+
+/** The one projection from a thread row to its list summary — shared by every
+ * read that returns summaries, so the shapes cannot drift apart. */
+function toThreadSummary(
+  thread: Doc<'threads'>,
+  generating: boolean,
+): {
+  id: Doc<'threads'>['_id'];
+  title?: string;
+  kind: Doc<'threads'>['kind'];
+  agentSlug?: string;
+  harness?: string;
+  capabilities?: { skills: string[]; connectors: string[] };
+  projectId?: Doc<'projects'>['_id'];
+  archived: boolean;
+  pinnedAt?: number;
+  lastReplyAt?: number;
+  lastReadAt?: number;
+  isShared?: boolean;
+  createdAt: number;
+  updatedAt: number;
+  generating: boolean;
+} {
+  return {
+    id: thread._id,
+    title: thread.title,
+    kind: thread.kind,
+    agentSlug: thread.agentSlug,
+    harness: thread.harness,
+    capabilities: thread.capabilities,
+    projectId: thread.projectId,
+    archived: thread.archived,
+    pinnedAt: thread.pinnedAt,
+    lastReplyAt: thread.lastReplyAt,
+    lastReadAt: thread.lastReadAt,
+    isShared: thread.isShared,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+    generating,
+  };
+}
 
 /** A conversation may equip its agent with at most this many skills /
  * connectors — mirrors the project binding's `MAX_PROJECT_AGENT_*` ceilings;
@@ -172,11 +219,19 @@ async function loadOwnedThread(
 }
 
 /**
- * List the caller's threads, newest first, each tagged with whether a turn is
- * currently generating on it. The generating flag reads the `generations`
- * table — whose row exists exactly while a turn is in flight — rather than a
- * column on the thread, so a streaming turn never rewrites a row the list
- * reads.
+ * List the caller's ACTIVE threads — live (no lifecycle status), visible (not
+ * a hidden branch sibling), unarchived — newest activity first with pinned
+ * rows floated on top, each tagged with whether a turn is currently
+ * generating. The generating flag reads the `generations` table — whose row
+ * exists exactly while a turn is in flight — rather than a column on the
+ * thread, so a streaming turn never rewrites a row the list reads.
+ *
+ * Deliberately `collect()`, not paginated: the sub-panel buckets every row
+ * into project folders and the loose list (grouping and drag-and-drop need
+ * the full set), and the walk is index-pre-filtered to the active set only —
+ * archived, trashed, and hidden branches, the unbounded growth vectors, never
+ * enter it. A user's ACTIVE set is bounded by human behavior; the archived
+ * list below is the one that grows monotonically, and it paginates.
  */
 export const listThreads = query({
   args: { organizationId: v.string() },
@@ -186,8 +241,13 @@ export const listThreads = query({
 
     const threads = await ctx.db
       .query('threads')
-      .withIndex('by_org_user_updated', (q) =>
-        q.eq('organizationId', args.organizationId).eq('userId', userId),
+      .withIndex('by_user_list', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('userId', userId)
+          .eq('archived', false)
+          .eq('lifecycleStatus', undefined)
+          .eq('hidden', undefined),
       )
       .order('desc')
       .collect();
@@ -203,19 +263,73 @@ export const listThreads = query({
       generating.add(generation.threadId);
     }
 
-    return threads.map((thread) => ({
-      id: thread._id,
-      title: thread.title,
-      kind: thread.kind,
-      agentSlug: thread.agentSlug,
-      harness: thread.harness,
-      capabilities: thread.capabilities,
-      projectId: thread.projectId,
-      archived: thread.archived,
-      isShared: thread.isShared,
-      updatedAt: thread.updatedAt,
-      generating: generating.has(thread._id),
-    }));
+    // Pinned rows first (newest pin on top), the rest in index (recency)
+    // order — the server owns the ordering so no client re-sorts a page.
+    const pinned = threads
+      .filter((thread) => thread.pinnedAt !== undefined)
+      .sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
+    const unpinned = threads.filter((thread) => thread.pinnedAt === undefined);
+
+    return [...pinned, ...unpinned].map((thread) =>
+      toThreadSummary(thread, generating.has(thread._id)),
+    );
+  },
+});
+
+/** One page size of the archived list. */
+const ARCHIVED_PAGE_DEFAULT = 30;
+const ARCHIVED_PAGE_MAX = 50;
+
+/**
+ * The caller's archived threads, newest first, one page at a time. Archived
+ * chats grow without bound (archiving is the "get it out of the way" flow),
+ * so unlike the active list this read paginates: `cursor` is the `updatedAt`
+ * of the last row of the previous page, and a `null` `nextCursor` means the
+ * end. A manual cursor rather than `.paginate` keeps the read a plain seam
+ * watch (the session cache replays it like any other query).
+ */
+export const listArchivedThreads = query({
+  args: {
+    organizationId: v.string(),
+    cursor: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    rows: v.array(threadSummaryValidator),
+    nextCursor: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const limit = Math.min(
+      Math.max(args.limit ?? ARCHIVED_PAGE_DEFAULT, 1),
+      ARCHIVED_PAGE_MAX,
+    );
+
+    const cursor = args.cursor;
+    const page = await ctx.db
+      .query('threads')
+      .withIndex('by_user_list', (q) => {
+        const scoped = q
+          .eq('organizationId', args.organizationId)
+          .eq('userId', userId)
+          .eq('archived', true)
+          .eq('lifecycleStatus', undefined)
+          .eq('hidden', undefined);
+        return cursor === undefined ? scoped : scoped.lt('updatedAt', cursor);
+      })
+      .order('desc')
+      .take(limit + 1);
+
+    const rows = page.slice(0, limit);
+    const nextCursor =
+      page.length > limit ? (rows.at(-1)?.updatedAt ?? null) : null;
+
+    return {
+      // Nothing archived generates — a turn cannot be sent into an archived
+      // thread — so the flag is constant false rather than a scan.
+      rows: rows.map((thread) => toThreadSummary(thread, false)),
+      nextCursor,
+    };
   },
 });
 
@@ -236,19 +350,7 @@ export const getThread = query({
       .query('generations')
       .withIndex('by_thread', (q) => q.eq('threadId', thread._id))
       .first();
-    return {
-      id: thread._id,
-      title: thread.title,
-      kind: thread.kind,
-      agentSlug: thread.agentSlug,
-      harness: thread.harness,
-      capabilities: thread.capabilities,
-      projectId: thread.projectId,
-      archived: thread.archived,
-      isShared: thread.isShared,
-      updatedAt: thread.updatedAt,
-      generating: generation !== null,
-    };
+    return toThreadSummary(thread, generation !== null);
   },
 });
 
@@ -490,13 +592,50 @@ export const moveThreadToProject = mutation({
   },
 });
 
-/** Archive or unarchive a thread. Returns false when the thread is not the
- * caller's, so a client can distinguish a no-op from a success. */
-export const setThreadArchived = mutation({
+/** The header cap on a chat name — generous for a title, hostile to a pasted
+ * essay. Mirrors the AI title generator's own ceiling. */
+const MAX_THREAD_TITLE_CHARS = 120;
+
+/**
+ * Rename a thread. The owner's explicit name always wins — unlike the
+ * AI-title path (`setThreadTitleInternal`), which only ever fills an empty
+ * title. A rename is a metadata edit, not chat activity, so `updatedAt` stays
+ * untouched and the list keeps its recency order. Returns false when the
+ * thread is not the caller's or the name is empty after trimming.
+ */
+export const renameThread = mutation({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
-    archived: v.boolean(),
+    title: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return false;
+    const title = args.title.trim().slice(0, MAX_THREAD_TITLE_CHARS);
+    if (title.length === 0) return false;
+    await ctx.db.patch(thread._id, { title });
+    return true;
+  },
+});
+
+/**
+ * Pin or unpin a thread — pinned rows float to the top of the list, newest
+ * pin first. A metadata edit, not chat activity: `updatedAt` stays untouched.
+ * Returns false when the thread is not the caller's.
+ */
+export const setThreadPinned = mutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    pinned: v.boolean(),
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
@@ -509,8 +648,72 @@ export const setThreadArchived = mutation({
     );
     if (!thread) return false;
     await ctx.db.patch(thread._id, {
-      archived: args.archived,
-      updatedAt: Date.now(),
+      pinnedAt: args.pinned ? Date.now() : undefined,
+    });
+    return true;
+  },
+});
+
+/**
+ * Stamp the owner's read watermark — the unread dot clears the moment the
+ * conversation is on screen. Best-effort by design: it runs on every thread
+ * open, so a missing or foreign row is a silent no-op, never an error toast.
+ */
+export const markThreadRead = mutation({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return null;
+    await ctx.db.patch(thread._id, { lastReadAt: Date.now() });
+    return null;
+  },
+});
+
+/**
+ * Archive or unarchive a thread. Archiving is a metadata edit, not chat
+ * activity — `updatedAt` stays untouched, so unarchiving returns the row to
+ * its true recency slot instead of the top of the list. Audited: archives are
+ * a governance-relevant lifecycle change. Returns false when the thread is
+ * not the caller's, so a client can distinguish a no-op from a success.
+ */
+export const setThreadArchived = mutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    archived: v.boolean(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      authUser.userId,
+      args.threadId,
+    );
+    if (!thread) return false;
+    if (thread.archived === args.archived) return true;
+    await ctx.db.patch(thread._id, { archived: args.archived });
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: authUser.userId,
+      actorEmail: authUser.email,
+      actorType: 'user',
+      action: args.archived ? 'chat_thread.archived' : 'chat_thread.unarchived',
+      category: 'data',
+      resourceType: 'thread',
+      resourceId: String(thread._id),
+      resourceName: thread.title,
+      status: 'success',
     });
     return true;
   },

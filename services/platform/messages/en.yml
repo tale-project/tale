@@ -906,6 +906,21 @@ chat:
   moreActions: More actions
   pinProject: Pin project
   unpinProject: Unpin project
+  pinChat: Pin chat
+  unpinChat: Unpin chat
+  newResponse: New response
+  archive: Archive
+  unarchive: Unarchive
+  archiveSuccess: Chat archived
+  archiveFailed: Failed to archive chat
+  unarchiveSuccess: Chat unarchived
+  unarchiveFailed: Failed to unarchive chat
+  archived:
+    title: Archived
+    empty: No archived chats
+  moveToProject: Move to project…
+  removeFromProject: Remove from project
+  removeFromProjectFailed: Failed to remove chat from project
   pinned: Pinned
   pinFailed: Couldn't update pin
   projectsSection: Projects
@@ -1032,10 +1047,13 @@ chat:
     emptySubtitle: Start a new chat to begin
     untitled: Untitled chat
     generating: Generating response
+    renameChat: Rename chat
+    loadMore: Load more
     dropHereToAdd: Drop a chat here
     dropToChatsHint: Drop here to move to Chats
     toast:
       moveFailed: Failed to move chat
+      renameFailed: Failed to rename chat
   aria:
     messageHistory: Message history
     chatRegion: Chat
@@ -1057,7 +1075,6 @@ chat:
     viewDocument: View in document
     visitPage: Visit page
   share:
-    title: Share chat
     button: Share
     copied: Link copied
     shareFailed: Failed to share chat
@@ -1308,6 +1325,11 @@ common:
     deleteSuccess: Successfully deleted {count, plural, one {# item} other {# items}}
     deleteFailed: Failed to delete some items
     deleting: Deleting...
+  upload:
+    clickToUpload: Click to upload
+    dropFilesHere: Drop files here to upload
+    supportedFormats: .xlsx, .xls or .csv
+    pickADate: Pick a date
   labels:
     phone: Phone
     source: Source

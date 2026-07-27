@@ -783,3 +783,235 @@ describe('chat threads — capability assembly', () => {
     ).rejects.toThrow(/at most/);
   });
 });
+
+describe('chat threads — sidebar actions', () => {
+  /** Create a thread and force a deterministic `updatedAt`. */
+  async function seedThread(
+    t: T,
+    userId: string,
+    title: string,
+    updatedAt: number,
+  ): Promise<string> {
+    const id = await t
+      .withIdentity({ subject: userId })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+        title,
+      });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(id, { updatedAt, createdAt: updatedAt });
+    });
+    return id;
+  }
+
+  it('floats pinned threads to the top, newest pin first', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const a = await seedThread(t, ALICE, 'a', 1000);
+    await seedThread(t, ALICE, 'b', 2000);
+    const c = await seedThread(t, ALICE, 'c', 3000);
+    const alice = t.withIdentity({ subject: ALICE });
+
+    await alice.mutation(api.chat.threads.setThreadPinned, {
+      organizationId: ORG_A,
+      threadId: a,
+      pinned: true,
+    });
+    let titles = (
+      await alice.query(api.chat.threads.listThreads, {
+        organizationId: ORG_A,
+      })
+    ).map((row) => row.title);
+    expect(titles).toEqual(['a', 'c', 'b']);
+
+    await alice.mutation(api.chat.threads.setThreadPinned, {
+      organizationId: ORG_A,
+      threadId: c,
+      pinned: true,
+    });
+    titles = (
+      await alice.query(api.chat.threads.listThreads, {
+        organizationId: ORG_A,
+      })
+    ).map((row) => row.title);
+    expect(titles).toEqual(['c', 'a', 'b']);
+
+    await alice.mutation(api.chat.threads.setThreadPinned, {
+      organizationId: ORG_A,
+      threadId: a,
+      pinned: false,
+    });
+    titles = (
+      await alice.query(api.chat.threads.listThreads, {
+        organizationId: ORG_A,
+      })
+    ).map((row) => row.title);
+    expect(titles).toEqual(['c', 'b', 'a']);
+  });
+
+  it('renames a thread, capping the name; refuses empty and foreign renames', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    await seedMember(t, BOB, ORG_A);
+    const id = await seedThread(t, ALICE, 'before', 1000);
+    const alice = t.withIdentity({ subject: ALICE });
+
+    await expect(
+      alice.mutation(api.chat.threads.renameThread, {
+        organizationId: ORG_A,
+        threadId: id,
+        title: `  ${'x'.repeat(300)}  `,
+      }),
+    ).resolves.toBe(true);
+    const renamed = await alice.query(api.chat.threads.getThread, {
+      organizationId: ORG_A,
+      threadId: id,
+    });
+    expect(renamed?.title).toBe('x'.repeat(120));
+    // Renaming is a metadata edit — the row keeps its recency slot.
+    expect(renamed?.updatedAt).toBe(1000);
+
+    await expect(
+      alice.mutation(api.chat.threads.renameThread, {
+        organizationId: ORG_A,
+        threadId: id,
+        title: '   ',
+      }),
+    ).resolves.toBe(false);
+
+    await expect(
+      t.withIdentity({ subject: BOB }).mutation(api.chat.threads.renameThread, {
+        organizationId: ORG_A,
+        threadId: id,
+        title: 'stolen',
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('archives without disturbing recency, audits the change, and paginates the archive', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const ids: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      ids.push(await seedThread(t, ALICE, `t${index}`, 1000 + index * 1000));
+    }
+    const alice = t.withIdentity({ subject: ALICE });
+
+    for (const id of ids.slice(0, 3)) {
+      await alice.mutation(api.chat.threads.setThreadArchived, {
+        organizationId: ORG_A,
+        threadId: id,
+        archived: true,
+      });
+    }
+
+    const active = await alice.query(api.chat.threads.listThreads, {
+      organizationId: ORG_A,
+    });
+    expect(active.map((row) => row.title)).toEqual(['t4', 't3']);
+
+    const pageOne = await alice.query(api.chat.threads.listArchivedThreads, {
+      organizationId: ORG_A,
+      limit: 2,
+    });
+    expect(pageOne.rows.map((row) => row.title)).toEqual(['t2', 't1']);
+    // The cursor is the LAST row of the page — the next page starts below it.
+    expect(pageOne.nextCursor).toBe(2000);
+
+    const pageTwo = await alice.query(api.chat.threads.listArchivedThreads, {
+      organizationId: ORG_A,
+      limit: 2,
+      cursor: pageOne.nextCursor ?? 0,
+    });
+    expect(pageTwo.rows.map((row) => row.title)).toEqual(['t0']);
+    expect(pageTwo.nextCursor).toBeNull();
+
+    // Unarchiving returns the row to its true recency slot, not the top.
+    await alice.mutation(api.chat.threads.setThreadArchived, {
+      organizationId: ORG_A,
+      threadId: ids[0] ?? '',
+      archived: false,
+    });
+    const after = await alice.query(api.chat.threads.listThreads, {
+      organizationId: ORG_A,
+    });
+    expect(after.map((row) => row.title)).toEqual(['t4', 't3', 't0']);
+
+    const audits = await t.run(async (ctx) =>
+      (await ctx.db.query('auditLogs').collect()).map((row) => row.action),
+    );
+    expect(audits).toContain('chat_thread.archived');
+    expect(audits).toContain('chat_thread.unarchived');
+  });
+
+  it('excludes hidden branch siblings and trashed rows from every list', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const visible = await seedThread(t, ALICE, 'visible', 1000);
+    const hiddenId = await seedThread(t, ALICE, 'hidden-branch', 2000);
+    const trashedId = await seedThread(t, ALICE, 'trashed', 3000);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(hiddenId as never, { hidden: true as const });
+      await ctx.db.patch(trashedId as never, {
+        lifecycleStatus: 'trashed' as const,
+        statusChangedAt: 1,
+      });
+    });
+    const alice = t.withIdentity({ subject: ALICE });
+
+    const rows = await alice.query(api.chat.threads.listThreads, {
+      organizationId: ORG_A,
+    });
+    expect(rows.map((row) => row.id)).toEqual([visible]);
+
+    const archived = await alice.query(api.chat.threads.listArchivedThreads, {
+      organizationId: ORG_A,
+    });
+    expect(archived.rows).toHaveLength(0);
+  });
+
+  it('stamps the reply watermark on assistant appends and clears it via markThreadRead', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const id = await seedThread(t, ALICE, 'watermark', 1000);
+    const alice = t.withIdentity({ subject: ALICE });
+
+    await t.mutation(internal.chat.messages.appendMessageInternal, {
+      organizationId: ORG_A,
+      threadId: id,
+      role: 'user',
+      parts: [{ type: 'text', text: 'hi' }],
+    });
+    let row = (
+      await alice.query(api.chat.threads.listThreads, {
+        organizationId: ORG_A,
+      })
+    )[0];
+    expect(row?.lastReplyAt).toBeUndefined();
+
+    await t.mutation(internal.chat.messages.appendMessageInternal, {
+      organizationId: ORG_A,
+      threadId: id,
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'hello' }],
+    });
+    row = (
+      await alice.query(api.chat.threads.listThreads, {
+        organizationId: ORG_A,
+      })
+    )[0];
+    expect(row?.lastReplyAt).toBeGreaterThan(0);
+
+    await alice.mutation(api.chat.threads.markThreadRead, {
+      organizationId: ORG_A,
+      threadId: id,
+    });
+    row = (
+      await alice.query(api.chat.threads.listThreads, {
+        organizationId: ORG_A,
+      })
+    )[0];
+    expect(row?.lastReadAt ?? 0).toBeGreaterThanOrEqual(row?.lastReplyAt ?? 1);
+  });
+});

@@ -67,6 +67,31 @@ export const threadsTable = defineTable({
    * from. */
   branchedFromMessageId: v.optional(v.string()),
   archived: v.boolean(),
+  /**
+   * ABSENT-MEANS-DEFAULT CONVENTION (load-bearing for `by_user_list`): the
+   * three optional facts below are only ever written to their non-default
+   * value or REMOVED (`patch({ field: undefined })`) — never written `false`
+   * or `'active'`. The sidebar list walks the index with
+   * `.eq(lifecycleStatus, undefined).eq(hidden, undefined)`, so a single
+   * accidental `hidden: false` write would silently split the index space and
+   * hide the row from every list.
+   */
+  /** Pin ordering: pinned rows sort before unpinned, newest pin first. */
+  pinnedAt: v.optional(v.number()),
+  /** Soft-delete lifecycle. Absent = live; `trashed` = user-deleted, waiting
+   * out the grace period; `expired` = retention marked it; rows are removed
+   * outright at purge. Written by the trash flows, never as `'active'`. */
+  lifecycleStatus: v.optional(
+    v.union(v.literal('trashed'), v.literal('expired'), v.literal('deleted')),
+  ),
+  statusChangedAt: v.optional(v.number()),
+  /** A branch sibling created by edit/regenerate (never listed in the
+   * sidebar). Written `true` or removed — never `false`. */
+  hidden: v.optional(v.literal(true)),
+  /** Unread tracking: the newest assistant activity vs. the owner's read
+   * watermark. A thread is user-private, so per-row (not per-user) is enough. */
+  lastReplyAt: v.optional(v.number()),
+  lastReadAt: v.optional(v.number()),
   /** Sharing: an org-internal, read-only snapshot link. The token is the URL
    * credential; `sharedAt` is the snapshot boundary — messages appended after
    * it are never part of the share. Unsharing flips `isShared` but keeps the
@@ -81,6 +106,16 @@ export const threadsTable = defineTable({
   .index('by_org', ['organizationId'])
   .index('by_org_user', ['organizationId', 'userId'])
   .index('by_org_user_updated', ['organizationId', 'userId', 'updatedAt'])
+  // The sidebar's one walk: live (lifecycleStatus absent), visible (hidden
+  // absent) rows of one user, split by archived, newest activity first.
+  .index('by_user_list', [
+    'organizationId',
+    'userId',
+    'archived',
+    'lifecycleStatus',
+    'hidden',
+    'updatedAt',
+  ])
   .index('by_shareToken', ['shareToken']);
 
 /**

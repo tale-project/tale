@@ -436,8 +436,13 @@ export const appendMessageInternal = internalMutation({
       createdAt: Date.now(),
     });
 
-    // A turn just wrote to the thread; keep its list ordering fresh.
-    await ctx.db.patch(thread._id, { updatedAt: Date.now() });
+    // A turn just wrote to the thread; keep its list ordering fresh. An
+    // assistant row also stamps the unread watermark — the sidebar's "new
+    // response" dot compares it against the owner's `lastReadAt`.
+    await ctx.db.patch(thread._id, {
+      updatedAt: Date.now(),
+      ...(args.role === 'assistant' ? { lastReplyAt: Date.now() } : {}),
+    });
 
     // The thread's first user message names the conversation: fire the AI
     // title generation exactly once — for the opening user message of a
@@ -558,6 +563,16 @@ export const finalizeAssistantMessageInternal = internalMutation({
         : {}),
       ...(args.error !== undefined ? { error: args.error } : {}),
     });
+    // The settle is the "reply arrived" moment for the unread dot — the
+    // placeholder append stamped the turn's start; this refreshes it to when
+    // the answer actually finished.
+    const threadId = ctx.db.normalizeId('threads', message.threadId);
+    if (threadId) {
+      const thread = await ctx.db.get(threadId);
+      if (thread && thread.organizationId === args.organizationId) {
+        await ctx.db.patch(threadId, { lastReplyAt: Date.now() });
+      }
+    }
     return null;
   },
 });

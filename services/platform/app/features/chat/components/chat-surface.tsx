@@ -47,6 +47,7 @@ import {
   useHarnessHealth,
   useThreadCapabilities,
 } from '../data/chat-backend';
+import { useThreadActions } from '../data/thread-actions';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { CanvasPanel } from './canvas/canvas-panel';
 import { Composer } from './composer';
@@ -248,6 +249,17 @@ export function ChatSurface({
 
   const generationInFlight =
     generation.status === 'ready' && generation.data !== null;
+
+  // Clear the unread dot while the conversation is on screen: on open, and
+  // again the moment a running turn settles (the settle is what stamped the
+  // reply watermark this read clears against).
+  const threadActions = useThreadActions(organizationId);
+  const generationSettled =
+    generation.status === 'ready' && generation.data === null;
+  useEffect(() => {
+    if (threadId === undefined || !generationSettled) return;
+    threadActions.markRead(threadId);
+  }, [threadId, generationSettled, threadActions]);
 
   // The composer locks only while nothing behind it could EVER serve: the
   // seam is unreachable, the backend answered unavailable, or there is no

@@ -949,6 +949,21 @@ chat:
   moreActions: Plus d'actions
   pinProject: Épingler le projet
   unpinProject: Détacher le projet
+  pinChat: Épingler le chat
+  unpinChat: Détacher le chat
+  newResponse: Nouvelle réponse
+  archive: Archiver
+  unarchive: Désarchiver
+  archiveSuccess: Chat archivé
+  archiveFailed: Échec de l'archivage du chat
+  unarchiveSuccess: Chat désarchivé
+  unarchiveFailed: Échec du désarchivage du chat
+  archived:
+    title: Archivés
+    empty: Aucune conversation archivée
+  moveToProject: Déplacer vers un projet…
+  removeFromProject: Retirer du projet
+  removeFromProjectFailed: Échec du retrait du chat du projet
   pinned: Épinglé
   pinFailed: Échec de l'épinglage
   projectsSection: Projets
@@ -1075,10 +1090,13 @@ chat:
     emptySubtitle: Démarre un nouveau chat pour commencer
     untitled: Chat sans titre
     generating: Génération de la réponse
+    renameChat: Renommer le chat
+    loadMore: Charger plus
     dropHereToAdd: Dépose un chat ici
     dropToChatsHint: Dépose ici pour déplacer vers Chats
     toast:
       moveFailed: Échec du déplacement du chat
+      renameFailed: Échec du renommage du chat
   aria:
     messageHistory: Historique des messages
     chatRegion: Chat
@@ -1100,7 +1118,6 @@ chat:
     viewDocument: Voir dans le document
     visitPage: Visiter la page
   share:
-    title: Partager le chat
     button: Partager
     copied: Lien copié
     shareFailed: Échec du partage du chat
@@ -1364,6 +1381,11 @@ common:
       supprimés}} avec succès'
     deleteFailed: Échec de la suppression de certains éléments
     deleting: Suppression...
+  upload:
+    clickToUpload: Clique pour téléverser
+    dropFilesHere: Dépose les fichiers ici pour téléverser
+    supportedFormats: .xlsx, .xls ou .csv
+    pickADate: Choisir une date
   labels:
     phone: Téléphone
     source: Source

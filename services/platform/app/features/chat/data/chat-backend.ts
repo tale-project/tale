@@ -252,6 +252,34 @@ export function useProjectPin(): {
   return { available: convex !== undefined, setPinned };
 }
 
+/** One page of the archived list. */
+export interface ArchivedThreadsPage {
+  readonly rows: readonly ChatThreadSummary[];
+  /** The cursor of the next page, or null at the end. */
+  readonly nextCursor: number | null;
+}
+
+/**
+ * One page of the caller's archived threads. Gated on the section being
+ * expanded (`'skip'` while collapsed), so a closed archive costs the panel
+ * nothing; each loaded page keeps its own live watch, so an unarchive
+ * reflects everywhere without refetch plumbing.
+ */
+export function useArchivedThreads(
+  organizationId: string,
+  options: { enabled: boolean; cursor?: number },
+): ChatQuery<ArchivedThreadsPage> {
+  return useChatQuery(
+    api.chat.threads.listArchivedThreads,
+    options.enabled
+      ? {
+          organizationId,
+          ...(options.cursor !== undefined ? { cursor: options.cursor } : {}),
+        }
+      : 'skip',
+  );
+}
+
 /** One thread's messages, in `sequence` order. */
 export function useChatMessages(
   organizationId: string,

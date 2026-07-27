@@ -32,8 +32,14 @@ export interface ChatThreadSummary {
   /** The project the thread is filed under (absent = the loose Chats list). */
   readonly projectId?: string;
   readonly archived: boolean;
+  /** Present while pinned — pinned rows float to the top of the list. */
+  readonly pinnedAt?: number;
+  /** Unread tracking: newest assistant activity vs. the owner's watermark. */
+  readonly lastReplyAt?: number;
+  readonly lastReadAt?: number;
   /** True while the thread is published as an org-internal snapshot link. */
   readonly isShared?: boolean;
+  readonly createdAt: number;
   readonly updatedAt: number;
   /** True while a generation row exists for the thread. */
   readonly generating: boolean;
