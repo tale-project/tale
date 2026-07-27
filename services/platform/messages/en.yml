@@ -921,6 +921,10 @@ chat:
   moveToProject: Move to project…
   removeFromProject: Remove from project
   removeFromProjectFailed: Failed to remove chat from project
+  deleteChat: Delete chat
+  deleteConfirmation: Are you sure you want to delete {title}?
+  deletePermanentMessage: Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.
+  deleteFailed: Failed to delete chat
   pinned: Pinned
   pinFailed: Couldn't update pin
   projectsSection: Projects
@@ -3115,6 +3119,7 @@ governance:
       usageLedger: Usage ledger
       auditLog: Audit logs
       chatFilterEvent: Chat filter events
+      chatThread: Chats
       memoryAudit: Memory audit
     restore:
       label: Restore

@@ -252,6 +252,25 @@ export function useProjectPin(): {
   return { available: convex !== undefined, setPinned };
 }
 
+/**
+ * The org's legal-hold coverage for threads, in ONE bulk read for the whole
+ * panel: the org-wide flag plus every held thread id (direct holds and the
+ * custodian cascade). Rows render their held state from this set — never a
+ * per-row subscription.
+ */
+export function useThreadHolds(organizationId: string): ChatQuery<{
+  readonly orgHeld: boolean;
+  readonly targetIds: readonly string[];
+}> {
+  return useChatQuery(
+    api.governance.legal_hold_queries.listActiveHoldTargetIds,
+    {
+      organizationId,
+      targetType: 'thread',
+    },
+  );
+}
+
 /** One page of the archived list. */
 export interface ArchivedThreadsPage {
   readonly rows: readonly ChatThreadSummary[];

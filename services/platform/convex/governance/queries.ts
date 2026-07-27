@@ -520,6 +520,7 @@ const PER_TABLE_BUFFER = 200;
 
 const TRASH_VISIBLE_RESOURCE_TYPES: ReadonlyArray<SoftDeleteResourceType> = [
   'thread',
+  'chatThread',
   'document',
   'fileMetadata',
   'messageFeedback',
@@ -708,6 +709,34 @@ async function fetchTrashSubpage(
         status: r.status,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
+    }
+    case 'chatThread': {
+      // The chat-v2 `threads` table. Two equality slices like every other
+      // lifecycle-indexed table; live rows (absent status) never enter the
+      // walk.
+      const trashed = await ctx.db
+        .query('threads')
+        .withIndex('by_org_lifecycle', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
+        )
+        .take(take);
+      const expired = await ctx.db
+        .query('threads')
+        .withIndex('by_org_lifecycle', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.createdAt,
       })).filter((row) =>
         passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
       );

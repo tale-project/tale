@@ -57,6 +57,21 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     displayNameField: 'title',
     authorField: 'userId',
   },
+  // The chat-v2 `threads` table (the legacy `thread` above serves the
+  // remaining discussion rows on `threadMetadata`). Its lifecycle field
+  // follows the absent-means-live convention — a live row has NO
+  // `lifecycleStatus` — so the generic `restoreRowToActive` (which writes
+  // `'active'`) must never run against it: restore dispatches to a bespoke
+  // branch that REMOVES the field. Pass-A `markRowExpiredGeneric` is fine —
+  // it writes `'expired'`, a value the table's validator admits.
+  chatThread: {
+    tableName: 'threads',
+    statusField: 'lifecycleStatus',
+    auditPrefix: 'chat_thread',
+    auditResourceType: 'thread',
+    displayNameField: 'title',
+    authorField: 'userId',
+  },
   document: {
     tableName: 'documents',
     statusField: 'lifecycleStatus',

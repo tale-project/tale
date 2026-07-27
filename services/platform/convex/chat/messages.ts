@@ -77,7 +77,9 @@ export const listMessages = query({
     if (
       !thread ||
       thread.organizationId !== args.organizationId ||
-      thread.userId !== authUser.userId
+      thread.userId !== authUser.userId ||
+      // Trashed reads as gone — restore is the only way back.
+      thread.lifecycleStatus !== undefined
     ) {
       return [];
     }

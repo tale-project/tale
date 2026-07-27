@@ -486,6 +486,70 @@ export const listGraceExpiredThreads = internalQuery({
   },
 });
 
+/**
+ * Chat-v2 threads (the `threads` table) eligible for the Pass-A retention
+ * sweep: live (no `lifecycleStatus` — the absent-means-live convention) and
+ * untouched since `cutoffMs`. Archived threads age out like everything else —
+ * archiving is a shelf, not an exemption from retention.
+ */
+export const listExpiredChatThreads = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const threads = [];
+    for await (const thread of ctx.db
+      .query('threads')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (thread.lifecycleStatus !== undefined) continue;
+      if (thread.updatedAt >= args.cutoffMs) continue;
+      threads.push(thread);
+      if (threads.length >= args.batchSize) break;
+    }
+    return threads;
+  },
+});
+
+/**
+ * Chat-v2 Pass-B sweep: `trashed` or `expired` threads whose grace window has
+ * elapsed. `statusChangedAt` is always stamped by the trash flows, but a
+ * missing one falls back to `now` — the row stays in the grace window until
+ * an explicit transition stamps a real timestamp (same safety rationale as
+ * the legacy twin above).
+ */
+export const listGraceExpiredChatThreads = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const threads = [];
+    for (const status of ['trashed', 'expired'] as const) {
+      for await (const thread of ctx.db
+        .query('threads')
+        .withIndex('by_org_lifecycle', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('lifecycleStatus', status),
+        )) {
+        const ts = thread.statusChangedAt ?? Date.now();
+        if (ts >= args.graceCutoffMs) continue;
+        threads.push(thread);
+        if (threads.length >= args.batchSize) break;
+      }
+      if (threads.length >= args.batchSize) break;
+    }
+    return threads;
+  },
+});
+
 export const listExpiredWorkflowExecutions = internalQuery({
   args: {
     organizationId: v.string(),

@@ -116,6 +116,9 @@ export const threadsTable = defineTable({
     'hidden',
     'updatedAt',
   ])
+  // The admin Trash listing and the retention sweeps: one org's rows in a
+  // given lifecycle state, without walking the (much larger) live set.
+  .index('by_org_lifecycle', ['organizationId', 'lifecycleStatus'])
   .index('by_shareToken', ['shareToken']);
 
 /**

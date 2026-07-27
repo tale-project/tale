@@ -963,6 +963,10 @@ chat:
   moveToProject: In Projekt verschieben…
   removeFromProject: Aus Projekt entfernen
   removeFromProjectFailed: Chat konnte nicht aus dem Projekt entfernt werden
+  deleteChat: Chat löschen
+  deleteConfirmation: Möchtest du {title} wirklich löschen?
+  deletePermanentMessage: Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.
+  deleteFailed: Chat konnte nicht gelöscht werden
   pinned: Angeheftet
   pinFailed: Anheften fehlgeschlagen
   projectsSection: Projekte
@@ -3241,6 +3245,7 @@ governance:
       usageLedger: Nutzungsbuch
       auditLog: Audit-Logs
       chatFilterEvent: Chat-Filter-Ereignisse
+      chatThread: Chats
       memoryAudit: Memory-Audit
     restore:
       label: Wiederherstellen

@@ -197,8 +197,10 @@ async function requireOrgUser(
 }
 
 /** Load a thread and confirm it belongs to the caller's (org, user) pair.
- * Returns null when it does not exist or is owned by someone else — a missing
- * thread and a forbidden one are indistinguishable to a caller by design. */
+ * Returns null when it does not exist, is owned by someone else, or sits in
+ * the trash lifecycle — a missing thread, a forbidden one, and a trashed one
+ * are indistinguishable to a caller by design. The trash flows use their own
+ * raw loads (`thread_lifecycle.ts`); everything else treats trash as gone. */
 async function loadOwnedThread(
   ctx: QueryCtx,
   organizationId: string,
@@ -211,7 +213,8 @@ async function loadOwnedThread(
   if (
     !thread ||
     thread.organizationId !== organizationId ||
-    thread.userId !== userId
+    thread.userId !== userId ||
+    thread.lifecycleStatus !== undefined
   ) {
     return null;
   }

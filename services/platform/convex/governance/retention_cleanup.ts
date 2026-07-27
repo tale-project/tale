@@ -492,6 +492,90 @@ async function cleanupChatHistory(
     }
     if (cascadeDone) processed += 1;
   }
+
+  // ---- Chat-v2 threads (the `threads` table) — same policy, same two-pass
+  // shape as the legacy walk above. Pass A flips live rows past retention to
+  // 'expired' through the generic soft-delete helper; Pass B purges rows
+  // whose grace elapsed via the chat domain's page-bounded purge.
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredChatThreads,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const thread of passA) {
+      if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
+        console.info(
+          `[RetentionCleanup] chat thread ${thread._id} owned by user ${thread.userId} on user-custodian hold — skipping pass A`,
+        );
+        continue;
+      }
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'chatThread',
+          rowId: String(thread._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: 'updatedAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const chatPassB =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredChatThreads,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredChatThreads,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
+
+  for (const thread of chatPassB) {
+    if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
+      console.info(
+        `[RetentionCleanup] chat thread ${thread._id} owned by user ${thread.userId} on user-custodian hold — skipping pass B`,
+      );
+      continue;
+    }
+    // purgeThreadInternal is page-bounded (200 rows per call); re-invoke
+    // until done, mirroring the legacy cascade loop above.
+    let attempts = 0;
+    const MAX_ATTEMPTS = 50;
+    let purgeDone = false;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.chat.thread_lifecycle.purgeThreadInternal,
+        {
+          organizationId: org.organizationId,
+          threadId: String(thread._id),
+          // Grace-mode inclusion was decided by statusChangedAt in the query;
+          // re-checking content age would strand recently-trashed rows. The
+          // cutoff re-check applies only to the no-grace direct path.
+          ...(graceDays > 0 ? {} : { cutoffMs }),
+        },
+      );
+      if (result.done) {
+        purgeDone = true;
+        break;
+      }
+      attempts += 1;
+      if (attempts >= MAX_ATTEMPTS) {
+        console.warn(
+          `[RetentionCleanup] Chat thread ${thread._id} purge did not complete in ${MAX_ATTEMPTS} attempts; will resume on next run.`,
+        );
+        break;
+      }
+    }
+    if (purgeDone) processed += 1;
+  }
   return processed;
 }
 

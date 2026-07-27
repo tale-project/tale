@@ -29,6 +29,9 @@ export interface ThreadActions {
   /** Stamp the owner's read watermark. Fire-and-forget: a failure only means
    * the unread dot lingers, so it logs instead of surfacing. */
   readonly markRead: (threadId: string) => void;
+  /** Move the thread to Trash (restorable for the org's grace period).
+   * False when refused — foreign thread, a running turn, or a legal hold. */
+  readonly trash: (threadId: string) => Promise<boolean>;
 }
 
 export function useThreadActions(organizationId: string): ThreadActions {
@@ -100,6 +103,24 @@ export function useThreadActions(organizationId: string): ThreadActions {
     [convex, organizationId],
   );
 
+  const trash = useCallback(
+    async (threadId: string): Promise<boolean> => {
+      if (!convex) return false;
+      try {
+        return await convex.mutation(api.chat.thread_lifecycle.trashThread, {
+          organizationId,
+          threadId,
+        });
+      } catch (error) {
+        // A legal hold surfaces as a coded refusal; either way the caller
+        // shows its failure toast.
+        console.error('[chat] deleting the thread failed', error);
+        return false;
+      }
+    },
+    [convex, organizationId],
+  );
+
   return useMemo(
     () => ({
       available: convex !== undefined,
@@ -107,7 +128,8 @@ export function useThreadActions(organizationId: string): ThreadActions {
       setPinned,
       setArchived,
       markRead,
+      trash,
     }),
-    [convex, rename, setPinned, setArchived, markRead],
+    [convex, rename, setPinned, setArchived, markRead, trash],
   );
 }

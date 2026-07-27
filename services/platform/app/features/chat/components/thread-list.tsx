@@ -35,7 +35,7 @@ import { ProjectCreateDialog } from '@/app/features/projects/components/project-
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
-import { useChatProjects } from '../data/chat-backend';
+import { useChatProjects, useThreadHolds } from '../data/chat-backend';
 import type { ChatProjectSummary, ChatThreadSummary } from '../types';
 import { ArchivedSection } from './archived-section';
 import { ProjectFolder, LooseThreadsDropZone } from './project-folder';
@@ -75,9 +75,27 @@ export function ThreadList({
   const projects =
     projectsQuery.status === 'ready' ? projectsQuery.data : NO_PROJECTS;
 
+  // One bulk holds read for the whole panel; while it loads, nothing reads
+  // as held (the server still enforces every hold on the mutation).
+  const holdsQuery = useThreadHolds(organizationId);
+  const orgHeld =
+    holdsQuery.status === 'ready' ? holdsQuery.data.orgHeld : false;
+  // Keyed on the snapshot's own array (stable while the watch is unchanged),
+  // not the wrapper object, so the Set — and the frame below — keep identity
+  // across unrelated re-renders.
+  const heldIds =
+    holdsQuery.status === 'ready' ? holdsQuery.data.targetIds : undefined;
+  const heldThreadIds = useMemo(() => new Set(heldIds ?? []), [heldIds]);
+
   const frame = useMemo<ThreadListFrame>(
-    () => ({ organizationId, activeThreadId, projects }),
-    [organizationId, activeThreadId, projects],
+    () => ({
+      organizationId,
+      activeThreadId,
+      projects,
+      orgHeld,
+      heldThreadIds,
+    }),
+    [organizationId, activeThreadId, projects, orgHeld, heldThreadIds],
   );
 
   // Folders read like a file tree — pinned projects float to the top, the

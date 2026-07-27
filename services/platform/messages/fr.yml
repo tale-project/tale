@@ -964,6 +964,10 @@ chat:
   moveToProject: Déplacer vers un projet…
   removeFromProject: Retirer du projet
   removeFromProjectFailed: Échec du retrait du chat du projet
+  deleteChat: Supprimer le chat
+  deleteConfirmation: Es-tu sûr de vouloir supprimer {title} ?
+  deletePermanentMessage: Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.
+  deleteFailed: Échec de la suppression du chat
   pinned: Épinglé
   pinFailed: Échec de l'épinglage
   projectsSection: Projets
@@ -3295,6 +3299,7 @@ governance:
       usageLedger: Registre d'utilisation
       auditLog: Logs d'audit
       chatFilterEvent: Événements de filtre de chat
+      chatThread: Chats
       memoryAudit: Audit de mémoire
     restore:
       label: Restaurer

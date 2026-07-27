@@ -6,11 +6,13 @@
  * The row says what the thread is at a glance — sandbox marker, title, pin
  * glyph, unread dot, live "generating" label or a quiet relative age — and
  * carries ONE trailing control: the More-actions menu (pin, rename, move to
- * project, archive, share; Delete arrives with the trash flow). Rename swaps
- * the title for an inline input on the spot, no dialog and no click-timer.
+ * project, archive, share, delete). Rename swaps the title for an inline
+ * input on the spot, no dialog and no click-timer; Delete confirms in a
+ * dialog and moves the chat to Trash (restorable for the grace window).
  *
  * Rows render entirely from their `thread` summary plus the shared list
- * frame — no per-row subscriptions, so a hundred rows cost one list query.
+ * frame — held state included, which comes from the frame's ONE bulk holds
+ * read — so a hundred rows cost one list query, never per-row subscriptions.
  */
 
 import { Button } from '@tale/ui/button';
@@ -28,6 +30,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Trash2,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
@@ -35,6 +38,7 @@ import {
   SUB_PANEL_ROW_CLASS,
   useSubPanelRowTreatment,
 } from '@/app/components/layout/sub-panel-list';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { useCopy } from '@/app/hooks/use-copy';
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { toast } from '@/app/hooks/use-toast';
@@ -161,6 +165,60 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
   );
 }
 
+/** The delete confirmation — Delete moves the chat to Trash, where the org's
+ * grace window keeps it restorable before retention purges it. */
+function ThreadDeleteDialog({
+  thread,
+  active,
+  open,
+  onOpenChange,
+}: {
+  thread: ChatThreadSummary;
+  active: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useT('chat');
+  const navigate = useNavigate();
+  const { organizationId } = useThreadListFrame();
+  const actions = useThreadActions(organizationId);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = () => {
+    setDeleting(true);
+    void actions
+      .trash(thread.id)
+      .then((ok) => {
+        if (!ok) {
+          toast({ title: t('deleteFailed'), variant: 'destructive' });
+          return;
+        }
+        onOpenChange(false);
+        if (active) {
+          void navigate({
+            to: '/dashboard/$id/chat',
+            params: { id: organizationId },
+          });
+        }
+      })
+      .finally(() => setDeleting(false));
+  };
+
+  return (
+    <DeleteDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('deleteConfirmation', {
+        title: thread.title ?? t('history.untitled'),
+      })}
+      description={t('deletePermanentMessage')}
+      deleteText={t('deleteChat')}
+      isDeleting={deleting}
+      onDelete={handleDelete}
+    />
+  );
+}
+
 /** The in-place rename field — Enter commits, Escape cancels, blur commits. */
 function ThreadRenameInput({
   thread,
@@ -231,12 +289,19 @@ function ThreadRowMenu({
   onStartRename: () => void;
 }) {
   const { t } = useT('chat');
+  const { t: tCommon } = useT('common');
+  const { t: tGovernance } = useT('governance');
   const navigate = useNavigate();
-  const { organizationId, projects } = useThreadListFrame();
+  const { organizationId, projects, orgHeld, heldThreadIds } =
+    useThreadListFrame();
   const actions = useThreadActions(organizationId);
   const sharing = useThreadSharing(organizationId);
   const projectMove = useThreadProjectMove(organizationId);
   const { copy } = useCopy();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  // The server enforces every hold on the mutation; this only explains the
+  // disabled destructive items up front.
+  const held = orgHeld || heldThreadIds.has(thread.id);
 
   const leaveIfActive = () => {
     if (!active) return;
@@ -310,9 +375,35 @@ function ThreadRowMenu({
     }
   };
 
+  /** The destructive tail every variant shares. The menu item carries the
+   * generic "Delete" (the e2e contract); the dialog's confirm button carries
+   * the specific "Delete chat". */
+  const deleteGroup: DropdownMenuGroup = [
+    {
+      type: 'item',
+      label: tCommon('actions.delete'),
+      icon: Trash2,
+      destructive: true,
+      disabled: held,
+      onClick: () => setDeleteOpen(true),
+    },
+  ];
+  /** Explains the disabled destructive items while a hold covers the row. */
+  const heldNotice: DropdownMenuGroup[] = held
+    ? [
+        [
+          {
+            type: 'label',
+            content: tGovernance('legalHold.badges.blockedByHold'),
+          },
+        ],
+      ]
+    : [];
+
   const items: DropdownMenuGroup[] =
     variant === 'archived'
       ? [
+          ...heldNotice,
           [
             {
               type: 'item',
@@ -321,8 +412,10 @@ function ThreadRowMenu({
               onClick: () => handleSetArchived(false),
             },
           ],
+          deleteGroup,
         ]
       : [
+          ...heldNotice,
           [
             {
               type: 'item',
@@ -366,6 +459,7 @@ function ThreadRowMenu({
               type: 'item',
               label: t('archive'),
               icon: Archive,
+              disabled: held,
               onClick: () => handleSetArchived(true),
             },
           ],
@@ -387,23 +481,36 @@ function ThreadRowMenu({
                 ]
               : []),
           ],
+          deleteGroup,
         ];
 
   return (
-    <DropdownMenu
-      align="end"
-      trigger={
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground size-6 p-1"
-          aria-label={t('moreActions')}
-        >
-          <MoreHorizontal className="size-4" />
-        </Button>
-      }
-      items={items}
-      disabled={!actions.available}
-    />
+    <>
+      <DropdownMenu
+        align="end"
+        trigger={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground size-6 p-1"
+            aria-label={t('moreActions')}
+          >
+            <MoreHorizontal className="size-4" />
+          </Button>
+        }
+        items={items}
+        disabled={!actions.available}
+      />
+      {/* Mounted only while open — a hidden dialog per row would be pure
+          overhead in long lists. */}
+      {deleteOpen && (
+        <ThreadDeleteDialog
+          thread={thread}
+          active={active}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+        />
+      )}
+    </>
   );
 }

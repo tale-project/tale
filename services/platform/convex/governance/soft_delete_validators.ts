@@ -41,6 +41,7 @@ export const lifecycleStatusValidator = v.union(
  */
 export const SOFT_DELETE_RESOURCE_TYPES = [
   'thread',
+  'chatThread',
   'document',
   'fileMetadata',
   'messageFeedback',

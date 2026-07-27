@@ -33,6 +33,7 @@ vi.mock('@tanstack/react-router', () => ({
 const renameMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
 const setPinnedMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
 const setArchivedMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
+const trashMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
 
 vi.mock('../data/thread-actions', () => ({
   useThreadActions: () => ({
@@ -41,6 +42,7 @@ vi.mock('../data/thread-actions', () => ({
     setPinned: setPinnedMock,
     setArchived: setArchivedMock,
     markRead: vi.fn(),
+    trash: trashMock,
   }),
 }));
 
@@ -78,15 +80,20 @@ const THREAD: ChatThreadSummary = {
   generating: false,
 };
 
+const NO_HELD = new Set<string>();
+
 function renderRow(
   thread: ChatThreadSummary,
   variant?: 'default' | 'archived',
+  holds?: { orgHeld?: boolean; heldThreadIds?: ReadonlySet<string> },
 ) {
   return render(
     <ThreadListFrameProvider
       value={{
         organizationId: 'org-1',
         projects: [{ id: 'p1', name: 'Website revamp' }],
+        orgHeld: holds?.orgHeld ?? false,
+        heldThreadIds: holds?.heldThreadIds ?? NO_HELD,
       }}
     >
       <ThreadDndProvider organizationId="org-1">
@@ -140,7 +147,12 @@ describe('ThreadRow', () => {
 
     rerender(
       <ThreadListFrameProvider
-        value={{ organizationId: 'org-1', projects: [] }}
+        value={{
+          organizationId: 'org-1',
+          projects: [],
+          orgHeld: false,
+          heldThreadIds: NO_HELD,
+        }}
       >
         <ThreadDndProvider organizationId="org-1">
           <ul>
@@ -175,6 +187,40 @@ describe('ThreadRow', () => {
     await waitFor(() =>
       expect(setArchivedMock).toHaveBeenCalledWith('t1', true),
     );
+  });
+
+  it('deletes through the confirm dialog — menu "Delete", confirm "Delete chat"', async () => {
+    const { user } = renderRow(THREAD);
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(trashMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Delete chat' }));
+
+    await waitFor(() => expect(trashMock).toHaveBeenCalledWith('t1'));
+  });
+
+  it('disables the destructive actions while a hold covers the row', async () => {
+    const { user } = renderRow(THREAD, undefined, {
+      heldThreadIds: new Set(['t1']),
+    });
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+
+    expect(screen.getByText('Blocked by legal hold')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    // Non-destructive actions stay usable.
+    expect(
+      screen.getByRole('menuitem', { name: 'Rename chat' }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   it('passes an axe audit', async () => {
