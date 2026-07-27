@@ -1204,6 +1204,10 @@ chat:
     bothBad: Les deux sont mauvais
     verdictRecorded: Verdict enregistré
     verdictError: Échec de l'enregistrement du verdict
+    busy: Les deux réponses doivent d'abord se terminer
+    exitWithoutVerdict: Quitter sans verdict
+    startFailed: Impossible de démarrer le mode Arène
+    unsharable: Une conversation partagée ne peut pas passer en mode Arène
   canvas:
     runStatus:
       queued: En file d'attente

@@ -23,6 +23,7 @@
 import { Button } from '@tale/ui/button';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -44,10 +45,13 @@ import { useCopy } from '@/app/hooks/use-copy';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import type { ArenaVerdict } from '@/lib/shared/arena';
 import { cn } from '@/lib/utils/cn';
 
+import { useArenaActions } from '../data/arena-actions';
 import { useBranchActions } from '../data/branch-actions';
 import {
+  useArenaPair,
   useCanvasSources,
   useChatGeneration,
   useChatMessages,
@@ -83,9 +87,11 @@ import type {
   ComposerSelection,
 } from '../types';
 import { primeAudio } from '../utils/prime-audio';
+import { ArenaSplitView } from './arena/arena-split-view';
 import { CanvasPanel } from './canvas/canvas-panel';
 import { Composer } from './composer';
 import {
+  directServedModels,
   resolveExternalModelId,
   resolveSelectionSandbox,
   withDefaultModel,
@@ -292,6 +298,98 @@ function ChatSurfaceInner({
   const threadPinsExternalAgent =
     activeThread?.kind === 'sandbox' && activeThread.harness !== undefined;
 
+  // Arena Mode. The pair is SERVER state: the split view mounts while the
+  // uncached pair watch answers non-null and collapses the moment settle
+  // clears it — every tab at once. Column A's model is the composer's own
+  // pick; column B's lives here, seeded to the first other direct model.
+  const { locale } = useLocale();
+  const arenaPair = useArenaPair(organizationId, viewThreadId);
+  const pair = arenaPair.status === 'ready' ? arenaPair.data : null;
+  const arenaActions = useArenaActions(organizationId);
+  const [arenaModelB, setArenaModelB] = useState<
+    { id: string; providerSlug: string } | undefined
+  >(undefined);
+  useEffect(() => {
+    setArenaModelB(undefined);
+  }, [viewThreadId]);
+  const directModels = useMemo(() => directServedModels(models), [models]);
+  const arenaAvailable =
+    selection.agentKind === 'platform' &&
+    activeThread?.kind !== 'sandbox' &&
+    viewerIsOwner &&
+    directModels.length >= 2;
+  const arenaModelBId =
+    arenaModelB?.id ??
+    directModels.find((model) => model.id !== selection.modelId)?.id ??
+    selection.modelId;
+  // Column B's liveness feeds the verdict bar and the send gate; column A's
+  // rides the existing view-thread generation read.
+  const generationB = useChatGeneration(
+    organizationId,
+    pair !== null ? pair.threadIdB : undefined,
+  );
+  const arenaBusyB =
+    generationB.status === 'ready' && generationB.data !== null;
+
+  const handleArenaSettle = async (verdict?: ArenaVerdict) => {
+    if (viewThreadId === undefined) return;
+    const result = await arenaActions.settle(viewThreadId, verdict);
+    if ('refused' in result) {
+      toast({
+        title: t(
+          result.refused === 'busy' ? 'arena.busy' : 'arena.verdictError',
+        ),
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (verdict !== undefined) toast({ title: t('arena.verdictRecorded') });
+    // The surviving A is already on screen; only a winning B navigates.
+    if (result.continueThreadId !== viewThreadId) {
+      void navigate({
+        to: '/dashboard/$id/chat/$threadId',
+        params: { id: organizationId, threadId: result.continueThreadId },
+      });
+    }
+  };
+
+  const handleArenaChange = (next: boolean) => {
+    if (!next) {
+      if (pair !== null) void handleArenaSettle(undefined);
+      return;
+    }
+    void (async () => {
+      // On the index the pair needs a conversation first — created bare,
+      // so the first send fans into both columns instead of running solo.
+      let target = viewThreadId;
+      if (target === undefined) {
+        const created = await arenaActions.createThread(projectId);
+        if (created === null) {
+          toast({ title: t('arena.startFailed'), variant: 'destructive' });
+          return;
+        }
+        target = created;
+        void navigate({
+          to: '/dashboard/$id/chat/$threadId',
+          params: { id: organizationId, threadId: created },
+        });
+      }
+      const result = await arenaActions.ensurePair(target);
+      if ('refused' in result) {
+        toast({
+          title: t(
+            result.refused === 'busy'
+              ? 'arena.busy'
+              : result.refused === 'shared'
+                ? 'arena.unsharable'
+                : 'arena.startFailed',
+          ),
+          variant: 'destructive',
+        });
+      }
+    })();
+  };
+
   // Align the selection with the open thread the moment it loads: a sandbox
   // thread pins its external agent; a fresh sandbox thread the surface just
   // created (harness known, list not yet refetched) keeps the harness the
@@ -449,6 +547,44 @@ function ChatSurfaceInner({
       (selection.harness === undefined || externalModelId === undefined)
     )
       return;
+    // A live pair fans the prompt into BOTH columns through the arena
+    // action; the ordinary single-thread path never runs during arena.
+    if (
+      pair !== null &&
+      viewThreadId !== undefined &&
+      intoThreadId === undefined
+    ) {
+      if (selection.modelId === undefined || arenaModelBId === undefined) {
+        return;
+      }
+      const modelIdA = selection.modelId;
+      void arenaActions
+        .startTurn({
+          threadId: viewThreadId,
+          userText: text,
+          modelIdA,
+          modelIdB: arenaModelBId,
+          ...(selection.providerSlug !== undefined
+            ? { providerSlugA: selection.providerSlug }
+            : {}),
+          ...(arenaModelB?.providerSlug !== undefined
+            ? { providerSlugB: arenaModelB.providerSlug }
+            : {}),
+          locale,
+        })
+        .then(({ a, b }) => {
+          const failed = [a, b].find((side) => side.status === 'refused');
+          if (failed === undefined) return;
+          toast({
+            title: t('toast.sendFailed'),
+            ...(failed.reason !== undefined
+              ? { description: failed.reason }
+              : {}),
+            variant: 'destructive',
+          });
+        });
+      return;
+    }
     // A composer send continues the VIEW thread (the sibling on screen); an
     // edit passes its fresh branch explicitly.
     const target = intoThreadId ?? viewThreadId;
@@ -686,7 +822,12 @@ function ChatSurfaceInner({
                 <Button
                   variant="ghost"
                   onClick={() => void handleHeaderShare()}
-                  className="text-muted-foreground gap-1.5"
+                  className={cn(
+                    'text-muted-foreground gap-1.5',
+                    // A pair cannot be shared — settle first (server-enforced;
+                    // the control disappears rather than failing on click).
+                    pair !== null && 'hidden',
+                  )}
                 >
                   <Share2 aria-hidden className="size-4" />
                   {t('share.button')}
@@ -717,7 +858,24 @@ function ChatSurfaceInner({
             )}
           </div>
         </div>
-        {messagesAvailable ? (
+        {pair !== null && viewThreadId !== undefined ? (
+          <ArenaSplitView
+            organizationId={organizationId}
+            threadIdA={pair.threadIdA}
+            threadIdB={pair.threadIdB}
+            modelALabel={
+              models.find((model) => model.id === selection.modelId)?.label
+            }
+            models={models}
+            modelBId={arenaModelBId}
+            onModelBChange={(id, providerSlug) =>
+              setArenaModelB({ id, providerSlug })
+            }
+            generating={generationInFlight || arenaBusyB}
+            onVerdict={(verdict) => void handleArenaSettle(verdict)}
+            onExit={() => void handleArenaSettle(undefined)}
+          />
+        ) : messagesAvailable ? (
           <Stack gap={0} className="min-h-0 min-w-0 flex-1">
             {!viewerIsOwner && (
               <Text
@@ -857,14 +1015,21 @@ function ChatSurfaceInner({
                 : selection.harness === undefined ||
                   externalModelId === undefined) ||
               generationInFlight ||
+              arenaBusyB ||
               !threadsAvailable ||
               (threadId !== undefined && !messagesAvailable)
             }
             onOpenSkillLibrary={() => setSkillLibraryOpen(true)}
             voiceOutput={voiceEnabled}
             onVoiceOutputChange={handleVoiceOutputChange}
-            voiceOutputHidden={voiceVetoed}
+            voiceOutputHidden={voiceVetoed || pair !== null}
             voiceOutputAvailable={voiceCapabilities.hasTts}
+            {...(arenaAvailable || pair !== null
+              ? {
+                  arenaActive: pair !== null,
+                  onArenaChange: handleArenaChange,
+                }
+              : {})}
           />
         </div>
       </Stack>

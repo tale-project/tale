@@ -1203,6 +1203,10 @@ chat:
     bothBad: Beide schlecht
     verdictRecorded: Bewertung gespeichert
     verdictError: Bewertung konnte nicht gespeichert werden
+    busy: Beide Antworten müssen zuerst abgeschlossen sein
+    exitWithoutVerdict: Ohne Bewertung beenden
+    startFailed: Arena-Modus konnte nicht gestartet werden
+    unsharable: Ein geteilter Chat kann nicht in den Arena-Modus wechseln
   canvas:
     runStatus:
       queued: In Warteschlange

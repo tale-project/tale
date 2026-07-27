@@ -32,6 +32,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Swords,
   Trash2,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
@@ -138,6 +139,12 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
           {thread.pinnedAt !== undefined && (
             <Pin
               aria-label={t('pinned')}
+              className="text-muted-foreground size-3 shrink-0"
+            />
+          )}
+          {thread.inArena === true && (
+            <Swords
+              aria-label={t('arena.label')}
               className="text-muted-foreground size-3 shrink-0"
             />
           )}

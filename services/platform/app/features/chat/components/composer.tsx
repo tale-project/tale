@@ -110,6 +110,9 @@ interface ComposerProps {
   onVoiceOutputChange?: (next: boolean) => void;
   voiceOutputHidden?: boolean;
   voiceOutputAvailable?: boolean;
+  /** Arena Mode — the pair state and its toggle; absent hides the entry. */
+  arenaActive?: boolean;
+  onArenaChange?: (next: boolean) => void;
 }
 
 export function Composer({
@@ -131,6 +134,8 @@ export function Composer({
   onVoiceOutputChange,
   voiceOutputHidden,
   voiceOutputAvailable,
+  arenaActive,
+  onArenaChange,
 }: ComposerProps) {
   const { t } = useT('chat');
   const { t: tDialogs } = useT('dialogs');
@@ -375,6 +380,8 @@ export function Composer({
             onVoiceOutputChange={onVoiceOutputChange ?? (() => undefined)}
             voiceOutputHidden={voiceOutputHidden ?? false}
             voiceOutputAvailable={voiceOutputAvailable ?? true}
+            {...(arenaActive !== undefined ? { arenaActive } : {})}
+            {...(onArenaChange !== undefined ? { onArenaChange } : {})}
             {...(onOpenSkillLibrary !== undefined
               ? { onOpenSkillLibrary }
               : {})}

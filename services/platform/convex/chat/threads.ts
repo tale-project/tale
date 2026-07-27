@@ -63,6 +63,8 @@ const threadSummaryValidator = v.object({
   lastReplyAt: v.optional(v.number()),
   lastReadAt: v.optional(v.number()),
   isShared: v.optional(v.boolean()),
+  /** The row is column A of a live arena pair — the sidebar's Swords badge. */
+  inArena: v.optional(v.boolean()),
   createdAt: v.number(),
   updatedAt: v.number(),
   generating: v.boolean(),
@@ -91,6 +93,7 @@ function toThreadSummary(
   lastReplyAt?: number;
   lastReadAt?: number;
   isShared?: boolean;
+  inArena?: boolean;
   createdAt: number;
   updatedAt: number;
   generating: boolean;
@@ -110,6 +113,7 @@ function toThreadSummary(
     lastReplyAt: thread.lastReplyAt,
     lastReadAt: thread.lastReadAt,
     isShared: thread.isShared,
+    inArena: thread.arena !== undefined ? true : undefined,
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
     generating,
@@ -430,6 +434,7 @@ export const setThreadSharedWithProject = mutation({
       args.threadId,
     );
     if (!thread) return false;
+    if (thread.arena !== undefined) return false;
     if (thread.projectId === undefined) {
       throw new ConvexError({ code: 'THREAD_NOT_IN_PROJECT' });
     }
@@ -472,6 +477,15 @@ export const getOwnedThreadInternal = internalQuery({
       kind: chatKindValidator,
       capabilities: v.optional(threadCapabilitiesValidator),
       externalResume: v.optional(v.string()),
+      agentSlug: v.optional(v.string()),
+      arena: v.optional(
+        v.object({
+          pairId: v.string(),
+          role: v.union(v.literal('a'), v.literal('b')),
+          partnerThreadId: v.string(),
+          createdAt: v.number(),
+        }),
+      ),
     }),
   ),
   handler: async (ctx, args) => {
@@ -488,6 +502,8 @@ export const getOwnedThreadInternal = internalQuery({
       // The deprecated `codingResume` read shim lives HERE, so every
       // consumer sees only `externalResume`.
       externalResume: thread.externalResume ?? thread.codingResume,
+      agentSlug: thread.agentSlug,
+      arena: thread.arena,
     };
   },
 });
@@ -822,6 +838,8 @@ export const setThreadArchived = mutation({
       args.threadId,
     );
     if (!thread) return false;
+    // A live arena column refuses outward-facing state changes — settle first.
+    if (thread.arena !== undefined) return false;
     if (thread.archived === args.archived) return true;
     await ctx.db.patch(thread._id, { archived: args.archived });
     await createAuditLog(ctx, {
@@ -860,6 +878,8 @@ export const shareThread = mutation({
       args.threadId,
     );
     if (!thread) return null;
+    // A viewer must never see half an arena pair — settle first.
+    if (thread.arena !== undefined) return null;
 
     const shareToken = thread.shareToken ?? mintShareToken();
     await ctx.db.patch(thread._id, {
@@ -989,6 +1009,7 @@ export const branchThread = mutation({
       args.threadId,
     );
     if (!thread) return null;
+    if (thread.arena !== undefined) return null;
 
     const fork = ctx.db.normalizeId('messages', args.fromMessageId);
     if (!fork) return null;

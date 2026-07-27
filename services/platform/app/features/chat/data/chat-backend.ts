@@ -370,6 +370,27 @@ export function useThreadBranches(
 }
 
 /**
+ * The live arena pair for a conversation, from either column. Null when no
+ * pair is active — ABSENCE IS THE SIGNAL (a settled pair must collapse the
+ * split view immediately), so this never touches the session cache.
+ */
+export function useArenaPair(
+  organizationId: string,
+  threadId: string | undefined,
+): ChatQuery<{
+  pairId: string;
+  threadIdA: string;
+  threadIdB: string;
+  createdAt: number;
+} | null> {
+  return useChatQuery(
+    api.chat.arena.getArenaPair,
+    threadId ? { organizationId, threadId } : 'skip',
+    { cache: false },
+  );
+}
+
+/**
  * The caller's ratings across the open conversation — ONE watch for the
  * whole transcript; the toolbar latches each message's thumbs from this.
  * Never session-cached: a rating the user just removed in another tab must

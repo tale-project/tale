@@ -12,7 +12,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { BookOpen, Paperclip, Plus, Volume2 } from 'lucide-react';
+import { BookOpen, Paperclip, Plus, Swords, Volume2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -26,6 +26,11 @@ interface ComposerModeMenuProps {
   voiceOutputHidden?: boolean;
   /** No TTS-capable model is configured — shown but disabled. */
   voiceOutputAvailable?: boolean;
+  /** Arena Mode — a live pair exists for this conversation. Absent (vs
+   * false) means the surface cannot offer arena here at all (sandbox
+   * thread, shared, fewer than two direct models) and the entry hides. */
+  arenaActive?: boolean;
+  onArenaChange?: (next: boolean) => void;
   onAttachFiles?: () => void;
   /** Open the skill library — browse, create, upload, share skills. */
   onOpenSkillLibrary?: () => void;
@@ -37,6 +42,8 @@ export function ComposerModeMenu({
   onVoiceOutputChange,
   voiceOutputHidden = false,
   voiceOutputAvailable = true,
+  arenaActive,
+  onArenaChange,
   onAttachFiles,
   onOpenSkillLibrary,
   disabled,
@@ -66,21 +73,31 @@ export function ComposerModeMenu({
     }
     if (actions.length > 0) groups.push(actions);
 
+    const modes: DropdownMenuGroup = [];
     if (!voiceOutputHidden) {
-      groups.push([
-        { type: 'label', content: t('modeHeader') },
-        {
-          type: 'checkbox',
-          label: tChat('voice.voiceModeEnable'),
-          ...(voiceOutputAvailable
-            ? {}
-            : { description: tChat('voice.voiceOutputErrorConfig') }),
-          icon: Volume2,
-          checked: voiceOutput,
-          disabled: !voiceOutputAvailable,
-          onCheckedChange: onVoiceOutputChange,
-        },
-      ]);
+      modes.push({
+        type: 'checkbox',
+        label: tChat('voice.voiceModeEnable'),
+        ...(voiceOutputAvailable
+          ? {}
+          : { description: tChat('voice.voiceOutputErrorConfig') }),
+        icon: Volume2,
+        checked: voiceOutput,
+        disabled: !voiceOutputAvailable,
+        onCheckedChange: onVoiceOutputChange,
+      });
+    }
+    if (arenaActive !== undefined && onArenaChange !== undefined) {
+      modes.push({
+        type: 'checkbox',
+        label: tChat('arena.label'),
+        icon: Swords,
+        checked: arenaActive,
+        onCheckedChange: onArenaChange,
+      });
+    }
+    if (modes.length > 0) {
+      groups.push([{ type: 'label', content: t('modeHeader') }, ...modes]);
     }
 
     return groups;
@@ -91,6 +108,8 @@ export function ComposerModeMenu({
     onVoiceOutputChange,
     voiceOutputHidden,
     voiceOutputAvailable,
+    arenaActive,
+    onArenaChange,
     t,
     tChat,
   ]);

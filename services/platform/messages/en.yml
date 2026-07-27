@@ -1161,6 +1161,10 @@ chat:
     bothBad: Both bad
     verdictRecorded: Verdict recorded
     verdictError: Failed to record verdict
+    busy: Both replies must finish first
+    exitWithoutVerdict: Exit without verdict
+    startFailed: Could not start Arena Mode
+    unsharable: A shared chat can't enter Arena Mode
   canvas:
     runStatus:
       queued: Queued

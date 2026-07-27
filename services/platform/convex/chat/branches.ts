@@ -114,6 +114,7 @@ export const branchForEdit = mutation({
       args.threadId,
     );
     if (!thread) return null;
+    if (thread.arena !== undefined) return null;
 
     const messageId = ctx.db.normalizeId('messages', args.editedMessageId);
     const message = messageId ? await ctx.db.get(messageId) : null;
@@ -155,6 +156,7 @@ export const branchForRegenerate = mutation({
       args.threadId,
     );
     if (!thread) return null;
+    if (thread.arena !== undefined) return null;
 
     const messageId = ctx.db.normalizeId('messages', args.assistantMessageId);
     const message = messageId ? await ctx.db.get(messageId) : null;
@@ -220,7 +222,13 @@ export const listThreadBranches = query({
 
     return {
       branches: branches
-        .filter((branch) => branch.lifecycleStatus === undefined)
+        // Arena columns share the lineage for the trash cascade but carry no
+        // `branchParentId` — they are not edit siblings; skip them.
+        .filter(
+          (branch) =>
+            branch.lifecycleStatus === undefined &&
+            branch.branchParentId !== undefined,
+        )
         .map((branch) => ({
           id: branch._id,
           parentId: branch.branchParentId ?? String(root._id),

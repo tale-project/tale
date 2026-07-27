@@ -114,6 +114,24 @@ export const threadsTable = defineTable({
    * mode. Absent falls through to `userPreferences.voiceOutput`; either
    * boolean wins over it (see `tts/queries.ts::getVoiceModeEffective`). */
   voiceOutputOverride: v.optional(v.boolean()),
+  /**
+   * Arena Mode: while present, this thread is one column of a live A/B
+   * pair. `role` names the column, `partnerThreadId` the other side, and
+   * `pairId` groups the two rows. Presence alone means "the pair is
+   * active" — settling (verdict or exit) REMOVES the field from both
+   * sides; it is never written cleared. Column B is a hidden row carrying
+   * `branchRootId` = A, so the sidebar shows one conversation and the
+   * trash cascade already covers the pair; B never has `branchParentId`,
+   * which is how the branch navigator's listing skips arena columns.
+   */
+  arena: v.optional(
+    v.object({
+      pairId: v.string(),
+      role: v.union(v.literal('a'), v.literal('b')),
+      partnerThreadId: v.string(),
+      createdAt: v.number(),
+    }),
+  ),
   /** Sharing: an org-internal, read-only snapshot link. The token is the URL
    * credential; `sharedAt` is the snapshot boundary — messages appended after
    * it are never part of the share. Unsharing flips `isShared` but keeps the

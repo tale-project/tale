@@ -41,6 +41,8 @@ export interface ChatThreadSummary {
   readonly lastReadAt?: number;
   /** True while the thread is published as an org-internal snapshot link. */
   readonly isShared?: boolean;
+  /** True while the row is column A of a live arena pair. */
+  readonly inArena?: boolean;
   readonly createdAt: number;
   readonly updatedAt: number;
   /** True while a generation row exists for the thread. */
