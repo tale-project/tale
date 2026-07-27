@@ -45,6 +45,10 @@ global.IntersectionObserver =
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = vi.fn();
 
+// Mock element scrolling (jsdom has no layout, so scrollTo is absent)
+Element.prototype.scrollTo =
+  vi.fn() as unknown as typeof Element.prototype.scrollTo;
+
 // Mock pointer capture APIs for Radix UI components (e.g., Select)
 Element.prototype.hasPointerCapture = vi.fn(() => false);
 Element.prototype.setPointerCapture = vi.fn();

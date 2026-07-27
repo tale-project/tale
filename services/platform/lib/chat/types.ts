@@ -67,11 +67,16 @@ export interface ChatMessage {
   readonly blockedReason?: string;
 }
 
-/** Token accounting for one turn. */
+/** Token accounting for one turn. The timing fields ride along for the
+ * message-info panel; ledger consumers read the token counts only. */
 export interface TurnUsage {
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly totalTokens: number;
+  /** Wall-clock from turn start to the assistant message settling. */
+  readonly durationMs?: number;
+  /** Wall-clock from turn start to the first cleared output chunk. */
+  readonly timeToFirstTokenMs?: number;
 }
 
 /** Concatenate the text parts of a message — what token estimation and the

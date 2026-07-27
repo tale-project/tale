@@ -170,6 +170,77 @@ describe('MessageThread generation state', () => {
   });
 });
 
+describe('MessageThread transcript contract', () => {
+  it('exposes the transcript as a labelled log with per-message testids', () => {
+    render(<MessageThread messages={CONVERSATION} />);
+
+    const log = screen.getByRole('log', { name: 'Message history' });
+    const items = within(log).getAllByTestId('chat-message');
+    expect(items.map((el) => el.dataset.messageRole)).toEqual([
+      'user',
+      'assistant',
+    ]);
+  });
+
+  it('renders assistant text as markdown and user text as written', () => {
+    render(
+      <MessageThread
+        messages={[
+          {
+            id: 'u1',
+            role: 'user',
+            sequence: 0,
+            createdAt: 1,
+            parts: [{ type: 'text', text: '**not markdown**' }],
+          },
+          {
+            id: 'a1',
+            role: 'assistant',
+            sequence: 1,
+            createdAt: 2,
+            parts: [{ type: 'text', text: 'some **bold** text' }],
+          },
+        ]}
+      />,
+    );
+
+    // The user's words render exactly as typed; the assistant's render.
+    expect(screen.getByText('**not markdown**')).toBeInTheDocument();
+    expect(screen.getByText('bold').tagName).toBe('STRONG');
+  });
+
+  it('offers Copy and Show info under a settled assistant message', () => {
+    render(<MessageThread messages={CONVERSATION} />);
+
+    expect(screen.getByTestId('message-copy-button')).toBeInTheDocument();
+    expect(screen.getByTestId('message-info-button')).toBeInTheDocument();
+  });
+
+  it('shows no toolbar while the reply is still streaming', () => {
+    render(
+      <MessageThread
+        messages={[
+          ...CONVERSATION,
+          {
+            id: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+          },
+        ]}
+        generation={{ status: 'queued', messageId: 'm9' }}
+      />,
+    );
+
+    const items = screen.getAllByTestId('chat-message');
+    const streaming = items.at(-1);
+    if (!streaming) throw new Error('expected a streaming item');
+    expect(within(streaming).queryByTestId('message-copy-button')).toBeNull();
+    expect(within(streaming).queryByTestId('message-info-button')).toBeNull();
+  });
+});
+
 describe('MessageThread accessibility', () => {
   it('passes an axe audit', async () => {
     const { container } = render(

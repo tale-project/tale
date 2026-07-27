@@ -1045,6 +1045,31 @@ chat:
     editThis: Dieses Bild bearbeiten
   downloadFile: Datei herunterladen
   loadingConversation: Lädt die Unterhaltung…
+  showMore: Mehr anzeigen
+  showLess: Weniger anzeigen
+  scrollToBottom: Nach unten scrollen
+  messageInfo:
+    title: Nachrichteninformation
+    timestamp: Zeitstempel
+    messageId: Nachrichten-ID
+    copyId: Nachrichten-ID kopieren
+    model: Modell
+    provider: Anbieter
+    tokenUsage: Token-Verbrauch
+    input: Eingabe
+    output: Ausgabe
+    total: Gesamt
+    reasoning: Reasoning
+    cached: Zwischengespeichert
+    performance: Leistung
+    duration: Dauer
+    timeToFirstToken: Zeit bis zum ersten Token
+    throughput: Durchsatz
+    tokensPerSecond: '{value} Tok/s'
+    toolCalls: Tool-Aufrufe
+    blockedReason: Blockiert
+    error: Fehler
+    noMetadata: Token-Verbrauch und Modellinformationen sind für diese Nachricht nicht verfügbar.
   history:
     empty: Noch keine Gespräche
     emptySubtitle: Starte einen neuen Chat, um zu beginnen
@@ -1182,11 +1207,6 @@ chat:
     emptySkills: Noch keine Skills in dieser Organisation.
     emptyConnectors: Noch keine Connectors aktiviert — füge einen unter
       Einstellungen → Integrationen hinzu.
-  roles:
-    user: Du
-    assistant: Assistent
-    tool: Tool
-    system: System
   generation:
     regionLabel: Status der Antwort
     queued: In der Warteschlange — startet gleich
@@ -6863,7 +6883,7 @@ tasks:
   archive:
     confirmTitle: Aufgabe archivieren?
     confirmDescription: Die Aufgabe verschwindet aus Board und Liste. Mit
-      „Archivierte anzeigen“ kannst du sie jederzeit wiederherstellen.
+      „Archivierte anzeigen“ im Filter kannst du sie jederzeit wiederherstellen.
     restoreDescription: Die Aufgabe erscheint wieder in Board und Liste.
     success: Aufgabe archiviert
     error: Aufgabe konnte nicht archiviert werden
@@ -6988,7 +7008,6 @@ tasks:
     title: Mitglied oder Agent erwähnen
     empty: Keine Treffer
   metrics:
-    link: Metriken anzeigen
     title: Projekt-Metriken
     description: Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.
     cappedNotice:

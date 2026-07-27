@@ -49,6 +49,9 @@ const messageViewValidator = v.object({
   sequence: v.number(),
   model: v.optional(v.string()),
   providerSlug: v.optional(v.string()),
+  /** Token counts and turn timings, as the pipeline stamped them — the
+   * message-info panel's source. Shaped by the chat layer (`TurnUsage`). */
+  usage: v.optional(v.any()),
   blockedReason: v.optional(v.string()),
   error: v.optional(v.string()),
   createdAt: v.number(),
@@ -91,6 +94,7 @@ export const listMessages = query({
       sequence: message.sequence,
       model: message.model,
       providerSlug: message.providerSlug,
+      usage: message.usage,
       blockedReason: message.blockedReason,
       error: message.error,
       createdAt: message.createdAt,
@@ -493,16 +497,20 @@ function textOfParts(parts: unknown): string {
 export const setAssistantTextInternal = internalMutation({
   args: {
     organizationId: v.string(),
-    messageId: v.id('messages'),
+    // A plain string: the turn pipeline carries ids opaquely, so the id is
+    // normalized here rather than trusted at the boundary.
+    messageId: v.string(),
     text: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     if (args.text === '') return null;
-    const message = await ctx.db.get(args.messageId);
+    const messageId = ctx.db.normalizeId('messages', args.messageId);
+    if (!messageId) return null;
+    const message = await ctx.db.get(messageId);
     if (!message || message.organizationId !== args.organizationId) return null;
     if (textOfParts(message.parts) === args.text) return null;
-    await ctx.db.patch(args.messageId, {
+    await ctx.db.patch(messageId, {
       parts: [{ type: 'text', text: args.text }],
     });
     return null;
@@ -517,22 +525,28 @@ export const setAssistantTextInternal = internalMutation({
 export const finalizeAssistantMessageInternal = internalMutation({
   args: {
     organizationId: v.string(),
-    messageId: v.id('messages'),
+    // A plain string, normalized here — see `setAssistantTextInternal`.
+    messageId: v.string(),
     finalText: v.optional(v.string()),
     model: v.optional(v.string()),
     providerSlug: v.optional(v.string()),
     usage: v.optional(v.any()),
     blockedReason: v.optional(v.string()),
+    /** A hard failure — the turn threw mid-stream. The message keeps whatever
+     * partial text streamed in and renders the error alongside it. */
+    error: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const message = await ctx.db.get(args.messageId);
+    const messageId = ctx.db.normalizeId('messages', args.messageId);
+    if (!messageId) return null;
+    const message = await ctx.db.get(messageId);
     if (!message || message.organizationId !== args.organizationId) return null;
     const text =
       args.finalText !== undefined && args.finalText !== ''
         ? args.finalText
         : textOfParts(message.parts);
-    await ctx.db.patch(args.messageId, {
+    await ctx.db.patch(messageId, {
       parts: [{ type: 'text', text }],
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.providerSlug !== undefined
@@ -542,6 +556,7 @@ export const finalizeAssistantMessageInternal = internalMutation({
       ...(args.blockedReason !== undefined
         ? { blockedReason: args.blockedReason }
         : {}),
+      ...(args.error !== undefined ? { error: args.error } : {}),
     });
     return null;
   },

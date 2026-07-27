@@ -1002,6 +1002,31 @@ chat:
     editThis: Edit this image
   downloadFile: Download file
   loadingConversation: Loading conversation…
+  showMore: Show more
+  showLess: Show less
+  scrollToBottom: Scroll to bottom
+  messageInfo:
+    title: Message information
+    timestamp: Timestamp
+    messageId: Message ID
+    copyId: Copy message ID
+    model: Model
+    provider: Provider
+    tokenUsage: Token usage
+    input: Input
+    output: Output
+    total: Total
+    reasoning: Reasoning
+    cached: Cached
+    performance: Performance
+    duration: Duration
+    timeToFirstToken: Time to first token
+    throughput: Throughput
+    tokensPerSecond: '{value} tok/s'
+    toolCalls: Tool calls
+    blockedReason: Blocked
+    error: Error
+    noMetadata: Token usage and model information are not available for this message.
   history:
     empty: No conversations yet
     emptySubtitle: Start a new chat to begin
@@ -1137,11 +1162,6 @@ chat:
     emptySkills: No skills in this organization yet.
     emptyConnectors: No connectors enabled yet — add one under Settings →
       Integrations.
-  roles:
-    user: You
-    assistant: Assistant
-    tool: Tool
-    system: System
   generation:
     regionLabel: Response status
     queued: Queued — waiting to start
@@ -6939,8 +6959,8 @@ tasks:
   archive:
     confirmTitle: Archive task?
     confirmDescription:
-      The task leaves the board and list. Turn on Show archived to
-      restore it later.
+      The task leaves the board and list. Turn on Show archived in the
+      filters to restore it later.
     restoreDescription: The task returns to the board and list.
     success: Task archived
     error: Couldn't archive task
@@ -7059,7 +7079,6 @@ tasks:
     title: Mention a member or agent
     empty: No matches
   metrics:
-    link: Metrics
     title: Project metrics
     description: Delivery, intervention, and cost KPIs for this project's tasks.
     cappedNotice: Some days hit the rollup scan cap — totals in this window may undercount.

@@ -1002,6 +1002,19 @@ export async function finalizeExternalTurn(
     (args.errored && !haveText
       ? 'The third-party agent ended without producing a reply.'
       : undefined);
+  // The op row's start is the whole turn's anchor, so the stamped duration
+  // spans every drain window, not just the one that finalized. No TTFT for
+  // the external lane — the drainer re-reads from the ring buffer's start, so
+  // there is no cheap first-token moment to anchor on.
+  const usageWithTimings =
+    args.usageTotals !== undefined
+      ? {
+          ...args.usageTotals,
+          ...(opStartedAt !== undefined
+            ? { durationMs: Date.now() - opStartedAt }
+            : {}),
+        }
+      : undefined;
   await ctx.runMutation(
     internal.chat.messages.finalizeAssistantMessageInternal,
     {
@@ -1010,7 +1023,7 @@ export async function finalizeExternalTurn(
       ...(args.finalText !== undefined ? { finalText: args.finalText } : {}),
       model: args.gatewayModel,
       providerSlug: args.providerSlug,
-      ...(args.usageTotals !== undefined ? { usage: args.usageTotals } : {}),
+      ...(usageWithTimings !== undefined ? { usage: usageWithTimings } : {}),
       ...(blockedReason !== undefined ? { blockedReason } : {}),
     },
   );

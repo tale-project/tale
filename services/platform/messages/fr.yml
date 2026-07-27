@@ -1045,6 +1045,31 @@ chat:
     editThis: Modifier cette image
   downloadFile: Télécharger le fichier
   loadingConversation: Chargement de la conversation…
+  showMore: Voir plus
+  showLess: Voir moins
+  scrollToBottom: Défiler vers le bas
+  messageInfo:
+    title: Informations sur le message
+    timestamp: Horodatage
+    messageId: ID du message
+    copyId: Copier l'ID du message
+    model: Modèle
+    provider: Fournisseur
+    tokenUsage: Utilisation des tokens
+    input: Entrée
+    output: Sortie
+    total: Total
+    reasoning: Reasoning
+    cached: En cache
+    performance: Performance
+    duration: Durée
+    timeToFirstToken: Délai avant le premier token
+    throughput: Débit
+    tokensPerSecond: '{value} tok/s'
+    toolCalls: Appels d'outils
+    blockedReason: Bloqué
+    error: Erreur
+    noMetadata: L'utilisation des tokens et les informations sur le modèle ne sont pas disponibles pour ce message.
   history:
     empty: Aucune conversation pour l'instant
     emptySubtitle: Démarre un nouveau chat pour commencer
@@ -1184,11 +1209,6 @@ chat:
     emptySkills: Aucun skill dans cette organisation pour l’instant.
     emptyConnectors: Aucun connecteur activé pour l’instant — ajoutes-en un
       dans Paramètres → Intégrations.
-  roles:
-    user: Toi
-    assistant: Assistant
-    tool: Outil
-    system: Système
   generation:
     regionLabel: État de la réponse
     queued: En file d’attente — démarrage imminent
@@ -6963,7 +6983,7 @@ tasks:
   archive:
     confirmTitle: Archiver la tâche ?
     confirmDescription: La tâche disparaît du board et de la liste. Active
-      « Afficher les archivées » pour la restaurer plus tard.
+      « Afficher les archivées » dans les filtres pour la restaurer plus tard.
     restoreDescription: La tâche réapparaît dans le board et la liste.
     success: Tâche archivée
     error: Impossible d'archiver la tâche
@@ -7087,7 +7107,6 @@ tasks:
     title: Mentionner un membre ou un agent
     empty: Aucun résultat
   metrics:
-    link: Voir les métriques
     title: Métriques du projet
     description:
       Indicateurs de livraison, d'intervention et de coût pour les tâches

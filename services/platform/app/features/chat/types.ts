@@ -51,6 +51,21 @@ export interface ChatProjectSummary {
 
 export type ChatMessageRole = 'user' | 'assistant' | 'tool' | 'system';
 
+/**
+ * Token counts and timings as the turn pipeline stamped them (`usage` is a
+ * free-shape blob server-side, so every field reads as optional and the info
+ * panel hides what a turn did not record).
+ */
+export interface ChatMessageUsage {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly totalTokens?: number;
+  readonly reasoningTokens?: number;
+  readonly cachedInputTokens?: number;
+  readonly durationMs?: number;
+  readonly timeToFirstTokenMs?: number;
+}
+
 /** One rendered message. `parts` is authored order and is rendered in it. */
 export interface ChatMessageView {
   readonly id: string;
@@ -59,6 +74,8 @@ export interface ChatMessageView {
   readonly sequence: number;
   readonly model?: string;
   readonly providerSlug?: string;
+  /** Token counts and turn timings, when the pipeline recorded them. */
+  readonly usage?: ChatMessageUsage;
   /** Set when a guardrail refused or altered the message. */
   readonly blockedReason?: string;
   readonly error?: string;

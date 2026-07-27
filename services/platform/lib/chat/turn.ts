@@ -102,10 +102,36 @@ export interface TurnStore {
      * guardrail block; rendered as an error and counted as one. */
     error?: string;
   }): Promise<{ id: string; sequence: number }>;
+  /** Replace the streaming assistant message's text with the full text so
+   * far. Called once per cleared chunk; the store may throttle its writes —
+   * the finalize call carries the authoritative text, so a skipped write can
+   * never lose the tail. */
+  setAssistantText(update: {
+    organizationId: string;
+    threadId: string;
+    messageId: string;
+    text: string;
+  }): Promise<void>;
+  /** Settle the placeholder assistant message the turn streamed into. An
+   * absent `text` keeps whatever the throttled streaming writes persisted —
+   * the shape a mid-stream failure wants. */
+  finalizeAssistantMessage(message: {
+    organizationId: string;
+    threadId: string;
+    messageId: string;
+    text?: string;
+    model?: string;
+    providerSlug?: string;
+    usage?: TurnUsage;
+    blockedReason?: string;
+    error?: string;
+  }): Promise<void>;
   beginGeneration(generation: {
     organizationId: string;
     threadId: string;
     streamId: string;
+    /** The assistant placeholder the turn streams into. */
+    messageId?: string;
   }): Promise<void>;
   heartbeat(generation: {
     organizationId: string;
@@ -281,26 +307,52 @@ export async function streamWithOutputGuardrails(
   context: AssembledContext,
   execution: ExecutionResolution,
   deps: TurnDeps,
+  /** The placeholder assistant message the cleared text streams into. */
+  assistantMessageId?: string,
 ): Promise<{
   text: string;
   refusal?: GuardrailRefusal;
   reportedUsage?: TurnUsage;
+  /** When the first cleared chunk was emitted — the TTFT anchor. */
+  firstChunkAtMs?: number;
 }> {
   const transform = createOutputTransform(deps.outputFilters ?? [], {
     ...deps.guardrailOptions,
   });
+  const now = deps.now ?? (() => new Date());
   let cleared = '';
   let reportedUsage: TurnUsage | undefined;
+  let firstChunkAtMs: number | undefined;
 
   const emit = (chunk: {
     text: string;
     refusal?: GuardrailRefusal;
   }): boolean => {
     if (chunk.text.length > 0) {
+      firstChunkAtMs ??= now().getTime();
       cleared += chunk.text;
       deps.onChunk?.(chunk.text);
     }
     return chunk.refusal === undefined;
+  };
+
+  /** Stream the accumulated text into the placeholder. The store throttles;
+   * the finalize call is the authoritative write, so a failure here must not
+   * end the turn. */
+  const persistProgress = async (): Promise<void> => {
+    if (assistantMessageId === undefined || cleared.length === 0) return;
+    try {
+      await deps.store.setAssistantText({
+        organizationId: request.organizationId,
+        threadId: request.threadId,
+        messageId: assistantMessageId,
+        text: cleared,
+      });
+    } catch (error) {
+      console.warn(
+        `[chat] streaming progress write failed: ${error instanceof Error ? error.message : 'unknown'}`,
+      );
+    }
   };
 
   for await (const chunk of deps.model({
@@ -315,8 +367,14 @@ export async function streamWithOutputGuardrails(
     if (chunk.usage) reportedUsage = chunk.usage;
     const checked = await transform.push(chunk.text);
     if (!emit(checked)) {
-      return { text: cleared, refusal: checked.refusal, reportedUsage };
+      return {
+        text: cleared,
+        refusal: checked.refusal,
+        reportedUsage,
+        firstChunkAtMs,
+      };
     }
+    await persistProgress();
     await deps.store.heartbeat({
       organizationId: request.organizationId,
       threadId: request.threadId,
@@ -325,9 +383,14 @@ export async function streamWithOutputGuardrails(
 
   const tail = await transform.flush();
   if (!emit(tail)) {
-    return { text: cleared, refusal: tail.refusal, reportedUsage };
+    return {
+      text: cleared,
+      refusal: tail.refusal,
+      reportedUsage,
+      firstChunkAtMs,
+    };
   }
-  return { text: cleared, reportedUsage };
+  return { text: cleared, reportedUsage, firstChunkAtMs };
 }
 
 /**
@@ -375,6 +438,7 @@ export async function runTurn(
   deps: TurnDeps,
 ): Promise<TurnOutcome> {
   const now = deps.now ?? (() => new Date());
+  const turnStartedAtMs = now().getTime();
   const steps: TurnStep[] = [];
 
   const refuse = async (
@@ -417,10 +481,28 @@ export async function runTurn(
     role: 'user',
     parts: [{ type: 'text', text: input.text }],
   });
+  // The assistant message exists BEFORE the stream starts: the turn streams
+  // its cleared text into this row, so a reader watching the thread sees the
+  // reply grow, and a mid-stream failure keeps the partial text it managed.
+  const placeholder = await deps.store.appendMessage({
+    organizationId: request.organizationId,
+    threadId: request.threadId,
+    role: 'assistant',
+    parts: [],
+  });
   await deps.store.beginGeneration({
     organizationId: request.organizationId,
     threadId: request.threadId,
     streamId: request.streamId,
+    messageId: placeholder.id,
+  });
+
+  /** Timings for the message-info panel, both anchored at turn start. */
+  const timings = (firstChunkAtMs?: number) => ({
+    durationMs: now().getTime() - turnStartedAtMs,
+    ...(firstChunkAtMs !== undefined
+      ? { timeToFirstTokenMs: firstChunkAtMs - turnStartedAtMs }
+      : {}),
   });
 
   try {
@@ -430,6 +512,7 @@ export async function runTurn(
       context,
       execution,
       deps,
+      placeholder.id,
     );
 
     steps.push('output-guardrails');
@@ -437,21 +520,24 @@ export async function runTurn(
     // carry what was actually billed, and the estimate exists only for
     // providers that report nothing.
     const outputTokens = estimateTokens(streamed.text);
-    const usage: TurnUsage = streamed.reportedUsage ?? {
-      inputTokens: context.estimatedTokens,
-      outputTokens,
-      totalTokens: context.estimatedTokens + outputTokens,
+    const usage: TurnUsage = {
+      ...(streamed.reportedUsage ?? {
+        inputTokens: context.estimatedTokens,
+        outputTokens,
+        totalTokens: context.estimatedTokens + outputTokens,
+      }),
+      ...timings(streamed.firstChunkAtMs),
     };
 
     if (streamed.refusal) {
       const reason = refusalReason(streamed.refusal);
       steps.push('usage-ledger');
       await recordUsage(request, usage, deps);
-      await deps.store.appendMessage({
+      await deps.store.finalizeAssistantMessage({
         organizationId: request.organizationId,
         threadId: request.threadId,
-        role: 'assistant',
-        parts: streamed.text ? [{ type: 'text', text: streamed.text }] : [],
+        messageId: placeholder.id,
+        text: streamed.text,
         model: request.model.id,
         providerSlug: request.model.provider,
         usage,
@@ -468,11 +554,11 @@ export async function runTurn(
 
     steps.push('usage-ledger');
     await recordUsage(request, usage, deps);
-    await deps.store.appendMessage({
+    await deps.store.finalizeAssistantMessage({
       organizationId: request.organizationId,
       threadId: request.threadId,
-      role: 'assistant',
-      parts: [{ type: 'text', text: streamed.text }],
+      messageId: placeholder.id,
+      text: streamed.text,
       model: request.model.id,
       providerSlug: request.model.provider,
       usage,
@@ -489,17 +575,18 @@ export async function runTurn(
     };
   } catch (err) {
     // The stream threw — a provider error mid-reply, or the stream timeout.
-    // Persist an assistant message carrying the failure so the thread is never
-    // left with a question and no answer, and the failure is a countable error
-    // (not a silent lost turn or a guardrail block). The `finally` still settles
-    // the generation; returning `refused` surfaces the reason on the seam.
+    // Settle the placeholder carrying the failure so the thread is never left
+    // with a question and no answer, and the failure is a countable error
+    // (not a silent lost turn or a guardrail block). No `text` is passed, so
+    // whatever partial text the streaming writes persisted survives. The
+    // `finally` still settles the generation; returning `refused` surfaces
+    // the reason on the seam.
     const reason =
       err instanceof Error ? err.message : 'The model response failed.';
-    await deps.store.appendMessage({
+    await deps.store.finalizeAssistantMessage({
       organizationId: request.organizationId,
       threadId: request.threadId,
-      role: 'assistant',
-      parts: [],
+      messageId: placeholder.id,
       model: request.model.id,
       providerSlug: request.model.provider,
       error: reason,

@@ -5,23 +5,30 @@
  * turn's status.
  *
  * Generation state comes from ONE fact — a generation object exists for the
- * thread, or it does not. There is no per-message "is streaming" flag to keep
- * in sync, because the backing row is deleted the moment a turn settles. The
- * status renders into a polite live region so a screen reader hears the turn
- * start, wait for an approval, and finish without the reader losing its
- * place in the transcript.
+ * thread, or it does not. The row also names the assistant message the turn
+ * streams into, which is how exactly one item renders as live. The transcript
+ * is a `role="log"` region (the e2e contract), so assistive technology hears
+ * new entries without losing its place; the explicit status region below it
+ * narrates the queued/streaming/waiting states.
+ *
+ * Scrolling: opening a thread lands at the end; while the reader is at the
+ * bottom the view follows growth; the moment they scroll up it stops
+ * following and a jump-back affordance appears.
  */
 
+import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { MessageSquare, TriangleAlert } from 'lucide-react';
+import { ArrowDown, MessageSquare } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
+import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { ChatGenerationView, ChatMessageView } from '../types';
-import { MessageParts } from './message-parts';
+import { MessageItem } from './message-item';
 
 /** The catalog key describing each generation status, in one place. */
 const GENERATION_STATUS_KEY: Record<ChatGenerationView['status'], string> = {
@@ -38,73 +45,101 @@ interface MessageThreadProps {
   className?: string;
 }
 
+/** Which message the live turn is writing: the one the generation row names,
+ * or — for a row that has not learned its message yet — the trailing
+ * assistant message. */
+function streamingMessageId(
+  messages: readonly ChatMessageView[],
+  generation: ChatGenerationView | null | undefined,
+): string | undefined {
+  if (!generation) return undefined;
+  if (generation.messageId !== undefined) return generation.messageId;
+  const last = messages.at(-1);
+  return last?.role === 'assistant' ? last.id : undefined;
+}
+
 export function MessageThread({
   messages,
   generation,
   className,
 }: MessageThreadProps) {
   const { t } = useT('chat');
+  const { containerRef, scrollToBottom, isAtBottom } = useAutoScroll();
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
+
+  // Follow growth while the reader is at the bottom (and land there on
+  // open). `messages` is a fresh array per update, so every appended row or
+  // streamed chunk re-runs this; a reader who scrolled up is left alone.
+  useEffect(() => {
+    if (!awayFromBottom) scrollToBottom();
+  }, [messages, awayFromBottom, scrollToBottom]);
+
+  const streamingId = streamingMessageId(messages, generation);
 
   return (
-    <div
-      className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto', className)}
-    >
-      <Stack
-        as="ol"
-        gap={5}
-        aria-label={t('aria.messageHistory')}
-        className="mx-auto w-full max-w-3xl px-4 py-6"
-      >
-        {messages.map((message) => (
-          <li key={message.id} className="flex min-w-0 flex-col gap-1.5">
-            <Text
-              variant="muted"
-              className="text-xs font-medium tracking-wide uppercase"
-            >
-              {t(`roles.${message.role}`)}
-            </Text>
-            <MessageParts parts={message.parts} />
-            {message.blockedReason && (
-              <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-                {t('parts.blocked', { reason: message.blockedReason })}
-              </p>
-            )}
-            {message.error && (
-              <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-                {message.error}
-              </p>
-            )}
-          </li>
-        ))}
-      </Stack>
-
-      {messages.length === 0 && !generation && (
-        <EmptyState
-          icon={MessageSquare}
-          title={t('welcomeEmpty')}
-          headingLevel={2}
-        />
-      )}
-
-      {/* The turn's status. The region is always in the DOM so assistive
-          technology has something to watch before the first turn starts. */}
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
-        role="status"
-        aria-live="polite"
-        aria-label={t('generation.regionLabel')}
-        className="mx-auto w-full max-w-3xl px-4 pb-4"
-      >
-        {generation && (
-          <Text variant="muted" className="text-sm">
-            {t(GENERATION_STATUS_KEY[generation.status])}
-            {generation.waitingOn
-              ? ` ${t('generation.waitingOn', { detail: generation.waitingOn })}`
-              : ''}
-          </Text>
+        ref={containerRef}
+        role="log"
+        aria-label={t('aria.messageHistory')}
+        onScroll={() => setAwayFromBottom(!isAtBottom())}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col overflow-y-auto',
+          className,
         )}
+      >
+        <Stack as="ol" gap={3} className="mx-auto w-full max-w-3xl px-4 py-6">
+          {messages.map((message, index) => (
+            <MessageItem
+              key={message.id}
+              message={message}
+              isLast={index === messages.length - 1}
+              isStreaming={message.id === streamingId}
+            />
+          ))}
+        </Stack>
+
+        {messages.length === 0 && !generation && (
+          <EmptyState
+            icon={MessageSquare}
+            title={t('welcomeEmpty')}
+            headingLevel={2}
+          />
+        )}
+
+        {/* The turn's status. The region is always in the DOM so assistive
+            technology has something to watch before the first turn starts. */}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label={t('generation.regionLabel')}
+          className="mx-auto w-full max-w-3xl px-4 pb-4"
+        >
+          {generation && (
+            <Text variant="muted" className="text-sm">
+              {t(GENERATION_STATUS_KEY[generation.status])}
+              {generation.waitingOn
+                ? ` ${t('generation.waitingOn', { detail: generation.waitingOn })}`
+                : ''}
+            </Text>
+          )}
+        </div>
       </div>
+
+      {awayFromBottom && messages.length > 0 && (
+        <Button
+          size="icon"
+          variant="secondary"
+          aria-label={t('scrollToBottom')}
+          onClick={() => {
+            scrollToBottom();
+            setAwayFromBottom(false);
+          }}
+          className="bg-background/95 absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full shadow-md"
+        >
+          <ArrowDown aria-hidden className="size-4" />
+        </Button>
+      )}
     </div>
   );
 }

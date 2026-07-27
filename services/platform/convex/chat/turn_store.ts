@@ -19,8 +19,15 @@ import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 
+/** The floor between two streaming-progress writes. The reply repaints at a
+ * reading cadence while the mutation load stays one write per interval, not
+ * one per SSE chunk; the finalize write carries the authoritative text, so
+ * skipped intervals never lose the tail. */
+const STREAM_WRITE_INTERVAL_MS = 250;
+
 /** A turn store that writes to the `messages` and `generations` tables. */
 export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
+  let lastStreamWriteAt = 0;
   return {
     async appendMessage(message) {
       return ctx.runMutation(internal.chat.messages.appendMessageInternal, {
@@ -34,6 +41,36 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
         blockedReason: message.blockedReason,
         error: message.error,
       });
+    },
+    async setAssistantText(update) {
+      const nowMs = Date.now();
+      if (nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS) return;
+      lastStreamWriteAt = nowMs;
+      await ctx.runMutation(internal.chat.messages.setAssistantTextInternal, {
+        organizationId: update.organizationId,
+        messageId: update.messageId,
+        text: update.text,
+      });
+    },
+    async finalizeAssistantMessage(message) {
+      const messageId = message.messageId;
+      await ctx.runMutation(
+        internal.chat.messages.finalizeAssistantMessageInternal,
+        {
+          organizationId: message.organizationId,
+          messageId,
+          ...(message.text !== undefined ? { finalText: message.text } : {}),
+          ...(message.model !== undefined ? { model: message.model } : {}),
+          ...(message.providerSlug !== undefined
+            ? { providerSlug: message.providerSlug }
+            : {}),
+          ...(message.usage !== undefined ? { usage: message.usage } : {}),
+          ...(message.blockedReason !== undefined
+            ? { blockedReason: message.blockedReason }
+            : {}),
+          ...(message.error !== undefined ? { error: message.error } : {}),
+        },
+      );
     },
     async beginGeneration(generation) {
       await ctx.runMutation(

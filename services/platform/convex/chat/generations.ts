@@ -311,6 +311,24 @@ export const recoverStaleDirectGenerations = internalMutation({
       .query('generations')
       .withIndex('by_heartbeat', (q) => q.lt('heartbeatAt', staleBefore))) {
       if (row.external !== undefined) continue; // external lane → op-row recovery
+      // The turn streamed into a placeholder message; a hard-killed turn never
+      // finalized it. Stamp the failure so the row does not read as a settled
+      // empty answer (whatever partial text streamed in is kept).
+      if (row.messageId !== undefined) {
+        const messageId = ctx.db.normalizeId('messages', row.messageId);
+        const message = messageId ? await ctx.db.get(messageId) : null;
+        if (
+          message &&
+          message.organizationId === row.organizationId &&
+          message.error === undefined &&
+          message.blockedReason === undefined &&
+          message.usage === undefined
+        ) {
+          await ctx.db.patch(message._id, {
+            error: 'The response was interrupted before it finished.',
+          });
+        }
+      }
       await ctx.db.delete(row._id);
       cleared += 1;
       if (cleared >= DIRECT_GENERATION_SWEEP_LIMIT) break;

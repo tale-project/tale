@@ -17,6 +17,7 @@ import { Text } from '@tale/ui/text';
 import { Paperclip, ShieldQuestion, UserRoundPen, Wrench } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
 
+import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 
 import type { MessagePart } from '../types';
@@ -47,7 +48,15 @@ function PartRow({
   );
 }
 
-export function MessageParts({ parts }: { parts: readonly MessagePart[] }) {
+export function MessageParts({
+  parts,
+  markdown = false,
+}: {
+  parts: readonly MessagePart[];
+  /** Render text parts as markdown (assistant answers) instead of the plain
+   * pre-wrapped text a user's own words keep. */
+  markdown?: boolean;
+}) {
   const { t } = useT('chat');
 
   return (
@@ -55,7 +64,9 @@ export function MessageParts({ parts }: { parts: readonly MessagePart[] }) {
       {parts.map((part, index) => {
         switch (part.type) {
           case 'text':
-            return (
+            return markdown ? (
+              <MarkdownContent key={index} content={part.text} />
+            ) : (
               <p
                 key={index}
                 className="text-foreground text-sm leading-relaxed whitespace-pre-wrap"

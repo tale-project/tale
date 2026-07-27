@@ -71,12 +71,25 @@ const API_KEY_CREDENTIAL: CredentialAuth = { authMethod: 'api-key' };
 
 interface StoreCalls {
   readonly appended: Array<Record<string, unknown>>;
+  /** Every streaming-progress write, in order (the full text so far). */
+  readonly streamed: Array<{ messageId: string; text: string }>;
+  /** Every settle write into the placeholder. */
+  readonly finalized: Array<Record<string, unknown>>;
   readonly generations: string[];
+  /** The messageId each beginGeneration carried. */
+  readonly generationMessageIds: Array<string | undefined>;
   heartbeats: number;
 }
 
 function fakeStore(): { store: TurnStore; calls: StoreCalls } {
-  const calls: StoreCalls = { appended: [], generations: [], heartbeats: 0 };
+  const calls: StoreCalls = {
+    appended: [],
+    streamed: [],
+    finalized: [],
+    generations: [],
+    generationMessageIds: [],
+    heartbeats: 0,
+  };
   return {
     calls,
     store: {
@@ -87,8 +100,20 @@ function fakeStore(): { store: TurnStore; calls: StoreCalls } {
           sequence: calls.appended.length,
         });
       },
-      beginGeneration() {
+      setAssistantText(update) {
+        calls.streamed.push({
+          messageId: update.messageId,
+          text: update.text,
+        });
+        return Promise.resolve();
+      },
+      finalizeAssistantMessage(message) {
+        calls.finalized.push(message);
+        return Promise.resolve();
+      },
+      beginGeneration(generation) {
         calls.generations.push('begin');
+        calls.generationMessageIds.push(generation.messageId);
         return Promise.resolve();
       },
       heartbeat() {
@@ -241,17 +266,91 @@ describe('runTurn — the happy path', () => {
     expect(d.store.generations).toEqual(['begin', 'end']);
   });
 
-  it('persists the user message and the assistant answer', async () => {
+  it('persists the user message, then settles the answer into the placeholder', async () => {
     const d = deps();
     await runTurn(request(), d.deps);
 
+    // The assistant row exists BEFORE the stream (empty placeholder)…
     expect(d.store.appended.map((m) => m.role)).toEqual(['user', 'assistant']);
-    expect(d.store.appended[1]).toMatchObject({
-      organizationId: ORG,
-      threadId: 'thread_1',
-      model: 'claude-fable-5',
-      providerSlug: 'anthropic',
+    expect(d.store.appended[1]).toMatchObject({ parts: [] });
+    // …the generation row names it…
+    expect(d.store.generationMessageIds).toEqual(['msg_2']);
+    // …and the settle write carries the answer and its attribution.
+    expect(d.store.finalized).toEqual([
+      expect.objectContaining({
+        organizationId: ORG,
+        threadId: 'thread_1',
+        messageId: 'msg_2',
+        text: 'Return it within 30 days.',
+        model: 'claude-fable-5',
+        providerSlug: 'anthropic',
+      }),
+    ]);
+  });
+
+  it('streams the growing text into the placeholder as chunks clear', async () => {
+    // The output transform clears in >=120-char segments, so each chunk here
+    // clears on its own push and the placeholder sees the text grow.
+    const first = 'a'.repeat(150);
+    const second = 'b'.repeat(150);
+    const d = deps({ model: streamingModel([first, second]) });
+    await runTurn(request(), d.deps);
+
+    expect(d.store.streamed.map((w) => w.text)).toEqual([
+      first,
+      first + second,
+    ]);
+    expect(new Set(d.store.streamed.map((w) => w.messageId))).toEqual(
+      new Set(['msg_2']),
+    );
+  });
+
+  it('stamps duration and time-to-first-token into the usage it records', async () => {
+    // A clock that advances 100 ms per reading, so the stamps are non-zero
+    // and ordered: TTFT is read at the first cleared chunk, duration at
+    // settle, both anchored at turn start.
+    let tick = 0;
+    const d = deps({
+      now: () => new Date(1_700_000_000_000 + 100 * tick++),
     });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    const { durationMs, timeToFirstTokenMs } = outcome.usage;
+    if (durationMs === undefined || timeToFirstTokenMs === undefined) {
+      throw new Error('expected both timing stamps');
+    }
+    expect(durationMs).toBeGreaterThan(0);
+    expect(timeToFirstTokenMs).toBeGreaterThan(0);
+    expect(timeToFirstTokenMs).toBeLessThanOrEqual(durationMs);
+    expect(d.store.finalized[0]).toMatchObject({
+      usage: expect.objectContaining({
+        durationMs: outcome.usage.durationMs,
+        timeToFirstTokenMs: outcome.usage.timeToFirstTokenMs,
+      }),
+    });
+  });
+
+  it('settles a mid-stream failure into the placeholder without erasing partial text', async () => {
+    const failing: ModelCall = async function* stream() {
+      yield { text: 'partial ' };
+      throw new Error('provider exploded');
+    };
+    const d = deps({ model: failing });
+
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'refused',
+      step: 'stream',
+    });
+    // No `text` on the settle write: the row keeps what streamed in.
+    expect(d.store.finalized).toEqual([
+      expect.objectContaining({
+        messageId: 'msg_2',
+        error: 'provider exploded',
+      }),
+    ]);
+    expect(d.store.finalized[0]).not.toHaveProperty('text');
   });
 
   it('assembles the context from the one contract', async () => {
@@ -445,8 +544,8 @@ describe('runTurn — output guardrails', () => {
     ]);
     expect(d.chunks).toEqual([]);
     expect(d.usage).toHaveLength(1);
-    expect(d.store.appended.at(-1)).toMatchObject({
-      role: 'assistant',
+    // The refusal settles into the placeholder the turn streamed into.
+    expect(d.store.finalized.at(-1)).toMatchObject({
       blockedReason: expect.stringContaining('moderation_provider'),
     });
     expect(d.store.generations).toEqual(['begin', 'end']);
