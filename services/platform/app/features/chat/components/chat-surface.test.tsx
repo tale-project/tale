@@ -150,7 +150,7 @@ describe('ChatSurface when the model listing answers and is empty', () => {
   beforeEach(() => {
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [], externalAgents: [] },
+      data: { models: [], externalAgents: [], voice: { ttsAvailable: false } },
     });
   });
 
@@ -227,6 +227,7 @@ describe('ChatSurface while its reads are still loading', () => {
           },
         ],
         externalAgents: [],
+        voice: { ttsAvailable: false },
       },
     });
     vi.mocked(useChatSend).mockReturnValue({
@@ -305,7 +306,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [MODEL], externalAgents: [] },
+      data: {
+        models: [MODEL],
+        externalAgents: [],
+        voice: { ttsAvailable: false },
+      },
     });
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
@@ -339,7 +344,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
   it("seeds the user's sticky pick over the listing default", () => {
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [MODEL, SECOND_MODEL], externalAgents: [] },
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        externalAgents: [],
+        voice: { ttsAvailable: false },
+      },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
       preference: { status: 'ready', data: SECOND_MODEL.id },
@@ -357,7 +366,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     const save = vi.fn();
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [MODEL, SECOND_MODEL], externalAgents: [] },
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        externalAgents: [],
+        voice: { ttsAvailable: false },
+      },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
       preference: { status: 'ready', data: undefined },
@@ -512,6 +525,7 @@ describe('ChatSurface on an open sandbox thread', () => {
       data: {
         models: [MODEL],
         externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
+        voice: { ttsAvailable: false },
       },
     });
     vi.mocked(useChatSend).mockReturnValue({
@@ -647,6 +661,7 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
       data: {
         models: [MODEL],
         externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
+        voice: { ttsAvailable: false },
       },
     });
     vi.mocked(useComposerCapabilities).mockReturnValue({

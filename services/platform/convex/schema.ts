@@ -132,6 +132,7 @@ import {
   taskDiscussionMessageMetaTable,
   tasksTable,
 } from './tasks/schema';
+import { ttsAudioChunksTable, ttsGcCursorTable } from './tts/schema';
 import { twoFactorAttemptsTable } from './two_factor/schema';
 import { userPreferencesTable } from './user_preferences/schema';
 import {
@@ -248,6 +249,8 @@ export default defineSchema({
   // The thread container (task-comment and automation threads); predates
   // the chat rewrite but is live — see discussions/schema.ts.
   threadMetadata: threadMetadataTable,
+  ttsAudioChunks: ttsAudioChunksTable,
+  ttsGcCursor: ttsGcCursorTable,
   twoFactorAttempts: twoFactorAttemptsTable,
   userNotificationState: userNotificationStateTable,
   userPasswordMetadata: userPasswordMetadataTable,

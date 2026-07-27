@@ -18,9 +18,14 @@ import { useMemo } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 interface ComposerModeMenuProps {
-  /** Read replies aloud, for the message being composed. */
+  /** Read replies aloud — the resolved per-thread/user state, written back
+   * server-side by the parent. */
   voiceOutput: boolean;
   onVoiceOutputChange: (next: boolean) => void;
+  /** Org governance vetoed voice output — the mode is not advertised. */
+  voiceOutputHidden?: boolean;
+  /** No TTS-capable model is configured — shown but disabled. */
+  voiceOutputAvailable?: boolean;
   onAttachFiles?: () => void;
   /** Open the skill library — browse, create, upload, share skills. */
   onOpenSkillLibrary?: () => void;
@@ -30,6 +35,8 @@ interface ComposerModeMenuProps {
 export function ComposerModeMenu({
   voiceOutput,
   onVoiceOutputChange,
+  voiceOutputHidden = false,
+  voiceOutputAvailable = true,
   onAttachFiles,
   onOpenSkillLibrary,
   disabled,
@@ -59,16 +66,22 @@ export function ComposerModeMenu({
     }
     if (actions.length > 0) groups.push(actions);
 
-    groups.push([
-      { type: 'label', content: t('modeHeader') },
-      {
-        type: 'checkbox',
-        label: tChat('voice.voiceModeEnable'),
-        icon: Volume2,
-        checked: voiceOutput,
-        onCheckedChange: onVoiceOutputChange,
-      },
-    ]);
+    if (!voiceOutputHidden) {
+      groups.push([
+        { type: 'label', content: t('modeHeader') },
+        {
+          type: 'checkbox',
+          label: tChat('voice.voiceModeEnable'),
+          ...(voiceOutputAvailable
+            ? {}
+            : { description: tChat('voice.voiceOutputErrorConfig') }),
+          icon: Volume2,
+          checked: voiceOutput,
+          disabled: !voiceOutputAvailable,
+          onCheckedChange: onVoiceOutputChange,
+        },
+      ]);
+    }
 
     return groups;
   }, [
@@ -76,6 +89,8 @@ export function ComposerModeMenu({
     onOpenSkillLibrary,
     voiceOutput,
     onVoiceOutputChange,
+    voiceOutputHidden,
+    voiceOutputAvailable,
     t,
     tChat,
   ]);

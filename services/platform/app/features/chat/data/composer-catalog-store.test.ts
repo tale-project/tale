@@ -18,6 +18,7 @@ const CATALOG: ComposerCatalog = {
     },
   ],
   externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
+  voice: { ttsAvailable: false },
 };
 
 afterEach(() => {
@@ -34,10 +35,15 @@ describe('composer catalog store', () => {
   });
 
   it('round-trips the empty catalog — "no provider yet" is an answer too', () => {
-    storeComposerCatalog('org-empty', { models: [], externalAgents: [] });
+    storeComposerCatalog('org-empty', {
+      models: [],
+      externalAgents: [],
+      voice: { ttsAvailable: false },
+    });
     expect(readStoredComposerCatalog('org-empty')).toEqual({
       models: [],
       externalAgents: [],
+      voice: { ttsAvailable: false },
     });
   });
 

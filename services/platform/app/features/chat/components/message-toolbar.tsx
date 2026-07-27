@@ -27,6 +27,7 @@ import {
   RotateCcw,
   ThumbsDown,
   ThumbsUp,
+  Volume2,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -56,6 +57,8 @@ interface MessageToolbarProps {
   onRegenerate?: (message: ChatMessageView) => void;
   /** Fork the conversation up to this message into a visible new chat. */
   onFork?: (message: ChatMessageView) => void;
+  /** Read this reply aloud on demand. */
+  onSpeak?: () => void;
 }
 
 export function MessageToolbar({
@@ -66,6 +69,7 @@ export function MessageToolbar({
   rating,
   onRegenerate,
   onFork,
+  onSpeak,
 }: MessageToolbarProps) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
@@ -218,7 +222,8 @@ export function MessageToolbar({
             <GitFork aria-hidden className="size-3.5" />
           </Button>
         )}
-        {onRegenerate !== undefined && (
+        {(onRegenerate !== undefined ||
+          (!errored && onSpeak !== undefined)) && (
           <DropdownMenu
             align="start"
             trigger={
@@ -234,12 +239,26 @@ export function MessageToolbar({
             }
             items={[
               [
-                {
-                  type: 'item',
-                  label: t('tryAgain'),
-                  icon: RotateCcw,
-                  onClick: () => onRegenerate(message),
-                },
+                ...(onRegenerate !== undefined
+                  ? [
+                      {
+                        type: 'item' as const,
+                        label: t('tryAgain'),
+                        icon: RotateCcw,
+                        onClick: () => onRegenerate(message),
+                      },
+                    ]
+                  : []),
+                ...(!errored && onSpeak !== undefined
+                  ? [
+                      {
+                        type: 'item' as const,
+                        label: t('speakOutLoud'),
+                        icon: Volume2,
+                        onClick: onSpeak,
+                      },
+                    ]
+                  : []),
               ],
             ]}
           />

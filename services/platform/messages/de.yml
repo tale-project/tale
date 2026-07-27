@@ -1042,6 +1042,30 @@ chat:
       vision: Vision
   voice:
     voiceModeEnable: Antworten vorlesen
+    voiceOutputAnnounceBlocked: Sprachausgabe blockiert — Wiedergabe aktivieren, um zuzuhören
+    voiceOutputAnnounceError: Sprachausgabe fehlgeschlagen
+    voiceOutputAnnounceSpeaking: Sprachausgabe läuft
+    voiceOutputAnnounceStopped: Sprachausgabe gestoppt
+    voiceOutputBlocked: Sprachausgabe blockiert — tippe zum Abspielen
+    voiceOutputError: Sprachausgabe fehlgeschlagen
+    voiceOutputErrorAuthExpired: Sitzung abgelaufen — melde dich neu an, um die Sprachausgabe fortzusetzen
+    voiceOutputErrorBudget: Sprach-Budget für diesen Zeitraum aufgebraucht
+    voiceOutputErrorChunkLimit: Sprach-Limit für diese Antwort erreicht
+    voiceOutputErrorConfig: Sprach-Anbieter nicht verfügbar — bitte eine administrative Person, ein Text-zu-Sprache-Modell hinzuzufügen
+    voiceOutputErrorDecode: Audio konnte nicht abgespielt werden — tippe zum erneuten Versuch
+    voiceOutputErrorForbidden: Sprach-Anbieter durch Host-Richtlinie blockiert
+    voiceOutputErrorInvalidResponse: Sprach-Anbieter lieferte ungültige Audiodaten — tippe für neuen Versuch
+    voiceOutputErrorMessageCharLimit: Antwort zu lang für Sprachausgabe — gestoppt
+    voiceOutputErrorNetwork: Sprach-Anfrage fehlgeschlagen — Verbindung prüfen und erneut versuchen
+    voiceOutputErrorOpenSettings: Einstellungen öffnen
+    voiceOutputErrorQueueOverflow: Sprachausgabe kommt nicht hinterher — weitere Sätze werden pausiert
+    voiceOutputErrorRateLimited: Sprach-Limit erreicht — neuer Versuch läuft
+    voiceOutputErrorTransient: Sprach-Dienst nicht erreichbar — neuer Versuch läuft
+    voiceOutputLoading: Sprache wird vorbereitet…
+    voiceOutputPlay: Sprachausgabe abspielen
+    voiceOutputSpeaking: Spricht
+    voiceOutputStop: Sprachausgabe stoppen
+    voiceOutputStopped: Gestoppt
   searchChat: Chat durchsuchen
   showHistory: Verlauf anzeigen
   hideHistory: Verlauf ausblenden
@@ -1095,6 +1119,7 @@ chat:
     editThis: Dieses Bild bearbeiten
   downloadFile: Datei herunterladen
   loadingConversation: Lädt die Unterhaltung…
+  speakOutLoud: Vorlesen
   showMore: Mehr anzeigen
   showLess: Weniger anzeigen
   scrollToBottom: Nach unten scrollen

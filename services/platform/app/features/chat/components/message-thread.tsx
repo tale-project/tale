@@ -21,7 +21,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowDown, MessageSquare } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useT } from '@/lib/i18n/client';
@@ -56,6 +56,11 @@ interface MessageThreadProps {
   onRegenerate?: (message: ChatMessageView) => void;
   /** Fork the conversation up to a message into a visible new chat. */
   onFork?: (message: ChatMessageView) => void;
+  /** "Read replies aloud" is on for this conversation — fresh assistant
+   * replies synthesize and the live message carries the voice pill. */
+  voiceEnabled?: boolean;
+  /** The org can synthesize at all — gates the "Speak out loud" action. */
+  speakAvailable?: boolean;
   className?: string;
 }
 
@@ -82,11 +87,33 @@ export function MessageThread({
   onEditSubmit,
   onRegenerate,
   onFork,
+  voiceEnabled,
+  speakAvailable,
   className,
 }: MessageThreadProps) {
   const { t } = useT('chat');
   const { containerRef, scrollToBottom, isAtBottom } = useAutoScroll();
   const [awayFromBottom, setAwayFromBottom] = useState(false);
+
+  // The ids present when this conversation first rendered. A message NOT in
+  // this snapshot arrived live during the mount — the auto-voice chunker
+  // reads only those, so revisiting a thread never re-reads old replies.
+  const initialIdsRef = useRef<{
+    threadId: string | undefined;
+    ids: ReadonlySet<string>;
+  } | null>(null);
+  if (
+    messages.length > 0 &&
+    (initialIdsRef.current === null ||
+      initialIdsRef.current.threadId !== threadId)
+  ) {
+    initialIdsRef.current = {
+      threadId,
+      ids: new Set(messages.map((message) => message.id)),
+    };
+  }
+  const isFreshSinceMount = (id: string): boolean =>
+    initialIdsRef.current !== null && !initialIdsRef.current.ids.has(id);
 
   // Follow growth while the reader is at the bottom (and land there on
   // open). `messages` is a fresh array per update, so every appended row or
@@ -127,6 +154,9 @@ export function MessageThread({
               onEditSubmit={onEditSubmit}
               onRegenerate={onRegenerate}
               onFork={onFork}
+              voiceEnabled={voiceEnabled}
+              speakAvailable={speakAvailable}
+              isFreshSinceMount={isFreshSinceMount(message.id)}
             />
           ))}
         </Stack>

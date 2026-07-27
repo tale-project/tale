@@ -38,3 +38,20 @@
   pricing:
     inputCentsPerMillion: 175
     outputCentsPerMillion: 1400
+# Text-to-speech: powers "Read replies aloud" / "Speak out loud". The context
+# window is nominal — synthesis takes character-capped requests, not context.
+- id: gpt-4o-mini-tts
+  provider: openai
+  tags:
+    - text-to-speech
+  supportsTools: false
+  supportsVision: false
+  contextWindow: 2000
+  tts:
+    defaultVoice: alloy
+    voicesByLocale:
+      en: alloy
+      de: onyx
+      fr: nova
+    audioFormat: mp3
+    centsPerMillionCharacters: 1200

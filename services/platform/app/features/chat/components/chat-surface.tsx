@@ -61,9 +61,16 @@ import {
   useThreadBranches,
   useThreadCapabilities,
   useThreadFeedback,
+  useVoiceMode,
 } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
 import { useThreadSharing } from '../data/thread-sharing';
+import { useVoiceActions } from '../data/voice-actions';
+import { useVoiceCapabilities } from '../hooks/use-voice-capabilities';
+import {
+  useVoiceAudioElement,
+  VoiceOutputProvider,
+} from '../hooks/voice-output-context';
 import {
   forkGroupsForPath,
   forkKey,
@@ -75,6 +82,7 @@ import type {
   ComposerModelOption,
   ComposerSelection,
 } from '../types';
+import { primeAudio } from '../utils/prime-audio';
 import { CanvasPanel } from './canvas/canvas-panel';
 import { Composer } from './composer';
 import {
@@ -87,12 +95,12 @@ import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
 import { MessageThread } from './message-thread';
 import { ThreadList } from './thread-list';
+import { VoiceOutputAnnouncer } from './voice-output-announcer';
 
 const NO_SELECTION: ComposerSelection = {
   agentKind: 'platform',
   skills: [],
   connectors: [],
-  voiceOutput: false,
 };
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
@@ -107,7 +115,18 @@ interface ChatSurfaceProps {
   projectId?: string;
 }
 
-export function ChatSurface({
+export function ChatSurface(props: ChatSurfaceProps) {
+  return (
+    // The voice provider owns the ONE playback element and the announcer
+    // stores; keyed to the open conversation so a thread switch resets any
+    // stale playback snapshot.
+    <VoiceOutputProvider threadId={props.threadId}>
+      <ChatSurfaceInner {...props} />
+    </VoiceOutputProvider>
+  );
+}
+
+function ChatSurfaceInner({
   organizationId,
   threadId,
   projectId,
@@ -186,6 +205,29 @@ export function ChatSurface({
   const [selection, setSelection] = useState(NO_SELECTION);
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+
+  // Read replies aloud: the composer checkbox reads the resolved cascade
+  // (org veto → thread override → user default) and writes the thread
+  // override — or, on the index, the user default. Toggling ON is the iOS
+  // gesture that unlocks autoplay, so the audio element primes in the same
+  // tick, before any round-trip.
+  const voiceMode = useVoiceMode(organizationId, viewThreadId);
+  const voiceEnabled = voiceMode.status === 'ready' && voiceMode.data.enabled;
+  const voiceVetoed =
+    voiceMode.status === 'ready' && voiceMode.data.source === 'org_policy';
+  const voiceActions = useVoiceActions(organizationId);
+  const voiceCapabilities = useVoiceCapabilities(organizationId);
+  const voiceAudioElement = useVoiceAudioElement();
+  const handleVoiceOutputChange = (next: boolean) => {
+    if (next && voiceAudioElement) primeAudio(voiceAudioElement);
+    if (viewThreadId !== undefined) {
+      voiceActions.setThreadOverride(viewThreadId, next);
+    } else {
+      voiceActions.setUserDefault(next);
+    }
+  };
+  const speakAvailable =
+    voiceCapabilities.hasTts && !voiceVetoed && viewerIsOwner;
 
   // The header's Share mirrors the row menu: publish (or refresh) the
   // snapshot link and put the URL on the clipboard in one gesture.
@@ -704,6 +746,8 @@ export function ChatSurface({
                   : undefined
               }
               onFork={viewerIsOwner ? handleFork : undefined}
+              voiceEnabled={voiceEnabled && viewerIsOwner}
+              speakAvailable={speakAvailable}
               // Clears the floating glass bar at rest; scrolled content still
               // passes beneath its blur (overflow clips at the padding box).
               className={viewerIsOwner ? 'md:pt-13' : undefined}
@@ -817,6 +861,10 @@ export function ChatSurface({
               (threadId !== undefined && !messagesAvailable)
             }
             onOpenSkillLibrary={() => setSkillLibraryOpen(true)}
+            voiceOutput={voiceEnabled}
+            onVoiceOutputChange={handleVoiceOutputChange}
+            voiceOutputHidden={voiceVetoed}
+            voiceOutputAvailable={voiceCapabilities.hasTts}
           />
         </div>
       </Stack>
@@ -842,6 +890,9 @@ export function ChatSurface({
           threadTitle={activeThread?.title}
         />
       )}
+
+      {/* One polite live region narrating voice playback transitions. */}
+      <VoiceOutputAnnouncer />
 
       <CanvasPanel
         sources={canvas.status === 'ready' ? canvas.data : undefined}

@@ -178,8 +178,6 @@ export interface ComposerSelection {
   readonly skills: readonly string[];
   /** Enabled-connector slugs the conversation equips its agent with. */
   readonly connectors: readonly string[];
-  /** Read replies aloud — a composer mode, not a stored preference. */
-  readonly voiceOutput: boolean;
 }
 
 /** One entry of the Canvas live-activity stream. */

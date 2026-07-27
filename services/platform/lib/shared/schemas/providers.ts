@@ -245,6 +245,47 @@ const reasoningKnobSchema = z.enum(['effort', 'budget-tokens']);
  * (static file, OpenRouter API, models endpoint) is normalized into, and the
  * only model vocabulary downstream code reads.
  */
+/** Audio container/codec a TTS model can answer with. */
+export const audioFormatLiterals = [
+  'mp3',
+  'opus',
+  'aac',
+  'flac',
+  'wav',
+  'pcm',
+] as const;
+export type AudioFormat = (typeof audioFormatLiterals)[number];
+
+/** BCP-47 subset the voice map is keyed by (`en`, `de`, `fr`, `de-CH`). */
+const voiceLocaleKeySchema = z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/);
+
+/**
+ * The text-to-speech facts of a catalog entry, grouped so a chat model's
+ * shape stays untouched. A `text-to-speech`-tagged entry MUST declare at
+ * least one voice (see the refinement on the schema below) — a TTS model
+ * without a voice cannot be synthesized against.
+ */
+export const modelCatalogTtsSchema = z
+  .object({
+    /** The voice used when no locale-specific one matches. */
+    defaultVoice: z.string().min(1).max(100).optional(),
+    /** Locale → voice, tried exact (`de-CH`) then base (`de`). */
+    voicesByLocale: z
+      .record(voiceLocaleKeySchema, z.string().min(1).max(100))
+      .optional(),
+    /** Optional per-request speaking instructions, same cascade. */
+    defaultInstructions: z.string().max(2000).optional(),
+    instructionsByLocale: z
+      .record(voiceLocaleKeySchema, z.string().max(2000))
+      .optional(),
+    /** Wire format requested from the provider; the audio route serves it
+     * with the matching MIME type. */
+    audioFormat: z.enum(audioFormatLiterals).default('mp3'),
+    /** Synthesis price, for the usage ledger's estimate. */
+    centsPerMillionCharacters: z.number().nonnegative().finite().optional(),
+  })
+  .strict();
+
 export const modelCatalogEntrySchema = z
   .object({
     /** The id requested on the wire, in the CONNECTOR's own dialect (an
@@ -253,13 +294,14 @@ export const modelCatalogEntrySchema = z
     /** The connector this entry belongs to (`providers/<name>.yml`). */
     provider: slugSchema,
     /** Role/capability tags for grouping and filtering (`chat`, `vision`,
-     * `embedding`, …) — open vocabulary, additive. */
+     * `embedding`, `text-to-speech`, …) — open vocabulary, additive. */
     tags: z.array(z.string().min(1).max(64)),
     supportsTools: z.boolean(),
     supportsVision: z.boolean(),
     /** Present only for models with a controllable reasoning depth. */
     reasoning: z.object({ knob: reasoningKnobSchema }).strict().optional(),
-    /** Total context window in tokens. */
+    /** Total context window in tokens. Nominal for non-chat entries (a TTS
+     * model takes character-capped requests, not a context). */
     contextWindow: z.number().int().positive(),
     maxOutputTokens: z.number().int().positive().optional(),
     /** Omitted when the source publishes no reliable price. */
@@ -270,8 +312,20 @@ export const modelCatalogEntrySchema = z
       })
       .strict()
       .optional(),
+    /** Text-to-speech facts; static-catalog sources only. */
+    tts: modelCatalogTtsSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (entry) =>
+      !entry.tags.includes('text-to-speech') ||
+      entry.tts?.defaultVoice !== undefined ||
+      Object.keys(entry.tts?.voicesByLocale ?? {}).length > 0,
+    {
+      message:
+        'a text-to-speech-tagged model must declare tts.defaultVoice or tts.voicesByLocale',
+    },
+  );
 export type ModelCatalogEntry = z.infer<typeof modelCatalogEntrySchema>;
 
 /**

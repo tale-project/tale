@@ -41,7 +41,6 @@ const PLATFORM: ComposerSelection = {
   agentKind: 'platform',
   skills: [],
   connectors: [],
-  voiceOutput: false,
 };
 
 const EXTERNAL: ComposerSelection = {
@@ -49,7 +48,6 @@ const EXTERNAL: ComposerSelection = {
   harness: 'codex',
   skills: [],
   connectors: [],
-  voiceOutput: false,
 };
 
 const SKILLS: ComposerCapabilityOption[] = [
@@ -70,6 +68,7 @@ function renderComposer({
   onSend = vi.fn(),
   generating = false,
   sendDisabled = false,
+  onVoiceOutputChange = vi.fn(),
 }: {
   models?: ComposerModelOption[];
   externalAgents?: ComposerExternalAgentOption[];
@@ -79,6 +78,7 @@ function renderComposer({
   onSend?: (text: string) => void;
   generating?: boolean;
   sendDisabled?: boolean;
+  onVoiceOutputChange?: (next: boolean) => void;
 } = {}) {
   const seen: ComposerSelection[] = [];
 
@@ -96,6 +96,8 @@ function renderComposer({
         onSend={onSend}
         generating={generating}
         sendDisabled={sendDisabled}
+        voiceOutput={false}
+        onVoiceOutputChange={onVoiceOutputChange}
       />
     );
   }
@@ -365,15 +367,16 @@ describe('Composer mode menu', () => {
     ).toBeNull();
   });
 
-  it('turns reading replies aloud on for the message being sent', async () => {
-    const { user, selection } = renderComposer();
+  it('reports the read-replies-aloud toggle to its server-backed owner', async () => {
+    const onVoiceOutputChange = vi.fn();
+    const { user } = renderComposer({ onVoiceOutputChange });
 
     await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
     await user.click(
       screen.getByRole('menuitemcheckbox', { name: 'Read replies aloud' }),
     );
 
-    expect(selection().voiceOutput).toBe(true);
+    expect(onVoiceOutputChange).toHaveBeenCalledWith(true);
   });
 });
 

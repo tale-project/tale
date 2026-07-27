@@ -110,6 +110,10 @@ export const threadsTable = defineTable({
    * watermark. A thread is user-private, so per-row (not per-user) is enough. */
   lastReplyAt: v.optional(v.number()),
   lastReadAt: v.optional(v.number()),
+  /** Per-conversation voice override — the composer's "Read replies aloud"
+   * mode. Absent falls through to `userPreferences.voiceOutput`; either
+   * boolean wins over it (see `tts/queries.ts::getVoiceModeEffective`). */
+  voiceOutputOverride: v.optional(v.boolean()),
   /** Sharing: an org-internal, read-only snapshot link. The token is the URL
    * credential; `sharedAt` is the snapshot boundary — messages appended after
    * it are never part of the share. Unsharing flips `isShared` but keeps the

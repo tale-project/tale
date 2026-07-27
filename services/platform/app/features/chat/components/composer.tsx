@@ -103,6 +103,13 @@ interface ComposerProps {
   /** Open the skill library (the `+` menu entry and the `/` menu's empty
    * state). Absent hides both affordances. */
   onOpenSkillLibrary?: () => void;
+  /** The SERVER-BACKED "Read replies aloud" mode — resolved thread override
+   * / user default, written back through `onVoiceOutputChange`. Hidden
+   * entirely under an org veto; disabled when no TTS model is configured. */
+  voiceOutput?: boolean;
+  onVoiceOutputChange?: (next: boolean) => void;
+  voiceOutputHidden?: boolean;
+  voiceOutputAvailable?: boolean;
 }
 
 export function Composer({
@@ -120,6 +127,10 @@ export function Composer({
   sendDisabled = false,
   lockAgent = false,
   onOpenSkillLibrary,
+  voiceOutput,
+  onVoiceOutputChange,
+  voiceOutputHidden,
+  voiceOutputAvailable,
 }: ComposerProps) {
   const { t } = useT('chat');
   const { t: tDialogs } = useT('dialogs');
@@ -360,10 +371,10 @@ export function Composer({
           className="scrollbar-hide min-w-0 flex-1 overflow-x-auto"
         >
           <ComposerModeMenu
-            voiceOutput={selection.voiceOutput}
-            onVoiceOutputChange={(next) =>
-              onSelectionChange({ ...selection, voiceOutput: next })
-            }
+            voiceOutput={voiceOutput ?? false}
+            onVoiceOutputChange={onVoiceOutputChange ?? (() => undefined)}
+            voiceOutputHidden={voiceOutputHidden ?? false}
+            voiceOutputAvailable={voiceOutputAvailable ?? true}
             {...(onOpenSkillLibrary !== undefined
               ? { onOpenSkillLibrary }
               : {})}

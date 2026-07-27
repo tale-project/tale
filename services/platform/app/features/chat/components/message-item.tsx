@@ -20,6 +20,8 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
+import { useVoiceOutputChunker } from '../hooks/use-voice-output';
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageView } from '../types';
 import { BranchNavigator } from './branch-navigator';
@@ -27,6 +29,7 @@ import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
+import { VoiceOutputIndicator } from './voice-output-indicator';
 
 /** Lazy rasterization for history rows; the intrinsic size keeps the
  * scrollbar honest while off-screen items stay unrendered. */
@@ -59,6 +62,12 @@ interface MessageItemProps {
   onRegenerate?: (message: ChatMessageView) => void;
   /** Fork the conversation up to this message into a visible new chat. */
   onFork?: (message: ChatMessageView) => void;
+  /** "Read replies aloud" is on — fresh replies synthesize as they stream. */
+  voiceEnabled?: boolean;
+  /** The org can synthesize — gates the "Speak out loud" action. */
+  speakAvailable?: boolean;
+  /** The message arrived live during this mount (not with the history). */
+  isFreshSinceMount?: boolean;
 }
 
 export function MessageItem({
@@ -72,6 +81,9 @@ export function MessageItem({
   onEditSubmit,
   onRegenerate,
   onFork,
+  voiceEnabled,
+  speakAvailable,
+  isFreshSinceMount,
 }: MessageItemProps) {
   const { t } = useT('chat');
   const isUser = message.role === 'user';
@@ -103,6 +115,9 @@ export function MessageItem({
           feedbackRating={feedbackRating}
           onRegenerate={onRegenerate}
           onFork={onFork}
+          voiceEnabled={voiceEnabled}
+          speakAvailable={speakAvailable}
+          isFreshSinceMount={isFreshSinceMount}
         />
       ) : (
         <MessageParts parts={message.parts} />
@@ -219,7 +234,8 @@ function UserBubble({
   );
 }
 
-/** The assistant's turn: full-width markdown, toolbar underneath. */
+/** The assistant's turn: full-width markdown, the voice pill when the reply
+ * speaks, toolbar underneath. */
 function AssistantBody({
   message,
   isLast,
@@ -229,6 +245,9 @@ function AssistantBody({
   feedbackRating,
   onRegenerate,
   onFork,
+  voiceEnabled,
+  speakAvailable,
+  isFreshSinceMount,
 }: {
   message: ChatMessageView;
   isLast: boolean;
@@ -238,12 +257,51 @@ function AssistantBody({
   feedbackRating?: 'positive' | 'negative';
   onRegenerate?: (message: ChatMessageView) => void;
   onFork?: (message: ChatMessageView) => void;
+  voiceEnabled?: boolean;
+  speakAvailable?: boolean;
+  isFreshSinceMount?: boolean;
 }) {
-  const waitingForFirstToken =
-    isStreaming && messagePlainText(message.parts).length === 0;
+  const text = messagePlainText(message.parts);
+  const waitingForFirstToken = isStreaming && text.length === 0;
+
+  // Auto-voice: reads the reply aloud as it streams (fresh messages only —
+  // the fresh gate keeps a revisited thread from re-reading history). The
+  // hook renders nothing and idles unless enabled.
+  useVoiceOutputChunker({
+    enabled: voiceEnabled === true,
+    messageId: message.id,
+    threadId,
+    organizationId,
+    text,
+    isStreaming,
+    isFreshSinceMount: isFreshSinceMount === true,
+  });
+  // On-demand: the toolbar's "Speak out loud" for a settled reply.
+  const onDemand = useOnDemandSpeech({
+    messageId: message.id,
+    threadId,
+    organizationId,
+    text,
+  });
+  // The voice pill mounts only where it can matter — the live/fresh message
+  // under voice mode, or after an explicit speak — so a long history never
+  // carries per-row chunk subscriptions.
+  const showVoicePill =
+    (voiceEnabled === true && (isStreaming || isFreshSinceMount === true)) ||
+    onDemand.requested;
 
   return (
     <div className="w-full min-w-0">
+      {showVoicePill && (
+        <VoiceOutputIndicator
+          enabled
+          messageId={message.id}
+          threadId={threadId}
+          isStreaming={isStreaming}
+          isFreshSinceMount={isFreshSinceMount === true}
+          organizationId={organizationId}
+        />
+      )}
       {waitingForFirstToken ? (
         <ThinkingDots />
       ) : (
@@ -260,6 +318,14 @@ function AssistantBody({
           rating={feedbackRating}
           onRegenerate={onRegenerate}
           onFork={onFork}
+          onSpeak={
+            speakAvailable === true &&
+            threadId !== undefined &&
+            organizationId !== undefined &&
+            text.length > 0
+              ? onDemand.speak
+              : undefined
+          }
         />
       )}
     </div>

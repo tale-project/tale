@@ -211,6 +211,7 @@ describe('useComposerModels device store', () => {
         },
       ],
       externalAgents: [],
+      voice: { ttsAvailable: false },
     });
     // The refresh action never answers in this test — first paint must not
     // depend on it.

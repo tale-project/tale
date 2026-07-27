@@ -1000,6 +1000,30 @@ chat:
       vision: Vision
   voice:
     voiceModeEnable: Read replies aloud
+    voiceOutputAnnounceBlocked: Voice output blocked — activate the player to listen
+    voiceOutputAnnounceError: Voice output failed
+    voiceOutputAnnounceSpeaking: Voice output speaking
+    voiceOutputAnnounceStopped: Voice output stopped
+    voiceOutputBlocked: Voice playback blocked — tap to play
+    voiceOutputError: Voice output failed
+    voiceOutputErrorAuthExpired: Session expired — sign in again to keep voice playing
+    voiceOutputErrorBudget: Voice budget reached for this period
+    voiceOutputErrorChunkLimit: Voice limit reached for this reply
+    voiceOutputErrorConfig: Voice provider unavailable — ask an admin to add a text-to-speech model
+    voiceOutputErrorDecode: Could not play voice audio — tap to retry
+    voiceOutputErrorForbidden: Voice provider blocked by host policy
+    voiceOutputErrorInvalidResponse: Voice provider returned invalid audio — tap to retry
+    voiceOutputErrorMessageCharLimit: Reply too long for voice — stopping here
+    voiceOutputErrorNetwork: Voice request failed — check your connection and retry
+    voiceOutputErrorOpenSettings: Open settings
+    voiceOutputErrorQueueOverflow: Voice is falling behind — pausing further sentences
+    voiceOutputErrorRateLimited: Voice rate limit hit — retrying
+    voiceOutputErrorTransient: Voice service unavailable — retrying
+    voiceOutputLoading: Preparing voice…
+    voiceOutputPlay: Play voice output
+    voiceOutputSpeaking: Speaking
+    voiceOutputStop: Stop voice output
+    voiceOutputStopped: Stopped
   searchChat: Search chat
   showHistory: Show chats
   hideHistory: Hide chats
@@ -1052,6 +1076,7 @@ chat:
     editThis: Edit this image
   downloadFile: Download file
   loadingConversation: Loading conversation…
+  speakOutLoud: Speak out loud
   showMore: Show more
   showLess: Show less
   scrollToBottom: Scroll to bottom

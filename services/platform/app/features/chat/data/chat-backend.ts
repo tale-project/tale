@@ -311,6 +311,27 @@ export function useChatMessages(
 }
 
 /**
+ * The effective "Read replies aloud" state — org veto → thread override →
+ * user default. `threadId` optional so the chat index resolves the checkbox
+ * too. Never session-cached: a veto or a toggle from another tab must not
+ * replay stale.
+ */
+export function useVoiceMode(
+  organizationId: string,
+  threadId: string | undefined,
+): ChatQuery<{
+  enabled: boolean;
+  userDefault: boolean;
+  source: 'thread' | 'preferences' | 'default' | 'org_policy';
+}> {
+  return useChatQuery(
+    api.tts.queries.getVoiceModeEffective,
+    threadId !== undefined ? { organizationId, threadId } : { organizationId },
+    { cache: false },
+  );
+}
+
+/**
  * One thread's summary by id — unlike the list (which only carries the
  * caller's own rows), this also answers for a project-shared conversation
  * the caller may read, with `viewerIsOwner: false`.

@@ -92,6 +92,8 @@ export const listComposerModels = action({
   returns: v.object({
     models: v.array(composerModelOptionValidator),
     externalAgents: v.array(composerExternalAgentValidator),
+    /** Non-chat capability facts derived in the same connector walk. */
+    voice: v.object({ ttsAvailable: v.boolean() }),
   }),
   handler: async (ctx, args) => {
     await requireOrgMembershipById(ctx, args.organizationId);
@@ -117,6 +119,7 @@ export const listComposerModels = action({
     // provider in the picker — hiding one made the second provider's copy
     // unselectable and the model hard to find under the other's section.
     const byId = new Map<string, ComposerModelOption>();
+    let ttsAvailable = false;
     for (const credential of active) {
       const connector = connectorByName.get(credential.providerSlug);
       if (!connector) continue;
@@ -142,6 +145,18 @@ export const listComposerModels = action({
       const allowlist = credential.modelAllowlist;
       for (const entry of catalog) {
         if (allowlist && !allowlist.includes(entry.id)) continue;
+        // Voice availability rides the same walk: a TTS-tagged entry served
+        // by a DIRECT credential means "Read replies aloud" can synthesize.
+        if (
+          entry.tags.includes('text-to-speech') &&
+          (credential.authMethod === 'api-key' ||
+            credential.authMethod === 'env')
+        ) {
+          ttsAvailable = true;
+        }
+        // The picker lists conversational models only — a TTS or embedding
+        // entry is a capability, not something a turn can be sent to.
+        if (!entry.tags.includes('chat')) continue;
         const key = `${connector.name} ${entry.id}`;
         if (byId.has(key)) continue;
         byId.set(key, {
@@ -175,7 +190,7 @@ export const listComposerModels = action({
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    return { models, externalAgents };
+    return { models, externalAgents, voice: { ttsAvailable } };
   },
 });
 

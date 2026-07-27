@@ -74,6 +74,7 @@ import { restOptionsHandler } from './lib/rest/helpers';
 import { isS3Ref } from './lib/storage/blob_ref';
 import { toId } from './lib/type_cast_helpers';
 import { getClientIp, loadTrustedProxies } from './lib/utils/client_ip';
+import { sanitizeError } from './lib/utils/sanitize_secrets';
 import {
   listProducts,
   createProduct,
@@ -292,11 +293,156 @@ http.route({
   handler: sandboxBlobServeHandler,
 });
 
-// /api/tts-audio (cookie-authed, membership-gated audio
-// serve) re-registers with the chat rebuild TTS rebuild. Keep its security shape:
-// IP rate-limit BEFORE session lookup, org-membership check per request,
-// `private, max-age=0, must-revalidate` + `Vary: Cookie` + CORP same-origin,
-// stream-through (never a bearer-replayable presigned redirect).
+/**
+ * Authenticated TTS audio fetch. Replaces the bearer-replayable
+ * `/storage?id=…` path that previously served voice audio: the chunk row
+ * carries `organizationId` + `threadId`, so we can require the caller to
+ * be a current member of the chunk's org before streaming the blob.
+ *
+ * Designed for the chained `<audio>` playback path. Identity is resolved
+ * from the Better Auth session cookie via `auth.api.getSession()` rather
+ * than `ctx.auth.getUserIdentity()` — native `<audio>` elements can't
+ * attach an `Authorization: Bearer` header, but they do send same-origin
+ * cookies, which is what the rest of the cookie-authenticated routes in
+ * this file rely on. `Cache-Control: private, max-age=0, must-revalidate`
+ * keeps short-lived bytes in the browser disk cache but forces a
+ * revalidating round-trip on every replay so a removed member can't
+ * keep playing audio they no longer have access to. `Vary: Cookie`
+ * binds the cached bytes to the session so a third party intercepting
+ * the URL can't replay it. `Accept-Ranges: none` suppresses iOS Safari
+ * range probes on `<audio preload="auto">` that would otherwise
+ * trigger audible restarts.
+ */
+http.route({
+  path: '/api/tts-audio',
+  method: 'GET',
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const chunkId = url.searchParams.get('chunkId');
+    if (!chunkId) {
+      return new Response('Missing chunkId', { status: 400 });
+    }
+
+    // Mirror the `/storage` route: rate-limit BEFORE the session lookup
+    // so an unauthenticated attacker hammering this URL can't force a
+    // Better Auth DB session-query per request. The IP gate is the only
+    // protection against anonymous abuse; membership checks downstream
+    // catch authenticated abuse.
+    const trusted = await loadTrustedProxies(ctx);
+    const ip = getClientIp(req.headers, trusted);
+    try {
+      await checkIpRateLimit(ctx, 'security:tts-audio-fetch', ip);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return new Response('Rate limit exceeded', {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
+          },
+        });
+      }
+      throw error;
+    }
+
+    const auth = createAuth(ctx);
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (!session?.user) {
+      // `no-store` + `Vary: Cookie` so a TLS-terminating proxy can't cache
+      // the 401 against the URL and starve a freshly-logged-in user. The
+      // `WWW-Authenticate: Cookie` is informational — cookie-auth clients
+      // ignore it, but it satisfies RFC 7235 hygiene.
+      return new Response('Unauthenticated', {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+          'WWW-Authenticate': 'Cookie',
+        },
+      });
+    }
+
+    const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
+      chunkId,
+      userId: session.user.id,
+      // Email fallback handles mid-migration users (account linking, JWT
+      // userId drift) so the audio route stays consistent with the
+      // sibling `getMessageChunks` subscription, which already does the
+      // same fallback via `getOrganizationMember`.
+      email: session.user.email,
+    });
+    if (!chunk) {
+      // Either the chunk doesn't exist or the caller isn't a member of
+      // the chunk's org. Conflate the two so probing reveals nothing.
+      return new Response('Not found', { status: 404 });
+    }
+
+    try {
+      // Resolve the bytes from whichever backend owns them. An `s3:`-backed
+      // chunk is read through the node lane and STREAMED through this
+      // response — deliberately NOT a 302 to a presigned URL: this route's
+      // security model is a per-request cookie-bound membership check, and a
+      // presigned URL would be bearer-replayable by anyone who intercepts it.
+      let body: Blob | ArrayBuffer;
+      let contentType: string;
+      let contentLength: number;
+      if (isS3Ref(chunk.storageId)) {
+        const bytes: ArrayBuffer | null = await ctx.runAction(
+          internal.files.blob_actions.readOrgBlob,
+          { organizationId: chunk.organizationId, ref: chunk.storageId },
+        );
+        if (!bytes) {
+          return new Response('Not found', { status: 404 });
+        }
+        body = bytes;
+        contentType = chunk.contentType;
+        contentLength = bytes.byteLength;
+      } else {
+        const blob = await ctx.storage.get(toId<'_storage'>(chunk.storageId));
+        if (!blob) {
+          return new Response('Not found', { status: 404 });
+        }
+        body = blob;
+        contentType = blob.type || 'application/octet-stream';
+        contentLength = blob.size;
+      }
+      const headers: Record<string, string> = {
+        'Content-Type': contentType,
+        'Content-Length': contentLength.toString(),
+        // `max-age=0, must-revalidate` (not `no-store`): keep the bytes
+        // in the browser's HTTP cache for in-tab replay efficiency, but
+        // force a conditional round-trip back to this route on every
+        // play so a member who's been removed loses access immediately
+        // instead of being able to replay cached audio for 10 minutes.
+        'Cache-Control': 'private, max-age=0, must-revalidate',
+        // Tell intermediaries not to cache the bytes against the URL
+        // alone; the URL is bound to the session cookie which they can't
+        // see.
+        Vary: 'Cookie',
+        // iOS Safari `<audio preload="auto">` probes ranges; without
+        // an explicit `Accept-Ranges: none` it may issue partial
+        // requests that get a full 200 back from byte 0, audibly
+        // restarting playback mid-chunk.
+        'Accept-Ranges': 'none',
+        // CORP defense-in-depth: blocks third-party pages from embedding
+        // this audio in their own `<audio>` element. The session cookie
+        // is SameSite=Lax, so a cross-site top-level audio fetch would
+        // otherwise send the cookie and play the victim's TTS audio
+        // (no byte exfil without CORS, but a privacy surprise).
+        'Cross-Origin-Resource-Policy': 'same-origin',
+      };
+      return new Response(body, { status: 200, headers });
+    } catch (error) {
+      // Sanitize before logging — `ctx.storage.get` failures can carry
+      // signed URLs / headers / IPs in their `.message` or `.stack`.
+      // Other TTS code paths route through `sanitizeError`; this one
+      // missed the pattern until round-2 #25.
+      console.error('[http /api/tts-audio] error', sanitizeError(error), {
+        chunkId,
+      });
+      return new Response('Internal server error', { status: 500 });
+    }
+  }),
+});
 
 /**
  * Resolve which org slugs a session-authenticated user is allowed to see

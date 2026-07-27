@@ -217,8 +217,15 @@ cron(
   {},
 );
 
-// TTS orphan sweep returns with the chat rebuild voice-output
-// rebuild (hourly, bounded per run).
+// TTS audio chunks age out (~7-day retention). The write path schedules
+// opportunistic sweeps for busy threads; this hourly org-paged pass (cursor
+// in `ttsGcCursor`) is the backstop that reaps idle orgs too.
+cron(
+  'tts orphan sweep (hourly)',
+  '0 * * * *',
+  internal.tts.cascade_helpers.gcOrgTtsChunks,
+  {},
+);
 
 // Session idle-timeout enforcement (#1502) — server-side teeth for the
 // per-org `session_idle_timeout` governance policy. The client watchdog only

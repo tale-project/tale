@@ -1043,6 +1043,30 @@ chat:
       vision: Vision
   voice:
     voiceModeEnable: Lire les réponses à voix haute
+    voiceOutputAnnounceBlocked: Lecture vocale bloquée — active la lecture pour écouter
+    voiceOutputAnnounceError: Échec de la sortie vocale
+    voiceOutputAnnounceSpeaking: Lecture vocale en cours
+    voiceOutputAnnounceStopped: Lecture vocale arrêtée
+    voiceOutputBlocked: Lecture vocale bloquée — clique pour lire
+    voiceOutputError: Échec de la sortie vocale
+    voiceOutputErrorAuthExpired: Session expirée — reconnecte-toi pour continuer la lecture vocale
+    voiceOutputErrorBudget: Budget vocal épuisé pour cette période
+    voiceOutputErrorChunkLimit: Limite vocale atteinte pour cette réponse
+    voiceOutputErrorConfig: Fournisseur vocal indisponible — demande à une personne admin d'ajouter un modèle de synthèse vocale
+    voiceOutputErrorDecode: Lecture audio impossible — clique pour réessayer
+    voiceOutputErrorForbidden: Fournisseur vocal bloqué par la politique d'hôte
+    voiceOutputErrorInvalidResponse: Fournisseur vocal a renvoyé un audio invalide — clique pour réessayer
+    voiceOutputErrorMessageCharLimit: Réponse trop longue pour la voix — arrêt ici
+    voiceOutputErrorNetwork: Échec de la requête vocale — vérifie ta connexion et réessaie
+    voiceOutputErrorOpenSettings: Ouvrir les paramètres
+    voiceOutputErrorQueueOverflow: La synthèse vocale prend du retard — mise en pause des phrases suivantes
+    voiceOutputErrorRateLimited: Limite vocale atteinte — nouvelle tentative en cours
+    voiceOutputErrorTransient: Service vocal indisponible — nouvelle tentative en cours
+    voiceOutputLoading: Préparation de la voix…
+    voiceOutputPlay: Lire la sortie vocale
+    voiceOutputSpeaking: Lecture en cours
+    voiceOutputStop: Arrêter la sortie vocale
+    voiceOutputStopped: Arrêté
   searchChat: Rechercher dans le chat
   showHistory: Afficher l'historique
   hideHistory: Masquer l'historique
@@ -1095,6 +1119,7 @@ chat:
     editThis: Modifier cette image
   downloadFile: Télécharger le fichier
   loadingConversation: Chargement de la conversation…
+  speakOutLoud: Lire à voix haute
   showMore: Voir plus
   showLess: Voir moins
   scrollToBottom: Défiler vers le bas

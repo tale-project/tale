@@ -24,9 +24,13 @@ import type {
 export interface ComposerCatalog {
   readonly models: readonly ComposerModelOption[];
   readonly externalAgents: readonly ComposerExternalAgentOption[];
+  /** Non-chat capability facts (see `listComposerModels`). */
+  readonly voice: { readonly ttsAvailable: boolean };
 }
 
-const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v1:';
+// v2: the record gained `voice.ttsAvailable` — old records would hide voice
+// availability for a TTL, so the bump retires them wholesale.
+const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v2:';
 
 /** A stored catalog older than this is stale enough to prefer a fresh load. */
 const TTL_MS = 12 * 60 * 60 * 1000;
@@ -67,7 +71,7 @@ function parseRecord(raw: string): ComposerCatalog | null {
       return null;
     }
     if (!isRecord(catalog)) return null;
-    const { models, externalAgents } = catalog;
+    const { models, externalAgents, voice } = catalog;
     if (!Array.isArray(models) || !models.every(isModelOption)) return null;
     if (
       !Array.isArray(externalAgents) ||
@@ -75,7 +79,14 @@ function parseRecord(raw: string): ComposerCatalog | null {
     ) {
       return null;
     }
-    return { models, externalAgents };
+    if (!isRecord(voice) || typeof voice.ttsAvailable !== 'boolean') {
+      return null;
+    }
+    return {
+      models,
+      externalAgents,
+      voice: { ttsAvailable: voice.ttsAvailable },
+    };
   } catch (error) {
     console.warn('Failed to parse the stored composer catalog:', error);
     return null;
