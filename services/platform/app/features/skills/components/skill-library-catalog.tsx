@@ -158,7 +158,7 @@ export function SkillLibraryCatalog({
   };
 
   return (
-    <Stack gap={4} className="min-h-0">
+    <Stack gap={4} className="h-full min-h-0">
       <CatalogToolbar
         tabs={{
           items: SKILL_SCOPE_TABS.map((value) => ({

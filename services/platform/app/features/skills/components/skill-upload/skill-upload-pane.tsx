@@ -91,13 +91,15 @@ export function SkillUploadPane({
 
   return (
     <>
-      <Stack gap={4} className="min-h-0">
+      <Stack gap={4} className="h-full min-h-0">
         <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-          {state.step === 'upload' ? (
-            <UploadStep mode={mode} onBundleParsed={state.setParsedBundle} />
-          ) : state.parsedBundle ? (
-            <PreviewStep parsedBundle={state.parsedBundle} />
-          ) : null}
+          <div className="mx-auto w-full max-w-3xl">
+            {state.step === 'upload' ? (
+              <UploadStep mode={mode} onBundleParsed={state.setParsedBundle} />
+            ) : state.parsedBundle ? (
+              <PreviewStep parsedBundle={state.parsedBundle} />
+            ) : null}
+          </div>
         </div>
 
         <Row gap={2} justify="end" className="shrink-0">

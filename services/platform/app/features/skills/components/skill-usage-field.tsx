@@ -24,7 +24,7 @@ export function SkillUsageField({
 
   return (
     <RadioGroup
-      label={t('usage.label')}
+      // The visible label comes from the settings row framing this control.
       aria-label={t('usage.label')}
       value={value}
       onValueChange={(next) => {

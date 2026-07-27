@@ -1,12 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
-import { useId, useState } from 'react';
+import { Row } from '@tale/ui/layout';
+import { useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isValidSkillSlug } from '@/lib/shared/schemas/skills';
@@ -29,8 +32,9 @@ const EMPTY_METADATA: SkillMetadataValues = {
 /**
  * Create a text-based skill: pick its slug (the immutable identity —
  * directory name AND frontmatter `name`), describe it, share it, write its
- * body. `saveSkill` is an upsert keyed by slug, so creating over an existing
- * slug would silently edit it — refused client-side against the known slugs.
+ * body — laid out as the divided settings rows every settings section uses.
+ * `saveSkill` is an upsert keyed by slug, so creating over an existing slug
+ * would silently edit it — refused client-side against the known slugs.
  */
 export function SkillCreatePane({
   organizationId,
@@ -45,8 +49,6 @@ export function SkillCreatePane({
 }) {
   const { t } = useT('skills');
   const { t: tCommon } = useT('common');
-  const slugId = useId();
-  const bodyId = useId();
 
   const [slug, setSlug] = useState('');
   const [metadata, setMetadata] = useState(EMPTY_METADATA);
@@ -67,11 +69,11 @@ export function SkillCreatePane({
     !teamsMissing &&
     !saveSkill.isPending;
 
-  const slugHelp = slugTaken
+  const slugError = slugTaken
     ? t('createDialog.exists')
     : slugInvalid
       ? t('createDialog.namePatternError')
-      : t('createDialog.nameHelp');
+      : undefined;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -98,60 +100,42 @@ export function SkillCreatePane({
   };
 
   return (
-    <Stack gap={4} className="min-h-0">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        <Stack gap={4}>
-          <Stack gap={1}>
-            <label htmlFor={slugId} className="text-sm font-medium">
-              {t('createDialog.nameLabel')}
-            </label>
+        {/* The settings measure (#2567): fields align exactly as they do on
+            a settings page instead of stretching across the wide dialog. */}
+        <SettingsFieldList className="mx-auto w-full max-w-3xl">
+          <SettingsFieldRow
+            label={t('createDialog.nameLabel')}
+            description={t('createDialog.nameHelp')}
+            required
+          >
             <Input
-              id={slugId}
+              aria-label={t('createDialog.nameLabel')}
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               placeholder={t('createDialog.namePlaceholder')}
-              aria-invalid={slugInvalid || slugTaken}
-              aria-describedby={`${slugId}-help`}
+              {...(slugError !== undefined ? { errorMessage: slugError } : {})}
               autoFocus
             />
-            <Text
-              as="p"
-              id={`${slugId}-help`}
-              variant="caption"
-              className={
-                slugInvalid || slugTaken
-                  ? 'text-destructive'
-                  : 'text-muted-foreground'
-              }
-            >
-              {slugHelp}
-            </Text>
-          </Stack>
+          </SettingsFieldRow>
 
           <SkillMetadataFields values={metadata} onChange={setMetadata} />
 
-          <Stack gap={1}>
-            <label htmlFor={bodyId} className="text-sm font-medium">
-              {t('section.body')}
-            </label>
+          <SettingsFieldRow
+            label={t('section.body')}
+            description={t('editor.bodyHelp')}
+            wideControl
+          >
             <Textarea
-              id={bodyId}
+              aria-label={t('section.body')}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={10}
               className="font-mono text-sm"
-              aria-describedby={`${bodyId}-help`}
             />
-            <Text
-              as="p"
-              id={`${bodyId}-help`}
-              variant="caption"
-              className="text-muted-foreground"
-            >
-              {t('editor.bodyHelp')}
-            </Text>
-          </Stack>
-        </Stack>
+          </SettingsFieldRow>
+        </SettingsFieldList>
       </div>
 
       <Row gap={2} justify="end" className="shrink-0">
@@ -164,6 +148,6 @@ export function SkillCreatePane({
             : t('createDialog.submit')}
         </Button>
       </Row>
-    </Stack>
+    </div>
   );
 }

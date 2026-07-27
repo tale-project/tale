@@ -78,7 +78,7 @@ export function SkillVisibilityField({
   return (
     <Stack gap={2}>
       <RadioGroup
-        label={t('visibility.label')}
+        // The visible label comes from the settings row framing this control.
         aria-label={t('visibility.label')}
         value={value.visibility}
         onValueChange={(visibility) => {

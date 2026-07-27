@@ -5,12 +5,15 @@ import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { Trash2 } from 'lucide-react';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -50,7 +53,6 @@ export function SkillDetailPane({
 }) {
   const { t } = useT('skills');
   const { t: tCommon } = useT('common');
-  const bodyId = useId();
 
   const skillQuery = useSkill(organizationId, slug);
   const skill = skillQuery.data ?? null;
@@ -161,7 +163,7 @@ export function SkillDetailPane({
     : undefined;
 
   return (
-    <Stack gap={4} className="min-h-0">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="grid min-h-0 flex-1 gap-4 overflow-hidden md:grid-cols-[16rem_1fr]">
         <div className="min-h-0 overflow-y-auto">
           <SkillBundleTreePanel
@@ -178,19 +180,20 @@ export function SkillDetailPane({
             <Stack gap={4}>
               {!canEdit && <Alert variant="info" description={t('readOnly')} />}
               {form && (
-                <>
+                <SettingsFieldList className="w-full max-w-3xl">
                   <SkillMetadataFields
                     values={form.metadata}
                     savedSharing={savedSharing}
                     onChange={(metadata) => setForm({ ...form, metadata })}
                     disabled={!canEdit}
                   />
-                  <Stack gap={1}>
-                    <label htmlFor={bodyId} className="text-sm font-medium">
-                      {t('section.body')}
-                    </label>
+                  <SettingsFieldRow
+                    label={t('section.body')}
+                    description={t('editor.bodyHelp')}
+                    wideControl
+                  >
                     <Textarea
-                      id={bodyId}
+                      aria-label={t('section.body')}
                       value={form.body}
                       onChange={(e) =>
                         setForm({ ...form, body: e.target.value })
@@ -198,18 +201,9 @@ export function SkillDetailPane({
                       rows={12}
                       className="font-mono text-sm"
                       disabled={!canEdit}
-                      aria-describedby={`${bodyId}-help`}
                     />
-                    <Text
-                      as="p"
-                      id={`${bodyId}-help`}
-                      variant="caption"
-                      className="text-muted-foreground"
-                    >
-                      {t('editor.bodyHelp')}
-                    </Text>
-                  </Stack>
-                </>
+                  </SettingsFieldRow>
+                </SettingsFieldList>
               )}
             </Stack>
           ) : (
@@ -259,6 +253,6 @@ export function SkillDetailPane({
         description={t('deleteConfirmation', { slug })}
         onDelete={() => void remove()}
       />
-    </Stack>
+    </div>
   );
 }

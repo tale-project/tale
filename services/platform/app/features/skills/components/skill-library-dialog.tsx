@@ -73,12 +73,15 @@ export function SkillLibraryDialog({
       onOpenChange={handleOpenChange}
       title={title}
       size="wide"
-      className="max-h-[90vh] grid-rows-[auto_1fr] overflow-hidden"
+      // Fixed height, same as the expanded notifications panel: every pane
+      // (list, create, upload, detail) fills the same frame instead of the
+      // dialog resizing around whichever content happens to be shortest.
+      className="md:h-[85dvh] md:max-h-[85dvh]"
       {...(view.view !== 'list'
         ? { onBack: backToList, backLabel: t('library.backToLibrary') }
         : {})}
     >
-      <div className="flex min-h-0 flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 flex-col">
         {view.view === 'list' && (
           <SkillLibraryCatalog
             organizationId={organizationId}
