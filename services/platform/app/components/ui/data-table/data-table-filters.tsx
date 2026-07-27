@@ -70,6 +70,13 @@ export interface FilterConfig {
   columns?: 1 | 2;
   /** Whether multiple options can be selected (default: false) */
   multiSelect?: boolean;
+  /**
+   * This filter can WIDEN the result set beyond the default view (e.g.
+   * "show archived" reveals rows the default query hides). Its presence keeps
+   * the filter affordance enabled on an empty unfiltered table — rows may
+   * exist outside the default set, so the set isn't guaranteed empty.
+   */
+  widensResultSet?: boolean;
 }
 
 /**

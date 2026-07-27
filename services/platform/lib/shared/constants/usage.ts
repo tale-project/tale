@@ -3,8 +3,8 @@
 // its own sentinel so the Top Assistants table renders precise labels
 // instead of collapsing everything into a single fallback.
 const DIRECT_API_SLUG = '__direct_api__';
-export const INTEGRATION_SLUG = '__integration__';
-export const TRANSCRIPTION_SLUG = '__transcription__';
+const INTEGRATION_SLUG = '__integration__';
+const TRANSCRIPTION_SLUG = '__transcription__';
 export const TTS_SLUG = '__tts__';
 
 type UsageRowKind = 'llm' | 'integration' | 'transcription' | 'tts';

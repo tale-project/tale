@@ -472,6 +472,13 @@ export function DataTable<TData, TValue = unknown>({
   const searchDisabled =
     !isDataLoading && data.length === 0 && !hasActiveFilters;
 
+  // A widening filter (see `FilterConfig.widensResultSet`) can reveal rows the
+  // default query hides — e.g. "show archived" on a list whose every row is
+  // archived. Its presence keeps the filter button usable on an empty
+  // unfiltered table, where a purely narrowing filter set stays disabled.
+  const filtersDisabled =
+    searchDisabled && !filters?.some((f) => f.widensResultSet);
+
   // Floor the table at the sum of the columns' declared widths (+ the expand
   // column when present) so a narrow viewport scrolls horizontally instead of
   // squashing columns below their sizes. `getTotalSize()` is the real content
@@ -606,9 +613,9 @@ export function DataTable<TData, TValue = unknown>({
         filters={filters}
         dateRange={dateRange}
         isLoading={isFiltersLoading}
-        // Mirror `searchDisabled`: empty table + no active filters → also
-        // disable the filter affordance (nothing to filter against).
-        disabled={searchDisabled}
+        // Mirror `searchDisabled` — empty table + no active filters → nothing
+        // to filter against — unless a widening filter could reveal rows.
+        disabled={filtersDisabled}
         onClearAll={onClearFilters}
       >
         {filtersContent}

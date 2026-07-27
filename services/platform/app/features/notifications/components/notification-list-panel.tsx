@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
+import { Tabs } from '@tale/ui/tabs';
 import {
   ArrowDownWideNarrow,
   CheckCheck,
@@ -13,7 +14,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import {
   useMarkAllNotificationsRead as useMarkAllMyNotificationsRead,
   useMarkNotificationRead as useMarkMyNotificationRead,
@@ -398,15 +398,18 @@ export function NotificationListPanel({
             </div>
           </div>
         )}
-        {/* One filter bar: the shared filter button (Unread is the resting
-            state, so it carries no active dot) and the sort toggle on the
+        {/* One toolbar row: Unread/All pill tabs and the sort toggle on the
             left, mark-all-as-read on the right — all on one baseline. */}
-        <DataTableFilters
-          filters={[
-            {
-              key: 'status',
-              title: t('filterLabel'),
-              options: [
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1">
+            <Tabs
+              variant="pill"
+              value={filter}
+              onValueChange={(value) =>
+                handleFilterChange(value === 'all' ? 'all' : 'unread')
+              }
+              listAriaLabel={t('filterLabel')}
+              items={[
                 {
                   value: 'unread',
                   label:
@@ -415,29 +418,21 @@ export function NotificationListPanel({
                       : t('filterUnread'),
                 },
                 { value: 'all', label: t('filterAll') },
-              ],
-              selectedValues: [filter],
-              defaultValues: ['unread'],
-              onChange: (values) => {
-                handleFilterChange(values[0] === 'all' ? 'all' : 'unread');
-              },
-            },
-          ]}
-          actions={
-            unreadCount > 0 ? (
-              <IconButton
-                variant="ghost"
-                size="sm"
-                icon={CheckCheck}
-                aria-label={t('markAllAsRead')}
-                disabled={markAllRead.isPending || markAllMyRead.isPending}
-                onClick={handleMarkAllRead}
-              />
-            ) : undefined
-          }
-        >
-          {sortButton}
-        </DataTableFilters>
+              ]}
+            />
+            {sortButton}
+          </div>
+          {unreadCount > 0 && (
+            <IconButton
+              variant="ghost"
+              size="sm"
+              icon={CheckCheck}
+              aria-label={t('markAllAsRead')}
+              disabled={markAllRead.isPending || markAllMyRead.isPending}
+              onClick={handleMarkAllRead}
+            />
+          )}
+        </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {items.length === 0 && myItems.length === 0 ? (

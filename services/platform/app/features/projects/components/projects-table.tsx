@@ -14,7 +14,6 @@ import {
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -58,6 +57,29 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
   }, []);
+
+  const handleArchivedFilterChange = useCallback((values: string[]) => {
+    setIncludeArchived(values.includes('include'));
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setIncludeArchived(false);
+  }, []);
+
+  const filterConfigs = useMemo(
+    () => [
+      {
+        key: 'archived',
+        title: t('archived.badge'),
+        options: [{ value: 'include', label: t('list.showArchived') }],
+        selectedValues: includeArchived ? ['include'] : [],
+        onChange: handleArchivedFilterChange,
+        multiSelect: true,
+        widensResultSet: true,
+      },
+    ],
+    [t, includeArchived, handleArchivedFilterChange],
+  );
 
   const handleDeleteItem = useCallback(
     async (id: string) => {
@@ -193,6 +215,10 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       fields: ['name', 'description'],
       placeholder: t('list.searchPlaceholder'),
     },
+    filters: {
+      configs: filterConfigs,
+      onClear: handleClearFilters,
+    },
     entityLabel: { one: t('entityLabelOne'), other: t('entityLabel') },
   });
 
@@ -213,14 +239,6 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}
         onRowMouseEnter={handleRowMouseEnter}
-        filtersContent={
-          <Checkbox
-            id="projects-show-archived"
-            checked={includeArchived}
-            onCheckedChange={(v) => setIncludeArchived(Boolean(v))}
-            label={t('list.showArchived')}
-          />
-        }
         actionMenu={
           <DataTableActionMenu
             label={t('list.createButton')}

@@ -213,14 +213,11 @@ describe('NotificationListPanel', () => {
   // while either has another page, and a click advances every stream that still
   // has more. These tests pin that combined wiring.
 
-  /** Switch the panel's status filter to "All" via the shared filter button:
-   *  open the popover, expand the one section, pick the radio option. */
+  /** Switch the panel's status filter to "All" via the Unread/All tabs. */
   async function switchFilterToAll(
     user: ReturnType<typeof renderPanel>['user'],
   ) {
-    await user.click(screen.getByRole('button', { name: 'Filter' }));
-    await user.click(screen.getByRole('button', { name: /Show/ }));
-    await user.click(screen.getByRole('radio', { name: 'All' }));
+    await user.click(screen.getByRole('tab', { name: 'All' }));
   }
 
   describe('combined load-more', () => {

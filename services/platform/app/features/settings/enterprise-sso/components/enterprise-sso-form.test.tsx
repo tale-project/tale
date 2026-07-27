@@ -235,7 +235,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     const { user } = renderForm(unconfigured);
 
     // Clear the required display name → the schema marks the form invalid.
-    const displayName = screen.getByLabelText(/display name/i);
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
 
     const saveButton = await screen.findByRole('button', { name: /^save$/i });
@@ -262,14 +262,23 @@ describe('EnterpriseSsoForm validation + save', () => {
     const { user } = renderForm(unconfigured);
 
     // Fill the OIDC-required fields for a NEW (unconfigured) connection.
-    await user.clear(screen.getByLabelText(/display name/i));
-    await user.type(screen.getByLabelText(/display name/i), 'Acme SSO');
+    await user.clear(screen.getByRole('textbox', { name: /display name/i }));
     await user.type(
-      screen.getByLabelText(/issuer url/i),
+      screen.getByRole('textbox', { name: /display name/i }),
+      'Acme SSO',
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: /issuer url/i }),
       'https://login.example.com',
     );
-    await user.type(screen.getByLabelText(/^client id$/i), 'client-123');
-    await user.type(screen.getByLabelText(/^client secret$/i), 'super-secret');
+    await user.type(
+      screen.getByRole('textbox', { name: /^client id$/i }),
+      'client-123',
+    );
+    await user.type(
+      screen.getByLabelText(/^client secret$/i, { selector: 'input' }),
+      'super-secret',
+    );
 
     const saveButton = await screen.findByRole('button', { name: /^save$/i });
     await waitFor(() => expect(saveButton).toBeEnabled());
@@ -297,7 +306,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     toastMock.mockClear();
     const { user } = renderForm(samlConfig);
 
-    const displayName = screen.getByLabelText(/display name/i);
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
     await user.type(displayName, 'Renamed SSO');
 
@@ -323,7 +332,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     revealClientIdMock.mockResolvedValueOnce('client-123');
     const { user } = renderForm(connectedOidc);
 
-    const displayName = screen.getByLabelText(/display name/i);
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
     await user.type(displayName, 'Renamed SSO');
 
@@ -344,7 +353,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     revealClientIdMock.mockResolvedValueOnce('client-123');
     const { user } = renderForm(connectedOidc);
 
-    const displayName = screen.getByLabelText(/display name/i);
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
     await user.type(displayName, 'Renamed SSO');
 
@@ -366,15 +375,15 @@ describe('EnterpriseSsoForm validation + save', () => {
     // its required endpoints and a re-save would wipe them.
     renderForm(oauth2Config);
 
-    expect(await screen.findByLabelText(/authorization endpoint/i)).toHaveValue(
-      'https://auth.acme.com/authorize',
-    );
-    expect(screen.getByLabelText(/token endpoint/i)).toHaveValue(
-      'https://auth.acme.com/token',
-    );
-    expect(screen.getByLabelText(/userinfo endpoint/i)).toHaveValue(
-      'https://auth.acme.com/userinfo',
-    );
+    expect(
+      await screen.findByRole('textbox', { name: /authorization endpoint/i }),
+    ).toHaveValue('https://auth.acme.com/authorize');
+    expect(
+      screen.getByRole('textbox', { name: /token endpoint/i }),
+    ).toHaveValue('https://auth.acme.com/token');
+    expect(
+      screen.getByRole('textbox', { name: /userinfo endpoint/i }),
+    ).toHaveValue('https://auth.acme.com/userinfo');
   });
 
   it('preserves stored SAML SP keypair + options the form cannot edit on re-save', async () => {
@@ -385,7 +394,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     const { user } = renderForm(samlWithSpKeypair);
 
     // Edit a field the form DOES expose so the form goes dirty + Save enables.
-    const displayName = screen.getByLabelText(/display name/i);
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
     await user.type(displayName, 'Renamed SSO');
 
@@ -467,10 +476,13 @@ describe('EnterpriseSsoForm validation + save', () => {
     // A SAML-only connection has no stored OIDC secret to reuse, so a blank
     // secret must keep Save blocked even though issuer + client id are filled.
     await user.type(
-      screen.getByLabelText(/issuer url/i),
+      screen.getByRole('textbox', { name: /issuer url/i }),
       'https://login.example.com',
     );
-    await user.type(screen.getByLabelText(/^client id$/i), 'client-123');
+    await user.type(
+      screen.getByRole('textbox', { name: /^client id$/i }),
+      'client-123',
+    );
 
     const saveButton = await screen.findByRole('button', { name: /^save$/i });
     await waitFor(() => expect(saveButton).toBeDisabled());
@@ -505,7 +517,9 @@ describe('EnterpriseSsoForm validation + save', () => {
 
     // Wait for the stored client id to be revealed so the OIDC form is valid.
     await waitFor(() =>
-      expect(screen.getByLabelText(/^client id$/i)).toHaveValue('client-xyz'),
+      expect(screen.getByRole('textbox', { name: /^client id$/i })).toHaveValue(
+        'client-xyz',
+      ),
     );
 
     // The toggles are `SettingsToggleRow`s now — the switch's accessible name
@@ -546,7 +560,9 @@ describe('EnterpriseSsoForm validation + save', () => {
 
     // Wait for the stored client id to be revealed so the OIDC form is valid.
     await waitFor(() =>
-      expect(screen.getByLabelText(/^client id$/i)).toHaveValue('client-xyz'),
+      expect(screen.getByRole('textbox', { name: /^client id$/i })).toHaveValue(
+        'client-xyz',
+      ),
     );
 
     // The editor is visible (the connection auto-provisions roles). Add a rule
@@ -660,14 +676,16 @@ describe('EnterpriseSsoForm IdP metadata import (#2652)', () => {
         url: 'https://idp.example.com/federationmetadata.xml',
       }),
     );
-    const entityId = screen.getByLabelText(/idp entity id/i);
+    const entityId = screen.getByRole('textbox', { name: /idp entity id/i });
     await waitFor(() =>
       expect(entityId).toHaveValue('https://sts.example.net/entity'),
     );
-    expect(screen.getByLabelText(/idp sign-on url/i)).toHaveValue(
-      'https://sts.example.net/saml2',
-    );
-    expect(screen.getByLabelText(/idp signing certificate/i)).toHaveValue(
+    expect(
+      screen.getByRole('textbox', { name: /idp sign-on url/i }),
+    ).toHaveValue('https://sts.example.net/saml2');
+    expect(
+      screen.getByRole('textbox', { name: /idp signing certificate/i }),
+    ).toHaveValue(
       '-----BEGIN CERTIFICATE-----\nIMPORTED\n-----END CERTIFICATE-----',
     );
     // Importing is the draft; the fields stay editable as the review step.
@@ -741,7 +759,7 @@ describe('EnterpriseSsoForm IdP metadata import (#2652)', () => {
       }),
     );
     // The stored values stay untouched on failure.
-    expect(screen.getByLabelText(/idp entity id/i)).toHaveValue(
+    expect(screen.getByRole('textbox', { name: /idp entity id/i })).toHaveValue(
       'https://idp.example.com/entity',
     );
   });
@@ -752,7 +770,7 @@ describe('EnterpriseSsoForm per-protocol display name (#2652)', () => {
     const { user } = renderForm(unconfigured);
 
     // Unconfigured seeds the Entra default.
-    const displayName = screen.getByLabelText(/display name/i);
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
     expect(displayName).toHaveValue('Microsoft Entra ID');
 
     await user.click(screen.getByRole('combobox', { name: /protocol/i }));
@@ -763,7 +781,7 @@ describe('EnterpriseSsoForm per-protocol display name (#2652)', () => {
   it('never overwrites a customized name on protocol switch', async () => {
     const { user } = renderForm(unconfigured);
 
-    const displayName = screen.getByLabelText(/display name/i);
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
     await user.type(displayName, 'Acme corporate login');
 
@@ -774,7 +792,9 @@ describe('EnterpriseSsoForm per-protocol display name (#2652)', () => {
 
   it('keeps a stored custom name over the protocol default', () => {
     renderForm(samlConfig); // displayName: 'Acme SSO'
-    expect(screen.getByLabelText(/display name/i)).toHaveValue('Acme SSO');
+    expect(screen.getByRole('textbox', { name: /display name/i })).toHaveValue(
+      'Acme SSO',
+    );
   });
 });
 
