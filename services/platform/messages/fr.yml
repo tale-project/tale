@@ -648,6 +648,8 @@ automations:
         nœuds. Les automatisations de départ livrées arrivent ici
         automatiquement, et un développeur en crée de nouvelles à partir d’un
         objectif avec "Nouvelle automatisation".
+  createMenu:
+    fromGoal: À partir d’un objectif
   builder:
     new: Nouvelle automatisation
     title: Nouvelle automatisation

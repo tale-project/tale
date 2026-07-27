@@ -615,6 +615,8 @@ automations:
         An automation is a saved document — a graph of nodes. The shipped
         starter automations appear here automatically, and a developer can
         author new ones from a goal with "New automation".
+  createMenu:
+    fromGoal: From a goal
   builder:
     new: New automation
     title: New automation

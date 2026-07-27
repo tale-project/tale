@@ -12,6 +12,13 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({ projects: [], isLoading: false }),
 }));
 
+// Grant authoring so the header renders its create menu. The lane dialogs
+// mount lazily on pick, so their builder/upload hooks stay out of these
+// tests entirely.
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: () => true }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,
@@ -86,5 +93,24 @@ describe('AutomationsList link targets', () => {
       'href',
       '/dashboard/org-1/projects/proj_1/automations/desk__prepare-return',
     );
+  });
+});
+
+// The header offers ONE create entry — the skill library's grammar: a primary
+// button whose menu holds the lanes (author from a goal, upload a pack), not
+// two side-by-side buttons.
+describe('AutomationsList create menu', () => {
+  it('offers both create lanes from the one button', async () => {
+    automationsData = [];
+    const { user } = render(<AutomationsList organizationId="org-1" />);
+
+    await user.click(screen.getByTestId('new-automation'));
+
+    expect(
+      screen.getByRole('menuitem', { name: 'automations.createMenu.fromGoal' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'automations.upload.trigger' }),
+    ).toBeInTheDocument();
   });
 });

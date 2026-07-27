@@ -34,7 +34,7 @@ review-invoices/
             └── vat-rates.md
 ```
 
-Zum Hochladen öffnest du **Automatisierungen**, klickst **Paket hochladen** und wählst eine der beiden Formen desselben Packs:
+Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automatisierung** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
 
 - **Die Dateien** — `workflow.yml`, plus `automation.yml`, wenn das Pack eine mitbringt. Richtig für ein Pack, das nur aus seinem Dokument besteht.
 - **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Die Zip bleibt unter 20 MiB.

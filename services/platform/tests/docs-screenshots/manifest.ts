@@ -576,7 +576,7 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // The Automations page — the seeded pack rows with their version count
-    // and deployment state, plus the Upload package / New automation actions.
+    // and deployment state, plus the New automation create menu.
     name: 'automations-catalog',
     section: 'platform',
     route: '/dashboard/:orgId/automations',
@@ -585,11 +585,15 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // The Upload package dialog — file drop zone and the Install into picker.
+    // Its trigger is an item of the New automation create menu.
     name: 'automations-upload-dialog',
     section: 'platform',
     route: '/dashboard/:orgId/automations',
     prepare: async (page) => {
-      await page.getByTestId('upload-automation').click();
+      await page.getByTestId('new-automation').click();
+      await page
+        .getByRole('menuitem', { name: t('automations.upload.trigger') })
+        .click();
     },
     readyWhen: (page) =>
       page.getByRole('heading', { name: t('automations.upload.title') }),

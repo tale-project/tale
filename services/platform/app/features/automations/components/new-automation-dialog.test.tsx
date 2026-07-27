@@ -63,9 +63,13 @@ const ONE_PROVIDER = [
 ];
 const ONE_CREDENTIAL = [{ providerSlug: 'anthropic', authMethod: 'api-key' }];
 
-async function openDialog() {
-  await userEvent.click(screen.getByTestId('new-automation'));
-  return screen.getByRole('dialog', { name: 'New automation' });
+/** The dialog is controlled — its trigger lives in the list's create menu. */
+function renderOpen() {
+  const result = render(
+    <NewAutomationDialog organizationId="org-1" open onOpenChange={() => {}} />,
+  );
+  screen.getByRole('dialog', { name: 'New automation' });
+  return result;
 }
 
 describe('NewAutomationDialog', () => {
@@ -76,12 +80,8 @@ describe('NewAutomationDialog', () => {
     sessionData = undefined;
   });
 
-  it('opens from its trigger, auto-picks a lone provider and model, and passes axe', async () => {
-    const { container } = render(
-      <NewAutomationDialog organizationId="org-1" />,
-    );
-
-    await openDialog();
+  it('renders open, auto-picks a lone provider and model, and passes axe', async () => {
+    const { container } = renderOpen();
     // The single usable provider/model need no picking.
     expect(
       screen.getByRole('combobox', { name: 'AI provider' }),
@@ -108,9 +108,7 @@ describe('NewAutomationDialog', () => {
         });
       },
     );
-    render(<NewAutomationDialog organizationId="org-1" />);
-
-    await openDialog();
+    renderOpen();
     await userEvent.type(
       screen.getByLabelText('Goal'),
       'Summarize new support emails every morning',
@@ -135,18 +133,14 @@ describe('NewAutomationDialog', () => {
 
   it('keeps a gave-up session on screen with the builder’s reason', async () => {
     sessionData = { status: 'gave-up', reason: 'the tests never passed' };
-    render(<NewAutomationDialog organizationId="org-1" />);
-
-    await openDialog();
+    renderOpen();
     expect(screen.getByText(/the tests never passed/)).toBeInTheDocument();
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('says when no provider credential can serve the builder', async () => {
     credentialsData = [];
-    render(<NewAutomationDialog organizationId="org-1" />);
-
-    await openDialog();
+    renderOpen();
     expect(
       screen.getByText(/No AI provider is ready for the builder/),
     ).toBeInTheDocument();

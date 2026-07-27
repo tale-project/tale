@@ -48,19 +48,25 @@ interface SkillReport {
  * picked HERE, not moved later. The server validates the document with the
  * engine before anything is stored; the uploaded version stays a draft behind
  * the normal deploy gate.
+ *
+ * Controlled: the trigger lives in the list header's create menu, alongside
+ * the builder lane's.
  */
 export function UploadAutomationDialog({
   organizationId,
   projectId,
+  open,
+  onOpenChange,
 }: {
   organizationId: string;
   /** Upload into one project's surface (the picker is then fixed). */
   projectId?: Id<'projects'>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('automations');
   const filesId = useId();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [target, setTarget] = useState(String(projectId ?? ORG_TARGET));
   const [pending, setPending] = useState(false);
@@ -136,7 +142,7 @@ export function UploadAutomationDialog({
         title: t('upload.warnings', { count: result.warnings.length }),
       });
     }
-    setOpen(false);
+    onOpenChange(false);
     reset();
   };
 
@@ -223,7 +229,7 @@ export function UploadAutomationDialog({
     <FormDialog
       open={open}
       onOpenChange={(next) => {
-        setOpen(next);
+        onOpenChange(next);
         if (!next) reset();
       }}
       title={t('upload.title')}
@@ -242,15 +248,6 @@ export function UploadAutomationDialog({
         event.preventDefault();
         void run();
       }}
-      trigger={
-        <Button
-          variant="secondary"
-          icon={Upload}
-          data-testid="upload-automation"
-        >
-          {t('upload.trigger')}
-        </Button>
-      }
     >
       <Stack gap={4}>
         {refusal !== null && (

@@ -650,6 +650,8 @@ automations:
         Nodes. Die mitgelieferten Starter-Automatisierungen erscheinen hier
         automatisch, und mit "Neue Automatisierung" baut ein Entwickler neue
         aus einem Ziel.
+  createMenu:
+    fromGoal: Aus einem Ziel
   builder:
     new: Neue Automatisierung
     title: Neue Automatisierung

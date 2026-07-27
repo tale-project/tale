@@ -34,7 +34,7 @@ review-invoices/
             └── vat-rates.md
 ```
 
-To upload one, open **Automations**, click **Upload package**, and pick either form of the same pack:
+To upload one, open **Automations**, pick **Upload package** from the **New automation** menu, and choose either form of the same pack:
 
 - **The files** — `workflow.yml`, plus `automation.yml` when the pack ships one. Right for a pack that is only its document.
 - **One `.zip` of the pack directory** — required when the pack carries skills, since only the zip can hold their folders. The zip stays under 20 MiB.

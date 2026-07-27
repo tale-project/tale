@@ -78,9 +78,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** The dialog is controlled — its trigger lives in the list's create menu. */
 async function openDialogWith(files: File[]) {
-  const utils = render(<UploadAutomationDialog organizationId="org_1" />);
-  await utils.user.click(screen.getByTestId('upload-automation'));
+  const utils = render(
+    <UploadAutomationDialog
+      organizationId="org_1"
+      open
+      onOpenChange={() => {}}
+    />,
+  );
   const input = screen.getByLabelText('automations.upload.filesLabel', {
     selector: 'input',
   });

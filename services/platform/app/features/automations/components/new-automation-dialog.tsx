@@ -1,13 +1,11 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
-import { Button } from '@tale/ui/button';
 import { Field } from '@tale/ui/field';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus } from 'lucide-react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -35,20 +33,26 @@ const USABLE_AUTH_METHODS = new Set(['api-key', 'env']);
  * the summary: every version the builder saves lands in the reactive listing
  * regardless. On success the dialog navigates to the authored automation; a
  * session that gave up stays open and shows the builder's own reason.
+ *
+ * Controlled: the trigger lives in the list header's create menu, alongside
+ * the upload lane's.
  */
 export function NewAutomationDialog({
   organizationId,
   projectId,
+  open,
+  onOpenChange,
 }: {
   organizationId: string;
   /** Author into one project's surface (links stay inside the project shell). */
   projectId?: Id<'projects'>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const goalId = useId();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
   const [goal, setGoal] = useState('');
   const [providerSlug, setProviderSlug] = useState('');
   const [modelId, setModelId] = useState('');
@@ -93,7 +97,7 @@ export function NewAutomationDialog({
   const gaveUp = outcome !== undefined && outcome.status !== 'succeeded';
 
   const handleOpenChange = (next: boolean) => {
-    setOpen(next);
+    onOpenChange(next);
     if (!next) {
       setGoal('');
       setProviderSlug('');
@@ -118,7 +122,7 @@ export function NewAutomationDialog({
             return; // stays open; the outcome alert explains
           }
           const automationSlug = automationSlugToParam(result.saved.name);
-          setOpen(false);
+          onOpenChange(false);
           if (projectId !== undefined) {
             void navigate({
               to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
@@ -148,11 +152,6 @@ export function NewAutomationDialog({
       isDirty={goal.trim().length > 0}
       confirmDiscardOnDirty
       onSubmit={handleSubmit}
-      trigger={
-        <Button icon={Plus} data-testid="new-automation">
-          {t('builder.new')}
-        </Button>
-      }
     >
       <Stack gap={4}>
         {catalog.isError && (
