@@ -102,13 +102,13 @@ test('project settings: rename + instructions persist across reloads', async ({
   try {
     // Instructions: edit → arm the tab-strip Save → save → reload → assert the
     // field rehydrated from the backend (the editor toasts only on error).
+    // Target the textarea by role: its titled settings section is a region
+    // labelled by the same text, so getByLabel would resolve to both.
     await page.goto(`${base}/instructions`);
-    const instructionsField = page.getByLabel(
-      t('projects.instructions.label'),
-      {
-        exact: true,
-      },
-    );
+    const instructionsField = page.getByRole('textbox', {
+      name: t('projects.instructions.label'),
+      exact: true,
+    });
     await expect(instructionsField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await instructionsField.fill(instructionsText);
 
@@ -123,10 +123,10 @@ test('project settings: rename + instructions persist across reloads', async ({
     // (empty) value.
     await expect(saveInstructions).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
 
-    const reloadedInstructions = page.getByLabel(
-      t('projects.instructions.label'),
-      { exact: true },
-    );
+    const reloadedInstructions = page.getByRole('textbox', {
+      name: t('projects.instructions.label'),
+      exact: true,
+    });
     await reloadAndSettle(page, reloadedInstructions);
     await expect(reloadedInstructions).toHaveValue(instructionsText, {
       timeout: TIMEOUT.PERSIST,
