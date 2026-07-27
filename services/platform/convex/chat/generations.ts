@@ -237,6 +237,86 @@ export const getExternalTurnStateInternal = internalQuery({
 });
 
 /**
+ * Persist streaming progress: the full cleared text (and reasoning) so far,
+ * plus proof of life. One write carries what used to be two — the text patch
+ * and the heartbeat — and it lands on the generation row, not the message row,
+ * so the message list's subscribers stay silent while the reply streams. A
+ * write for a thread with no open generation is a no-op: the turn settled and
+ * the finalize write already carried the authoritative text.
+ */
+export const streamProgressInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    messageId: v.optional(v.string()),
+    text: v.string(),
+    reasoning: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await currentGeneration(
+      ctx,
+      args.organizationId,
+      args.threadId,
+    );
+    if (!existing) return null;
+    await ctx.db.patch(existing._id, {
+      status: 'streaming',
+      heartbeatAt: Date.now(),
+      streamText: args.text,
+      ...(args.reasoning !== undefined
+        ? { streamReasoning: args.reasoning }
+        : {}),
+      ...(args.messageId ? { messageId: args.messageId } : {}),
+    });
+    return null;
+  },
+});
+
+/** The in-flight reply text for a thread, or null when it is idle. The ONLY
+ * subscription that updates per streamed chunk — it is deliberately separate
+ * from `getGeneration` so the slim status result stays byte-identical during
+ * a stream and its subscribers stay quiet. Same ownership gating. */
+export const getGenerationText = query({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.union(
+    v.object({
+      messageId: v.optional(v.string()),
+      text: v.string(),
+      reasoning: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+
+    const threadId = ctx.db.normalizeId('threads', args.threadId);
+    if (!threadId) return null;
+    const thread = await ctx.db.get(threadId);
+    if (
+      !thread ||
+      thread.organizationId !== args.organizationId ||
+      thread.userId !== authUser.userId
+    ) {
+      return null;
+    }
+
+    const generation = await ctx.db
+      .query('generations')
+      .withIndex('by_thread', (q) => q.eq('threadId', thread._id))
+      .first();
+    if (!generation) return null;
+    return {
+      messageId: generation.messageId,
+      text: generation.streamText ?? '',
+      reasoning: generation.streamReasoning,
+    };
+  },
+});
+
+/**
  * Prove the turn is alive: bump `heartbeatAt` and move the row to `streaming`.
  * A heartbeat for a thread with no open generation is a no-op — a settled turn
  * has nothing to keep alive.

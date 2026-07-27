@@ -228,6 +228,17 @@ export const generationsTable = defineTable({
   streamId: v.string(),
   /** The assistant message being written, once it exists. */
   messageId: v.optional(v.string()),
+  /**
+   * The cleared reply text streamed so far. The live channel the conversation
+   * view reads: streaming writes land here, NOT on the message row, so the
+   * message list stays byte-stable (and its subscribers silent) until the turn
+   * finalizes. The finalize write on the message carries the authoritative
+   * text; this copy also lets crash recovery keep a partial reply.
+   */
+  streamText: v.optional(v.string()),
+  /** The model's reasoning ("thinking") text streamed so far, when the turn
+   * requested reasoning. Same lifecycle as `streamText`. */
+  streamReasoning: v.optional(v.string()),
   /** What the turn is blocked on, when waiting. */
   waitingOn: v.optional(v.string()),
   /**

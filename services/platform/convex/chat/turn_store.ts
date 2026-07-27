@@ -42,15 +42,30 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
         error: message.error,
       });
     },
-    async setAssistantText(update) {
+    async streamProgress(update) {
       const nowMs = Date.now();
       if (nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS) return;
       lastStreamWriteAt = nowMs;
-      await ctx.runMutation(internal.chat.messages.setAssistantTextInternal, {
+      await ctx.runMutation(internal.chat.generations.streamProgressInternal, {
         organizationId: update.organizationId,
+        threadId: update.threadId,
         messageId: update.messageId,
         text: update.text,
+        ...(update.reasoning !== undefined
+          ? { reasoning: update.reasoning }
+          : {}),
       });
+      // Transitional dual-write: the message row keeps carrying the streamed
+      // text until the conversation view reads the generation channel; remove
+      // together with that cutover so mid-migration clients never see an
+      // empty streaming bubble.
+      if (update.messageId !== undefined && update.text.length > 0) {
+        await ctx.runMutation(internal.chat.messages.setAssistantTextInternal, {
+          organizationId: update.organizationId,
+          messageId: update.messageId,
+          text: update.text,
+        });
+      }
     },
     async finalizeAssistantMessage(message) {
       const messageId = message.messageId;
@@ -75,12 +90,6 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
     async beginGeneration(generation) {
       await ctx.runMutation(
         internal.chat.generations.beginGenerationInternal,
-        generation,
-      );
-    },
-    async heartbeat(generation) {
-      await ctx.runMutation(
-        internal.chat.generations.heartbeatInternal,
         generation,
       );
     },

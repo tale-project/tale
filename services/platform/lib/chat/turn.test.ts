@@ -72,13 +72,12 @@ const API_KEY_CREDENTIAL: CredentialAuth = { authMethod: 'api-key' };
 interface StoreCalls {
   readonly appended: Array<Record<string, unknown>>;
   /** Every streaming-progress write, in order (the full text so far). */
-  readonly streamed: Array<{ messageId: string; text: string }>;
+  readonly streamed: Array<{ messageId: string | undefined; text: string }>;
   /** Every settle write into the placeholder. */
   readonly finalized: Array<Record<string, unknown>>;
   readonly generations: string[];
   /** The messageId each beginGeneration carried. */
   readonly generationMessageIds: Array<string | undefined>;
-  heartbeats: number;
 }
 
 function fakeStore(): { store: TurnStore; calls: StoreCalls } {
@@ -88,7 +87,6 @@ function fakeStore(): { store: TurnStore; calls: StoreCalls } {
     finalized: [],
     generations: [],
     generationMessageIds: [],
-    heartbeats: 0,
   };
   return {
     calls,
@@ -100,7 +98,7 @@ function fakeStore(): { store: TurnStore; calls: StoreCalls } {
           sequence: calls.appended.length,
         });
       },
-      setAssistantText(update) {
+      streamProgress(update) {
         calls.streamed.push({
           messageId: update.messageId,
           text: update.text,
@@ -114,10 +112,6 @@ function fakeStore(): { store: TurnStore; calls: StoreCalls } {
       beginGeneration(generation) {
         calls.generations.push('begin');
         calls.generationMessageIds.push(generation.messageId);
-        return Promise.resolve();
-      },
-      heartbeat() {
-        calls.heartbeats += 1;
         return Promise.resolve();
       },
       endGeneration() {
@@ -228,7 +222,8 @@ describe('runTurn — the happy path', () => {
     await runTurn(request(), d.deps);
 
     expect(d.store.generations).toEqual(['begin', 'end']);
-    expect(d.store.heartbeats).toBeGreaterThan(0);
+    // The streaming-progress writes double as the turn's heartbeat.
+    expect(d.store.streamed.length).toBeGreaterThan(0);
   });
 
   it('records what the provider reported instead of its own estimate', async () => {

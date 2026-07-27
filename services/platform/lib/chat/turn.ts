@@ -102,15 +102,17 @@ export interface TurnStore {
      * guardrail block; rendered as an error and counted as one. */
     error?: string;
   }): Promise<{ id: string; sequence: number }>;
-  /** Replace the streaming assistant message's text with the full text so
-   * far. Called once per cleared chunk; the store may throttle its writes —
-   * the finalize call carries the authoritative text, so a skipped write can
-   * never lose the tail. */
-  setAssistantText(update: {
+  /** Persist streaming progress: the full cleared text (and reasoning) so
+   * far, which doubles as the turn's proof of life. Called once per cleared
+   * chunk; the store throttles its writes and the finalize call carries the
+   * authoritative text, so a skipped or failed write can never lose the
+   * tail. */
+  streamProgress(update: {
     organizationId: string;
     threadId: string;
-    messageId: string;
+    messageId?: string;
     text: string;
+    reasoning?: string;
   }): Promise<void>;
   /** Settle the placeholder assistant message the turn streamed into. An
    * absent `text` keeps whatever the throttled streaming writes persisted —
@@ -132,10 +134,6 @@ export interface TurnStore {
     streamId: string;
     /** The assistant placeholder the turn streams into. */
     messageId?: string;
-  }): Promise<void>;
-  heartbeat(generation: {
-    organizationId: string;
-    threadId: string;
   }): Promise<void>;
   /** Deletes the row: its absence is what tells every reader the turn
    * settled. Runs whether the turn succeeded, refused, or threw. */
@@ -343,13 +341,12 @@ export async function streamWithOutputGuardrails(
     return chunk.refusal === undefined;
   };
 
-  /** Stream the accumulated text into the placeholder. The store throttles;
-   * the finalize call is the authoritative write, so a failure here must not
-   * end the turn. */
+  /** Stream the accumulated text into the generation row. One throttled
+   * write doubles as the turn's heartbeat; the finalize call is the
+   * authoritative write, so a failure here must not end the turn. */
   const persistProgress = async (): Promise<void> => {
-    if (assistantMessageId === undefined || cleared.length === 0) return;
     try {
-      await deps.store.setAssistantText({
+      await deps.store.streamProgress({
         organizationId: request.organizationId,
         threadId: request.threadId,
         messageId: assistantMessageId,
@@ -382,10 +379,6 @@ export async function streamWithOutputGuardrails(
       };
     }
     await persistProgress();
-    await deps.store.heartbeat({
-      organizationId: request.organizationId,
-      threadId: request.threadId,
-    });
   }
 
   const tail = await transform.flush();
