@@ -333,6 +333,7 @@ async function main(): Promise<number> {
 
   // --- The operator surface ------------------------------------------------
   interface StatusShape {
+    applied: Array<{ id: string }>;
     pending: Array<{ id: string; destructive: boolean }>;
     pendingDestructive: string[];
     failed?: Array<{ id: string }>;
@@ -418,13 +419,19 @@ async function main(): Promise<number> {
   );
 
   header(`Operator rollback: applyDown --to ${BASELINE}`);
+  // `status` was refreshed after applyUp, so its `applied` list is the whole
+  // ledger truth at this point — runAll's safe auto-applies AND applyUp's
+  // remainder. Comparing against applyUp's own batch alone under-counts as
+  // soon as the registry carries a non-destructive migration (the deploy
+  // hook already applied it, so applyUp had nothing left to do).
+  const appliedBeforeDown = status.applied.length;
   const down = await convexRun<{ completed: string[] }>(
     'migrations/framework/entrypoints:applyDown',
     { to: BASELINE },
   );
   check(
-    `down rolled back every applied migration (${down.completed.length})`,
-    down.completed.length === up.completed.length,
+    `down rolled back every applied migration (${down.completed.length}/${appliedBeforeDown})`,
+    down.completed.length === appliedBeforeDown,
   );
 
   header('Data integrity: post-down digest equals the seeded digest');
