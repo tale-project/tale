@@ -42,6 +42,12 @@ interface MessageThreadProps {
   messages: readonly ChatMessageView[];
   /** Present exactly while a turn is in flight. */
   generation?: ChatGenerationView | null;
+  /** The conversation being rendered. Absent on surfaces without
+   * per-message actions that need it (a shared snapshot). */
+  organizationId?: string;
+  threadId?: string;
+  /** The caller's rating per message id, from the thread-wide feedback map. */
+  feedback?: ReadonlyMap<string, 'positive' | 'negative'>;
   className?: string;
 }
 
@@ -61,6 +67,9 @@ function streamingMessageId(
 export function MessageThread({
   messages,
   generation,
+  organizationId,
+  threadId,
+  feedback,
   className,
 }: MessageThreadProps) {
   const { t } = useT('chat');
@@ -95,6 +104,9 @@ export function MessageThread({
               message={message}
               isLast={index === messages.length - 1}
               isStreaming={message.id === streamingId}
+              organizationId={organizationId}
+              threadId={threadId}
+              feedbackRating={feedback?.get(message.id)}
             />
           ))}
         </Stack>

@@ -67,6 +67,44 @@ export const getMessageFeedback = query({
   },
 });
 
+/**
+ * The caller's ratings across one conversation, in ONE read — the message
+ * toolbar latches its thumbs from this map, so a hundred-message thread
+ * costs one watch, never a per-message subscription.
+ */
+export const listThreadFeedback = query({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.array(
+    v.object({
+      messageId: v.string(),
+      rating: v.union(v.literal('positive'), v.literal('negative')),
+      comment: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    await getOrganizationMember(ctx, args.organizationId);
+
+    const rows = await ctx.db
+      .query('messageFeedback')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .collect();
+
+    return rows
+      .filter(
+        (row) =>
+          row.userId === authUser.userId &&
+          row.organizationId === args.organizationId,
+      )
+      .map((row) => ({
+        messageId: row.messageId,
+        rating: row.rating,
+        comment: row.comment,
+      }));
+  },
+});
+
 export interface FeedbackStatsResult extends FeedbackStats {
   hasAnyFeedback: boolean;
   /** Prior equal-length window sentiment counts — drives the card deltas.

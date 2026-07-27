@@ -967,6 +967,11 @@ chat:
   deleteConfirmation: Möchtest du {title} wirklich löschen?
   deletePermanentMessage: Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.
   deleteFailed: Chat konnte nicht gelöscht werden
+  feedback:
+    thumbsUp: Hilfreich
+    thumbsDown: Nicht hilfreich
+    commentPlaceholder: Was kann verbessert werden?
+    submitComment: Senden
   pinned: Angeheftet
   pinFailed: Anheften fehlgeschlagen
   projectsSection: Projekte

@@ -311,6 +311,29 @@ export function useChatMessages(
 }
 
 /**
+ * The caller's ratings across the open conversation — ONE watch for the
+ * whole transcript; the toolbar latches each message's thumbs from this.
+ * Never session-cached: a rating the user just removed in another tab must
+ * not replay as still-set (absence is the signal).
+ */
+export function useThreadFeedback(
+  organizationId: string,
+  threadId: string | undefined,
+): ChatQuery<
+  ReadonlyArray<{
+    messageId: string;
+    rating: 'positive' | 'negative';
+    comment?: string;
+  }>
+> {
+  return useChatQuery(
+    api.feedback.queries.listThreadFeedback,
+    threadId ? { organizationId, threadId } : 'skip',
+    { cache: false },
+  );
+}
+
+/**
  * The live generation for a thread. A `ready` result with `null` data means
  * the thread is idle — the `generations` row is deleted when a turn settles,
  * so its absence is the settled signal.

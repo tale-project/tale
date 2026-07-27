@@ -34,12 +34,21 @@ interface MessageItemProps {
   isLast: boolean;
   /** True while the live turn streams into this message. */
   isStreaming: boolean;
+  /** The conversation the message belongs to. Absent on surfaces that carry
+   * no per-message actions needing it (a shared snapshot). */
+  organizationId?: string;
+  threadId?: string;
+  /** The caller's stored rating for this message, from the thread map. */
+  feedbackRating?: 'positive' | 'negative';
 }
 
 export function MessageItem({
   message,
   isLast,
   isStreaming,
+  organizationId,
+  threadId,
+  feedbackRating,
 }: MessageItemProps) {
   const { t } = useT('chat');
   const isUser = message.role === 'user';
@@ -62,6 +71,9 @@ export function MessageItem({
           message={message}
           isLast={isLast}
           isStreaming={isStreaming}
+          organizationId={organizationId}
+          threadId={threadId}
+          feedbackRating={feedbackRating}
         />
       ) : (
         <MessageParts parts={message.parts} />
@@ -129,10 +141,16 @@ function AssistantBody({
   message,
   isLast,
   isStreaming,
+  organizationId,
+  threadId,
+  feedbackRating,
 }: {
   message: ChatMessageView;
   isLast: boolean;
   isStreaming: boolean;
+  organizationId?: string;
+  threadId?: string;
+  feedbackRating?: 'positive' | 'negative';
 }) {
   const waitingForFirstToken =
     isStreaming && messagePlainText(message.parts).length === 0;
@@ -147,7 +165,13 @@ function AssistantBody({
       {/* The toolbar arrives when the turn settles — the live region below
           the transcript narrates the in-flight states. */}
       {!isStreaming && (
-        <MessageToolbar message={message} alwaysVisible={isLast} />
+        <MessageToolbar
+          message={message}
+          alwaysVisible={isLast}
+          organizationId={organizationId}
+          threadId={threadId}
+          rating={feedbackRating}
+        />
       )}
     </div>
   );

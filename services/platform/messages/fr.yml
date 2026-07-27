@@ -968,6 +968,11 @@ chat:
   deleteConfirmation: Es-tu sûr de vouloir supprimer {title} ?
   deletePermanentMessage: Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.
   deleteFailed: Échec de la suppression du chat
+  feedback:
+    thumbsUp: Utile
+    thumbsDown: Pas utile
+    commentPlaceholder: Que pourrait-on améliorer ?
+    submitComment: Soumettre
   pinned: Épinglé
   pinFailed: Échec de l'épinglage
   projectsSection: Projets

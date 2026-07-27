@@ -1,10 +1,22 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ChatMessageView } from '../types';
+
+const submitMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
+const removeMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
+
+vi.mock('../data/feedback-actions', () => ({
+  useFeedbackActions: () => ({
+    available: true,
+    submit: submitMock,
+    remove: removeMock,
+  }),
+}));
+
 import { MessageToolbar } from './message-toolbar';
 
 const MESSAGE: ChatMessageView = {
@@ -67,5 +79,76 @@ describe('MessageToolbar', () => {
 
     expect(screen.queryByTestId('message-copy-button')).toBeNull();
     expect(screen.getByTestId('message-info-button')).toBeInTheDocument();
+  });
+});
+
+describe('MessageToolbar feedback', () => {
+  beforeEach(() => {
+    submitMock.mockClear();
+    removeMock.mockClear();
+  });
+
+  const CONTEXT = { organizationId: 'org-1', threadId: 't-1' } as const;
+
+  it('hides the thumbs without a conversation context', () => {
+    render(<MessageToolbar message={MESSAGE} alwaysVisible />);
+    expect(screen.queryByTestId('message-thumbs-up')).toBeNull();
+  });
+
+  it('submits a positive rating and removes it on a second click', async () => {
+    const { user } = render(
+      <MessageToolbar message={MESSAGE} alwaysVisible {...CONTEXT} />,
+    );
+
+    const thumbsUp = screen.getByTestId('message-thumbs-up');
+    await user.click(thumbsUp);
+    await waitFor(() =>
+      expect(submitMock).toHaveBeenCalledWith('t-1', 'm1', 'positive'),
+    );
+    expect(thumbsUp).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(thumbsUp);
+    await waitFor(() => expect(removeMock).toHaveBeenCalledWith('m1'));
+    expect(thumbsUp).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('thumbs-down rates immediately and the comment refines it', async () => {
+    const { user } = render(
+      <MessageToolbar message={MESSAGE} alwaysVisible {...CONTEXT} />,
+    );
+
+    await user.click(screen.getByTestId('message-thumbs-down'));
+    await waitFor(() =>
+      expect(submitMock).toHaveBeenCalledWith('t-1', 'm1', 'negative'),
+    );
+
+    const box = screen.getByPlaceholderText('What could be improved?');
+    await user.type(box, 'Wrong tone');
+    await user.click(screen.getByRole('button', { name: 'Submit' }));
+
+    await waitFor(() =>
+      expect(submitMock).toHaveBeenCalledWith(
+        't-1',
+        'm1',
+        'negative',
+        'Wrong tone',
+      ),
+    );
+    expect(screen.queryByPlaceholderText('What could be improved?')).toBeNull();
+  });
+
+  it('latches from the server-provided rating', () => {
+    render(
+      <MessageToolbar
+        message={MESSAGE}
+        alwaysVisible
+        {...CONTEXT}
+        rating="negative"
+      />,
+    );
+    expect(screen.getByTestId('message-thumbs-down')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 });

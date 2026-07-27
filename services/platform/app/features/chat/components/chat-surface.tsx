@@ -25,7 +25,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Cpu, PanelLeftClose, PanelLeftOpen, PlugZap } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
 import { SkillLibraryDialog } from '@/app/features/skills/components/skill-library-dialog';
@@ -46,6 +46,7 @@ import {
   useComposerModels,
   useHarnessHealth,
   useThreadCapabilities,
+  useThreadFeedback,
 } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
 import type { ComposerModelOption, ComposerSelection } from '../types';
@@ -250,6 +251,17 @@ export function ChatSurface({
   const generationInFlight =
     generation.status === 'ready' && generation.data !== null;
 
+  // The caller's ratings for the open conversation — one watch, latched by
+  // each message's toolbar.
+  const threadFeedback = useThreadFeedback(organizationId, threadId);
+  const feedbackByMessage = useMemo(() => {
+    const map = new Map<string, 'positive' | 'negative'>();
+    if (threadFeedback.status === 'ready') {
+      for (const row of threadFeedback.data) map.set(row.messageId, row.rating);
+    }
+    return map;
+  }, [threadFeedback]);
+
   // Clear the unread dot while the conversation is on screen: on open, and
   // again the moment a running turn settles (the settle is what stamped the
   // reply watermark this read clears against).
@@ -432,6 +444,9 @@ export function ChatSurface({
             generation={
               generation.status === 'ready' ? generation.data : undefined
             }
+            organizationId={organizationId}
+            threadId={threadId}
+            feedback={feedbackByMessage}
             // Clears the floating glass bar at rest; scrolled content still
             // passes beneath its blur (overflow clips at the padding box).
             className="md:pt-13"

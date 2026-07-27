@@ -925,6 +925,11 @@ chat:
   deleteConfirmation: Are you sure you want to delete {title}?
   deletePermanentMessage: Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.
   deleteFailed: Failed to delete chat
+  feedback:
+    thumbsUp: Helpful
+    thumbsDown: Not helpful
+    commentPlaceholder: What could be improved?
+    submitComment: Submit
   pinned: Pinned
   pinFailed: Couldn't update pin
   projectsSection: Projects
