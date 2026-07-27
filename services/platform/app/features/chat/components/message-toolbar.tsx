@@ -16,8 +16,18 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { Row, Stack } from '@tale/ui/layout';
-import { Check, Copy, Info, ThumbsDown, ThumbsUp } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  GitFork,
+  Info,
+  MoreHorizontal,
+  RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
+} from 'lucide-react';
 import { useState } from 'react';
 
 import { useCopy } from '@/app/hooks/use-copy';
@@ -42,6 +52,10 @@ interface MessageToolbarProps {
   threadId?: string;
   /** The caller's stored rating for this message, from the thread map. */
   rating?: FeedbackRating;
+  /** Re-answer the prompt this reply answered, as a sibling branch. */
+  onRegenerate?: (message: ChatMessageView) => void;
+  /** Fork the conversation up to this message into a visible new chat. */
+  onFork?: (message: ChatMessageView) => void;
 }
 
 export function MessageToolbar({
@@ -50,6 +64,8 @@ export function MessageToolbar({
   organizationId,
   threadId,
   rating,
+  onRegenerate,
+  onFork,
 }: MessageToolbarProps) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
@@ -186,6 +202,44 @@ export function MessageToolbar({
               />
             </Button>
           </>
+        )}
+        {!errored && onFork !== undefined && (
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={t('forkChat')}
+            data-testid="message-fork-button"
+            onClick={() => onFork(message)}
+            className="size-7"
+          >
+            <GitFork aria-hidden className="size-3.5" />
+          </Button>
+        )}
+        {onRegenerate !== undefined && (
+          <DropdownMenu
+            align="start"
+            trigger={
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={t('moreActions')}
+                data-testid="message-more-button"
+                className="size-7"
+              >
+                <MoreHorizontal aria-hidden className="size-3.5" />
+              </Button>
+            }
+            items={[
+              [
+                {
+                  type: 'item',
+                  label: t('tryAgain'),
+                  icon: RotateCcw,
+                  onClick: () => onRegenerate(message),
+                },
+              ],
+            ]}
+          />
         )}
       </Row>
 

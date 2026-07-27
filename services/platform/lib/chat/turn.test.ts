@@ -332,6 +332,23 @@ describe('runTurn — the happy path', () => {
     });
   });
 
+  it('resend mode re-runs the prompt without persisting it twice', async () => {
+    const d = deps();
+    const outcome = await runTurn(
+      request({ appendUserMessage: false }),
+      d.deps,
+    );
+
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    // Only the assistant placeholder was appended — no second user row.
+    expect(d.store.appended.map((m) => m.role)).toEqual(['assistant']);
+    // The prompt still reached the model as the newest turn.
+    expect(outcome.context.messages.at(-1)).toEqual({
+      role: 'user',
+      parts: [{ type: 'text', text: 'how do I return a printer?' }],
+    });
+  });
+
   it('settles a mid-stream failure into the placeholder without erasing partial text', async () => {
     const failing: ModelCall = async function* stream() {
       yield { text: 'partial ' };

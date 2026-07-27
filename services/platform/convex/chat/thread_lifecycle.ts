@@ -67,10 +67,25 @@ export const trashThread = mutation({
       thread.userId,
     );
 
+    const now = Date.now();
     await ctx.db.patch(thread._id, {
       lifecycleStatus: 'trashed',
-      statusChangedAt: Date.now(),
+      statusChangedAt: now,
     });
+    // The sidebar shows one row per lineage, so deleting the root takes its
+    // hidden edit/regenerate siblings along — they are versions of the same
+    // conversation, not conversations of their own.
+    for await (const branch of ctx.db
+      .query('threads')
+      .withIndex('by_branchRoot', (q) =>
+        q.eq('branchRootId', String(thread._id)),
+      )) {
+      if (branch.lifecycleStatus !== undefined) continue;
+      await ctx.db.patch(branch._id, {
+        lifecycleStatus: 'trashed',
+        statusChangedAt: now,
+      });
+    }
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
       actorId: authUser.userId,
@@ -121,10 +136,25 @@ export const restoreThread = mutation({
       return false;
     }
 
+    const now = Date.now();
     await ctx.db.patch(thread._id, {
       lifecycleStatus: undefined,
-      statusChangedAt: Date.now(),
+      statusChangedAt: now,
     });
+    // The lineage travels together — restore the hidden siblings the trash
+    // cascade took along (only those still in 'trashed'; an 'expired' branch
+    // was aged out separately by retention and stays).
+    for await (const branch of ctx.db
+      .query('threads')
+      .withIndex('by_branchRoot', (q) =>
+        q.eq('branchRootId', String(thread._id)),
+      )) {
+      if (branch.lifecycleStatus !== 'trashed') continue;
+      await ctx.db.patch(branch._id, {
+        lifecycleStatus: undefined,
+        statusChangedAt: now,
+      });
+    }
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
       actorId: authUser.userId,

@@ -311,6 +311,29 @@ export function useChatMessages(
 }
 
 /**
+ * A root's branch lineage — the edit/regenerate siblings plus the root's
+ * stored selection map — in one watch. The chat surface resolves which leaf
+ * to render from this (see `lib/branch-selection.ts`).
+ */
+export function useThreadBranches(
+  organizationId: string,
+  rootThreadId: string | undefined,
+): ChatQuery<{
+  branches: ReadonlyArray<{
+    id: string;
+    parentId: string;
+    forkSequence: number;
+    createdAt: number;
+  }>;
+  selections: string | null;
+}> {
+  return useChatQuery(
+    api.chat.branches.listThreadBranches,
+    rootThreadId ? { organizationId, rootThreadId } : 'skip',
+  );
+}
+
+/**
  * The caller's ratings across the open conversation — ONE watch for the
  * whole transcript; the toolbar latches each message's thumbs from this.
  * Never session-cached: a rating the user just removed in another tab must

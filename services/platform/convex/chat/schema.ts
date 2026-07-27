@@ -88,6 +88,21 @@ export const threadsTable = defineTable({
   /** A branch sibling created by edit/regenerate (never listed in the
    * sidebar). Written `true` or removed — never `false`. */
   hidden: v.optional(v.literal(true)),
+  /**
+   * Edit/regenerate branching. A sibling branch copies its parent's messages
+   * up to the fork point into a fresh thread: `branchRootId` is the visible
+   * root the sidebar shows (the whole lineage reads as one conversation),
+   * `branchParentId` the thread it forked from (a re-edited branch forks
+   * from a branch), and `branchForkSequence` the parent sequence of the user
+   * message the fork replaces (edit) or re-answers (regenerate). The ROOT
+   * row alone carries `branchSelections` — a JSON map
+   * `"<parentId>:<forkSequence>" → selected thread id` recording which
+   * sibling each fork point currently shows.
+   */
+  branchRootId: v.optional(v.string()),
+  branchParentId: v.optional(v.string()),
+  branchForkSequence: v.optional(v.number()),
+  branchSelections: v.optional(v.string()),
   /** Unread tracking: the newest assistant activity vs. the owner's read
    * watermark. A thread is user-private, so per-row (not per-user) is enough. */
   lastReplyAt: v.optional(v.number()),
@@ -119,6 +134,9 @@ export const threadsTable = defineTable({
   // The admin Trash listing and the retention sweeps: one org's rows in a
   // given lifecycle state, without walking the (much larger) live set.
   .index('by_org_lifecycle', ['organizationId', 'lifecycleStatus'])
+  // A root's branch lineage — the navigator's listing and the trash flows'
+  // cascade walk it.
+  .index('by_branchRoot', ['branchRootId'])
   .index('by_shareToken', ['shareToken']);
 
 /**

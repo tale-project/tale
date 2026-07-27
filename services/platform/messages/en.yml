@@ -925,6 +925,17 @@ chat:
   deleteConfirmation: Are you sure you want to delete {title}?
   deletePermanentMessage: Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.
   deleteFailed: Failed to delete chat
+  editMessage: Edit message
+  editSend: Send
+  tryAgain: Try again
+  regenerateFailed: Couldn't regenerate response
+  forkChat: Fork chat
+  forkSuccess: Chat forked successfully
+  forkFailed: Failed to fork chat
+  forkOf: Fork of {title}
+  branchNavigator:
+    previous: Previous branch
+    next: Next branch
   feedback:
     thumbsUp: Helpful
     thumbsDown: Not helpful

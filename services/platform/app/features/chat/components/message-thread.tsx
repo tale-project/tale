@@ -28,7 +28,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { ChatGenerationView, ChatMessageView } from '../types';
-import { MessageItem } from './message-item';
+import { MessageItem, type MessageForkGroupView } from './message-item';
 
 /** The catalog key describing each generation status, in one place. */
 const GENERATION_STATUS_KEY: Record<ChatGenerationView['status'], string> = {
@@ -48,6 +48,14 @@ interface MessageThreadProps {
   threadId?: string;
   /** The caller's rating per message id, from the thread-wide feedback map. */
   feedback?: ReadonlyMap<string, 'positive' | 'negative'>;
+  /** The sibling flippers of the view path, keyed by message sequence. */
+  forkGroups?: ReadonlyMap<number, MessageForkGroupView>;
+  /** Start an edited sibling of a user message. Absent = read-only surface. */
+  onEditSubmit?: (message: ChatMessageView, text: string) => void;
+  /** Re-answer the prompt an assistant reply answered, as a sibling. */
+  onRegenerate?: (message: ChatMessageView) => void;
+  /** Fork the conversation up to a message into a visible new chat. */
+  onFork?: (message: ChatMessageView) => void;
   className?: string;
 }
 
@@ -70,6 +78,10 @@ export function MessageThread({
   organizationId,
   threadId,
   feedback,
+  forkGroups,
+  onEditSubmit,
+  onRegenerate,
+  onFork,
   className,
 }: MessageThreadProps) {
   const { t } = useT('chat');
@@ -107,6 +119,14 @@ export function MessageThread({
               organizationId={organizationId}
               threadId={threadId}
               feedbackRating={feedback?.get(message.id)}
+              forkGroup={
+                message.role === 'user'
+                  ? forkGroups?.get(message.sequence)
+                  : undefined
+              }
+              onEditSubmit={onEditSubmit}
+              onRegenerate={onRegenerate}
+              onFork={onFork}
             />
           ))}
         </Stack>

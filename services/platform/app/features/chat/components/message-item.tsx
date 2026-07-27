@@ -4,15 +4,16 @@
  * One message of the transcript.
  *
  * The user's turns read as compact right-aligned bubbles (long ones clamp
- * with a Show more toggle); the assistant's read as the page itself — full
- * width, markdown, the actions toolbar underneath. Tool and system rows keep
- * their chip presentation. History items rasterize lazily
- * (`content-visibility`) so a long thread costs what the viewport shows, not
- * what the conversation accumulated.
+ * with a Show more toggle; a hover pencil swaps the bubble for the edit
+ * form); the assistant's read as the page itself — full width, markdown, the
+ * actions toolbar underneath. A forked message carries the ‹ n/m › sibling
+ * navigator. Tool and system rows keep their chip presentation. History items
+ * rasterize lazily (`content-visibility`) so a long thread costs what the
+ * viewport shows, not what the conversation accumulated.
  */
 
 import { Button } from '@tale/ui/button';
-import { TriangleAlert } from 'lucide-react';
+import { Pencil, TriangleAlert } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -20,6 +21,8 @@ import { cn } from '@/lib/utils/cn';
 
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageView } from '../types';
+import { BranchNavigator } from './branch-navigator';
+import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
@@ -28,6 +31,13 @@ import { MessageToolbar } from './message-toolbar';
  * scrollbar honest while off-screen items stay unrendered. */
 const HISTORY_CONTENT_VISIBILITY =
   '[content-visibility:auto] [contain-intrinsic-size:auto_200px]';
+
+/** The ‹ n/m › state of the fork point AT this message, when one exists. */
+export interface MessageForkGroupView {
+  readonly index: number;
+  readonly total: number;
+  readonly onSelect: (index: number) => void;
+}
 
 interface MessageItemProps {
   message: ChatMessageView;
@@ -40,6 +50,14 @@ interface MessageItemProps {
   threadId?: string;
   /** The caller's stored rating for this message, from the thread map. */
   feedbackRating?: 'positive' | 'negative';
+  /** The sibling flipper for a fork at this message's sequence. */
+  forkGroup?: MessageForkGroupView;
+  /** Start an edited sibling of this user message. Absent = not editable. */
+  onEditSubmit?: (message: ChatMessageView, text: string) => void;
+  /** Re-answer the prompt this assistant reply answered, as a sibling. */
+  onRegenerate?: (message: ChatMessageView) => void;
+  /** Fork the conversation up to this message into a visible new chat. */
+  onFork?: (message: ChatMessageView) => void;
 }
 
 export function MessageItem({
@@ -49,6 +67,10 @@ export function MessageItem({
   organizationId,
   threadId,
   feedbackRating,
+  forkGroup,
+  onEditSubmit,
+  onRegenerate,
+  onFork,
 }: MessageItemProps) {
   const { t } = useT('chat');
   const isUser = message.role === 'user';
@@ -65,7 +87,11 @@ export function MessageItem({
       )}
     >
       {isUser ? (
-        <UserBubble message={message} />
+        <UserBubble
+          message={message}
+          forkGroup={forkGroup}
+          onEditSubmit={onEditSubmit}
+        />
       ) : isAssistant ? (
         <AssistantBody
           message={message}
@@ -74,6 +100,8 @@ export function MessageItem({
           organizationId={organizationId}
           threadId={threadId}
           feedbackRating={feedbackRating}
+          onRegenerate={onRegenerate}
+          onFork={onFork}
         />
       ) : (
         <MessageParts parts={message.parts} />
@@ -95,21 +123,44 @@ export function MessageItem({
   );
 }
 
-/** The user's turn: a right-aligned bubble, clamped when it runs long. */
-function UserBubble({ message }: { message: ChatMessageView }) {
+/** The user's turn: a right-aligned bubble, clamped when it runs long, with
+ * the edit affordance and the fork navigator underneath. */
+function UserBubble({
+  message,
+  forkGroup,
+  onEditSubmit,
+}: {
+  message: ChatMessageView;
+  forkGroup?: MessageForkGroupView;
+  onEditSubmit?: (message: ChatMessageView, text: string) => void;
+}) {
   const { t } = useT('chat');
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
+  const [editing, setEditing] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   // Measure the clamp only while clamped — once expanded, scrollHeight equals
   // clientHeight and would read as "fits", hiding the Show less toggle.
   useLayoutEffect(() => {
-    if (expanded) return;
+    if (expanded || editing) return;
     const el = bodyRef.current;
     if (!el) return;
     setOverflowing(el.scrollHeight > el.clientHeight + 1);
-  }, [expanded, message.parts]);
+  }, [expanded, editing, message.parts]);
+
+  if (editing) {
+    return (
+      <MessageEditForm
+        initialText={messagePlainText(message.parts)}
+        onSubmit={(text) => {
+          setEditing(false);
+          onEditSubmit?.(message, text);
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    );
+  }
 
   return (
     <div className="flex max-w-xs flex-col items-end lg:max-w-md">
@@ -122,16 +173,37 @@ function UserBubble({ message }: { message: ChatMessageView }) {
       >
         <MessageParts parts={message.parts} />
       </div>
-      {(overflowing || expanded) && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setExpanded((value) => !value)}
-          className="text-muted-foreground mt-1 h-6 px-2 text-xs"
-        >
-          {expanded ? t('showLess') : t('showMore')}
-        </Button>
-      )}
+      <div className="flex items-center gap-0.5">
+        {(overflowing || expanded) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setExpanded((value) => !value)}
+            className="text-muted-foreground mt-1 h-6 px-2 text-xs"
+          >
+            {expanded ? t('showLess') : t('showMore')}
+          </Button>
+        )}
+        {onEditSubmit !== undefined && (
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={t('editMessage')}
+            data-testid="message-edit-button"
+            onClick={() => setEditing(true)}
+            className="text-muted-foreground mt-1 size-6 opacity-0 transition-opacity group-hover/message:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+          >
+            <Pencil aria-hidden className="size-3" />
+          </Button>
+        )}
+        {forkGroup !== undefined && (
+          <BranchNavigator
+            index={forkGroup.index}
+            total={forkGroup.total}
+            onSelect={forkGroup.onSelect}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -144,6 +216,8 @@ function AssistantBody({
   organizationId,
   threadId,
   feedbackRating,
+  onRegenerate,
+  onFork,
 }: {
   message: ChatMessageView;
   isLast: boolean;
@@ -151,6 +225,8 @@ function AssistantBody({
   organizationId?: string;
   threadId?: string;
   feedbackRating?: 'positive' | 'negative';
+  onRegenerate?: (message: ChatMessageView) => void;
+  onFork?: (message: ChatMessageView) => void;
 }) {
   const waitingForFirstToken =
     isStreaming && messagePlainText(message.parts).length === 0;
@@ -171,6 +247,8 @@ function AssistantBody({
           organizationId={organizationId}
           threadId={threadId}
           rating={feedbackRating}
+          onRegenerate={onRegenerate}
+          onFork={onFork}
         />
       )}
     </div>

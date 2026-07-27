@@ -445,6 +445,18 @@ export const appendMessageInternal = internalMutation({
       updatedAt: Date.now(),
       ...(args.role === 'assistant' ? { lastReplyAt: Date.now() } : {}),
     });
+    // Activity on a hidden branch surfaces on its ROOT — the row the sidebar
+    // actually shows for the lineage.
+    if (thread.branchRootId !== undefined) {
+      const rootId = ctx.db.normalizeId('threads', thread.branchRootId);
+      const root = rootId ? await ctx.db.get(rootId) : null;
+      if (root && root.organizationId === args.organizationId) {
+        await ctx.db.patch(root._id, {
+          updatedAt: Date.now(),
+          ...(args.role === 'assistant' ? { lastReplyAt: Date.now() } : {}),
+        });
+      }
+    }
 
     // The thread's first user message names the conversation: fire the AI
     // title generation exactly once — for the opening user message of a

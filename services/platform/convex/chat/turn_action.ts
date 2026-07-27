@@ -367,6 +367,9 @@ export interface ExecuteTurnArgs {
   readonly sandbox: boolean;
   readonly agentSlug?: string;
   readonly locale: string;
+  /** Re-run the thread's trailing user message (a regenerate): `userText` is
+   * that message's text and the pipeline must not append it again. */
+  readonly resend?: boolean;
 }
 
 /** Overridable ports, for tests only — production resolves the real ones. The
@@ -395,12 +398,32 @@ export async function executeTurn(
     args.providerSlug,
   );
 
-  const history: ChatMessage[] = (
-    await ctx.runQuery(api.chat.messages.listMessages, {
-      organizationId: args.organizationId,
-      threadId: args.threadId,
-    })
-  ).map((message) => ({ role: message.role, parts: message.parts }));
+  const stored = await ctx.runQuery(api.chat.messages.listMessages, {
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+  });
+  // A resend re-runs the trailing user message: its text becomes the turn's
+  // input, it leaves the history (the context assembly re-appends the input
+  // as the newest turn), and the pipeline skips persisting it again.
+  const trailing = stored.at(-1);
+  if (args.resend === true && (!trailing || trailing.role !== 'user')) {
+    return {
+      status: 'refused',
+      steps: [],
+      step: 'input-guardrails',
+      reason:
+        'Nothing to regenerate — the conversation does not end with your message.',
+    };
+  }
+  const userText =
+    args.resend === true && trailing !== undefined
+      ? messageText({ role: 'user', parts: trailing.parts })
+      : args.userText;
+  const historyRows = args.resend === true ? stored.slice(0, -1) : stored;
+  const history: ChatMessage[] = historyRows.map((message) => ({
+    role: message.role,
+    parts: message.parts,
+  }));
 
   const model =
     overrides.model ??
@@ -419,7 +442,7 @@ export async function executeTurn(
     userId: args.userId,
     threadId: args.threadId,
     streamId: randomUUID(),
-    userText: args.userText,
+    userText,
     history,
     locale: args.locale,
     model: resolved.entry,
@@ -427,6 +450,7 @@ export async function executeTurn(
     // credential is refused earlier, before the wire is built.
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
     executionMode: args.sandbox ? 'sandbox' : 'direct',
+    ...(args.resend === true ? { appendUserMessage: false } : {}),
   };
 
   return runTurn(request, deps);
@@ -501,6 +525,72 @@ export const startTurn = action({
       sandbox: args.sandbox,
       agentSlug: args.agentSlug,
       locale: args.locale ?? 'en',
+    });
+    return outcome.status === 'completed'
+      ? { status: 'completed' }
+      : { status: 'refused', reason: outcome.reason };
+  },
+});
+
+/**
+ * Re-run the thread's trailing user prompt — the "Try again" of a
+ * regenerate-branch, first-class rather than a synthetic edit. The branch the
+ * client passes already ends with the user message (`branchForRegenerate`
+ * copied it), so the turn resends that text without appending it again. Same
+ * ownership and busy gates as `startTurn`.
+ */
+export const regenerateTurn = action({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    modelId: v.string(),
+    providerSlug: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
+    locale: v.optional(v.string()),
+  },
+  returns: v.object({
+    status: v.union(v.literal('completed'), v.literal('refused')),
+    reason: v.optional(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const owned = await ctx.runQuery(
+      internal.chat.threads.getOwnedThreadInternal,
+      {
+        organizationId: args.organizationId,
+        userId: auth.userId,
+        threadId: args.threadId,
+      },
+    );
+    if (owned === null) {
+      return { status: 'refused', reason: 'This conversation does not exist.' };
+    }
+    const busy = await ctx.runQuery(
+      internal.chat.generations.hasLiveGenerationInternal,
+      { organizationId: args.organizationId, threadId: args.threadId },
+    );
+    if (busy) {
+      return {
+        status: 'refused',
+        reason: 'This conversation is already generating a response.',
+      };
+    }
+    const outcome = await executeTurn(ctx, {
+      organizationId: args.organizationId,
+      userId: auth.userId,
+      threadId: args.threadId,
+      userText: '',
+      modelId: args.modelId,
+      ...(args.providerSlug !== undefined && {
+        providerSlug: args.providerSlug,
+      }),
+      sandbox: false,
+      agentSlug: args.agentSlug,
+      locale: args.locale ?? 'en',
+      resend: true,
     });
     return outcome.status === 'completed'
       ? { status: 'completed' }

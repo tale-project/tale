@@ -968,6 +968,17 @@ chat:
   deleteConfirmation: Es-tu sûr de vouloir supprimer {title} ?
   deletePermanentMessage: Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.
   deleteFailed: Échec de la suppression du chat
+  editMessage: Modifier le message
+  editSend: Envoyer
+  tryAgain: Réessayer
+  regenerateFailed: Impossible de régénérer la réponse
+  forkChat: Dupliquer le chat
+  forkSuccess: Chat dupliqué avec succès
+  forkFailed: Échec de la duplication du chat
+  forkOf: Fork de {title}
+  branchNavigator:
+    previous: Branche précédente
+    next: Branche suivante
   feedback:
     thumbsUp: Utile
     thumbsDown: Pas utile

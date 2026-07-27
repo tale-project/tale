@@ -200,8 +200,9 @@ async function requireOrgUser(
  * Returns null when it does not exist, is owned by someone else, or sits in
  * the trash lifecycle — a missing thread, a forbidden one, and a trashed one
  * are indistinguishable to a caller by design. The trash flows use their own
- * raw loads (`thread_lifecycle.ts`); everything else treats trash as gone. */
-async function loadOwnedThread(
+ * raw loads (`thread_lifecycle.ts`); everything else treats trash as gone.
+ * Shared across the chat domain (`branches.ts` gates on it too). */
+export async function loadOwnedThread(
   ctx: QueryCtx,
   organizationId: string,
   userId: string,
@@ -856,6 +857,10 @@ export const branchThread = mutation({
     organizationId: v.string(),
     threadId: v.string(),
     fromMessageId: v.string(),
+    /** The fork's own name (the client passes its localized "Fork of …");
+     * absent keeps the source title, and the AI title guard never renames a
+     * titled thread. */
+    title: v.optional(v.string()),
   },
   returns: v.union(v.id('threads'), v.null()),
   handler: async (ctx, args) => {
@@ -878,7 +883,7 @@ export const branchThread = mutation({
       organizationId: thread.organizationId,
       userId,
       kind: thread.kind,
-      title: thread.title,
+      title: args.title?.trim() || thread.title,
       agentSlug: thread.agentSlug,
       branchedFromMessageId: forkMessage._id,
       archived: false,

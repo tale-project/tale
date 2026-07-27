@@ -187,6 +187,13 @@ export interface TurnRequest {
   readonly model: ModelCatalogEntry;
   readonly credential: CredentialAuth;
   readonly executionMode: ExecutionMode;
+  /**
+   * False when the user message ALREADY sits at the end of the thread — a
+   * regenerate re-runs it rather than appending it twice. The guardrails
+   * still run on `userText` (policy applies to re-runs too); only the
+   * persistence of the user turn is skipped.
+   */
+  readonly appendUserMessage?: boolean;
   /** Requested harness for sandbox mode; a subscription credential brings its
    * own and refuses any other. */
   readonly harness?: string;
@@ -475,12 +482,14 @@ export async function runTurn(
   steps.push('assemble-context');
   const context = assembleTurnContext(request, input.text, now());
 
-  await deps.store.appendMessage({
-    organizationId: request.organizationId,
-    threadId: request.threadId,
-    role: 'user',
-    parts: [{ type: 'text', text: input.text }],
-  });
+  if (request.appendUserMessage !== false) {
+    await deps.store.appendMessage({
+      organizationId: request.organizationId,
+      threadId: request.threadId,
+      role: 'user',
+      parts: [{ type: 'text', text: input.text }],
+    });
+  }
   // The assistant message exists BEFORE the stream starts: the turn streams
   // its cleared text into this row, so a reader watching the thread sees the
   // reply grow, and a mid-stream failure keeps the partial text it managed.

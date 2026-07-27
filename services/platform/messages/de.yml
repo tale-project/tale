@@ -967,6 +967,17 @@ chat:
   deleteConfirmation: Möchtest du {title} wirklich löschen?
   deletePermanentMessage: Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.
   deleteFailed: Chat konnte nicht gelöscht werden
+  editMessage: Nachricht bearbeiten
+  editSend: Senden
+  tryAgain: Erneut versuchen
+  regenerateFailed: Antwort konnte nicht neu generiert werden
+  forkChat: Chat forken
+  forkSuccess: Chat geforkt
+  forkFailed: Chat konnte nicht geforkt werden
+  forkOf: Fork von {title}
+  branchNavigator:
+    previous: Vorheriger Zweig
+    next: Nächster Zweig
   feedback:
     thumbsUp: Hilfreich
     thumbsDown: Nicht hilfreich

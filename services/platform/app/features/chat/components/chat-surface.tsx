@@ -35,6 +35,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useBranchActions } from '../data/branch-actions';
 import {
   useCanvasSources,
   useChatGeneration,
@@ -45,11 +46,22 @@ import {
   useComposerCapabilities,
   useComposerModels,
   useHarnessHealth,
+  useThreadBranches,
   useThreadCapabilities,
   useThreadFeedback,
 } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
-import type { ComposerModelOption, ComposerSelection } from '../types';
+import {
+  forkGroupsForPath,
+  forkKey,
+  parseBranchSelections,
+  resolveViewPath,
+} from '../lib/branch-selection';
+import type {
+  ChatMessageView,
+  ComposerModelOption,
+  ComposerSelection,
+} from '../types';
 import { CanvasPanel } from './canvas/canvas-panel';
 import { Composer } from './composer';
 import {
@@ -58,6 +70,7 @@ import {
   withDefaultModel,
 } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
+import type { MessageForkGroupView } from './message-item';
 import { MessageThread } from './message-thread';
 import { ThreadList } from './thread-list';
 
@@ -94,14 +107,51 @@ export function ChatSurface({
   const canManageProviders = ability.can('read', 'developerSettings');
 
   const threads = useChatThreads(organizationId);
-  const messages = useChatMessages(organizationId, threadId);
-  const generation = useChatGeneration(organizationId, threadId);
+
+  // The URL names the lineage ROOT; which edit/regenerate sibling the
+  // conversation shows from each fork point is the root's selection map. The
+  // reads below follow the resolved leaf, so flipping the navigator swaps
+  // the whole tail. Selections flip locally first (`selectionOverrides`) and
+  // persist in the background.
+  const branchData = useThreadBranches(organizationId, threadId);
+  const branches = useMemo(
+    () => (branchData.status === 'ready' ? branchData.data.branches : []),
+    [branchData],
+  );
+  const [selectionOverrides, setSelectionOverrides] = useState<
+    Record<string, string>
+  >({});
+  useEffect(() => {
+    // A different conversation starts from its own stored choices.
+    setSelectionOverrides({});
+  }, [threadId]);
+  const selections = useMemo(
+    () => ({
+      ...parseBranchSelections(
+        branchData.status === 'ready' ? branchData.data.selections : null,
+      ),
+      ...selectionOverrides,
+    }),
+    [branchData, selectionOverrides],
+  );
+  const viewPath = useMemo(
+    () =>
+      threadId !== undefined
+        ? resolveViewPath(threadId, branches, selections)
+        : [],
+    [threadId, branches, selections],
+  );
+  const viewThreadId = threadId !== undefined ? viewPath.at(-1) : undefined;
+
+  const messages = useChatMessages(organizationId, viewThreadId);
+  const generation = useChatGeneration(organizationId, viewThreadId);
   const composerOptions = useComposerModels(organizationId);
   const capabilityCatalog = useComposerCapabilities(organizationId);
   const harnessHealth = useHarnessHealth(organizationId);
   const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
   const threadCapabilities = useThreadCapabilities(organizationId);
+  const branchActions = useBranchActions(organizationId);
 
   // The circuit-breaker set: harnesses the health signal flags as recently
   // failing, so the agent picker can mark them.
@@ -252,8 +302,9 @@ export function ChatSurface({
     generation.status === 'ready' && generation.data !== null;
 
   // The caller's ratings for the open conversation — one watch, latched by
-  // each message's toolbar.
-  const threadFeedback = useThreadFeedback(organizationId, threadId);
+  // each message's toolbar. Keyed to the VIEW thread: ratings live on the
+  // sibling actually rendered.
+  const threadFeedback = useThreadFeedback(organizationId, viewThreadId);
   const feedbackByMessage = useMemo(() => {
     const map = new Map<string, 'positive' | 'negative'>();
     if (threadFeedback.status === 'ready') {
@@ -303,7 +354,7 @@ export function ChatSurface({
   // backend's own fallback, so what is sent is what the picker displayed.
   const externalModelId = resolveExternalModelId(selection, models);
 
-  const handleSend = (text: string) => {
+  const handleSend = (text: string, intoThreadId?: string) => {
     // Each kind has its prerequisites: a model for the platform agent; a
     // harness plus a direct-served model for an external agent.
     // `sendDisabled` already gates these; the guard here keeps a race from
@@ -315,12 +366,15 @@ export function ChatSurface({
       (selection.harness === undefined || externalModelId === undefined)
     )
       return;
+    // A composer send continues the VIEW thread (the sibling on screen); an
+    // edit passes its fresh branch explicitly.
+    const target = intoThreadId ?? viewThreadId;
     const modelIdToSend =
       selection.agentKind === 'external' ? externalModelId : selection.modelId;
     void (async () => {
       try {
         const turn = await chatSend.start({
-          ...(threadId !== undefined ? { threadId } : {}),
+          ...(target !== undefined ? { threadId: target } : {}),
           text,
           agentKind: selection.agentKind,
           ...(modelIdToSend !== undefined ? { modelId: modelIdToSend } : {}),
@@ -376,6 +430,113 @@ export function ChatSurface({
         toast({ title: t('toast.sendFailed'), variant: 'destructive' });
       }
     })();
+  };
+
+  /** Flip a fork point locally and persist the choice in the background. */
+  const rememberSelection = (
+    parentId: string,
+    sequence: number,
+    chosen: string,
+  ) => {
+    if (threadId === undefined) return;
+    const key = forkKey(parentId, sequence);
+    setSelectionOverrides((previous) => ({ ...previous, [key]: chosen }));
+    branchActions.select(threadId, key, chosen);
+  };
+
+  // The ‹ n/m › groups along the view path, keyed by message sequence.
+  const forkGroups = useMemo(() => {
+    if (threadId === undefined || viewPath.length === 0) return undefined;
+    const view = new Map<number, MessageForkGroupView>();
+    for (const [sequence, group] of forkGroupsForPath(viewPath, branches)) {
+      view.set(sequence, {
+        index: group.currentIndex,
+        total: group.siblings.length,
+        onSelect: (nextIndex) => {
+          const chosen = group.siblings[nextIndex];
+          if (chosen === undefined) return;
+          const key = forkKey(group.parentId, group.forkSequence);
+          setSelectionOverrides((previous) => ({ ...previous, [key]: chosen }));
+          branchActions.select(threadId, key, chosen);
+        },
+      });
+    }
+    return view;
+    // rememberSelection is stable per render and derived from the same deps.
+  }, [threadId, viewPath, branches, branchActions]);
+
+  // Edit = a sibling branch carrying the history BEFORE the edited message;
+  // the edited text is then sent into it through the normal turn.
+  const handleEditSubmit = (message: ChatMessageView, text: string) => {
+    if (viewThreadId === undefined) return;
+    const parentId = viewThreadId;
+    void branchActions.branchForEdit(parentId, message.id).then((branchId) => {
+      if (branchId === null) {
+        toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+        return;
+      }
+      rememberSelection(parentId, message.sequence, branchId);
+      handleSend(text, branchId);
+    });
+  };
+
+  // Try again = a sibling branch carrying the history THROUGH the prompt the
+  // reply answered, re-run first-class (no synthetic edit).
+  const handleRegenerate = (message: ChatMessageView) => {
+    if (viewThreadId === undefined || selection.modelId === undefined) return;
+    const parentId = viewThreadId;
+    const rows = messages.status === 'ready' ? messages.data : [];
+    const prompt = rows
+      .toReversed()
+      .find((row) => row.role === 'user' && row.sequence < message.sequence);
+    if (!prompt) return;
+    const modelId = selection.modelId;
+    const providerSlug = selection.providerSlug;
+    void branchActions
+      .branchForRegenerate(parentId, message.id)
+      .then(async (branchId) => {
+        if (branchId === null) {
+          toast({ title: t('regenerateFailed'), variant: 'destructive' });
+          return;
+        }
+        rememberSelection(parentId, prompt.sequence, branchId);
+        const outcome = await branchActions.regenerate(
+          branchId,
+          modelId,
+          providerSlug,
+        );
+        if (outcome.refused) {
+          toast({
+            title: t('regenerateFailed'),
+            ...(outcome.reason !== undefined
+              ? { description: outcome.reason }
+              : {}),
+            variant: 'destructive',
+          });
+        }
+      });
+  };
+
+  // Fork = a VISIBLE copy of the conversation up to a message — a new chat
+  // of its own, unlike the hidden siblings above.
+  const handleFork = (message: ChatMessageView) => {
+    if (viewThreadId === undefined) return;
+    const title = t('forkOf', {
+      title: activeThread?.title ?? t('history.untitled'),
+    });
+    void branchActions
+      .fork(viewThreadId, message.id, title)
+      .then((newThreadId) => {
+        if (newThreadId === null) {
+          toast({ title: t('forkFailed'), variant: 'destructive' });
+          return;
+        }
+        toast({ title: t('forkSuccess') });
+        void navigate({
+          to: '/dashboard/$id/chat/$threadId',
+          params: { id: organizationId, threadId: newThreadId },
+        });
+      });
   };
 
   return (
@@ -445,8 +606,16 @@ export function ChatSurface({
               generation.status === 'ready' ? generation.data : undefined
             }
             organizationId={organizationId}
-            threadId={threadId}
+            threadId={viewThreadId}
             feedback={feedbackByMessage}
+            forkGroups={forkGroups}
+            onEditSubmit={handleEditSubmit}
+            // Regenerating picks the composer's current DIRECT model — a
+            // sandbox thread's turns run elsewhere, so it has no re-run here.
+            onRegenerate={
+              activeThread?.kind === 'sandbox' ? undefined : handleRegenerate
+            }
+            onFork={handleFork}
             // Clears the floating glass bar at rest; scrolled content still
             // passes beneath its blur (overflow clips at the padding box).
             className="md:pt-13"
