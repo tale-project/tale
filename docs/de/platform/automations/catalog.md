@@ -37,7 +37,7 @@ review-invoices/
 Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automatisierung** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
 
 - **Die Dateien** — `workflow.yml`, plus `automation.yml`, wenn das Pack eine mitbringt. Richtig für ein Pack, das nur aus seinem Dokument besteht.
-- **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Die Zip bleibt unter 20 MiB.
+- **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Markdown-Notizen außerhalb von `skills/` — etwa ein README — ignoriert der Upload; zippe das Verzeichnis also, wie es ist. Die Zip bleibt unter 20 MiB.
 
 Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisation oder ein Projekt: Der erste Upload bindet sie dauerhaft an diese Oberfläche.
 

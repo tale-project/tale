@@ -37,7 +37,7 @@ review-invoices/
 To upload one, open **Automations**, pick **Upload package** from the **New automation** menu, and choose either form of the same pack:
 
 - **The files** — `workflow.yml`, plus `automation.yml` when the pack ships one. Right for a pack that is only its document.
-- **One `.zip` of the pack directory** — required when the pack carries skills, since only the zip can hold their folders. The zip stays under 20 MiB.
+- **One `.zip` of the pack directory** — required when the pack carries skills, since only the zip can hold their folders. Markdown notes outside `skills/` — a README, a design record — are ignored, so zip the directory as it is; the zip stays under 20 MiB.
 
 Pick where the automation installs — the organization, or one project — before you submit: the first upload pins it to that surface for good.
 

@@ -8,7 +8,9 @@
  * (required; `.yaml`/`.json` accepted), `automation.yml` (optional manifest)
  * and any carried skill bundles under `skills/<slug>/`. The document may sit
  * at the zip root or inside ONE wrapper folder — exactly what a user gets by
- * zipping their pack directory. Unlike the retired bundle format, the
+ * zipping their pack directory. Markdown outside `skills/` (a README, design
+ * notes) is skipped silently, like dotfiles and OS metadata; every other
+ * stray entry refuses loudly. Unlike the retired bundle format, the
  * automation's name comes from the document, never from the folder path, so
  * nested wrappers are not a thing.
  *
@@ -192,9 +194,13 @@ export async function parseAutomationPackZip(
       !relPath.includes('/') && MANIFEST_NAMES.has(basename.toLowerCase());
     const isSkillFile = relPath.startsWith('skills/');
     if (!isDocument && !isManifest && !isSkillFile) {
+      // Markdown outside skills/ is notes for humans (README, design records),
+      // never payload — skip it like dotfiles. Anything else refuses loudly so
+      // nobody believes an agents/ or views/ directory took effect.
+      if (basename.toLowerCase().endsWith('.md')) continue;
       refuse(
         'PACK_UNEXPECTED_ENTRY',
-        `Unexpected entry "${relPath}" — a package holds workflow.yml, automation.yml and skills/<slug>/ only.`,
+        `Unexpected entry "${relPath}" — a package holds workflow.yml, automation.yml and skills/<slug>/ only (markdown notes are ignored).`,
       );
     }
 

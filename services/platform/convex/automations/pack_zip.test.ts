@@ -168,9 +168,23 @@ describe('parseAutomationPackZip', () => {
   it('refuses an entry that is neither pack file nor skill', async () => {
     expect(
       await refusalCode(
-        await buildZip({ 'workflow.yml': WORKFLOW, 'README.md': 'hi' }),
+        await buildZip({ 'workflow.yml': WORKFLOW, 'views/desk.json': '{}' }),
       ),
     ).toBe('PACK_UNEXPECTED_ENTRY');
+  });
+
+  it('skips markdown notes outside skills/ silently', async () => {
+    const parsed = await parseAutomationPackZip(
+      await buildZip({
+        'workflow.yml': WORKFLOW,
+        'README.md': 'hi',
+        'PLATFORM_NOTES.md': 'historical assessment',
+        'notes/design.MD': 'nested and upper-case too',
+      }),
+    );
+    expect(parsed.document.text).toBe(WORKFLOW);
+    expect(parsed.skills).toEqual([]);
+    expect(parsed.totalBytes).toBe(WORKFLOW.length);
   });
 
   it('carries a skill bundle whole', async () => {
