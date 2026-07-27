@@ -1270,10 +1270,18 @@ function EditTaskBody({
             {canEdit && (
               <>
                 <PanelDivider />
+                {/* shrink-0, like every PropertyField row: the panel is a
+                    height-constrained flex column, and a flex item's automatic
+                    minimum size only protects text — a fixed-height control
+                    compresses to its one-line min-content, which rendered this
+                    button at half height. A rule on the column can't fix it:
+                    every Button sits inside its skeleton wrapper's
+                    `display: contents` span, so the button, not the span, is
+                    the flex item. */}
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="w-full"
+                  className="w-full shrink-0"
                   icon={isArchived ? ArchiveRestore : Archive}
                   onClick={() => setArchiveOpen(true)}
                 >

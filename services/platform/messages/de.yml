@@ -1269,6 +1269,7 @@ common:
     today: Heute
     yesterday: Gestern
   datePicker:
+    placeholder: Datum wählen
     presets:
       custom: Benutzerdefiniert
       today: Heute

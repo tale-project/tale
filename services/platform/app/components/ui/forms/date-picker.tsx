@@ -131,11 +131,11 @@ export function DatePicker({
         }
         dateFormat="MMM d, yyyy"
         disabled={disabled}
-        placeholderText={placeholder ?? t('upload.pickADate')}
+        placeholderText={placeholder ?? t('datePicker.placeholder')}
         customInput={
           <DateTrigger
             disabled={disabled}
-            placeholder={placeholder ?? t('upload.pickADate')}
+            placeholder={placeholder ?? t('datePicker.placeholder')}
             hasValue={selected != null}
             onClear={() => onChange(null)}
           />

@@ -1216,6 +1216,7 @@ common:
     today: Today
     yesterday: Yesterday
   datePicker:
+    placeholder: Pick a date
     presets:
       custom: Custom
       today: Today

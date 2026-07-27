@@ -169,8 +169,11 @@ export function AssigneePicker({
   ]);
 
   if (disabled) {
+    // max-w-full on both trigger rows: an inline-flex box sizes to its
+    // content, so inside a narrow value cell (the task modal's side panel)
+    // it would push past the panel instead of letting the name truncate.
     return (
-      <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
         <Tooltip content={label}>
           <span className="inline-flex">{avatar}</span>
         </Tooltip>
@@ -263,7 +266,7 @@ export function AssigneePicker({
     <Tooltip content={label}>
       {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
       <span
-        className="inline-flex min-w-0 items-center gap-1.5"
+        className="inline-flex max-w-full min-w-0 items-center gap-1.5"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
