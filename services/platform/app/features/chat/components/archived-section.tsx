@@ -17,7 +17,6 @@ import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 import { ChatRowsSkeleton } from '@/app/components/layout/chat-history-skeleton';
-import { SubPanelSectionHeader } from '@/app/components/layout/sub-panel-list';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -35,34 +34,43 @@ export function ArchivedSection() {
   // The `updatedAt` cursors of the extra pages the user has loaded, in order.
   // Each page renders as its own component with its own live watch.
   const [cursors, setCursors] = useState<readonly number[]>([]);
+  // Lazy until the FIRST open, then kept mounted: collapsing merely hides
+  // the drawer, so reopening is instant (no fresh watch, no skeleton flash)
+  // and an unarchive keeps reflecting even while collapsed.
+  const [everExpanded, setEverExpanded] = useState(expanded);
+  if (expanded && !everExpanded) setEverExpanded(true);
 
   return (
     <section className="border-border mt-1.5 shrink-0 border-t pt-2">
-      {/* Same header vocabulary as PROJECTS and CHATS; the trailing chevron
-          is the disclosure. */}
-      <SubPanelSectionHeader
-        label={t('archived.title')}
-        action={
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setExpanded((open) => !open)}
-            aria-expanded={expanded}
-            aria-label={t('archived.title')}
-            className="text-muted-foreground -my-1 -mr-1.5 size-7 shrink-0"
-          >
-            <ChevronDown
-              aria-hidden
-              className={cn(
-                'size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
-                !expanded && '-rotate-90',
-              )}
-            />
-          </Button>
-        }
-      />
-      {expanded && (
-        <div className="max-h-64 overflow-y-auto px-0 pt-0.5">
+      {/* Same header vocabulary as PROJECTS and CHATS, but the WHOLE row is
+          the disclosure — exactly like a project folder's header — with the
+          trailing chevron as its state. */}
+      <button
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        aria-expanded={expanded}
+        className="hover:bg-muted/60 flex h-7 w-full cursor-pointer items-center justify-between gap-1 rounded-md px-2 transition-colors"
+      >
+        <Text
+          as="div"
+          variant="caption"
+          className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase"
+        >
+          {t('archived.title')}
+        </Text>
+        <ChevronDown
+          aria-hidden
+          className={cn(
+            'text-muted-foreground size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
+            !expanded && '-rotate-90',
+          )}
+        />
+      </button>
+      {everExpanded && (
+        <div
+          hidden={!expanded}
+          className="max-h-64 overflow-y-auto px-0 pt-0.5"
+        >
           <ArchivedPage
             cursor={undefined}
             isLastLoaded={cursors.length === 0}
