@@ -55,17 +55,6 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
           ? { reasoning: update.reasoning }
           : {}),
       });
-      // Transitional dual-write: the message row keeps carrying the streamed
-      // text until the conversation view reads the generation channel; remove
-      // together with that cutover so mid-migration clients never see an
-      // empty streaming bubble.
-      if (update.messageId !== undefined && update.text.length > 0) {
-        await ctx.runMutation(internal.chat.messages.setAssistantTextInternal, {
-          organizationId: update.organizationId,
-          messageId: update.messageId,
-          text: update.text,
-        });
-      }
     },
     async finalizeAssistantMessage(message) {
       const messageId = message.messageId;

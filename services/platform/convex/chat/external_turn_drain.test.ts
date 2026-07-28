@@ -170,7 +170,7 @@ describe('drainExternalTurnWindow — turn-ended cut + mid-window streaming', ()
 
     expect(outcome).toEqual({ kind: 'done' });
     const setText = getFunctionName(
-      internal.chat.messages.setAssistantTextInternal,
+      internal.chat.generations.streamProgressInternal,
     );
     expect(order.indexOf(setText)).toBeGreaterThanOrEqual(0);
     expect(order.indexOf(setText)).toBeLessThan(order.indexOf('drain-settled'));

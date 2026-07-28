@@ -392,8 +392,9 @@ export const recoverStaleDirectGenerations = internalMutation({
       .withIndex('by_heartbeat', (q) => q.lt('heartbeatAt', staleBefore))) {
       if (row.external !== undefined) continue; // external lane → op-row recovery
       // The turn streamed into a placeholder message; a hard-killed turn never
-      // finalized it. Stamp the failure so the row does not read as a settled
-      // empty answer (whatever partial text streamed in is kept).
+      // finalized it. Rescue the streamed partial off the row being deleted
+      // (streaming writes never touch the message) and stamp the failure so
+      // the row does not read as a settled empty answer.
       if (row.messageId !== undefined) {
         const messageId = ctx.db.normalizeId('messages', row.messageId);
         const message = messageId ? await ctx.db.get(messageId) : null;
@@ -404,7 +405,21 @@ export const recoverStaleDirectGenerations = internalMutation({
           message.blockedReason === undefined &&
           message.usage === undefined
         ) {
+          const partial = row.streamText ?? '';
+          const hasOwnText = message.parts.some(
+            (part: unknown) =>
+              part !== null &&
+              typeof part === 'object' &&
+              'type' in part &&
+              part.type === 'text' &&
+              'text' in part &&
+              typeof part.text === 'string' &&
+              part.text.length > 0,
+          );
           await ctx.db.patch(message._id, {
+            ...(partial !== '' && !hasOwnText
+              ? { parts: [{ type: 'text', text: partial }] }
+              : {}),
             error: 'The response was interrupted before it finished.',
           });
         }

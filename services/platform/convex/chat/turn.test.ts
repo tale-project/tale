@@ -185,4 +185,90 @@ describe('chat turn — end to end against a fake model', () => {
     expect(assistant?.error).toMatch(/exploded/);
     expect(assistant?.blockedReason).toBeUndefined();
   });
+
+  it('keeps the message list byte-stable while the reply streams', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    const listRows = () =>
+      t.run(async (ctx) =>
+        ctx.db
+          .query('messages')
+          .withIndex('by_thread_sequence', (q) => q.eq('threadId', threadId))
+          .collect(),
+      );
+    const liveGeneration = () =>
+      t.run(async (ctx) =>
+        ctx.db
+          .query('generations')
+          .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+          .first(),
+      );
+
+    // Chunks long enough that the output transform clears each on its own
+    // push, so every chunk reaches the store's streamProgress write.
+    const first = 'a'.repeat(150);
+    const second = 'b'.repeat(150);
+    const snapshots: unknown[] = [];
+    let midStreamText: string | undefined;
+    const snapshotModel: ModelCall = async function* snapshotModel() {
+      yield { text: first };
+      snapshots.push(await listRows());
+      midStreamText = (await liveGeneration())?.streamText;
+      yield { text: second };
+      snapshots.push(await listRows());
+    };
+
+    await t.action(async (ctx) =>
+      runTurn(turnRequest(threadId), {
+        harnesses: new Map(),
+        model: snapshotModel,
+        store: createConvexTurnStore(ctx),
+        usage: { record: async () => undefined },
+      }),
+    );
+
+    // The streamed text lives on the generation row…
+    expect(midStreamText).toBe(first);
+    // …while the message rows never move between chunks: the streaming
+    // writes must not invalidate the list subscription.
+    expect(snapshots[1]).toEqual(snapshots[0]);
+    // The placeholder stayed empty until finalize, which carries the text.
+    const settled = await listRows();
+    expect(settled.at(-1)?.parts).toEqual([
+      { type: 'text', text: first + second },
+    ]);
+    expect(await liveGeneration()).toBeNull();
+  });
+
+  it('rescues the streamed partial when the model dies after clearing text', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    const partial = 'p'.repeat(150);
+    const dyingModel: ModelCall = async function* dyingModel() {
+      yield { text: partial };
+      throw new Error('provider died mid-answer');
+    };
+
+    const outcome = await t.action(async (ctx) =>
+      runTurn(turnRequest(threadId), {
+        harnesses: new Map(),
+        model: dyingModel,
+        store: createConvexTurnStore(ctx),
+        usage: { record: async () => undefined },
+      }),
+    );
+    expect(outcome.status).toBe('refused');
+
+    // The finalize had no text of its own — the streamed partial is rescued
+    // off the generation row before that row is deleted.
+    const messages = await t.run(async (ctx) =>
+      ctx.db
+        .query('messages')
+        .withIndex('by_thread_sequence', (q) => q.eq('threadId', threadId))
+        .collect(),
+    );
+    const assistant = messages.find((m) => m.role === 'assistant');
+    expect(assistant?.parts).toEqual([{ type: 'text', text: partial }]);
+    expect(assistant?.error).toMatch(/died/);
+  });
 });

@@ -65,8 +65,10 @@ export const DRAIN_WINDOW_MS = 90_000;
  * before cutting the window. A hold-stdin harness (claude-code) never exits
  * on its own — without the cut, every reply would sit out the full window. */
 export const TURN_ENDED_EXIT_GRACE_MS = 1_500;
-/** Floor between two mid-window writes of the accumulating reply text. */
-export const STREAM_TEXT_THROTTLE_MS = 1_000;
+/** Floor between two mid-window writes of the accumulating reply text. The
+ * writes land on the generation row (never the message row), so the cadence
+ * matches the direct lane's reading rhythm without invalidating the list. */
+export const STREAM_TEXT_THROTTLE_MS = 250;
 /** Overall wall-clock a turn may run before it is cut as hung. */
 export const EXTERNAL_TURN_DEADLINE_MS = 30 * 60_000;
 /** Session gateway key budget per turn, in cents. */
@@ -808,9 +810,10 @@ export async function drainExternalTurnWindow(
     start?: HarnessExec;
   },
 ): Promise<WindowOutcome> {
-  // Stream the text-so-far into the assistant message while the exec runs —
+  // Stream the text-so-far onto the generation row while the exec runs —
   // throttled by the window core, serialized, best-effort — so the reply reads
-  // live instead of landing once per window. Each write carries the FULL
+  // live instead of landing once per window, without touching the message row
+  // (which stays byte-stable until finalize). Each write carries the FULL
   // text-so-far (the SET is idempotent), so a failed write is healed by the
   // next one.
   let lastStreamedText = '';
@@ -824,8 +827,9 @@ export async function drainExternalTurnWindow(
       lastStreamedText = text;
       streamChain = streamChain.then(() =>
         ctx
-          .runMutation(internal.chat.messages.setAssistantTextInternal, {
+          .runMutation(internal.chat.generations.streamProgressInternal, {
             organizationId: args.scope.organizationId,
+            threadId: args.scope.threadId,
             messageId: args.messageId,
             text,
           })
@@ -854,8 +858,11 @@ export async function drainExternalTurnWindow(
 
   const text = window.text;
   if (text !== '' && text !== lastStreamedText) {
-    await ctx.runMutation(internal.chat.messages.setAssistantTextInternal, {
+    // Flush the window's full text past the throttle so the next window (or
+    // the finalize fallback) starts from everything this one parsed.
+    await ctx.runMutation(internal.chat.generations.streamProgressInternal, {
       organizationId: args.scope.organizationId,
+      threadId: args.scope.threadId,
       messageId: args.messageId,
       text,
     });

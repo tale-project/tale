@@ -515,38 +515,6 @@ function textOfParts(parts: unknown): string {
 }
 
 /**
- * Set the external turn's assistant message to the text parsed so far. Each
- * drainer window runs as its OWN Convex action with fresh memory and re-reads
- * the harness output from the START of the ring buffer, so it holds the FULL
- * text-so-far, not a delta — it REPLACES the message text rather than
- * appending, keeping the live reply correct no matter how many windows a turn
- * spans. (Re-parsing from the start also sidesteps a JSONL line split across a
- * window boundary, where a per-delta cursor would strand the tail.)
- */
-export const setAssistantTextInternal = internalMutation({
-  args: {
-    organizationId: v.string(),
-    // A plain string: the turn pipeline carries ids opaquely, so the id is
-    // normalized here rather than trusted at the boundary.
-    messageId: v.string(),
-    text: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    if (args.text === '') return null;
-    const messageId = ctx.db.normalizeId('messages', args.messageId);
-    if (!messageId) return null;
-    const message = await ctx.db.get(messageId);
-    if (!message || message.organizationId !== args.organizationId) return null;
-    if (textOfParts(message.parts) === args.text) return null;
-    await ctx.db.patch(messageId, {
-      parts: [{ type: 'text', text: args.text }],
-    });
-    return null;
-  },
-});
-
-/**
  * Settle the external turn's assistant message: replace its text with the
  * authoritative final text when the harness gave one (`turn-ended.finalText`),
  * else keep what streamed in, and stamp model / usage / a refusal reason.
@@ -571,10 +539,30 @@ export const finalizeAssistantMessageInternal = internalMutation({
     if (!messageId) return null;
     const message = await ctx.db.get(messageId);
     if (!message || message.organizationId !== args.organizationId) return null;
-    const text =
+    let text =
       args.finalText !== undefined && args.finalText !== ''
         ? args.finalText
         : textOfParts(message.parts);
+    if (text === '') {
+      // A mid-stream failure finalizes without text and the message row never
+      // carried any (streaming writes land on the generation row) — rescue
+      // the streamed partial from there. The generation still exists at this
+      // point: the turn deletes it only after this settle.
+      const threadId = ctx.db.normalizeId('threads', message.threadId);
+      if (threadId) {
+        const generation = await ctx.db
+          .query('generations')
+          .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+          .first();
+        if (
+          generation &&
+          generation.organizationId === args.organizationId &&
+          generation.messageId === args.messageId
+        ) {
+          text = generation.streamText ?? '';
+        }
+      }
+    }
     await ctx.db.patch(messageId, {
       parts: [{ type: 'text', text }],
       ...(args.model !== undefined ? { model: args.model } : {}),
