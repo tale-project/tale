@@ -14,6 +14,7 @@ import { useChatQuery } from '../data/chat-backend';
 import {
   createThreadViewState,
   reduceThreadView,
+  resolveHeldItems,
   type ThreadViewResult,
   type ThreadViewState,
 } from '../lib/thread-view-core';
@@ -42,6 +43,12 @@ export function useThreadView(
   threadId: string | undefined,
   /** The in-flight optimistic send, overlaid when it targets this thread. */
   pending?: PendingSend | null,
+  /**
+   * The lineage root. Sibling flips under one root (edit, retry, branch
+   * navigation) hold the previous sibling's rows on screen while the new
+   * subscription answers, instead of blanking to a skeleton.
+   */
+  holdScope?: string,
 ): ThreadView {
   const messages = useChatQuery(
     api.chat.messages.listMessages,
@@ -67,6 +74,10 @@ export function useThreadView(
   if (stateRef.current === null || stateRef.current.scope !== scopeKey) {
     stateRef.current = { scope: scopeKey, state: createThreadViewState() };
   }
+  const heldRef = useRef<{
+    scope: string;
+    items: ThreadViewResult['items'];
+  } | null>(null);
 
   if (threadId === undefined) return EMPTY_VIEW;
 
@@ -77,6 +88,24 @@ export function useThreadView(
       generationText.status === 'ready' ? generationText.data : undefined,
     pending: pending != null && pending.threadId === threadId ? pending : null,
   });
+
+  const holdKey = `${organizationId}:${holdScope ?? threadId}`;
+  const held = resolveHeldItems({
+    loading: messages.status === 'loading',
+    currentItems: view.items,
+    heldItems:
+      heldRef.current?.scope === holdKey ? heldRef.current.items : undefined,
+  });
+  if (held !== undefined) {
+    return {
+      status: 'ready',
+      ...view,
+      items: held,
+    };
+  }
+  if (messages.status === 'ready' && view.items.length > 0) {
+    heldRef.current = { scope: holdKey, items: view.items };
+  }
 
   return {
     status: messages.status,

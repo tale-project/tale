@@ -107,6 +107,16 @@ describe('forkGroupsForPath', () => {
     expect(groups.has(5)).toBe(false);
   });
 
+  it('ignores a selection naming a branch that has not arrived yet', () => {
+    // The edit flow flips the selection optimistically before the branches
+    // watch pushes the new row — the view must stay on the current sibling
+    // (the swap hold covers the gap) instead of dead-ending.
+    const path = resolveViewPath('root', [branch('b1', 'root', 2, 1)], {
+      'root:2': 'not-yet-created',
+    });
+    expect(path).toEqual(['root']);
+  });
+
   it('lets a deeper node win a sequence collision — its copy is on screen', () => {
     const branches = [branch('b1', 'root', 4, 1), branch('b2', 'b1', 2, 2)];
     const groups = forkGroupsForPath(['root', 'b1'], branches);

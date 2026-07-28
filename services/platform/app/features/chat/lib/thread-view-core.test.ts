@@ -5,6 +5,7 @@ import { createPendingSend } from '../utils/pending-messages';
 import {
   createThreadViewState,
   reduceThreadView,
+  resolveHeldItems,
   type ThreadViewInputs,
 } from './thread-view-core';
 
@@ -244,6 +245,64 @@ describe('reduceThreadView', () => {
     );
 
     expect(view.items.at(-1)?.reasoningText).toBe('Let me think.');
+  });
+
+  describe('view-swap hold', () => {
+    const heldItems = () => {
+      const state = createThreadViewState();
+      return reduceThreadView(
+        state,
+        inputs({ messages: thread('old answer'), generation: null }),
+      ).items;
+    };
+
+    it('serves the previous rows while the next sibling loads', () => {
+      const held = heldItems();
+      expect(
+        resolveHeldItems({ loading: true, currentItems: [], heldItems: held }),
+      ).toBe(held);
+    });
+
+    it('appends the optimistic overlay rows to the held transcript', () => {
+      const held = heldItems();
+      const state = createThreadViewState();
+      const pendingEdit = createPendingSend({
+        text: 'An edited question',
+        sentAt: 1_700_000_200_000,
+        threadId: 'branch-1',
+        baselineSequence: -1,
+      });
+      const overlayOnly = reduceThreadView(
+        state,
+        inputs({ pending: pendingEdit }),
+      ).items;
+
+      const merged = resolveHeldItems({
+        loading: true,
+        currentItems: overlayOnly,
+        heldItems: held,
+      });
+      expect(merged?.map((item) => item.key)).toEqual([
+        'u1',
+        'a2',
+        pendingEdit.key,
+        pendingEdit.shellKey,
+      ]);
+    });
+
+    it('steps aside as soon as real rows land', () => {
+      const held = heldItems();
+      expect(
+        resolveHeldItems({
+          loading: true,
+          currentItems: heldItems(),
+          heldItems: held,
+        }),
+      ).toBeUndefined();
+      expect(
+        resolveHeldItems({ loading: false, currentItems: [], heldItems: held }),
+      ).toBeUndefined();
+    });
   });
 
   describe('optimistic send overlay', () => {

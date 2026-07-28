@@ -90,6 +90,27 @@ export function createThreadViewState(): ThreadViewState {
   };
 }
 
+/**
+ * The view-swap hold decision. Flipping the rendered sibling under the same
+ * lineage root (edit, retry, the ‹ n/m › navigator) tears down one message
+ * subscription and opens another — for a round-trip the new view is loading
+ * and empty. Serving the PREVIOUS sibling's rows through that gap (plus any
+ * optimistic overlay rows the new view already carries) keeps the transcript
+ * on screen; the skeleton is reserved for a genuinely first open.
+ */
+export function resolveHeldItems(opts: {
+  readonly loading: boolean;
+  readonly currentItems: readonly ChatMessageItem[];
+  readonly heldItems: readonly ChatMessageItem[] | undefined;
+}): readonly ChatMessageItem[] | undefined {
+  if (!opts.loading || opts.heldItems === undefined) return undefined;
+  const overlay = opts.currentItems.filter(
+    (item) => item.isPendingShell === true,
+  );
+  if (opts.currentItems.length > overlay.length) return undefined;
+  return overlay.length > 0 ? [...opts.heldItems, ...overlay] : opts.heldItems;
+}
+
 /** Static rows for surfaces without a live turn (a shared snapshot): every
  * message rendered as settled, nothing streaming. */
 export function toSettledItems(

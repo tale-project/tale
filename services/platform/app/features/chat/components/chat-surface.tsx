@@ -198,7 +198,12 @@ function ChatSurfaceInner({
   // each send (true = instant, for the first message; 'smooth' = the
   // retargeting glide for follow-ups and edits).
   const scrollIntentRef = useRef<boolean | 'smooth'>(false);
-  const threadView = useThreadView(organizationId, viewThreadId, pendingSend);
+  const threadView = useThreadView(
+    organizationId,
+    viewThreadId,
+    pendingSend,
+    threadId,
+  );
   const generation = useChatGeneration(organizationId, viewThreadId);
   // Also answers for a project-shared conversation the caller may read but
   // not write — everything that composes or mutates gates on this.
@@ -492,6 +497,16 @@ function ChatSurfaceInner({
   useEffect(() => {
     if (pendingConsumed) setPendingSend(null);
   }, [pendingConsumed]);
+
+  // An edit swaps the rendered sibling under the reader; when the view lands
+  // on the fresh branch, re-arm the smooth snap so the edited message glides
+  // to the top even if an earlier content tick consumed the send's intent.
+  const editTargetReached =
+    pendingSend?.editedFromThreadId !== undefined &&
+    viewThreadId === pendingSend.threadId;
+  useEffect(() => {
+    if (editTargetReached) scrollIntentRef.current = 'smooth';
+  }, [editTargetReached]);
 
   const threadsAvailable = threads.status === 'ready';
   const messagesAvailable = threadView.status === 'ready';
