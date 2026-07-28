@@ -654,6 +654,9 @@ function ChatSurfaceInner({
           ...(arenaModelB?.providerSlug !== undefined
             ? { providerSlugB: arenaModelB.providerSlug }
             : {}),
+          ...(selection.reasoningEffort !== undefined
+            ? { reasoningEffort: selection.reasoningEffort }
+            : {}),
           locale,
         })
         .then(({ a, b }) => {
@@ -1022,6 +1025,7 @@ function ChatSurfaceInner({
               setArenaModelB({ id, providerSlug })
             }
             generating={generationInFlight || arenaBusyB}
+            voiceEnabled={voiceEnabled && speakAvailable}
             onVerdict={(verdict) => void handleArenaSettle(verdict)}
             onExit={() => void handleArenaSettle(undefined)}
           />
@@ -1180,7 +1184,7 @@ function ChatSurfaceInner({
             onOpenSkillLibrary={() => setSkillLibraryOpen(true)}
             voiceOutput={voiceEnabled}
             onVoiceOutputChange={handleVoiceOutputChange}
-            voiceOutputHidden={voiceVetoed || pair !== null}
+            voiceOutputHidden={voiceVetoed}
             voiceOutputAvailable={voiceCapabilities.hasTts}
             {...(arenaAvailable || pair !== null
               ? {

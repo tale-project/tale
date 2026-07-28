@@ -976,7 +976,6 @@ chat:
     noMessages: Aucun message à exporter
     you: Toi
     assistant: Assistant
-  moveToProject: Déplacer vers un projet…
   removeFromProject: Retirer du projet
   removeFromProjectFailed: Échec du retrait du chat du projet
   deleteChat: Supprimer le chat

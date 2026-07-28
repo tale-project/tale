@@ -73,6 +73,9 @@ interface MessageThreadProps {
    * assistant reply. Main-surface only — arena columns and the shared
    * snapshot stay clean. */
   dataNoticeOrganizationId?: string;
+  /** Force the voice pill onto one message — the arena read-aloud plays its
+   * combined utterance through that reply's player. */
+  forceVoicePillMessageId?: string;
   /** The caller's rating per message id, from the thread-wide feedback map. */
   feedback?: ReadonlyMap<string, 'positive' | 'negative'>;
   /** The sibling flippers of the view path, keyed by message sequence. */
@@ -110,6 +113,7 @@ export const MessageThread = memo(function MessageThread({
   pendingEditedFromThreadId,
   scrollIntentRef,
   dataNoticeOrganizationId,
+  forceVoicePillMessageId,
   feedback,
   forkGroups,
   onEditSubmit,
@@ -208,6 +212,7 @@ export const MessageThread = memo(function MessageThread({
       onFork={onFork}
       voiceEnabled={voiceEnabled}
       speakAvailable={speakAvailable}
+      voicePillForced={message.id === forceVoicePillMessageId}
       isFreshSinceMount={isFreshSinceMount(message.id)}
     />
   );

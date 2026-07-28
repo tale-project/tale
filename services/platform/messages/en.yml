@@ -933,7 +933,6 @@ chat:
     noMessages: No messages to export
     you: You
     assistant: Assistant
-  moveToProject: Move to project…
   removeFromProject: Remove from project
   removeFromProjectFailed: Failed to remove chat from project
   deleteChat: Delete chat

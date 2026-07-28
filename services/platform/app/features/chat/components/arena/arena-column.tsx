@@ -12,8 +12,9 @@
  */
 
 import { Text } from '@tale/ui/text';
-import { memo, type ReactNode } from 'react';
+import { memo, useEffect, useRef, type ReactNode } from 'react';
 
+import type { ArenaSettledReply } from '../../hooks/use-arena-voice';
 import { useThreadView } from '../../hooks/use-thread-view';
 import { MessageThread } from '../message-thread';
 
@@ -24,6 +25,11 @@ interface ArenaColumnProps {
   label: string;
   /** The model identity line, or the column's own picker (column B). */
   headerExtra?: ReactNode;
+  /** Fires once per round when this column's reply settles — the arena
+   * read-aloud sequencer collects both halves before speaking. */
+  onReplySettled?: (reply: ArenaSettledReply) => void;
+  /** The reply carrying the arena voice pill (column A only). */
+  voicePillMessageId?: string;
 }
 
 export const ArenaColumn = memo(function ArenaColumn({
@@ -31,8 +37,30 @@ export const ArenaColumn = memo(function ArenaColumn({
   threadId,
   label,
   headerExtra,
+  onReplySettled,
+  voicePillMessageId,
 }: ArenaColumnProps) {
   const view = useThreadView(organizationId, threadId);
+
+  // Report the round's settled reply exactly once. `isFinalReveal` gates to
+  // replies that STREAMED during this mount, so opening an old pair never
+  // reads history aloud.
+  const last = view.items.at(-1);
+  const settledTail =
+    last !== undefined &&
+    last.role === 'assistant' &&
+    !last.isStreaming &&
+    last.isFinalReveal &&
+    last.text.length > 0
+      ? last
+      : undefined;
+  const reportedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (settledTail === undefined || onReplySettled === undefined) return;
+    if (reportedRef.current === settledTail.id) return;
+    reportedRef.current = settledTail.id;
+    onReplySettled({ messageId: settledTail.id, text: settledTail.text });
+  }, [settledTail, onReplySettled]);
 
   return (
     <section
@@ -51,6 +79,7 @@ export const ArenaColumn = memo(function ArenaColumn({
         generation={view.generation ?? undefined}
         organizationId={organizationId}
         threadId={threadId}
+        forceVoicePillMessageId={voicePillMessageId}
       />
     </section>
   );

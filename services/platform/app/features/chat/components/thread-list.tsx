@@ -24,9 +24,9 @@ import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import {
   FolderPlus,
+  MessageCirclePlus,
   MessageSquareDashed,
   Search,
-  SquarePen,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -176,7 +176,7 @@ export function ThreadList({
   // second search implementation; absent when no sidebar surface exists to
   // open) and, to its right, starting a fresh conversation.
   const chatHeaderActions = (
-    <>
+    <div className="flex shrink-0 items-center justify-end">
       {sidebar && (
         <Tooltip
           content={t('searchChat')}
@@ -207,10 +207,10 @@ export function ThreadList({
           aria-label={t('newChat')}
           className="text-muted-foreground -my-1 -mr-1.5 size-7 shrink-0"
         >
-          <SquarePen className="size-4" />
+          <MessageCirclePlus className="size-4" />
         </Button>
       </Tooltip>
-    </>
+    </div>
   );
 
   // Each async section masks only ITS OWN rows — the section headers, the

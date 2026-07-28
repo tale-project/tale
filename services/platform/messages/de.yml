@@ -975,7 +975,6 @@ chat:
     noMessages: Keine Nachrichten zum Exportieren
     you: Du
     assistant: Assistent
-  moveToProject: In Projekt verschieben…
   removeFromProject: Aus Projekt entfernen
   removeFromProjectFailed: Chat konnte nicht aus dem Projekt entfernt werden
   deleteChat: Chat löschen

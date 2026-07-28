@@ -111,21 +111,34 @@ describe('ThreadRow', () => {
 
     await user.click(screen.getByRole('button', { name: 'More actions' }));
 
-    for (const item of ['Pin chat', 'Rename chat', 'Archive', 'Share']) {
+    for (const item of ['Pin chat', 'Rename', 'Archive', 'Share']) {
       expect(screen.getByRole('menuitem', { name: item })).toBeInTheDocument();
     }
+    // Filing INTO a project is drag-only (the panel is the picker); a loose
+    // chat therefore carries no project entry at all.
+    expect(screen.queryByRole('menuitem', { name: /project/i })).toBeNull();
+  });
+
+  it('offers the way out of a project, and only that', async () => {
+    const { user } = renderRow({ ...THREAD, projectId: 'p1' });
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+
     expect(
-      screen.getByRole('menuitem', { name: 'Move to project…' }),
+      screen.getByRole('menuitem', { name: 'Remove from project' }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Move to project…' }),
+    ).toBeNull();
   });
 
   it('renames inline: menu item swaps in an input, Enter commits', async () => {
     const { user } = renderRow(THREAD);
 
     await user.click(screen.getByRole('button', { name: 'More actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Rename chat' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Rename' }));
 
-    const input = screen.getByRole('textbox', { name: 'Rename chat' });
+    const input = screen.getByRole('textbox', { name: 'Rename' });
     expect(input).toHaveValue('Quarterly report');
     await user.clear(input);
     await user.type(input, '  Board deck  {Enter}');
@@ -175,7 +188,7 @@ describe('ThreadRow', () => {
       screen.getByRole('menuitem', { name: 'Unarchive' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Archive' })).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: 'Rename chat' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Rename' })).toBeNull();
   });
 
   it('archives from the menu and reports success', async () => {
@@ -219,7 +232,7 @@ describe('ThreadRow', () => {
     );
     // Non-destructive actions stay usable.
     expect(
-      screen.getByRole('menuitem', { name: 'Rename chat' }),
+      screen.getByRole('menuitem', { name: 'Rename' }),
     ).not.toHaveAttribute('aria-disabled', 'true');
   });
 

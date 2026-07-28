@@ -13,6 +13,7 @@ import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
 import { api } from '@/convex/_generated/api';
+import type { ReasoningEffort } from '@/lib/chat/effort';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 
 interface SideResult {
@@ -37,6 +38,8 @@ export interface ArenaActions {
     modelIdB: string;
     providerSlugA?: string;
     providerSlugB?: string;
+    /** One effort for both columns — the pair compares models, not knobs. */
+    reasoningEffort?: ReasoningEffort;
     locale?: string;
   }) => Promise<{ a: SideResult; b: SideResult }>;
   /** Settle the pair — verdict picks the surviving thread; none = exit. */

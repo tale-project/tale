@@ -89,6 +89,9 @@ interface MessageItemProps {
   voiceEnabled?: boolean;
   /** The org can synthesize — gates the "Speak out loud" action. */
   speakAvailable?: boolean;
+  /** Mount this message's voice pill regardless of voice mode — the arena
+   * plays its combined round through one reply's player. */
+  voicePillForced?: boolean;
   /** The message arrived live during this mount (not with the history). */
   isFreshSinceMount?: boolean;
 }
@@ -107,6 +110,7 @@ function MessageItemComponent({
   onFork,
   voiceEnabled,
   speakAvailable,
+  voicePillForced,
   isFreshSinceMount,
 }: MessageItemProps) {
   const { t } = useT('chat');
@@ -154,6 +158,7 @@ function MessageItemComponent({
           onFork={onFork}
           voiceEnabled={voiceEnabled}
           speakAvailable={speakAvailable}
+          voicePillForced={voicePillForced}
           isFreshSinceMount={isFreshSinceMount}
         />
       ) : message.role === 'system' ? (
@@ -209,6 +214,7 @@ export const MessageItem = memo(
     prevProps.onFork === nextProps.onFork &&
     prevProps.voiceEnabled === nextProps.voiceEnabled &&
     prevProps.speakAvailable === nextProps.speakAvailable &&
+    prevProps.voicePillForced === nextProps.voicePillForced &&
     prevProps.isFreshSinceMount === nextProps.isFreshSinceMount,
 );
 
@@ -319,6 +325,7 @@ function AssistantBody({
   onFork,
   voiceEnabled,
   speakAvailable,
+  voicePillForced,
   isFreshSinceMount,
 }: {
   message: ChatMessageItem;
@@ -330,6 +337,7 @@ function AssistantBody({
   onFork?: (message: ChatMessageView) => void;
   voiceEnabled?: boolean;
   speakAvailable?: boolean;
+  voicePillForced?: boolean;
   isFreshSinceMount?: boolean;
 }) {
   const { text, isStreaming } = message;
@@ -380,6 +388,7 @@ function AssistantBody({
   // carries per-row chunk subscriptions.
   const showVoicePill =
     (voiceEnabled === true && (isStreaming || isFreshSinceMount === true)) ||
+    voicePillForced === true ||
     onDemand.requested;
 
   return (
