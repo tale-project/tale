@@ -340,7 +340,8 @@ describe('startTurnForApiKey', () => {
     expect(messages[0]).toMatchObject({
       role: 'assistant',
       model: 'no-such-model',
-      error: outcome.reason,
+      // Stored as the structured envelope; the raw reason is inside it.
+      error: expect.stringContaining(outcome.reason ?? ''),
     });
     // No generation row is left behind for the poll to hang on.
     expect(

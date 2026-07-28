@@ -83,7 +83,6 @@ function turnRequest(threadId: Id<'threads'>): TurnRequest {
     organizationId: ORG,
     userId: USER,
     threadId,
-    streamId: 'stream-1',
     userText: 'Hi there',
     history: [],
     locale: 'en',

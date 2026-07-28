@@ -134,7 +134,6 @@ function request(overrides: Partial<TurnRequest> = {}): TurnRequest {
     organizationId: ORG,
     userId: 'user_1',
     threadId: 'thread_1',
-    streamId: 'stream_1',
     userText: 'how do I return a printer?',
     history: [],
     locale: 'en',

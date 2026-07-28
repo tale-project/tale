@@ -35,6 +35,7 @@ import { randomUUID } from 'node:crypto';
 
 import { v } from 'convex/values';
 
+import { CHAT_STOPPED_MARKER } from '../../lib/shared/chat-errors';
 import { parseSlashInvocation } from '../../lib/skills/slash';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -198,7 +199,6 @@ export async function kickExternalTurn(
   await ctx.runMutation(internal.chat.generations.beginGenerationInternal, {
     organizationId: args.organizationId,
     threadId: args.threadId,
-    streamId,
     messageId,
     external: {
       execId,
@@ -693,7 +693,7 @@ export const stopExternalTurn = action({
       errored: false,
       cancelled: true,
       harness: external.harness,
-      reason: 'You stopped this response.',
+      reason: CHAT_STOPPED_MARKER,
     });
     return { stopped: true };
   },

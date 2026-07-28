@@ -132,7 +132,6 @@ export interface TurnStore {
   beginGeneration(generation: {
     organizationId: string;
     threadId: string;
-    streamId: string;
     /** The assistant placeholder the turn streams into. */
     messageId?: string;
   }): Promise<void>;
@@ -170,7 +169,6 @@ export interface TurnRequest {
   readonly organizationId: string;
   readonly userId: string;
   readonly threadId: string;
-  readonly streamId: string;
   /** What the user just sent. */
   readonly userText: string;
   /** The conversation so far, oldest first, excluding `userText`. */
@@ -496,7 +494,6 @@ export async function runTurn(
   await deps.store.beginGeneration({
     organizationId: request.organizationId,
     threadId: request.threadId,
-    streamId: request.streamId,
     messageId: placeholder.id,
   });
 

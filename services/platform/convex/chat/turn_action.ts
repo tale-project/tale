@@ -21,8 +21,6 @@
  * where a silent empty turn is not.
  */
 
-import { randomUUID } from 'node:crypto';
-
 import { ConvexError, v } from 'convex/values';
 
 import { runTurn } from '../../lib/chat/turn';
@@ -450,7 +448,6 @@ export async function executeTurn(
     organizationId: args.organizationId,
     userId: args.userId,
     threadId: args.threadId,
-    streamId: randomUUID(),
     userText,
     history,
     locale: args.locale,

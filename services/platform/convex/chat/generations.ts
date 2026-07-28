@@ -139,7 +139,6 @@ export const beginGenerationInternal = internalMutation({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
-    streamId: v.string(),
     /** The assistant message the turn streams into, when created up front (the
      * external lane writes a placeholder so a drainer window can append to it). */
     messageId: v.optional(v.string()),
@@ -157,7 +156,6 @@ export const beginGenerationInternal = internalMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         status: 'queued',
-        streamId: args.streamId,
         messageId: args.messageId,
         external: args.external,
         waitingOn: undefined,
@@ -170,7 +168,6 @@ export const beginGenerationInternal = internalMutation({
       organizationId: args.organizationId,
       threadId: args.threadId,
       status: 'queued',
-      streamId: args.streamId,
       ...(args.messageId !== undefined ? { messageId: args.messageId } : {}),
       ...(args.external !== undefined ? { external: args.external } : {}),
       startedAt: now,

@@ -224,8 +224,9 @@ export const generationsTable = defineTable({
     v.literal('waiting-approval'),
     v.literal('waiting-input'),
   ),
-  /** The stream the client subscribes to. */
-  streamId: v.string(),
+  /** Vestige of a never-wired stream design; kept optional so existing rows
+   * stay valid. Dropped for real at the next release checkpoint. */
+  streamId: v.optional(v.string()),
   /** The assistant message being written, once it exists. */
   messageId: v.optional(v.string()),
   /**

@@ -157,7 +157,6 @@ describe('chat thread trash lifecycle', () => {
     await t.mutation(internal.chat.generations.beginGenerationInternal, {
       organizationId: ORG,
       threadId: id,
-      streamId: 's1',
     });
     await expect(
       t
