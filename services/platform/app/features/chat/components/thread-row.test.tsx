@@ -114,22 +114,20 @@ describe('ThreadRow', () => {
     for (const item of ['Pin chat', 'Rename', 'Archive', 'Share']) {
       expect(screen.getByRole('menuitem', { name: item })).toBeInTheDocument();
     }
-    // Filing INTO a project is drag-only (the panel is the picker); a loose
-    // chat therefore carries no project entry at all.
-    expect(screen.queryByRole('menuitem', { name: /project/i })).toBeNull();
+    expect(
+      screen.getByRole('menuitem', { name: /Move to project/ }),
+    ).toBeInTheDocument();
   });
 
-  it('offers the way out of a project, and only that', async () => {
+  it('offers the folders and the way out under Move to project', async () => {
     const { user } = renderRow({ ...THREAD, projectId: 'p1' });
 
     await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
 
     expect(
-      screen.getByRole('menuitem', { name: 'Remove from project' }),
+      await screen.findByRole('menuitem', { name: 'Remove from project' }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('menuitem', { name: 'Move to project…' }),
-    ).toBeNull();
   });
 
   it('renames inline: menu item swaps in an input, Enter commits', async () => {

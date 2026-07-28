@@ -103,24 +103,32 @@ function renderComposer({
   return { ...render(<Harness />), selection: () => seen[seen.length - 1] };
 }
 
+/** Open the one picker, then one of its section submenus. */
+async function openSection(
+  user: ReturnType<typeof renderComposer>['user'],
+  name: RegExp,
+) {
+  await user.click(
+    screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+  );
+  await user.click(screen.getByRole('menuitem', { name }));
+}
+
 describe('Composer agent picker', () => {
-  it('groups the menu into the chat entry and sandboxed agents', async () => {
+  it('offers the platform assistant and every sandboxed agent in one section', async () => {
     const { user } = renderComposer();
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
+    await openSection(user, /^Agent/);
 
-    expect(screen.getByText('Agents · run in a sandbox')).toBeInTheDocument();
-    // Platform mode lists the models directly — picking one IS picking the
-    // Chat agent, so there is no separate "Chat" row to click.
     expect(
-      screen.getByRole('menuitem', { name: API_KEY_MODEL.label }),
+      await screen.findByRole('menuitem', { name: 'Chat' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('menuitem', { name: 'Claude Code' }),
+      screen.getByRole('menuitem', { name: /^Claude Code/ }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Codex' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: /^Codex/ }),
+    ).toBeInTheDocument();
   });
 
   it('picking an external agent switches the kind and keeps the platform model for the way back', async () => {
@@ -128,10 +136,8 @@ describe('Composer agent picker', () => {
       initial: { ...PLATFORM, modelId: API_KEY_MODEL.id },
     });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    await user.click(screen.getByRole('menuitem', { name: 'Codex' }));
+    await openSection(user, /^Agent/);
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Codex/ }));
 
     expect(selection()).toMatchObject({
       agentKind: 'external',
@@ -160,10 +166,8 @@ describe('Composer agent picker', () => {
   it('returns to the platform agent and its model picker', async () => {
     const { user, selection } = renderComposer({ initial: EXTERNAL });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    await user.click(screen.getByRole('menuitem', { name: 'Chat' }));
+    await openSection(user, /^Agent/);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Chat' }));
 
     expect(selection()).toMatchObject({ agentKind: 'platform' });
     expect(selection().harness).toBeUndefined();
@@ -181,8 +185,8 @@ describe('Composer skill assembly', () => {
     await user.click(
       screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
     );
-    // The pick count trails inside the row, so it concatenates into the
-    // accessible name ("Skills1") — match by prefix.
+    // Each section is a submenu row; its current pick/count trails inside the
+    // row, so the accessible name carries it — match by prefix.
     await user.click(screen.getByRole('menuitem', { name }));
   };
 
@@ -270,24 +274,23 @@ describe('Composer model picker', () => {
       models: [API_KEY_MODEL, SUBSCRIPTION_MODEL],
     });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
+    await openSection(user, /^Model/);
 
     expect(
-      screen.getByRole('menuitem', { name: API_KEY_MODEL.label }),
+      await screen.findByRole('menuitem', {
+        name: new RegExp(`^${API_KEY_MODEL.label}`),
+      }),
     ).toBeInTheDocument();
     // A subscription model has no direct path — it belongs to its vendor's
     // harness lane, so the platform picker never offers a dead end. The
-    // harness itself appears, but as an AGENT under its own section — never
-    // masquerading as a pickable platform model.
+    // harness lives in the Agent section, never masquerading as a pickable
+    // platform model.
     expect(
-      screen.queryByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+      screen.queryByRole('menuitem', {
+        name: (name: string) => name.startsWith(SUBSCRIPTION_MODEL.label),
+      }),
     ).toBeNull();
-    expect(
-      screen.getByRole('menuitem', { name: 'Claude Code' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Agents · run in a sandbox')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Claude Code' })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /^auto$/i })).toBeNull();
   });
 
@@ -296,11 +299,11 @@ describe('Composer model picker', () => {
       models: [API_KEY_MODEL, SUBSCRIPTION_MODEL],
     });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    await user.click(
-      screen.getByRole('menuitem', { name: API_KEY_MODEL.label }),
+    await openSection(user, /^Model/);
+    fireEvent.click(
+      await screen.findByRole('menuitem', {
+        name: new RegExp(`^${API_KEY_MODEL.label}`),
+      }),
     );
 
     expect(selection()).toMatchObject({
@@ -321,18 +324,20 @@ describe('Composer model picker', () => {
       models: [SUBSCRIPTION_MODEL, API_KEY_MODEL, secondDirect],
     });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
+    await openSection(user, /^Model/);
 
     // A subscription-bound model only runs in its own vendor's tooling — the
     // external lane never offers it.
     expect(
-      screen.queryByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+      screen.queryByRole('menuitem', {
+        name: (name: string) => name.startsWith(SUBSCRIPTION_MODEL.label),
+      }),
     ).toBeNull();
 
-    await user.click(
-      screen.getByRole('menuitem', { name: secondDirect.label }),
+    fireEvent.click(
+      await screen.findByRole('menuitem', {
+        name: new RegExp(`^${secondDirect.label}`),
+      }),
     );
 
     expect(selection()).toMatchObject({
@@ -348,11 +353,11 @@ describe('Composer model picker', () => {
       models: [SUBSCRIPTION_MODEL, API_KEY_MODEL],
     });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    await user.click(
-      screen.getByRole('menuitem', { name: SUBSCRIPTION_MODEL.label }),
+    await openSection(user, /^Model/);
+    fireEvent.click(
+      await screen.findByRole('menuitem', {
+        name: (name: string) => name.startsWith(SUBSCRIPTION_MODEL.label),
+      }),
     );
 
     expect(selection()).toMatchObject({

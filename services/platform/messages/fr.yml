@@ -984,6 +984,7 @@ chat:
     noMessages: Aucun message à exporter
     you: Toi
     assistant: Assistant
+  moveToProject: Déplacer vers un projet…
   removeFromProject: Retirer du projet
   removeFromProjectFailed: Échec du retrait du chat du projet
   deleteChat: Supprimer le chat
@@ -1014,7 +1015,6 @@ chat:
   toast:
     sendFailed: Échec de l'envoi du message
   agentSelector:
-    sectionThirdParty: Agents · s’exécutent dans une sandbox
     degraded: en échec récemment
     defaultAgent: Chat
   modelSelector:
@@ -1155,6 +1155,7 @@ chat:
     empty: Aucune conversation pour l'instant
     emptySubtitle: Démarre un nouveau chat pour commencer
     untitled: Chat sans titre
+    noProjects: Aucun projet — crées-en un dans le panneau ci-dessus.
     generating: Génération de la réponse
     renameChat: Renommer
     loadMore: Charger plus
@@ -1386,6 +1387,10 @@ chat:
     maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
   picker:
     ariaLabel: "Choisir l'agent, le modèle et l'effort"
+    searchPlaceholder: Rechercher…
+    searchEmpty: Aucun résultat
+    sectionModel: Modèle
+    sectionAgent: Agent
   thinking:
     label: Réflexion
     done: A réfléchi pendant {seconds}s

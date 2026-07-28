@@ -67,6 +67,10 @@ function readDragData(
     type: 'thread',
     title: data.title,
     projectId: typeof data.projectId === 'string' ? data.projectId : null,
+    // Carried through so a drag OUT of the archived drawer can revive the
+    // chat — the reader rebuilds field by field, so anything omitted here is
+    // silently lost.
+    archived: data.archived === true,
   };
 }
 

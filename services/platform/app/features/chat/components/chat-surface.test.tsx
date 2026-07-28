@@ -141,6 +141,17 @@ afterEach(() => {
  * that answer — it must say so, and it must not present an empty
  * conversation as a loaded one.
  */
+/** Open the composer's one picker, then one of its section submenus. */
+async function openSection(
+  user: ReturnType<typeof render>['user'],
+  name: RegExp,
+) {
+  await user.click(
+    screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+  );
+  await user.click(screen.getByRole('menuitem', { name }));
+}
+
 describe('ChatSurface while the chat backend is unavailable', () => {
   it('states that chat is not connected instead of showing an empty thread', () => {
     render(<ChatSurface organizationId="org-1" />);
@@ -421,11 +432,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     // Seeding picked MODEL by default — that must not have been saved.
     expect(save).not.toHaveBeenCalled();
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    await user.click(
-      screen.getByRole('menuitem', { name: 'deepseek-reasoner' }),
+    await openSection(user, /^Model/);
+    fireEvent.click(
+      await screen.findByRole('menuitem', {
+        name: (name: string) => name.startsWith('deepseek-reasoner'),
+      }),
     );
 
     expect(save).toHaveBeenCalledWith('deepseek-reasoner');
@@ -649,13 +660,10 @@ describe('ChatSurface on an open sandbox thread', () => {
 
     // The trigger itself stays live (model and effort remain pickable); the
     // entries that would SWITCH the pinned agent are the ones disabled.
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    expect(screen.getByRole('menuitem', { name: 'Chat' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    await openSection(user, /^Agent/);
+    expect(
+      await screen.findByRole('menuitem', { name: 'Chat' }),
+    ).toBeDisabled();
   });
 
   it('offers a working Stop while an external turn is in flight', async () => {

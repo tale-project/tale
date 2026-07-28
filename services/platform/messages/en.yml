@@ -941,6 +941,7 @@ chat:
     noMessages: No messages to export
     you: You
     assistant: Assistant
+  moveToProject: Move to project…
   removeFromProject: Remove from project
   removeFromProjectFailed: Failed to remove chat from project
   deleteChat: Delete chat
@@ -971,7 +972,6 @@ chat:
   toast:
     sendFailed: Failed to send message
   agentSelector:
-    sectionThirdParty: Agents · run in a sandbox
     degraded: recently failing
     defaultAgent: Chat
   modelSelector:
@@ -1112,6 +1112,7 @@ chat:
     empty: No conversations yet
     emptySubtitle: Start a new chat to begin
     untitled: Untitled chat
+    noProjects: No projects yet — create one in the panel above.
     generating: Generating response
     renameChat: Rename
     loadMore: Load more
@@ -1333,6 +1334,10 @@ chat:
     maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
   picker:
     ariaLabel: Choose agent, model, and effort
+    searchPlaceholder: Search…
+    searchEmpty: No matches
+    sectionModel: Model
+    sectionAgent: Agent
   thinking:
     label: Thinking
     done: Thought for {seconds}s

@@ -24,7 +24,7 @@ import {
   Boxes,
   CheckCheck,
   CircleDot,
-  FolderMinus,
+  FolderInput,
   Link2,
   Link2Off,
   MoreHorizontal,
@@ -41,6 +41,7 @@ import {
   useSubPanelRowTreatment,
 } from '@/app/components/layout/sub-panel-list';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useCopy } from '@/app/hooks/use-copy';
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { toast } from '@/app/hooks/use-toast';
@@ -51,6 +52,7 @@ import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
 import { useThreadSharing } from '../data/thread-sharing';
 import type { ChatThreadSummary } from '../types';
+import { PickerSearchList } from './picker-search-list';
 import { useThreadDraggable } from './thread-dnd';
 import { useThreadListFrame } from './thread-list-context';
 
@@ -304,12 +306,17 @@ function ThreadRowMenu({
   const { t: tCommon } = useT('common');
   const { t: tGovernance } = useT('governance');
   const navigate = useNavigate();
-  const { organizationId, orgHeld, heldThreadIds } = useThreadListFrame();
+  const { organizationId, projects, orgHeld, heldThreadIds } =
+    useThreadListFrame();
   const actions = useThreadActions(organizationId);
   const sharing = useThreadSharing(organizationId);
   const projectMove = useThreadProjectMove(organizationId);
   const { copy } = useCopy();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  /** The chat's current folder name — the collapsed row's trailing hint. */
+  const currentProjectName = projects.find(
+    (project) => project.id === thread.projectId,
+  )?.name;
   // The server enforces every hold on the mutation; this only explains the
   // disabled destructive items up front.
   const held = orgHeld || heldThreadIds.has(thread.id);
@@ -452,18 +459,60 @@ function ThreadRowMenu({
               icon: Pencil,
               onClick: onStartRename,
             },
-            // A chat joins a project by DRAGGING it onto the folder (the
-            // panel is the picker); the menu only offers the way back out.
-            ...(thread.projectId !== undefined
-              ? [
+            // Two ways into a project: DRAG the chat onto the folder, or
+            // pick one here — the submenu's list is searchable and scrolls
+            // after four folders, so a big workspace never overflows it.
+            {
+              type: 'sub' as const,
+              label: t('moveToProject'),
+              icon: FolderInput,
+              ...(currentProjectName !== undefined
+                ? { trailing: currentProjectName }
+                : {}),
+              contentClassName: 'min-w-56',
+              items: [
+                [
                   {
-                    type: 'item' as const,
-                    label: t('removeFromProject'),
-                    icon: FolderMinus,
-                    onClick: () => handleMoveToProject(null),
+                    type: 'custom' as const,
+                    content: (
+                      <PickerSearchList
+                        options={[
+                          ...projects.map((project) => ({
+                            key: project.id,
+                            search: project.name,
+                            label: (
+                              <span className="flex min-w-0 items-center gap-2">
+                                <ProjectAvatar
+                                  name={project.name}
+                                  icon={project.icon}
+                                  color={project.color}
+                                  size={16}
+                                  variant="plain"
+                                />
+                                <span className="truncate">{project.name}</span>
+                              </span>
+                            ),
+                            selected: project.id === thread.projectId,
+                            onSelect: () => handleMoveToProject(project.id),
+                          })),
+                          ...(thread.projectId !== undefined
+                            ? [
+                                {
+                                  key: '__none__',
+                                  search: t('removeFromProject'),
+                                  label: t('removeFromProject'),
+                                  onSelect: () => handleMoveToProject(null),
+                                },
+                              ]
+                            : []),
+                        ]}
+                        emptyHint={t('history.noProjects')}
+                      />
+                    ),
                   },
-                ]
-              : []),
+                ],
+              ],
+            },
           ],
           [
             {
