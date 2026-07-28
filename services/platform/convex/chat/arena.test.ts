@@ -107,6 +107,45 @@ async function ensurePair(
 }
 
 describe('arena pair lifecycle', () => {
+  it('bounds the copy on a long thread and says what was left out', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const threadId = await createThread(t, ALICE);
+    // Three over the 200-message bound.
+    for (let index = 0; index < 203; index += 1) {
+      await appendMessage(
+        t,
+        threadId,
+        index % 2 === 0 ? 'user' : 'assistant',
+        `message ${index}`,
+      );
+    }
+
+    const { threadIdB } = await ensurePair(t, threadId);
+
+    const copied = await t.run(async (ctx) =>
+      ctx.db
+        .query('messages')
+        .withIndex('by_thread_sequence', (q) => q.eq('threadId', threadIdB))
+        .collect(),
+    );
+    // 1 notice row + the 200 newest messages, sequences contiguous from 0.
+    expect(copied).toHaveLength(201);
+    expect(copied.map((m) => m.sequence)).toEqual(
+      Array.from({ length: 201 }, (_, index) => index),
+    );
+    const [notice, ...rest] = copied;
+    expect(notice?.role).toBe('system');
+    expect(notice?.parts).toEqual([
+      {
+        type: 'text',
+        text: '[3 earlier messages were not copied into this comparison.]',
+      },
+    ]);
+    expect(rest[0]?.parts).toEqual([{ type: 'text', text: 'message 3' }]);
+    expect(rest.at(-1)?.parts).toEqual([{ type: 'text', text: 'message 202' }]);
+  });
+
   it('copies the whole history into a hidden column B and is idempotent', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, ALICE, ORG_A);

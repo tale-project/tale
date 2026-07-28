@@ -27,6 +27,11 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { loadOwnedThread } from './threads';
 
+/** Bound on the history copied into column B — enough conversation for a
+ * fair comparison without risking the mutation's read/write ceilings. */
+const ARENA_COPY_MAX_MESSAGES = 200;
+const ARENA_COPY_MAX_CHARS = 480_000;
+
 const arenaVerdictValidator = v.union(
   ...ARENA_VERDICTS.map((verdict) => v.literal(verdict)),
 );
@@ -146,13 +151,47 @@ export const ensureArenaPair = mutation({
       updatedAt: now,
     });
 
-    const history = await ctx.db
+    // Copy the history newest-first up to a bound, then insert oldest-first
+    // with sequences re-based at 0. An unbounded copy of a huge thread would
+    // blow the mutation's read and write limits; the model-facing notice row
+    // (English on purpose — model-facing, like the truncation notice) tells
+    // column B's model what it is missing.
+    const recent: Doc<'messages'>[] = [];
+    let recentChars = 0;
+    for await (const message of ctx.db
       .query('messages')
       .withIndex('by_thread_sequence', (q) =>
         q.eq('threadId', String(thread._id)),
       )
-      .collect();
+      .order('desc')) {
+      recent.push(message);
+      recentChars += JSON.stringify(message.parts).length;
+      if (
+        recent.length >= ARENA_COPY_MAX_MESSAGES ||
+        recentChars >= ARENA_COPY_MAX_CHARS
+      ) {
+        break;
+      }
+    }
+    const history = recent.toReversed();
+    const omitted = history[0] ? history[0].sequence : 0;
     let sequence = 0;
+    if (omitted > 0) {
+      await ctx.db.insert('messages', {
+        organizationId: thread.organizationId,
+        threadId: threadIdB,
+        role: 'system',
+        parts: [
+          {
+            type: 'text',
+            text: `[${omitted} earlier message${omitted === 1 ? '' : 's'} were not copied into this comparison.]`,
+          },
+        ],
+        sequence,
+        createdAt: now,
+      });
+      sequence += 1;
+    }
     for (const message of history) {
       await ctx.db.insert('messages', {
         organizationId: message.organizationId,
