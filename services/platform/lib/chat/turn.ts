@@ -69,6 +69,8 @@ export type TurnStep = (typeof TURN_STEPS)[number];
  * its own estimate, so the ledger records what was actually billed. */
 export interface ModelStreamChunk {
   readonly text: string;
+  /** A reasoning ("thinking") delta, when the turn requested reasoning. */
+  readonly reasoning?: string;
   readonly usage?: TurnUsage;
 }
 
@@ -132,6 +134,8 @@ export interface TurnStore {
     threadId: string;
     messageId: string;
     text?: string;
+    /** The model's reasoning, settled as a display-only part. */
+    reasoning?: string;
     model?: string;
     providerSlug?: string;
     usage?: TurnUsage;
@@ -329,6 +333,8 @@ export async function streamWithOutputGuardrails(
   assistantMessageId?: string,
 ): Promise<{
   text: string;
+  /** The model's accumulated reasoning ("thinking") text, when any. */
+  reasoning?: string;
   refusal?: GuardrailRefusal;
   reportedUsage?: TurnUsage;
   /** When the first cleared chunk was emitted — the TTFT anchor. */
@@ -339,6 +345,7 @@ export async function streamWithOutputGuardrails(
   });
   const now = deps.now ?? (() => new Date());
   let cleared = '';
+  let reasoning = '';
   let reportedUsage: TurnUsage | undefined;
   let firstChunkAtMs: number | undefined;
 
@@ -364,6 +371,7 @@ export async function streamWithOutputGuardrails(
         threadId: request.threadId,
         messageId: assistantMessageId,
         text: cleared,
+        ...(reasoning.length > 0 ? { reasoning } : {}),
       });
     } catch (error) {
       console.warn(
@@ -383,10 +391,15 @@ export async function streamWithOutputGuardrails(
     signal: request.signal,
   })) {
     if (chunk.usage) reportedUsage = chunk.usage;
+    // Reasoning bypasses the output guardrails: it is display-only, never
+    // wire-replayed, and holding the answer hostage to filtered thinking
+    // would block replies whose visible text is clean.
+    if (chunk.reasoning !== undefined) reasoning += chunk.reasoning;
     const checked = await transform.push(chunk.text);
     if (!emit(checked)) {
       return {
         text: cleared,
+        ...(reasoning.length > 0 ? { reasoning } : {}),
         refusal: checked.refusal,
         reportedUsage,
         firstChunkAtMs,
@@ -399,12 +412,18 @@ export async function streamWithOutputGuardrails(
   if (!emit(tail)) {
     return {
       text: cleared,
+      ...(reasoning.length > 0 ? { reasoning } : {}),
       refusal: tail.refusal,
       reportedUsage,
       firstChunkAtMs,
     };
   }
-  return { text: cleared, reportedUsage, firstChunkAtMs };
+  return {
+    text: cleared,
+    ...(reasoning.length > 0 ? { reasoning } : {}),
+    reportedUsage,
+    firstChunkAtMs,
+  };
 }
 
 /**
@@ -560,6 +579,9 @@ export async function runTurn(
         threadId: request.threadId,
         messageId: placeholder.id,
         text: streamed.text,
+        ...(streamed.reasoning !== undefined
+          ? { reasoning: streamed.reasoning }
+          : {}),
         model: request.model.id,
         providerSlug: request.model.provider,
         usage,
@@ -581,6 +603,9 @@ export async function runTurn(
       threadId: request.threadId,
       messageId: placeholder.id,
       text: streamed.text,
+      ...(streamed.reasoning !== undefined
+        ? { reasoning: streamed.reasoning }
+        : {}),
       model: request.model.id,
       providerSlug: request.model.provider,
       usage,

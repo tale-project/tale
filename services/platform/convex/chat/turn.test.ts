@@ -245,6 +245,42 @@ describe('chat turn — end to end against a fake model', () => {
     expect(await liveGeneration()).toBeNull();
   });
 
+  it('settles the reasoning as a display-only part ahead of the answer', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    const answer = 'a'.repeat(150);
+    const thinkingModel: ModelCall = async function* thinkingModel() {
+      yield { text: '', reasoning: 'Let me check the return policy. ' };
+      yield { text: '', reasoning: 'Thirty days applies.' };
+      yield { text: answer };
+    };
+
+    const outcome = await t.action(async (ctx) =>
+      runTurn(turnRequest(threadId), {
+        harnesses: new Map(),
+        model: thinkingModel,
+        store: createConvexTurnStore(ctx),
+        usage: { record: async () => undefined },
+      }),
+    );
+    expect(outcome.status).toBe('completed');
+
+    const messages = await t.run(async (ctx) =>
+      ctx.db
+        .query('messages')
+        .withIndex('by_thread_sequence', (q) => q.eq('threadId', threadId))
+        .collect(),
+    );
+    const assistant = messages.find((m) => m.role === 'assistant');
+    expect(assistant?.parts).toEqual([
+      {
+        type: 'reasoning',
+        text: 'Let me check the return policy. Thirty days applies.',
+      },
+      { type: 'text', text: answer },
+    ]);
+  });
+
   it('rescues the streamed partial when the model dies after clearing text', async () => {
     const t = convexTest(schema, modules);
     const threadId = await seedThread(t);

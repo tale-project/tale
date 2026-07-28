@@ -1376,6 +1376,9 @@ chat:
     high: Élevé
     extra: Extra
     max: Maximal
+  thinking:
+    label: Réflexion
+    done: A réfléchi pendant {seconds}s
 
   budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Merci de contacter ton administrateur.
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Merci de contacter ton administrateur."

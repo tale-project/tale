@@ -525,6 +525,8 @@ export const finalizeAssistantMessageInternal = internalMutation({
     // A plain string, normalized here — see `setAssistantTextInternal`.
     messageId: v.string(),
     finalText: v.optional(v.string()),
+    /** The model's reasoning ("thinking"), settled as a display-only part. */
+    reasoning: v.optional(v.string()),
     model: v.optional(v.string()),
     providerSlug: v.optional(v.string()),
     usage: v.optional(v.any()),
@@ -543,6 +545,7 @@ export const finalizeAssistantMessageInternal = internalMutation({
       args.finalText !== undefined && args.finalText !== ''
         ? args.finalText
         : textOfParts(message.parts);
+    let reasoning = args.reasoning ?? '';
     if (text === '') {
       // A mid-stream failure finalizes without text and the message row never
       // carried any (streaming writes land on the generation row) — rescue
@@ -560,11 +563,15 @@ export const finalizeAssistantMessageInternal = internalMutation({
           generation.messageId === args.messageId
         ) {
           text = generation.streamText ?? '';
+          if (reasoning === '') reasoning = generation.streamReasoning ?? '';
         }
       }
     }
     await ctx.db.patch(messageId, {
-      parts: [{ type: 'text', text }],
+      parts: [
+        ...(reasoning !== '' ? [{ type: 'reasoning', text: reasoning }] : []),
+        { type: 'text', text },
+      ],
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.providerSlug !== undefined
         ? { providerSlug: args.providerSlug }

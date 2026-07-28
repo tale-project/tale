@@ -1376,6 +1376,9 @@ chat:
     high: Hoch
     extra: Extra
     max: Maximal
+  thinking:
+    label: Denkt nach
+    done: Hat {seconds}s nachgedacht
 
   budgetExceededDetail: '{type}-Limit für diesen {period}-Zeitraum erreicht ({used} / {limit}). Bitte kontaktiere deinen Administrator.'
   budgetExceededDefault: Dein Nutzungslimit für diesen Zeitraum wurde erreicht. Bitte kontaktiere deinen Administrator.

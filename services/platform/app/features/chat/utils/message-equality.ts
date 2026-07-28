@@ -29,6 +29,8 @@ export function samePart(a: MessagePart, b: MessagePart): boolean {
   switch (a.type) {
     case 'text':
       return b.type === 'text' && a.text.length === b.text.length;
+    case 'reasoning':
+      return b.type === 'reasoning' && a.text.length === b.text.length;
     case 'attachment':
       return (
         b.type === 'attachment' &&

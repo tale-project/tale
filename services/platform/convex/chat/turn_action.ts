@@ -189,7 +189,7 @@ function readEvent(
   apiFormat: ApiFormat,
   event: Record<string, unknown>,
   runningUsage: { input: number; output: number },
-): { text: string; usage?: TurnUsage } {
+): { text: string; reasoning?: string; usage?: TurnUsage } {
   if (apiFormat === 'anthropic') {
     const type = event.type;
     if (type === 'message_start') {
@@ -200,6 +200,11 @@ function readEvent(
     }
     if (type === 'content_block_delta') {
       const delta = asRecord(event.delta);
+      if (delta?.type === 'thinking_delta') {
+        const thinking =
+          typeof delta.thinking === 'string' ? delta.thinking : '';
+        return { text: '', ...(thinking ? { reasoning: thinking } : {}) };
+      }
       const text = typeof delta?.text === 'string' ? delta.text : '';
       return { text };
     }
@@ -217,13 +222,23 @@ function readEvent(
   const choices = Array.isArray(event.choices) ? event.choices : [];
   const delta = asRecord(asRecord(choices[0])?.delta);
   const text = typeof delta?.content === 'string' ? delta.content : '';
+  const reasoningDelta =
+    typeof delta?.reasoning_content === 'string'
+      ? delta.reasoning_content
+      : typeof delta?.reasoning === 'string'
+        ? delta.reasoning
+        : '';
   const usage = asRecord(event.usage);
   if (usage) {
     runningUsage.input = tokenCount(usage, 'prompt_tokens');
     runningUsage.output = tokenCount(usage, 'completion_tokens');
-    return { text, usage: totals(runningUsage) };
+    return {
+      text,
+      ...(reasoningDelta ? { reasoning: reasoningDelta } : {}),
+      usage: totals(runningUsage),
+    };
   }
-  return { text };
+  return { text, ...(reasoningDelta ? { reasoning: reasoningDelta } : {}) };
 }
 
 function totals(running: { input: number; output: number }): TurnUsage {
@@ -279,9 +294,11 @@ async function* streamSse(
         continue;
       }
       if (!event) continue;
-      const { text, usage } = readEvent(apiFormat, event, running);
+      const { text, reasoning, usage } = readEvent(apiFormat, event, running);
       if (usage) lastUsage = usage;
-      if (text.length > 0) yield { text };
+      if (text.length > 0 || reasoning !== undefined) {
+        yield { text, ...(reasoning !== undefined ? { reasoning } : {}) };
+      }
     }
   }
   if (lastUsage) yield { text: '', usage: lastUsage };

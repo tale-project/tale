@@ -16,6 +16,13 @@
 export type MessagePart =
   | { readonly type: 'text'; readonly text: string }
   | {
+      /** The model's reasoning ("thinking") for the reply it precedes.
+       * Displayed collapsibly; NEVER replayed to the model on later turns —
+       * every wire/sizing surface reads it as empty. */
+      readonly type: 'reasoning';
+      readonly text: string;
+    }
+  | {
       readonly type: 'attachment';
       readonly name: string;
       readonly mediaType: string;
@@ -88,6 +95,9 @@ export function messageText(message: ChatMessage): string {
     switch (part.type) {
       case 'text':
         pieces.push(part.text);
+        break;
+      case 'reasoning':
+        // Thinking is display-only: it never re-enters the context.
         break;
       case 'attachment':
         pieces.push(part.text ?? `[attachment: ${part.name}]`);

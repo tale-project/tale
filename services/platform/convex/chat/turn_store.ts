@@ -64,6 +64,9 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
           organizationId: message.organizationId,
           messageId,
           ...(message.text !== undefined ? { finalText: message.text } : {}),
+          ...(message.reasoning !== undefined
+            ? { reasoning: message.reasoning }
+            : {}),
           ...(message.model !== undefined ? { model: message.model } : {}),
           ...(message.providerSlug !== undefined
             ? { providerSlug: message.providerSlug }

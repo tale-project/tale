@@ -41,6 +41,7 @@ import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
 import { SystemNotice } from './system-notice';
+import { ThinkingSection } from './thinking-section';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 /** Lazy rasterization for history rows; the intrinsic size keeps the
@@ -393,10 +394,19 @@ function AssistantBody({
           organizationId={organizationId}
         />
       )}
+      {message.reasoningText !== undefined &&
+        message.reasoningText.length > 0 && (
+          <ThinkingSection
+            text={message.reasoningText}
+            active={isStreaming && text.length === 0}
+          />
+        )}
       {/* One persistent wrapper across the dots → text transition, so the
           swap never collapses the row's box. */}
       <div className="min-h-5 w-full min-w-0">
-        {waitingForFirstToken ? (
+        {waitingForFirstToken &&
+        (message.reasoningText === undefined ||
+          message.reasoningText.length === 0) ? (
           <ThinkingDots />
         ) : (
           <MessageMarkdown

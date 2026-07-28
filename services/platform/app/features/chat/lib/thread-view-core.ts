@@ -125,6 +125,16 @@ export function toSettledItems(
   }));
 }
 
+/** The settled reasoning part's text, when the reply carries one. */
+function reasoningOfParts(
+  parts: readonly ChatMessageView['parts'][number][],
+): string | undefined {
+  for (const part of parts) {
+    if (part.type === 'reasoning' && part.text.length > 0) return part.text;
+  }
+  return undefined;
+}
+
 /** A row is settled once the finalize (or a failure stamp) landed: it carries
  * text, an error, a guardrail block, or usage. An empty assistant row with
  * none of those is a placeholder a turn is still writing. */
@@ -231,7 +241,7 @@ export function reduceThreadView(
     const settled = isSettledRow(row, rowText);
 
     let text = rowText;
-    let reasoningText: string | undefined;
+    let reasoningText = reasoningOfParts(row.parts);
     let isStreaming = false;
 
     if (targetId === row.id) {
@@ -245,7 +255,8 @@ export function reduceThreadView(
       state.streamTextByKey.set(key, text);
 
       const heldReasoning = state.streamReasoningByKey.get(key);
-      reasoningText = generationText?.reasoning ?? heldReasoning;
+      reasoningText =
+        reasoningText ?? generationText?.reasoning ?? heldReasoning;
       if (reasoningText !== undefined) {
         state.streamReasoningByKey.set(key, reasoningText);
       }
@@ -253,7 +264,7 @@ export function reduceThreadView(
     } else if (state.streamTextByKey.has(key)) {
       // A row this mount streamed, no longer targeted by a live generation.
       const held = state.streamTextByKey.get(key) ?? '';
-      reasoningText = state.streamReasoningByKey.get(key);
+      reasoningText = reasoningText ?? state.streamReasoningByKey.get(key);
       if (settled) {
         // Finalized: the row's own content is authoritative from here on.
         state.streamTextByKey.delete(key);

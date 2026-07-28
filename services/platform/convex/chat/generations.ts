@@ -403,6 +403,7 @@ export const recoverStaleDirectGenerations = internalMutation({
           message.usage === undefined
         ) {
           const partial = row.streamText ?? '';
+          const partialReasoning = row.streamReasoning ?? '';
           const hasOwnText = message.parts.some(
             (part: unknown) =>
               part !== null &&
@@ -415,7 +416,14 @@ export const recoverStaleDirectGenerations = internalMutation({
           );
           await ctx.db.patch(message._id, {
             ...(partial !== '' && !hasOwnText
-              ? { parts: [{ type: 'text', text: partial }] }
+              ? {
+                  parts: [
+                    ...(partialReasoning !== ''
+                      ? [{ type: 'reasoning', text: partialReasoning }]
+                      : []),
+                    { type: 'text', text: partial },
+                  ],
+                }
               : {}),
             error: 'The response was interrupted before it finished.',
           });
