@@ -6904,25 +6904,25 @@ projectSecrets:
     PROJECT_NOT_FOUND: Dieses Projekt existiert nicht mehr.
 tasks:
   run:
-    started: Der Lauf ist gestartet — der Workflow steuert den Status dieser Aufgabe ab jetzt.
-    alreadyRunning: Für diese Aufgabe läuft bereits ein Lauf.
-    notStarted: Der Lauf konnte nicht starten — ist die Automatisierung deployt?
+    started: '{name} ist gestartet und übernimmt diese Aufgabe ab jetzt.'
+    alreadyRunning: '{name} arbeitet schon an dieser Aufgabe.'
+    notStarted: '{name} konnte nicht starten — prüfe, ob die Automatisierung deployt ist.'
     cancelled: Der Lauf wurde abgebrochen.
-    missingInput: Lege zuerst die Eingabedateien der Aufgabe ab — der gebundene Ordner ist noch leer.
+    missingInput: Lege zuerst die Eingabedateien ab — unter Dateien ist bei dieser Aufgabe noch nichts.
     working: '{name} arbeitet an dieser Aufgabe.'
     details: Details
     currentStep: Aktueller Schritt
     stepNotReached: Der Lauf hat diesen Schritt nicht erreicht.
-    detailsTitle: '{name} — Lauf-Fortschritt'
+    detailsTitle: '{name} — Fortschritt'
     noProgressYet: Der Lauf hat noch keinen Schritt erreicht.
     effectsTitle: Ausgeführte Aktionen
     noEffectsYet: Noch nichts ausgeführt.
   subject:
-    ready: 'Bereit zum Start — {name} läuft auf dieser Aufgabe.'
+    ready: 'Bereit zum Start — {name} übernimmt ab hier.'
     start: Starten
     startAgain: Erneut starten
-    waitingInput: Wartet auf Eingabedateien — lege sie unten ab und starte dann.
-    stalled: Die Aufgabe ist In Bearbeitung, aber kein Lauf ist aktiv — starte ihn erneut.
+    waitingInput: Wartet auf Eingabedateien — lege sie unten ab und klicke dann auf Starten.
+    stalled: Diese Aufgabe ist In Bearbeitung, aber niemand arbeitet daran — starte sie erneut.
     review: 'Das Ergebnis von {name} ist bereit zur Prüfung.'
     approve: Freigeben
     approved: Freigegeben — die Aufgabe ist erledigt.
@@ -6954,7 +6954,7 @@ tasks:
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:
-    hint: 'Betrieben von {name} — Statusänderungen laufen über dessen Workflow.'
+    hint: '{name} betreibt diese Aufgabe und führt sie durch ihre Schritte.'
     chipReady: Bereit zum Start
     chipWaiting: Wartet auf Dateien
     will:
@@ -6972,7 +6972,7 @@ tasks:
     more: '+{count} weitere'
     showLess: Weniger anzeigen
     open: '{name} öffnen'
-    empty: Noch keine Dateien — der Lauf liest diesen Ordner; lege die Dokumente des Quartals hier ab.
+    empty: 'Noch keine Dateien — lege hier die Dokumente ab, mit denen {name} arbeiten soll.'
     untitled: Ohne Titel
     uploading: Wird hochgeladen…
     dropHint: Dateien hier ablegen oder klicken zum Auswählen
@@ -7062,6 +7062,7 @@ tasks:
     addSubtask: Teilaufgabe hinzufügen…
     addDescription: Beschreibung hinzufügen…
     noDescription: Keine Beschreibung.
+    moreFields: Weitere Felder
     parentCloseGuard: Schließe alle Teilaufgaben ab, bevor du diese Aufgabe abschließt.
     dependencies: Abhängigkeiten
     blockedBy: Blockiert von

@@ -6,7 +6,10 @@ import { useMemo } from 'react';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
+import {
+  automationDisplayDescription,
+  automationDisplayName,
+} from '@/lib/shared/schemas/automation_presentation';
 import {
   type AutomationSettings,
   parseAutomationSettings,
@@ -33,6 +36,16 @@ export interface ResolvedTaskSubjectContract {
    * manifest's `name`/`i18n`), or the slug read as a title when it declared
    * none. Every user-visible mention of the automation uses this. */
   displayName: string;
+  /**
+   * How the automation describes ITSELF in the reader's language (the pack
+   * manifest's `description`/`i18n`), when it declared one.
+   *
+   * This is what a task surface shows to answer "what is this thing" — it
+   * belongs to the automation, so it stays live, versioned with the deployed
+   * document and translated once, rather than being copied into each task's
+   * own editable description.
+   */
+  displayDescription?: string;
   contract: TaskSubjectContract;
   /** The deployed version's settings declaration (tolerant: unparsable reads
    * as none) — the create-template setup gate and the Settings entry. */
@@ -85,20 +98,24 @@ export function taskSubjectEntries(
   return automations.flatMap((automation) => {
     if (automation.deployedVersion === undefined) return [];
     const contract = parseTaskSubjectContract(automation.taskContract);
-    return contract === null
-      ? []
-      : [
-          {
-            automationSlug: automation.name,
-            displayName: automationDisplayName(
-              automation.presentation,
-              automation.name,
-              locale,
-            ),
-            contract,
-            settings: parseAutomationSettings(automation.settings),
-          },
-        ];
+    if (contract === null) return [];
+    const described = automationDisplayDescription(
+      automation.presentation,
+      locale,
+    );
+    return [
+      {
+        automationSlug: automation.name,
+        displayName: automationDisplayName(
+          automation.presentation,
+          automation.name,
+          locale,
+        ),
+        ...(described !== undefined && { displayDescription: described }),
+        contract,
+        settings: parseAutomationSettings(automation.settings),
+      },
+    ];
   });
 }
 
@@ -181,6 +198,9 @@ export function resolveTaskSubjectContract(
     ? {
         automationSlug: ownership.automationSlug,
         displayName: ownership.displayName,
+        ...(ownership.displayDescription !== undefined && {
+          displayDescription: ownership.displayDescription,
+        }),
         contract: ownership.contract,
         settings: ownership.settings,
       }

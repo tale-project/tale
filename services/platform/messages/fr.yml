@@ -7003,25 +7003,25 @@ projectSecrets:
     PROJECT_NOT_FOUND: Ce projet n'existe plus.
 tasks:
   run:
-    started: "L'exécution a démarré — le workflow pilote désormais le statut de cette tâche."
-    alreadyRunning: Une exécution est déjà en cours pour cette tâche.
-    notStarted: "L'exécution n'a pas pu démarrer — l'automatisation est-elle déployée ?"
+    started: '{name} a démarré et prend cette tâche en charge.'
+    alreadyRunning: '{name} travaille déjà sur cette tâche.'
+    notStarted: "{name} n'a pas pu démarrer — vérifie que l'automatisation est déployée."
     cancelled: "L'exécution a été annulée."
-    missingInput: "Dépose d'abord les fichiers d'entrée de la tâche — le dossier lié est encore vide."
+    missingInput: "Dépose d'abord les fichiers d'entrée — la liste Fichiers de cette tâche est encore vide."
     working: '{name} travaille sur cette tâche.'
     details: Détails
     currentStep: Étape en cours
     stepNotReached: "L'exécution n'a pas atteint cette étape."
-    detailsTitle: "{name} — avancement de l'exécution"
+    detailsTitle: '{name} — avancement'
     noProgressYet: "L'exécution n'a encore atteint aucune étape."
     effectsTitle: Actions effectuées
     noEffectsYet: Rien d'effectué pour l'instant.
   subject:
-    ready: "Prête à démarrer — {name} s'exécute sur cette tâche."
+    ready: 'Prête à démarrer — {name} prend la suite.'
     start: Démarrer
     startAgain: Relancer
-    waitingInput: "En attente des fichiers d'entrée — dépose-les ci-dessous, puis démarre."
-    stalled: "La tâche est En cours mais aucune exécution n'est active — relance l'exécution."
+    waitingInput: "En attente des fichiers d'entrée — dépose-les ci-dessous, puis clique sur Démarrer."
+    stalled: Cette tâche est En cours mais personne ne travaille dessus — relance-la.
     review: 'Le résultat de {name} est prêt pour relecture.'
     approve: Approuver
     approved: Approuvé — la tâche est terminée.
@@ -7053,7 +7053,7 @@ tasks:
     retry: Relancer
     cancel: Annuler l'exécution
   automation:
-    hint: 'Opérée par {name} — les changements de statut passent par son workflow.'
+    hint: '{name} opère cette tâche et la fait avancer dans ses étapes.'
     chipReady: Prête à démarrer
     chipWaiting: En attente des fichiers
     will:
@@ -7071,7 +7071,7 @@ tasks:
     more: '+{count} autres'
     showLess: Afficher moins
     open: 'Ouvrir {name}'
-    empty: "Aucun fichier pour l'instant — l'exécution lit ce dossier ; dépose ici les documents du trimestre."
+    empty: "Aucun fichier pour l'instant — dépose ici les documents sur lesquels {name} doit travailler."
     untitled: Sans titre
     uploading: Téléversement…
     dropHint: Dépose des fichiers ici, ou clique pour parcourir
@@ -7162,6 +7162,7 @@ tasks:
     addSubtask: Ajouter une sous-tâche…
     addDescription: Ajouter une description…
     noDescription: Aucune description.
+    moreFields: Autres champs
     parentCloseGuard: Terminez toutes les sous-tâches avant de clôturer cette tâche.
     dependencies: Dépendances
     blockedBy: Bloqué par

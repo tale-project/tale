@@ -261,21 +261,27 @@ export function useTaskStatusChoreography(
               workflowSlug: ownership.automationSlug,
             });
             if (result.started) {
-              toast({ title: t('run.started'), variant: 'success' });
+              toast({
+                title: t('run.started', { name: ownership.displayName }),
+                variant: 'success',
+              });
               return 'handled';
             }
             toast({
               title:
                 result.reason === 'already_running'
-                  ? t('run.alreadyRunning')
-                  : t('run.notStarted'),
+                  ? t('run.alreadyRunning', { name: ownership.displayName })
+                  : t('run.notStarted', { name: ownership.displayName }),
               variant:
                 result.reason === 'already_running' ? undefined : 'destructive',
             });
             return 'blocked';
           } catch (error) {
             console.error('[tasks] status-choreographed start failed', error);
-            toast({ title: t('run.notStarted'), variant: 'destructive' });
+            toast({
+              title: t('run.notStarted', { name: ownership.displayName }),
+              variant: 'destructive',
+            });
             return 'blocked';
           }
         case 'cancel':

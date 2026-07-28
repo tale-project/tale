@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
@@ -74,6 +75,7 @@ import {
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
+import { EditableDescription } from './editable-description';
 import { LabelEditor } from './label-editor';
 import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
@@ -423,9 +425,11 @@ function TemplateCreateBody({
           : { externalId: trimmed }),
         title:
           contract.create?.titleTemplate?.replace('{name}', trimmed) ?? trimmed,
-        ...(contract.create?.description !== undefined && {
-          description: contract.create.description,
-        }),
+        // No description is written: the automation's own description is shown
+        // live by the subject panel (`displayDescription`), so copying a
+        // per-automation sentence into every task's editable body would only
+        // create N stale duplicates of one string — and leave the task with a
+        // "description" nobody wrote and everybody has to read past.
         automationSlug,
       });
       toast({
@@ -942,6 +946,75 @@ function EditTaskBody({
       .catch(onMutationError);
   };
 
+  const labelsField = (
+    <PropertyField label={t('fields.labels')} stacked>
+      <LabelEditor
+        labels={task.labels ?? []}
+        disabled={!canMutate}
+        projectId={task.projectId}
+        onChange={(labels) =>
+          void updateTask
+            .mutateAsync({ taskId: task._id, labels })
+            .catch(onMutationError)
+        }
+      />
+    </PropertyField>
+  );
+
+  const dependenciesField = (
+    <TaskDependencies
+      task={task}
+      canEdit={canMutate}
+      projectKey={projectKey}
+      onOpenTask={onOpenTask}
+    />
+  );
+
+  const descriptionSection = (
+    <section className="flex flex-col gap-1.5">
+      {/* Empty + editable collapses to its own trigger: the heading and a
+          six-row textarea for a field the reader may have nothing to say about
+          used to own the top of every task — most of all an automation-owned
+          one, where the job is uploading and starting, not writing prose. */}
+      {canMutate ? (
+        <EditableDescription
+          key={task._id}
+          taskId={task._id}
+          organizationId={task.organizationId}
+          projectId={task.projectId}
+          value={task.description ?? ''}
+          label={t('fields.description')}
+          placeholder={t('detail.addDescription')}
+          onSave={(description) =>
+            void updateTask
+              .mutateAsync({
+                taskId: task._id,
+                description: description.length ? description : null,
+              })
+              .catch(onMutationError)
+          }
+        />
+      ) : (
+        <>
+          <Text as="h3" variant="label">
+            {t('fields.description')}
+          </Text>
+          {task.description ? (
+            <MentionText
+              body={task.description}
+              organizationId={task.organizationId}
+              projectId={task.projectId}
+            />
+          ) : (
+            <Text as="p" variant="muted">
+              {t('detail.noDescription')}
+            </Text>
+          )}
+        </>
+      )}
+    </section>
+  );
+
   return (
     <>
       <ModalLayout
@@ -986,39 +1059,13 @@ function EditTaskBody({
               projectId={task.projectId}
             />
             <TaskReviewCard taskId={task._id} />
-            <section className="flex flex-col gap-1.5">
-              <Text as="h3" variant="label">
-                {t('fields.description')}
-              </Text>
-              {canMutate ? (
-                <EditableDescription
-                  key={task._id}
-                  taskId={task._id}
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  value={task.description ?? ''}
-                  placeholder={t('detail.addDescription')}
-                  onSave={(description) =>
-                    void updateTask
-                      .mutateAsync({
-                        taskId: task._id,
-                        description: description.length ? description : null,
-                      })
-                      .catch(onMutationError)
-                  }
-                />
-              ) : task.description ? (
-                <MentionText
-                  body={task.description}
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                />
-              ) : (
-                <Text as="p" variant="muted">
-                  {t('detail.noDescription')}
-                </Text>
-              )}
-            </section>
+
+            {/* A plain task's description IS its body, so it stays first. An
+                automation-owned task leads with the work instead — who owns it,
+                what it is, what to do next — and keeps the description as the
+                optional note it is, below the files (see the tail of this
+                column). */}
+            {ownedBy === null && descriptionSection}
 
             {ownedBy !== null && (
               <TaskSubjectPanel
@@ -1047,6 +1094,7 @@ function EditTaskBody({
                   projectId={task.projectId}
                   folderId={toId<'folders'>(task.externalId)}
                   contract={ownedBy.contract}
+                  automationName={ownedBy.displayName}
                   canEdit={canMutate}
                 />
                 <TaskOutcomeFilesCard
@@ -1066,6 +1114,8 @@ function EditTaskBody({
                 onRemove={onRemoveAttachment}
               />
             )}
+
+            {ownedBy !== null && descriptionSection}
 
             <Stack as="section" gap={2}>
               <Row gap={2}>
@@ -1292,26 +1342,29 @@ function EditTaskBody({
             </PropertyField>
 
             <PanelDivider />
-            <PropertyField label={t('fields.labels')} stacked>
-              <LabelEditor
-                labels={task.labels ?? []}
-                disabled={!canMutate}
-                projectId={task.projectId}
-                onChange={(labels) =>
-                  void updateTask
-                    .mutateAsync({ taskId: task._id, labels })
-                    .catch(onMutationError)
-                }
-              />
-            </PropertyField>
-
-            <PanelDivider />
-            <TaskDependencies
-              task={task}
-              canEdit={canMutate}
-              projectKey={projectKey}
-              onOpenTask={onOpenTask}
-            />
+            {/* Labels and dependencies are the BOARD's vocabulary. On an
+                automation-owned task they are noise around the two properties
+                that matter there (who owns it, where it stands), so they fold
+                into one disclosure — the same controls, still one click away,
+                just not competing with the work. */}
+            {ownedBy !== null ? (
+              <CollapsibleDetails
+                summary={t('detail.moreFields')}
+                variant="compact"
+                className="shrink-0"
+              >
+                <Stack gap={4} className="pt-3">
+                  {labelsField}
+                  {dependenciesField}
+                </Stack>
+              </CollapsibleDetails>
+            ) : (
+              <>
+                {labelsField}
+                <PanelDivider />
+                {dependenciesField}
+              </>
+            )}
 
             <PanelDivider />
             <PropertyField label={t('fields.author')}>
@@ -1418,79 +1471,5 @@ function EditableTitle({
       }}
       className="text-foreground hover:bg-muted/50 focus:bg-muted/50 -mx-1 rounded-md px-1 text-lg leading-snug font-semibold outline-none"
     />
-  );
-}
-
-/** Inline-editable description with an explicit Save / Discard pair that
- *  appears while the draft is dirty (⌘/Ctrl+Enter saves, Escape discards).
- *  New @mentions in the draft preview their agent-trigger effect
- *  (`MentionTriggerChips`). */
-function EditableDescription({
-  taskId,
-  organizationId,
-  projectId,
-  value,
-  placeholder,
-  onSave,
-}: {
-  taskId: Id<'tasks'>;
-  organizationId: string;
-  projectId: Id<'projects'>;
-  value: string;
-  placeholder: string;
-  onSave: (value: string) => void;
-}) {
-  const { t: tCommon } = useT('common');
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  // Explicit commit instead of save-on-blur: a blur-save would fire on any
-  // click-away (incl. reaching for Discard) and silently persist half-edited
-  // text. The buttons appear only while the draft differs from the saved
-  // value and vanish once the server echoes the update back into `value`.
-  const isDirty = draft.trim() !== value.trim();
-  const save = () => {
-    if (isDirty) onSave(draft.trim());
-  };
-  const discard = () => setDraft(value);
-
-  return (
-    <>
-      <MentionTextarea
-        id="detail-description"
-        organizationId={organizationId}
-        projectId={projectId}
-        rows={6}
-        value={draft}
-        placeholder={placeholder}
-        onValueChange={setDraft}
-        onKeyDown={(e) => {
-          // ⌘/Ctrl+Enter saves, Escape discards (the mention picker consumes
-          // both first while it is open).
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            save();
-          } else if (e.key === 'Escape' && isDirty) {
-            e.preventDefault();
-            discard();
-          }
-        }}
-        placement="below"
-      />
-      <MentionTriggerChips
-        organizationId={organizationId}
-        target={{ taskId }}
-        draft={draft}
-        baseline={value}
-      />
-      {isDirty && (
-        <Row gap={2} align="stretch">
-          <Button onClick={save}>{tCommon('actions.save')}</Button>
-          <Button variant="secondary" onClick={discard}>
-            {tCommon('actions.discard')}
-          </Button>
-        </Row>
-      )}
-    </>
   );
 }

@@ -48,7 +48,15 @@ export const taskSubjectContractSchema = z.object({
       enabled: z.boolean(),
       /** Title derived from the input value; `{name}` is the only token. */
       titleTemplate: z.string().optional(),
-      /** Literal description for the created task. */
+      /**
+       * Literal description for the created task.
+       *
+       * @deprecated No longer consumed. The automation's OWN description
+       * (`presentation.description`, resolved per locale) is shown live on the
+       * task by the subject panel, so one per-automation sentence is never
+       * copied into N tasks' editable bodies. Still parsed so a pack that
+       * declares it installs unchanged.
+       */
       description: z.string().optional(),
       field: taskSubjectFieldTextSchema
         .extend({

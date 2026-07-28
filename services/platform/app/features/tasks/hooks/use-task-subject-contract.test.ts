@@ -81,6 +81,35 @@ describe('taskSubjectEntries', () => {
     // No manifest: the slug read as a title, so a surface never shows `vat-desk`.
     expect(taskSubjectEntries([vat], 'en')[0]?.displayName).toBe('Vat desk');
   });
+
+  // The task surface answers "what is this thing" from the automation's OWN
+  // description, live from the deployed version — never a copy written into
+  // each task. Absent stays absent: the panel must be able to omit the line.
+  it('carries the declared description in the reader s language, or none', () => {
+    const declared = {
+      ...vat,
+      presentation: {
+        name: 'Swiss VAT return desk',
+        description: 'Files a Swiss VAT return from a quarter of documents.',
+        i18n: {
+          de: { description: 'Erstellt die Schweizer MWST-Abrechnung.' },
+        },
+      },
+    };
+    expect(taskSubjectEntries([declared], 'de')[0]?.displayDescription).toBe(
+      'Erstellt die Schweizer MWST-Abrechnung.',
+    );
+    // A locale that overrides only the name falls back to the authored English.
+    expect(taskSubjectEntries([declared], 'fr')[0]?.displayDescription).toBe(
+      'Files a Swiss VAT return from a quarter of documents.',
+    );
+    expect(
+      taskSubjectEntries([{ ...vat, presentation: { name: 'Desk' } }], 'en')[0],
+    ).not.toHaveProperty('displayDescription');
+    expect(taskSubjectEntries([vat], 'en')[0]).not.toHaveProperty(
+      'displayDescription',
+    );
+  });
 });
 
 describe('resolveTaskOwnership', () => {

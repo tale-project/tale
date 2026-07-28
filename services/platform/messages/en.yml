@@ -6984,25 +6984,25 @@ projectSecrets:
     PROJECT_NOT_FOUND: This project no longer exists.
 tasks:
   run:
-    started: The run has started — the workflow drives this task's status from here.
-    alreadyRunning: A run for this task is already in flight.
-    notStarted: The run could not start — is the automation deployed?
+    started: '{name} has started — it takes this task from here.'
+    alreadyRunning: '{name} is already working on this task.'
+    notStarted: '{name} could not start — check that it is deployed.'
     cancelled: The run was cancelled.
-    missingInput: Add the task's input files first — the folder this task is bound to is still empty.
+    missingInput: Add the input files first — this task's Files list is still empty.
     working: '{name} is working on this task.'
     details: Details
     currentStep: Current step
     stepNotReached: The run has not reached this step.
-    detailsTitle: '{name} — run progress'
+    detailsTitle: '{name} — progress'
     noProgressYet: The run has not reached any node yet.
     effectsTitle: Actions performed
     noEffectsYet: Nothing performed yet.
   subject:
-    ready: 'Ready to start — {name} runs on this task.'
+    ready: 'Ready to start — {name} takes it from here.'
     start: Start
     startAgain: Start again
-    waitingInput: Waiting for input files — upload them below, then start.
-    stalled: The task is In progress but no run is active — start it again.
+    waitingInput: Waiting for input files — upload them below, then press Start.
+    stalled: This task is In progress but nothing is working on it — start it again.
     review: 'The {name} output is ready for review.'
     approve: Approve
     approved: Approved — the task is done.
@@ -7034,7 +7034,7 @@ tasks:
     retry: Retry
     cancel: Cancel run
   automation:
-    hint: 'Operated by {name} — status changes route through its workflow.'
+    hint: 'Operated by {name} — it drives this task through its steps.'
     chipReady: Ready to start
     chipWaiting: Waiting for files
     will:
@@ -7052,7 +7052,7 @@ tasks:
     more: '+{count} more'
     showLess: Show fewer
     open: 'Open {name}'
-    empty: No files yet — the run reads this folder; drop the quarter's documents here.
+    empty: 'No files yet — drop the documents {name} should work from.'
     untitled: Untitled
     uploading: Uploading…
     dropHint: Drop files here, or click to browse
@@ -7142,6 +7142,7 @@ tasks:
     addSubtask: Add a subtask…
     addDescription: Add a description…
     noDescription: No description.
+    moreFields: More fields
     parentCloseGuard: Finish all subtasks before closing this task.
     dependencies: Dependencies
     blockedBy: Blocked by

@@ -47,12 +47,16 @@ export function TaskInputFilesCard({
   projectId,
   folderId,
   contract,
+  automationName,
   canEdit,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
   folderId: Id<'folders'>;
   contract: TaskSubjectContract;
+  /** The owning automation as it names itself — the empty zone says whose
+   *  input this is instead of naming the machinery ("the run"). */
+  automationName: string;
   canEdit: boolean;
 }) {
   const { t } = useT('tasks');
@@ -154,7 +158,7 @@ export function TaskInputFilesCard({
         <Stack gap={2} className="px-3 pt-1 pb-3">
           {files.length === 0 ? (
             <Text as="p" variant="muted">
-              {t('inputFiles.empty')}
+              {t('inputFiles.empty', { name: automationName })}
             </Text>
           ) : (
             <ul className="flex flex-col gap-0.5">

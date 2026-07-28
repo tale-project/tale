@@ -212,6 +212,15 @@ function TaskRunDetailsDialog({
  * its progress and inline approvals, as before), and Approve / Request
  * changes when the output sits in review. Every state and verb derives from
  * the generic subject contract — nothing here knows any specific automation.
+ *
+ * It reads top-to-bottom as the whole answer to opening the task: WHO owns it
+ * (the automation's declared name), WHAT it is (the automation's own
+ * description — live from the deployed version, never copied into the task),
+ * WHAT NOW (the state line) and WHAT TO PRESS (the verb). The primary verb is
+ * therefore never absent while the task is startable-in-principle: waiting for
+ * input renders Start soft-disabled with the reason attached, because a promise
+ * of "then start" with no Start on screen leaves the reader hunting the board
+ * for a gesture that doesn't exist.
  */
 export function TaskSubjectPanel({
   organizationId,
@@ -231,13 +240,14 @@ export function TaskSubjectPanel({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
+  const headingId = useId();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const { automationSlug, displayName, contract } = ownedBy;
+  const { automationSlug, displayName, displayDescription, contract } = ownedBy;
 
   const runQuery = useConvexQuery(api.automations.queries.getLiveRunForTask, {
     organizationId,
@@ -307,15 +317,18 @@ export function TaskSubjectPanel({
         toast({
           title:
             result.reason === 'already_running'
-              ? t('run.alreadyRunning')
-              : t('run.notStarted'),
+              ? t('run.alreadyRunning', { name: displayName })
+              : t('run.notStarted', { name: displayName }),
           variant:
             result.reason === 'already_running' ? undefined : 'destructive',
         });
       }
     } catch (error) {
       console.error('[tasks] subject-panel start failed', error);
-      toast({ title: t('run.notStarted'), variant: 'destructive' });
+      toast({
+        title: t('run.notStarted', { name: displayName }),
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
     }
@@ -391,8 +404,8 @@ export function TaskSubjectPanel({
         toast({
           title:
             result.reason === 'already_running'
-              ? t('run.alreadyRunning')
-              : t('run.notStarted'),
+              ? t('run.alreadyRunning', { name: displayName })
+              : t('run.notStarted', { name: displayName }),
           variant:
             result.reason === 'already_running' ? undefined : 'destructive',
         });
@@ -421,27 +434,29 @@ export function TaskSubjectPanel({
 
   return (
     <section
-      aria-label={t('automation.hint', { name: displayName })}
-      className="border-border bg-muted/30 flex flex-col gap-3 rounded-lg border p-3"
+      aria-labelledby={headingId}
+      className={cn(
+        'flex flex-col gap-2 rounded-lg border p-3',
+        // This panel is what the reader opened the task FOR, so it carries the
+        // accent whenever the next move is theirs. A run in flight is a plain
+        // card: there is nothing to press, and the spinner tells that story.
+        state.kind === 'running'
+          ? 'border-border bg-card'
+          : 'border-primary/40 bg-primary/[0.03]',
+      )}
     >
       <Row gap={2} align="center">
-        {state.kind === 'running' ? (
-          <Loader2
-            className="text-muted-foreground size-4 shrink-0 animate-spin"
-            aria-hidden
-          />
-        ) : (
-          <Workflow
-            className="text-muted-foreground size-4 shrink-0"
-            aria-hidden
-          />
-        )}
+        <Workflow
+          className="text-muted-foreground size-4 shrink-0"
+          aria-hidden
+        />
         <Text
-          as="p"
-          variant="muted"
-          className="min-w-0 flex-1 text-sm text-pretty"
+          as="h3"
+          id={headingId}
+          variant="label"
+          className="min-w-0 flex-1 truncate"
         >
-          {stateLine}
+          {displayName}
         </Text>
         {state.kind === 'running' && (
           <Button
@@ -454,18 +469,50 @@ export function TaskSubjectPanel({
         )}
       </Row>
 
+      {/* The automation's OWN words on what it does — clamped, because a pack
+          may declare a paragraph and this is orientation, not documentation. */}
+      {displayDescription !== undefined && (
+        <Text as="p" variant="caption" className="line-clamp-2 text-pretty">
+          {displayDescription}
+        </Text>
+      )}
+
+      <Row gap={2} align="center">
+        {state.kind === 'running' && (
+          <Loader2
+            className="text-muted-foreground size-4 shrink-0 animate-spin"
+            aria-hidden
+          />
+        )}
+        <Text as="p" className="min-w-0 flex-1 text-pretty">
+          {stateLine}
+        </Text>
+      </Row>
+
       {canEdit && (
-        <Row gap={2} wrap>
-          {(state.kind === 'ready' || state.kind === 'stalled') && (
+        <Row gap={2} wrap className="mt-1">
+          {(state.kind === 'ready' ||
+            state.kind === 'stalled' ||
+            state.kind === 'waiting_input') && (
             <Button
               size="sm"
-              disabled={busy}
+              // Soft-disabled, not absent: the verb stays where the reader was
+              // told to look, and the tooltip (pointer AND keyboard, via the
+              // shared primitive) says what is missing.
+              disabled={busy || state.kind === 'waiting_input'}
+              disabledReason={
+                state.kind === 'waiting_input'
+                  ? t('run.missingInput')
+                  : undefined
+              }
               icon={Play}
-              onClick={() => void start(t('run.started'))}
+              onClick={() =>
+                void start(t('run.started', { name: displayName }))
+              }
             >
-              {state.kind === 'ready'
-                ? t('subject.start')
-                : t('subject.startAgain')}
+              {state.kind === 'stalled'
+                ? t('subject.startAgain')
+                : t('subject.start')}
             </Button>
           )}
           {state.kind === 'running' && (
