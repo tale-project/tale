@@ -33,6 +33,22 @@ vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
   DataNoticeFooter: () => null,
 }));
 
+// The budget banner's Convex read has no client in this harness; a null
+// status keeps the real component mounted but rendering nothing.
+vi.mock(
+  '@/app/features/settings/governance/hooks/queries',
+  async (importOriginal) => {
+    const original =
+      await importOriginal<
+        typeof import('@/app/features/settings/governance/hooks/queries')
+      >();
+    return {
+      ...original,
+      useMyBudgetStatus: vi.fn(() => ({ data: null })),
+    };
+  },
+);
+
 vi.mock('../hooks/use-thread-view', () => ({
   useThreadView: vi.fn(() => ({
     status: 'unavailable' as const,

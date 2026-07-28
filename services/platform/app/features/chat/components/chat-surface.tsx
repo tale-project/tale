@@ -97,6 +97,7 @@ import {
 } from '../utils/pending-messages';
 import { primeAudio } from '../utils/prime-audio';
 import { ArenaSplitView } from './arena/arena-split-view';
+import { BudgetBanner } from './budget-banner';
 import { CanvasPanel } from './canvas/canvas-panel';
 import { Composer } from './composer';
 import {
@@ -1095,6 +1096,7 @@ function ChatSurfaceInner({
         )}
 
         <div className="shrink-0 px-4 pb-4">
+          <BudgetBanner organizationId={organizationId} />
           <Composer
             organizationId={organizationId}
             models={models}

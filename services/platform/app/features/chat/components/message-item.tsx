@@ -40,6 +40,7 @@ import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
+import { SystemNotice } from './system-notice';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 /** Lazy rasterization for history rows; the intrinsic size keeps the
@@ -154,6 +155,8 @@ function MessageItemComponent({
           speakAvailable={speakAvailable}
           isFreshSinceMount={isFreshSinceMount}
         />
+      ) : message.role === 'system' ? (
+        <SystemNotice text={message.text} parts={message.parts} />
       ) : (
         <MessageParts parts={message.parts} />
       )}

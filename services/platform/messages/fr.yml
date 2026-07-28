@@ -1368,6 +1368,14 @@ chat:
   generationStopped: Génération arrêtée
   blockedNotice:
     body: Cette réponse a été bloquée par la politique de contenu de ton organisation.
+
+  budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Merci de contacter ton administrateur.
+  budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Merci de contacter ton administrateur."
+  budgetWarning: Tu as utilisé {percent}% de ta limite {period} de {type} ({used} / {limit})
+  budgetWarningDismiss: Fermer
+  budgetWarningTypeTokens: token
+  budgetWarningTypeCost: coût
+  budgetWarningTypeRequests: requête
 common:
   optional: facultatif
   or: ou

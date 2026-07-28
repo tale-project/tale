@@ -1368,6 +1368,14 @@ chat:
   generationStopped: Generierung gestoppt
   blockedNotice:
     body: Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert.
+
+  budgetExceededDetail: '{type}-Limit für diesen {period}-Zeitraum erreicht ({used} / {limit}). Bitte kontaktiere deinen Administrator.'
+  budgetExceededDefault: Dein Nutzungslimit für diesen Zeitraum wurde erreicht. Bitte kontaktiere deinen Administrator.
+  budgetWarning: Du hast {percent}% deines {period} {type}-Limits verbraucht ({used} / {limit})
+  budgetWarningDismiss: Schließen
+  budgetWarningTypeTokens: Token
+  budgetWarningTypeCost: Kosten
+  budgetWarningTypeRequests: Anfragen
 common:
   optional: optional
   or: oder
