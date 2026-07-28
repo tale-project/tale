@@ -147,7 +147,10 @@ describe('TaskComments order', () => {
         (text) => text.includes('[automated]') || text.includes('Thanks.'),
       );
 
-  it('reads as a conversation (oldest first) by default', () => {
+  // Newest first by DEFAULT: a task's discussion is mostly automated reports,
+  // so the latest one carries the state — and the Activity list right below it
+  // has always read newest-first.
+  it('puts the newest comment first by default', () => {
     localeState.locale = 'en';
     render(
       <TaskComments
@@ -155,27 +158,27 @@ describe('TaskComments order', () => {
         organizationId="org_1"
         projectId={'project_1' as never}
         canComment={false}
-      />,
-    );
-    const bodies = listedBodies();
-    expect(bodies[0]).toContain('[automated] Return prepared');
-    expect(bodies[1]).toContain('Thanks.');
-  });
-
-  it('puts the newest comment first with order="desc" (log surfaces)', () => {
-    localeState.locale = 'en';
-    render(
-      <TaskComments
-        taskId={'task_1' as never}
-        organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment={false}
-        order="desc"
       />,
     );
     const bodies = listedBodies();
     expect(bodies[0]).toContain('Thanks.');
     expect(bodies[1]).toContain('[automated] Return prepared');
+  });
+
+  it('reads as a conversation (oldest first) with order="asc"', () => {
+    localeState.locale = 'en';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+        order="asc"
+      />,
+    );
+    const bodies = listedBodies();
+    expect(bodies[0]).toContain('[automated] Return prepared');
+    expect(bodies[1]).toContain('Thanks.');
   });
 });
 
@@ -193,7 +196,7 @@ describe('TaskComments composer position', () => {
       : 'list-first';
   };
 
-  it('renders below the thread by default (asc)', () => {
+  it('renders above the thread by default (desc)', () => {
     localeState.locale = 'en';
     const { container } = render(
       <TaskComments
@@ -201,23 +204,23 @@ describe('TaskComments composer position', () => {
         organizationId="org_1"
         projectId={'project_1' as never}
         canComment
-      />,
-    );
-    expect(composerVsList(container)).toBe('list-first');
-  });
-
-  it('renders above the thread with order="desc"', () => {
-    localeState.locale = 'en';
-    const { container } = render(
-      <TaskComments
-        taskId={'task_1' as never}
-        organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment
-        order="desc"
       />,
     );
     expect(composerVsList(container)).toBe('composer-first');
+  });
+
+  it('renders below the thread with order="asc"', () => {
+    localeState.locale = 'en';
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+        order="asc"
+      />,
+    );
+    expect(composerVsList(container)).toBe('list-first');
   });
 });
 
