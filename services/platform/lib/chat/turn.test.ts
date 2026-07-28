@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { decodeChatError } from '../shared/chat-errors';
 import {
   buildHarnessTable,
   type CredentialAuth,
@@ -355,13 +356,16 @@ describe('runTurn — the happy path', () => {
       status: 'refused',
       step: 'stream',
     });
-    // No `text` on the settle write: the row keeps what streamed in.
+    // No `text` on the settle write: the row keeps what streamed in. The
+    // error lands as the structured envelope carrying a classified code.
     expect(d.store.finalized).toEqual([
-      expect.objectContaining({
-        messageId: 'msg_2',
-        error: 'provider exploded',
-      }),
+      expect.objectContaining({ messageId: 'msg_2' }),
     ]);
+    const decoded = decodeChatError(
+      d.store.finalized[0]?.error as string | undefined,
+    );
+    expect(decoded.code).toBeDefined();
+    expect(decoded.raw).toBe('provider exploded');
     expect(d.store.finalized[0]).not.toHaveProperty('text');
   });
 

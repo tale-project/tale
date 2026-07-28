@@ -23,6 +23,7 @@
  * with that harness, and refuses anything else.
  */
 
+import { classifyChatErrorCode, encodeChatError } from '../shared/chat-errors';
 import {
   resolveExecution,
   type CredentialAuth,
@@ -585,13 +586,22 @@ export async function runTurn(
     // the reason on the seam.
     const reason =
       err instanceof Error ? err.message : 'The model response failed.';
+    // Stored as the structured envelope: the code the classifier derives
+    // here is what lets the client render a localized, actionable hint
+    // instead of the raw provider sentence. `decodeChatError` degrades
+    // gracefully, so every reader of the raw string keeps working.
     await deps.store.finalizeAssistantMessage({
       organizationId: request.organizationId,
       threadId: request.threadId,
       messageId: placeholder.id,
       model: request.model.id,
       providerSlug: request.model.provider,
-      error: reason,
+      error: encodeChatError({
+        code: classifyChatErrorCode(err),
+        provider: request.model.provider,
+        model: request.model.id,
+        raw: reason,
+      }),
     });
     return { status: 'refused', steps, step: 'stream', reason };
   } finally {

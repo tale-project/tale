@@ -12,6 +12,7 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { runTurn, type ModelCall, type TurnRequest } from '../../lib/chat/turn';
+import { decodeChatError } from '../../lib/shared/chat-errors';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
@@ -184,6 +185,11 @@ describe('chat turn — end to end against a fake model', () => {
     expect(assistant).toBeDefined();
     expect(assistant?.error).toMatch(/exploded/);
     expect(assistant?.blockedReason).toBeUndefined();
+    // The stored error is the structured envelope: a classified code plus
+    // the raw text, so the client can render a localized hint.
+    const decoded = decodeChatError(assistant?.error);
+    expect(decoded.code).toBeDefined();
+    expect(decoded.raw).toMatch(/exploded/);
   });
 
   it('keeps the message list byte-stable while the reply streams', async () => {

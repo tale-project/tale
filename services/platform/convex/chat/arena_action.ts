@@ -12,6 +12,10 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import {
+  classifyChatErrorCode,
+  encodeChatError,
+} from '../../lib/shared/chat-errors';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -72,7 +76,11 @@ async function runSide(
         role: 'assistant',
         parts: [],
         model: side.modelId,
-        error: reason,
+        error: encodeChatError({
+          code: classifyChatErrorCode(err),
+          model: side.modelId,
+          raw: reason,
+        }),
       });
     } catch (writeErr) {
       console.error('[arena] could not record side failure', writeErr);

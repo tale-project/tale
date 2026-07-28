@@ -38,6 +38,10 @@ import {
   type ChatMessage,
   type TurnUsage,
 } from '../../lib/chat/types';
+import {
+  classifyChatErrorCode,
+  encodeChatError,
+} from '../../lib/shared/chat-errors';
 import { providerAttributionHeaders } from '../../lib/shared/providers/attribution';
 import {
   buildHarnessTable,
@@ -347,8 +351,13 @@ export function createDirectModelCall(
     }
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
+      // The HTTP status rides on the error so the chat-error classifier can
+      // bucket it precisely (401/402/429…) instead of regexing the text.
+      throw Object.assign(
+        new Error(
+          `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
+        ),
+        { status: response.status },
       );
     }
     yield* streamSse(response, wire.apiFormat);
@@ -686,7 +695,11 @@ export const startTurnForApiKey = internalAction({
         role: 'assistant',
         parts: [],
         model: args.modelId,
-        error: reason,
+        error: encodeChatError({
+          code: classifyChatErrorCode(error),
+          model: args.modelId,
+          raw: reason,
+        }),
       });
       return { status: 'refused', reason };
     }
