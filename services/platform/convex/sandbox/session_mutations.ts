@@ -946,6 +946,13 @@ export const upsertSessionOp = internalMutation({
       patch.finishedAt = now;
       patch.agentIdleAt = undefined;
       patch.pendingBackgroundTasks = undefined;
+    } else if (existingRow !== null && existingRow.status !== 'running') {
+      // A settled op never returns to `running`. The progress writers are
+      // unawaited racers (text/timeline flushes, heartbeat ticks), so one can
+      // land after the settle stamped the terminal status — without this the
+      // run views would spin forever on a finished turn. The payload fields
+      // still apply: a late transcript flush is real data worth keeping.
+      delete patch.status;
     }
 
     if (existing) {

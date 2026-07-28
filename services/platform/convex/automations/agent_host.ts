@@ -30,11 +30,13 @@ import {
   buildExternalTurnExec,
   classifyHarnessEnd,
   drainHarnessWindow,
+  type HarnessTimelinePart,
   integrationsBridgeUrlForSessions,
   isManagedHarness,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionDuplicateError,
@@ -59,7 +61,9 @@ import {
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
 import { resolveServingTarget } from './llm_call';
 
-/** Overall wall-clock one agent turn may run before it is cut as hung. */
+/** Overall wall-clock one agent turn may run before it is cut as hung. The
+ * exec's own timeout (`EXTERNAL_TURN_DEADLINE_MS`) is the hard ceiling under
+ * this — raising only this knob cannot outlive the exec, so raise both. */
 const DEFAULT_AGENT_DEADLINE_MS = 30 * 60_000;
 
 export function workflowAgentDeadlineMs(): number {
@@ -148,6 +152,10 @@ export function automationAgentHost(
         target.providerSlug,
         target.modelId,
       );
+      // A text-only serving model still meets image inputs (scanned PDFs,
+      // screenshots) — arm the harness vision polyfill with the org's vision
+      // model so those route through the gateway instead of 404ing the turn.
+      const vision = await resolveTurnVisionModel(ctx, organizationId, target);
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
       const deadlineAt = Date.now() + workflowAgentDeadlineMs();
@@ -165,6 +173,12 @@ export function automationAgentHost(
           providerSlug: target.providerSlug,
           modelId: target.modelId,
           gatewayModel: routing.gatewayModel,
+          ...(vision !== null
+            ? {
+                visionProviderSlug: vision.providerSlug,
+                visionModelId: vision.modelId,
+              }
+            : {}),
           deadlineAt,
           request: {
             model: request.model,
@@ -579,6 +593,10 @@ export const startWorkflowAgentTurn = internalAction({
     providerSlug: v.string(),
     modelId: v.string(),
     gatewayModel: v.string(),
+    /** Vision-polyfill model (absent when the serving model reads images
+     * itself) — provisioned onto the turn key and armed on the exec. */
+    visionProviderSlug: v.optional(v.string()),
+    visionModelId: v.optional(v.string()),
     deadlineAt: v.number(),
     request: requestValidator,
   },
@@ -609,11 +627,20 @@ export const startWorkflowAgentTurn = internalAction({
       );
 
       const budgetCents = workflowAgentBudgetCents();
+      const visionRef =
+        args.visionProviderSlug !== undefined &&
+        args.visionModelId !== undefined
+          ? {
+              providerSlug: args.visionProviderSlug,
+              modelId: args.visionModelId,
+            }
+          : null;
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         allowedModels: [
           { providerSlug: args.providerSlug, modelId: args.modelId },
+          ...(visionRef !== null ? [visionRef] : []),
         ],
         budgetCents,
       });
@@ -675,6 +702,16 @@ export const startWorkflowAgentTurn = internalAction({
         ...(connectors.length > 0
           ? { bridgeUrl: integrationsBridgeUrlForSessions() }
           : {}),
+        ...(visionRef !== null
+          ? {
+              vision: {
+                model: resolveGatewayRouting(
+                  visionRef.providerSlug,
+                  visionRef.modelId,
+                ).gatewayModel,
+              },
+            }
+          : {}),
       });
 
       const window = await drainHarnessWindow({
@@ -682,6 +719,7 @@ export const startWorkflowAgentTurn = internalAction({
         execId: args.execId,
         harness: args.harness,
         start: exec,
+        ...liveProgressSink(ctx, args),
       });
       await continueOrSettle(ctx, args, window);
     } catch (err) {
@@ -761,6 +799,7 @@ export const driveWorkflowAgentTurn = internalAction({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
+        ...liveProgressSink(ctx, args),
       });
     } catch (err) {
       console.error('[agent-host] drive window threw:', err);
@@ -787,6 +826,46 @@ interface TurnKeys {
   providerSlug: string;
   gatewayModel: string;
   deadlineAt: number;
+}
+
+/**
+ * Stream the turn's live text + tool transcript onto the session op row, so
+ * the run's viewers can watch what the agent is doing INSIDE the sandbox
+ * while it works. The chat lane renders that from its persisted message; a
+ * run has no message, so the op row carries a bounded tail
+ * (`sandboxSessionOps.progressText` / `liveTimeline`) that
+ * `getAgentNodeSandboxOp` reads back. Best-effort: a failed progress write
+ * never disturbs the turn.
+ */
+function liveProgressSink(
+  ctx: ActionCtx,
+  args: Pick<TurnKeys, 'organizationId' | 'sessionId' | 'execId'>,
+): {
+  onText: (text: string) => void;
+  onTimeline: (parts: HarnessTimelinePart[]) => void;
+} {
+  const write = (patch: {
+    progressText?: string;
+    liveTimeline?: HarnessTimelinePart[];
+  }) => {
+    void ctx
+      .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'workflow-agent',
+        status: 'running',
+        lastEventAt: Date.now(),
+        ...patch,
+      })
+      .catch((err) =>
+        console.warn('[agent-host] live progress write failed:', err),
+      );
+  };
+  return {
+    onText: (text) => write({ progressText: text }),
+    onTimeline: (liveTimeline) => write({ liveTimeline }),
+  };
 }
 
 async function continueOrSettle(
@@ -830,6 +909,23 @@ async function continueOrSettle(
     });
     return;
   }
+  // Final transcript snapshot before the settle stamps the op terminal — the
+  // throttled live writes can miss the last window's activity, and this is
+  // what the run views show after the turn ends.
+  await ctx
+    .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      kind: 'workflow-agent',
+      status: 'running',
+      lastEventAt: Date.now(),
+      ...(window.text !== '' ? { progressText: window.text } : {}),
+      liveTimeline: window.timeline,
+    })
+    .catch((err) =>
+      console.warn('[agent-host] final progress write failed:', err),
+    );
   const { errored, crashReason } = classifyHarnessEnd(window);
   const ended = window.ended;
   const text =

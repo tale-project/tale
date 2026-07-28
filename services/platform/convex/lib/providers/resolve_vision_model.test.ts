@@ -4,7 +4,10 @@ import type { ProviderConnector } from '../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../../_generated/server';
 import { getConnectorCatalog } from './catalog_fetch';
 import { resolveConnectorsForOrgId } from './org_connectors';
-import { resolveOrgVisionModel } from './resolve_vision_model';
+import {
+  resolveOrgVisionModel,
+  resolveTurnVisionModel,
+} from './resolve_vision_model';
 
 vi.mock('./org_connectors', () => ({
   resolveConnectorsForOrgId: vi.fn(),
@@ -188,5 +191,67 @@ describe('resolveOrgVisionModel', () => {
       providerSlug: 'alpha',
       modelId: 'vl-a',
     });
+  });
+});
+
+// The per-turn wrapper decides whether a MANAGED turn needs the polyfill at
+// all: a vision-capable serving model reads images itself, and arming the
+// polyfill would route them through a second (worse) model for no reason.
+// Everything else must resolve a vision model — a text-only harness that meets
+// a scanned PDF 404s the whole turn without one.
+describe('resolveTurnVisionModel', () => {
+  it('returns null when the serving model reads images itself', async () => {
+    mockConnectors([connector('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'omni-vl', inputPrice: 900 }),
+      entry({ id: 'cheap-vl', inputPrice: 5 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(
+      resolveTurnVisionModel(ctx, 'org_1', {
+        providerSlug: 'alpha',
+        modelId: 'omni-vl',
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('picks the org vision model for a TEXT-ONLY serving model', async () => {
+    mockConnectors([connector('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'text-only', vision: false, inputPrice: 1 }),
+      entry({ id: 'cheap-vl', inputPrice: 5 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(
+      resolveTurnVisionModel(ctx, 'org_1', {
+        providerSlug: 'alpha',
+        modelId: 'text-only',
+      }),
+    ).resolves.toEqual({ providerSlug: 'alpha', modelId: 'cheap-vl' });
+  });
+
+  it('resolves a vision model when the serving model is not in the catalog', async () => {
+    // A model served by a credential allowlist but absent from the fetched
+    // catalog must not be assumed vision-capable.
+    mockConnectors([connector('alpha')]);
+    mockedCatalog.mockResolvedValue([entry({ id: 'cheap-vl', inputPrice: 5 })]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(
+      resolveTurnVisionModel(ctx, 'org_1', {
+        providerSlug: 'alpha',
+        modelId: 'mystery-model',
+      }),
+    ).resolves.toEqual({ providerSlug: 'alpha', modelId: 'cheap-vl' });
+  });
+
+  it('degrades to null (turn runs text-only) when resolution throws', async () => {
+    mockedResolveConnectors.mockRejectedValue(new Error('catalog down'));
+    const ctx = fakeCtx({});
+    await expect(
+      resolveTurnVisionModel(ctx, 'org_1', {
+        providerSlug: 'alpha',
+        modelId: 'text-only',
+      }),
+    ).resolves.toBeNull();
   });
 });

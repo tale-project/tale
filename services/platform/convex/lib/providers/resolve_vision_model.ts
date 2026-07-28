@@ -37,6 +37,38 @@ export interface VisionModelPick {
   modelId: string;
 }
 
+/**
+ * The vision-polyfill pick for one MANAGED turn: `null` when the serving
+ * model itself reads images (arming the polyfill would needlessly downgrade
+ * them to text descriptions), else the org's auto-selected vision model.
+ * Best-effort by design: any resolution failure logs and reads as "no
+ * vision" — the turn proceeds text-only rather than failing to start.
+ */
+export async function resolveTurnVisionModel(
+  ctx: ActionCtx,
+  organizationId: string,
+  target: { providerSlug: string; modelId: string },
+): Promise<VisionModelPick | null> {
+  try {
+    const connector = (
+      await resolveConnectorsForOrgId(ctx, organizationId)
+    ).find((entry) => entry.name === target.providerSlug);
+    if (connector) {
+      const entry = (await getConnectorCatalog(connector)).find(
+        (candidate) => candidate.id === target.modelId,
+      );
+      if (entry?.supportsVision) return null;
+    }
+    return await resolveOrgVisionModel(ctx, organizationId);
+  } catch (err) {
+    console.warn(
+      '[vision-model] turn vision resolution failed (turn proceeds text-only):',
+      err,
+    );
+    return null;
+  }
+}
+
 export async function resolveOrgVisionModel(
   ctx: ActionCtx,
   organizationId: string,

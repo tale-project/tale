@@ -31,6 +31,7 @@ import {
   projectRun,
   readRunStatus,
 } from '../lib/run-view';
+import { AgentExecutionLog } from './agent-execution-log';
 import { AutomationCanvas } from './automation-canvas';
 import { EffectList } from './effect-list';
 import { NodeInspector } from './node-inspector';
@@ -223,6 +224,11 @@ export function RunDetail({
           }}
         />
       </div>
+
+      {/* What an `agent` node did inside the sandbox — the one window into a
+          turn that is otherwise an opaque spinner. Renders nothing for runs
+          without an agent node. */}
+      <AgentExecutionLog organizationId={organizationId} runId={runId} />
 
       <section className="flex flex-col gap-2">
         <SectionHeader

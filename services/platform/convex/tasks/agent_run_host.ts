@@ -32,6 +32,7 @@ import {
   drainHarnessWindow,
   integrationsBridgeUrlForSessions,
 } from '../chat/external_turn_shared';
+import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionDuplicateError,
@@ -221,12 +222,21 @@ export const startTaskAgentTurn = internalAction({
       );
       if (brief === null) throw new Error('the task no longer exists');
 
+      // A text-only serving model still meets image inputs (task
+      // attachments, scanned PDFs) — arm the vision polyfill so those route
+      // through the gateway instead of 404ing the turn.
+      const vision = await resolveTurnVisionModel(
+        ctx,
+        args.organizationId,
+        target,
+      );
       const budgetCents = workflowAgentBudgetCents();
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         allowedModels: [
           { providerSlug: target.providerSlug, modelId: target.modelId },
+          ...(vision !== null ? [vision] : []),
         ],
         budgetCents,
       });
@@ -282,6 +292,16 @@ export const startTaskAgentTurn = internalAction({
         execId: args.execId,
         ...(args.connectors.length > 0
           ? { bridgeUrl: integrationsBridgeUrlForSessions() }
+          : {}),
+        ...(vision !== null
+          ? {
+              vision: {
+                model: resolveGatewayRouting(
+                  vision.providerSlug,
+                  vision.modelId,
+                ).gatewayModel,
+              },
+            }
           : {}),
       });
 

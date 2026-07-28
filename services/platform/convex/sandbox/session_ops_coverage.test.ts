@@ -84,6 +84,31 @@ describe('upsertSessionOp', () => {
     expect(row?.lastEventAt).toBe(5_000);
   });
 
+  it('a settled op never returns to running — a late progress flush keeps its payload only', async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      progressText: 'working',
+    });
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'completed',
+    });
+    // The unawaited text/timeline flush lands AFTER the settle.
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      progressText: 'the last words of the turn',
+      liveTimeline: [{ type: 'text', text: 'tail' }],
+    });
+    const row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.status).toBe('completed');
+    expect(row?.progressText).toBe('the last words of the turn');
+    expect(row?.liveTimeline).toEqual([{ type: 'text', text: 'tail' }]);
+    expect(typeof row?.finishedAt).toBe('number');
+  });
+
   it('agentIdle:true stamps agentIdleAt; a terminal status clears it and stamps finishedAt', async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {

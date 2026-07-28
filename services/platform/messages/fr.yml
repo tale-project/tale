@@ -847,6 +847,10 @@ automations:
     uploaded: '{name} v{version} téléversé — déploie-la quand tu es prêt.'
     warnings: "{count, plural, one {# avertissement de validation} other {# avertissements de validation}} — ouvre l'automatisation pour vérifier."
   runs:
+    agentLog:
+      title: Journal de l'agent
+      starting: "L'agent démarre dans le bac à sable…"
+      empty: "L'agent n'a produit aucun journal pour cette exécution."
     approval:
       title: 'En attente de ton approbation : {operation}'
       node: 'Demandé par le nœud « {node} » — approuver le laisse agir au prochain poll ; rejeter le fait échouer.'

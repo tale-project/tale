@@ -69,8 +69,18 @@ export const TURN_ENDED_EXIT_GRACE_MS = 1_500;
  * writes land on the generation row (never the message row), so the cadence
  * matches the direct lane's reading rhythm without invalidating the list. */
 export const STREAM_TEXT_THROTTLE_MS = 250;
-/** Overall wall-clock a turn may run before it is cut as hung. */
-export const EXTERNAL_TURN_DEADLINE_MS = 30 * 60_000;
+/** Overall wall-clock a turn may run before it is cut as hung — the EXEC's
+ * own timeout, so it must never be shorter than the lane's turn deadline
+ * (`workflowAgentDeadlineMs`, itself env-overridable): a shorter hard cap here
+ * would silently override a longer configured one and cut a legitimately long
+ * turn (a document-heavy desk run reading a whole quarter of scans). Shares
+ * one knob so raising the lane's deadline actually raises the ceiling. */
+export const EXTERNAL_TURN_DEADLINE_MS = (() => {
+  const configured = Number(process.env.TALE_EXTERNAL_TURN_DEADLINE_MS);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : 30 * 60_000;
+})();
 /** Session gateway key budget per turn, in cents. */
 export const TURN_BUDGET_CENTS = 500;
 
@@ -514,6 +524,11 @@ export function buildExternalTurnExec(args: {
   /** When set, mount the in-image integrations MCP bridge pointed here —
    * only for turns whose agent is equipped with at least one connector. */
   bridgeUrl?: string;
+  /** Arm the vision polyfill: images the harness reads route to this gateway
+   * model instead of the (text-only) serving model. The turn's own gateway
+   * key authenticates the vision calls, so the caller must have included
+   * this model in the key's allowed set. */
+  vision?: { model: string };
   /** Extra per-exec env under the harness's own (the Tier-2 broker's git
    * credential + author identity) — the harness env wins on collision, so a
    * connector token can never shadow a credential/config key the harness
@@ -558,6 +573,7 @@ export function buildExternalTurnExec(args: {
     ...(args.bridgeUrl !== undefined
       ? { mcp: { bridgeUrl: args.bridgeUrl } }
       : {}),
+    ...(args.vision !== undefined ? { vision: args.vision } : {}),
     execId: args.execId,
   });
   if (args.extraEnv === undefined) return exec;
@@ -583,6 +599,98 @@ function textFromEvents(events: readonly HarnessEvent[]): string {
     .join('\n\n');
 }
 
+/** One entry of the op row's `liveTimeline` — the AI-SDK UI-part shape the
+ * run views render. */
+export interface HarnessTimelinePart {
+  type: string;
+  text?: string;
+  state?: string;
+  toolCallId?: string;
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+}
+
+/** Newest transcript entries kept on the op row: enough to follow what the
+ * agent is doing without turning a bounded status row into a log store (the
+ * full transcript lives in the sandbox session). */
+const TIMELINE_TAIL = 40;
+/** Per-entry payload cap — a tool that reads a whole file must not push a
+ * multi-megabyte input into a reactive query. */
+const TIMELINE_VALUE_CHARS = 2000;
+/** Per-text-block cap, applied to the TAIL: a long reasoning block matters
+ * for its latest lines, and the op row is a status row, not a log store. */
+const TIMELINE_TEXT_CHARS = 4000;
+
+function clampTimelineValue(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  const json = JSON.stringify(value);
+  if (json === undefined) return undefined;
+  return json.length <= TIMELINE_VALUE_CHARS
+    ? value
+    : `${json.slice(0, TIMELINE_VALUE_CHARS)}…`;
+}
+
+/**
+ * The harness event stream projected onto the op row's transcript shape:
+ * assistant text blocks plus each tool call with its result state. Tool
+ * results fold into their call (keyed by `toolUseId`) so one tool shows as
+ * one entry that moves from `input-available` to `output-available`/`error`.
+ */
+export function timelineFromEvents(
+  events: readonly HarnessEvent[],
+): HarnessTimelinePart[] {
+  const parts: HarnessTimelinePart[] = [];
+  const byToolCall = new Map<string, HarnessTimelinePart>();
+  let text = '';
+  const flushText = () => {
+    if (text === '') return;
+    parts.push({
+      type: 'text',
+      text:
+        text.length <= TIMELINE_TEXT_CHARS
+          ? text
+          : `…${text.slice(-TIMELINE_TEXT_CHARS)}`,
+    });
+    text = '';
+  };
+  for (const event of events) {
+    if (event.type === 'text-delta' || event.type === 'text') {
+      text +=
+        event.type === 'text' && text !== '' ? `\n\n${event.text}` : event.text;
+      continue;
+    }
+    if (event.type === 'tool-use') {
+      flushText();
+      const part: HarnessTimelinePart = {
+        type: `tool-${event.toolName}`,
+        state: 'input-available',
+        toolCallId: event.toolUseId,
+        ...(clampTimelineValue(event.input) !== undefined
+          ? { input: clampTimelineValue(event.input) }
+          : {}),
+      };
+      byToolCall.set(event.toolUseId, part);
+      parts.push(part);
+      continue;
+    }
+    if (event.type === 'tool-result') {
+      const part = byToolCall.get(event.toolUseId);
+      if (!part) continue;
+      part.state = event.isError === true ? 'output-error' : 'output-available';
+      const output = clampTimelineValue(event.output);
+      if (event.isError === true) {
+        part.errorText =
+          typeof output === 'string' ? output : JSON.stringify(output);
+      } else if (output !== undefined) {
+        part.output = output;
+      }
+    }
+  }
+  flushText();
+  return parts.slice(-TIMELINE_TAIL);
+}
+
 function lastTurnEnded(
   events: readonly HarnessEvent[],
 ): Extract<HarnessEvent, { type: 'turn-ended' }> | undefined {
@@ -601,10 +709,11 @@ export type WindowOutcome =
 /** What one harness window observed — the lane-neutral core result. */
 export type HarnessWindowResult =
   | { kind: 'gone' }
-  | { kind: 'running'; text: string }
+  | { kind: 'running'; text: string; timeline: HarnessTimelinePart[] }
   | {
       kind: 'terminal';
       text: string;
+      timeline: HarnessTimelinePart[];
       ended?: Extract<HarnessEvent, { type: 'turn-ended' }>;
       execResult?: SessionExecResult;
       exited: boolean;
@@ -625,6 +734,11 @@ export async function drainHarnessWindow(args: {
   start?: HarnessExec;
   /** Throttled full-text-so-far callback (at most ~1/s), for live display. */
   onText?: (text: string) => void;
+  /** Throttled transcript-so-far callback (same cadence as `onText`), in the
+   * op row's `liveTimeline` shape. The chat lane renders its transcript from
+   * the persisted message; a run has no message, so its lane persists this
+   * onto the session op and the run views read it back. */
+  onTimeline?: (parts: HarnessTimelinePart[]) => void;
   /** Called once on a start window, after staging and just before the exec
    * launches — the moment "queued" stops being true. */
   onStarted?: () => Promise<void>;
@@ -647,14 +761,18 @@ export async function drainHarnessWindow(args: {
   let lastNotifiedText = '';
   let lastNotifyAt = 0;
   const notifyTextSoFar = () => {
-    if (args.onText === undefined) return;
+    if (args.onText === undefined && args.onTimeline === undefined) return;
     const now = Date.now();
     if (now - lastNotifyAt < STREAM_TEXT_THROTTLE_MS) return;
     const text = textFromEvents(events);
-    if (text === '' || text === lastNotifiedText) return;
+    // The transcript advances on tool activity even when no new text arrived,
+    // so the timeline gets its own emptiness check.
+    const timelineOnly = args.onText === undefined;
+    if (!timelineOnly && (text === '' || text === lastNotifiedText)) return;
     lastNotifyAt = now;
     lastNotifiedText = text;
-    args.onText(text);
+    if (text !== '') args.onText?.(text);
+    args.onTimeline?.(timelineFromEvents(events));
   };
 
   const onStdout = (chunk: string) => {
@@ -743,9 +861,10 @@ export async function drainHarnessWindow(args: {
   for (const e of parser.end()) events.push(e);
 
   const text = textFromEvents(events);
+  const timeline = timelineFromEvents(events);
   const ended = lastTurnEnded(events);
   const terminal = exited || ended !== undefined;
-  if (!terminal) return { kind: 'running', text };
+  if (!terminal) return { kind: 'running', text, timeline };
 
   // A harness that lingers after its turn (held-open stdin) has ended the turn
   // but not the process — reap it so it can't hold the session.
@@ -758,6 +877,7 @@ export async function drainHarnessWindow(args: {
   return {
     kind: 'terminal',
     text,
+    timeline,
     ...(ended !== undefined ? { ended } : {}),
     ...(execResult !== undefined ? { execResult } : {}),
     exited,

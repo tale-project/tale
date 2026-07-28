@@ -209,6 +209,91 @@ export const getAutomationSandboxOp = query({
 });
 
 /**
+ * What an automation run's `agent` node is DOING inside the sandbox: the
+ * harness's live text plus its bounded tool transcript, read from the node's
+ * session op (`workflow-agent` kind, written by the agent host's progress
+ * sink). The rebuilt engine's runs have no message to render from, so this op
+ * row IS the user-facing execution log — the run views and the task subject
+ * panel open it as "Agent log".
+ *
+ * Org-membership gated like {@link getAutomationSandboxOp}: automation runs
+ * are org-scoped, so any member who can see the run can watch its agent. The
+ * session is keyed by the RUN, and each agent node owns one exec — a nodeId
+ * filter is unnecessary and would break on the id the op was written under,
+ * so the newest `workflow-agent` op of the run's session wins.
+ */
+export const getAgentNodeSandboxOp = query({
+  args: {
+    organizationId: v.string(),
+    runId: v.id('automationRuns'),
+  },
+  returns: v.union(
+    v.object({
+      execId: v.string(),
+      status: v.union(
+        v.literal('running'),
+        v.literal('completed'),
+        v.literal('failed'),
+        v.literal('cancelled'),
+      ),
+      progressText: v.optional(v.string()),
+      liveTimeline: v.optional(
+        v.array(
+          v.object({
+            type: v.string(),
+            text: v.optional(v.string()),
+            state: v.optional(v.string()),
+            toolCallId: v.optional(v.string()),
+            input: v.optional(v.any()),
+            output: v.optional(v.any()),
+            errorText: v.optional(v.string()),
+          }),
+        ),
+      ),
+      startedAt: v.number(),
+      finishedAt: v.optional(v.number()),
+      lastEventAt: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch (err) {
+      if (err instanceof UnauthorizedError) return null;
+      throw err;
+    }
+    const run = await ctx.db.get(args.runId);
+    if (!run || run.organizationId !== args.organizationId) return null;
+
+    const sessionId = sessionIdForWorkflowExecution(String(args.runId));
+    for await (const op of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+      .order('desc')) {
+      if (op.kind !== 'workflow-agent') continue;
+      if (op.organizationId !== args.organizationId) continue;
+      return {
+        execId: op.execId,
+        status: op.status,
+        ...(op.progressText !== undefined && { progressText: op.progressText }),
+        ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
+        startedAt: op.startedAt,
+        ...(op.finishedAt !== undefined && { finishedAt: op.finishedAt }),
+        ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),
+      };
+    }
+    return null;
+  },
+});
+
+/**
  * The thread's live sandbox-session lifecycle state, for the ambient "Sandbox"
  * status pill in the composer. Returns null when the caller can't access the
  * thread or it has no live sandbox session (a normal chat thread, or one whose

@@ -809,6 +809,10 @@ automations:
     uploaded: 'Uploaded {name} v{version} — deploy it when ready.'
     warnings: '{count, plural, one {# validation warning} other {# validation warnings}} — open the automation to review.'
   runs:
+    agentLog:
+      title: Agent log
+      starting: The agent is starting up in the sandbox…
+      empty: The agent produced no log for this run.
     approval:
       title: 'Waiting for your approval: {operation}'
       node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'

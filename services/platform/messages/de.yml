@@ -849,6 +849,10 @@ automations:
     uploaded: '{name} v{version} hochgeladen — deploye sie, wenn du bereit bist.'
     warnings: '{count, plural, one {# Validierungswarnung} other {# Validierungswarnungen}} — öffne die Automatisierung zur Prüfung.'
   runs:
+    agentLog:
+      title: Agenten-Log
+      starting: Der Agent startet in der Sandbox…
+      empty: Der Agent hat für diesen Lauf kein Log erzeugt.
     approval:
       title: 'Wartet auf deine Freigabe: {operation}'
       node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
