@@ -950,7 +950,14 @@ function ChatSurfaceInner({
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
           <div
             aria-hidden
-            className="from-background via-background/85 absolute inset-x-0 top-0 h-16 bg-gradient-to-b via-40% to-transparent"
+            className={cn(
+              'absolute inset-x-0 top-0',
+              // Over the split columns the dissolve reads as haze — arena
+              // gets a solid bar with a hard edge instead.
+              pair !== null
+                ? 'bg-background border-border h-13 border-b'
+                : 'from-background via-background/85 h-16 bg-gradient-to-b via-40% to-transparent',
+            )}
           />
           <div className="relative flex h-13 items-center px-4">
             <Button

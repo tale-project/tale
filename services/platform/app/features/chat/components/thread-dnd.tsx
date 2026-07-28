@@ -35,11 +35,14 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useThreadProjectMove } from '../data/chat-backend';
+import { useThreadActions } from '../data/thread-actions';
 
 const NO_PROJECT_DROPPABLE_ID = 'project:none';
 
 /** Payload a chat row advertises while it is being dragged. */
 export interface ThreadDragData {
+  /** Dragging out of the ARCHIVED drawer unarchives on drop. */
+  archived?: boolean;
   type: 'thread';
   /** The project the thread currently belongs to (`null` = none). */
   projectId: string | null;
@@ -145,6 +148,7 @@ export function ThreadDndProvider({
 }) {
   const { t } = useT('chat');
   const { move } = useThreadProjectMove(organizationId);
+  const actions = useThreadActions(organizationId);
   const [activeThread, setActiveThread] = useState<ActiveThread | null>(null);
 
   const sensors = useSensors(
@@ -168,13 +172,30 @@ export function ThreadDndProvider({
       setActiveThread(null);
       const drag = readDragData(event.active.data.current);
       const drop = readDropData(event.over?.data.current);
-      if (!drag || !drop || drag.projectId === drop.projectId) return;
-      move(String(event.active.id), drop.projectId).catch((error: unknown) => {
-        console.error('[chat] could not move the thread', error);
-        toast({ title: t('history.toast.moveFailed'), variant: 'destructive' });
-      });
+      if (!drag || !drop) return;
+      const rehomes = drag.projectId !== drop.projectId;
+      // Dragging an archived chat anywhere out of the drawer means "bring it
+      // back": unarchive first, so the row actually appears where it was
+      // dropped instead of silently staying filed under ARCHIVED.
+      const revives = drag.archived === true;
+      if (!rehomes && !revives) return;
+      const threadId = String(event.active.id);
+      const restore = revives
+        ? actions.setArchived(threadId, false).then((ok: boolean) => {
+            if (!ok) throw new Error('unarchive refused');
+          })
+        : Promise.resolve();
+      restore
+        .then(() => (rehomes ? move(threadId, drop.projectId) : undefined))
+        .catch((error: unknown) => {
+          console.error('[chat] could not move the thread', error);
+          toast({
+            title: t('history.toast.moveFailed'),
+            variant: 'destructive',
+          });
+        });
     },
-    [move, t],
+    [actions, move, t],
   );
 
   const handleDragCancel = useCallback(() => setActiveThread(null), []);
@@ -225,11 +246,13 @@ export function useThreadDraggable(thread: {
   id: string;
   projectId: string | null;
   title: string;
+  archived?: boolean;
 }) {
   const data: ThreadDragData = {
     type: 'thread',
     projectId: thread.projectId,
     title: thread.title,
+    ...(thread.archived === true ? { archived: true } : {}),
   };
   const { setNodeRef, listeners, isDragging } = useDraggable({
     id: thread.id,

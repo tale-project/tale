@@ -69,6 +69,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
     id: thread.id,
     projectId: thread.projectId ?? null,
     title: thread.title ?? t('history.untitled'),
+    archived: thread.archived,
   });
   const treatment = useSubPanelRowTreatment(active && !isDragging);
 
