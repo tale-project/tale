@@ -852,6 +852,7 @@ automations:
       error: Failed
       not_run: Never reached
       pending: Not reached yet
+      running: Running now
     effects:
       title: '{count, plural, one {# effect} other {# effects}}'
       description:
@@ -866,6 +867,9 @@ automations:
     loadFailed: The settings could not be loaded — close the dialog and try again.
     save: Save
     saveAndContinue: Save and continue
+    dialogTitle: '{name} — settings'
+    tabsLabel: Settings sections
+    unsavedTab: Unsaved changes
     saved: Settings saved.
     saveFailed: The settings could not be saved — try again.
     errors:
@@ -6987,6 +6991,8 @@ tasks:
     missingInput: Add the task's input files first — the folder this task is bound to is still empty.
     working: '{name} is working on this task.'
     details: Details
+    currentStep: Current step
+    stepNotReached: The run has not reached this step.
     detailsTitle: '{name} — run progress'
     noProgressYet: The run has not reached any node yet.
     effectsTitle: Actions performed
@@ -7001,7 +7007,10 @@ tasks:
     approve: Approve
     approved: Approved — the task is done.
     requestChanges: Request changes
-    requestChangesHint: Comment your feedback below first — the rerun reads the task's comments.
+    requestChangesDialog: 'Your feedback is added as a comment on this task and {name} starts again from it.'
+    requestChangesLabel: What should change
+    requestChangesPlaceholder: 'e.g. Box 400 should exclude the March bordereau — it belongs to the next quarter.'
+    requestChangesSend: Send back
     requestChangesSent: 'Sent back to {name} — the rerun picks up your comments.'
     cancel: Cancel run
     cancelConfirmTitle: Cancel this run?
@@ -7032,8 +7041,18 @@ tasks:
       start: 'Starts the {name} run.'
       request_changes: 'Sends it back to {name} with your comments.'
       cancel: 'Cancels the running {name} run first.'
+  outcome:
+    title: Outcome
+    pending: Not ready yet
+    empty: 'No results yet — they appear here once a run produces them.'
+    untitled: Untitled
+    open: 'Open {name}'
   inputFiles:
-    title: Input files
+    title: Files
+    titleWithCount: 'Files ({count})'
+    more: '+{count} more'
+    showLess: Show fewer
+    open: 'Open {name}'
     empty: No files yet — the run reads this folder; drop the quarter's documents here.
     untitled: Untitled
     uploading: Uploading…
@@ -7049,8 +7068,6 @@ tasks:
     setupIntro: 'Set up {name} for this project first. These values are saved as
       files in the {folder} folder, and every run reads them from there.'
     settingsOpen: Settings
-    settingsTitle: '{name} — settings'
-    settingsBack: Back
   attachments:
     label: Attachments
     add: Add attachments

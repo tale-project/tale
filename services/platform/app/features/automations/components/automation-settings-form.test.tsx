@@ -83,7 +83,7 @@ const SETTINGS = fixture({
     },
   ],
 });
-function mount(mode: 'setup' | 'edit', onSaved = vi.fn()) {
+function mount(onSaved = vi.fn()) {
   // A real QueryClient: a save invalidates the values query, and that
   // invalidation is part of the contract (the form settles back to clean).
   const client = new QueryClient({
@@ -96,7 +96,6 @@ function mount(mode: 'setup' | 'edit', onSaved = vi.fn()) {
         projectId={'project_1' as Id<'projects'>}
         settings={SETTINGS}
         folder="Setup"
-        mode={mode}
         onSaved={onSaved}
       />
     </QueryClientProvider>,
@@ -115,7 +114,7 @@ describe('AutomationSettingsForm — setup mode', () => {
       isError: false,
     });
 
-    const { user, onSaved } = mount('setup');
+    const { user, onSaved } = mount();
 
     expect(screen.getByText('Client identity')).toBeInTheDocument();
 
@@ -159,69 +158,6 @@ describe('AutomationSettingsForm — setup mode', () => {
         fileName: 'fx-policy.yaml',
         yaml: { method: 'estv_monthly', allow_fixture_rates: 'false' },
       }),
-    );
-  });
-});
-
-describe('AutomationSettingsForm — edit mode', () => {
-  it('starts clean, dirty-gates each save, and writes only the edited file', async () => {
-    convexMocks.read.mockReset();
-    convexMocks.write.mockReset().mockResolvedValue({ action: 'updated' });
-    toastMock.mockReset();
-    convexMocks.read.mockReturnValue({
-      data: {
-        'identity.yaml': {
-          organisation_name: 'Matterhorn Living GmbH',
-          vat_number: 'CHE123456789',
-        },
-        'fx-policy.yaml': { method: 'group_internal' },
-      },
-      isPending: false,
-      isError: false,
-    });
-
-    const { user } = mount('edit');
-
-    expect(screen.getByLabelText(/Legal name/)).toHaveValue(
-      'Matterhorn Living GmbH',
-    );
-
-    // Per-form saves, both disabled until something changes — a prefilled
-    // form must not offer a no-op save.
-    const saves = screen.getAllByRole('button', { name: 'Save' });
-    expect(saves).toHaveLength(2);
-    for (const button of saves) expect(button).toBeDisabled();
-
-    await user.clear(screen.getByLabelText(/Legal name/));
-    await user.type(screen.getByLabelText(/Legal name/), 'Matterhorn AG');
-    const [identitySave, fxSave] = screen.getAllByRole('button', {
-      name: 'Save',
-    });
-    expect(identitySave).toBeEnabled();
-    expect(fxSave).toBeDisabled();
-    if (identitySave === undefined) throw new Error('missing save button');
-    await user.click(identitySave);
-
-    await waitFor(() => expect(convexMocks.write).toHaveBeenCalledTimes(1));
-    expect(convexMocks.write).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileName: 'identity.yaml',
-        yaml: {
-          organisation_name: 'Matterhorn AG',
-          vat_number: 'CHE123456789',
-        },
-      }),
-    );
-    expect(toastMock).toHaveBeenCalled();
-    // A save drops the form's edits and lets the file speak again, so the
-    // button disarms on its own — no baseline to track. (The mocked query
-    // keeps returning the pre-save content, which is exactly what makes the
-    // revert observable here; in the app the invalidation refetches it.)
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeDisabled(),
-    );
-    expect(screen.getByLabelText(/Legal name/)).toHaveValue(
-      'Matterhorn Living GmbH',
     );
   });
 });

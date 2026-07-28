@@ -44,6 +44,8 @@ export interface SeedablePack {
   taskContract?: unknown;
   /** The manifest's `settings` block, when declared. */
   settings?: unknown;
+  /** The manifest's display half — the name every surface shows. */
+  presentation?: unknown;
 }
 
 /**
@@ -101,6 +103,17 @@ export function loadSeedablePacks(
       ...(pack.manifest.settings !== undefined && {
         settings: pack.manifest.settings,
       }),
+      presentation: {
+        name: pack.manifest.name,
+        ...(pack.manifest.description !== undefined && {
+          description: pack.manifest.description,
+        }),
+        ...(pack.manifest.icon !== undefined && { icon: pack.manifest.icon }),
+        ...(pack.manifest.labels !== undefined && {
+          labels: pack.manifest.labels,
+        }),
+        ...(pack.manifest.i18n !== undefined && { i18n: pack.manifest.i18n }),
+      },
     });
   }
   return seedable;

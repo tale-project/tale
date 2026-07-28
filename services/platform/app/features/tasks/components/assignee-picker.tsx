@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Info, UserX } from 'lucide-react';
@@ -99,9 +100,10 @@ export function AssigneePicker({
     resolveActor,
   } = useAssignableActors(organizationId, projectId);
   const automations = useTaskContractAutomations(organizationId, projectId);
+  const { locale } = useLocale();
   const subjectEntries = useMemo(
-    () => taskSubjectEntries(automations),
-    [automations],
+    () => taskSubjectEntries(automations, locale),
+    [automations, locale],
   );
   const client = useConvexClient();
   const cancelWorkflowRun = useConvexAction(
@@ -214,7 +216,7 @@ export function AssigneePicker({
       automationSections.push(
         ...subjectEntries.map((entry) => ({
           value: `app:${entry.automationSlug}`,
-          label: entry.automationSlug,
+          label: entry.displayName,
         })),
       );
     }

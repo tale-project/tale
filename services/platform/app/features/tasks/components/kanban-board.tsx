@@ -1,4 +1,5 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row } from '@tale/ui/layout';
 import { useMemo } from 'react';
 
@@ -57,10 +58,11 @@ export function KanbanBoard({
   // The dragged card's verb per column, from the SAME matrix that executes
   // the drop (`plannedTransitionKind`) — automation-owned cards name the
   // workflow act, agent-owned cards name the run kick/cancel.
+  const { locale } = useLocale();
   const dropHints = useMemo(() => {
     const task = dnd.activeTask;
     if (!task) return null;
-    const ownership = resolveTaskOwnership(task, automations);
+    const ownership = resolveTaskOwnership(task, automations, locale);
     const runActive = isAgentWorking(task._id);
     const hints = new Map<string, string>();
     for (const status of BOARD_TASK_STATUSES) {
@@ -75,7 +77,7 @@ export function KanbanBoard({
         if (kind !== null) {
           hints.set(
             status,
-            t(`automation.will.${kind}`, { name: ownership.automationSlug }),
+            t(`automation.will.${kind}`, { name: ownership.displayName }),
           );
         }
       } else if (ownership.kind === 'agent') {
@@ -87,7 +89,7 @@ export function KanbanBoard({
       }
     }
     return hints.size > 0 ? hints : null;
-  }, [automations, dnd.activeTask, isAgentWorking, t]);
+  }, [automations, dnd.activeTask, isAgentWorking, locale, t]);
 
   return (
     <DndContext

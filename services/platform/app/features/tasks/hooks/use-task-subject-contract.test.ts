@@ -31,12 +31,15 @@ function task(overrides: Partial<TaskOwnershipFields>): TaskOwnershipFields {
 
 describe('taskSubjectEntries', () => {
   it('keeps only deployed automations with a parsable contract', () => {
-    const entries = taskSubjectEntries([
-      vat,
-      { name: 'draft-only', taskContract: vat.taskContract },
-      { name: 'broken', deployedVersion: 2, taskContract: { nope: true } },
-      { name: 'contract-less', deployedVersion: 2 },
-    ]);
+    const entries = taskSubjectEntries(
+      [
+        vat,
+        { name: 'draft-only', taskContract: vat.taskContract },
+        { name: 'broken', deployedVersion: 2, taskContract: { nope: true } },
+        { name: 'contract-less', deployedVersion: 2 },
+      ],
+      'en',
+    );
     expect(entries.map((entry) => entry.automationSlug)).toEqual(['vat-desk']);
   });
 
@@ -50,12 +53,33 @@ describe('taskSubjectEntries', () => {
         },
       ],
     };
-    const entries = taskSubjectEntries([
-      { ...vat, settings },
-      { ...payroll, settings: { forms: [] } },
-    ]);
+    const entries = taskSubjectEntries(
+      [
+        { ...vat, settings },
+        { ...payroll, settings: { forms: [] } },
+      ],
+      'en',
+    );
     expect(entries[0]?.settings?.forms[0]?.file).toBe('fx-policy.yaml');
     expect(entries[1]?.settings).toBeNull();
+  });
+
+  it('carries the declared name in the reader s language, never the slug', () => {
+    const declared = {
+      ...vat,
+      presentation: {
+        name: 'Swiss VAT return desk',
+        i18n: { de: { name: 'Schweizer MWST-Arbeitsplatz' } },
+      },
+    };
+    expect(taskSubjectEntries([declared], 'de')[0]?.displayName).toBe(
+      'Schweizer MWST-Arbeitsplatz',
+    );
+    expect(taskSubjectEntries([declared], 'en')[0]?.displayName).toBe(
+      'Swiss VAT return desk',
+    );
+    // No manifest: the slug read as a title, so a surface never shows `vat-desk`.
+    expect(taskSubjectEntries([vat], 'en')[0]?.displayName).toBe('Vat desk');
   });
 });
 
@@ -69,6 +93,7 @@ describe('resolveTaskOwnership', () => {
         assigneeId: 'vat-desk',
       }),
       [vat],
+      'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
@@ -80,6 +105,7 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({ assigneeType: 'app', assigneeId: 'retired-desk' }),
       [vat],
+      'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
   });
@@ -93,6 +119,7 @@ describe('resolveTaskOwnership', () => {
         assigneeId: 'helper',
       }),
       [vat],
+      'en',
     );
     // An agent assignee outranks the stamp — the assignment is the ownership.
     expect(ownership).toEqual({ kind: 'agent', agentId: 'helper' });
@@ -106,6 +133,7 @@ describe('resolveTaskOwnership', () => {
         externalSystem: 'vatplus',
       }),
       [vat],
+      'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
   });
@@ -114,6 +142,7 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({ createdByType: 'app', createdBy: 'vat-desk' }),
       [vat],
+      'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
@@ -129,6 +158,7 @@ describe('resolveTaskOwnership', () => {
         externalSystem: 'vatplus',
       }),
       [vat],
+      'en',
     );
     expect(ownership).toEqual({ kind: 'agent', agentId: 'helper' });
   });
@@ -137,6 +167,7 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({ externalSystem: 'vatplus' }),
       [vat],
+      'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
@@ -157,6 +188,7 @@ describe('resolveTaskOwnership', () => {
         assigneeId: 'user_2',
       }),
       [vat],
+      'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
   });
@@ -165,12 +197,15 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({ externalSystem: 'vatplus' }),
       [vat, payroll],
+      'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
   });
 
   it('human: a plain task', () => {
-    expect(resolveTaskOwnership(task({}), [vat])).toEqual({ kind: 'human' });
+    expect(resolveTaskOwnership(task({}), [vat], 'en')).toEqual({
+      kind: 'human',
+    });
   });
 });
 
@@ -181,9 +216,13 @@ describe('resolveTaskSubjectContract', () => {
       assigneeId: 'helper',
       externalSystem: 'vatplus',
     });
-    expect(resolveTaskSubjectContract(agentTask, [vat])).toBeNull();
+    expect(resolveTaskSubjectContract(agentTask, [vat], 'en')).toBeNull();
     expect(
-      resolveTaskSubjectContract(task({ externalSystem: 'vatplus' }), [vat]),
+      resolveTaskSubjectContract(
+        task({ externalSystem: 'vatplus' }),
+        [vat],
+        'en',
+      ),
     ).toMatchObject({ automationSlug: 'vat-desk' });
   });
 });

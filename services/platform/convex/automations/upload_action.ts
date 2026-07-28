@@ -139,6 +139,26 @@ function parseYamlRecord(name: string, text: string): Record<string, unknown> {
   return value;
 }
 
+/**
+ * The manifest's display half, for the version row — the name a surface shows
+ * instead of the slug. Kept beside the parse so both upload lanes read the same
+ * fields; the store validates the shape.
+ */
+function presentationOf(
+  manifest: AutomationPackManifest | undefined,
+): Record<string, unknown> | undefined {
+  if (manifest === undefined) return undefined;
+  return {
+    name: manifest.name,
+    ...(manifest.description !== undefined && {
+      description: manifest.description,
+    }),
+    ...(manifest.icon !== undefined && { icon: manifest.icon }),
+    ...(manifest.labels !== undefined && { labels: manifest.labels }),
+    ...(manifest.i18n !== undefined && { i18n: manifest.i18n }),
+  };
+}
+
 function parseManifest(name: string, text: string): AutomationPackManifest {
   const manifest = automationPackManifestSchema.safeParse(
     parseYamlRecord(name, text),
@@ -350,6 +370,7 @@ export const uploadAutomation = action({
       const warnings = await validateDocument(document);
       const taskContract = manifest?.subjects?.task;
       const settings = manifest?.settings;
+      const presentation = presentationOf(manifest);
 
       const saved: { name: string; version: number } = await ctx.runMutation(
         internal.automations.mutations.storeSave,
@@ -363,6 +384,7 @@ export const uploadAutomation = action({
             : {}),
           ...(taskContract !== undefined ? { taskContract } : {}),
           ...(settings !== undefined ? { settings } : {}),
+          ...(presentation !== undefined ? { presentation } : {}),
         },
       );
       // Installing an EXISTING automation into a project adds the binding
@@ -490,6 +512,7 @@ export const uploadAutomation = action({
 
       const taskContract = manifest?.subjects?.task;
       const settings = manifest?.settings;
+      const presentation = presentationOf(manifest);
       const saved: { name: string; version: number } = await ctx.runMutation(
         internal.automations.mutations.storeSave,
         {
@@ -502,6 +525,7 @@ export const uploadAutomation = action({
             : {}),
           ...(taskContract !== undefined ? { taskContract } : {}),
           ...(settings !== undefined ? { settings } : {}),
+          ...(presentation !== undefined ? { presentation } : {}),
         },
       );
       // Installing an EXISTING automation into a project adds the binding

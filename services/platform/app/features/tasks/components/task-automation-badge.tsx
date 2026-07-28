@@ -50,7 +50,7 @@ export function TaskAutomationBadge({
   const resolved = useTaskSubjectContract(organizationId, task);
   if (!resolved) return null;
 
-  const name = resolved.automationSlug;
+  const name = resolved.displayName;
   const hint = t('automation.hint', { name });
 
   // The chip only speaks when its facts are known: a folder-input contract

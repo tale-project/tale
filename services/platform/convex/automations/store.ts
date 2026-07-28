@@ -63,6 +63,9 @@ export interface SaveOptions {
   /** The version's settings declaration (already zod-validated by the
    * caller); stored beside the document. */
   settings?: unknown;
+  /** How the version names itself to people (already zod-validated by the
+   * caller) — the pack manifest's display half. */
+  presentation?: unknown;
 }
 
 /** What `setTrigger` may persist. Mirrors the engine's `TriggerSpec` plus the
@@ -431,6 +434,9 @@ export function automationStore(
         }),
         ...(options?.settings !== undefined && {
           settings: options.settings,
+        }),
+        ...(options?.presentation !== undefined && {
+          presentation: options.presentation,
         }),
         createdBy: actor,
         createdAt: Date.now(),

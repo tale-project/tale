@@ -21,6 +21,8 @@ const { state, saveMutation, startRun, deploy, toastSpy } = vi.hoisted(() => ({
       description: 'Chases unpaid invoices.',
       nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
     } as unknown,
+    /** The pack manifest's display half, when the test wants one. */
+    presentation: undefined as unknown,
   },
   saveMutation: { mutateAsync: vi.fn(), isPending: false },
   startRun: { mutate: vi.fn(), isPending: false },
@@ -51,7 +53,14 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useAutomation: () => ({
-    data: { document: state.document, version: 3, deployedVersion: 2 },
+    data: {
+      document: state.document,
+      version: 3,
+      deployedVersion: 2,
+      ...(state.presentation !== undefined
+        ? { presentation: state.presentation }
+        : {}),
+    },
     isPending: false,
   }),
   useAutomationVersions: () => ({
@@ -149,10 +158,26 @@ beforeEach(() => {
 });
 
 describe('AutomationDetail', () => {
-  it('names the automation as the page heading', () => {
+  it('heads the page with the name the pack declared, in the reader s language', () => {
+    state.presentation = {
+      name: 'Chase overdue invoices',
+      description: 'Sends the dunning ladder.',
+      i18n: { de: { name: 'Offene Rechnungen anmahnen' } },
+    };
     renderPage();
     expect(
-      screen.getByRole('heading', { level: 2, name: 'billing/dunning' }),
+      screen.getByRole('heading', { level: 2, name: 'Chase overdue invoices' }),
+    ).toBeVisible();
+    expect(screen.getByText('Sends the dunning ladder.')).toBeVisible();
+  });
+
+  it('falls back to the slug read as a title when nothing was declared', () => {
+    // Canvas-authored automations declare no manifest; the slug is what the
+    // author typed, and its namespace is addressing — never the heading.
+    state.presentation = undefined;
+    renderPage();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Dunning' }),
     ).toBeVisible();
   });
 

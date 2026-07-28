@@ -66,6 +66,12 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 
+// The directory names `app` actors from the automation listing, which needs the
+// reader's locale; this hook renders outside a LocaleProvider here.
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
+
 describe('useActorDirectory — members + project-agent instances', () => {
   it('lists org members as assignable and resolves their names', () => {
     const { result } = renderHook(() => useActorDirectory('org-1'));

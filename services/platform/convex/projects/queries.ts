@@ -389,6 +389,9 @@ export const listProjectDocuments = query({
         v.null(),
       ),
       createdBy: v.optional(v.string()),
+      /** Who put the file here — `upload` for a person, `agent` for a file a
+       * run filed. The task surface reads it to tell input from outcome. */
+      sourceProvider: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -424,6 +427,7 @@ export const listProjectDocuments = query({
         indexed: proj?.indexed ?? false,
         ragStatus: proj?.status ?? null,
         createdBy: d.createdBy,
+        sourceProvider: d.sourceProvider,
       };
     });
   },

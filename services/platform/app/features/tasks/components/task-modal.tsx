@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
@@ -14,7 +15,6 @@ import { ConvexError } from 'convex/values';
 import {
   Archive,
   ArchiveRestore,
-  ArrowLeft,
   Plus,
   Settings2,
   Workflow,
@@ -24,6 +24,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { AutomationSettingsDialog } from '@/app/features/automations/components/automation-settings-dialog';
 import { AutomationSettingsForm } from '@/app/features/automations/components/automation-settings-form';
 import { useAutomationSettingsValues } from '@/app/features/automations/hooks/use-settings-values';
 import { useProject } from '@/app/features/projects/hooks/queries';
@@ -89,6 +90,7 @@ import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
+import { TaskOutcomeFilesCard } from './task-outcome-files';
 import { TaskReviewCard } from './task-review-card';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
@@ -288,7 +290,7 @@ function TemplateChips({
           onClick={() => onPick(entry.automationSlug)}
         >
           <Workflow className="size-3.5" aria-hidden />
-          {entry.automationSlug}
+          {entry.displayName}
         </Button>
       ))}
     </Row>
@@ -340,7 +342,7 @@ function TemplateCreateBody({
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const { automationSlug, contract, settings } = template;
+  const { automationSlug, displayName, contract, settings } = template;
   const settingsFolder =
     settings === null ? null : resolveSettingsFolder(settings, contract);
   const requiredForms =
@@ -364,18 +366,19 @@ function TemplateCreateBody({
     !requiredForms.every((form) =>
       settingsFormSatisfied(form, stored.data[form.file] ?? {}),
     );
-  // The user's own navigation wins over the derived phase (Save-and-continue,
-  // the Settings entry, Back).
-  const [chosenPhase, setChosenPhase] = useState<'create' | 'settings' | null>(
-    null,
-  );
-  const phase: 'checking' | 'setup' | 'create' | 'settings' =
+  // Save-and-continue wins over the derived phase: the files it just wrote may
+  // still be refetching, and the gate must not re-open behind it.
+  const [chosenPhase, setChosenPhase] = useState<'create' | null>(null);
+  const phase: 'checking' | 'setup' | 'create' =
     chosenPhase ??
     (requiredForms.length > 0 && stored.isPending
       ? 'checking'
       : setupNeeded
         ? 'setup'
         : 'create');
+  // Editing settings later is its own dialog — a nested surface with its own
+  // Save and its own discard guard, rather than a second body inside this one.
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { i18n: fieldI18n, ...fieldBase } = contract.create?.field ?? {};
   const baseLocale = locale.split('-')[0] ?? locale;
   const text = {
@@ -452,14 +455,14 @@ function TemplateCreateBody({
   const panel = (
     <Stack gap={3}>
       <Text as="p" variant="muted">
-        {t('automation.hint', { name: automationSlug })}
+        {t('automation.hint', { name: displayName })}
       </Text>
       {settings !== null && phase === 'create' && (
         <Button
           variant="ghost"
           size="sm"
           className="self-start"
-          onClick={() => setChosenPhase('settings')}
+          onClick={() => setSettingsOpen(true)}
         >
           <Settings2 className="size-3.5" aria-hidden />
           {t('template.settingsOpen')}
@@ -495,43 +498,25 @@ function TemplateCreateBody({
     );
   }
 
-  if (phase !== 'create' && settings !== null && settingsFolder !== null) {
-    // 'setup' (first-time gate) and 'settings' (edit entry) share the form;
-    // setup continues into the create step once every form is written.
+  // The first-time gate: creation waits until every required file is written.
+  if (phase === 'setup' && settings !== null && settingsFolder !== null) {
     return (
       <ModalLayout
         header={header}
         main={
           <>
             {chips}
-            {phase === 'setup' ? (
-              <Text as="p" variant="muted">
-                {t('template.setupIntro', {
-                  name: automationSlug,
-                  folder: settingsFolder,
-                })}
-              </Text>
-            ) : (
-              <Row gap={2}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setChosenPhase('create')}
-                >
-                  <ArrowLeft className="size-3.5" aria-hidden />
-                  {t('template.settingsBack')}
-                </Button>
-                <Text as="h3" className="text-sm font-medium">
-                  {t('template.settingsTitle', { name: automationSlug })}
-                </Text>
-              </Row>
-            )}
+            <Text as="p" variant="muted">
+              {t('template.setupIntro', {
+                name: displayName,
+                folder: settingsFolder,
+              })}
+            </Text>
             <AutomationSettingsForm
               organizationId={organizationId}
               projectId={projectId}
               settings={settings}
               folder={settingsFolder}
-              mode={phase === 'setup' ? 'setup' : 'edit'}
               onSaved={() => {
                 toast({
                   title: tAutomations('settings.saved'),
@@ -553,49 +538,62 @@ function TemplateCreateBody({
   }
 
   return (
-    <ModalLayout
-      header={header}
-      main={
-        <>
-          {chips}
-          <Input
-            id="task-template-name"
-            label={text.label ?? t('template.nameLabel')}
-            placeholder={text.placeholder}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={submitting}
-            autoFocus
-            required
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void submit();
-              }
-            }}
-          />
-          {(showInvalid || text.help !== undefined) && (
-            <Text as="p" variant="muted">
-              {showInvalid
-                ? t('template.invalidName', { pattern: naming ?? '' })
-                : text.help}
-            </Text>
-          )}
-        </>
-      }
-      panel={panel}
-      footer={
-        <Row gap={2} justify="end">
-          {cancelButton}
-          <Button
-            onClick={() => void submit()}
-            disabled={submitting || !nameOk}
-          >
-            {t('actions.create')}
-          </Button>
-        </Row>
-      }
-    />
+    <>
+      <ModalLayout
+        header={header}
+        main={
+          <>
+            {chips}
+            <Input
+              id="task-template-name"
+              label={text.label ?? t('template.nameLabel')}
+              placeholder={text.placeholder}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={submitting}
+              autoFocus
+              required
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
+            />
+            {(showInvalid || text.help !== undefined) && (
+              <Text as="p" variant="muted">
+                {showInvalid
+                  ? t('template.invalidName', { pattern: naming ?? '' })
+                  : text.help}
+              </Text>
+            )}
+          </>
+        }
+        panel={panel}
+        footer={
+          <Row gap={2} justify="end">
+            {cancelButton}
+            <Button
+              onClick={() => void submit()}
+              disabled={submitting || !nameOk}
+            >
+              {t('actions.create')}
+            </Button>
+          </Row>
+        }
+      />
+      {settings !== null && settingsFolder !== null && (
+        <AutomationSettingsDialog
+          organizationId={organizationId}
+          projectId={projectId}
+          settings={settings}
+          folder={settingsFolder}
+          automationName={displayName}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
+    </>
   );
 }
 
@@ -847,6 +845,13 @@ function EditTaskBody({
     { confirmCancel },
   );
   const ownedBy = useTaskSubjectContract(task?.organizationId ?? '', task);
+  const { t: tAutomations } = useT('automations');
+  // The owning automation's operator settings, opened from the task itself.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsFolder =
+    ownedBy?.settings == null
+      ? null
+      : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
@@ -1027,12 +1032,21 @@ function EditTaskBody({
             ownedBy.contract.input?.kind === 'folder' &&
             typeof task.externalId === 'string' &&
             task.externalId !== '' ? (
-              <TaskInputFilesCard
-                organizationId={task.organizationId}
-                projectId={task.projectId}
-                folderId={toId<'folders'>(task.externalId)}
-                canEdit={canMutate}
-              />
+              <>
+                <TaskInputFilesCard
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  folderId={toId<'folders'>(task.externalId)}
+                  contract={ownedBy.contract}
+                  canEdit={canMutate}
+                />
+                <TaskOutcomeFilesCard
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  folderId={toId<'folders'>(task.externalId)}
+                  contract={ownedBy.contract}
+                />
+              </>
             ) : (
               <TaskAttachments
                 attachments={task.attachments ?? []}
@@ -1155,11 +1169,28 @@ function EditTaskBody({
         panel={
           <>
             {ownedBy !== null && (
-              <TaskAutomationBadge
-                organizationId={task.organizationId}
-                task={task}
-                showName
-              />
+              <Row gap={2} className="min-w-0">
+                <TaskAutomationBadge
+                  organizationId={task.organizationId}
+                  task={task}
+                  showName
+                />
+                {/* The operator-owned configuration of the automation that
+                    drives THIS task — reachable from the task, not only from
+                    the create dialog it was first set up in. */}
+                {ownedBy.settings !== null && settingsFolder !== null && (
+                  <IconButton
+                    icon={Settings2}
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto shrink-0"
+                    aria-label={tAutomations('settings.dialogTitle', {
+                      name: ownedBy.displayName,
+                    })}
+                    onClick={() => setSettingsOpen(true)}
+                  />
+                )}
+              </Row>
             )}
             <PropertyField label={t('fields.status')}>
               <StatusPicker
@@ -1324,6 +1355,17 @@ function EditTaskBody({
         isArchived={isArchived}
         onArchived={onClose}
       />
+      {ownedBy?.settings != null && settingsFolder !== null && (
+        <AutomationSettingsDialog
+          organizationId={task.organizationId}
+          projectId={task.projectId}
+          settings={ownedBy.settings}
+          folder={settingsFolder}
+          automationName={ownedBy.displayName}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
       {cancelConfirmDialog}
     </>
   );

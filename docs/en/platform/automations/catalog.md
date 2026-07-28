@@ -99,6 +99,32 @@ A form owns its file: saving rewrites `Setup/fx-policy.yaml` from the form's val
 
 Mark a form `required: true` and the create dialog enforces it per project: the first time someone picks the automation's task template in a project that hasn't been set up, the forms appear before the task's own field, and creating continues only once they're saved. From then on a **Settings** button in the same dialog reopens the forms for editing — each with its own **Save**, active only when something changed.
 
+## Deliverables the pack declares
+
+A pack whose runs file documents back into a task's folder can name which of them
+are the **deliverables** — what a reviewer opens the task for. The task's Outcome
+zone lists exactly these, always open and in the declared order, while everything
+else in the folder — the uploads, the run's working files — folds away under
+**Files**.
+
+```yaml
+# automation.yml
+subjects:
+  task:
+    outcome:
+      files:
+        - return.xml
+        - report.md
+        - journal.csv
+```
+
+Only the pack knows which of its written files are the point, so nothing is
+guessed platform-side: a name that no run has filed yet still shows as a promised
+row marked _Not ready yet_, so the task names what it will produce before it
+produces it. `*` and `?` wildcards are honoured (`return-*.xml`) for a name a run
+derives. Declare nothing and the Outcome zone falls back to every file the runs
+filed, newest first.
+
 ## Where this fits
 
 Automations arrive three ways — seeded with the organization, authored on the canvas, or uploaded as a pack — and every route ends in the same place: a draft version on the automation's page, deployed on your say-so. A zip-packed upload also stocks the [skill library](/platform/workspace/skills) with the bundles the automation needs, with a confirmation in front of any skill it would replace. [The workflow editor](/platform/automations/editor) is the next read for taking that draft live.

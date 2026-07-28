@@ -32,6 +32,29 @@ describe('timelineFromEvents', () => {
     ]);
   });
 
+  it('never prints the same words twice when a harness sends deltas AND blocks', () => {
+    // claude-code streams deltas and then emits the finished block for the
+    // same sentence; consuming both duplicated every paragraph in the log.
+    const parts = timelineFromEvents([
+      { type: 'text-delta', text: 'All 9 sidecars match' },
+      { type: 'text-delta', text: ' — skipping them.' },
+      { type: 'text', text: 'All 9 sidecars match — skipping them.' },
+    ]);
+    expect(parts).toEqual([
+      { type: 'text', text: 'All 9 sidecars match — skipping them.' },
+    ]);
+  });
+
+  it('falls back to text blocks for a harness that streams none', () => {
+    const parts = timelineFromEvents([
+      { type: 'text', text: 'first thought' },
+      { type: 'text', text: 'second thought' },
+    ]);
+    expect(parts).toEqual([
+      { type: 'text', text: 'first thought\n\nsecond thought' },
+    ]);
+  });
+
   it('marks a failed tool call with its error text', () => {
     const parts = timelineFromEvents([
       {

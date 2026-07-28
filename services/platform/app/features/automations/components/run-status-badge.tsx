@@ -60,6 +60,7 @@ const NODE_STATUS_STYLE: Record<
   error: { variant: 'destructive', icon: XCircle },
   not_run: { variant: 'slate', icon: CircleDashed },
   pending: { variant: 'blue', icon: Clock },
+  running: { variant: 'blue', icon: Loader2 },
 };
 
 export function RunStatusBadge({ status }: { status: NodeRunStatus }) {

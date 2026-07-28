@@ -11,8 +11,6 @@ import { cn } from '@/lib/utils/cn';
 
 import { Dialog, type DialogSize } from './dialog';
 
-const preventDefaultSubmit = (e: React.FormEvent) => e.preventDefault();
-
 export interface FormDialogProps {
   /** Whether the dialog is open */
   open?: boolean;
@@ -109,6 +107,22 @@ export function FormDialog({
   const discardConfirmMessageRef = useRef(discardConfirmMessage);
   discardConfirmMessageRef.current = discardConfirmMessage;
 
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+
+  /**
+   * The default action is ALWAYS prevented, whether or not a caller passed a
+   * handler. A dialog's form has no action and no method: letting the browser
+   * submit it navigates the page, which shows up as the browser's own
+   * "Leave site? Changes you made may not be saved." prompt on top of a save
+   * that is still running. Every caller used to hand-roll this
+   * `event.preventDefault()`, so forgetting it was a trap rather than a choice.
+   */
+  const handleSubmit = useCallback((event: React.FormEvent) => {
+    event.preventDefault();
+    onSubmitRef.current?.(event);
+  }, []);
+
   const handleClose = useCallback((isOpen: boolean) => {
     if (isOpen) {
       onOpenChangeRef.current?.(true);
@@ -170,7 +184,7 @@ export function FormDialog({
       trigger={trigger}
       customHeader={customHeader}
     >
-      <form onSubmit={onSubmit ?? preventDefaultSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {enableErrorBoundary ? (
           <DialogErrorBoundary
             organizationId={orgId}

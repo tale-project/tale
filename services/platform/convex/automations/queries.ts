@@ -156,6 +156,9 @@ export const listAutomations = query({
       /** The DEPLOYED version's settings declaration, when it carries one —
        * what the settings forms render and the create-task gate checks. */
       settings: v.optional(v.any()),
+      /** The DEPLOYED version's display half — the name and description every
+       * surface shows instead of the slug. */
+      presentation: v.optional(v.any()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -173,23 +176,32 @@ export const listAutomations = query({
     const out = [];
     for (const entry of automations) {
       const deployedVersion = live.get(entry.name);
-      if (deployedVersion === undefined) {
-        out.push(entry);
-        continue;
-      }
+      // The DEPLOYED version answers for behaviour (contract, settings — the
+      // task board must never choreograph against a draft); the display name
+      // comes from whatever version is newest, so an undeployed automation
+      // still reads as itself in the listing instead of as its slug.
       const row = await versionRow(
         ctx,
         args.organizationId,
         entry.name,
-        deployedVersion,
+        deployedVersion ?? entry.latest,
       );
       out.push({
         ...entry,
-        deployedVersion,
-        ...(row?.taskContract !== undefined
-          ? { taskContract: row.taskContract }
+        ...(deployedVersion !== undefined
+          ? {
+              deployedVersion,
+              ...(row?.taskContract !== undefined
+                ? { taskContract: row.taskContract }
+                : {}),
+              ...(row?.settings !== undefined
+                ? { settings: row.settings }
+                : {}),
+            }
           : {}),
-        ...(row?.settings !== undefined ? { settings: row.settings } : {}),
+        ...(row?.presentation !== undefined
+          ? { presentation: row.presentation }
+          : {}),
       });
     }
     return out;
@@ -306,6 +318,9 @@ export const getAutomation = query({
       message: v.optional(v.string()),
       testsPassed: v.optional(v.boolean()),
       deployedVersion: v.optional(v.number()),
+      /** The version's display half — the name and description the automation's
+       * own page shows above its slug. */
+      presentation: v.optional(v.any()),
       createdBy: v.string(),
       createdAt: v.number(),
     }),
@@ -326,6 +341,7 @@ export const getAutomation = query({
       document: row.document,
       ...(row.message !== undefined && { message: row.message }),
       ...(row.testsPassed !== undefined && { testsPassed: row.testsPassed }),
+      ...(row.presentation !== undefined && { presentation: row.presentation }),
       ...(deployment !== null && { deployedVersion: deployment.version }),
       createdBy: row.createdBy,
       createdAt: row.createdAt,

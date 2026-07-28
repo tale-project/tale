@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useCallback } from 'react';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
@@ -145,6 +146,7 @@ export function useTaskStatusChoreography(
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
+  const { locale } = useLocale();
 
   const confirmCancel = options?.confirmCancel;
 
@@ -153,7 +155,7 @@ export function useTaskStatusChoreography(
       task: ChoreographedTask,
       to: string,
     ): Promise<TaskTransitionOutcome> => {
-      const ownership = resolveTaskOwnership(task, automations);
+      const ownership = resolveTaskOwnership(task, automations, locale);
 
       // Agent-owned: the board verbs drive the task-agent run loop. Dragging
       // to In progress (from anywhere — including In review, which IS
@@ -301,6 +303,7 @@ export function useTaskStatusChoreography(
       cancelRun,
       client,
       confirmCancel,
+      locale,
       organizationId,
       startAgentRun,
       startRun,

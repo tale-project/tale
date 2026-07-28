@@ -1,5 +1,5 @@
 import { convexTest } from 'convex-test';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../_generated/api';
 import schema from '../schema';
@@ -22,6 +22,23 @@ for (const [key, loader] of Object.entries(rawModules)) {
   modules[key.startsWith('../') ? key.slice(3) : `webdav/${key.slice(2)}`] =
     loader;
 }
+
+// The mutations under test warn on the storage-delete paths this suite drives
+// on purpose (a blob that is already gone), and the work that warns can still
+// be in flight when the file's last test returns — a scheduled reclaim action,
+// an opportunistic cleanup. Each warn reaches the runner as a console-log RPC,
+// and one still pending when the worker tears down fails the WHOLE run with
+// `Closing rpc while "onUserConsoleLog" was pending`, which says nothing about
+// what is asserted here.
+//
+// So the swallow is installed for the file's entire lifetime and deliberately
+// NOT restored in `afterAll`: restoring it re-opens exactly the window this
+// closes — a straggler warn landing after the last hook, with nothing left to
+// absorb it. The environment is per-file (`isolate` is on for this project),
+// so the real console comes back with the next file either way.
+beforeAll(() => {
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+});
 
 const ORG = 'org_test_tree';
 const USER = 'user_1';
@@ -772,6 +789,11 @@ describe('webdav tree_mutations — per-org blob seam (s3: refs, #2737)', () => 
       ctx.db.system.query('_scheduled_functions').collect(),
     );
     expect(scheduled.some((s) => s.name.includes('deleteOrgBlobs'))).toBe(true);
+    // Let the scheduled action run to completion HERE. It has no S3 to reach
+    // and logs on its way out; left in flight it logs after the file is done,
+    // and a console RPC still open at worker teardown fails the whole run with
+    // `Closing rpc while "onUserConsoleLog" was pending`.
+    await t.finishInProgressScheduledFunctions();
   });
 
   it('deleteWebdavBlob deletes a Convex _storage ref inline (no schedule)', async () => {

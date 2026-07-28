@@ -1,3 +1,4 @@
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
 import { useProjectAgents } from '@/app/features/projects/hooks/queries';
@@ -8,6 +9,10 @@ import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context'
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import {
+  automationDisplayName,
+  titleFromSlug,
+} from '@/lib/shared/schemas/automation_presentation';
 
 import type { AgentDisplayCategory } from '../lib/agent-display';
 import type { TaskActorType, TaskCreatorType } from '../lib/display';
@@ -18,6 +23,7 @@ import {
   type TaskActivityContext,
   type TaskActorPreview,
 } from '../utils/task-actor-preview';
+import { useTaskContractAutomations } from './use-task-subject-contract';
 
 export interface ResolvedActor {
   type: TaskCreatorType;
@@ -61,6 +67,28 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   const { members } = useMembers(organizationId);
   const { data: me } = useCurrentMemberContext(organizationId);
   const { t } = useT('tasks');
+  const { locale } = useLocale();
+  // An `app` actor IS an automation — the assignee chip, the subtask avatars
+  // and the timeline all named it by its slug before this, which is addressing
+  // rather than a name.
+  const automations = useTaskContractAutomations(
+    organizationId,
+    projectId === undefined ? undefined : asProjectId(projectId),
+  );
+  const appNames = useMemo(
+    () =>
+      new Map(
+        automations.map((automation) => [
+          automation.name,
+          automationDisplayName(
+            automation.presentation,
+            automation.name,
+            locale,
+          ),
+        ]),
+      ),
+    [automations, locale],
+  );
 
   const previewLabels = useMemo(
     () => ({
@@ -123,9 +151,15 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     () =>
       (type: TaskCreatorType, id: string): ResolvedActor => {
         if (type === 'app') {
-          // App-provisioned (createdBy = app slug). No app directory in this
-          // hook — show the slug; not an agent/member.
-          return { type, id, name: id, isAgent: false };
+          // An automation, addressed by its store name. Its declared name when
+          // the listing knows it (deployed, visible from this project), the
+          // slug read as a title otherwise — never the raw slug.
+          return {
+            type,
+            id,
+            name: appNames.get(id) ?? titleFromSlug(id),
+            isAgent: false,
+          };
         }
         if (type === 'agent') {
           if (id === 'system') {
@@ -153,7 +187,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
           email: member?.email,
         };
       },
-    [memberMap, agentMap, agentCatalog, t],
+    [appNames, memberMap, agentMap, agentCatalog, t],
   );
 
   const resolveActorPreview = useMemo(

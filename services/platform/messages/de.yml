@@ -892,6 +892,7 @@ automations:
       error: Fehlgeschlagen
       not_run: Nie erreicht
       pending: Noch nicht erreicht
+      running: Läuft gerade
     effects:
       title: '{count, plural, one {# Auswirkung} other {# Auswirkungen}}'
       description:
@@ -906,6 +907,9 @@ automations:
     loadFailed: Die Einstellungen konnten nicht geladen werden — schließe den Dialog und versuche es erneut.
     save: Speichern
     saveAndContinue: Speichern und weiter
+    dialogTitle: '{name} — Einstellungen'
+    tabsLabel: Einstellungsbereiche
+    unsavedTab: Nicht gespeicherte Änderungen
     saved: Einstellungen gespeichert.
     saveFailed: Die Einstellungen konnten nicht gespeichert werden — versuche es erneut.
     errors:
@@ -6907,6 +6911,8 @@ tasks:
     missingInput: Lege zuerst die Eingabedateien der Aufgabe ab — der gebundene Ordner ist noch leer.
     working: '{name} arbeitet an dieser Aufgabe.'
     details: Details
+    currentStep: Aktueller Schritt
+    stepNotReached: Der Lauf hat diesen Schritt nicht erreicht.
     detailsTitle: '{name} — Lauf-Fortschritt'
     noProgressYet: Der Lauf hat noch keinen Schritt erreicht.
     effectsTitle: Ausgeführte Aktionen
@@ -6921,7 +6927,10 @@ tasks:
     approve: Freigeben
     approved: Freigegeben — die Aufgabe ist erledigt.
     requestChanges: Änderungen anfordern
-    requestChangesHint: Schreibe dein Feedback zuerst unten als Kommentar — der neue Lauf liest die Kommentare der Aufgabe.
+    requestChangesDialog: 'Dein Feedback wird als Kommentar an dieser Aufgabe gespeichert, und {name} startet damit neu.'
+    requestChangesLabel: Was geändert werden soll
+    requestChangesPlaceholder: 'z. B. Ziffer 400 ohne das März-Bordereau — es gehört ins nächste Quartal.'
+    requestChangesSend: Zurückschicken
     requestChangesSent: 'An {name} zurückgeschickt — der neue Lauf greift deine Kommentare auf.'
     cancel: Lauf abbrechen
     cancelConfirmTitle: Diesen Lauf abbrechen?
@@ -6952,8 +6961,18 @@ tasks:
       start: 'Startet den {name}-Lauf.'
       request_changes: 'Schickt sie mit deinen Kommentaren an {name} zurück.'
       cancel: 'Bricht zuerst den laufenden {name}-Lauf ab.'
+  outcome:
+    title: Ergebnis
+    pending: Noch nicht bereit
+    empty: 'Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf sie produziert.'
+    untitled: Ohne Titel
+    open: '{name} öffnen'
   inputFiles:
-    title: Eingabedateien
+    title: Dateien
+    titleWithCount: 'Dateien ({count})'
+    more: '+{count} weitere'
+    showLess: Weniger anzeigen
+    open: '{name} öffnen'
     empty: Noch keine Dateien — der Lauf liest diesen Ordner; lege die Dokumente des Quartals hier ab.
     untitled: Ohne Titel
     uploading: Wird hochgeladen…
@@ -6970,8 +6989,6 @@ tasks:
       'Richte {name} zuerst für dieses Projekt ein. Die Werte landen als
       Dateien im Ordner {folder}, und jeder Lauf liest sie von dort.'
     settingsOpen: Einstellungen
-    settingsTitle: '{name} — Einstellungen'
-    settingsBack: Zurück
   attachments:
     label: Anhänge
     add: Anhänge hinzufügen

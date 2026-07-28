@@ -640,6 +640,11 @@ function clampTimelineValue(value: unknown): unknown {
 export function timelineFromEvents(
   events: readonly HarnessEvent[],
 ): HarnessTimelinePart[] {
+  // A harness that streams deltas ALSO emits the finished block for the same
+  // words (claude-code does), so consuming both would print every sentence
+  // twice. Same rule as `textFromEvents`: deltas win when there are any.
+  const streamsDeltas = events.some((event) => event.type === 'text-delta');
+  const textKind = streamsDeltas ? 'text-delta' : 'text';
   const parts: HarnessTimelinePart[] = [];
   const byToolCall = new Map<string, HarnessTimelinePart>();
   let text = '';
@@ -656,6 +661,7 @@ export function timelineFromEvents(
   };
   for (const event of events) {
     if (event.type === 'text-delta' || event.type === 'text') {
+      if (event.type !== textKind) continue;
       text +=
         event.type === 'text' && text !== '' ? `\n\n${event.text}` : event.text;
       continue;

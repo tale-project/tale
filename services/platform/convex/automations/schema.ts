@@ -59,6 +59,11 @@ export const automationsTable = defineTable({
    * operator-editable forms persisted as flat-YAML project files. Versioned
    * and validated exactly like the task contract. */
   settings: v.optional(v.any()),
+  /** How the automation names itself to people (`automationPresentationSchema`:
+   * `name`, `description`, `icon`, `labels`, `i18n`) — the pack manifest's
+   * display half. Absent for canvas-authored automations, whose surfaces read
+   * the slug as a title instead. */
+  presentation: v.optional(v.any()),
   createdBy: v.string(),
   createdAt: v.number(),
 })

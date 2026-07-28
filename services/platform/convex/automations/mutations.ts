@@ -25,6 +25,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { automationPresentationSchema } from '../../lib/shared/schemas/automation_presentation';
 import { automationSettingsSchema } from '../../lib/shared/schemas/automation_settings';
 import { taskSubjectContractSchema } from '../../lib/shared/schemas/task_contract';
 import { isRecord } from '../../lib/utils/type-utils';
@@ -63,6 +64,27 @@ function parseContractOrThrow(value: unknown): unknown {
         .slice(0, 3)
         .map(
           (issue) => `${issue.path.join('.') || 'contract'} ${issue.message}`,
+        )
+        .join('; ')}`,
+    });
+  }
+  return parsed.data;
+}
+
+/** A save's presentation must be the real shape or absent — same
+ * fail-at-the-door rule as the task contract; a surface that cannot name the
+ * automation is a worse outcome than refusing the malformed manifest. */
+function parsePresentationOrThrow(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+  const parsed = automationPresentationSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new ConvexError({
+      code: 'AUTOMATION_PRESENTATION_INVALID',
+      message: `the manifest's display half is not valid: ${parsed.error.issues
+        .slice(0, 3)
+        .map(
+          (issue) =>
+            `${issue.path.join('.') || 'presentation'} ${issue.message}`,
         )
         .join('; ')}`,
     });
@@ -143,12 +165,15 @@ export const saveAutomation = mutation({
     taskContract: v.optional(v.any()),
     /** Settings declaration for this version (see automation_settings). */
     settings: v.optional(v.any()),
+    /** The manifest's display half (see automation_presentation). */
+    presentation: v.optional(v.any()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const contract = parseContractOrThrow(args.taskContract);
     const settings = parseSettingsOrThrow(args.settings);
+    const presentation = parsePresentationOrThrow(args.presentation);
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: auth.userId,
@@ -162,6 +187,7 @@ export const saveAutomation = mutation({
         }),
         ...(contract !== undefined && { taskContract: contract }),
         ...(settings !== undefined && { settings }),
+        ...(presentation !== undefined && { presentation }),
       });
     } catch (error) {
       return asStoreError(error, 'AUTOMATION_SAVE_REJECTED');
@@ -468,11 +494,14 @@ export const storeSave = internalMutation({
     taskContract: v.optional(v.any()),
     /** Settings declaration for this version (see automation_settings). */
     settings: v.optional(v.any()),
+    /** The manifest's display half (see automation_presentation). */
+    presentation: v.optional(v.any()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
     const contract = parseContractOrThrow(args.taskContract);
     const settings = parseSettingsOrThrow(args.settings);
+    const presentation = parsePresentationOrThrow(args.presentation);
     const store = automationStore(ctx, {
       organizationId: args.organizationId,
       actor: args.actor,
@@ -483,6 +512,7 @@ export const storeSave = internalMutation({
       ...(args.testsPassed !== undefined && { testsPassed: args.testsPassed }),
       ...(contract !== undefined && { taskContract: contract }),
       ...(settings !== undefined && { settings }),
+      ...(presentation !== undefined && { presentation }),
     });
   },
 });
@@ -727,6 +757,7 @@ const seedPackValidator = v.object({
   trigger: v.optional(v.any()),
   taskContract: v.optional(v.any()),
   settings: v.optional(v.any()),
+  presentation: v.optional(v.any()),
 });
 
 /**
@@ -763,14 +794,31 @@ export const seedDefaultPacks = internalMutation({
       const name = assertAutomationName(document.name ?? '');
       const existing = await versionsOf(ctx, args.organizationId, name);
       if (existing.length > 0) {
+        // The organization's own history wins for BEHAVIOUR, but its
+        // automations should not keep reading as slugs because they were
+        // installed before the pack declared a name. Refreshing the display
+        // half on the newest version is not the in-place rewrite this skip
+        // exists to prevent: no document, no contract, no settings, nothing a
+        // run can observe — just what the surfaces call it.
+        const shipped = parsePresentationOrThrow(pack.presentation);
+        const newest = existing.at(-1);
+        if (
+          shipped !== undefined &&
+          newest !== undefined &&
+          JSON.stringify(newest.presentation) !== JSON.stringify(shipped)
+        ) {
+          await ctx.db.patch(newest._id, { presentation: shipped });
+        }
         skipped.push(name);
         continue;
       }
       const contract = parseContractOrThrow(pack.taskContract);
       const settings = parseSettingsOrThrow(pack.settings);
+      const presentation = parsePresentationOrThrow(pack.presentation);
       await store.save(document, 'Shipped default pack', {
         ...(contract !== undefined && { taskContract: contract }),
         ...(settings !== undefined && { settings }),
+        ...(presentation !== undefined && { presentation }),
       });
       const boundTrigger = await triggerRow(ctx, args.organizationId, name);
       if (pack.trigger !== undefined && boundTrigger === null) {

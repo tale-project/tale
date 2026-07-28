@@ -8,80 +8,184 @@ import {
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
 import { ConvexError } from 'convex/values';
 import { CheckCircle2, Loader2, Play, Undo2, Workflow } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { AgentExecutionLog } from '@/app/features/automations/components/agent-execution-log';
+import { AutomationCanvas } from '@/app/features/automations/components/automation-canvas';
 import { EffectList } from '@/app/features/automations/components/effect-list';
 import {
   RunApprovalCard,
   approvalIdFromDetail,
 } from '@/app/features/automations/components/run-approval-card';
-import { RunStatusBadge } from '@/app/features/automations/components/run-status-badge';
-import { useAutomationRun } from '@/app/features/automations/hooks/queries';
-import { projectRun } from '@/app/features/automations/lib/run-view';
+import { RunStepDetail } from '@/app/features/automations/components/run-step-detail';
+import {
+  useAutomation,
+  useAutomationRun,
+} from '@/app/features/automations/hooks/queries';
+import {
+  readDocument,
+  readPositions,
+} from '@/app/features/automations/lib/document';
+import { buildGraph } from '@/app/features/automations/lib/graph';
+import type { NodeRunView } from '@/app/features/automations/lib/run-view';
+import {
+  nodeStatusMap,
+  projectRun,
+  readRunCursorNode,
+} from '@/app/features/automations/lib/run-view';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
-import { useUpdateTaskStatus } from '../hooks/mutations';
+import { useAddTaskComment, useUpdateTaskStatus } from '../hooks/mutations';
 import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-contract';
 import { deriveSubjectState } from '../lib/subject-state';
 
 /**
- * The run's progress, inspected WITHOUT leaving the task: a dialog listing
- * each traced node with its state plus every effect performed so far. The
- * full run document is only fetched while the dialog is open.
+ * The run's progress, inspected WITHOUT leaving the task.
+ *
+ * The graph rides along as a SMALL strip — enough to see where the run is and
+ * to click another step — while the weight of the dialog goes to the step the
+ * run is on: what it resolved, what it produced, and, for an `agent` step, the
+ * transcript of what the agent did inside the sandbox. The step reading is
+ * {@link RunStepDetail}, the very component the automation editor's node
+ * inspector renders, so a step is described identically on both surfaces.
+ * Nothing is fetched until the dialog opens.
  */
 function TaskRunDetailsDialog({
   organizationId,
+  automationSlug,
   runId,
   name,
   open,
   onOpenChange,
 }: {
   organizationId: string;
+  automationSlug: string;
   runId: Id<'automationRuns'>;
   name: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('tasks');
+  const detailId = useId();
   const runQuery = useAutomationRun(organizationId, open ? runId : undefined);
   const run = runQuery.data ?? null;
-  const projection = projectRun(run);
-  const nodes = [...projection.byNode.entries()];
+  const versionQuery = useAutomation(
+    organizationId,
+    automationSlug,
+    open ? run?.version : undefined,
+  );
+  const automation = useMemo(
+    () => readDocument(versionQuery.data?.document),
+    [versionQuery.data?.document],
+  );
+  const graph = useMemo(() => buildGraph(automation), [automation]);
+  const positions = useMemo(() => readPositions(automation), [automation]);
+  const projection = useMemo(() => projectRun(run), [run]);
+  // Where the run IS: the stepper's own cursor while it runs, else the last
+  // step of the finished run's ordered trace. Never "the last key of the
+  // checkpoint record" — those arrive alphabetically, which would point at
+  // whichever skipped node happens to sort last.
+  const currentNodeId =
+    readRunCursorNode(run) ?? projection.trace.at(-1)?.node ?? null;
+  const runStatusByNode = useMemo(
+    () =>
+      nodeStatusMap(
+        projection,
+        graph.nodes.map((node) => node.id),
+        currentNodeId,
+      ),
+    [currentNodeId, graph.nodes, projection],
+  );
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const activeNodeId = selectedNodeId ?? currentNodeId;
+  const recordedView =
+    activeNodeId !== null ? projection.byNode.get(activeNodeId) : undefined;
+  // The step in flight has no checkpoint yet — nothing has been recorded about
+  // it, which is exactly why "not reached" would be the wrong thing to say. Its
+  // view is synthesised from the document so the reader still sees WHICH step
+  // is running and, for an `agent` step, its transcript.
+  const activeView: NodeRunView | undefined =
+    recordedView ??
+    (activeNodeId !== null && activeNodeId === currentNodeId
+      ? {
+          status: 'running',
+          effects: [],
+          ...(() => {
+            const type = graph.nodes.find(
+              (node) => node.id === activeNodeId,
+            )?.type;
+            return type !== undefined ? { type } : {};
+          })(),
+        }
+      : undefined);
+
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-xl">
+      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
         <ResponsiveDialogTitle className="text-base font-semibold">
           {t('run.detailsTitle', { name })}
         </ResponsiveDialogTitle>
         {run !== null && (
           <>
-            <AgentExecutionLog organizationId={organizationId} runId={runId} />
-            <Stack as="section" gap={1}>
-              {nodes.length === 0 ? (
-                <Text as="p" variant="muted">
-                  {t('run.noProgressYet')}
-                </Text>
+            {/* Orientation only — small on purpose; the step below is the
+                subject of this dialog. */}
+            <AutomationCanvas
+              graph={graph}
+              positions={positions}
+              selectedNodeId={activeNodeId}
+              onSelectNode={setSelectedNodeId}
+              inspectorId={detailId}
+              runStatusByNode={runStatusByNode}
+              size="compact"
+            />
+            <Stack
+              id={detailId}
+              gap={4}
+              className={cn(
+                'min-w-0 rounded-lg border p-4',
+                // The step in flight is the subject of this dialog — give it a
+                // frame that says so, rather than looking like any other row.
+                activeNodeId === currentNodeId
+                  ? 'border-primary/40 bg-primary/[0.03]'
+                  : 'border-border bg-card',
+              )}
+            >
+              {activeView !== undefined && activeNodeId !== null ? (
+                <>
+                  <RunStepDetail
+                    runView={activeView}
+                    heading={activeNodeId}
+                    {...(activeNodeId === currentNodeId
+                      ? { badge: t('run.currentStep') }
+                      : {})}
+                  />
+                  {/* The transcript is the AGENT step's detail — never another
+                      step's, and nothing at all for a run without one. */}
+                  {activeView.type === 'agent' && (
+                    <div className="border-border border-t pt-4">
+                      <AgentExecutionLog
+                        organizationId={organizationId}
+                        runId={runId}
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
-                <ul className="flex flex-col gap-1">
-                  {nodes.map(([nodeId, view]) => (
-                    <li
-                      key={nodeId}
-                      className="flex items-center justify-between gap-2 text-sm"
-                    >
-                      <span className="min-w-0 truncate">{nodeId}</span>
-                      <RunStatusBadge status={view.status} />
-                    </li>
-                  ))}
-                </ul>
+                <Text as="p" variant="muted">
+                  {activeNodeId === null
+                    ? t('run.noProgressYet')
+                    : t('run.stepNotReached')}
+                </Text>
               )}
             </Stack>
             <Stack as="section" gap={2}>
@@ -129,9 +233,11 @@ export function TaskSubjectPanel({
   const { t: tCommon } = useT('common');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [changesOpen, setChangesOpen] = useState(false);
+  const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const { automationSlug, contract } = ownedBy;
+  const { automationSlug, displayName, contract } = ownedBy;
 
   const runQuery = useConvexQuery(api.automations.queries.getLiveRunForTask, {
     organizationId,
@@ -164,6 +270,7 @@ export function TaskSubjectPanel({
     api.tasks.public_actions.cancelTaskWorkflow,
   );
   const updateStatus = useUpdateTaskStatus();
+  const addComment = useAddTaskComment();
 
   // Facts still loading — render nothing rather than a state that flips.
   if (runQuery.data === undefined) return null;
@@ -250,13 +357,61 @@ export function TaskSubjectPanel({
     }
   };
 
+  /**
+   * Request changes is ONE gesture: the feedback is written as the task's
+   * comment and the rerun starts after it lands. The workflow re-reads the
+   * task's comments on its next pass, so the order is the whole point — a
+   * rerun kicked before the comment exists would read no feedback and repeat
+   * itself, which is exactly the trap of asking the reviewer to remember to
+   * comment first.
+   */
+  const requestChanges = async () => {
+    const body = feedback.trim();
+    if (body === '') return;
+    setBusy(true);
+    try {
+      await addComment.mutateAsync({ taskId: task._id, body });
+      const result = await startRun.mutateAsync({
+        organizationId,
+        taskId: task._id,
+        workflowSlug: automationSlug,
+      });
+      // The comment landed either way, so the box always closes and empties:
+      // leaving the text in a still-open dialog invites a second Send back,
+      // which would file the same feedback twice.
+      setChangesOpen(false);
+      setFeedback('');
+      if (result.started) {
+        toast({
+          title: t('subject.requestChangesSent', { name: displayName }),
+          variant: 'success',
+        });
+      } else {
+        // Say what did NOT happen — the feedback is recorded, nothing is running.
+        toast({
+          title:
+            result.reason === 'already_running'
+              ? t('run.alreadyRunning')
+              : t('run.notStarted'),
+          variant:
+            result.reason === 'already_running' ? undefined : 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('[tasks] request-changes failed', error);
+      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const stateLine =
     state.kind === 'running'
-      ? t('run.working', { name: run?.name ?? automationSlug })
+      ? t('run.working', { name: displayName })
       : state.kind === 'review'
-        ? t('subject.review', { name: automationSlug })
+        ? t('subject.review', { name: displayName })
         : state.kind === 'ready'
-          ? t('subject.ready', { name: automationSlug })
+          ? t('subject.ready', { name: displayName })
           : state.kind === 'waiting_input'
             ? t('subject.waitingInput')
             : t('subject.stalled');
@@ -266,7 +421,7 @@ export function TaskSubjectPanel({
 
   return (
     <section
-      aria-label={t('automation.hint', { name: automationSlug })}
+      aria-label={t('automation.hint', { name: displayName })}
       className="border-border bg-muted/30 flex flex-col gap-3 rounded-lg border p-3"
     >
       <Row gap={2} align="center">
@@ -339,7 +494,7 @@ export function TaskSubjectPanel({
                   size="sm"
                   disabled={busy}
                   icon={Undo2}
-                  onClick={() => void start(t('subject.requestChangesSent'))}
+                  onClick={() => setChangesOpen(true)}
                 >
                   {t('subject.requestChanges')}
                 </Button>
@@ -347,11 +502,6 @@ export function TaskSubjectPanel({
             </>
           )}
         </Row>
-      )}
-      {state.kind === 'review' && state.requestChanges && canEdit && (
-        <Text as="p" variant="muted" className="text-xs text-pretty">
-          {t('subject.requestChangesHint')}
-        </Text>
       )}
 
       {approvalId !== undefined && (
@@ -363,8 +513,9 @@ export function TaskSubjectPanel({
       {run !== null && (
         <TaskRunDetailsDialog
           organizationId={organizationId}
+          automationSlug={run.name}
           runId={run.runId}
-          name={run.name}
+          name={displayName}
           open={detailsOpen}
           onOpenChange={setDetailsOpen}
         />
@@ -373,14 +524,32 @@ export function TaskSubjectPanel({
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         title={t('subject.cancelConfirmTitle')}
-        description={t('subject.cancelConfirmBody', {
-          name: run?.name ?? automationSlug,
-        })}
+        description={t('subject.cancelConfirmBody', { name: displayName })}
         confirmText={t('subject.cancel')}
         isLoading={busy}
         variant="destructive"
         onConfirm={() => void cancel()}
       />
+      <ConfirmDialog
+        open={changesOpen}
+        onOpenChange={(next) => {
+          if (!next && !busy) setChangesOpen(false);
+        }}
+        title={t('subject.requestChanges')}
+        description={t('subject.requestChangesDialog', { name: displayName })}
+        confirmText={t('subject.requestChangesSend')}
+        isLoading={busy}
+        disableConfirm={feedback.trim() === ''}
+        onConfirm={() => void requestChanges()}
+      >
+        <Textarea
+          aria-label={t('subject.requestChangesLabel')}
+          placeholder={t('subject.requestChangesPlaceholder')}
+          rows={5}
+          value={feedback}
+          onChange={(event) => setFeedback(event.target.value)}
+        />
+      </ConfirmDialog>
     </section>
   );
 }

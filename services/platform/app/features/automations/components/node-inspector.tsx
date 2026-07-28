@@ -5,20 +5,17 @@ import { Badge } from '@tale/ui/badge';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { SectionHeader } from '@tale/ui/section-header';
-import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodeTypeSummary } from '../hooks/backend';
 import { controlFlowBadges } from '../lib/graph';
 import type { NodeRunView } from '../lib/run-view';
-import { EffectList } from './effect-list';
-import { RunStatusBadge } from './run-status-badge';
+import { RunStepDetail } from './run-step-detail';
 
 /**
  * How one declared field is edited. The SET of fields comes from the engine
@@ -361,39 +358,8 @@ export function NodeInspector({
       </fieldset>
 
       {runView && (
-        <div className="border-border flex flex-col gap-3 border-t pt-4">
-          <div className="flex items-center gap-2">
-            <SectionHeader as="h4" size="sm" title={t('editor.runTitle')} />
-            <RunStatusBadge status={runView.status} />
-          </div>
-          {runView.error !== undefined && (
-            <Alert variant="destructive" description={runView.error} />
-          )}
-          {runView.note !== undefined && (
-            <Text as="p" variant="muted" className="text-xs">
-              {runView.note}
-            </Text>
-          )}
-          {runView.input !== undefined && (
-            <div>
-              <Text as="p" className="mb-1 text-xs font-medium">
-                {t('editor.resolvedInput')}
-              </Text>
-              <JsonViewer data={runView.input} collapsed={1} />
-            </div>
-          )}
-          {runView.output !== undefined && (
-            <div>
-              <Text as="p" className="mb-1 text-xs font-medium">
-                {t('editor.output')}
-              </Text>
-              <JsonViewer data={runView.output} collapsed={1} />
-            </div>
-          )}
-          <EffectList
-            effects={runView.effects}
-            emptyMessage={t('runs.effects.noneForNode')}
-          />
+        <div className="border-border border-t pt-4">
+          <RunStepDetail runView={runView} heading={t('editor.runTitle')} />
         </div>
       )}
     </section>

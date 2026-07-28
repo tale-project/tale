@@ -5,6 +5,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -25,6 +26,7 @@ import { useAbility } from '@/app/hooks/use-ability';
 import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
+import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
@@ -64,6 +66,7 @@ export function AutomationsList({
   projectId?: Id<'projects'>;
 }) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const headingId = useId();
   const ability = useAbility();
   // Which create lane's dialog is open; the dialogs mount lazily so the
@@ -219,8 +222,19 @@ export function AutomationsList({
                       {...linkTarget}
                       className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring flex flex-wrap items-center gap-3 rounded-md border p-3 focus-visible:ring-2 focus-visible:outline-none"
                     >
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {automation.name}
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm font-medium">
+                          {automationDisplayName(
+                            automation.presentation,
+                            automation.name,
+                            locale,
+                          )}
+                        </span>
+                        {/* The slug stays visible on the admin surface: it is
+                            what the store, the CLI and the run log address. */}
+                        <span className="text-muted-foreground truncate text-xs">
+                          {automation.name}
+                        </span>
                       </span>
                       {projectId === undefined &&
                         automation.projectIds.map((boundProjectId) => (

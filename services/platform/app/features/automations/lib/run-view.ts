@@ -45,13 +45,19 @@ export function isRunFinished(status: RunStatus): boolean {
   return status === 'success' || status === 'failed' || status === 'cancelled';
 }
 
-/** What the overlay shows on one node. `pending` is a node the run has not
- * reached yet — distinct from the engine's `not_run`, which is a node the run
- * finished without reaching. */
-export type NodeRunStatus = NodeStatus | 'pending';
+/** What the overlay shows on one node. `running` is the node the stepper is ON
+ * right now (a live run's cursor); `pending` is a node the run has not reached
+ * yet — distinct from the engine's `not_run`, which is a node the run finished
+ * without reaching. */
+export type NodeRunStatus = NodeStatus | 'pending' | 'running';
 
 export interface NodeRunView {
   status: NodeRunStatus;
+  /** The node's declared type (`agent`, `task.update_status`, …) as the trace
+   * recorded it — absent for a node seen only through a checkpoint that
+   * predates type recording. Lets a reader tell WHAT a step was, not just how
+   * it ended. */
+  type?: string;
   /** Present once the node has produced a value. */
   output?: unknown;
   /** The node's resolved input, after template evaluation. */
@@ -124,6 +130,26 @@ function traceFromCheckpoints(value: unknown): {
   return { trace, effects };
 }
 
+/**
+ * The step a LIVE run is on, straight from the stepper's own cursor — the only
+ * honest answer while a run is in flight. The per-node projection cannot supply
+ * it: a live run is read from `checkpoints`, whose keys arrive in whatever order
+ * the store serialises them (alphabetical in practice), so "the last one" is a
+ * lie. A finished run has no cursor; its ordered `trace` ends at its last step.
+ */
+export function readRunCursorNode(
+  run: RunLike | null | undefined,
+): string | null {
+  if (!run) return null;
+  const checkpoints = run.checkpoints;
+  if (!isRecord(checkpoints)) return null;
+  const cursor = checkpoints.cursor;
+  if (!isRecord(cursor)) return null;
+  return typeof cursor.node === 'string' && cursor.node !== ''
+    ? cursor.node
+    : null;
+}
+
 /** One run as the canvas and the run detail read it. */
 export interface RunProjection {
   /** Per-node view, keyed by node id. */
@@ -165,10 +191,16 @@ export function projectRun(run: RunLike | null | undefined): RunProjection {
     else effectsByNode.set(effect.node, [effect]);
   }
 
+  // Keyed by node, in whatever order the source gave them: a FINISHED run's
+  // `trace` is a real ordered array, but a live run's checkpoints arrive as a
+  // record whose keys the store serialises alphabetically — so `byNode` order
+  // is only meaningful for a finished run. "Where is the run now?" comes from
+  // `readRunCursorNode`, never from this map's last key.
   const byNode = new Map<string, NodeRunView>();
   for (const entry of trace) {
     const view: NodeRunView = {
       status: entry.status,
+      type: entry.type,
       effects: effectsByNode.get(entry.node) ?? [],
     };
     if (entry.input !== undefined) view.input = entry.input;
@@ -189,8 +221,15 @@ export function projectRun(run: RunLike | null | undefined): RunProjection {
 export function nodeStatusMap(
   projection: RunProjection,
   nodeIds: readonly string[],
+  /** The node a live run is parked on — shown as `running` rather than
+   * "not reached", which is what it looks like from the checkpoints alone. */
+  cursorNode?: string | null,
 ): Map<string, NodeRunStatus> {
   return new Map(
-    nodeIds.map((id) => [id, projection.byNode.get(id)?.status ?? 'pending']),
+    nodeIds.map((id) => {
+      const recorded = projection.byNode.get(id)?.status;
+      if (recorded !== undefined) return [id, recorded];
+      return [id, id === cursorNode ? 'running' : 'pending'];
+    }),
   );
 }

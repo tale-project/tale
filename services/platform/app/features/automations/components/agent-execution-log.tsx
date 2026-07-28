@@ -1,5 +1,6 @@
 'use client';
 
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
@@ -16,7 +17,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 /** Compact one-line rendering of a tool call's input — enough to tell WHICH
- * file/command the step touched without dumping the payload. */
+ * file/command the step touched without unfolding it. */
 function summarizeToolInput(input: unknown): string {
   if (input === undefined || input === null) return '';
   if (typeof input === 'string') return input;
@@ -46,15 +47,28 @@ function toolLabel(type: string): string {
   return type.startsWith('tool-') ? type.slice('tool-'.length) : type;
 }
 
+/** The payload as text, for the unfolded view. */
+function detailText(value: unknown): string {
+  if (value === undefined) return '';
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value, null, 2) ?? '';
+}
+
+/** First line, cut to a summary length — a transcript row is one line. */
+function firstLine(text: string, max = 120): string {
+  const line = text.trim().split('\n')[0] ?? '';
+  return line.length <= max ? line : `${line.slice(0, max)}…`;
+}
+
 /**
- * What the agent is doing INSIDE the sandbox, for the run's viewers: the
- * harness's own text plus each tool call it made, streamed live onto the
- * run's session op by the agent host and read back here. This is the user's
- * window into a sandbox turn — without it an `agent` node is an opaque
- * "working…" spinner until it settles.
+ * What the agent did INSIDE the sandbox, one row per step: its own reasoning
+ * text and every tool call, each collapsed to a single line that unfolds into
+ * the full payload on click. Streamed onto the run's session op by the agent
+ * host and read back here — the only window into a sandbox turn, which would
+ * otherwise be an opaque "working…" spinner until it settles.
  *
  * Bounded by construction (the op keeps a recent tail, each payload clamped),
- * so a long turn stays a readable log rather than a transcript dump. Renders
+ * so a long turn stays a readable list rather than a transcript dump. Renders
  * nothing when the run never ran an agent node.
  */
 export function AgentExecutionLog({
@@ -101,63 +115,80 @@ export function AgentExecutionLog({
           {live ? t('runs.agentLog.starting') : t('runs.agentLog.empty')}
         </Text>
       ) : (
-        <ol className="flex flex-col gap-1.5">
+        <ol className="flex flex-col gap-1">
           {timeline.map((part, index) => {
-            if (part.type === 'text') {
-              return (
-                <li
-                  // The transcript is an append-only tail; index is its only
-                  // stable identity for text parts (tool parts carry an id).
-                  key={`text-${String(index)}`}
-                  className="flex min-w-0 items-start gap-2 text-sm"
-                >
-                  <MessageSquare
-                    className="text-muted-foreground mt-0.5 size-3.5 shrink-0"
-                    aria-hidden
-                  />
-                  <span className="min-w-0 whitespace-pre-wrap">
-                    {part.text}
-                  </span>
-                </li>
-              );
-            }
+            const isText = part.type === 'text';
             const failed = part.state === 'output-error';
             const done = part.state === 'output-available' || failed;
-            const summary = summarizeToolInput(part.input);
+            const body = isText
+              ? (part.text ?? '')
+              : [
+                  detailText(part.input),
+                  failed ? part.errorText : detailText(part.output),
+                ]
+                  .filter((value) => value !== undefined && value !== '')
+                  .join('\n\n');
+            const label = isText
+              ? firstLine(part.text ?? '')
+              : toolLabel(part.type);
+            const summary = isText ? '' : summarizeToolInput(part.input);
+            // Only rows with more to show are foldable — a one-line reasoning
+            // note or a bare tool call has no hidden detail to promise.
+            const foldable = body.trim() !== '' && body.trim() !== label;
+            const icon = isText ? (
+              <MessageSquare
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden
+              />
+            ) : failed ? (
+              <AlertTriangle
+                className="text-destructive size-3.5 shrink-0"
+                aria-hidden
+              />
+            ) : done ? (
+              <CheckCircle2
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden
+              />
+            ) : (
+              <Wrench
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden
+              />
+            );
+            const head = (
+              <span className="flex min-w-0 items-center gap-2 text-sm">
+                {icon}
+                <span
+                  className={
+                    isText ? 'min-w-0 truncate' : 'min-w-0 truncate font-medium'
+                  }
+                >
+                  {label}
+                </span>
+                {summary !== '' && (
+                  <span className="text-muted-foreground min-w-0 truncate">
+                    {summary}
+                  </span>
+                )}
+              </span>
+            );
             return (
               <li
-                key={part.toolCallId ?? `tool-${String(index)}`}
-                className="flex min-w-0 items-start gap-2 text-sm"
+                // The transcript is an append-only tail; a tool row has its own
+                // id, a text row only its position.
+                key={part.toolCallId ?? `${part.type}-${String(index)}`}
+                className="min-w-0"
               >
-                {failed ? (
-                  <AlertTriangle
-                    className="text-destructive mt-0.5 size-3.5 shrink-0"
-                    aria-hidden
-                  />
-                ) : done ? (
-                  <CheckCircle2
-                    className="text-muted-foreground mt-0.5 size-3.5 shrink-0"
-                    aria-hidden
-                  />
+                {foldable ? (
+                  <CollapsibleDetails variant="compact" summary={head}>
+                    <pre className="text-muted-foreground bg-muted/50 mt-1 ml-6 max-h-64 overflow-auto rounded p-2 text-xs whitespace-pre-wrap">
+                      {body}
+                    </pre>
+                  </CollapsibleDetails>
                 ) : (
-                  <Wrench
-                    className="text-muted-foreground mt-0.5 size-3.5 shrink-0"
-                    aria-hidden
-                  />
+                  <span className="flex min-w-0 pl-5">{head}</span>
                 )}
-                <span className="min-w-0 flex-1">
-                  <span className="font-medium">{toolLabel(part.type)}</span>
-                  {summary !== '' && (
-                    <span className="text-muted-foreground ml-2 break-all">
-                      {summary}
-                    </span>
-                  )}
-                  {failed && part.errorText !== undefined && (
-                    <span className="text-destructive block break-all">
-                      {part.errorText}
-                    </span>
-                  )}
-                </span>
               </li>
             );
           })}

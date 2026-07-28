@@ -63,6 +63,25 @@ export const taskSubjectContractSchema = z.object({
   /** Review affordances: `requestChanges` maps In review → In progress onto
    *  comment-then-rerun (the same `startTaskWorkflow` path as Start). */
   review: z.object({ requestChanges: z.boolean().optional() }).optional(),
+  /**
+   * The deliverables — what a reviewer opens the task FOR. The task surface
+   * promotes these out of the bound folder into an always-open Outcome zone
+   * (everything else in the folder stays under the collapsed Files zone), and
+   * names them as promised rows before a run has filed them.
+   *
+   * Only the automation knows which of its written files are the point and
+   * which are working material, so the list is declared here rather than
+   * guessed platform-side. Absent ⇒ the surface falls back to provenance: every
+   * file a run filed shows as outcome.
+   */
+  outcome: z
+    .object({
+      /** File names in the bound folder, in the order to show them. `*` and
+       *  `?` wildcards are honoured (`*.xml`), so a run-derived name can be
+       *  declared too — an exact name doubles as the promised row's label. */
+      files: z.array(z.string().min(1)).min(1),
+    })
+    .optional(),
 });
 
 export type TaskSubjectContract = z.infer<typeof taskSubjectContractSchema>;

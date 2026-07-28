@@ -891,6 +891,7 @@ automations:
       error: En échec
       not_run: Jamais atteint
       pending: Pas encore atteint
+      running: En cours
     effects:
       title: '{count, plural, one {# effet} other {# effets}}'
       description:
@@ -905,6 +906,9 @@ automations:
     loadFailed: Impossible de charger les paramètres — ferme le dialogue et réessaie.
     save: Enregistrer
     saveAndContinue: Enregistrer et continuer
+    dialogTitle: '{name} — paramètres'
+    tabsLabel: Sections des paramètres
+    unsavedTab: Modifications non enregistrées
     saved: Paramètres enregistrés.
     saveFailed: Impossible d'enregistrer les paramètres — réessaie.
     errors:
@@ -7006,6 +7010,8 @@ tasks:
     missingInput: "Dépose d'abord les fichiers d'entrée de la tâche — le dossier lié est encore vide."
     working: '{name} travaille sur cette tâche.'
     details: Détails
+    currentStep: Étape en cours
+    stepNotReached: "L'exécution n'a pas atteint cette étape."
     detailsTitle: "{name} — avancement de l'exécution"
     noProgressYet: "L'exécution n'a encore atteint aucune étape."
     effectsTitle: Actions effectuées
@@ -7020,7 +7026,10 @@ tasks:
     approve: Approuver
     approved: Approuvé — la tâche est terminée.
     requestChanges: Demander des modifications
-    requestChangesHint: "Écris d'abord ton retour en commentaire ci-dessous — la nouvelle exécution lit les commentaires de la tâche."
+    requestChangesDialog: 'Ton retour est ajouté en commentaire sur cette tâche et {name} repart de là.'
+    requestChangesLabel: Ce qui doit changer
+    requestChangesPlaceholder: 'p. ex. la case 400 doit exclure le bordereau de mars — il appartient au trimestre suivant.'
+    requestChangesSend: Renvoyer
     requestChangesSent: 'Renvoyée à {name} — la nouvelle exécution reprend tes commentaires.'
     cancel: Annuler l'exécution
     cancelConfirmTitle: Annuler cette exécution ?
@@ -7051,8 +7060,18 @@ tasks:
       start: "Démarre l'exécution {name}."
       request_changes: 'La renvoie à {name} avec tes commentaires.'
       cancel: "Annule d'abord l'exécution {name} en cours."
+  outcome:
+    title: Résultat
+    pending: Pas encore prêt
+    empty: "Pas encore de résultats — ils apparaîtront ici dès qu'une exécution en produit."
+    untitled: Sans titre
+    open: 'Ouvrir {name}'
   inputFiles:
-    title: "Fichiers d'entrée"
+    title: Fichiers
+    titleWithCount: 'Fichiers ({count})'
+    more: '+{count} autres'
+    showLess: Afficher moins
+    open: 'Ouvrir {name}'
     empty: "Aucun fichier pour l'instant — l'exécution lit ce dossier ; dépose ici les documents du trimestre."
     untitled: Sans titre
     uploading: Téléversement…
@@ -7070,8 +7089,6 @@ tasks:
       comme fichiers dans le dossier {folder}, où chaque exécution vient les
       lire."
     settingsOpen: Paramètres
-    settingsTitle: '{name} — Paramètres'
-    settingsBack: Retour
   attachments:
     label: Pièces jointes
     add: Ajouter des pièces jointes

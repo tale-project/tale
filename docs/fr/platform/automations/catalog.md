@@ -99,6 +99,33 @@ Un formulaire possède son fichier : enregistrer réécrit `Setup/fx-policy.yaml
 
 Marque un formulaire `required: true` et le dialogue de création l’impose par projet : la première fois que quelqu’un choisit le modèle de tâche de l’automatisation dans un projet pas encore configuré, les formulaires apparaissent avant le champ de la tâche, et la création ne continue qu’une fois qu’ils sont enregistrés. Ensuite, le bouton **Paramètres** du même dialogue rouvre les formulaires pour les modifier — chacun avec son propre **Enregistrer**, actif seulement quand quelque chose a changé.
 
+## Livrables déclarés par le pack
+
+Un pack dont les exécutions déposent des documents dans le dossier d'une tâche
+peut nommer lesquels sont les **livrables** — ce pour quoi quelqu'un ouvre la
+tâche. La zone Résultat de la tâche liste exactement ceux-là, toujours ouverte et
+dans l'ordre déclaré, tandis que tout le reste du dossier — les fichiers déposés,
+les fichiers de travail de l'exécution — se replie sous **Fichiers**.
+
+```yaml
+# automation.yml
+subjects:
+  task:
+    outcome:
+      files:
+        - return.xml
+        - report.md
+        - journal.csv
+```
+
+Seul le pack sait lesquels de ses fichiers écrits sont l'essentiel : la
+plateforme ne devine rien. Un nom qu'aucune exécution n'a encore déposé apparaît
+quand même comme une ligne promise marquée _Pas encore prêt_ — la tâche nomme donc
+ce qu'elle produira avant de le produire. Les jokers `*` et `?` sont acceptés
+(`return-*.xml`) pour un nom qu'une exécution construit. Ne déclare rien et la
+zone Résultat retombe sur tous les fichiers déposés par les exécutions, le plus
+récent d'abord.
+
 ## Où cela s’insère
 
 Les automatisations arrivent par trois chemins — livrées avec l’organisation, créées sur le canvas, ou téléversées en pack — et chaque chemin finit au même endroit : une version brouillon sur la page de l’automatisation, déployée quand tu le décides. Un téléversement en zip alimente aussi la [bibliothèque de skills](/fr/platform/workspace/skills) avec les bundles dont l’automatisation a besoin, avec une confirmation devant chaque skill qu’il remplacerait. [L’éditeur de workflow](/fr/platform/automations/editor) est la lecture suivante pour mettre ce brouillon en service.

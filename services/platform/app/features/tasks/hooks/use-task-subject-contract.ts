@@ -1,10 +1,12 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 import {
   type AutomationSettings,
   parseAutomationSettings,
@@ -24,8 +26,13 @@ export interface TaskOwnershipFields {
 }
 
 export interface ResolvedTaskSubjectContract {
-  /** The automation's store name — also the workflow the choreography runs. */
+  /** The automation's store name — also the workflow the choreography runs.
+   * ADDRESSING, not a label: show `displayName` to people. */
   automationSlug: string;
+  /** What the automation calls itself in the reader's language (the pack
+   * manifest's `name`/`i18n`), or the slug read as a title when it declared
+   * none. Every user-visible mention of the automation uses this. */
+  displayName: string;
   contract: TaskSubjectContract;
   /** The deployed version's settings declaration (tolerant: unparsable reads
    * as none) — the create-template setup gate and the Settings entry. */
@@ -38,6 +45,7 @@ interface ContractAutomationEntry {
   deployedVersion?: number;
   taskContract?: unknown;
   settings?: unknown;
+  presentation?: unknown;
 }
 
 /**
@@ -71,6 +79,8 @@ export function useTaskContractAutomations(
  *  (tolerant: an unparsable contract reads as none). */
 export function taskSubjectEntries(
   automations: ContractAutomationEntry[],
+  /** The reader's locale — decides which declared name the surfaces show. */
+  locale: string,
 ): ResolvedTaskSubjectContract[] {
   return automations.flatMap((automation) => {
     if (automation.deployedVersion === undefined) return [];
@@ -80,6 +90,11 @@ export function taskSubjectEntries(
       : [
           {
             automationSlug: automation.name,
+            displayName: automationDisplayName(
+              automation.presentation,
+              automation.name,
+              locale,
+            ),
             contract,
             settings: parseAutomationSettings(automation.settings),
           },
@@ -121,8 +136,9 @@ export type TaskOwnership =
 export function resolveTaskOwnership(
   task: TaskOwnershipFields,
   automations: ContractAutomationEntry[],
+  locale: string,
 ): TaskOwnership {
-  const entries = taskSubjectEntries(automations);
+  const entries = taskSubjectEntries(automations, locale);
   if (task.assigneeType === 'app' && task.assigneeId !== undefined) {
     const assigned = entries.find(
       (entry) => entry.automationSlug === task.assigneeId,
@@ -158,11 +174,13 @@ export function resolveTaskOwnership(
 export function resolveTaskSubjectContract(
   task: TaskOwnershipFields,
   automations: ContractAutomationEntry[],
+  locale: string,
 ): ResolvedTaskSubjectContract | null {
-  const ownership = resolveTaskOwnership(task, automations);
+  const ownership = resolveTaskOwnership(task, automations, locale);
   return ownership.kind === 'automation'
     ? {
         automationSlug: ownership.automationSlug,
+        displayName: ownership.displayName,
         contract: ownership.contract,
         settings: ownership.settings,
       }
@@ -182,9 +200,10 @@ export function useTaskSubjectContract(
     organizationId,
     task?.projectId,
   );
+  const { locale } = useLocale();
   return useMemo(
-    () => (task ? resolveTaskSubjectContract(task, automations) : null),
-    [automations, task],
+    () => (task ? resolveTaskSubjectContract(task, automations, locale) : null),
+    [automations, locale, task],
   );
 }
 
@@ -195,11 +214,12 @@ export function useTaskSubjectTemplates(
   projectId: Id<'projects'> | undefined,
 ): ResolvedTaskSubjectContract[] {
   const automations = useTaskContractAutomations(organizationId, projectId);
+  const { locale } = useLocale();
   return useMemo(
     () =>
-      taskSubjectEntries(automations).filter(
+      taskSubjectEntries(automations, locale).filter(
         (entry) => entry.contract.create?.enabled === true,
       ),
-    [automations],
+    [automations, locale],
   );
 }

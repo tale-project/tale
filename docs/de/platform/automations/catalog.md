@@ -99,6 +99,33 @@ Ein Formular besitzt seine Datei: Speichern schreibt `Setup/fx-policy.yaml` komp
 
 Markierst du ein Formular mit `required: true`, erzwingt der Erstellen-Dialog es pro Projekt: Wählt jemand die Aufgabenvorlage der Automatisierung zum ersten Mal in einem Projekt, das noch nicht eingerichtet ist, erscheinen die Formulare vor dem eigentlichen Aufgabenfeld, und das Erstellen geht erst weiter, wenn sie gespeichert sind. Von da an öffnet der Button **Einstellungen** im selben Dialog die Formulare zum Bearbeiten — jedes mit eigenem **Speichern**, aktiv nur, wenn sich etwas geändert hat.
 
+## Ergebnisse, die das Paket deklariert
+
+Ein Pack, dessen Läufe Dokumente in den Ordner einer Aufgabe zurückschreiben,
+kann benennen, welche davon die **Ergebnisse** sind — das, wofür jemand die
+Aufgabe öffnet. Der Ergebnis-Bereich der Aufgabe zeigt genau diese, immer offen
+und in der deklarierten Reihenfolge, während alles andere im Ordner — die
+Uploads, die Arbeitsdateien des Laufs — unter **Dateien** eingeklappt bleibt.
+
+```yaml
+# automation.yml
+subjects:
+  task:
+    outcome:
+      files:
+        - return.xml
+        - report.md
+        - journal.csv
+```
+
+Nur das Pack weiß, welche seiner geschriebenen Dateien der Punkt sind, also rät
+die Plattform nichts: Ein Name, den noch kein Lauf abgelegt hat, erscheint
+trotzdem als zugesagte Zeile mit dem Hinweis _Noch nicht bereit_ — die Aufgabe
+benennt also, was sie produzieren wird, bevor sie es produziert. `*` und `?` sind
+als Platzhalter erlaubt (`return-*.xml`), für einen Namen, den ein Lauf erst
+bildet. Deklarierst du nichts, zeigt der Ergebnis-Bereich jede Datei, die die
+Läufe abgelegt haben, die neueste zuerst.
+
 ## Wo das hingehört
 
 Automatisierungen kommen auf drei Wegen an — mit der Organisation ausgeliefert, auf dem Canvas gebaut oder als Pack hochgeladen — und jeder Weg endet an derselben Stelle: eine Entwurfsversion auf der Seite der Automatisierung, deployt auf dein Kommando. Ein Zip-Upload bestückt zusätzlich die [Skill-Bibliothek](/de/platform/workspace/skills) mit den Bundles, die die Automatisierung braucht, mit einer Bestätigung vor jedem Skill, den er ersetzen würde. [Der Workflow-Editor](/de/platform/automations/editor) ist die nächste Lektüre, um den Entwurf live zu nehmen.
