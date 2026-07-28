@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
-import { query } from '../_generated/server';
+import { internalQuery, query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -384,6 +384,34 @@ export const getMyFeatureFlags = query({
       (p) => p !== null && p.enabled !== false,
     );
     return { ...flags, inputGuardrailsActive };
+  },
+});
+
+/**
+ * The caller's governance context cap, for the turn lane. Internal and
+ * identity-free: the turn action has already authenticated (or, on the
+ * API-key lane, authorized) the user it runs for, and a scheduled turn has
+ * no session identity to re-check. Null = no cap applies.
+ */
+export const getContextCapInternal = internalQuery({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx, args) => {
+    const member = await ctx.db
+      .query('memberMirror')
+      .withIndex('by_org_user', (q) =>
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+      )
+      .first();
+    const teamIds = await getUserTeamIds(ctx, args.userId);
+    const flags = await resolveFeatureFlags(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member?.role,
+    );
+    return flags.maxContextTokens ?? null;
   },
 });
 

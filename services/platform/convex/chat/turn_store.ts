@@ -40,6 +40,9 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
         usage: message.usage,
         blockedReason: message.blockedReason,
         error: message.error,
+        ...(message.truncation !== undefined
+          ? { truncation: message.truncation }
+          : {}),
       });
     },
     async streamProgress(update) {

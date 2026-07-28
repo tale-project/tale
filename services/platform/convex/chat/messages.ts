@@ -28,7 +28,7 @@ import {
 } from '../../lib/shared/chat-errors';
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
 import { internal } from '../_generated/api';
-import { internalMutation, query } from '../_generated/server';
+import { internalMutation, internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -111,6 +111,63 @@ export const listMessages = query({
       error: message.error,
       createdAt: message.createdAt,
     }));
+  },
+});
+
+/**
+ * The turn's bounded history read: newest-first up to a character budget and
+ * a hard row cap, returned oldest-first. `omittedCount` is exactly the oldest
+ * returned row's sequence — sequences are gap-free from 0, so everything
+ * below it was left behind. Internal and identity-free: the API-key lane
+ * schedules turns with no session, and history loading must not depend on
+ * one (the caller has already authorized the thread).
+ */
+export const listRecentForTurnInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    /** Stop once this many characters of parts are accumulated. */
+    maxChars: v.number(),
+    maxRows: v.number(),
+  },
+  returns: v.object({
+    messages: v.array(messageViewValidator),
+    omittedCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const threadId = ctx.db.normalizeId('threads', args.threadId);
+    if (!threadId) return { messages: [], omittedCount: 0 };
+    const thread = await ctx.db.get(threadId);
+    if (!thread || thread.organizationId !== args.organizationId) {
+      return { messages: [], omittedCount: 0 };
+    }
+
+    const recent = [];
+    let chars = 0;
+    for await (const message of ctx.db
+      .query('messages')
+      .withIndex('by_thread_sequence', (q) => q.eq('threadId', thread._id))
+      .order('desc')) {
+      recent.push(message);
+      chars += JSON.stringify(message.parts).length;
+      if (recent.length >= args.maxRows || chars >= args.maxChars) break;
+    }
+    recent.reverse();
+    return {
+      messages: recent.map((message) => ({
+        id: message._id,
+        role: message.role,
+        parts: message.parts,
+        sequence: message.sequence,
+        model: message.model,
+        providerSlug: message.providerSlug,
+        usage: message.usage,
+        blockedReason: message.blockedReason,
+        error: message.error,
+        createdAt: message.createdAt,
+      })),
+      omittedCount: recent[0]?.sequence ?? 0,
+    };
   },
 });
 
@@ -409,6 +466,8 @@ export const appendMessageInternal = internalMutation({
      * `blockedReason`. Rendered as an error state and counted as an error (not
      * a block) by the chat-health metrics. */
     error: v.optional(v.string()),
+    /** Silent stamp: context assembly dropped older history for this turn. */
+    truncation: v.optional(v.object({ droppedMessages: v.number() })),
   },
   returns: v.object({ id: v.id('messages'), sequence: v.number() }),
   handler: async (ctx, args) => {
@@ -446,6 +505,7 @@ export const appendMessageInternal = internalMutation({
       blockedReason: args.blockedReason,
       error: args.error,
       createdAt: Date.now(),
+      ...(args.truncation !== undefined ? { truncation: args.truncation } : {}),
     });
 
     // A turn just wrote to the thread; keep its list ordering fresh. An

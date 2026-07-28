@@ -304,6 +304,22 @@ describe('assembleContext — overflow', () => {
     expect(reserved.truncation?.droppedMessages).toBeGreaterThan(0);
   });
 
+  it("folds a bounded read's omitted turns into the notice", () => {
+    const history = [
+      message('user', 'short question'),
+      message('assistant', 'short answer'),
+    ];
+
+    const result = assembleContext(input({ history, historyOmittedCount: 7 }));
+
+    expect(result.truncation?.droppedMessages).toBe(7);
+    const [notice, ...kept] = result.messages;
+    expect(notice?.parts).toEqual([
+      { type: 'text', text: truncationNotice(7) },
+    ]);
+    expect(kept).toEqual(history);
+  });
+
   it('protects the newest turns before older history', () => {
     const history = [
       message('user', long('one')),

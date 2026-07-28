@@ -40,6 +40,7 @@
 import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../convex/lib/untrusted_content';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
+import { MAX_HISTORY_BUDGET_TOKENS } from './budget';
 import {
   estimateMessageTokens,
   estimateTokens,
@@ -114,6 +115,10 @@ export interface ContextInput {
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
   readonly now: Date;
   readonly history: readonly ChatMessage[];
+  /** Turns already omitted BEFORE assembly (the bounded DB read stops at a
+   * budget) — folded into the truncation notice so the model hears the true
+   * count. */
+  readonly historyOmittedCount?: number;
   readonly budget: ContextBudget;
 }
 
@@ -269,11 +274,25 @@ function boundMessage(message: ChatMessage): ChatMessage {
 function fitHistory(
   rawHistory: readonly ChatMessage[],
   available: number,
+  alreadyOmitted = 0,
 ): { messages: readonly ChatMessage[]; truncation?: ContextTruncation } {
   const history = rawHistory.map(boundMessage);
   const costs = history.map(estimateMessageTokens);
   const total = costs.reduce((sum, cost) => sum + cost, 0);
-  if (total <= available || history.length === 0) return { messages: history };
+  if (total <= available || history.length === 0) {
+    // Nothing dropped HERE — but a bounded read may have cut older turns
+    // before assembly ever saw them; the notice still owes the model that.
+    if (alreadyOmitted > 0) {
+      return {
+        messages: [noticeMessage(alreadyOmitted), ...history],
+        truncation: {
+          droppedMessages: alreadyOmitted,
+          notice: truncationNotice(alreadyOmitted),
+        },
+      };
+    }
+    return { messages: history };
+  }
 
   // The notice costs tokens too, so it is part of the budget from the start.
   // Sized against the largest count it could name, which over-estimates by a
@@ -298,12 +317,16 @@ function fitHistory(
     dropped += 1;
     protectedTail -= 1;
   }
-  if (dropped === 0) return { messages: history };
+  if (dropped === 0 && alreadyOmitted === 0) return { messages: history };
 
   const kept = history.slice(dropped);
+  const totalDropped = dropped + alreadyOmitted;
   return {
-    messages: [noticeMessage(dropped), ...kept],
-    truncation: { droppedMessages: dropped, notice: truncationNotice(dropped) },
+    messages: [noticeMessage(totalDropped), ...kept],
+    truncation: {
+      droppedMessages: totalDropped,
+      notice: truncationNotice(totalDropped),
+    },
   };
 }
 
@@ -354,11 +377,17 @@ export function assembleContext(input: ContextInput): AssembledContext {
     .join(BLOCK_SEPARATOR);
 
   const reserve = input.budget.reserveOutputTokens ?? 0;
-  const available = Math.max(
-    0,
-    input.budget.maxTokens - reserve - estimateTokens(system),
+  // The history's slice of the window, additionally capped: a huge window
+  // never turns into an equally huge (and equally billed) history replay.
+  const available = Math.min(
+    Math.max(0, input.budget.maxTokens - reserve - estimateTokens(system)),
+    MAX_HISTORY_BUDGET_TOKENS,
   );
-  const { messages, truncation } = fitHistory(input.history, available);
+  const { messages, truncation } = fitHistory(
+    input.history,
+    available,
+    input.historyOmittedCount ?? 0,
+  );
   blocks.push({ id: 'message-history', messages });
 
   const estimatedTokens =

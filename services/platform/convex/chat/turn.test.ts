@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { runTurn, type ModelCall, type TurnRequest } from '../../lib/chat/turn';
 import { decodeChatError } from '../../lib/shared/chat-errors';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
@@ -279,6 +280,45 @@ describe('chat turn — end to end against a fake model', () => {
       },
       { type: 'text', text: answer },
     ]);
+  });
+
+  it('bounds the turn history read and reports what it left behind', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    for (let index = 0; index < 12; index += 1) {
+      await t.mutation(internal.chat.messages.appendMessageInternal, {
+        organizationId: ORG,
+        threadId,
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        parts: [{ type: 'text', text: `turn ${index} ${'x'.repeat(400)}` }],
+      });
+    }
+
+    const bounded = await t.query(
+      internal.chat.messages.listRecentForTurnInternal,
+      {
+        organizationId: ORG,
+        threadId,
+        // Room for roughly four rows of ~430 chars of parts JSON.
+        maxChars: 1800,
+        maxRows: 500,
+      },
+    );
+
+    expect(bounded.messages.length).toBeGreaterThan(2);
+    expect(bounded.messages.length).toBeLessThan(12);
+    // Oldest-first, contiguous, and the omitted count is the first sequence.
+    const sequences = bounded.messages.map((m) => m.sequence);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    expect(bounded.omittedCount).toBe(sequences[0]);
+    expect(bounded.omittedCount + bounded.messages.length).toBe(12);
+
+    const capped = await t.query(
+      internal.chat.messages.listRecentForTurnInternal,
+      { organizationId: ORG, threadId, maxChars: 1_000_000, maxRows: 5 },
+    );
+    expect(capped.messages).toHaveLength(5);
+    expect(capped.omittedCount).toBe(7);
   });
 
   it('rescues the streamed partial when the model dies after clearing text', async () => {

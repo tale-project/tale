@@ -113,6 +113,9 @@ export interface TurnStore {
     /** A hard failure (provider error, stream timeout) — distinct from a
      * guardrail block; rendered as an error and counted as one. */
     error?: string;
+    /** Older history was dropped assembling this turn's context — recorded
+     * silently on the reply row for telemetry; never rendered. */
+    truncation?: { droppedMessages: number };
   }): Promise<{ id: string; sequence: number }>;
   /** Persist streaming progress: the full cleared text (and reasoning) so
    * far, which doubles as the turn's proof of life. Called once per cleared
@@ -211,6 +214,9 @@ export interface TurnRequest {
    * own and refuses any other. */
   readonly harness?: string;
   readonly budget?: ContextBudget;
+  /** Turns the bounded history read already omitted — folded into the
+   * truncation notice. */
+  readonly historyOmittedCount?: number;
   readonly signal?: AbortSignal;
 }
 
@@ -309,9 +315,17 @@ export function assembleTurnContext(
     toolDocs: request.toolDocs,
     now,
     history,
+    ...(request.historyOmittedCount !== undefined
+      ? { historyOmittedCount: request.historyOmittedCount }
+      : {}),
     budget: request.budget ?? {
       maxTokens: request.model.contextWindow,
-      reserveOutputTokens: request.model.maxOutputTokens,
+      // The reserve mirrors what the wire will actually request, so budget
+      // and reality can never disagree.
+      reserveOutputTokens: resolveTurnSampling(
+        request.model,
+        request.reasoningEffort,
+      ).maxTokens,
     },
   });
 }
@@ -524,6 +538,11 @@ export async function runTurn(
     threadId: request.threadId,
     role: 'assistant',
     parts: [],
+    // Silent observability: the reply records that its context was fitted
+    // by dropping history. Never rendered — telemetry and debugging only.
+    ...(context.truncation !== undefined
+      ? { truncation: { droppedMessages: context.truncation.droppedMessages } }
+      : {}),
   });
   await deps.store.beginGeneration({
     organizationId: request.organizationId,

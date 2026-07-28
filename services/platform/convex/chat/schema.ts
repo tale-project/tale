@@ -221,6 +221,9 @@ export const messagesTable = defineTable({
    * explain the refusal instead of showing an empty turn. */
   blockedReason: v.optional(v.string()),
   error: v.optional(v.string()),
+  /** Older history was dropped when this reply's context was assembled.
+   * Silent observability — never rendered to the user. */
+  truncation: v.optional(v.object({ droppedMessages: v.number() })),
   createdAt: v.number(),
 })
   .index('by_org', ['organizationId'])

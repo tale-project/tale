@@ -23,7 +23,14 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import type { ReasoningEffort } from '../../lib/chat/effort';
+import {
+  MAX_HISTORY_BUDGET_TOKENS,
+  resolveEffectiveWindow,
+} from '../../lib/chat/budget';
+import {
+  resolveTurnSampling,
+  type ReasoningEffort,
+} from '../../lib/chat/effort';
 import { runTurn } from '../../lib/chat/turn';
 import type {
   ModelCall,
@@ -51,7 +58,7 @@ import type {
   ModelCatalogEntry,
   ProviderConnector,
 } from '../../lib/shared/schemas/providers';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -433,10 +440,35 @@ export async function executeTurn(
     args.providerSlug,
   );
 
-  const stored = await ctx.runQuery(api.chat.messages.listMessages, {
-    organizationId: args.organizationId,
-    threadId: args.threadId,
+  // Resolve the effort → sampling and the effective window FIRST: the
+  // history read is bounded by the same budget the context assembly fits
+  // into, so a long thread never materializes whole. The internal read also
+  // frees the scheduled API-key lane from session auth the public query
+  // demands.
+  const sampling = resolveTurnSampling(resolved.entry, args.reasoningEffort);
+  const governanceCap = await ctx.runQuery(
+    internal.governance.queries.getContextCapInternal,
+    { organizationId: args.organizationId, userId: args.userId },
+  );
+  const windowTokens = resolveEffectiveWindow({
+    contextWindow: resolved.entry.contextWindow,
+    governanceMaxContext: governanceCap,
   });
+  const historyTokenBudget = Math.min(
+    Math.max(0, windowTokens - sampling.maxTokens),
+    MAX_HISTORY_BUDGET_TOKENS,
+  );
+  const { messages: stored, omittedCount } = await ctx.runQuery(
+    internal.chat.messages.listRecentForTurnInternal,
+    {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      // Twice the token budget at ~4 chars/token: enough slack that the
+      // token-exact fit happens in assembly, not here.
+      maxChars: historyTokenBudget * 4 * 2,
+      maxRows: 500,
+    },
+  );
   // A resend re-runs the trailing user message: its text becomes the turn's
   // input, it leaves the history (the context assembly re-appends the input
   // as the newest turn), and the pipeline skips persisting it again.
@@ -483,6 +515,11 @@ export async function executeTurn(
     ...(args.reasoningEffort !== undefined
       ? { reasoningEffort: args.reasoningEffort }
       : {}),
+    budget: {
+      maxTokens: windowTokens,
+      reserveOutputTokens: sampling.maxTokens,
+    },
+    ...(omittedCount > 0 ? { historyOmittedCount: omittedCount } : {}),
     // Direct chat only serves platform-managed credentials; a subscription
     // credential is refused earlier, before the wire is built.
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
