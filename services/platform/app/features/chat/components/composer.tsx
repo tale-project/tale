@@ -49,6 +49,7 @@ import type {
   ComposerSelection,
 } from '../types';
 import { ComposerAgentPicker } from './composer-agent-picker';
+import { ComposerEffortPicker } from './composer-effort-picker';
 import { ComposerModeMenu } from './composer-mode-menu';
 import {
   ComposerModelPicker,
@@ -400,12 +401,25 @@ export function Composer({
             {...(degradedHarnesses !== undefined ? { degradedHarnesses } : {})}
           />
           {selection.agentKind === 'platform' ? (
-            <ComposerModelPicker
-              models={platformModels}
-              selection={selection}
-              onSelectionChange={onSelectionChange}
-              disabled={disabled}
-            />
+            <>
+              <ComposerModelPicker
+                models={platformModels}
+                selection={selection}
+                onSelectionChange={onSelectionChange}
+                disabled={disabled}
+              />
+              <ComposerEffortPicker
+                model={platformModels.find(
+                  (option) =>
+                    option.id === selection.modelId &&
+                    (selection.providerSlug === undefined ||
+                      option.providerSlug === selection.providerSlug),
+                )}
+                selection={selection}
+                onSelectionChange={onSelectionChange}
+                disabled={disabled}
+              />
+            </>
           ) : (
             <>
               <ComposerModelPicker

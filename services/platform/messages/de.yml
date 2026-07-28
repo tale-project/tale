@@ -1368,6 +1368,14 @@ chat:
   generationStopped: Generierung gestoppt
   blockedNotice:
     body: Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert.
+  effort:
+    label: Denkaufwand
+    default: Standard
+    low: Niedrig
+    medium: Mittel
+    high: Hoch
+    extra: Extra
+    max: Maximal
 
   budgetExceededDetail: '{type}-Limit für diesen {period}-Zeitraum erreicht ({used} / {limit}). Bitte kontaktiere deinen Administrator.'
   budgetExceededDefault: Dein Nutzungslimit für diesen Zeitraum wurde erreicht. Bitte kontaktiere deinen Administrator.

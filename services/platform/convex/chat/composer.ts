@@ -62,6 +62,13 @@ const composerModelOptionValidator = v.object({
   label: v.string(),
   providerSlug: v.string(),
   credential: credentialAuthValidator,
+  /** Present when the model's reasoning depth is controllable — the effort
+   * picker renders only for these. */
+  reasoning: v.optional(
+    v.object({
+      knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
+    }),
+  ),
 });
 
 const composerExternalAgentValidator = v.object({
@@ -164,6 +171,9 @@ export const listComposerModels = action({
           label: entry.id,
           providerSlug: connector.name,
           credential: credentialAuth,
+          ...(entry.reasoning !== undefined
+            ? { reasoning: { knob: entry.reasoning.knob } }
+            : {}),
         });
       }
     }

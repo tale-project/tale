@@ -30,7 +30,7 @@ export interface ComposerCatalog {
 
 // v2: the record gained `voice.ttsAvailable` — old records would hide voice
 // availability for a TTL, so the bump retires them wholesale.
-const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v2:';
+const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v3:';
 
 /** A stored catalog older than this is stale enough to prefer a fresh load. */
 const TTL_MS = 12 * 60 * 60 * 1000;

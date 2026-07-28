@@ -67,9 +67,14 @@ import {
   useHarnessHealth,
   useThreadBranches,
   useThreadCapabilities,
+  useThreadReasoningEffort,
   useThreadFeedback,
   useVoiceMode,
 } from '../data/chat-backend';
+import {
+  readEffortPreference,
+  writeEffortPreference,
+} from '../data/effort-preference';
 import { useThreadActions } from '../data/thread-actions';
 import { useThreadSharing } from '../data/thread-sharing';
 import { useVoiceActions } from '../data/voice-actions';
@@ -226,6 +231,7 @@ function ChatSurfaceInner({
   const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
   const threadCapabilities = useThreadCapabilities(organizationId);
+  const threadReasoningEffort = useThreadReasoningEffort(organizationId);
   const branchActions = useBranchActions(organizationId);
 
   // The circuit-breaker set: harnesses the health signal flags as recently
@@ -450,12 +456,30 @@ function ChatSurfaceInner({
     if (capabilitiesHydratedFor.current === threadId) return;
     capabilitiesHydratedFor.current = threadId;
     const stored = activeThread.capabilities;
+    const storedEffort = activeThread.reasoningEffort;
     setSelection((previous) => ({
       ...previous,
       skills: stored?.skills ?? [],
       connectors: stored?.connectors ?? [],
+      reasoningEffort: storedEffort,
     }));
   }, [threadId, activeThread]);
+
+  // Seed the effort pick for a NEW chat from the org-local preference the
+  // last explicit pick wrote; an open thread hydrates from its row instead.
+  const effortSeededRef = useRef(false);
+  useEffect(() => {
+    if (effortSeededRef.current || threadId !== undefined) return;
+    effortSeededRef.current = true;
+    const stored = readEffortPreference(organizationId);
+    if (stored !== undefined) {
+      setSelection((previous) =>
+        previous.reasoningEffort === undefined
+          ? { ...previous, reasoningEffort: stored }
+          : previous,
+      );
+    }
+  }, [threadId, organizationId]);
 
   // Seed the default model once BOTH the listing and the user's sticky pick
   // have answered, so the seed lands once — never "first model, then the
@@ -481,6 +505,15 @@ function ChatSurfaceInner({
     // surface re-hydrates from it. (On the index there is no row yet; the
     // picks travel with the send into `createThread`.) The menu builds fresh
     // arrays per toggle, so identity is the change signal.
+    if (next.reasoningEffort !== selection.reasoningEffort) {
+      // An explicit pick seeds future chats and persists on the conversation
+      // root (the whole lineage runs with one effort, like capabilities).
+      writeEffortPreference(organizationId, next.reasoningEffort ?? null);
+      if (threadId !== undefined) {
+        capabilitiesHydratedFor.current = threadId;
+        threadReasoningEffort.save(threadId, next.reasoningEffort ?? null);
+      }
+    }
     if (
       threadId !== undefined &&
       (next.skills !== selection.skills ||
@@ -678,6 +711,9 @@ function ChatSurfaceInner({
             ? { harness: selection.harness }
             : {}),
           sandbox: resolveSelectionSandbox(selection, models),
+          ...(selection.reasoningEffort !== undefined
+            ? { reasoningEffort: selection.reasoningEffort }
+            : {}),
           ...(selection.skills.length > 0 || selection.connectors.length > 0
             ? {
                 capabilities: {
@@ -810,6 +846,7 @@ function ChatSurfaceInner({
           branchId,
           modelId,
           providerSlug,
+          selection.reasoningEffort,
         );
         if (outcome.refused) {
           toast({

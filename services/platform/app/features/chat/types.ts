@@ -152,6 +152,8 @@ export interface ComposerModelOption {
   readonly id: string;
   readonly label: string;
   readonly providerSlug: string;
+  /** Present when the model's reasoning depth is controllable. */
+  readonly reasoning?: { readonly knob: 'effort' | 'budget-tokens' };
   /**
    * The credential that would serve this model, in the exact shape execution
    * resolution reads — so the composer asks the resolver instead of

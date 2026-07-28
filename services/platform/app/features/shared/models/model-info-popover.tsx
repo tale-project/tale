@@ -44,7 +44,7 @@ export interface ModelInfoCapabilities {
   maxOutputTokens?: number;
   inputCentsPerMillion?: number;
   outputCentsPerMillion?: number;
-  reasoning?: { knob: 'effort' | 'budgetTokens' | 'none' };
+  reasoning?: { knob: 'effort' | 'budget-tokens' };
   promptCaching?: { mode: 'explicit-breakpoints' | 'auto-server' | 'none' };
   supportsTools?: boolean;
   supportsVision?: boolean;
@@ -111,12 +111,11 @@ export function ModelInfoPopover({
     .filter((key): key is string => Boolean(key))
     .map((key) => t(key));
 
-  const reasoningLabel =
-    capabilities?.reasoning && capabilities.reasoning.knob !== 'none'
-      ? capabilities.reasoning.knob === 'effort'
-        ? t('modelSelector.info.reasoningEffort')
-        : t('modelSelector.info.reasoningBudget')
-      : null;
+  const reasoningLabel = capabilities?.reasoning
+    ? capabilities.reasoning.knob === 'effort'
+      ? t('modelSelector.info.reasoningEffort')
+      : t('modelSelector.info.reasoningBudget')
+    : null;
   const cachingLabel =
     capabilities?.promptCaching && capabilities.promptCaching.mode !== 'none'
       ? capabilities.promptCaching.mode === 'explicit-breakpoints'
