@@ -28,8 +28,10 @@ interface ArenaSplitViewProps {
   organizationId: string;
   threadIdA: string;
   threadIdB: string;
-  /** Column A's model label (the composer's current pick). */
-  modelALabel?: string;
+  /** Column A's model — the composer's current pick, changeable from the
+   * column header as well as from the composer. */
+  modelAId?: string;
+  onModelAChange: (modelId: string, providerSlug: string) => void;
   /** Direct-served options for column B's picker. */
   models: readonly ComposerModelOption[];
   modelBId?: string;
@@ -47,7 +49,8 @@ export function ArenaSplitView({
   organizationId,
   threadIdA,
   threadIdB,
-  modelALabel,
+  modelAId,
+  onModelAChange,
   models,
   modelBId,
   onModelBChange,
@@ -83,11 +86,11 @@ export function ArenaSplitView({
           onReplySettled={onReplySettledA}
           voicePillMessageId={voicePillMessageId}
           headerExtra={
-            modelALabel !== undefined ? (
-              <span className="text-foreground truncate text-sm">
-                {modelALabel}
-              </span>
-            ) : undefined
+            <ArenaModelPicker
+              models={models}
+              modelId={modelAId}
+              onChange={onModelAChange}
+            />
           }
         />
         <ArenaColumn

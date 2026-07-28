@@ -1055,8 +1055,13 @@ function ChatSurfaceInner({
             organizationId={organizationId}
             threadIdA={pair.threadIdA}
             threadIdB={pair.threadIdB}
-            modelALabel={
-              models.find((model) => model.id === selection.modelId)?.label
+            {...(selection.modelId !== undefined
+              ? { modelAId: selection.modelId }
+              : {})}
+            onModelAChange={(modelId, providerSlug) =>
+              // Column A IS the composer's pick — changing it here changes
+              // the one selection, so the two controls never disagree.
+              handleSelectionChange({ ...selection, modelId, providerSlug })
             }
             models={models}
             modelBId={arenaModelBId}
