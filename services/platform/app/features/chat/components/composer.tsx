@@ -33,7 +33,6 @@ import { useTranslation } from 'react-i18next';
 import { CapabilityMenu } from '@/app/components/capabilities/capability-menu';
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -78,9 +77,6 @@ function toBcp47(locale: string): string | undefined {
 }
 
 interface ComposerProps {
-  /** The org whose data-classification notice renders under the field.
-   * Absent on surfaces without an org context. */
-  organizationId?: string;
   models: readonly ComposerModelOption[];
   /** Third-party external agents (sandbox harnesses). */
   externalAgents: readonly ComposerExternalAgentOption[];
@@ -121,7 +117,6 @@ interface ComposerProps {
 }
 
 export function Composer({
-  organizationId,
   models,
   externalAgents,
   degradedHarnesses,
@@ -492,7 +487,6 @@ export function Composer({
           </span>
         </Row>
       </Row>
-      <DataNoticeFooter organizationId={organizationId} className="pt-1 pb-1" />
     </Stack>
   );
 }

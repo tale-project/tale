@@ -3,13 +3,6 @@ import '@testing-library/jest-dom/vitest';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-// The footer subscribes to the org's data-classification notice through the
-// live Convex client, which these component tests do not mount. The marker
-// keeps its presence assertable without the backend.
-vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
-  DataNoticeFooter: () => <div data-testid="data-notice-footer" />,
-}));
-
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -403,11 +396,6 @@ describe('Composer sending', () => {
     renderComposer();
 
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
-  });
-
-  it('carries the data notice under the field', () => {
-    renderComposer();
-    expect(screen.getByTestId('data-notice-footer')).toBeInTheDocument();
   });
 
   it('offers stop instead of send while a turn is in flight', () => {

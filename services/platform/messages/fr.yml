@@ -1150,7 +1150,7 @@ chat:
     emptySubtitle: Démarre un nouveau chat pour commencer
     untitled: Chat sans titre
     generating: Génération de la réponse
-    renameChat: Renommer le chat
+    renameChat: Renommer
     loadMore: Charger plus
     dropHereToAdd: Dépose un chat ici
     dropToChatsHint: Dépose ici pour déplacer vers Chats

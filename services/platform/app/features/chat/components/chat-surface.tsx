@@ -939,16 +939,15 @@ function ChatSurfaceInner({
       </SubPanel>
 
       <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
-        {/* Frosted floating toggle: an absolute overlay on the message
-            column, so content scrolls BENEATH the blur. The glass layer is
-            taller than the controls row and dissolves to transparent —
-            gradient tint + a mask on the backdrop blur — and pointer-events
-            pass through everywhere except the button. Desktop-only: below
-            `md` the panel itself is hidden. */}
+        {/* Floating top bar: an absolute overlay on the message column, so
+            content scrolls beneath it. A plain background gradient dissolves
+            to transparent — no backdrop blur — and pointer-events pass
+            through everywhere except the controls. Desktop-only: below `md`
+            the panel itself is hidden. */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
           <div
             aria-hidden
-            className="from-background/75 absolute inset-x-0 top-0 h-18 bg-gradient-to-b to-transparent [mask-image:linear-gradient(to_bottom,black_40%,transparent)] backdrop-blur-md"
+            className="from-background via-background/85 absolute inset-x-0 top-0 h-16 bg-gradient-to-b via-40% to-transparent"
           />
           <div className="relative flex h-13 items-center px-4">
             <Button
@@ -971,19 +970,6 @@ function ChatSurfaceInner({
             <div className="min-w-0 flex-1" />
             {threadId !== undefined && (
               <div className="pointer-events-auto flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  onClick={() => void handleHeaderShare()}
-                  className={cn(
-                    'text-muted-foreground gap-1.5',
-                    // A pair cannot be shared — settle first (server-enforced;
-                    // the control disappears rather than failing on click).
-                    pair !== null && 'hidden',
-                  )}
-                >
-                  <Share2 aria-hidden className="size-4" />
-                  {t('share.button')}
-                </Button>
                 <DropdownMenu
                   align="end"
                   trigger={
@@ -997,8 +983,20 @@ function ChatSurfaceInner({
                   }
                   items={[
                     [
+                      // A pair cannot be shared — settle first (server-
+                      // enforced; the entry disappears rather than failing).
+                      ...(pair === null
+                        ? [
+                            {
+                              type: 'item' as const,
+                              label: t('share.button'),
+                              icon: Share2,
+                              onClick: () => void handleHeaderShare(),
+                            },
+                          ]
+                        : []),
                       {
-                        type: 'item',
+                        type: 'item' as const,
                         label: t('export.button'),
                         icon: Download,
                         onClick: () => setExportOpen(true),
@@ -1044,6 +1042,7 @@ function ChatSurfaceInner({
               organizationId={organizationId}
               threadId={viewerIsOwner ? viewThreadId : undefined}
               threadRootId={threadId}
+              dataNoticeOrganizationId={organizationId}
               isGenerating={generationInFlight || pendingSend !== null}
               pendingEditedFromThreadId={pendingSend?.editedFromThreadId}
               scrollIntentRef={scrollIntentRef}
@@ -1135,7 +1134,6 @@ function ChatSurfaceInner({
         <div className="shrink-0 px-4 pb-4">
           <BudgetBanner organizationId={organizationId} />
           <Composer
-            organizationId={organizationId}
             models={models}
             externalAgents={
               composerOptions.status === 'ready'

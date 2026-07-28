@@ -24,7 +24,6 @@ import {
   Boxes,
   CheckCheck,
   CircleDot,
-  FolderInput,
   FolderMinus,
   Link2,
   Link2Off,
@@ -42,7 +41,6 @@ import {
   useSubPanelRowTreatment,
 } from '@/app/components/layout/sub-panel-list';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useCopy } from '@/app/hooks/use-copy';
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { toast } from '@/app/hooks/use-toast';
@@ -305,8 +303,7 @@ function ThreadRowMenu({
   const { t: tCommon } = useT('common');
   const { t: tGovernance } = useT('governance');
   const navigate = useNavigate();
-  const { organizationId, projects, orgHeld, heldThreadIds } =
-    useThreadListFrame();
+  const { organizationId, orgHeld, heldThreadIds } = useThreadListFrame();
   const actions = useThreadActions(organizationId);
   const sharing = useThreadSharing(organizationId);
   const projectMove = useThreadProjectMove(organizationId);
@@ -454,44 +451,18 @@ function ThreadRowMenu({
               icon: Pencil,
               onClick: onStartRename,
             },
-            {
-              type: 'sub',
-              label: t('moveToProject'),
-              icon: FolderInput,
-              items: [
-                [
-                  // The project rows read like the folder list itself —
-                  // avatar + name, the current home checked.
-                  ...projects.map((project) => ({
+            // A chat joins a project by DRAGGING it onto the folder (the
+            // panel is the picker); the menu only offers the way back out.
+            ...(thread.projectId !== undefined
+              ? [
+                  {
                     type: 'item' as const,
-                    label: (
-                      <span className="flex min-w-0 items-center gap-2">
-                        <ProjectAvatar
-                          name={project.name}
-                          icon={project.icon}
-                          color={project.color}
-                          size={16}
-                          variant="plain"
-                        />
-                        <span className="truncate">{project.name}</span>
-                      </span>
-                    ),
-                    selected: project.id === thread.projectId,
-                    onClick: () => handleMoveToProject(project.id),
-                  })),
-                  ...(thread.projectId !== undefined
-                    ? [
-                        {
-                          type: 'item' as const,
-                          label: t('removeFromProject'),
-                          icon: FolderMinus,
-                          onClick: () => handleMoveToProject(null),
-                        },
-                      ]
-                    : []),
-                ],
-              ],
-            },
+                    label: t('removeFromProject'),
+                    icon: FolderMinus,
+                    onClick: () => handleMoveToProject(null),
+                  },
+                ]
+              : []),
           ],
           [
             {

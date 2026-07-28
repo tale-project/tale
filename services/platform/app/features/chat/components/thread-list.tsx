@@ -21,7 +21,13 @@ import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { FolderPlus, MessageSquareDashed, Search } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import {
+  FolderPlus,
+  MessageSquareDashed,
+  Search,
+  SquarePen,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useOptionalSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
@@ -71,6 +77,7 @@ export function ThreadList({
     Record<string, boolean>
   >('chat-sidebar-collapsed-projects', {});
 
+  const navigate = useNavigate();
   const projectsQuery = useChatProjects(organizationId);
   const projects =
     projectsQuery.status === 'ready' ? projectsQuery.data : NO_PROJECTS;
@@ -165,22 +172,46 @@ export function ThreadList({
     </Tooltip>
   );
 
-  // The chat search affordance: one icon on the CHATS header that opens the
-  // shared ⌘K palette — there is no second search implementation. Absent
-  // (not broken) when no sidebar surface exists to open.
-  const searchChatButton = sidebar ? (
-    <Tooltip content={t('searchChat')} side="right" contentClassName="py-1.5">
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={() => sidebar.setSearchOpen(true)}
-        aria-label={t('searchChat')}
-        className="text-muted-foreground -my-1 -mr-1.5 size-7 shrink-0"
-      >
-        <Search className="size-4" />
-      </Button>
-    </Tooltip>
-  ) : undefined;
+  // The CHATS header's actions: search (the shared ⌘K palette — there is no
+  // second search implementation; absent when no sidebar surface exists to
+  // open) and, to its right, starting a fresh conversation.
+  const chatHeaderActions = (
+    <>
+      {sidebar && (
+        <Tooltip
+          content={t('searchChat')}
+          side="right"
+          contentClassName="py-1.5"
+        >
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => sidebar.setSearchOpen(true)}
+            aria-label={t('searchChat')}
+            className="text-muted-foreground -my-1 size-7 shrink-0"
+          >
+            <Search className="size-4" />
+          </Button>
+        </Tooltip>
+      )}
+      <Tooltip content={t('newChat')} side="right" contentClassName="py-1.5">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() =>
+            void navigate({
+              to: '/dashboard/$id/chat',
+              params: { id: organizationId },
+            })
+          }
+          aria-label={t('newChat')}
+          className="text-muted-foreground -my-1 -mr-1.5 size-7 shrink-0"
+        >
+          <SquarePen className="size-4" />
+        </Button>
+      </Tooltip>
+    </>
+  );
 
   // Each async section masks only ITS OWN rows — the section headers, the
   // "new project" and search affordances, and the divider are known at mount
@@ -265,7 +296,7 @@ export function ThreadList({
                 <SubPanelSectionHeader
                   sticky
                   label={t('chatsSection')}
-                  action={searchChatButton}
+                  action={chatHeaderActions}
                 />
                 {threadsLoading ? (
                   <Skeletonize

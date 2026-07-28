@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { toSettledItems } from '../lib/thread-view-core';
+
+vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
+  DataNoticeFooter: () => <div data-testid="data-notice-footer" />,
+}));
 import type { ChatMessageView } from '../types';
 import { MessageThread } from './message-thread';
 
@@ -251,6 +255,46 @@ describe('MessageThread transcript contract', () => {
     if (!streaming) throw new Error('expected a streaming item');
     expect(within(streaming).queryByTestId('message-copy-button')).toBeNull();
     expect(within(streaming).queryByTestId('message-info-button')).toBeNull();
+  });
+});
+
+describe('MessageThread data notice', () => {
+  it('rides under the last settled assistant reply only', () => {
+    const { rerender } = render(
+      <MessageThread
+        messages={toSettledItems(CONVERSATION)}
+        dataNoticeOrganizationId="org-1"
+      />,
+    );
+    expect(screen.getByTestId('data-notice-footer')).toBeInTheDocument();
+
+    // A next send appends new rows — the notice leaves with the streaming
+    // shell and returns only once the new reply settles.
+    rerender(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+            text: '',
+            isStreaming: true,
+            isFinalReveal: false,
+          },
+        ]}
+        dataNoticeOrganizationId="org-1"
+      />,
+    );
+    expect(screen.queryByTestId('data-notice-footer')).toBeNull();
+  });
+
+  it('stays absent without an org to attribute it to', () => {
+    render(<MessageThread messages={toSettledItems(CONVERSATION)} />);
+    expect(screen.queryByTestId('data-notice-footer')).toBeNull();
   });
 });
 

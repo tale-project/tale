@@ -1107,7 +1107,7 @@ chat:
     emptySubtitle: Start a new chat to begin
     untitled: Untitled chat
     generating: Generating response
-    renameChat: Rename chat
+    renameChat: Rename
     loadMore: Load more
     dropHereToAdd: Drop a chat here
     dropToChatsHint: Drop here to move to Chats
