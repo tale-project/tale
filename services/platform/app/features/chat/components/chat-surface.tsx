@@ -86,6 +86,11 @@ import type {
   ComposerModelOption,
   ComposerSelection,
 } from '../types';
+import {
+  baselineSequenceOf,
+  createPendingSend,
+  type PendingSend,
+} from '../utils/pending-messages';
 import { primeAudio } from '../utils/prime-audio';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { CanvasPanel } from './canvas/canvas-panel';
@@ -182,7 +187,10 @@ function ChatSurfaceInner({
   );
   const viewThreadId = threadId !== undefined ? viewPath.at(-1) : undefined;
 
-  const threadView = useThreadView(organizationId, viewThreadId);
+  // The optimistic send overlay — set the moment Send is pressed, dropped
+  // once the real rows adopted its keys (the consumed effect below).
+  const [pendingSend, setPendingSend] = useState<PendingSend | null>(null);
+  const threadView = useThreadView(organizationId, viewThreadId, pendingSend);
   const generation = useChatGeneration(organizationId, viewThreadId);
   // Also answers for a project-shared conversation the caller may read but
   // not write — everything that composes or mutates gates on this.
@@ -466,6 +474,12 @@ function ChatSurfaceInner({
     setSelection(next);
   };
 
+  // Drop the overlay once its job is done (the real rows carry its keys).
+  const pendingConsumed = threadView.pendingConsumed;
+  useEffect(() => {
+    if (pendingConsumed) setPendingSend(null);
+  }, [pendingConsumed]);
+
   const threadsAvailable = threads.status === 'ready';
   const messagesAvailable = threadView.status === 'ready';
   // The model listing ANSWERED and came back empty: the org has no active
@@ -590,6 +604,24 @@ function ChatSurfaceInner({
     const target = intoThreadId ?? viewThreadId;
     const modelIdToSend =
       selection.agentKind === 'external' ? externalModelId : selection.modelId;
+    // The optimistic rows appear NOW — before any round-trip. An edit's
+    // baseline is unknowable (the branch's rows are not loaded yet), so it
+    // relies on the text match alone.
+    const sentAt = Date.now();
+    setPendingSend(
+      createPendingSend({
+        text,
+        sentAt,
+        ...(target !== undefined ? { threadId: target } : {}),
+        baselineSequence:
+          target !== undefined && target === viewThreadId
+            ? baselineSequenceOf(threadView.items)
+            : -1,
+        ...(intoThreadId !== undefined && viewThreadId !== undefined
+          ? { editedFromThreadId: viewThreadId }
+          : {}),
+      }),
+    );
     void (async () => {
       try {
         const turn = await chatSend.start({
@@ -621,10 +653,23 @@ function ChatSurfaceInner({
             ? { projectId }
             : {}),
         });
+        if (target === undefined) {
+          setPendingSend((previous) =>
+            previous !== null && previous.sentAt === sentAt
+              ? { ...previous, threadId: turn.threadId }
+              : previous,
+          );
+        }
         // Surface a refusal or a failure; success streams in by itself.
         turn.outcome.then(
           (outcome) => {
             if (outcome.status !== 'refused') return;
+            // An early refusal can write no rows at all — drop the overlay
+            // so the thinking shell does not linger on a turn that will
+            // never answer.
+            setPendingSend((previous) =>
+              previous !== null && previous.sentAt === sentAt ? null : previous,
+            );
             toast({
               title: t('toast.sendFailed'),
               ...(outcome.reason !== undefined
@@ -646,6 +691,9 @@ function ChatSurfaceInner({
         }
       } catch (error) {
         console.error('[chat] could not start the turn', error);
+        setPendingSend((previous) =>
+          previous !== null && previous.sentAt === sentAt ? null : previous,
+        );
         toast({ title: t('toast.sendFailed'), variant: 'destructive' });
       }
     })();
@@ -875,7 +923,7 @@ function ChatSurfaceInner({
             onVerdict={(verdict) => void handleArenaSettle(verdict)}
             onExit={() => void handleArenaSettle(undefined)}
           />
-        ) : messagesAvailable ? (
+        ) : messagesAvailable || threadView.items.length > 0 ? (
           <Stack gap={0} className="min-h-0 min-w-0 flex-1">
             {!viewerIsOwner && (
               <Text

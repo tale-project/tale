@@ -27,6 +27,11 @@ import type {
   ChatMessageView,
 } from '../types';
 import { chatItemRenderEqual } from '../utils/message-equality';
+import {
+  buildPendingShellItem,
+  buildPendingUserItem,
+  type PendingSend,
+} from '../utils/pending-messages';
 import { messagePlainText } from './message-text';
 
 /** The in-flight text channel, as `getGenerationText` returns it. */
@@ -42,6 +47,8 @@ export interface ThreadViewInputs {
   readonly messages: readonly ChatMessageView[] | undefined;
   readonly generation: ChatGenerationView | null | undefined;
   readonly generationText: GenerationTextView | null | undefined;
+  /** The in-flight optimistic send targeting this thread, if any. */
+  readonly pending?: PendingSend | null;
 }
 
 /** The mutable merge state, scoped to one (organization, thread) pair. */
@@ -59,6 +66,13 @@ export interface ThreadViewState {
   /** Rows that finished streaming during this mount — their reveal drains
    * out instead of popping, and settle-gated chrome can wait for it. */
   drainedKeys: Set<string>;
+  /** Real row id → the optimistic key it adopted. Permanent for the scope:
+   * the bubble keeps its `pending-*` key so the handoff never remounts. */
+  realToPendingKey: Map<string, string>;
+  /** Optimistic user keys whose real row has arrived. */
+  adoptedPendingKeys: Set<string>;
+  /** Optimistic shell keys whose real placeholder has arrived. */
+  adoptedShellKeys: Set<string>;
 }
 
 export function createThreadViewState(): ThreadViewState {
@@ -70,6 +84,9 @@ export function createThreadViewState(): ThreadViewState {
     streamTextByKey: new Map(),
     streamReasoningByKey: new Map(),
     drainedKeys: new Set(),
+    realToPendingKey: new Map(),
+    adoptedPendingKeys: new Set(),
+    adoptedShellKeys: new Set(),
   };
 }
 
@@ -117,6 +134,9 @@ export interface ThreadViewResult {
   readonly items: readonly ChatMessageItem[];
   readonly generation: ChatGenerationView | null;
   readonly streamingMessageId: string | undefined;
+  /** True once the overlay's shell latched onto the real placeholder — the
+   * pending state has served its purpose and the sender can drop it. */
+  readonly pendingConsumed: boolean;
 }
 
 /**
@@ -138,13 +158,54 @@ export function reduceThreadView(
 
   const messages = inputs.messages ?? [];
   const targetId = resolveStreamingTarget(messages, generation, generationText);
+  const pending = inputs.pending ?? null;
+
+  // Adoption: the real rows the send produced claim the overlay's keys, so
+  // the optimistic bubbles become the real ones in place. The user row is
+  // matched by text on the LAST user row written after the send's baseline;
+  // the shell latches onto the first assistant row after it.
+  if (pending && !state.adoptedPendingKeys.has(pending.key)) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const row = messages[index];
+      if (row === undefined || row.role !== 'user') continue;
+      if (
+        row.sequence > pending.baselineSequence &&
+        messagePlainText(row.parts) === pending.text
+      ) {
+        state.realToPendingKey.set(row.id, pending.key);
+        state.adoptedPendingKeys.add(pending.key);
+      }
+      break;
+    }
+  }
+  if (
+    pending &&
+    state.adoptedPendingKeys.has(pending.key) &&
+    !state.adoptedShellKeys.has(pending.shellKey)
+  ) {
+    const adoptedUserIndex = messages.findIndex(
+      (row) => state.realToPendingKey.get(row.id) === pending.key,
+    );
+    if (adoptedUserIndex >= 0) {
+      for (
+        let index = adoptedUserIndex + 1;
+        index < messages.length;
+        index += 1
+      ) {
+        const row = messages[index];
+        if (row === undefined || row.role !== 'assistant') continue;
+        state.realToPendingKey.set(row.id, pending.shellKey);
+        state.adoptedShellKeys.add(pending.shellKey);
+        break;
+      }
+    }
+  }
 
   const next: ChatMessageItem[] = [];
   const nextByKey = new Map<string, ChatMessageItem>();
-  let allSame = state.lastItems.length === messages.length;
 
   for (const row of messages) {
-    const key = row.id;
+    const key = state.realToPendingKey.get(row.id) ?? row.id;
     const rowText = messagePlainText(row.parts);
     const settled = isSettledRow(row, rowText);
 
@@ -207,12 +268,32 @@ export function reduceThreadView(
 
     const prior = state.itemsByKey.get(key);
     const kept = prior && chatItemRenderEqual(prior, item) ? prior : item;
-    if (kept !== state.lastItems[next.length]) allSame = false;
     next.push(kept);
     nextByKey.set(key, kept);
   }
 
+  // The overlay rows, until their real counterparts adopted the keys. The
+  // shell shows the thinking state through the whole pre-placeholder gap —
+  // guardrails, context assembly, the model's first token.
+  if (pending && !state.adoptedPendingKeys.has(pending.key)) {
+    const item = buildPendingUserItem(pending);
+    const prior = state.itemsByKey.get(item.key);
+    const kept = prior && chatItemRenderEqual(prior, item) ? prior : item;
+    next.push(kept);
+    nextByKey.set(kept.key, kept);
+  }
+  if (pending && !state.adoptedShellKeys.has(pending.shellKey)) {
+    const item = buildPendingShellItem(pending);
+    const prior = state.itemsByKey.get(item.key);
+    const kept = prior && chatItemRenderEqual(prior, item) ? prior : item;
+    next.push(kept);
+    nextByKey.set(kept.key, kept);
+  }
+
   state.itemsByKey = nextByKey;
+  const allSame =
+    next.length === state.lastItems.length &&
+    next.every((item, index) => item === state.lastItems[index]);
   const items = allSame ? state.lastItems : next;
   state.lastItems = items;
 
@@ -220,5 +301,7 @@ export function reduceThreadView(
     items,
     generation,
     streamingMessageId: targetId,
+    pendingConsumed:
+      pending !== null && state.adoptedShellKeys.has(pending.shellKey),
   };
 }

@@ -17,6 +17,7 @@ import {
   type ThreadViewResult,
   type ThreadViewState,
 } from '../lib/thread-view-core';
+import type { PendingSend } from '../utils/pending-messages';
 
 export interface ThreadView extends ThreadViewResult {
   /** The message list's own status — `loading` only before the first answer
@@ -29,6 +30,7 @@ const EMPTY_VIEW: ThreadView = {
   items: [],
   generation: null,
   streamingMessageId: undefined,
+  pendingConsumed: false,
 };
 
 /**
@@ -38,6 +40,8 @@ const EMPTY_VIEW: ThreadView = {
 export function useThreadView(
   organizationId: string,
   threadId: string | undefined,
+  /** The in-flight optimistic send, overlaid when it targets this thread. */
+  pending?: PendingSend | null,
 ): ThreadView {
   const messages = useChatQuery(
     api.chat.messages.listMessages,
@@ -71,6 +75,7 @@ export function useThreadView(
     generation: generation.status === 'ready' ? generation.data : undefined,
     generationText:
       generationText.status === 'ready' ? generationText.data : undefined,
+    pending: pending != null && pending.threadId === threadId ? pending : null,
   });
 
   return {

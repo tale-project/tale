@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ChatGenerationView, ChatMessageView } from '../types';
+import { createPendingSend } from '../utils/pending-messages';
 import {
   createThreadViewState,
   reduceThreadView,
@@ -243,5 +244,89 @@ describe('reduceThreadView', () => {
     );
 
     expect(view.items.at(-1)?.reasoningText).toBe('Let me think.');
+  });
+
+  describe('optimistic send overlay', () => {
+    const pending = createPendingSend({
+      text: 'A new question',
+      sentAt: 1_700_000_100_000,
+      threadId: 't1',
+      baselineSequence: 2,
+    });
+
+    it('shows the pending bubble and thinking shell before any server row', () => {
+      const state = createThreadViewState();
+      const view = reduceThreadView(
+        state,
+        inputs({ messages: thread('old answer'), generation: null, pending }),
+      );
+
+      const keys = view.items.map((item) => item.key);
+      expect(keys).toEqual(['u1', 'a2', pending.key, pending.shellKey]);
+      expect(view.items.at(-1)).toMatchObject({
+        role: 'assistant',
+        isStreaming: true,
+        isPendingShell: true,
+      });
+      expect(view.pendingConsumed).toBe(false);
+    });
+
+    it('adopts the real rows into the overlay keys — no remount, no duplicates', () => {
+      const state = createThreadViewState();
+      reduceThreadView(
+        state,
+        inputs({ messages: thread('old answer'), generation: null, pending }),
+      );
+
+      // The server wrote the user turn and the assistant placeholder.
+      const grown = [
+        ...thread('old answer'),
+        textRow('u3', 'A new question', { role: 'user', sequence: 3 }),
+        textRow('a4', '', { sequence: 4 }),
+      ];
+      const view = reduceThreadView(
+        state,
+        inputs({
+          messages: grown,
+          generation: { status: 'streaming', messageId: 'a4' },
+          generationText: { messageId: 'a4', text: '' },
+          pending,
+        }),
+      );
+
+      // Real rows carry the overlay keys; the overlay rows are gone.
+      const keys = view.items.map((item) => item.key);
+      expect(keys).toEqual(['u1', 'a2', pending.key, pending.shellKey]);
+      const adoptedUser = view.items[2];
+      const adoptedShell = view.items[3];
+      expect(adoptedUser).toMatchObject({ id: 'u3', role: 'user' });
+      expect(adoptedShell).toMatchObject({
+        id: 'a4',
+        role: 'assistant',
+        isStreaming: true,
+      });
+      expect(view.pendingConsumed).toBe(true);
+    });
+
+    it('never lets a pre-send row with the same text claim the overlay', () => {
+      const state = createThreadViewState();
+      const repeat = [
+        textRow('u1', 'A new question', { role: 'user', sequence: 1 }),
+        textRow('a2', 'first answer', { sequence: 2 }),
+      ];
+      const view = reduceThreadView(
+        state,
+        inputs({ messages: repeat, generation: null, pending }),
+      );
+
+      // sequence 1 is at/below the baseline — the overlay stays visible.
+      expect(view.items.map((item) => item.key)).toEqual([
+        'u1',
+        'a2',
+        pending.key,
+        pending.shellKey,
+      ]);
+      expect(view.pendingConsumed).toBe(false);
+    });
   });
 });

@@ -35,6 +35,7 @@ vi.mock('../hooks/use-thread-view', () => ({
     items: [],
     generation: null,
     streamingMessageId: undefined,
+    pendingConsumed: false,
   })),
 }));
 
@@ -91,6 +92,7 @@ afterEach(() => {
     items: [],
     generation: null,
     streamingMessageId: undefined,
+    pendingConsumed: false,
   }));
   vi.mocked(useChatGeneration).mockImplementation(() => ({
     status: 'unavailable' as const,
@@ -230,6 +232,7 @@ describe('ChatSurface while its reads are still loading', () => {
       items: [],
       generation: null,
       streamingMessageId: undefined,
+      pendingConsumed: false,
     });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready' as const,
@@ -540,6 +543,7 @@ describe('ChatSurface on an open sandbox thread', () => {
       items: [],
       generation: null,
       streamingMessageId: undefined,
+      pendingConsumed: false,
     });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
@@ -681,6 +685,7 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
       items: [],
       generation: null,
       streamingMessageId: undefined,
+      pendingConsumed: false,
     });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
