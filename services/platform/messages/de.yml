@@ -6964,7 +6964,6 @@ tasks:
   outcome:
     title: Ergebnis
     pending: Noch nicht bereit
-    empty: 'Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf sie produziert.'
     untitled: Ohne Titel
     open: '{name} öffnen'
   inputFiles:

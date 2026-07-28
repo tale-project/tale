@@ -12,6 +12,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
+import { cn } from '@/lib/utils/cn';
 
 import { splitFolderFiles } from '../lib/folder-files';
 
@@ -19,11 +20,11 @@ import { splitFolderFiles } from '../lib/folder-files';
  * The OUTCOME zone of an automation-owned task bound to a project folder: the
  * deliverables the automation declared, each openable in place.
  *
- * Always open, and always the same rows once a run has filed anything — a
- * deliverable still missing shows as a promised row, so the list a reviewer
- * reads does not reorder itself between runs. Before the first run there is
- * nothing to promise yet: the zone says so in one line rather than staging a
- * box of empty rows, which is the shape the pre-rewrite desk used too.
+ * Always open, and always the same rows: the declared deliverables are ANNOUNCED
+ * from the first look at the task, so a reviewer knows what a run will produce
+ * before it produces it, and the list never reorders itself between runs. What
+ * changes is only whether a row is a promise or a file — the pre-rewrite desk's
+ * behaviour, quiet styling included.
  *
  * Which files these are comes from the automation's contract
  * (`outcome.files`); with no declaration the zone falls back to whatever the
@@ -72,50 +73,60 @@ export function TaskOutcomeFilesCard({
         <Text as="h3" variant="label">
           {t('outcome.title')}
         </Text>
-        {filed.length > 0 && pending > 0 && (
+        {pending > 0 && (
           <Text as="span" variant="muted" className="ml-auto text-xs">
             {t('outcome.pending')}
           </Text>
         )}
       </Row>
-      {filed.length === 0 ? (
-        // Not one deliverable exists yet: say that once. A box of "Not ready
-        // yet" rows reads like a broken list, and the task's own panel already
-        // names the next step.
-        <Text as="p" variant="muted">
-          {t('outcome.empty')}
-        </Text>
-      ) : (
-        <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {outcome.map((slot, index) => {
-            // A produced file with no title has nothing to promote itself with;
-            // the declared-pattern path always carries one.
-            const name = slot.label === '' ? t('outcome.untitled') : slot.label;
-            return (
-              <li key={`${slot.label}:${index}`} className="flex min-w-0">
-                {slot.file === null ? (
-                  <Row gap={2} className="min-w-0 flex-1 px-3 py-2">
-                    <StatusIndicator variant="neutral" size="sm">
-                      <span className="truncate text-sm">{name}</span>
-                    </StatusIndicator>
-                  </Row>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPreview({ id: String(slot.file?._id), name })
-                    }
-                    className="hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
-                    aria-label={t('outcome.open', { name })}
-                  >
-                    <span className="truncate font-medium">{name}</span>
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {/* Announced before it exists: the declared deliverables are named from
+          the first look at the task, so a reviewer knows what this quarter will
+          produce. Nothing filed yet ⇒ a quiet line-up rather than a framed
+          list, because there is nothing to open in it — the frame arrives with
+          the first artifact. */}
+      <ul
+        className={cn(
+          'min-w-0',
+          filed.length === 0
+            ? 'flex flex-col gap-1.5'
+            : 'border-border divide-border divide-y overflow-hidden rounded-lg border',
+        )}
+        {...(pending > 0 ? { role: 'status' } : {})}
+      >
+        {outcome.map((slot, index) => {
+          // A produced file with no title has nothing to promote itself with;
+          // the declared-pattern path always carries one.
+          const name = slot.label === '' ? t('outcome.untitled') : slot.label;
+          return (
+            <li key={`${slot.label}:${index}`} className="flex min-w-0">
+              {slot.file === null ? (
+                <Row
+                  gap={2}
+                  className={cn(
+                    'min-w-0 flex-1',
+                    filed.length > 0 && 'px-3 py-2',
+                  )}
+                >
+                  <StatusIndicator variant="neutral" size="sm">
+                    <span className="truncate text-sm">{name}</span>
+                  </StatusIndicator>
+                </Row>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPreview({ id: String(slot.file?._id), name })
+                  }
+                  className="hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  aria-label={t('outcome.open', { name })}
+                >
+                  <span className="truncate font-medium">{name}</span>
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
       <DocumentPreviewDialog
         open={preview !== null}
         onOpenChange={(open) => {

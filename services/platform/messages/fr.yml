@@ -7063,7 +7063,6 @@ tasks:
   outcome:
     title: Résultat
     pending: Pas encore prêt
-    empty: "Pas encore de résultats — ils apparaîtront ici dès qu'une exécution en produit."
     untitled: Sans titre
     open: 'Ouvrir {name}'
   inputFiles:

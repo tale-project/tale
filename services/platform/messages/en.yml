@@ -7044,7 +7044,6 @@ tasks:
   outcome:
     title: Outcome
     pending: Not ready yet
-    empty: 'No results yet — they appear here once a run produces them.'
     untitled: Untitled
     open: 'Open {name}'
   inputFiles:
