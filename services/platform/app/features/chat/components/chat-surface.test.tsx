@@ -376,7 +376,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       screen.getByRole('textbox', { name: 'Message input' }),
     ).toBeEnabled();
     expect(
-      screen.getByRole('button', { name: 'Select model' }),
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
     ).toHaveTextContent('deepseek-chat');
   });
 
@@ -397,7 +397,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     render(<ChatSurface organizationId="org-1" />);
 
     expect(
-      screen.getByRole('button', { name: 'Select model' }),
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
     ).toHaveTextContent('deepseek-reasoner');
   });
 
@@ -421,7 +421,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     // Seeding picked MODEL by default — that must not have been saved.
     expect(save).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Select model' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+    );
     await user.click(
       screen.getByRole('menuitem', { name: 'deepseek-reasoner' }),
     );
@@ -585,13 +587,13 @@ describe('ChatSurface on an open sandbox thread', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Select agent' }),
+        screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
       ).toHaveTextContent('Claude Code');
     });
     // The external lane keeps a model picker: a managed harness runs a
     // directly-served org model, seeded exactly like the platform lane.
     expect(
-      screen.getByRole('button', { name: 'Select model' }),
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
     ).toHaveTextContent('deepseek-chat');
   });
 
@@ -612,7 +614,7 @@ describe('ChatSurface on an open sandbox thread', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Select agent' }),
+        screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
       ).toHaveTextContent('Claude Code');
     });
     await user.type(
@@ -634,15 +636,26 @@ describe('ChatSurface on an open sandbox thread', () => {
     });
   });
 
-  it('locks the agent picker — the thread cannot change agents', async () => {
-    render(<ChatSurface organizationId="org-1" threadId="t-sbx" />);
+  it('locks agent switching — the picker stays usable for everything else', async () => {
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
+    );
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Select agent' }),
+        screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
       ).toHaveTextContent('Claude Code');
     });
-    expect(screen.getByRole('button', { name: 'Select agent' })).toBeDisabled();
+
+    // The trigger itself stays live (model and effort remain pickable); the
+    // entries that would SWITCH the pinned agent are the ones disabled.
+    await user.click(
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+    );
+    expect(screen.getByRole('menuitem', { name: 'Chat' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
   });
 
   it('offers a working Stop while an external turn is in flight', async () => {

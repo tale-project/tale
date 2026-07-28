@@ -1009,7 +1009,6 @@ chat:
   toast:
     sendFailed: Nachricht konnte nicht gesendet werden
   agentSelector:
-    label: Agent auswählen
     sectionThirdParty: Agenten · laufen in einer Sandbox
     degraded: zuletzt fehlerhaft
     defaultAgent: Chat
@@ -1379,6 +1378,10 @@ chat:
     high: Hoch
     extra: Extra
     max: Maximal
+    description: Mehr Denkaufwand bedeutet gründlichere Antworten — sie dauern länger und verbrauchen dein Kontingent schneller.
+    maxHint: Kann sehr viele Tokens verbrauchen und lange laufen — hebe es dir für die schwierigsten Aufgaben auf.
+  picker:
+    ariaLabel: Agent, Modell und Denkaufwand wählen
   thinking:
     label: Denkt nach
     done: Hat {seconds}s nachgedacht

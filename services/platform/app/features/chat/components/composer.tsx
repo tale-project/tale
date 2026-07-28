@@ -47,15 +47,13 @@ import type {
   ComposerExternalAgentOption,
   ComposerSelection,
 } from '../types';
-import { ComposerAgentPicker } from './composer-agent-picker';
-import { ComposerEffortPicker } from './composer-effort-picker';
 import { ComposerModeMenu } from './composer-mode-menu';
 import {
-  ComposerModelPicker,
   directServedModels,
   modelsForHarness,
   resolveExternalModelId,
 } from './composer-model-picker';
+import { ComposerSelectionPicker } from './composer-selection-picker';
 import {
   DictationButton,
   type DictationButtonHandle,
@@ -388,41 +386,19 @@ export function Composer({
               : {})}
             disabled={disabled}
           />
-          <ComposerAgentPicker
+          <ComposerSelectionPicker
+            platformModels={platformModels}
+            externalModels={externalModels}
+            externalSelection={externalSelection}
             externalAgents={externalAgents}
             selection={selection}
             onSelectionChange={onSelectionChange}
-            disabled={disabled || lockAgent}
+            disabled={disabled}
+            lockAgent={lockAgent}
             {...(degradedHarnesses !== undefined ? { degradedHarnesses } : {})}
           />
-          {selection.agentKind === 'platform' ? (
+          {selection.agentKind === 'external' && (
             <>
-              <ComposerModelPicker
-                models={platformModels}
-                selection={selection}
-                onSelectionChange={onSelectionChange}
-                disabled={disabled}
-              />
-              <ComposerEffortPicker
-                model={platformModels.find(
-                  (option) =>
-                    option.id === selection.modelId &&
-                    (selection.providerSlug === undefined ||
-                      option.providerSlug === selection.providerSlug),
-                )}
-                selection={selection}
-                onSelectionChange={onSelectionChange}
-                disabled={disabled}
-              />
-            </>
-          ) : (
-            <>
-              <ComposerModelPicker
-                models={externalModels}
-                selection={externalSelection}
-                onSelectionChange={onSelectionChange}
-                disabled={disabled}
-              />
               {/* An external agent is also equipped per conversation: org
                   skills and enabled connectors, provisioned into its sandbox
                   session. */}

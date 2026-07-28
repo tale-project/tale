@@ -967,7 +967,6 @@ chat:
   toast:
     sendFailed: Failed to send message
   agentSelector:
-    label: Select agent
     sectionThirdParty: Agents · run in a sandbox
     degraded: recently failing
     defaultAgent: Chat
@@ -1326,6 +1325,10 @@ chat:
     high: High
     extra: Extra
     max: Max
+    description: Higher effort means more thorough answers — they take longer and use your limits faster.
+    maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
+  picker:
+    ariaLabel: Choose agent, model, and effort
   thinking:
     label: Thinking
     done: Thought for {seconds}s

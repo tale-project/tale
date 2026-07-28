@@ -1010,7 +1010,6 @@ chat:
   toast:
     sendFailed: Échec de l'envoi du message
   agentSelector:
-    label: Sélectionner un agent
     sectionThirdParty: Agents · s’exécutent dans une sandbox
     degraded: en échec récemment
     defaultAgent: Chat
@@ -1379,6 +1378,10 @@ chat:
     high: Élevé
     extra: Extra
     max: Maximal
+    description: "Plus d'effort donne des réponses plus approfondies — elles prennent plus de temps et consomment tes limites plus vite."
+    maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
+  picker:
+    ariaLabel: "Choisir l'agent, le modèle et l'effort"
   thinking:
     label: Réflexion
     done: A réfléchi pendant {seconds}s
