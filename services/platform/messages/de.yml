@@ -7171,7 +7171,7 @@ tasks:
     viewAgent: Agent anzeigen
     viewWorkflow: Automatisierung anzeigen
   dueDate:
-    label: Fälligkeitsdatum
+    label: Fällig am
     overdue: Überfällig
     due: Fällig am {date}
   mentionPreview:

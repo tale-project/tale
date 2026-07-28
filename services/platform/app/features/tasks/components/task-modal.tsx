@@ -223,7 +223,16 @@ function ModalLayout({
 }
 
 /** One property in the side panel: a fixed-width muted label beside its control
- *  (or above it, for controls that wrap, like Labels). */
+ *  (or above it, for controls that wrap, like Labels).
+ *
+ *  The label WRAPS inside its column instead of overflowing it: the column is a
+ *  fixed width so every control lines up, and a label longer than it — which
+ *  English never produces but a German compound does on the first try — used to
+ *  paint over its own control and give the whole panel a horizontal scrollbar.
+ *  Wrapping keeps the field name fully readable, which truncation would not.
+ *  This is the SAFETY NET, not the plan: a label that needs two lines here is a
+ *  label to shorten per locale (`hyphens-auto` softens the break to a syllable
+ *  only where the browser ships a dictionary for the document's `lang`). */
 function PropertyField({
   label,
   children,
@@ -245,7 +254,7 @@ function PropertyField({
   }
   return (
     <Row gap={2} align="start" className="min-h-7 shrink-0">
-      <span className="text-muted-foreground w-20 shrink-0 pt-1 text-xs font-medium">
+      <span className="text-muted-foreground w-20 shrink-0 pt-1 text-xs font-medium break-words hyphens-auto">
         {label}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
