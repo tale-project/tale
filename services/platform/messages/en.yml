@@ -1335,7 +1335,10 @@ chat:
 
   budgetExceededDetail: '{type} limit reached for this {period} period ({used} / {limit}). Please contact your administrator.'
   budgetExceededDefault: Your usage limit has been reached for this period. Please contact your administrator.
-  budgetWarning: You have used {percent}% of your {period} {type} limit ({used} / {limit})
+  budgetRemaining: '{remaining} of {limit} {type} left this {period}'
+  budgetLimitReached: 'Usage limit reached · resets {period}'
+  budgetRequestCredits: Request usage credits
+  budgetRequestCreditsSent: Request sent to your admins
   budgetWarningDismiss: Dismiss
   budgetWarningTypeTokens: token
   budgetWarningTypeCost: cost
@@ -4194,6 +4197,8 @@ notifications:
   loadMore: Load more
   loading: Loading…
   newNotifications: New notifications
+  creditRequestTitle: Usage credits requested
+  creditRequestBody: '{name} hit their usage limit and asked for more credits.'
   accountLocked: 'Account temporarily locked: {email}'
   lockoutDetails: '{consecutiveFailures} failed sign-in attempts from {ip}.'
   auditIntegrityFailed: Audit log integrity check failed

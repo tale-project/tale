@@ -69,9 +69,7 @@ describe('BudgetBanner', () => {
     budgetStatusMock.value = WARNING_STATUS;
     render(<BudgetBanner organizationId="org-1" />);
 
-    const message = screen.getByText(
-      /You have used 80% of your monthly token limit/,
-    );
+    const message = screen.getByText(/2,000 of 10,000 token left this monthly/);
     expect(message.closest('div')).toHaveClass(
       'bg-warning/10',
       'border-warning/30',
@@ -82,13 +80,16 @@ describe('BudgetBanner', () => {
     budgetStatusMock.value = EXCEEDED_STATUS;
     render(<BudgetBanner organizationId="org-1" />);
 
-    const message = screen.getByText(
-      /cost limit reached for this monthly period \(\$5\.20 \/ \$4\.00\)/,
-    );
+    const message = screen.getByText(/Usage limit reached · resets monthly/);
     expect(message.closest('div')).toHaveClass(
       'bg-destructive/10',
       'border-destructive/30',
     );
+    // A hard block is not dismissible — the way out is asking for credits.
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Request usage credits' }),
+    ).toBeInTheDocument();
   });
 
   it('hides after dismiss', async () => {
@@ -97,7 +98,7 @@ describe('BudgetBanner', () => {
 
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
 
-    expect(screen.queryByText(/You have used 80%/)).toBeNull();
+    expect(screen.queryByText(/left this monthly/)).toBeNull();
   });
 
   it('renders nothing without a budget status', () => {

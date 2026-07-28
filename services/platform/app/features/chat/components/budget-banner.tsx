@@ -1,23 +1,37 @@
 'use client';
 
 /**
- * The usage-budget strip above the composer: a dismissible warning while the
- * caller approaches a governance budget, hardening to the destructive tint
- * once a limit is exceeded (an exceeded budget shows regardless of the team
- * filter — a hard block is never hidden by a view filter).
+ * The usage-budget strip above the composer.
+ *
+ * While the caller approaches a governance budget it shows what is LEFT —
+ * dismissible, warning tint. Once a limit is exceeded it hardens: the line
+ * says the limit is reached and when it resets, it can no longer be
+ * dismissed (a hard block is never hidden — it also shows regardless of the
+ * team filter), and a "Request usage credits" affordance notifies the org's
+ * operators through the notification bell.
  */
 
+import { useConvex } from 'convex/react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useMyBudgetStatus } from '../../settings/governance/hooks/queries';
 
+function formatAmount(code: string, value: number): string {
+  return code.startsWith('COST')
+    ? `$${(value / 100).toFixed(2)}`
+    : value.toLocaleString();
+}
+
 export function BudgetBanner({ organizationId }: { organizationId: string }) {
   const { t } = useT('chat');
+  const convex = useConvex();
   const teamFilter = useOptionalTeamFilter();
   const { data: budgetStatus } = useMyBudgetStatus(
     organizationId,
@@ -34,19 +48,59 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
   );
   const [dismissed, setDismissed] = useState(false);
   const [prevKey, setPrevKey] = useState(budgetStatusKey);
+  const [requested, setRequested] = useState(false);
 
   if (budgetStatusKey !== prevKey) {
     setPrevKey(budgetStatusKey);
     setDismissed(false);
   }
 
-  if (!budgetStatus || dismissed) return null;
+  if (!budgetStatus) return null;
+  const exceeded = budgetStatus.exceeded;
+  if (!exceeded && (dismissed || !budgetStatus.warnings?.length)) return null;
+
+  const requestCredits = () => {
+    if (requested || !convex) return;
+    setRequested(true);
+    convex
+      .mutation(api.governance.mutations.requestUsageCredits, {
+        organizationId,
+      })
+      .then((sent) => {
+        if (sent) {
+          toast({ title: t('budgetRequestCreditsSent') });
+        } else {
+          setRequested(false);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('[chat] credit request failed', error);
+        setRequested(false);
+      });
+  };
+
+  const typeLabel = (code: string) =>
+    code.startsWith('COST')
+      ? t('budgetWarningTypeCost')
+      : code.startsWith('TOKEN')
+        ? t('budgetWarningTypeTokens')
+        : t('budgetWarningTypeRequests');
+
+  const detail =
+    exceeded && budgetStatus.used != null && budgetStatus.limit != null
+      ? t('budgetExceededDetail', {
+          type: typeLabel(budgetStatus.code ?? ''),
+          period: budgetStatus.period ?? 'monthly',
+          used: formatAmount(budgetStatus.code ?? '', budgetStatus.used),
+          limit: formatAmount(budgetStatus.code ?? '', budgetStatus.limit),
+        })
+      : t('budgetExceededDefault');
 
   return (
     <div
       className={cn(
         'flex items-center gap-2 border-b px-4 py-2',
-        budgetStatus.exceeded
+        exceeded
           ? 'bg-destructive/10 border-destructive/30'
           : 'bg-warning/10 border-warning/30',
       )}
@@ -54,74 +108,55 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
       <AlertTriangle
         className={cn(
           'size-4 shrink-0',
-          budgetStatus.exceeded ? 'text-destructive' : 'text-warning',
+          exceeded ? 'text-destructive' : 'text-warning',
         )}
       />
       <span
+        {...(exceeded ? { title: detail } : {})}
         className={cn(
-          'flex-1 text-sm',
-          budgetStatus.exceeded ? 'text-destructive' : 'text-foreground',
+          'flex-1 truncate text-sm',
+          exceeded ? 'text-destructive' : 'text-foreground',
         )}
       >
-        {budgetStatus.exceeded
-          ? (() => {
-              const isCost = budgetStatus.code === 'COST_LIMIT';
-              const used =
-                isCost && budgetStatus.used != null
-                  ? `$${(budgetStatus.used / 100).toFixed(2)}`
-                  : budgetStatus.used?.toLocaleString();
-              const limit =
-                isCost && budgetStatus.limit != null
-                  ? `$${(budgetStatus.limit / 100).toFixed(2)}`
-                  : budgetStatus.limit?.toLocaleString();
-              const type = isCost
-                ? t('budgetWarningTypeCost')
-                : budgetStatus.code === 'TOKEN_LIMIT'
-                  ? t('budgetWarningTypeTokens')
-                  : t('budgetWarningTypeRequests');
-              return used != null && limit != null
-                ? t('budgetExceededDetail', {
-                    type,
-                    period: budgetStatus.period ?? 'monthly',
-                    used,
-                    limit,
-                  })
-                : t('budgetExceededDefault');
-            })()
+        {exceeded
+          ? t('budgetLimitReached', {
+              period: budgetStatus.period ?? 'monthly',
+            })
           : budgetStatus.warnings
-              ?.map((w) => {
-                const type =
-                  w.code === 'TOKEN_WARNING'
-                    ? t('budgetWarningTypeTokens')
-                    : w.code === 'COST_WARNING'
-                      ? t('budgetWarningTypeCost')
-                      : t('budgetWarningTypeRequests');
-                const used =
-                  w.code === 'COST_WARNING'
-                    ? `$${(w.used / 100).toFixed(2)}`
-                    : w.used.toLocaleString();
-                const limit =
-                  w.code === 'COST_WARNING'
-                    ? `$${(w.limit / 100).toFixed(2)}`
-                    : w.limit.toLocaleString();
-                return t('budgetWarning', {
-                  percent: w.percent,
+              ?.map((w) =>
+                t('budgetRemaining', {
+                  remaining: formatAmount(
+                    w.code,
+                    Math.max(0, w.limit - w.used),
+                  ),
+                  limit: formatAmount(w.code, w.limit),
+                  type: typeLabel(w.code),
                   period: w.period,
-                  type,
-                  used,
-                  limit,
-                });
-              })
+                }),
+              )
               .join(' · ')}
       </span>
-      <button
-        type="button"
-        onClick={() => setDismissed(true)}
-        className="text-muted-foreground hover:text-foreground shrink-0"
-        aria-label={t('budgetWarningDismiss')}
-      >
-        <X className="size-4" />
-      </button>
+      {exceeded ? (
+        <button
+          type="button"
+          onClick={requestCredits}
+          disabled={requested}
+          className="text-foreground shrink-0 text-sm underline underline-offset-2 disabled:no-underline disabled:opacity-60"
+        >
+          {requested
+            ? t('budgetRequestCreditsSent')
+            : t('budgetRequestCredits')}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="text-muted-foreground hover:text-foreground shrink-0"
+          aria-label={t('budgetWarningDismiss')}
+        >
+          <X className="size-4" />
+        </button>
+      )}
     </div>
   );
 }

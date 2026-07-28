@@ -21,6 +21,8 @@ entries:
   # strings stored on the row; the client looks them up under the
   # `notifications` namespace at bell-render time. Server-side string
   # literals are not visible to the client-source regex scanner.
+  - 'notifications.creditRequestTitle'
+  - 'notifications.creditRequestBody'
   - 'notifications.accountLocked'
   - 'notifications.lockoutDetails'
   - 'notifications.auditIntegrityFailed'

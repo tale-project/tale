@@ -1388,7 +1388,10 @@ chat:
 
   budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Merci de contacter ton administrateur.
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Merci de contacter ton administrateur."
-  budgetWarning: Tu as utilisé {percent}% de ta limite {period} de {type} ({used} / {limit})
+  budgetRemaining: 'Encore {remaining} sur {limit} {type} pour ce {period}'
+  budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period}"
+  budgetRequestCredits: Demander plus de crédits
+  budgetRequestCreditsSent: Demande envoyée à tes admins
   budgetWarningDismiss: Fermer
   budgetWarningTypeTokens: token
   budgetWarningTypeCost: coût
@@ -4405,6 +4408,8 @@ notifications:
   loadMore: Charger plus
   loading: Chargement…
   newNotifications: Nouvelles notifications
+  creditRequestTitle: "Crédits d'utilisation demandés"
+  creditRequestBody: '{name} a atteint sa limite et demande plus de crédits.'
   accountLocked: 'Compte temporairement verrouillé : {email}'
   lockoutDetails: '{consecutiveFailures} tentatives de connexion échouées depuis {ip}.'
   auditIntegrityFailed: Échec du contrôle d'intégrité du journal d'audit

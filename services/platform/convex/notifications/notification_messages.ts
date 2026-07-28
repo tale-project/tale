@@ -50,6 +50,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     sortPriority: 'Priority',
     loadMore: 'Load more',
     loading: 'Loading…',
+    creditRequestTitle: 'Usage credits requested',
+    creditRequestBody:
+      '{name} hit their usage limit and asked for more credits.',
     accountLocked: 'Account temporarily locked: {email}',
     lockoutDetails: '{consecutiveFailures} failed sign-in attempts from {ip}.',
     auditIntegrityFailed: 'Audit log integrity check failed',
@@ -115,6 +118,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     sortPriority: 'Priorität',
     loadMore: 'Mehr laden',
     loading: 'Lädt…',
+    creditRequestTitle: 'Nutzungskontingent angefragt',
+    creditRequestBody:
+      '{name} hat das Nutzungslimit erreicht und um mehr Kontingent gebeten.',
     accountLocked: 'Konto vorübergehend gesperrt: {email}',
     lockoutDetails:
       '{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.',
@@ -186,6 +192,8 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     sortPriority: 'Priorité',
     loadMore: 'Charger plus',
     loading: 'Chargement…',
+    creditRequestTitle: "Crédits d'utilisation demandés",
+    creditRequestBody: '{name} a atteint sa limite et demande plus de crédits.',
     accountLocked: 'Compte temporairement verrouillé : {email}',
     lockoutDetails:
       '{consecutiveFailures} tentatives de connexion échouées depuis {ip}.',

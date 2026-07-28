@@ -1388,7 +1388,10 @@ chat:
 
   budgetExceededDetail: '{type}-Limit für diesen {period}-Zeitraum erreicht ({used} / {limit}). Bitte kontaktiere deinen Administrator.'
   budgetExceededDefault: Dein Nutzungslimit für diesen Zeitraum wurde erreicht. Bitte kontaktiere deinen Administrator.
-  budgetWarning: Du hast {percent}% deines {period} {type}-Limits verbraucht ({used} / {limit})
+  budgetRemaining: 'Noch {remaining} von {limit} {type} in diesem {period}'
+  budgetLimitReached: 'Nutzungslimit erreicht · setzt sich {period} zurück'
+  budgetRequestCredits: Mehr Kontingent anfragen
+  budgetRequestCreditsSent: Anfrage an deine Admins gesendet
   budgetWarningDismiss: Schließen
   budgetWarningTypeTokens: Token
   budgetWarningTypeCost: Kosten
@@ -4360,6 +4363,8 @@ notifications:
   loadMore: Mehr laden
   loading: Lädt…
   newNotifications: Neue Benachrichtigungen
+  creditRequestTitle: Nutzungskontingent angefragt
+  creditRequestBody: '{name} hat das Nutzungslimit erreicht und um mehr Kontingent gebeten.'
   accountLocked: 'Konto vorübergehend gesperrt: {email}'
   lockoutDetails: '{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.'
   auditIntegrityFailed: Integritätsprüfung des Audit-Logs fehlgeschlagen

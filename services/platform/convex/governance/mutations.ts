@@ -3,9 +3,11 @@ import { ConvexError, v } from 'convex/values';
 import { retentionPolicyConfigSchema } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
-import { action, internalMutation } from '../_generated/server';
+import { action, internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { writeNotificationForOrgs } from '../notifications/helpers';
 
 /**
  * Detect retention-policy shortening between two config snapshots.
@@ -250,5 +252,35 @@ export const setTaskAutomationEnabled = action({
       message:
         'Task automation cannot be toggled right now: the automation engine is offline while it is rebuilt.',
     });
+  },
+});
+
+/**
+ * A member who hit their usage budget asks the org's operators for more.
+ * Lands as a warning in the org notification bell — the operators adjust the
+ * budget policy under governance; nothing is granted automatically.
+ */
+export const requestUsageCredits = mutation({
+  args: { organizationId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return false;
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: authUser.userId,
+      email: authUser.email,
+      name: authUser.name,
+    });
+    if (!member) return false;
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [args.organizationId],
+      category: 'system',
+      severity: 'warning',
+      titleKey: 'creditRequestTitle',
+      bodyKey: 'creditRequestBody',
+      params: { name: authUser.name || authUser.email || 'A member' },
+      subjectUserId: authUser.userId,
+    });
+    return true;
   },
 });
