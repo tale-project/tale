@@ -40,7 +40,12 @@
 import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../convex/lib/untrusted_content';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
-import { estimateTokens, messageText, type ChatMessage } from './types';
+import {
+  estimateMessageTokens,
+  estimateTokens,
+  type ChatMessage,
+  type MessagePart,
+} from './types';
 
 /** The canonical block order. The assembler emits a subsequence of this list
  * — never a reordering, never an extra. */
@@ -183,9 +188,74 @@ export function truncationNotice(droppedMessages: number): string {
 
 function noticeMessage(droppedMessages: number): ChatMessage {
   return {
-    role: 'system',
+    // Role USER, not system: the Anthropic wire format hoists every
+    // system-role message into the system prompt, which would tear the
+    // notice out of the position its own wording depends on ("earlier in
+    // the conversation"). As a user turn it keeps its place on every format.
+    role: 'user',
     parts: [{ type: 'text', text: truncationNotice(droppedMessages) }],
   };
+}
+
+/**
+ * The protected tail: the newest turns are never dropped, whatever they
+ * cost. Mirrors the automations engine's window discipline — losing the
+ * immediate back-and-forth is worse than over-shooting the budget, and a
+ * grossly over-long tail is better refused by the provider with its real
+ * error than swallowed here.
+ */
+const KEEP_RECENT_MESSAGES = 4;
+
+/** Bounds for deep-truncating tool payloads before they are sized or sent. */
+const TOOL_RESULT_MAX_STRING = 400;
+const TOOL_RESULT_MAX_ITEMS = 12;
+const TOOL_RESULT_MAX_DEPTH = 8;
+
+/**
+ * Deep-truncate a tool result so one verbose payload cannot flood the
+ * window: long strings are cut with a count marker, arrays capped, deep
+ * nesting elided. The seam for the tool loop — text a USER wrote is never
+ * rewritten (dropping whole old messages is honest; silently editing the
+ * user's words is not).
+ */
+export function boundToolResult(value: unknown, depth = 0): unknown {
+  if (depth > TOOL_RESULT_MAX_DEPTH) return '…';
+  if (typeof value === 'string') {
+    return value.length > TOOL_RESULT_MAX_STRING
+      ? `${value.slice(0, TOOL_RESULT_MAX_STRING)}…(+${value.length - TOOL_RESULT_MAX_STRING} chars)`
+      : value;
+  }
+  if (Array.isArray(value)) {
+    const items = value
+      .slice(0, TOOL_RESULT_MAX_ITEMS)
+      .map((item) => boundToolResult(item, depth + 1));
+    if (value.length > TOOL_RESULT_MAX_ITEMS) {
+      items.push(`…(+${value.length - TOOL_RESULT_MAX_ITEMS} more items)`);
+    }
+    return items;
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      out[key] = boundToolResult(entry, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Apply the tool-result bound to a message's parts, leaving every other
+ * part untouched. Returns the same reference when nothing changed. */
+function boundMessage(message: ChatMessage): ChatMessage {
+  let changed = false;
+  const parts: MessagePart[] = message.parts.map((part) => {
+    if (part.type !== 'tool-result') return part;
+    const bounded = boundToolResult(part.output);
+    if (bounded === part.output) return part;
+    changed = true;
+    return { ...part, output: bounded };
+  });
+  return changed ? { ...message, parts } : message;
 }
 
 /**
@@ -197,10 +267,11 @@ function noticeMessage(droppedMessages: number): ChatMessage {
  * by the provider — with its real error — than swallowed here.
  */
 function fitHistory(
-  history: readonly ChatMessage[],
+  rawHistory: readonly ChatMessage[],
   available: number,
 ): { messages: readonly ChatMessage[]; truncation?: ContextTruncation } {
-  const costs = history.map((message) => estimateTokens(messageText(message)));
+  const history = rawHistory.map(boundMessage);
+  const costs = history.map(estimateMessageTokens);
   const total = costs.reduce((sum, cost) => sum + cost, 0);
   if (total <= available || history.length === 0) return { messages: history };
 
@@ -208,11 +279,24 @@ function fitHistory(
   // Sized against the largest count it could name, which over-estimates by a
   // character or two — cheaper than re-deriving the cost on every iteration.
   const noticeCost = estimateTokens(truncationNotice(history.length));
+  let protectedTail = Math.min(KEEP_RECENT_MESSAGES, history.length);
   let dropped = 0;
   let remaining = total;
-  while (dropped < history.length - 1 && remaining + noticeCost > available) {
+  while (
+    dropped < history.length - protectedTail &&
+    remaining + noticeCost > available
+  ) {
     remaining -= costs[dropped] ?? 0;
     dropped += 1;
+  }
+  // Degrade gracefully: when the protected tail alone still busts the
+  // budget, release it oldest-first down to the single newest message — a
+  // turn that keeps only the newest exchange still beats one the provider
+  // rejects outright.
+  while (remaining + noticeCost > available && protectedTail > 1) {
+    remaining -= costs[dropped] ?? 0;
+    dropped += 1;
+    protectedTail -= 1;
   }
   if (dropped === 0) return { messages: history };
 
@@ -279,10 +363,7 @@ export function assembleContext(input: ContextInput): AssembledContext {
 
   const estimatedTokens =
     estimateTokens(system) +
-    messages.reduce(
-      (sum, message) => sum + estimateTokens(messageText(message)),
-      0,
-    );
+    messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
 
   return {
     blocks,

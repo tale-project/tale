@@ -9,6 +9,7 @@ import {
   type ContextInput,
 } from './context';
 import type { ChatMessage } from './types';
+import { estimateMessageTokens, estimateTokens } from './types';
 
 /**
  * The context contract is an ORDER, so these tests assert the order itself —
@@ -228,8 +229,10 @@ describe('assembleContext — overflow', () => {
     expect(dropped).toBeGreaterThan(0);
 
     // The notice is the first thing the model reads, and it says so plainly.
+    // Role USER: the Anthropic wire hoists system-role messages into the
+    // system prompt, which would tear the notice out of position.
     const [notice, ...kept] = result.messages;
-    expect(notice?.role).toBe('system');
+    expect(notice?.role).toBe('user');
     expect(notice?.parts).toEqual([
       { type: 'text', text: truncationNotice(dropped) },
     ]);
@@ -251,8 +254,10 @@ describe('assembleContext — overflow', () => {
     const result = assembleContext(
       input({ history, budget: { maxTokens: 250 } }),
     );
-    const kept = result.messages.filter((m) => m.role !== 'system');
+    // Everything after the notice is an original — never a digest.
+    const kept = result.truncation ? result.messages.slice(1) : result.messages;
 
+    expect(result.truncation).toBeDefined();
     for (const message_ of kept) {
       expect(history).toContainEqual(message_);
     }
@@ -297,5 +302,34 @@ describe('assembleContext — overflow', () => {
 
     expect(roomy.truncation).toBeUndefined();
     expect(reserved.truncation?.droppedMessages).toBeGreaterThan(0);
+  });
+
+  it('protects the newest turns before older history', () => {
+    const history = [
+      message('user', long('one')),
+      message('assistant', long('two')),
+      message('user', long('three')),
+      message('assistant', long('four')),
+      message('user', long('five')),
+      message('assistant', long('six')),
+    ];
+    // A budget sized to the system prompt plus exactly the four newest
+    // turns (and the notice): the drop comes entirely out of the head — the
+    // protected tail survives byte-identical.
+    const systemTokens = estimateTokens(
+      assembleContext(input({ history: [] })).system,
+    );
+    const tailTokens = history
+      .slice(2)
+      .reduce((sum, m) => sum + estimateMessageTokens(m), 0);
+    const result = assembleContext(
+      input({
+        history,
+        budget: { maxTokens: systemTokens + tailTokens + 60 },
+      }),
+    );
+
+    expect(result.truncation?.droppedMessages).toBe(2);
+    expect(result.messages.slice(1)).toEqual(history.slice(2));
   });
 });
