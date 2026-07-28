@@ -37,7 +37,7 @@ review-invoices/
 Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automatisierung** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
 
 - **Die Dateien** — `workflow.yml`, plus `automation.yml`, wenn das Pack eine mitbringt. Richtig für ein Pack, das nur aus seinem Dokument besteht.
-- **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Markdown-Notizen außerhalb von `skills/` — etwa ein README — ignoriert der Upload; zippe das Verzeichnis also, wie es ist. Die Zip bleibt unter 20 MiB.
+- **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Markdown-Notizen außerhalb von `skills/` — etwa ein README — ignoriert der Upload, genauso wie Dotfiles und Build-Reste (`__pycache__/`, `node_modules/`); zippe das Verzeichnis also, wie es ist, ruhig direkt nach einem Testlauf. Die Zip bleibt unter 20 MiB.
 
 Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisation oder ein Projekt. Die Wahl ist nicht endgültig: Die Installation in ein Projekt bindet die Automatisierung daran, und im Bereich **Projekte** auf ihrer Seite verwaltest du die Bindungen später — binde weitere Projekte oder entferne alle, dann gilt sie organisationsweit.
 

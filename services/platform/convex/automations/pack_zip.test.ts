@@ -78,6 +78,31 @@ describe('parseAutomationPackZip', () => {
     expect(parsed.totalBytes).toBe(WORKFLOW.length);
   });
 
+  it('skips build residue in a carried skill instead of failing the install', async () => {
+    // A zipped working directory carries interpreter/test caches — exactly
+    // what the skills domain's bundle walk excludes and its write guard
+    // refuses. The parser must drop them so the real bundle installs.
+    const parsed = await parseAutomationPackZip(
+      await buildZip({
+        'workflow.yml': WORKFLOW,
+        'skills/triage/SKILL.md': SKILL_MD,
+        'skills/triage/engine/run.py': 'print("hi")\n',
+        'skills/triage/engine/__pycache__/run.cpython-312.pyc': 'bytecode',
+        'skills/triage/.pytest_cache/CACHEDIR.TAG': 'tag',
+        'skills/triage/node_modules/dep/index.js': 'module.exports = 1;\n',
+        'node_modules/dep/index.js': 'pack-level residue',
+      }),
+    );
+    expect(parsed.skills).toHaveLength(1);
+    expect(parsed.skills[0]?.files.map((file) => file.path)).toEqual([
+      'SKILL.md',
+      'engine/run.py',
+    ]);
+    expect(parsed.totalBytes).toBe(
+      WORKFLOW.length + SKILL_MD.length + 'print("hi")\n'.length,
+    );
+  });
+
   it('refuses a zip without a workflow document', async () => {
     expect(
       await refusalCode(await buildZip({ 'automation.yml': MANIFEST })),

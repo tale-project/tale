@@ -37,7 +37,7 @@ review-invoices/
 Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet** dans le menu **Nouvelle automatisation**, puis l’une des deux formes du même pack :
 
 - **Les fichiers** — `workflow.yml`, plus `automation.yml` si le pack en fournit un. Le bon choix pour un pack qui n’est que son document.
-- **Un seul `.zip` du dossier du pack** — obligatoire quand le pack embarque des skills, puisque seul le zip peut porter leurs dossiers. Les notes Markdown hors de `skills/` (un README, par exemple) sont ignorées, alors zippe le dossier tel quel. Le zip reste sous 20 MiB.
+- **Un seul `.zip` du dossier du pack** — obligatoire quand le pack embarque des skills, puisque seul le zip peut porter leurs dossiers. Les notes Markdown hors de `skills/` (un README, par exemple) sont ignorées, tout comme les dotfiles et les résidus de build (`__pycache__/`, `node_modules/`) — alors zippe le dossier tel quel, même juste après avoir lancé les tests. Le zip reste sous 20 MiB.
 
 Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet. Le choix n’est pas définitif : installer dans un projet lie l’automatisation à ce projet, et le panneau **Projets** de sa page gère l’ensemble ensuite — lie d’autres projets, ou aucun pour qu’elle serve toute l’organisation.
 

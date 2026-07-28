@@ -66,6 +66,27 @@ export const MAX_SKILL_BUNDLE_FILE_BYTES = 4 * 1024 * 1024;
 /** Cap on a bundle's total bytes across all files. */
 export const MAX_SKILL_BUNDLE_TOTAL_BYTES = 32 * 1024 * 1024;
 
+/**
+ * Directory names that are build/dependency residue around a bundle's source
+ * (an org-authored TS skill grows `node_modules/`, a tested Python one grows
+ * `__pycache__/`), never bundle content. ONE rule for both sides of the
+ * skills domain: the on-disk bundle walk skips these on read, and the
+ * automation-pack zip parser drops them on upload — so a zipped working
+ * directory installs exactly what staging would later ship.
+ */
+export const SKILL_BUNDLE_EXCLUDED_DIRS: ReadonlySet<string> = new Set([
+  'node_modules',
+  '__pycache__',
+]);
+
+/**
+ * True for a path segment a skill bundle never contains: dot-entries
+ * (tooling caches, editor leftovers) and the residue directories above.
+ */
+export function isSkillBundleExcludedSegment(segment: string): boolean {
+  return segment.startsWith('.') || SKILL_BUNDLE_EXCLUDED_DIRS.has(segment);
+}
+
 /** How a skill is shared inside its organization. */
 export const SKILL_VISIBILITIES = ['private', 'team', 'org'] as const;
 export type SkillVisibility = (typeof SKILL_VISIBILITIES)[number];

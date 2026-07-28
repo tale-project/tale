@@ -9,8 +9,10 @@
  * and any carried skill bundles under `skills/<slug>/`. The document may sit
  * at the zip root or inside ONE wrapper folder — exactly what a user gets by
  * zipping their pack directory. Markdown outside `skills/` (a README, design
- * notes) is skipped silently, like dotfiles and OS metadata; every other
- * stray entry refuses loudly. Unlike the retired bundle format, the
+ * notes) is skipped silently, like dotfiles, build residue (`__pycache__/`,
+ * `node_modules/` — the skills domain's own walk exclusions, which its write
+ * guard would refuse anyway) and OS metadata; every other stray entry
+ * refuses loudly. Unlike the retired bundle format, the
  * automation's name comes from the document, never from the folder path, so
  * nested wrappers are not a thing.
  *
@@ -35,6 +37,7 @@ import {
   MAX_AUTOMATION_BUNDLE_TOTAL_BYTES,
 } from '../../lib/shared/schemas/automations';
 import {
+  isSkillBundleExcludedSegment,
   isValidSkillSlug,
   MAX_SKILL_BUNDLE_FILES,
 } from '../../lib/shared/schemas/skills';
@@ -87,8 +90,8 @@ function isOsMetadataEntry(name: string): boolean {
 /**
  * Zip-slip defense, ported from the retired bundle parser: refuse NUL bytes,
  * absolute and drive-letter paths, and `''`/`.`/`..` segments outright. A
- * dotfile SEGMENT is not an attack, merely noise — the caller skips those
- * silently.
+ * dotfile or build-residue SEGMENT is not an attack, merely noise — the
+ * caller skips those silently.
  */
 function assertSafeEntryPath(name: string): void {
   if (name.includes('\0')) {
@@ -111,8 +114,16 @@ function assertSafeEntryPath(name: string): void {
   }
 }
 
-function hasDotfileSegment(name: string): boolean {
-  return name.split('/').some((segment) => segment.startsWith('.'));
+/**
+ * True when any segment is one the skills domain excludes from bundles:
+ * dot-entries (`.pytest_cache/`, `.gitignore`) or build/dependency residue
+ * (`__pycache__/`, `node_modules/`). Zipping a tested working directory
+ * inevitably carries these; they are dropped here so the upload installs
+ * exactly what the bundle walk would later stage — the write side refuses
+ * such paths, so letting them through would fail the whole upload.
+ */
+function hasExcludedSegment(name: string): boolean {
+  return name.split('/').some(isSkillBundleExcludedSegment);
 }
 
 /**
@@ -185,7 +196,7 @@ export async function parseAutomationPackZip(
       refuse('PACK_UNEXPECTED_ENTRY', `Entry outside the pack root: ${name}`);
     }
     const relPath = name.slice(root.length);
-    if (hasDotfileSegment(relPath)) continue;
+    if (hasExcludedSegment(relPath)) continue;
 
     const basename = relPath.split('/').pop() ?? '';
     const isDocument =

@@ -34,6 +34,7 @@ import {
 import path from 'node:path';
 
 import {
+  isSkillBundleExcludedSegment,
   isValidSkillSlug,
   MAX_SKILL_BUNDLE_FILE_BYTES,
   MAX_SKILL_BUNDLE_FILES,
@@ -171,19 +172,6 @@ export interface SkillBundleFileContent {
 }
 
 /**
- * Directory names the bundle walk never descends into: build/dependency
- * trees and dot-entries are tooling residue around the bundle's source (the
- * shipped visual-aspect-analyzer carries `.turbo/`, an org-authored TS skill
- * may grow `node_modules/`), not knowledge the skill teaches. Dependencies
- * are the sandbox image's job, never staged bytes.
- */
-const BUNDLE_WALK_EXCLUDED_DIRS = new Set(['node_modules', '__pycache__']);
-
-function isBundleWalkExcluded(name: string): boolean {
-  return name.startsWith('.') || BUNDLE_WALK_EXCLUDED_DIRS.has(name);
-}
-
-/**
  * Resolve one bundle's directory for reading: `null` when the org has no
  * such bundle, a symlink-refusing, realpath-verified path otherwise.
  */
@@ -207,9 +195,13 @@ async function resolveExistingBundleDir(
 }
 
 /**
- * Walk one bundle's files depth-first, applying the shared exclusion rules
- * and refusing symlinks anywhere. `visitFile` receives each regular file's
- * absolute path and bundle-relative POSIX path.
+ * Walk one bundle's files depth-first, refusing symlinks anywhere and
+ * skipping the shared excluded segments — build/dependency residue and
+ * dot-entries are tooling leftovers around the bundle's source (the shipped
+ * visual-aspect-analyzer carries `.turbo/`, an org-authored TS skill may
+ * grow `node_modules/`), not knowledge the skill teaches; dependencies are
+ * the sandbox image's job, never staged bytes. `visitFile` receives each
+ * regular file's absolute path and bundle-relative POSIX path.
  */
 async function walkBundleFiles(
   skillDir: string,
@@ -218,7 +210,7 @@ async function walkBundleFiles(
   async function walk(dir: string, relPrefix: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
-      if (isBundleWalkExcluded(entry.name)) continue;
+      if (isSkillBundleExcludedSegment(entry.name)) continue;
       const absPath = path.join(dir, entry.name);
       const relPath =
         relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
@@ -330,7 +322,7 @@ function isSafeBundleRelPath(relPath: string): boolean {
       segment.length > 0 &&
       segment !== '.' &&
       segment !== '..' &&
-      !isBundleWalkExcluded(segment),
+      !isSkillBundleExcludedSegment(segment),
   );
 }
 
