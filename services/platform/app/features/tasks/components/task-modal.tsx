@@ -78,6 +78,7 @@ import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
+import { useRunCancelConfirm } from './run-cancel-confirm';
 import { StatusPicker } from './status-picker';
 import { TaskAgentRunCard } from './task-agent-run-card';
 import { TaskArchiveDialog } from './task-archive-dialog';
@@ -89,9 +90,9 @@ import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
 import { TaskReviewCard } from './task-review-card';
-import { TaskRunCard } from './task-run-card';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
+import { TaskSubjectPanel } from './task-subject-panel';
 import { TaskTimeline } from './task-timeline';
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
@@ -169,6 +170,7 @@ export function TaskModal({
             // Board creates default to `todo` so new tasks land in a visible lane.
             defaultStatus={defaultStatus ?? 'todo'}
             onClose={() => onOpenChange(false)}
+            onCreated={onOpenTask}
           />
         )}
       </ResponsiveDialogContent>
@@ -317,12 +319,16 @@ function TemplateCreateBody({
   template,
   chips,
   onClose,
+  onCreated,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
   template: ResolvedTaskSubjectContract;
   chips: ReactNode;
   onClose: () => void;
+  /** Open the created (or re-picked) task right away — the subject panel
+   * there names the next step instead of leaving the card silent in Backlog. */
+  onCreated?: (taskId: Id<'tasks'>) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -415,6 +421,10 @@ function TemplateCreateBody({
         variant: result.created ? 'success' : undefined,
       });
       onClose();
+      // Land inside the task right away: its subject panel says what comes
+      // next (upload input files / Start) instead of leaving the new card
+      // silent in Backlog.
+      onCreated?.(toId<'tasks'>(result.taskId));
     } catch (error) {
       if (
         error instanceof ConvexError &&
@@ -594,11 +604,15 @@ function CreateTaskBody({
   projectId,
   defaultStatus,
   onClose,
+  onCreated,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
   defaultStatus: TaskStatus;
   onClose: () => void;
+  /** Open the created (or re-picked) task — the template flow lands the user
+   * inside the task modal where the subject panel names the next step. */
+  onCreated?: (taskId: Id<'tasks'>) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -675,6 +689,7 @@ function CreateTaskBody({
         template={activeTemplate}
         chips={chips}
         onClose={onClose}
+        onCreated={onCreated}
       />
     );
   }
@@ -823,10 +838,13 @@ function EditTaskBody({
   const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
   // Status verbs on an automation-owned task route through the owning
-  // workflow's choreography; a plain task keeps the bare write.
+  // workflow's choreography; a plain task keeps the bare write. Cancelling a
+  // live run from the status picker asks first, same as the board drag.
+  const { confirmCancel, dialog: cancelConfirmDialog } = useRunCancelConfirm();
   const choreograph = useTaskStatusChoreography(
     task?.organizationId ?? '',
     task?.projectId,
+    { confirmCancel },
   );
   const ownedBy = useTaskSubjectContract(task?.organizationId ?? '', task);
   const assignTask = useAssignTask();
@@ -989,7 +1007,12 @@ function EditTaskBody({
             </section>
 
             {ownedBy !== null && (
-              <TaskRunCard organizationId={task.organizationId} task={task} />
+              <TaskSubjectPanel
+                organizationId={task.organizationId}
+                task={task}
+                ownedBy={ownedBy}
+                canEdit={canMutate}
+              />
             )}
 
             {task.assigneeType === 'agent' && (
@@ -1187,6 +1210,7 @@ function EditTaskBody({
               <AssigneePicker
                 organizationId={task.organizationId}
                 projectId={task.projectId}
+                taskId={task._id}
                 assigneeType={task.assigneeType}
                 assigneeId={task.assigneeId}
                 taskTitle={task.title}
@@ -1300,6 +1324,7 @@ function EditTaskBody({
         isArchived={isArchived}
         onArchived={onClose}
       />
+      {cancelConfirmDialog}
     </>
   );
 }

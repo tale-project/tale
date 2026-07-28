@@ -2,17 +2,18 @@
 
 /**
  * The agent-ownership work panel of the task modal — the agent twin of the
- * automation `TaskRunCard`. Shows the task's LATEST agent run: a live one
- * with progress + Cancel, a failed one with its error + Retry (a failed run
- * keeps the task at In progress — failure is the run's state, not the
+ * automation `TaskSubjectPanel`. Shows the task's LATEST agent run — a live
+ * one with progress + Cancel, a failed one with its error + Retry (a failed
+ * run keeps the task at In progress — failure is the run's state, not the
  * task's), a settled one as "reported for review" (the report itself is the
- * agent's comment in the timeline below).
+ * agent's comment in the timeline below) — and, before any run exists, an
+ * explicit Start so kicking the agent never requires knowing the drag verb.
  */
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Bot, Loader2 } from 'lucide-react';
+import { Bot, Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -47,8 +48,9 @@ export function TaskAgentRunCard({
   const [busy, setBusy] = useState(false);
 
   const run = runQuery.data;
-  if (run === null || run === undefined) return null;
-  const live = run.status === 'queued' || run.status === 'running';
+  if (run === undefined) return null;
+  const live =
+    run !== null && (run.status === 'queued' || run.status === 'running');
 
   const handleRetry = async () => {
     setBusy(true);
@@ -86,6 +88,38 @@ export function TaskAgentRunCard({
       setBusy(false);
     }
   };
+
+  // No run yet: the agent lane's explicit entry point — the same kick the
+  // board's drag-to-In-progress performs, as a visible button.
+  if (run === null) {
+    return (
+      <section className="rounded-md border p-3">
+        <Stack gap={2}>
+          <Row align="center" gap={2} className="min-w-0">
+            <Bot
+              aria-hidden
+              className="text-muted-foreground size-4 shrink-0"
+            />
+            <Text as="p" variant="muted" className="min-w-0 flex-1 text-sm">
+              {t('agentRun.idle')}
+            </Text>
+          </Row>
+          {canEdit && (
+            <Row gap={2}>
+              <Button
+                size="sm"
+                disabled={busy}
+                icon={Play}
+                onClick={() => void handleRetry()}
+              >
+                {t('agentRun.start')}
+              </Button>
+            </Row>
+          )}
+        </Stack>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-md border p-3">

@@ -6903,11 +6903,31 @@ tasks:
     noProgressYet: Der Lauf hat noch keinen Schritt erreicht.
     effectsTitle: Ausgeführte Aktionen
     noEffectsYet: Noch nichts ausgeführt.
+  subject:
+    ready: 'Bereit zum Start — {name} läuft auf dieser Aufgabe.'
+    start: Starten
+    startAgain: Erneut starten
+    waitingInput: Wartet auf Eingabedateien — lege sie unten ab und starte dann.
+    stalled: Die Aufgabe ist In Bearbeitung, aber kein Lauf ist aktiv — starte ihn erneut.
+    review: 'Das Ergebnis von {name} ist bereit zur Prüfung.'
+    approve: Freigeben
+    approved: Freigegeben — die Aufgabe ist erledigt.
+    requestChanges: Änderungen anfordern
+    requestChangesHint: Schreibe dein Feedback zuerst unten als Kommentar — der neue Lauf liest die Kommentare der Aufgabe.
+    requestChangesSent: 'An {name} zurückgeschickt — der neue Lauf greift deine Kommentare auf.'
+    cancel: Lauf abbrechen
+    cancelConfirmTitle: Diesen Lauf abbrechen?
+    cancelConfirmBody: 'Der {name}-Lauf zu dieser Aufgabe stoppt; die Aufgabe parkt auf Abgebrochen und lässt sich erneut starten.'
+    cancelConfirmMove: Ein Lauf arbeitet noch an dieser Aufgabe — verschiebst du sie aus In Bearbeitung, bricht das den Lauf ab. Danach lässt er sich erneut starten.
   agentRun:
     started: Der Agent ist dran — er meldet sich zur Prüfung an dieser Aufgabe zurück.
     alreadyRunning: Der Agent dieser Aufgabe läuft bereits.
     notStarted: Der Agenten-Lauf konnte nicht starten.
     cancelled: Der Agenten-Lauf wurde abgebrochen.
+    idle: Der zugewiesene Agent ist noch nicht gelaufen — starte ihn, sobald die Aufgabe bereit ist.
+    start: Agent starten
+    willStart: Hier ablegen startet den Agenten-Lauf.
+    willCancel: Hier ablegen bricht den laufenden Agenten-Lauf ab.
     status:
       queued: Agenten-Lauf wartet
       running: Agent arbeitet…
@@ -6918,6 +6938,8 @@ tasks:
     cancel: Lauf abbrechen
   automation:
     hint: 'Betrieben von {name} — Statusänderungen laufen über dessen Workflow.'
+    chipReady: Bereit zum Start
+    chipWaiting: Wartet auf Dateien
     will:
       start: 'Startet den {name}-Lauf.'
       request_changes: 'Schickt sie mit deinen Kommentaren an {name} zurück.'
@@ -6933,7 +6955,7 @@ tasks:
     blank: Leere Aufgabe
     nameLabel: Name
     invalidName: 'Muss dem Muster {pattern} entsprechen.'
-    created: Aufgabe erstellt — lege die Eingabedateien ab und ziehe sie dann auf In Bearbeitung.
+    created: Aufgabe erstellt — lege die Eingabedateien ab und klicke dann auf Starten.
     exists: Für dieses Subjekt existiert bereits eine Aufgabe.
     setupMissing: 'Der Ordner {folder} fehlt — lege ihn zuerst im Projekt an.'
     setupIntro:
@@ -7038,6 +7060,19 @@ tasks:
       Läuft in einer Sandbox auf dem Harness, das beim Erstellen des Agenten
       gewählt wurde — vorausgerüstet mit seinen Skills, Connectors und
       Anweisungen.
+    automations: Automatisierungen
+    automationsInfo:
+      Übergib die Aufgabe einer deployten Automatisierung — Statusänderungen
+      laufen dann über deren Workflow.
+    handoffConfirmTitle: Aufgabe neu zuweisen?
+    handoffConfirm:
+      'Diese Aufgabe bearbeitet {name}. Nach der Neuzuweisung steuern
+      Statusänderungen ihren Workflow nicht mehr — du kannst die Aufgabe
+      jederzeit zurückgeben.'
+    handoffConfirmLiveRun:
+      '{name} arbeitet gerade an dieser Aufgabe — die Neuzuweisung bricht
+      den laufenden Lauf zuerst ab.'
+    handoffConfirmAction: Neu zuweisen
     unassign: Zuweisung aufheben
     you: Du
     search: Personen suchen…

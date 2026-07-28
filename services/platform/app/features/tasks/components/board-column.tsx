@@ -20,6 +20,7 @@ export function BoardColumn({
   onOpenTask,
   projectKey,
   canEdit = false,
+  dropHint = null,
 }: {
   status: TaskStatus;
   tasks: TaskRow[];
@@ -28,6 +29,9 @@ export function BoardColumn({
   projectKey?: string | null;
   /** Caller may write to the project — gates drag-reorder and inline pickers. */
   canEdit?: boolean;
+  /** The verb dropping the currently-dragged card here would carry ("Starts
+   * the … run.") — announced in the header while the drag is active. */
+  dropHint?: string | null;
 }) {
   const { t } = useT('tasks');
   // Column is itself a drop target so cards can be dropped into an empty lane.
@@ -50,6 +54,18 @@ export function BoardColumn({
           {tasks.length}
         </Text>
       </Row>
+      {dropHint !== null && (
+        <Text
+          as="p"
+          role="status"
+          className={cn(
+            'px-2.5 pb-1.5 text-[11px] text-pretty',
+            isOver ? 'text-foreground' : 'text-muted-foreground',
+          )}
+        >
+          {dropHint}
+        </Text>
+      )}
       <div
         ref={setNodeRef}
         className={cn(

@@ -9,9 +9,10 @@ import {
 } from './use-task-subject-contract';
 
 // Every task resolves to exactly one of the three ownership classes —
-// automation / agent / human — and the arbitration order (creation stamp,
-// then agent assignee, then unique externalSystem fallback) is the rule the
-// badge and the status choreography both hang off. Pinned here as a matrix.
+// automation / agent / human — and the arbitration order (assignee first:
+// app, agent, user; then, for UNASSIGNED rows only, the creation stamp and
+// the unique externalSystem fallback) is the rule the badge and the status
+// choreography both hang off. Pinned here as a matrix.
 
 const vat = {
   name: 'vat-desk',
@@ -132,15 +133,32 @@ describe('resolveTaskOwnership', () => {
     expect(ownership).toEqual({ kind: 'agent', agentId: 'helper' });
   });
 
-  it('automation: a unique externalSystem match claims pre-stamp tasks', () => {
+  it('automation: a unique externalSystem match claims unassigned pre-stamp tasks', () => {
     const ownership = resolveTaskOwnership(
-      task({ externalSystem: 'vatplus', assigneeType: 'user' }),
+      task({ externalSystem: 'vatplus' }),
       [vat],
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
       automationSlug: 'vat-desk',
     });
+  });
+
+  it('human: a user assignee detaches the choreography (take-over)', () => {
+    // The explicit handoff must actually transfer the board verbs — a task
+    // handed to a person keeps NO automation ownership, whatever its
+    // provenance stamp or externalSystem says.
+    const ownership = resolveTaskOwnership(
+      task({
+        createdByType: 'app',
+        createdBy: 'vat-desk',
+        externalSystem: 'vatplus',
+        assigneeType: 'user',
+        assigneeId: 'user_2',
+      }),
+      [vat],
+    );
+    expect(ownership).toEqual({ kind: 'human' });
   });
 
   it('human: an ambiguous externalSystem match never guesses an owner', () => {

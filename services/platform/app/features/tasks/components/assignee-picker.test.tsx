@@ -56,6 +56,24 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
 }));
 
+// The subject-contract + handoff plumbing reaches Convex (provider-backed);
+// these picker tests care about sections and warnings, so stub the seams.
+vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-subject-contract')
+  >()),
+  useTaskContractAutomations: () => [],
+}));
+vi.mock('../hooks/mutations', () => ({
+  useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
+}));
+vi.mock('@/app/hooks/use-convex-client', () => ({
+  useConvexClient: () => ({ query: vi.fn(async () => null) }),
+}));
+vi.mock('@/app/hooks/use-convex-action', () => ({
+  useConvexAction: () => ({ mutateAsync: vi.fn() }),
+}));
+
 describe('AssigneePicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();

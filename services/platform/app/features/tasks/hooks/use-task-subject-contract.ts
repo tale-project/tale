@@ -108,7 +108,10 @@ export type TaskOwnership =
  * 1. An automation assignee (`assigneeType: 'app'`, `assigneeId` = store
  *    name) whose deployed contract resolves.
  * 2. An agent assignee.
- * 3. Fallbacks for unassigned rows: the creation stamp (`createdByType:
+ * 3. A HUMAN assignee is human ownership, full stop — an explicit handoff
+ *    (take-over) must actually detach the choreography, or the assignee
+ *    field lies about who drives the board verbs.
+ * 4. Fallbacks for unassigned rows only: the creation stamp (`createdByType:
  *    'app'` — stamp-or-nothing: a task whose automation is gone never falls
  *    through to another), then a UNIQUE `externalSystem` match among the
  *    deployed contracts — ambiguity resolves to none; never guess an owner.
@@ -128,6 +131,9 @@ export function resolveTaskOwnership(
   }
   if (task.assigneeType === 'agent' && task.assigneeId !== undefined) {
     return { kind: 'agent', agentId: task.assigneeId };
+  }
+  if (task.assigneeType === 'user') {
+    return { kind: 'human' };
   }
   if (task.createdByType === 'app') {
     const stamped = entries.find(

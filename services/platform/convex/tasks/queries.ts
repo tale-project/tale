@@ -21,7 +21,6 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { toId } from '../lib/type_cast_helpers';
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
 import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
@@ -250,7 +249,60 @@ export const taskRowValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
   archivedAt: v.optional(v.number()),
+  // Folder-input subject facts, stamped by the list queries onto tasks bound
+  // to a project folder (`externalId` = folder id): whether the folder still
+  // exists and whether it holds ≥1 active document. The board card's subject
+  // chip and the desk views' row gates read these; absent on single-task
+  // reads.
+  folderExists: v.optional(v.boolean()),
+  hasFiles: v.optional(v.boolean()),
 });
+
+/**
+ * Per-folder facts for a page of tasks: which bound folders still exist and
+ * which hold ≥1 ACTIVE document. One `.get` + one bounded `.take` per
+ * DISTINCT folder, deduped across the page; an `externalId` that is not a
+ * folder id at all (e.g. an issue ref) is skipped via `normalizeId` rather
+ * than trusted. Shared by the paginated desk list and the board list so the
+ * row gates and the card chips read the same truth.
+ */
+async function collectFolderFacts(
+  ctx: QueryCtx,
+  organizationId: string,
+  projectId: Id<'projects'>,
+  tasks: readonly { externalId?: string }[],
+): Promise<{ existingFolders: Set<string>; foldersWithFiles: Set<string> }> {
+  const foldersWithFiles = new Set<string>();
+  const existingFolders = new Set<string>();
+  const checkedFolders = new Set<string>();
+  for (const task of tasks) {
+    const folderId = task.externalId;
+    if (folderId === undefined || checkedFolders.has(folderId)) continue;
+    checkedFolders.add(folderId);
+    const normalized = ctx.db.normalizeId('folders', folderId);
+    if (normalized === null) continue; // not a folder binding at all.
+    const folder = await ctx.db.get(normalized);
+    if (
+      !folder ||
+      folder.organizationId !== organizationId ||
+      folder.projectId !== projectId
+    ) {
+      continue; // orphaned: folder deleted or not in this project.
+    }
+    existingFolders.add(folderId);
+    // A small bounded page is enough to answer "any active file?" — quarter
+    // folders hold at most a handful; a trashed doc must not count, so the
+    // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
+    const docs = await ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_folderId', (q) =>
+        q.eq('organizationId', organizationId).eq('folderId', normalized),
+      )
+      .take(50);
+    if (docs.some(isActiveDocument)) foldersWithFiles.add(folderId);
+  }
+  return { existingFolders, foldersWithFiles };
+}
 
 /** A task comment in the unified model: a `task_discussion` message joined
  *  with its side-car meta. `messageId` is the agent message-store id (string),
@@ -355,7 +407,28 @@ export const listTasksByProject = query({
         : a.status.localeCompare(b.status),
     );
 
-    return { tasks: rows, truncated, canEdit };
+    // Same folder facts the paginated desk list stamps — the board card's
+    // subject chip ("Ready to start" / "Waiting for files") reads them.
+    const { existingFolders, foldersWithFiles } = await collectFolderFacts(
+      ctx,
+      project.organizationId,
+      project._id,
+      rows,
+    );
+    return {
+      tasks: rows.map((task) =>
+        Object.assign(task, {
+          folderExists:
+            task.externalId === undefined ||
+            existingFolders.has(task.externalId),
+          hasFiles:
+            task.externalId !== undefined &&
+            foldersWithFiles.has(task.externalId),
+        }),
+      ),
+      truncated,
+      canEdit,
+    };
   },
 });
 
@@ -395,37 +468,13 @@ export const listTasksByProjectPaginated = query({
     // gates row actions on: `folderExists` (the bound folder is still there —
     // a deleted quarter leaves an orphaned return the desk marks and lets you
     // remove) and `hasFiles` (it holds ≥1 active file — hide Start until
-    // documents are uploaded). One `.get` + one bounded `.take` per DISTINCT
-    // folder, deduped across the page.
-    const foldersWithFiles = new Set<string>();
-    const existingFolders = new Set<string>();
-    const checkedFolders = new Set<string>();
-    for (const task of result.page) {
-      const folderId = task.externalId;
-      if (folderId === undefined || checkedFolders.has(folderId)) continue;
-      checkedFolders.add(folderId);
-      const folder = await ctx.db.get(toId<'folders'>(folderId));
-      if (
-        !folder ||
-        folder.organizationId !== project.organizationId ||
-        folder.projectId !== args.projectId
-      ) {
-        continue; // orphaned: folder deleted or not in this project.
-      }
-      existingFolders.add(folderId);
-      // A small bounded page is enough to answer "any active file?" — quarter
-      // folders hold at most a handful; a trashed doc must not count, so the
-      // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
-      const docs = await ctx.db
-        .query('documents')
-        .withIndex('by_organizationId_and_folderId', (q) =>
-          q
-            .eq('organizationId', project.organizationId)
-            .eq('folderId', toId<'folders'>(folderId)),
-        )
-        .take(50);
-      if (docs.some(isActiveDocument)) foldersWithFiles.add(folderId);
-    }
+    // documents are uploaded).
+    const { existingFolders, foldersWithFiles } = await collectFolderFacts(
+      ctx,
+      project.organizationId,
+      args.projectId,
+      result.page,
+    );
     return {
       ...result,
       page: result.page.map((task) =>

@@ -20,6 +20,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { assertAgentAssigneeLive } from '../agents/installations';
 import { createAuditLog } from '../audit_logs/helpers';
+import { findLiveAutomationRunForTask } from '../automations/queries';
 import {
   autoSubscribe,
   notifyTaskAssigned,
@@ -771,6 +772,25 @@ export const assignTask = mutation({
         project.organizationId,
         assignee.assigneeId,
       );
+    }
+    // Ownership transfer is refused while ANY engine is live on the task — a
+    // reassign under a live run would leave that run driving a task another
+    // worker now owns, or start a second engine over the same subject. The
+    // UI offers cancel-then-reassign; this gate is the invariant it relies on.
+    const assigneeChanges =
+      (task.assigneeType ?? null) !== (assignee?.assigneeType ?? null) ||
+      (task.assigneeId ?? null) !== (assignee?.assigneeId ?? null);
+    if (assigneeChanges) {
+      const liveRun =
+        (await liveTaskAgentRun(ctx, args.taskId)) ??
+        (await findLiveAutomationRunForTask(ctx, {
+          organizationId: task.organizationId,
+          projectId: task.projectId,
+          taskId: args.taskId,
+        }));
+      if (liveRun !== null) {
+        throw new ConvexError({ code: 'TASK_HAS_LIVE_RUN' });
+      }
     }
     const previousAssigneeId = task.assigneeId ?? null;
 
@@ -1668,6 +1688,20 @@ export const bulkUpdateTasks = mutation({
       const assigneeChanged =
         (args.clearAssignee || assignee !== null) &&
         (task.assigneeId ?? null) !== (assignee?.assigneeId ?? null);
+      // Same live-run transfer gate as `assignTask`, applied as a skip so one
+      // task mid-run never aborts the whole batch.
+      if (
+        assigneeChanged &&
+        ((await liveTaskAgentRun(ctx, taskId)) !== null ||
+          (await findLiveAutomationRunForTask(ctx, {
+            organizationId: task.organizationId,
+            projectId: task.projectId,
+            taskId,
+          })) !== null)
+      ) {
+        skipped += 1;
+        continue;
+      }
       if (args.clearAssignee || assignee) {
         if (assignee) {
           // Per-project assignee gate. Access is per-project, so skip a task
@@ -2050,6 +2084,17 @@ export const startTaskAgentRun = mutation({
     }
     if ((await liveTaskAgentRun(ctx, args.taskId)) !== null) {
       return { started: false, reason: 'already_running' };
+    }
+    // An automation run already operating this task blocks the agent lane —
+    // two engines must never drive one subject at once.
+    if (
+      (await findLiveAutomationRunForTask(ctx, {
+        organizationId: task.organizationId,
+        projectId: task.projectId,
+        taskId: args.taskId,
+      })) !== null
+    ) {
+      return { started: false, reason: 'automation_run_live' };
     }
 
     const now = Date.now();

@@ -115,6 +115,14 @@ export function plannedTransitionKind(
 
 export type TaskTransitionOutcome = 'handled' | 'blocked' | 'move';
 
+export interface TaskStatusChoreographyOptions {
+  /** Asked before a live run is cancelled by a status move (drag out of
+   * In progress, or the picker's cancel verb). Resolve false to keep the
+   * run — the transition then reports `'blocked'` and the caller reverts
+   * its optimistic UI. Absent ⇒ cancel without asking (legacy behavior). */
+  confirmCancel?: () => Promise<boolean>;
+}
+
 /**
  * The executor: resolve the owning contract, gather the live facts the plan
  * needs (active subject run; bound-folder files), run the plan's action, and
@@ -125,6 +133,7 @@ export type TaskTransitionOutcome = 'handled' | 'blocked' | 'move';
 export function useTaskStatusChoreography(
   organizationId: string,
   projectId: Id<'projects'> | undefined,
+  options?: TaskStatusChoreographyOptions,
 ) {
   const automations = useTaskContractAutomations(organizationId, projectId);
   const client = useConvexClient();
@@ -136,6 +145,8 @@ export function useTaskStatusChoreography(
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
+
+  const confirmCancel = options?.confirmCancel;
 
   return useCallback(
     async (
@@ -169,11 +180,25 @@ export function useTaskStatusChoreography(
           }
         }
         if (task.status === 'in_progress') {
-          try {
-            await cancelAgentRun({ taskId: task._id });
-          } catch (error) {
-            // The move still proceeds — a stuck run is cut by its deadline.
-            console.warn('[tasks] agent-run cancel failed', error);
+          // Only a LIVE run warrants the confirm (and the cancel call) — a
+          // settled/failed run costs nothing to move away from.
+          const latest = await client.query(
+            api.tasks.queries.getLatestTaskAgentRunForTask,
+            { organizationId, taskId: task._id },
+          );
+          const live =
+            latest !== null &&
+            (latest.status === 'queued' || latest.status === 'running');
+          if (live) {
+            if (confirmCancel && !(await confirmCancel())) {
+              return 'blocked';
+            }
+            try {
+              await cancelAgentRun({ taskId: task._id });
+            } catch (error) {
+              // The move still proceeds — a stuck run is cut by its deadline.
+              console.warn('[tasks] agent-run cancel failed', error);
+            }
           }
         }
         return 'move';
@@ -252,6 +277,9 @@ export function useTaskStatusChoreography(
             return 'blocked';
           }
         case 'cancel':
+          if (confirmCancel && !(await confirmCancel())) {
+            return 'blocked';
+          }
           try {
             await cancelRun.mutateAsync({ organizationId, taskId: task._id });
             toast({ title: t('run.cancelled') });
@@ -272,6 +300,7 @@ export function useTaskStatusChoreography(
       cancelAgentRun,
       cancelRun,
       client,
+      confirmCancel,
       organizationId,
       startAgentRun,
       startRun,

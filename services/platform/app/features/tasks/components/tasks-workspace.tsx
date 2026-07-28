@@ -295,6 +295,9 @@ export function TasksWorkspace({
         open={createOpen}
         onOpenChange={setCreateOpen}
         defaultStatus="todo"
+        // A template create lands the user inside the new task, where the
+        // subject panel names the next step (upload input files / Start).
+        onOpenTask={(id) => setOpenTaskId(id)}
       />
       <TaskModal
         organizationId={organizationId}

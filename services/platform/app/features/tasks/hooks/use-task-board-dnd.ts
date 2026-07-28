@@ -15,7 +15,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TaskRow } from '../components/task-card';
 import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
 import { useMoveTask } from './mutations';
-import { useTaskStatusChoreography } from './use-task-status-choreography';
+import {
+  useTaskStatusChoreography,
+  type TaskStatusChoreographyOptions,
+} from './use-task-status-choreography';
 
 export type TaskColumns = Record<TaskStatus, string[]>;
 
@@ -70,7 +73,10 @@ export interface TaskBoardDnd {
  * the drop; a failed write reverts via the prop resync). Consumers render their
  * own `<DndContext>` with these props plus per-status `<SortableContext>`s.
  */
-export function useTaskBoardDnd(tasks: TaskRow[]): TaskBoardDnd {
+export function useTaskBoardDnd(
+  tasks: TaskRow[],
+  options?: TaskStatusChoreographyOptions,
+): TaskBoardDnd {
   const moveTask = useMoveTask();
   // Cross-column drags on automation-owned tasks route through the owning
   // workflow's choreography (drag to In progress = start, drag out = cancel)
@@ -78,6 +84,7 @@ export function useTaskBoardDnd(tasks: TaskRow[]): TaskBoardDnd {
   const choreograph = useTaskStatusChoreography(
     tasks[0]?.organizationId ?? '',
     tasks[0]?.projectId,
+    options,
   );
   const [activeId, setActiveId] = useState<string | null>(null);
 

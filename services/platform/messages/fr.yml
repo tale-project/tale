@@ -7002,11 +7002,31 @@ tasks:
     noProgressYet: "L'exécution n'a encore atteint aucune étape."
     effectsTitle: Actions effectuées
     noEffectsYet: Rien d'effectué pour l'instant.
+  subject:
+    ready: "Prête à démarrer — {name} s'exécute sur cette tâche."
+    start: Démarrer
+    startAgain: Relancer
+    waitingInput: "En attente des fichiers d'entrée — dépose-les ci-dessous, puis démarre."
+    stalled: "La tâche est En cours mais aucune exécution n'est active — relance l'exécution."
+    review: 'Le résultat de {name} est prêt pour relecture.'
+    approve: Approuver
+    approved: Approuvé — la tâche est terminée.
+    requestChanges: Demander des modifications
+    requestChangesHint: "Écris d'abord ton retour en commentaire ci-dessous — la nouvelle exécution lit les commentaires de la tâche."
+    requestChangesSent: 'Renvoyée à {name} — la nouvelle exécution reprend tes commentaires.'
+    cancel: Annuler l'exécution
+    cancelConfirmTitle: Annuler cette exécution ?
+    cancelConfirmBody: "L'exécution {name} sur cette tâche s'arrête ; la tâche passe à Annulé et peut être relancée."
+    cancelConfirmMove: Une exécution travaille encore sur cette tâche — la sortir de En cours annule cette exécution. Elle pourra être relancée ensuite.
   agentRun:
     started: L'agent s'y met — il rendra compte sur cette tâche pour relecture.
     alreadyRunning: L'agent de cette tâche tourne déjà.
     notStarted: L'exécution de l'agent n'a pas pu démarrer.
     cancelled: L'exécution de l'agent a été annulée.
+    idle: "L'agent assigné n'a pas encore tourné — démarre-le quand la tâche est prête."
+    start: Démarrer l'agent
+    willStart: "Déposer ici démarre l'exécution de l'agent."
+    willCancel: "Déposer ici annule l'exécution en cours de l'agent."
     status:
       queued: Exécution de l'agent en attente
       running: L'agent travaille…
@@ -7017,6 +7037,8 @@ tasks:
     cancel: Annuler l'exécution
   automation:
     hint: 'Opérée par {name} — les changements de statut passent par son workflow.'
+    chipReady: Prête à démarrer
+    chipWaiting: En attente des fichiers
     will:
       start: "Démarre l'exécution {name}."
       request_changes: 'La renvoie à {name} avec tes commentaires.'
@@ -7032,7 +7054,7 @@ tasks:
     blank: Tâche vierge
     nameLabel: Nom
     invalidName: 'Doit correspondre au motif {pattern}.'
-    created: "Tâche créée — dépose les fichiers d'entrée, puis passe-la à En cours."
+    created: "Tâche créée — dépose les fichiers d'entrée, puis clique sur Démarrer."
     exists: Une tâche existe déjà pour ce sujet.
     setupMissing: "Le dossier {folder} est manquant — crée-le d'abord dans le projet."
     setupIntro:
@@ -7137,6 +7159,18 @@ tasks:
     agentsInfo:
       Tourne dans un bac à sable sur le harness choisi à la création de
       l'agent — pré-équipé de ses skills, connecteurs et instructions.
+    automations: Automatisations
+    automationsInfo:
+      Confie la tâche à une automatisation déployée — les changements de
+      statut passent alors par son workflow.
+    handoffConfirmTitle: Réassigner cette tâche ?
+    handoffConfirm:
+      '{name} travaille cette tâche. La réassigner détache son workflow des
+      changements de statut — tu peux la lui rendre à tout moment.'
+    handoffConfirmLiveRun:
+      "{name} travaille sur cette tâche en ce moment — la réassignation
+      annule d'abord l'exécution en cours."
+    handoffConfirmAction: Réassigner
     unassign: Désassigner
     you: Vous
     search: Rechercher des personnes…

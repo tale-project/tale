@@ -6983,11 +6983,31 @@ tasks:
     noProgressYet: The run has not reached any node yet.
     effectsTitle: Actions performed
     noEffectsYet: Nothing performed yet.
+  subject:
+    ready: 'Ready to start — {name} runs on this task.'
+    start: Start
+    startAgain: Start again
+    waitingInput: Waiting for input files — upload them below, then start.
+    stalled: The task is In progress but no run is active — start it again.
+    review: 'The {name} output is ready for review.'
+    approve: Approve
+    approved: Approved — the task is done.
+    requestChanges: Request changes
+    requestChangesHint: Comment your feedback below first — the rerun reads the task's comments.
+    requestChangesSent: 'Sent back to {name} — the rerun picks up your comments.'
+    cancel: Cancel run
+    cancelConfirmTitle: Cancel this run?
+    cancelConfirmBody: 'The {name} run working this task stops; the task parks at Cancelled and can be started again.'
+    cancelConfirmMove: A run is still working this task — moving it out of In progress cancels that run. It can be started again afterwards.
   agentRun:
     started: The agent is on it — it reports back to this task for review.
     alreadyRunning: This task's agent is already running.
     notStarted: The agent run could not start.
     cancelled: The agent run was cancelled.
+    idle: The assigned agent has not run yet — start it when the task is ready.
+    start: Start agent
+    willStart: Dropping here starts the agent run.
+    willCancel: Dropping here cancels the agent's live run.
     status:
       queued: Agent run queued
       running: Agent working…
@@ -6998,6 +7018,8 @@ tasks:
     cancel: Cancel run
   automation:
     hint: 'Operated by {name} — status changes route through its workflow.'
+    chipReady: Ready to start
+    chipWaiting: Waiting for files
     will:
       start: 'Starts the {name} run.'
       request_changes: 'Sends it back to {name} with your comments.'
@@ -7013,7 +7035,7 @@ tasks:
     blank: Blank task
     nameLabel: Name
     invalidName: 'Must match the pattern {pattern}.'
-    created: Task created — add its input files, then move it to In progress.
+    created: Task created — upload its input files, then press Start.
     exists: A task for this subject already exists.
     setupMissing: 'The {folder} folder is missing — create it in the project first.'
     setupIntro: 'Set up {name} for this project first. These values are saved as
@@ -7117,6 +7139,18 @@ tasks:
     agentsInfo:
       Runs in a sandbox on the harness chosen when the agent was created,
       pre-equipped with its skills, connectors, and instructions.
+    automations: Automations
+    automationsInfo:
+      Hand the task to a deployed automation — its workflow then drives the
+      board's status verbs.
+    handoffConfirmTitle: Reassign this task?
+    handoffConfirm:
+      'This task is worked by {name}. Reassigning detaches its workflow from
+      the board verbs — you can hand it back any time.'
+    handoffConfirmLiveRun:
+      '{name} is working this task right now — reassigning cancels the live
+      run first.'
+    handoffConfirmAction: Reassign
     unassign: Unassign
     you: You
     search: Search people…

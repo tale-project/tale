@@ -21,7 +21,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
 import { isRecord } from '../../lib/utils/type-utils';
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -213,10 +213,50 @@ export const listAutomationProjects = query({
 const LIVE_RUN_SCAN_CAP = 100;
 
 /**
+ * The LIVE run currently operating one task, if any — the bounded newest-runs
+ * scan behind {@link getLiveRunForTask}, exported plain so the task mutations'
+ * ownership gates (reassign, agent-run start) can consult it inside their own
+ * transaction. Scans the project's newest runs for a non-terminal one carrying
+ * the task as its subject.
+ */
+export async function findLiveAutomationRunForTask(
+  ctx: QueryCtx,
+  args: {
+    organizationId: string;
+    projectId: Id<'projects'>;
+    taskId: Id<'tasks'>;
+  },
+): Promise<Doc<'automationRuns'> | null> {
+  let scanned = 0;
+  for await (const run of ctx.db
+    .query('automationRuns')
+    .withIndex('by_org_project', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('projectId', args.projectId),
+    )
+    .order('desc')) {
+    if (++scanned > LIVE_RUN_SCAN_CAP) break;
+    if (
+      run.status !== 'queued' &&
+      run.status !== 'running' &&
+      run.status !== 'waiting'
+    ) {
+      continue;
+    }
+    const input = run.input;
+    const rawTaskId =
+      isRecord(input) && isRecord(input.task) ? input.task.id : undefined;
+    if (rawTaskId !== String(args.taskId)) continue;
+    return run;
+  }
+  return null;
+}
+
+/**
  * The LIVE run currently operating one task, if any — what the task board's
  * status choreography consults before it cancels or refuses a duplicate
- * start. Scans the project's newest runs for a non-terminal one carrying the
- * task as its subject.
+ * start, and what the task modal's subject panel renders live.
  */
 export const getLiveRunForTask = query({
   args: {
@@ -238,36 +278,15 @@ export const getLiveRunForTask = query({
   ),
   handler: async (ctx, args) => {
     await requireMember(ctx, args.organizationId);
-    let scanned = 0;
-    for await (const run of ctx.db
-      .query('automationRuns')
-      .withIndex('by_org_project', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('projectId', args.projectId),
-      )
-      .order('desc')) {
-      if (++scanned > LIVE_RUN_SCAN_CAP) break;
-      if (
-        run.status !== 'queued' &&
-        run.status !== 'running' &&
-        run.status !== 'waiting'
-      ) {
-        continue;
-      }
-      const input = run.input;
-      const rawTaskId =
-        isRecord(input) && isRecord(input.task) ? input.task.id : undefined;
-      if (rawTaskId !== String(args.taskId)) continue;
-      return {
-        runId: run._id,
-        name: run.name,
-        status: run.status,
-        version: run.version,
-        ...(run.detail !== undefined ? { detail: run.detail } : {}),
-      };
-    }
-    return null;
+    const run = await findLiveAutomationRunForTask(ctx, args);
+    if (run === null) return null;
+    return {
+      runId: run._id,
+      name: run.name,
+      status: run.status,
+      version: run.version,
+      ...(run.detail !== undefined ? { detail: run.detail } : {}),
+    };
   },
 });
 
