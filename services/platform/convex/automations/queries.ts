@@ -1029,6 +1029,100 @@ export const storeListTriggers = internalQuery({
  * and the stepper's fresh poll both read it. Returns `null` for a missing or
  * foreign-org run — the caller treats that as "turn is an orphan".
  */
+/** Newest waiting runs examined by the agent-turn watchdog. A parked fleet is
+ * small — a run only waits while one agent turn is in flight. */
+const STALLED_AGENT_SCAN_LIMIT = 100;
+
+/**
+ * Parked agent turns nobody is draining any more — the watchdog's work list.
+ *
+ * A run waiting on an `agent` node is driven by a self-chaining action that
+ * re-attaches to the sandbox exec every window and bumps the op's heartbeat. If
+ * that chain dies (a deploy mid-flight, an action kill, a crash) NOTHING
+ * re-enters the turn: the run's own recovery sweep only looks at `queued` and
+ * `running` rows, so the turn sits until its wall-clock deadline and then fails
+ * — even when the agent finished its work minutes later and the output is
+ * sitting in the sandbox unharvested.
+ *
+ * This lists the runs in that state: waiting, with an agent cursor, whose op row
+ * has gone silent past `staleBeforeMs`. The cursor carries everything a
+ * re-attach needs, so recovery never has to reconstruct a turn's identity.
+ */
+export const listStalledAgentTurns = internalQuery({
+  args: { staleBeforeMs: v.number(), limit: v.number() },
+  returns: v.array(
+    v.object({
+      organizationId: v.string(),
+      runId: v.id('automationRuns'),
+      nodeId: v.string(),
+      execId: v.string(),
+      sessionId: v.string(),
+      harness: v.string(),
+      providerSlug: v.string(),
+      gatewayModel: v.string(),
+      deadlineAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const out = [];
+    let scanned = 0;
+    for await (const row of ctx.db
+      .query('automationRuns')
+      .withIndex('by_status', (q) => q.eq('status', 'waiting'))
+      .order('desc')) {
+      if (out.length >= args.limit) break;
+      if (++scanned > STALLED_AGENT_SCAN_LIMIT) break;
+      const checkpoints = readCheckpoints(row.checkpoints);
+      const cursor = checkpoints.cursor;
+      const agent = isRecord(cursor) ? cursor.agent : undefined;
+      const nodeId = isRecord(cursor) ? cursor.node : undefined;
+      if (!isRecord(agent) || typeof nodeId !== 'string') continue;
+      // A settled turn is the stepper's to consume, not the watchdog's.
+      if (agent.result !== undefined) continue;
+      const execId = agent.execId;
+      const sessionId = agent.sessionId;
+      const harness = agent.harness;
+      const gatewayModel = agent.gatewayModel;
+      const deadlineAt = agent.deadlineAt;
+      if (
+        typeof execId !== 'string' ||
+        typeof sessionId !== 'string' ||
+        typeof harness !== 'string' ||
+        typeof gatewayModel !== 'string' ||
+        typeof deadlineAt !== 'number'
+      ) {
+        continue;
+      }
+      // The op row is the liveness record: a draining action bumps its
+      // heartbeat every window. No row (reaped) counts as silent too.
+      const op = await ctx.db
+        .query('sandboxSessionOps')
+        .withIndex('by_sessionId_and_execId', (q) =>
+          q.eq('sessionId', sessionId).eq('execId', execId),
+        )
+        .first();
+      if (op !== null) {
+        if (op.status !== 'running') continue; // already settled
+        if ((op.heartbeatAt ?? op.startedAt) >= args.staleBeforeMs) continue;
+      }
+      out.push({
+        organizationId: row.organizationId,
+        runId: row._id,
+        nodeId,
+        execId,
+        sessionId,
+        harness,
+        // The gateway ref is `<provider>/<model>`; the drive action only carries
+        // the slug through to its own bookkeeping.
+        providerSlug: gatewayModel.split('/')[0] ?? '',
+        gatewayModel,
+        deadlineAt,
+      });
+    }
+    return out;
+  },
+});
+
 export const readAgentCursor = internalQuery({
   args: { organizationId: v.string(), runId: v.id('automationRuns') },
   returns: v.union(

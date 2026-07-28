@@ -54,6 +54,7 @@ import type * as automations_llm_call from "../automations/llm_call.js";
 import type * as automations_mutations from "../automations/mutations.js";
 import type * as automations_pack_zip from "../automations/pack_zip.js";
 import type * as automations_queries from "../automations/queries.js";
+import type * as automations_recover_agent_turns from "../automations/recover_agent_turns.js";
 import type * as automations_rest_api from "../automations/rest_api.js";
 import type * as automations_script_host from "../automations/script_host.js";
 import type * as automations_stepper from "../automations/stepper.js";
@@ -916,6 +917,7 @@ declare const fullApi: ApiFromModules<{
   "automations/mutations": typeof automations_mutations;
   "automations/pack_zip": typeof automations_pack_zip;
   "automations/queries": typeof automations_queries;
+  "automations/recover_agent_turns": typeof automations_recover_agent_turns;
   "automations/rest_api": typeof automations_rest_api;
   "automations/script_host": typeof automations_script_host;
   "automations/stepper": typeof automations_stepper;

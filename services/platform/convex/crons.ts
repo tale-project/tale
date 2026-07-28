@@ -55,6 +55,18 @@ cron(
   {},
 );
 
+// Agent-turn watchdog — the sweep above deliberately skips `waiting` runs (a
+// healthy parked run must not be re-stepped), which leaves a turn whose
+// draining action died with nobody listening to the sandbox. This re-attaches
+// those; it never kills a working agent. Its own entry so a throw in either
+// sweep cannot disable the other.
+cron(
+  'recover stalled automation agent turns (every 2 min)',
+  '*/2 * * * *',
+  internal.automations.recover_agent_turns.recoverStalledAgentTurns,
+  {},
+);
+
 // Website crawl scheduler (5 min) re-registers here when the
 // knowledge/crawler rewrite lands; until then registered websites do not crawl.
 
