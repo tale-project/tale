@@ -19,53 +19,12 @@ import { v } from 'convex/values';
 import { action } from '../../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../auth/require_org_admin_or_developer';
 import { getConnectorCatalog } from './catalog_fetch';
+import {
+  connectorCatalogValidator,
+  modelEntryValidator,
+} from './catalog_validators';
 import { readSystemEntryIcon } from './load_system_config';
 import { resolveConnectorsForOrgId } from './org_connectors';
-
-const modelEntryValidator = v.object({
-  id: v.string(),
-  provider: v.string(),
-  tags: v.array(v.string()),
-  supportsTools: v.boolean(),
-  supportsVision: v.boolean(),
-  reasoning: v.optional(
-    v.object({
-      knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
-    }),
-  ),
-  contextWindow: v.number(),
-  maxOutputTokens: v.optional(v.number()),
-  pricing: v.optional(
-    v.object({
-      inputCentsPerMillion: v.number(),
-      outputCentsPerMillion: v.number(),
-    }),
-  ),
-});
-
-const connectorCatalogValidator = v.object({
-  name: v.string(),
-  displayName: v.string(),
-  /** The connector's shipped `icon.svg`, inlined as a data URL. */
-  iconUrl: v.optional(v.string()),
-  apiFormat: v.union(v.literal('openai'), v.literal('anthropic')),
-  /** Absent for per-credential-endpoint connectors (Azure). */
-  baseUrl: v.optional(v.string()),
-  endpointMode: v.optional(
-    v.union(v.literal('fixed'), v.literal('per-credential')),
-  ),
-  catalogSource: v.union(
-    v.literal('static'),
-    v.literal('openrouter-api'),
-    v.literal('models-endpoint'),
-    v.literal('none'),
-  ),
-  /** The auth methods this connector's credentials may use. */
-  authMethods: v.array(v.string()),
-  models: v.array(modelEntryValidator),
-  /** Present when the live catalog could not be served at all. */
-  catalogError: v.optional(v.string()),
-});
 
 /**
  * Every shipped provider connector with its current model catalog (cached

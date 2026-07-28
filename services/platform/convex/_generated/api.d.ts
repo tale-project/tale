@@ -481,6 +481,7 @@ import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
 import type * as lib_providers_catalog_actions from "../lib/providers/catalog_actions.js";
 import type * as lib_providers_catalog_fetch from "../lib/providers/catalog_fetch.js";
+import type * as lib_providers_catalog_validators from "../lib/providers/catalog_validators.js";
 import type * as lib_providers_credential_auth from "../lib/providers/credential_auth.js";
 import type * as lib_providers_direct_credential from "../lib/providers/direct_credential.js";
 import type * as lib_providers_harness_status from "../lib/providers/harness_status.js";
@@ -1341,6 +1342,7 @@ declare const fullApi: ApiFromModules<{
   "lib/pagination/types": typeof lib_pagination_types;
   "lib/providers/catalog_actions": typeof lib_providers_catalog_actions;
   "lib/providers/catalog_fetch": typeof lib_providers_catalog_fetch;
+  "lib/providers/catalog_validators": typeof lib_providers_catalog_validators;
   "lib/providers/credential_auth": typeof lib_providers_credential_auth;
   "lib/providers/direct_credential": typeof lib_providers_direct_credential;
   "lib/providers/harness_status": typeof lib_providers_harness_status;
