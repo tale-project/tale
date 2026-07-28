@@ -21,6 +21,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type Ref,
 } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -59,6 +60,12 @@ export interface MessageForkGroupView {
 interface MessageItemProps {
   message: ChatMessageItem;
   isLast: boolean;
+  /** The row sits in the history region (above the last user message) —
+   * rasterized lazily; the anchored/response rows always render fully. */
+  isHistory?: boolean;
+  /** The scroll anchor ref — set on the LAST USER row only; the send-snap
+   * scrolls this element to the viewport top. */
+  rootRef?: Ref<HTMLLIElement>;
   /** The conversation the message belongs to. Absent on surfaces that carry
    * no per-message actions needing it (a shared snapshot). */
   organizationId?: string;
@@ -84,6 +91,8 @@ interface MessageItemProps {
 function MessageItemComponent({
   message,
   isLast,
+  isHistory,
+  rootRef,
   organizationId,
   threadId,
   feedbackRating,
@@ -101,12 +110,15 @@ function MessageItemComponent({
 
   return (
     <li
+      ref={rootRef}
       data-testid="chat-message"
       data-message-role={message.role}
+      data-message-key={message.key}
       className={cn(
         'group/message flex min-w-0 flex-col',
         isUser ? 'items-end' : 'items-start',
-        !isLast && HISTORY_CONTENT_VISIBILITY,
+        isHistory === true && HISTORY_CONTENT_VISIBILITY,
+        rootRef !== undefined && 'scroll-mt-6',
       )}
     >
       {isUser ? (
@@ -160,6 +172,8 @@ export const MessageItem = memo(
   (prevProps, nextProps) =>
     prevProps.message === nextProps.message &&
     prevProps.isLast === nextProps.isLast &&
+    prevProps.isHistory === nextProps.isHistory &&
+    prevProps.rootRef === nextProps.rootRef &&
     prevProps.organizationId === nextProps.organizationId &&
     prevProps.threadId === nextProps.threadId &&
     prevProps.feedbackRating === nextProps.feedbackRating &&

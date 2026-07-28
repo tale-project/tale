@@ -5,14 +5,17 @@
  * turn's status.
  *
  * Rows arrive as `ChatMessageItem`s from the thread-view merge, which owns
- * the streaming facts — each item already knows whether it is live. The transcript
- * is a `role="log"` region (the e2e contract), so assistive technology hears
- * new entries without losing its place; the explicit status region below it
- * narrates the queued/streaming/waiting states.
+ * the streaming facts — each item already knows whether it is live. The
+ * transcript is a `role="log"` region (the e2e contract), so assistive
+ * technology hears new entries without losing its place; the explicit status
+ * region below it narrates the queued/streaming/waiting states.
  *
- * Scrolling: opening a thread lands at the end; while the reader is at the
- * bottom the view follows growth; the moment they scroll up it stops
- * following and a jump-back affordance appears.
+ * Geometry: the list splits into three regions around the LAST USER message —
+ * history above it, the anchored user message, and the response area below.
+ * The response area carries a slack min-height that fills the viewport, so
+ * the send-snap can place the user's message at the top and the reply streams
+ * into the space beneath it. Scrolling follows the Gemini doctrine (see
+ * use-chat-scroll): generation growth NEVER scrolls; only user actions do.
  */
 
 import { Button } from '@tale/ui/button';
@@ -20,12 +23,16 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowDown, MessageSquare } from 'lucide-react';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useRef, type MutableRefObject } from 'react';
 
-import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useChatScroll } from '../hooks/use-chat-scroll';
+import {
+  resolveResponseSlackEnabled,
+  useResponseSlack,
+} from '../hooks/use-response-slack';
 import type {
   ChatGenerationView,
   ChatMessageItem,
@@ -45,10 +52,22 @@ interface MessageThreadProps {
   messages: readonly ChatMessageItem[];
   /** Present exactly while a turn is in flight. */
   generation?: ChatGenerationView | null;
-  /** The conversation being rendered. Absent on surfaces without
-   * per-message actions that need it (a shared snapshot). */
+  /** The conversation being rendered (the resolved sibling). Absent on
+   * surfaces without per-message actions that need it (a shared snapshot). */
   organizationId?: string;
   threadId?: string;
+  /** The URL's lineage root — the key for per-thread scroll memory. Falls
+   * back to `threadId` for single-thread surfaces (arena columns). */
+  threadRootId?: string;
+  /** A turn is generating or optimistically pending — drives the response
+   * slack and the scroll machine's intent lifecycle. */
+  isGenerating?: boolean;
+  /** The edit-and-branch marker: a branch swap driven by an edit snaps to
+   * the edited message instead of preserving the old position. */
+  pendingEditedFromThreadId?: string;
+  /** The caller-owned force-snap signal (see use-chat-scroll). Absent on
+   * read-only surfaces — a local inert ref stands in. */
+  scrollIntentRef?: MutableRefObject<boolean | 'smooth'>;
   /** The caller's rating per message id, from the thread-wide feedback map. */
   feedback?: ReadonlyMap<string, 'positive' | 'negative'>;
   /** The sibling flippers of the view path, keyed by message sequence. */
@@ -67,11 +86,24 @@ interface MessageThreadProps {
   className?: string;
 }
 
+/** Index of the last user row — the anchor the three regions split around.
+ * The optimistic pending user row counts: the send-snap anchors it. */
+function findLastUserIndex(messages: readonly ChatMessageItem[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') return index;
+  }
+  return -1;
+}
+
 export const MessageThread = memo(function MessageThread({
   messages,
   generation,
   organizationId,
   threadId,
+  threadRootId,
+  isGenerating,
+  pendingEditedFromThreadId,
+  scrollIntentRef,
   feedback,
   forkGroups,
   onEditSubmit,
@@ -82,8 +114,51 @@ export const MessageThread = memo(function MessageThread({
   className,
 }: MessageThreadProps) {
   const { t } = useT('chat');
-  const { containerRef, scrollToBottom, isAtBottom } = useAutoScroll();
-  const [awayFromBottom, setAwayFromBottom] = useState(false);
+  const localIntentRef = useRef<boolean | 'smooth'>(false);
+  const intentRef = scrollIntentRef ?? localIntentRef;
+  const lastUserMessageRef = useRef<HTMLLIElement | null>(null);
+  const responseAreaRef = useRef<HTMLDivElement | null>(null);
+
+  const { containerRef, contentRef, scrollToBottom, showScrollButton } =
+    useChatScroll({
+      threadId: threadRootId ?? threadId,
+      dataThreadId: threadId,
+      messagesLength: messages.length,
+      isLoading: isGenerating === true,
+      pendingEditedMessageId: pendingEditedFromThreadId,
+      lastUserMessageRef,
+      scrollIntentRef: intentRef,
+    });
+
+  const lastUserIdx = findLastUserIndex(messages);
+  const beforeItems =
+    lastUserIdx >= 0 ? messages.slice(0, lastUserIdx) : messages;
+  const lastUserItem = lastUserIdx >= 0 ? messages[lastUserIdx] : undefined;
+  const afterItems = lastUserIdx >= 0 ? messages.slice(lastUserIdx + 1) : [];
+
+  // The slack session: active from send until the stream settles, per
+  // thread. While active, the response area's min-height fills the viewport
+  // so the snap has room to place the user message at the top.
+  const slackSessionRef = useRef<{
+    threadId: string | undefined;
+    active: boolean;
+  }>({ threadId, active: false });
+  const threadChanged = slackSessionRef.current.threadId !== threadId;
+  const { slackEnabled, sessionActive } = resolveResponseSlackEnabled({
+    threadChanged,
+    isLoading: isGenerating === true,
+    prevSessionActive: slackSessionRef.current.active,
+    lastUserMessagePending: lastUserItem?.isPendingShell === true,
+  });
+  slackSessionRef.current = { threadId, active: sessionActive };
+
+  useResponseSlack({
+    containerRef,
+    contentRef,
+    responseAreaRef,
+    lastUserMessageRef,
+    slackEnabled,
+  });
 
   // The ids present when this conversation first rendered. A message NOT in
   // this snapshot arrived live during the mount — the auto-voice chunker
@@ -105,85 +180,119 @@ export const MessageThread = memo(function MessageThread({
   const isFreshSinceMount = (id: string): boolean =>
     initialIdsRef.current !== null && !initialIdsRef.current.ids.has(id);
 
-  // Follow growth while the reader is at the bottom (and land there on
-  // open). `messages` is a fresh array per update, so every appended row or
-  // streamed chunk re-runs this; a reader who scrolled up is left alone.
-  useEffect(() => {
-    if (!awayFromBottom) scrollToBottom();
-  }, [messages, awayFromBottom, scrollToBottom]);
+  const renderItem = (
+    message: ChatMessageItem,
+    index: number,
+    region: 'history' | 'last-user' | 'response',
+  ) => (
+    <MessageItem
+      key={message.key}
+      message={message}
+      isLast={index === messages.length - 1}
+      isHistory={region === 'history'}
+      {...(region === 'last-user' ? { rootRef: lastUserMessageRef } : {})}
+      organizationId={organizationId}
+      threadId={threadId}
+      feedbackRating={feedback?.get(message.id)}
+      forkGroup={
+        message.role === 'user' ? forkGroups?.get(message.sequence) : undefined
+      }
+      onEditSubmit={onEditSubmit}
+      onRegenerate={onRegenerate}
+      onFork={onFork}
+      voiceEnabled={voiceEnabled}
+      speakAvailable={speakAvailable}
+      isFreshSinceMount={isFreshSinceMount(message.id)}
+    />
+  );
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* The dedicated scroller. No CSS scroll-smooth: programmatic pins are
+          explicit instant scrolls; the glide animates itself (see
+          use-chat-scroll). */}
       <div
         ref={containerRef}
         role="log"
         aria-label={t('aria.messageHistory')}
-        onScroll={() => setAwayFromBottom(!isAtBottom())}
-        className={cn(
-          'flex min-h-0 flex-1 flex-col overflow-y-auto',
-          className,
-        )}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
       >
-        <Stack as="ol" gap={3} className="mx-auto w-full max-w-3xl px-4 py-6">
-          {messages.map((message, index) => (
-            <MessageItem
-              key={message.key}
-              message={message}
-              isLast={index === messages.length - 1}
-              organizationId={organizationId}
-              threadId={threadId}
-              feedbackRating={feedback?.get(message.id)}
-              forkGroup={
-                message.role === 'user'
-                  ? forkGroups?.get(message.sequence)
-                  : undefined
-              }
-              onEditSubmit={onEditSubmit}
-              onRegenerate={onRegenerate}
-              onFork={onFork}
-              voiceEnabled={voiceEnabled}
-              speakAvailable={speakAvailable}
-              isFreshSinceMount={isFreshSinceMount(message.id)}
-            />
-          ))}
-        </Stack>
-
-        {messages.length === 0 && !generation && (
-          <EmptyState
-            icon={MessageSquare}
-            title={t('welcomeEmpty')}
-            headingLevel={2}
-          />
-        )}
-
-        {/* The turn's status. The region is always in the DOM so assistive
-            technology has something to watch before the first turn starts. */}
+        {/* The content wrapper's padding-top is the snap/slack inset — the
+            surface's className carries the glass-bar clearance. */}
         <div
-          role="status"
-          aria-live="polite"
-          aria-label={t('generation.regionLabel')}
-          className="mx-auto w-full max-w-3xl px-4 pb-4"
+          ref={contentRef}
+          className={cn(
+            'mx-auto flex w-full max-w-3xl flex-col px-4 py-6',
+            className,
+          )}
         >
-          {generation && (
-            <Text variant="muted" className="text-sm">
-              {t(GENERATION_STATUS_KEY[generation.status])}
-              {generation.waitingOn
-                ? ` ${t('generation.waitingOn', { detail: generation.waitingOn })}`
-                : ''}
-            </Text>
+          <Stack gap={3}>
+            {beforeItems.length > 0 && (
+              <Stack as="ol" gap={3}>
+                {beforeItems.map((message, index) =>
+                  renderItem(message, index, 'history'),
+                )}
+              </Stack>
+            )}
+
+            {lastUserItem !== undefined && (
+              <ol className="flex flex-col">
+                {renderItem(lastUserItem, lastUserIdx, 'last-user')}
+              </ol>
+            )}
+
+            {/* The response area: the live reply streams into the slack
+                beneath the anchored user message. overflow-anchor is off so
+                the browser never fights the scroll machine. */}
+            <div
+              ref={responseAreaRef}
+              className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
+            >
+              {afterItems.length > 0 && (
+                <Stack as="ol" gap={3}>
+                  {afterItems.map((message, index) =>
+                    renderItem(message, lastUserIdx + 1 + index, 'response'),
+                  )}
+                </Stack>
+              )}
+
+              {/* The turn's status. Inside the response area so its mount is
+                  absorbed by the slack instead of moving the scroller. Always
+                  in the DOM so assistive technology has something to watch
+                  before the first turn starts. */}
+              <div
+                role="status"
+                aria-live="polite"
+                aria-label={t('generation.regionLabel')}
+              >
+                {generation && (
+                  <Text variant="muted" className="text-sm">
+                    {t(GENERATION_STATUS_KEY[generation.status])}
+                    {generation.waitingOn
+                      ? ` ${t('generation.waitingOn', { detail: generation.waitingOn })}`
+                      : ''}
+                  </Text>
+                )}
+              </div>
+            </div>
+          </Stack>
+
+          {messages.length === 0 && !generation && (
+            <EmptyState
+              icon={MessageSquare}
+              title={t('welcomeEmpty')}
+              headingLevel={2}
+            />
           )}
         </div>
       </div>
 
-      {awayFromBottom && messages.length > 0 && (
+      {showScrollButton && messages.length > 0 && (
         <Button
           size="icon"
           variant="secondary"
           aria-label={t('scrollToBottom')}
-          onClick={() => {
-            scrollToBottom();
-            setAwayFromBottom(false);
-          }}
+          onClick={scrollToBottom}
           className="bg-background/95 absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full shadow-md"
         >
           <ArrowDown aria-hidden className="size-4" />

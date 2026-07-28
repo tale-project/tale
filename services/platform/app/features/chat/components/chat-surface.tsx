@@ -39,6 +39,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
+import {
+  freezeActiveStream,
+  resetGlobalFreeze,
+} from '@/app/features/shared/markdown/use-stream-buffer';
 import { SkillLibraryDialog } from '@/app/features/skills/components/skill-library-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useCopy } from '@/app/hooks/use-copy';
@@ -190,6 +194,10 @@ function ChatSurfaceInner({
   // The optimistic send overlay — set the moment Send is pressed, dropped
   // once the real rows adopted its keys (the consumed effect below).
   const [pendingSend, setPendingSend] = useState<PendingSend | null>(null);
+  // The force-snap signal the scroll machine consumes: written right before
+  // each send (true = instant, for the first message; 'smooth' = the
+  // retargeting glide for follow-ups and edits).
+  const scrollIntentRef = useRef<boolean | 'smooth'>(false);
   const threadView = useThreadView(organizationId, viewThreadId, pendingSend);
   const generation = useChatGeneration(organizationId, viewThreadId);
   // Also answers for a project-shared conversation the caller may read but
@@ -542,6 +550,9 @@ function ChatSurfaceInner({
   const externalTurnInFlight =
     generationInFlight && selection.agentKind === 'external';
   const handleStop = () => {
+    // Freeze the reveal exactly where it is — the visual stop is immediate
+    // even while the server-side settle is still in flight.
+    freezeActiveStream();
     if (threadId === undefined) return;
     void chatSend.stop(threadId).catch((error: unknown) => {
       console.error('[chat] could not stop the turn', error);
@@ -613,6 +624,8 @@ function ChatSurfaceInner({
     // baseline is unknowable (the branch's rows are not loaded yet), so it
     // relies on the text match alone.
     const sentAt = Date.now();
+    resetGlobalFreeze();
+    scrollIntentRef.current = target === undefined ? true : 'smooth';
     setPendingSend(
       createPendingSend({
         text,
@@ -972,6 +985,10 @@ function ChatSurfaceInner({
               generation={threadView.generation ?? undefined}
               organizationId={organizationId}
               threadId={viewerIsOwner ? viewThreadId : undefined}
+              threadRootId={threadId}
+              isGenerating={generationInFlight || pendingSend !== null}
+              pendingEditedFromThreadId={pendingSend?.editedFromThreadId}
+              scrollIntentRef={scrollIntentRef}
               feedback={viewerIsOwner ? feedbackByMessage : undefined}
               forkGroups={viewerIsOwner ? forkGroups : undefined}
               onEditSubmit={viewerIsOwner ? handleEditSubmit : undefined}
@@ -1050,7 +1067,11 @@ function ChatSurfaceInner({
           // open thread shows before its first message. It also holds while
           // the model listing is still answering, so the surface never flips
           // welcome → provider-setup → welcome across navigations.
-          <MessageThread messages={[]} className="md:pt-13" />
+          <MessageThread
+            messages={[]}
+            scrollIntentRef={scrollIntentRef}
+            className="md:pt-13"
+          />
         )}
 
         <div className="shrink-0 px-4 pb-4">
