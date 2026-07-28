@@ -21,6 +21,7 @@ import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowUp, CircleStop } from 'lucide-react';
 import {
+  memo,
   useEffect,
   useId,
   useMemo,
@@ -113,7 +114,7 @@ interface ComposerProps {
   onArenaChange?: (next: boolean) => void;
 }
 
-export function Composer({
+export const Composer = memo(function Composer({
   models,
   externalAgents,
   degradedHarnesses,
@@ -444,4 +445,4 @@ export function Composer({
       </Row>
     </Stack>
   );
-}
+});

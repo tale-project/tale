@@ -49,6 +49,14 @@ export function useThreadView(
    * subscription answers, instead of blanking to a skeleton.
    */
   holdScope?: string,
+  options?: {
+    /**
+     * Subscribe to the per-chunk stream-text channel. The TRANSCRIPT wants
+     * it; a caller that only needs the row/adoption facts (the surface's
+     * send logic) opts out so a streaming turn never re-renders it.
+     */
+    readonly includeLiveText?: boolean;
+  },
 ): ThreadView {
   const messages = useChatQuery(
     api.chat.messages.listMessages,
@@ -61,9 +69,12 @@ export function useThreadView(
     threadId !== undefined ? { organizationId, threadId } : 'skip',
     { cache: false },
   );
+  const includeLiveText = options?.includeLiveText !== false;
   const generationText = useChatQuery(
     api.chat.generations.getGenerationText,
-    threadId !== undefined ? { organizationId, threadId } : 'skip',
+    threadId !== undefined && includeLiveText
+      ? { organizationId, threadId }
+      : 'skip',
     { cache: false },
   );
 

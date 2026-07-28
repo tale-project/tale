@@ -49,7 +49,19 @@ const GENERATION_STATUS_KEY: Record<ChatGenerationView['status'], string> = {
   'waiting-input': 'generation.waitingInput',
 };
 
-interface MessageThreadProps {
+/** The per-row action handlers a surface wires into the transcript. */
+export interface MessageThreadHandlers {
+  /** The sibling flippers of the view path, keyed by message sequence. */
+  forkGroups?: ReadonlyMap<number, MessageForkGroupView>;
+  /** Start an edited sibling of a user message. Absent = read-only surface. */
+  onEditSubmit?: (message: ChatMessageView, text: string) => void;
+  /** Re-answer the prompt an assistant reply answered, as a sibling. */
+  onRegenerate?: (message: ChatMessageView) => void;
+  /** Fork the conversation up to a message into a visible new chat. */
+  onFork?: (message: ChatMessageView) => void;
+}
+
+interface MessageThreadProps extends MessageThreadHandlers {
   messages: readonly ChatMessageItem[];
   /** Present exactly while a turn is in flight. */
   generation?: ChatGenerationView | null;
@@ -78,14 +90,6 @@ interface MessageThreadProps {
   forceVoicePillMessageId?: string;
   /** The caller's rating per message id, from the thread-wide feedback map. */
   feedback?: ReadonlyMap<string, 'positive' | 'negative'>;
-  /** The sibling flippers of the view path, keyed by message sequence. */
-  forkGroups?: ReadonlyMap<number, MessageForkGroupView>;
-  /** Start an edited sibling of a user message. Absent = read-only surface. */
-  onEditSubmit?: (message: ChatMessageView, text: string) => void;
-  /** Re-answer the prompt an assistant reply answered, as a sibling. */
-  onRegenerate?: (message: ChatMessageView) => void;
-  /** Fork the conversation up to a message into a visible new chat. */
-  onFork?: (message: ChatMessageView) => void;
   /** "Read replies aloud" is on for this conversation — fresh assistant
    * replies synthesize and the live message carries the voice pill. */
   voiceEnabled?: boolean;

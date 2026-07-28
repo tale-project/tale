@@ -28,7 +28,7 @@ import {
   MessageSquareDashed,
   Search,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import { useOptionalSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
 import {
@@ -64,7 +64,7 @@ interface ThreadListProps {
  * render would re-run every grouping memo below it. */
 const NO_PROJECTS: readonly ChatProjectSummary[] = [];
 
-export function ThreadList({
+export const ThreadList = memo(function ThreadList({
   organizationId,
   threads,
   activeThreadId,
@@ -337,4 +337,4 @@ export function ThreadList({
       </Stack>
     </ThreadListFrameProvider>
   );
-}
+});

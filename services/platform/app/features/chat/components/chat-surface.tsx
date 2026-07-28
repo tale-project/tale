@@ -91,6 +91,7 @@ import {
   resolveViewPath,
 } from '../lib/branch-selection';
 import type {
+  ChatThreadSummary,
   ChatMessageView,
   ComposerModelOption,
   ComposerSelection,
@@ -104,6 +105,7 @@ import { primeAudio } from '../utils/prime-audio';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { BudgetBanner } from './budget-banner';
 import { CanvasPanel } from './canvas/canvas-panel';
+import { ChatTranscript } from './chat-transcript';
 import { Composer } from './composer';
 import {
   directServedModels,
@@ -125,6 +127,7 @@ const NO_SELECTION: ComposerSelection = {
 };
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
+const NO_THREADS: readonly ChatThreadSummary[] = [];
 
 interface ChatSurfaceProps {
   organizationId: string;
@@ -211,11 +214,15 @@ function ChatSurfaceInner({
   const arenaActive = pair !== null;
   // In arena mode the columns own their thread views — the surface skips
   // its own so a streamed token in either column never re-renders it.
+  // Row/adoption facts ONLY — the per-chunk stream text is subscribed by
+  // the transcript boundary below, so a streaming turn never re-renders the
+  // surface (composer, thread list, header, canvas).
   const threadView = useThreadView(
     organizationId,
     arenaActive ? undefined : viewThreadId,
     pendingSend,
     threadId,
+    { includeLiveText: false },
   );
   const generation = useChatGeneration(organizationId, viewThreadId);
   // Also answers for a project-shared conversation the caller may read but
@@ -893,11 +900,19 @@ function ChatSurfaceInner({
     edit: handleEditSubmitImpl,
     regenerate: handleRegenerateImpl,
     fork: handleForkImpl,
+    selectionChange: handleSelectionChange,
+    send: handleSend,
+    stop: handleStop,
+    voiceOutputChange: handleVoiceOutputChange,
   });
   rowHandlersRef.current = {
     edit: handleEditSubmitImpl,
     regenerate: handleRegenerateImpl,
     fork: handleForkImpl,
+    selectionChange: handleSelectionChange,
+    send: handleSend,
+    stop: handleStop,
+    voiceOutputChange: handleVoiceOutputChange,
   };
   const handleEditSubmit = useCallback(
     (message: ChatMessageView, text: string) =>
@@ -910,6 +925,23 @@ function ChatSurfaceInner({
   );
   const handleFork = useCallback(
     (message: ChatMessageView) => rowHandlersRef.current.fork(message),
+    [],
+  );
+  const stableSelectionChange = useCallback(
+    (next: ComposerSelection) => rowHandlersRef.current.selectionChange(next),
+    [],
+  );
+  const stableSend = useCallback(
+    (text: string) => rowHandlersRef.current.send(text),
+    [],
+  );
+  const stableStop = useCallback(() => rowHandlersRef.current.stop(), []);
+  const stableVoiceOutputChange = useCallback(
+    (next: boolean) => rowHandlersRef.current.voiceOutputChange(next),
+    [],
+  );
+  const stableOpenSkillLibrary = useCallback(
+    () => setSkillLibraryOpen(true),
     [],
   );
 
@@ -934,7 +966,7 @@ function ChatSurfaceInner({
         >
           <ThreadList
             organizationId={organizationId}
-            threads={threadsAvailable ? threads.data : []}
+            threads={threadsAvailable ? threads.data : NO_THREADS}
             activeThreadId={threadId}
             available={threadsAvailable}
           />
@@ -1047,15 +1079,13 @@ function ChatSurfaceInner({
                 {t('readOnlyShared')}
               </Text>
             )}
-            <MessageThread
-              messages={threadView.items}
-              generation={threadView.generation ?? undefined}
+            <ChatTranscript
               organizationId={organizationId}
               threadId={viewerIsOwner ? viewThreadId : undefined}
               threadRootId={threadId}
+              pendingSend={pendingSend}
               dataNoticeOrganizationId={organizationId}
               isGenerating={generationInFlight || pendingSend !== null}
-              pendingEditedFromThreadId={pendingSend?.editedFromThreadId}
               scrollIntentRef={scrollIntentRef}
               feedback={viewerIsOwner ? feedbackByMessage : undefined}
               forkGroups={viewerIsOwner ? forkGroups : undefined}
@@ -1070,8 +1100,7 @@ function ChatSurfaceInner({
               onFork={viewerIsOwner ? handleFork : undefined}
               voiceEnabled={voiceEnabled && viewerIsOwner}
               speakAvailable={speakAvailable}
-              // Clears the floating glass bar at rest; scrolled content still
-              // passes beneath its blur (overflow clips at the padding box).
+              // Clears the floating top bar at rest.
               className={viewerIsOwner ? 'md:pt-13' : undefined}
             />
           </Stack>
@@ -1163,9 +1192,9 @@ function ChatSurfaceInner({
             }
             selection={selection}
             degradedHarnesses={degradedHarnesses}
-            onSelectionChange={handleSelectionChange}
-            onSend={handleSend}
-            onStop={handleStop}
+            onSelectionChange={stableSelectionChange}
+            onSend={stableSend}
+            onStop={stableStop}
             generating={externalTurnInFlight}
             disabled={composerDisabled}
             // An open thread's agent is fixed for its life — switching agents
@@ -1188,9 +1217,9 @@ function ChatSurfaceInner({
               !threadsAvailable ||
               (threadId !== undefined && !messagesAvailable)
             }
-            onOpenSkillLibrary={() => setSkillLibraryOpen(true)}
+            onOpenSkillLibrary={stableOpenSkillLibrary}
             voiceOutput={voiceEnabled}
-            onVoiceOutputChange={handleVoiceOutputChange}
+            onVoiceOutputChange={stableVoiceOutputChange}
             voiceOutputHidden={voiceVetoed}
             voiceOutputAvailable={voiceCapabilities.hasTts}
             {...(arenaAvailable || pair !== null
