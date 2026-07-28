@@ -37,15 +37,13 @@ describe('Toaster', () => {
     expect(viewport?.textContent).toContain('Update available');
   });
 
-  // Regression (#1986): the viewport must clear the top header band, not sit
-  // flush against the top edge. A right-anchored Sheet's header lands in the
-  // top-right corner — the same spot as the toast — so a flush toast covered
-  // the panel title. The `4rem` top padding drops the first toast below that
-  // header band.
-  it('offsets the viewport below the top header band', () => {
+  // Regression (#2803): product toasts belong at the outer top-right, with the
+  // same outer gutter as the side edges and only the safe-area inset added on
+  // top.
+  it('anchors the viewport at the outer top-right gutter', () => {
     render(<Toaster />);
 
     const viewport = document.body.querySelector('ol');
-    expect(viewport?.className).toContain('pt-[calc(4rem+var(--safe-top))]');
+    expect(viewport?.className).toContain('pt-[calc(0.75rem+var(--safe-top))]');
   });
 });
