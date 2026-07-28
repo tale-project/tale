@@ -13,10 +13,10 @@ import { ConvexError } from 'convex/values';
 import { useEffect, useState } from 'react';
 
 import {
-  CapabilityMenu,
-  type CapabilityOption,
-  type CapabilitySelection,
-} from '@/app/components/capabilities/capability-menu';
+  SkillsMenu,
+  type SkillOption,
+  type SkillsSelection,
+} from '@/app/components/skills/skills-menu';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -50,8 +50,8 @@ interface ProjectAgentDialogProps {
   projectId: Id<'projects'>;
   harnesses: readonly HarnessOption[];
   models: readonly ModelOption[];
-  skills: readonly CapabilityOption[];
-  connectors: readonly CapabilityOption[];
+  skills: readonly SkillOption[];
+  connectors: readonly SkillOption[];
   /** The row being edited; absent = create. */
   agent?: ProjectAgentRow;
 }
@@ -59,7 +59,7 @@ interface ProjectAgentDialogProps {
 /** Mirrors the mutation's `PROJECT_AGENT_INSTRUCTIONS_MAX`. */
 const INSTRUCTIONS_MAX = 20_000;
 
-const EMPTY_BINDING: CapabilitySelection = { skills: [], connectors: [] };
+const EMPTY_BINDING: SkillsSelection = { skills: [], connectors: [] };
 
 export function ProjectAgentDialog({
   open,
@@ -216,7 +216,7 @@ export function ProjectAgentDialog({
         <Text variant="caption" className="font-medium">
           {t('agents.equipmentLabel')}
         </Text>
-        <CapabilityMenu
+        <SkillsMenu
           skills={skills}
           connectors={connectors}
           value={binding}

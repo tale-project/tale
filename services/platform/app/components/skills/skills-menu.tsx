@@ -7,7 +7,7 @@
  * surface (task agents…). One component so the surfaces can never drift.
  *
  * Both groups ALWAYS render. An empty group states why it is empty
- * (`capabilities.emptySkills` / `emptyConnectors` — the connectors hint names
+ * (`skills.emptySkills` / `emptyConnectors` — the connectors hint names
  * where to add a credential) instead of hiding: a silently missing group
  * reads as a bug, not as "nothing to equip". The menu only ASSEMBLES; what a
  * selection does is decided by the lane that runs the agent.
@@ -21,23 +21,23 @@ import { useMemo } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 /** One skill or connector on offer. */
-export interface CapabilityOption {
+export interface SkillOption {
   readonly slug: string;
   readonly label: string;
   readonly description?: string;
 }
 
 /** The assembled equipment: org skill slugs + enabled-connector slugs. */
-export interface CapabilitySelection {
+export interface SkillsSelection {
   readonly skills: readonly string[];
   readonly connectors: readonly string[];
 }
 
-interface CapabilityMenuProps {
-  skills: readonly CapabilityOption[];
-  connectors: readonly CapabilityOption[];
-  value: CapabilitySelection;
-  onChange: (next: CapabilitySelection) => void;
+interface SkillsMenuProps {
+  skills: readonly SkillOption[];
+  connectors: readonly SkillOption[];
+  value: SkillsSelection;
+  onChange: (next: SkillsSelection) => void;
   disabled?: boolean;
   /** Trigger styling per host surface (composer sits in a ghost toolbar). */
   variant?: 'ghost' | 'secondary';
@@ -53,7 +53,7 @@ function toggle(
   return values.filter((value) => value !== slug);
 }
 
-export function CapabilityMenu({
+export function SkillsMenu({
   skills,
   connectors,
   value,
@@ -61,7 +61,7 @@ export function CapabilityMenu({
   disabled,
   variant = 'secondary',
   align = 'end',
-}: CapabilityMenuProps) {
+}: SkillsMenuProps) {
   // The capability vocabulary lives in the chat namespace; every surface
   // shares it so the labels can never diverge between hosts.
   const { t } = useT('chat');
@@ -70,9 +70,9 @@ export function CapabilityMenu({
     const group = (
       section: string,
       empty: string,
-      options: readonly CapabilityOption[],
+      options: readonly SkillOption[],
       selected: readonly string[],
-      apply: (slugs: readonly string[]) => CapabilitySelection,
+      apply: (slugs: readonly string[]) => SkillsSelection,
     ): DropdownMenuGroup => [
       { type: 'label', content: section },
       ...(options.length === 0
@@ -95,15 +95,15 @@ export function CapabilityMenu({
 
     return [
       group(
-        t('capabilities.sectionSkills'),
-        t('capabilities.emptySkills'),
+        t('skills.sectionSkills'),
+        t('skills.emptySkills'),
         skills,
         value.skills,
         (slugs) => ({ skills: slugs, connectors: value.connectors }),
       ),
       group(
-        t('capabilities.sectionConnectors'),
-        t('capabilities.emptyConnectors'),
+        t('skills.sectionConnectors'),
+        t('skills.emptyConnectors'),
         connectors,
         value.connectors,
         (slugs) => ({ skills: value.skills, connectors: slugs }),
@@ -121,15 +121,15 @@ export function CapabilityMenu({
         <Button
           variant={variant}
           size="sm"
-          aria-label={t('capabilities.label')}
+          aria-label={t('skills.label')}
           aria-haspopup="menu"
           className="min-w-0"
         >
           <Blocks aria-hidden className="size-3.5 shrink-0" />
           <span className="truncate">
             {count > 0
-              ? t('capabilities.labelWithCount', { count })
-              : t('capabilities.label')}
+              ? t('skills.labelWithCount', { count })
+              : t('skills.label')}
           </span>
           <ChevronDown aria-hidden className="size-3.5 shrink-0" />
         </Button>

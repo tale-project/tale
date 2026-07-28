@@ -30,7 +30,6 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { CapabilityMenu } from '@/app/components/capabilities/capability-menu';
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
@@ -42,7 +41,7 @@ import {
   type SlashTrigger,
 } from '../hooks/use-slash-command';
 import type {
-  ComposerCapabilityOption,
+  ComposerSkillOption,
   ComposerModelOption,
   ComposerExternalAgentOption,
   ComposerSelection,
@@ -81,8 +80,8 @@ interface ComposerProps {
   /** Harness slugs the circuit breaker flags as recently failing. */
   degradedHarnesses?: ReadonlySet<string>;
   /** What a conversation can equip an external agent with. */
-  skills: readonly ComposerCapabilityOption[];
-  connectors: readonly ComposerCapabilityOption[];
+  skills: readonly ComposerSkillOption[];
+  connectors: readonly ComposerSkillOption[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   onSend: (text: string) => void;
@@ -394,31 +393,11 @@ export function Composer({
             selection={selection}
             onSelectionChange={onSelectionChange}
             disabled={disabled}
+            skills={skills}
+            connectors={connectors}
             lockAgent={lockAgent}
             {...(degradedHarnesses !== undefined ? { degradedHarnesses } : {})}
           />
-          {selection.agentKind === 'external' && (
-            <>
-              {/* An external agent is also equipped per conversation: org
-                  skills and enabled connectors, provisioned into its sandbox
-                  session. */}
-              <CapabilityMenu
-                skills={skills}
-                connectors={connectors}
-                value={selection}
-                onChange={(next) =>
-                  onSelectionChange({
-                    ...selection,
-                    skills: next.skills,
-                    connectors: next.connectors,
-                  })
-                }
-                disabled={disabled}
-                variant="ghost"
-                align="start"
-              />
-            </>
-          )}
         </Row>
 
         <Row gap={1} align="center" className="shrink-0">

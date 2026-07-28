@@ -10,7 +10,7 @@ import {
   useChatGeneration,
   useChatMessages,
   useChatThreads,
-  useComposerCapabilities,
+  useComposerSkills,
   useComposerModels,
 } from './chat-backend';
 import { storeComposerCatalog } from './composer-catalog-store';
@@ -176,7 +176,7 @@ describe('useChatQuery session cache', () => {
 });
 
 function CapabilitiesProbe({ org }: { org: string }) {
-  const capabilities = useComposerCapabilities(org);
+  const capabilities = useComposerSkills(org);
   return (
     <output>
       {capabilities.status === 'ready'
@@ -229,7 +229,7 @@ describe('useComposerModels device store', () => {
   });
 });
 
-describe('useComposerCapabilities session cache', () => {
+describe('useComposerSkills session cache', () => {
   it('serves the cached catalog on remount and keeps it through a failed refresh', async () => {
     const catalog = {
       skills: [{ slug: 'docx', label: 'Word documents' }],

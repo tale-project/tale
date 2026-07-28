@@ -1284,9 +1284,9 @@ chat:
     descriptionMember: Demande à ton administrateur d'espace de travail de
       connecter un fournisseur IA.
     action: Ouvrir les fournisseurs d’IA
-  capabilities:
-    label: Capacités
-    labelWithCount: Capacités ({count})
+  skills:
+    label: Skills
+    labelWithCount: Skills ({count})
     sectionSkills: Skills
     sectionConnectors: Connecteurs
     emptySkills: Aucun skill dans cette organisation pour l’instant.
@@ -4969,7 +4969,7 @@ settings:
           exécutions, parcourir les versions, poser et retirer les
           déclencheurs.
       capability:
-        title: Capacités & connaissances
+        title: Skills & connaissances
         description: La surface propre à l'organisation — chercher ce qu'elle
           sait faire, invoquer une capacité, récupérer des connaissances.
     exampleTitle: Essaie

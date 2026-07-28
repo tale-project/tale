@@ -4,7 +4,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 // Whether the rendered viewer could open Settings → AI providers; the
@@ -65,7 +65,7 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
   return {
     ...original,
     useComposerModels: vi.fn(() => ({ status: 'unavailable' as const })),
-    useComposerCapabilities: vi.fn(() => ({
+    useComposerSkills: vi.fn(() => ({
       status: 'unavailable' as const,
     })),
     useChatThreads: vi.fn(() => ({ status: 'unavailable' as const })),
@@ -79,7 +79,7 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
       preference: { status: 'unavailable' as const },
       save: vi.fn(),
     })),
-    useThreadCapabilities: vi.fn(() => ({
+    useThreadSkills: vi.fn(() => ({
       available: false,
       save: vi.fn(),
     })),
@@ -91,9 +91,9 @@ import {
   useChatModelPreference,
   useChatSend,
   useChatThreads,
-  useComposerCapabilities,
+  useComposerSkills,
   useComposerModels,
-  useThreadCapabilities,
+  useThreadSkills,
 } from '../data/chat-backend';
 import { useThreadView } from '../hooks/use-thread-view';
 import { ChatSurface } from './chat-surface';
@@ -126,10 +126,10 @@ afterEach(() => {
     preference: { status: 'unavailable' as const },
     save: vi.fn(),
   }));
-  vi.mocked(useComposerCapabilities).mockImplementation(() => ({
+  vi.mocked(useComposerSkills).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
-  vi.mocked(useThreadCapabilities).mockImplementation(() => ({
+  vi.mocked(useThreadSkills).mockImplementation(() => ({
     available: false,
     save: vi.fn(),
   }));
@@ -728,7 +728,7 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
         voice: { ttsAvailable: false },
       },
     });
-    vi.mocked(useComposerCapabilities).mockReturnValue({
+    vi.mocked(useComposerSkills).mockReturnValue({
       status: 'ready',
       data: {
         skills: [],
@@ -750,14 +750,18 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
       <ChatSurface organizationId="org-1" threadId="t-sbx" />,
     );
 
+    await user.click(
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+    );
+    // The stored pick counts on the Connectors row once the thread hydrates.
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Capabilities' }),
-      ).toHaveTextContent('Capabilities (1)');
+        screen.getByRole('menuitem', { name: /^Connectors/ }),
+      ).toHaveTextContent('1');
     });
-    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
+    await user.click(screen.getByRole('menuitem', { name: /^Connectors/ }));
     expect(
-      screen.getByRole('menuitemcheckbox', { name: 'GitHub' }),
+      await screen.findByRole('menuitemcheckbox', { name: 'GitHub' }),
     ).toBeChecked();
     expect(
       screen.getByRole('menuitemcheckbox', { name: 'Tavily' }),
@@ -766,7 +770,7 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
 
   it('persists a toggle made mid-conversation onto the thread', async () => {
     const save = vi.fn();
-    vi.mocked(useThreadCapabilities).mockReturnValue({
+    vi.mocked(useThreadSkills).mockReturnValue({
       available: true,
       save,
     });
@@ -775,13 +779,18 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
       <ChatSurface organizationId="org-1" threadId="t-sbx" />,
     );
 
+    await user.click(
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+    );
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Capabilities' }),
-      ).toHaveTextContent('Capabilities (1)');
+        screen.getByRole('menuitem', { name: /^Connectors/ }),
+      ).toHaveTextContent('1');
     });
-    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
-    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Tavily' }));
+    await user.click(screen.getByRole('menuitem', { name: /^Connectors/ }));
+    fireEvent.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Tavily' }),
+    );
 
     expect(save).toHaveBeenCalledWith('t-sbx', {
       skills: [],

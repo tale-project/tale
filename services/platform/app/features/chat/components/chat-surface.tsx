@@ -62,11 +62,11 @@ import {
   useChatSend,
   useChatThread,
   useChatThreads,
-  useComposerCapabilities,
+  useComposerSkills,
   useComposerModels,
   useHarnessHealth,
   useThreadBranches,
-  useThreadCapabilities,
+  useThreadSkills,
   useThreadReasoningEffort,
   useThreadFeedback,
   useVoiceMode,
@@ -226,11 +226,11 @@ function ChatSurfaceInner({
     openThread.data === null ||
     openThread.data.viewerIsOwner !== false;
   const composerOptions = useComposerModels(organizationId);
-  const capabilityCatalog = useComposerCapabilities(organizationId);
+  const capabilityCatalog = useComposerSkills(organizationId);
   const harnessHealth = useHarnessHealth(organizationId);
   const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
-  const threadCapabilities = useThreadCapabilities(organizationId);
+  const threadCapabilities = useThreadSkills(organizationId);
   const threadReasoningEffort = useThreadReasoningEffort(organizationId);
   const branchActions = useBranchActions(organizationId);
 

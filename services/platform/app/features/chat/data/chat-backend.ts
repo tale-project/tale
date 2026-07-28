@@ -55,7 +55,7 @@ import type {
   ChatMessageView,
   ChatProjectSummary,
   ChatThreadSummary,
-  ComposerCapabilityOption,
+  ComposerSkillOption,
 } from '../types';
 import {
   readStoredComposerCatalog,
@@ -599,8 +599,8 @@ export function useChatAgents(
 }
 
 interface ComposerCapabilityCatalog {
-  readonly skills: readonly ComposerCapabilityOption[];
-  readonly connectors: readonly ComposerCapabilityOption[];
+  readonly skills: readonly ComposerSkillOption[];
+  readonly connectors: readonly ComposerSkillOption[];
 }
 
 /**
@@ -630,7 +630,7 @@ export function invalidateComposerCapabilitiesCache(
  * `unavailable` instead of offering picks nothing could serve — unless a
  * previous answer exists, which then keeps serving.
  */
-export function useComposerCapabilities(
+export function useComposerSkills(
   organizationId: string,
 ): ChatQuery<ComposerCapabilityCatalog> {
   const convex = useConvex();
@@ -894,7 +894,7 @@ export function useThreadProjectMove(organizationId: string): {
  * model preference: a lost write costs one re-toggle, never a blocked send.
  * `available` mirrors the reads for a provider-less render.
  */
-export function useThreadCapabilities(organizationId: string): {
+export function useThreadSkills(organizationId: string): {
   readonly available: boolean;
   readonly save: (
     threadId: string,

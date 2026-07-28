@@ -1282,9 +1282,9 @@ chat:
       dann kann der Chat losgehen.
     descriptionMember: Bitte deinen Workspace-Admin, einen KI-Anbieter zu verbinden.
     action: KI-Anbieter öffnen
-  capabilities:
-    label: Fähigkeiten
-    labelWithCount: Fähigkeiten ({count})
+  skills:
+    label: Skills
+    labelWithCount: Skills ({count})
     sectionSkills: Skills
     sectionConnectors: Connectors
     emptySkills: Noch keine Skills in dieser Organisation.

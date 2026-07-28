@@ -36,6 +36,7 @@ import type {
   ComposerExternalAgentOption,
   ComposerModelOption,
   ComposerSelection,
+  ComposerSkillOption,
 } from '../types';
 
 /** Explicit key map so the i18n usage check sees every catalog key. */
@@ -70,6 +71,11 @@ interface ComposerSelectionPickerProps {
    * the external model group marks as active. */
   externalSelection: ComposerSelection;
   externalAgents: readonly ComposerExternalAgentOption[];
+  /** Skills and connectors the conversation can equip — for EVERY agent
+   * kind: the platform lane injects equipped skills into its context, the
+   * sandbox lane stages them into its session. */
+  skills: readonly ComposerSkillOption[];
+  connectors: readonly ComposerSkillOption[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   disabled?: boolean;
@@ -84,6 +90,8 @@ export function ComposerSelectionPicker({
   externalModels,
   externalSelection,
   externalAgents,
+  skills,
+  connectors,
   selection,
   onSelectionChange,
   disabled,
@@ -265,9 +273,68 @@ export function ComposerSelectionPicker({
       ]);
     }
 
+    // What the conversation equips its agent with — skills and connectors,
+    // as checkbox submenus that keep the menu open while assembling.
+    const equipSub = (
+      label: string,
+      emptyHint: string,
+      options: readonly ComposerSkillOption[],
+      picked: readonly string[],
+      write: (slugs: readonly string[]) => void,
+    ): DropdownMenuItem => ({
+      type: 'sub',
+      label,
+      ...(picked.length > 0 ? { trailing: String(picked.length) } : {}),
+      contentClassName: 'max-w-72',
+      items: [
+        options.length === 0
+          ? [
+              {
+                type: 'label',
+                content: (
+                  <span className="text-muted-foreground block max-w-60 text-xs leading-snug font-normal normal-case">
+                    {emptyHint}
+                  </span>
+                ),
+              },
+            ]
+          : options.map(
+              (option): DropdownMenuItem => ({
+                type: 'checkbox',
+                label: option.label,
+                checked: picked.includes(option.slug),
+                onCheckedChange: (next) =>
+                  write(
+                    next
+                      ? [...picked, option.slug]
+                      : picked.filter((slug) => slug !== option.slug),
+                  ),
+              }),
+            ),
+      ],
+    });
+    groups.push([
+      equipSub(
+        t('skills.sectionSkills'),
+        t('skills.emptySkills'),
+        skills,
+        selection.skills,
+        (slugs) => onSelectionChange({ ...selection, skills: slugs }),
+      ),
+      equipSub(
+        t('skills.sectionConnectors'),
+        t('skills.emptyConnectors'),
+        connectors,
+        selection.connectors,
+        (slugs) => onSelectionChange({ ...selection, connectors: slugs }),
+      ),
+    ]);
+
     return groups;
   }, [
     platformModels,
+    skills,
+    connectors,
     externalAgents,
     externalModels,
     externalSelection,

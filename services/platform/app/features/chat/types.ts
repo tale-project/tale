@@ -190,7 +190,7 @@ export interface ChatAgentOption {
 export type ComposerAgentKind = 'platform' | 'external';
 
 /** A skill or connector a conversation can equip its agent with. */
-export interface ComposerCapabilityOption {
+export interface ComposerSkillOption {
   readonly slug: string;
   readonly label: string;
   readonly description?: string;

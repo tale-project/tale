@@ -6,7 +6,7 @@ import { ConfigIcon } from '@/app/components/catalog/config-icon';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { ComposerCapabilityOption } from '../types';
+import type { ComposerSkillOption } from '../types';
 
 /**
  * The `/` command's listbox, floated above the composer textarea. Pure
@@ -25,7 +25,7 @@ export function SlashCommandPopover({
   optionId,
 }: {
   listboxId: string;
-  options: readonly ComposerCapabilityOption[];
+  options: readonly ComposerSkillOption[];
   highlightedIndex: number;
   onHighlight: (index: number) => void;
   onSelect: (slug: string) => void;

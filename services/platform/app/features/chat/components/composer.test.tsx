@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import type {
-  ComposerCapabilityOption,
+  ComposerSkillOption,
   ComposerModelOption,
   ComposerExternalAgentOption,
   ComposerSelection,
@@ -50,13 +50,11 @@ const EXTERNAL: ComposerSelection = {
   connectors: [],
 };
 
-const SKILLS: ComposerCapabilityOption[] = [
+const SKILLS: ComposerSkillOption[] = [
   { slug: 'visual-aspect-analyzer', label: 'visual-aspect-analyzer' },
 ];
 
-const CONNECTORS: ComposerCapabilityOption[] = [
-  { slug: 'slack', label: 'Slack' },
-];
+const CONNECTORS: ComposerSkillOption[] = [{ slug: 'slack', label: 'Slack' }];
 
 /** Renders the composer with real selection state so picks stick. */
 function renderComposer({
@@ -72,8 +70,8 @@ function renderComposer({
 }: {
   models?: ComposerModelOption[];
   externalAgents?: ComposerExternalAgentOption[];
-  skills?: ComposerCapabilityOption[];
-  connectors?: ComposerCapabilityOption[];
+  skills?: ComposerSkillOption[];
+  connectors?: ComposerSkillOption[];
   initial?: ComposerSelection;
   onSend?: (text: string) => void;
   generating?: boolean;
@@ -157,9 +155,6 @@ describe('Composer agent picker', () => {
     });
     expect(trigger).toHaveTextContent('Codex');
     expect(trigger).toHaveTextContent(API_KEY_MODEL.label);
-    expect(
-      screen.getByRole('button', { name: 'Capabilities' }),
-    ).toBeInTheDocument();
   });
 
   it('returns to the platform agent and its model picker', async () => {
@@ -178,43 +173,74 @@ describe('Composer agent picker', () => {
   });
 });
 
-describe('Composer capability assembly', () => {
+describe('Composer skill assembly', () => {
+  const openSub = async (
+    user: ReturnType<typeof renderComposer>['user'],
+    name: RegExp,
+  ) => {
+    await user.click(
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+    );
+    // The pick count trails inside the row, so it concatenates into the
+    // accessible name ("Skills1") — match by prefix.
+    await user.click(screen.getByRole('menuitem', { name }));
+  };
+
   it('offers skills and connectors to an external agent, and toggles stick', async () => {
     const { user, selection } = renderComposer({ initial: EXTERNAL });
 
-    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
-
-    expect(screen.getByText('Skills')).toBeInTheDocument();
-    expect(screen.getByText('Connectors')).toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole('menuitemcheckbox', { name: 'visual-aspect-analyzer' }),
+    await openSub(user, /^Skills/);
+    fireEvent.click(
+      await screen.findByRole('menuitemcheckbox', {
+        name: 'visual-aspect-analyzer',
+      }),
     );
-    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Slack' }));
-
     expect(selection().skills).toEqual(['visual-aspect-analyzer']);
+
+    await user.click(screen.getByRole('menuitem', { name: /^Connectors/ }));
+    fireEvent.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Slack' }),
+    );
     expect(selection().connectors).toEqual(['slack']);
 
     // Unchecking removes; the other pick is untouched.
-    await user.click(
-      screen.getByRole('menuitemcheckbox', { name: 'visual-aspect-analyzer' }),
+    await user.click(screen.getByRole('menuitem', { name: /^Skills/ }));
+    fireEvent.click(
+      await screen.findByRole('menuitemcheckbox', {
+        name: 'visual-aspect-analyzer',
+      }),
     );
     expect(selection().skills).toEqual([]);
     expect(selection().connectors).toEqual(['slack']);
   });
 
-  it('counts the assembly on the trigger', async () => {
+  it('offers the same assembly to the platform agent', async () => {
+    const { user, selection } = renderComposer();
+
+    await openSub(user, /^Skills/);
+    fireEvent.click(
+      await screen.findByRole('menuitemcheckbox', {
+        name: 'visual-aspect-analyzer',
+      }),
+    );
+
+    expect(selection()).toMatchObject({
+      agentKind: 'platform',
+      skills: ['visual-aspect-analyzer'],
+    });
+  });
+
+  it('counts the picks on the submenu rows', async () => {
     const { user } = renderComposer({
       initial: { ...EXTERNAL, skills: ['visual-aspect-analyzer'] },
     });
 
-    expect(
-      screen.getByRole('button', { name: 'Capabilities' }),
-    ).toHaveTextContent('Capabilities (1)');
-    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
-    expect(
-      screen.getByRole('menuitemcheckbox', { name: 'visual-aspect-analyzer' }),
-    ).toBeChecked();
+    await user.click(
+      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+    );
+    expect(screen.getByRole('menuitem', { name: /Skills/ })).toHaveTextContent(
+      '1',
+    );
   });
 
   it('shows both groups when empty, each stating why it is empty', async () => {
@@ -224,22 +250,17 @@ describe('Composer capability assembly', () => {
       connectors: [],
     });
 
-    await user.click(screen.getByRole('button', { name: 'Capabilities' }));
-
+    await openSub(user, /^Skills/);
     // Skills stage into the session, so their group shows even when empty.
     expect(
-      screen.getByText('No skills in this organization yet.'),
+      await screen.findByText('No skills in this organization yet.'),
     ).toBeInTheDocument();
     // Connectors are credential-gated: an org with none sees WHERE to add one
-    // instead of a silently missing group (which reads as a bug, not as
-    // "nothing to equip").
-    expect(screen.getByText(/No connectors enabled yet/)).toBeInTheDocument();
-  });
-
-  it('offers no capability menu to the platform agent — that lane comes with the tool loop', () => {
-    renderComposer();
-
-    expect(screen.queryByRole('button', { name: 'Capabilities' })).toBeNull();
+    // instead of a silently missing group.
+    await user.click(screen.getByRole('menuitem', { name: /^Connectors/ }));
+    expect(
+      await screen.findByText(/No connectors enabled yet/),
+    ).toBeInTheDocument();
   });
 });
 
@@ -492,7 +513,7 @@ describe('Composer accessibility', () => {
 });
 
 describe('Composer slash command', () => {
-  const SLASH_SKILLS: ComposerCapabilityOption[] = [
+  const SLASH_SKILLS: ComposerSkillOption[] = [
     { slug: 'pdf', label: 'pdf', description: 'Work with PDFs' },
     { slug: 'write-docs', label: 'write-docs' },
     { slug: 'agent-only', label: 'agent-only', usageMode: 'agent' },

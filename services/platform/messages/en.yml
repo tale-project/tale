@@ -1237,9 +1237,9 @@ chat:
     descriptionAdmin: Connect a provider under Settings → AI providers to start chatting.
     descriptionMember: Ask your workspace admin to connect an AI provider.
     action: Open AI providers
-  capabilities:
-    label: Capabilities
-    labelWithCount: Capabilities ({count})
+  skills:
+    label: Skills
+    labelWithCount: Skills ({count})
     sectionSkills: Skills
     sectionConnectors: Connectors
     emptySkills: No skills in this organization yet.
@@ -5067,7 +5067,7 @@ settings:
         description: Operate what is deployed — start and poll durable runs,
           browse versions, bind and unbind triggers.
       capability:
-        title: Capabilities & knowledge
+        title: Skills & knowledge
         description: This organization's own surface — search what it can do,
           invoke one capability, retrieve knowledge.
     exampleTitle: Try it
