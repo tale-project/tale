@@ -62,6 +62,7 @@ import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
@@ -421,6 +422,54 @@ export interface ExecuteTurnOverrides {
   readonly deps?: Partial<TurnDeps>;
 }
 
+/** Turns never carry more equipped skills than this — the picker is a
+ * per-conversation assembly, not a library dump. */
+const EQUIPPED_SKILLS_MAX = 8;
+
+/**
+ * Load the equipped skills' instructions for the DIRECT lane — the
+ * counterpart of the sandbox lane's staged bundles. Visibility and the chat
+ * usage-mode gate run inside `readSkill`; a skill that fails to load is
+ * skipped, never a blocked turn.
+ */
+async function loadEquippedSkills(
+  ctx: ActionCtx,
+  organizationId: string,
+  userId: string,
+  slugs: readonly string[],
+): Promise<Array<{ slug: string; instructions: string }>> {
+  if (slugs.length === 0) return [];
+  try {
+    const orgSlug = await orgSlugFromId(ctx, organizationId);
+    const viewer = await ctx.runQuery(
+      internal.skills.viewer_context.getUserSkillViewerContext,
+      { organizationId, userId },
+    );
+    if (viewer === null) return [];
+    const out: Array<{ slug: string; instructions: string }> = [];
+    for (const slug of slugs.slice(0, EQUIPPED_SKILLS_MAX)) {
+      const doc = await ctx.runAction(internal.skills.file_actions.readSkill, {
+        orgSlug,
+        slug,
+        viewer: {
+          kind: 'user',
+          userId,
+          teamIds: viewer.teamIds,
+          isOrgAdmin: viewer.isOrgAdmin,
+        },
+        surface: 'chat',
+      });
+      if (doc !== null && doc.body.length > 0) {
+        out.push({ slug, instructions: doc.body });
+      }
+    }
+    return out;
+  } catch (error) {
+    console.warn('[chat] equipped skills could not load', error);
+    return [];
+  }
+}
+
 /**
  * Run one turn end to end: load the thread's history, resolve the model and
  * ports, and hand everything to the pure pipeline. Kept as a plain async
@@ -458,17 +507,18 @@ export async function executeTurn(
     Math.max(0, windowTokens - sampling.maxTokens),
     MAX_HISTORY_BUDGET_TOKENS,
   );
-  const { messages: stored, omittedCount } = await ctx.runQuery(
-    internal.chat.messages.listRecentForTurnInternal,
-    {
-      organizationId: args.organizationId,
-      threadId: args.threadId,
-      // Twice the token budget at ~4 chars/token: enough slack that the
-      // token-exact fit happens in assembly, not here.
-      maxChars: historyTokenBudget * 4 * 2,
-      maxRows: 500,
-    },
-  );
+  const {
+    messages: stored,
+    omittedCount,
+    equippedSkills: equippedSlugs,
+  } = await ctx.runQuery(internal.chat.messages.listRecentForTurnInternal, {
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+    // Twice the token budget at ~4 chars/token: enough slack that the
+    // token-exact fit happens in assembly, not here.
+    maxChars: historyTokenBudget * 4 * 2,
+    maxRows: 500,
+  });
   // A resend re-runs the trailing user message: its text becomes the turn's
   // input, it leaves the history (the context assembly re-appends the input
   // as the newest turn), and the pipeline skips persisting it again.
@@ -504,12 +554,20 @@ export async function executeTurn(
     ...overrides.deps,
   };
 
+  const equippedSkills = await loadEquippedSkills(
+    ctx,
+    args.organizationId,
+    args.userId,
+    equippedSlugs,
+  );
+
   const request: TurnRequest = {
     organizationId: args.organizationId,
     userId: args.userId,
     threadId: args.threadId,
     userText,
     history,
+    ...(equippedSkills.length > 0 ? { equippedSkills } : {}),
     locale: args.locale,
     model: resolved.entry,
     ...(args.reasoningEffort !== undefined

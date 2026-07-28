@@ -133,13 +133,16 @@ export const listRecentForTurnInternal = internalQuery({
   returns: v.object({
     messages: v.array(messageViewValidator),
     omittedCount: v.number(),
+    /** The conversation's equipped skill slugs — the direct lane injects
+     * their instructions into the turn's context. */
+    equippedSkills: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
     const threadId = ctx.db.normalizeId('threads', args.threadId);
-    if (!threadId) return { messages: [], omittedCount: 0 };
+    if (!threadId) return { messages: [], omittedCount: 0, equippedSkills: [] };
     const thread = await ctx.db.get(threadId);
     if (!thread || thread.organizationId !== args.organizationId) {
-      return { messages: [], omittedCount: 0 };
+      return { messages: [], omittedCount: 0, equippedSkills: [] };
     }
 
     const recent = [];
@@ -167,6 +170,7 @@ export const listRecentForTurnInternal = internalQuery({
         createdAt: message.createdAt,
       })),
       omittedCount: recent[0]?.sequence ?? 0,
+      equippedSkills: thread.capabilities?.skills ?? [],
     };
   },
 });

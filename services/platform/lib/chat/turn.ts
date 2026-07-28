@@ -33,7 +33,12 @@ import {
 } from '../shared/providers/resolve_execution';
 import type { ModelCatalogEntry } from '../shared/schemas/providers';
 import { assembleContext, type AssembledContext } from './context';
-import type { AgentInstructions, ContextBudget, ToolDoc } from './context';
+import type {
+  AgentInstructions,
+  ContextBudget,
+  EquippedSkill,
+  ToolDoc,
+} from './context';
 import {
   resolveTurnSampling,
   type ReasoningEffort,
@@ -196,6 +201,9 @@ export interface TurnRequest {
   readonly isSubAgentTurn?: boolean;
   readonly mandatoryInstructions?: string;
   readonly toolDocs?: readonly ToolDoc[];
+  /** The skills the conversation equipped, with their instructions — the
+   * direct lane's counterpart to the sandbox lane's staged bundles. */
+  readonly equippedSkills?: readonly EquippedSkill[];
   /** The explicitly chosen model. Never inferred. */
   readonly model: ModelCatalogEntry;
   /** The user's reasoning-effort pick for this turn. Absent — and any pick on
@@ -313,6 +321,9 @@ export function assembleTurnContext(
     agent: request.agent,
     locale: request.locale,
     toolDocs: request.toolDocs,
+    ...(request.equippedSkills !== undefined
+      ? { equippedSkills: request.equippedSkills }
+      : {}),
     now,
     history,
     ...(request.historyOmittedCount !== undefined
