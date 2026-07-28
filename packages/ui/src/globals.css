@@ -331,6 +331,28 @@
     --tw-shadow-color: rgb(255 255 255 / 0.06);
   }
 
+  /* A control that can be pressed shows the hand. Tailwind v4's Preflight sets
+     `cursor: default` on buttons (v3 set `pointer`), and the shared Button /
+     IconButton primitives each re-added `cursor-pointer` — which quietly left
+     every hand-rolled `<button>` in the app pointing an arrow at something
+     unmistakably clickable: a deliverable row, a disclosure header, a comment
+     action. Restoring it here fixes the class of bug instead of its instances.
+
+     This is `base`, so any utility still wins: a row that is deliberately inert
+     keeps its `cursor-default`, and the primitives' `disabled:cursor-not-allowed`
+     keeps overriding the pointer. The `not-allowed` pair below carries the same
+     courtesy to raw controls, which have no primitive to inherit it from. */
+  button:not(:disabled):not([aria-disabled='true']),
+  [role='button']:not(:disabled):not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  button[aria-disabled='true'],
+  [role='button'][aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
   /* `html`/`body` use `100vh` (the LARGE viewport) so the page can draw into
      the iOS home-indicator band. By default iOS standalone reports
      `innerHeight` as the SMALL viewport (excluding ~34px of home-indicator
