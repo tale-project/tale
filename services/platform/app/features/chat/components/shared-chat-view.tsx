@@ -71,7 +71,9 @@ export function SharedChatView({
           })}
         </Text>
       </Stack>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* MessageThread owns the scrolling — a second scroller here would
+          nest two and strand the jump-to-bottom affordance. */}
+      <div className="flex min-h-0 flex-1 flex-col">
         <MessageThread messages={toSettledItems(shared.messages)} />
       </div>
     </Stack>

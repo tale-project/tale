@@ -12,7 +12,7 @@
  */
 
 import { Text } from '@tale/ui/text';
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
 import { useThreadView } from '../../hooks/use-thread-view';
 import { MessageThread } from '../message-thread';
@@ -26,7 +26,7 @@ interface ArenaColumnProps {
   headerExtra?: ReactNode;
 }
 
-export function ArenaColumn({
+export const ArenaColumn = memo(function ArenaColumn({
   organizationId,
   threadId,
   label,
@@ -54,4 +54,4 @@ export function ArenaColumn({
       />
     </section>
   );
-}
+});

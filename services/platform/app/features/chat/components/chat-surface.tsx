@@ -198,9 +198,16 @@ function ChatSurfaceInner({
   // each send (true = instant, for the first message; 'smooth' = the
   // retargeting glide for follow-ups and edits).
   const scrollIntentRef = useRef<boolean | 'smooth'>(false);
+  // Arena pair first: while a pair is live the columns own their thread
+  // views, and the surface's own view (below) steps aside entirely.
+  const arenaPair = useArenaPair(organizationId, viewThreadId);
+  const pair = arenaPair.status === 'ready' ? arenaPair.data : null;
+  const arenaActive = pair !== null;
+  // In arena mode the columns own their thread views — the surface skips
+  // its own so a streamed token in either column never re-renders it.
   const threadView = useThreadView(
     organizationId,
-    viewThreadId,
+    arenaActive ? undefined : viewThreadId,
     pendingSend,
     threadId,
   );
@@ -329,8 +336,6 @@ function ChatSurfaceInner({
   // clears it — every tab at once. Column A's model is the composer's own
   // pick; column B's lives here, seeded to the first other direct model.
   const { locale } = useLocale();
-  const arenaPair = useArenaPair(organizationId, viewThreadId);
-  const pair = arenaPair.status === 'ready' ? arenaPair.data : null;
   const arenaActions = useArenaActions(organizationId);
   const [arenaModelB, setArenaModelB] = useState<
     { id: string; providerSlug: string } | undefined
