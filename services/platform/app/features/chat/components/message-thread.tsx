@@ -4,9 +4,8 @@
  * The conversation: every message in `sequence` order, followed by the live
  * turn's status.
  *
- * Generation state comes from ONE fact — a generation object exists for the
- * thread, or it does not. The row also names the assistant message the turn
- * streams into, which is how exactly one item renders as live. The transcript
+ * Rows arrive as `ChatMessageItem`s from the thread-view merge, which owns
+ * the streaming facts — each item already knows whether it is live. The transcript
  * is a `role="log"` region (the e2e contract), so assistive technology hears
  * new entries without losing its place; the explicit status region below it
  * narrates the queued/streaming/waiting states.
@@ -27,7 +26,11 @@ import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { ChatGenerationView, ChatMessageView } from '../types';
+import type {
+  ChatGenerationView,
+  ChatMessageItem,
+  ChatMessageView,
+} from '../types';
 import { MessageItem, type MessageForkGroupView } from './message-item';
 
 /** The catalog key describing each generation status, in one place. */
@@ -39,7 +42,7 @@ const GENERATION_STATUS_KEY: Record<ChatGenerationView['status'], string> = {
 };
 
 interface MessageThreadProps {
-  messages: readonly ChatMessageView[];
+  messages: readonly ChatMessageItem[];
   /** Present exactly while a turn is in flight. */
   generation?: ChatGenerationView | null;
   /** The conversation being rendered. Absent on surfaces without
@@ -62,19 +65,6 @@ interface MessageThreadProps {
   /** The org can synthesize at all — gates the "Speak out loud" action. */
   speakAvailable?: boolean;
   className?: string;
-}
-
-/** Which message the live turn is writing: the one the generation row names,
- * or — for a row that has not learned its message yet — the trailing
- * assistant message. */
-function streamingMessageId(
-  messages: readonly ChatMessageView[],
-  generation: ChatGenerationView | null | undefined,
-): string | undefined {
-  if (!generation) return undefined;
-  if (generation.messageId !== undefined) return generation.messageId;
-  const last = messages.at(-1);
-  return last?.role === 'assistant' ? last.id : undefined;
 }
 
 export function MessageThread({
@@ -122,8 +112,6 @@ export function MessageThread({
     if (!awayFromBottom) scrollToBottom();
   }, [messages, awayFromBottom, scrollToBottom]);
 
-  const streamingId = streamingMessageId(messages, generation);
-
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
@@ -139,10 +127,9 @@ export function MessageThread({
         <Stack as="ol" gap={3} className="mx-auto w-full max-w-3xl px-4 py-6">
           {messages.map((message, index) => (
             <MessageItem
-              key={message.id}
+              key={message.key}
               message={message}
               isLast={index === messages.length - 1}
-              isStreaming={message.id === streamingId}
               organizationId={organizationId}
               threadId={threadId}
               feedbackRating={feedback?.get(message.id)}

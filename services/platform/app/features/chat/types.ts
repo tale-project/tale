@@ -97,6 +97,37 @@ export interface ChatMessageView {
 }
 
 /**
+ * One thread-view row as the conversation renders it: the message view plus
+ * the streaming facts the thread-view hook resolves from the live generation.
+ * Rows come from `useThreadView`, which holds object identity across pushes —
+ * a row's reference changes only when a field a component renders changed.
+ */
+export interface ChatMessageItem extends ChatMessageView {
+  /** Stable React key. Real rows use their id; the optimistic rows the send
+   * path inserts before the server ack use synthetic `pending-*` keys. */
+  readonly key: string;
+  /**
+   * The message's plain text (text parts joined). For the row a live turn is
+   * writing this is the in-flight streamed text, which lives on the
+   * generation row — the message row's own parts stay empty until finalize.
+   */
+  readonly text: string;
+  /** The model's reasoning ("thinking") text, while and after it streams. */
+  readonly reasoningText?: string;
+  /** True while the live turn is writing this row. Latched: a transient
+   * subscription gap never flaps it off mid-stream. */
+  readonly isStreaming: boolean;
+  /**
+   * True on a row that finished streaming during this mount: the reveal
+   * animation drains to the end instead of the settled text popping in, and
+   * settle-gated chrome (the toolbar) can wait for the drain.
+   */
+  readonly isFinalReveal: boolean;
+  /** True for the optimistic rows the send path inserts before the ack. */
+  readonly isPendingShell?: boolean;
+}
+
+/**
  * The live turn. The existence of this object IS the "is generating" signal —
  * it mirrors the `generations` row, which is deleted when the turn settles.
  */

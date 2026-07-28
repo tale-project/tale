@@ -12,6 +12,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
+import { toSettledItems } from '../lib/thread-view-core';
 import { MessageThread } from './message-thread';
 
 /**
@@ -71,7 +72,7 @@ export function SharedChatView({
         </Text>
       </Stack>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <MessageThread messages={shared.messages} />
+        <MessageThread messages={toSettledItems(shared.messages)} />
       </div>
     </Stack>
   );

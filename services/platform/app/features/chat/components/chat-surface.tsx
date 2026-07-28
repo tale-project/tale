@@ -54,7 +54,6 @@ import {
   useArenaPair,
   useCanvasSources,
   useChatGeneration,
-  useChatMessages,
   useChatModelPreference,
   useChatSend,
   useChatThread,
@@ -70,6 +69,7 @@ import {
 import { useThreadActions } from '../data/thread-actions';
 import { useThreadSharing } from '../data/thread-sharing';
 import { useVoiceActions } from '../data/voice-actions';
+import { useThreadView } from '../hooks/use-thread-view';
 import { useVoiceCapabilities } from '../hooks/use-voice-capabilities';
 import {
   useVoiceAudioElement,
@@ -182,7 +182,7 @@ function ChatSurfaceInner({
   );
   const viewThreadId = threadId !== undefined ? viewPath.at(-1) : undefined;
 
-  const messages = useChatMessages(organizationId, viewThreadId);
+  const threadView = useThreadView(organizationId, viewThreadId);
   const generation = useChatGeneration(organizationId, viewThreadId);
   // Also answers for a project-shared conversation the caller may read but
   // not write — everything that composes or mutates gates on this.
@@ -467,7 +467,7 @@ function ChatSurfaceInner({
   };
 
   const threadsAvailable = threads.status === 'ready';
-  const messagesAvailable = messages.status === 'ready';
+  const messagesAvailable = threadView.status === 'ready';
   // The model listing ANSWERED and came back empty: the org has no active
   // provider credential, so nothing could reply. Only the index shows the
   // setup guidance — with a thread open, a missing conversation is a
@@ -512,7 +512,7 @@ function ChatSurfaceInner({
   const composerDisabled =
     !chatSend.available ||
     threads.status === 'unavailable' ||
-    (threadId !== undefined && messages.status === 'unavailable') ||
+    (threadId !== undefined && threadView.status === 'unavailable') ||
     // A project-shared conversation someone else owns is read-only here.
     !viewerIsOwner ||
     needsProviderSetup;
@@ -704,7 +704,7 @@ function ChatSurfaceInner({
   const handleRegenerate = (message: ChatMessageView) => {
     if (viewThreadId === undefined || selection.modelId === undefined) return;
     const parentId = viewThreadId;
-    const rows = messages.status === 'ready' ? messages.data : [];
+    const rows = threadView.items;
     const prompt = rows
       .toReversed()
       .find((row) => row.role === 'user' && row.sequence < message.sequence);
@@ -887,10 +887,8 @@ function ChatSurfaceInner({
               </Text>
             )}
             <MessageThread
-              messages={messages.data}
-              generation={
-                generation.status === 'ready' ? generation.data : undefined
-              }
+              messages={threadView.items}
+              generation={threadView.generation ?? undefined}
               organizationId={organizationId}
               threadId={viewerIsOwner ? viewThreadId : undefined}
               feedback={viewerIsOwner ? feedbackByMessage : undefined}
@@ -912,7 +910,7 @@ function ChatSurfaceInner({
             />
           </Stack>
         ) : threadId !== undefined ? (
-          messages.status === 'unavailable' ? (
+          threadView.status === 'unavailable' ? (
             <EmptyState
               icon={PlugZap}
               title={t('backendUnavailable.title')}

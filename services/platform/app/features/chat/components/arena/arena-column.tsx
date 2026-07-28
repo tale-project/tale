@@ -14,7 +14,7 @@
 import { Text } from '@tale/ui/text';
 import type { ReactNode } from 'react';
 
-import { useChatGeneration, useChatMessages } from '../../data/chat-backend';
+import { useThreadView } from '../../hooks/use-thread-view';
 import { MessageThread } from '../message-thread';
 
 interface ArenaColumnProps {
@@ -32,8 +32,7 @@ export function ArenaColumn({
   label,
   headerExtra,
 }: ArenaColumnProps) {
-  const messages = useChatMessages(organizationId, threadId);
-  const generation = useChatGeneration(organizationId, threadId);
+  const view = useThreadView(organizationId, threadId);
 
   return (
     <section
@@ -48,8 +47,8 @@ export function ArenaColumn({
         {headerExtra}
       </div>
       <MessageThread
-        messages={messages.status === 'ready' ? messages.data : []}
-        generation={generation.status === 'ready' ? generation.data : undefined}
+        messages={view.items}
+        generation={view.generation ?? undefined}
         organizationId={organizationId}
         threadId={threadId}
       />

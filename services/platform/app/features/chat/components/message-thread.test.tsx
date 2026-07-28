@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
+import { toSettledItems } from '../lib/thread-view-core';
 import type { ChatMessageView } from '../types';
 import { MessageThread } from './message-thread';
 
@@ -55,7 +56,7 @@ const CONVERSATION: ChatMessageView[] = [
 
 describe('MessageThread', () => {
   it('renders every part of a message in authored order', () => {
-    render(<MessageThread messages={CONVERSATION} />);
+    render(<MessageThread messages={toSettledItems(CONVERSATION)} />);
 
     const items = screen.getAllByRole('listitem');
     const assistant = items[1];
@@ -78,7 +79,7 @@ describe('MessageThread', () => {
   });
 
   it('names an attachment part', () => {
-    render(<MessageThread messages={CONVERSATION} />);
+    render(<MessageThread messages={toSettledItems(CONVERSATION)} />);
 
     expect(screen.getByText('Attachment: report.pdf')).toBeInTheDocument();
   });
@@ -86,7 +87,7 @@ describe('MessageThread', () => {
   it('marks an undecided approval as pending and a decided one by its decision', () => {
     render(
       <MessageThread
-        messages={[
+        messages={toSettledItems([
           {
             ...CONVERSATION[1],
             parts: [
@@ -98,7 +99,7 @@ describe('MessageThread', () => {
               },
             ],
           },
-        ]}
+        ])}
       />,
     );
 
@@ -109,7 +110,7 @@ describe('MessageThread', () => {
   it('explains a message a guardrail stopped instead of showing an empty turn', () => {
     render(
       <MessageThread
-        messages={[
+        messages={toSettledItems([
           {
             id: 'm3',
             role: 'assistant',
@@ -118,7 +119,7 @@ describe('MessageThread', () => {
             parts: [],
             blockedReason: 'contained personal data',
           },
-        ]}
+        ])}
       />,
     );
 
@@ -138,7 +139,12 @@ describe('MessageThread', () => {
 
 describe('MessageThread generation state', () => {
   it('says nothing while no turn is in flight', () => {
-    render(<MessageThread messages={CONVERSATION} generation={null} />);
+    render(
+      <MessageThread
+        messages={toSettledItems(CONVERSATION)}
+        generation={null}
+      />,
+    );
 
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
@@ -146,7 +152,7 @@ describe('MessageThread generation state', () => {
   it('announces the streaming turn politely', () => {
     render(
       <MessageThread
-        messages={CONVERSATION}
+        messages={toSettledItems(CONVERSATION)}
         generation={{ status: 'streaming' }}
       />,
     );
@@ -159,7 +165,7 @@ describe('MessageThread generation state', () => {
   it('says what a waiting turn is blocked on', () => {
     render(
       <MessageThread
-        messages={CONVERSATION}
+        messages={toSettledItems(CONVERSATION)}
         generation={{ status: 'waiting-approval', waitingOn: 'an approval' }}
       />,
     );
@@ -172,7 +178,7 @@ describe('MessageThread generation state', () => {
 
 describe('MessageThread transcript contract', () => {
   it('exposes the transcript as a labelled log with per-message testids', () => {
-    render(<MessageThread messages={CONVERSATION} />);
+    render(<MessageThread messages={toSettledItems(CONVERSATION)} />);
 
     const log = screen.getByRole('log', { name: 'Message history' });
     const items = within(log).getAllByTestId('chat-message');
@@ -185,7 +191,7 @@ describe('MessageThread transcript contract', () => {
   it('renders assistant text as markdown and user text as written', () => {
     render(
       <MessageThread
-        messages={[
+        messages={toSettledItems([
           {
             id: 'u1',
             role: 'user',
@@ -200,7 +206,7 @@ describe('MessageThread transcript contract', () => {
             createdAt: 2,
             parts: [{ type: 'text', text: 'some **bold** text' }],
           },
-        ]}
+        ])}
       />,
     );
 
@@ -210,7 +216,7 @@ describe('MessageThread transcript contract', () => {
   });
 
   it('offers Copy and Show info under a settled assistant message', () => {
-    render(<MessageThread messages={CONVERSATION} />);
+    render(<MessageThread messages={toSettledItems(CONVERSATION)} />);
 
     expect(screen.getByTestId('message-copy-button')).toBeInTheDocument();
     expect(screen.getByTestId('message-info-button')).toBeInTheDocument();
@@ -220,13 +226,17 @@ describe('MessageThread transcript contract', () => {
     render(
       <MessageThread
         messages={[
-          ...CONVERSATION,
+          ...toSettledItems(CONVERSATION),
           {
             id: 'm9',
+            key: 'm9',
             role: 'assistant',
             sequence: 9,
             createdAt: 9,
             parts: [],
+            text: '',
+            isStreaming: true,
+            isFinalReveal: false,
           },
         ]}
         generation={{ status: 'queued', messageId: 'm9' }}
@@ -245,7 +255,7 @@ describe('MessageThread accessibility', () => {
   it('passes an axe audit', async () => {
     const { container } = render(
       <MessageThread
-        messages={CONVERSATION}
+        messages={toSettledItems(CONVERSATION)}
         generation={{ status: 'streaming' }}
       />,
     );

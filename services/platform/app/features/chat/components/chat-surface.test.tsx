@@ -29,6 +29,15 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // send write. The defaults mirror the provider-less test environment
 // (everything unavailable); suites override per scenario and the shared
 // afterEach below restores the defaults.
+vi.mock('../hooks/use-thread-view', () => ({
+  useThreadView: vi.fn(() => ({
+    status: 'unavailable' as const,
+    items: [],
+    generation: null,
+    streamingMessageId: undefined,
+  })),
+}));
+
 vi.mock('../data/chat-backend', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('../data/chat-backend')>();
@@ -39,7 +48,6 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
       status: 'unavailable' as const,
     })),
     useChatThreads: vi.fn(() => ({ status: 'unavailable' as const })),
-    useChatMessages: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatGeneration: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatSend: vi.fn(() => ({
       available: false,
@@ -59,7 +67,6 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
 
 import {
   useChatGeneration,
-  useChatMessages,
   useChatModelPreference,
   useChatSend,
   useChatThreads,
@@ -67,6 +74,7 @@ import {
   useComposerModels,
   useThreadCapabilities,
 } from '../data/chat-backend';
+import { useThreadView } from '../hooks/use-thread-view';
 import { ChatSurface } from './chat-surface';
 
 afterEach(() => {
@@ -78,8 +86,11 @@ afterEach(() => {
   vi.mocked(useChatThreads).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
-  vi.mocked(useChatMessages).mockImplementation(() => ({
+  vi.mocked(useThreadView).mockImplementation(() => ({
     status: 'unavailable' as const,
+    items: [],
+    generation: null,
+    streamingMessageId: undefined,
   }));
   vi.mocked(useChatGeneration).mockImplementation(() => ({
     status: 'unavailable' as const,
@@ -214,7 +225,12 @@ describe('ChatSurface when the model listing answers and is empty', () => {
 describe('ChatSurface while its reads are still loading', () => {
   beforeEach(() => {
     vi.mocked(useChatThreads).mockReturnValue({ status: 'loading' as const });
-    vi.mocked(useChatMessages).mockReturnValue({ status: 'loading' as const });
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'loading',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+    });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready' as const,
       data: {
@@ -519,7 +535,12 @@ describe('ChatSurface on an open sandbox thread', () => {
         },
       ],
     });
-    vi.mocked(useChatMessages).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+    });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
       data: {
@@ -655,7 +676,12 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
         },
       ],
     });
-    vi.mocked(useChatMessages).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+    });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
       data: {

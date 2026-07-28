@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils/cn';
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
 import { useVoiceOutputChunker } from '../hooks/use-voice-output';
 import { messagePlainText } from '../lib/message-text';
-import type { ChatMessageView } from '../types';
+import type { ChatMessageItem, ChatMessageView } from '../types';
 import { BranchNavigator } from './branch-navigator';
 import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
@@ -44,10 +44,8 @@ export interface MessageForkGroupView {
 }
 
 interface MessageItemProps {
-  message: ChatMessageView;
+  message: ChatMessageItem;
   isLast: boolean;
-  /** True while the live turn streams into this message. */
-  isStreaming: boolean;
   /** The conversation the message belongs to. Absent on surfaces that carry
    * no per-message actions needing it (a shared snapshot). */
   organizationId?: string;
@@ -73,7 +71,6 @@ interface MessageItemProps {
 export function MessageItem({
   message,
   isLast,
-  isStreaming,
   organizationId,
   threadId,
   feedbackRating,
@@ -109,7 +106,6 @@ export function MessageItem({
         <AssistantBody
           message={message}
           isLast={isLast}
-          isStreaming={isStreaming}
           organizationId={organizationId}
           threadId={threadId}
           feedbackRating={feedbackRating}
@@ -239,7 +235,6 @@ function UserBubble({
 function AssistantBody({
   message,
   isLast,
-  isStreaming,
   organizationId,
   threadId,
   feedbackRating,
@@ -249,9 +244,8 @@ function AssistantBody({
   speakAvailable,
   isFreshSinceMount,
 }: {
-  message: ChatMessageView;
+  message: ChatMessageItem;
   isLast: boolean;
-  isStreaming: boolean;
   organizationId?: string;
   threadId?: string;
   feedbackRating?: 'positive' | 'negative';
@@ -261,7 +255,7 @@ function AssistantBody({
   speakAvailable?: boolean;
   isFreshSinceMount?: boolean;
 }) {
-  const text = messagePlainText(message.parts);
+  const { text, isStreaming } = message;
   const waitingForFirstToken = isStreaming && text.length === 0;
 
   // Auto-voice: reads the reply aloud as it streams (fresh messages only —
@@ -305,7 +299,11 @@ function AssistantBody({
       {waitingForFirstToken ? (
         <ThinkingDots />
       ) : (
-        <MessageMarkdown parts={message.parts} isStreaming={isStreaming} />
+        <MessageMarkdown
+          text={text}
+          parts={message.parts}
+          isStreaming={isStreaming}
+        />
       )}
       {/* The toolbar arrives when the turn settles — the live region below
           the transcript narrates the in-flight states. */}
