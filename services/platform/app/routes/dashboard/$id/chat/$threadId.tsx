@@ -1,9 +1,13 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ChatSurface } from '@/app/features/chat/components/chat-surface';
 import { api } from '@/convex/_generated/api';
 
+/**
+ * One open conversation. The surface itself is rendered by the parent layout
+ * route (navigating between threads and the index only changes its props);
+ * this route contributes the warm-up loader.
+ */
 export const Route = createFileRoute('/dashboard/$id/chat/$threadId')({
   // Warm the thread's messages without blocking the transition — the seam
   // reads the same Convex client, so its first snapshot answers warm. The
@@ -17,11 +21,5 @@ export const Route = createFileRoute('/dashboard/$id/chat/$threadId')({
       }),
     );
   },
-  component: ChatThreadRoute,
+  component: () => null,
 });
-
-/** One open conversation. */
-function ChatThreadRoute() {
-  const { id, threadId } = Route.useParams();
-  return <ChatSurface organizationId={id} threadId={threadId} />;
-}
