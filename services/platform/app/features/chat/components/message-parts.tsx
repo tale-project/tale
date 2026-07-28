@@ -65,10 +65,10 @@ export function MessageParts({
         switch (part.type) {
           case 'text':
             return markdown ? (
-              <MarkdownContent key={index} content={part.text} />
+              <MarkdownContent key={`text:${index}`} content={part.text} />
             ) : (
               <p
-                key={index}
+                key={`text:${index}`}
                 className="text-foreground text-sm leading-relaxed whitespace-pre-wrap"
               >
                 {part.text}
@@ -77,7 +77,7 @@ export function MessageParts({
           case 'attachment':
             return (
               <PartRow
-                key={index}
+                key={`attachment:${part.name}:${index}`}
                 icon={Paperclip}
                 label={t('parts.attachment', { name: part.name })}
                 detail={part.mediaType}
@@ -86,7 +86,7 @@ export function MessageParts({
           case 'tool-call':
             return (
               <PartRow
-                key={index}
+                key={`call:${part.callId}`}
                 icon={Wrench}
                 label={t('parts.toolCall', { tool: part.capabilityId })}
               />
@@ -94,7 +94,7 @@ export function MessageParts({
           case 'tool-result':
             return (
               <PartRow
-                key={index}
+                key={`result:${part.callId}`}
                 icon={Wrench}
                 label={t('parts.toolResult', { tool: part.capabilityId })}
               />
@@ -102,7 +102,7 @@ export function MessageParts({
           case 'approval':
             return (
               <PartRow
-                key={index}
+                key={`approval:${part.approvalId}`}
                 icon={ShieldQuestion}
                 label={part.question}
                 trailing={
@@ -119,7 +119,7 @@ export function MessageParts({
           case 'human-input':
             return (
               <PartRow
-                key={index}
+                key={`input:${part.requestId}`}
                 icon={UserRoundPen}
                 label={part.question}
                 detail={part.answer}

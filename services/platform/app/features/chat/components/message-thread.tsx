@@ -20,7 +20,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowDown, MessageSquare } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useT } from '@/lib/i18n/client';
@@ -67,7 +67,7 @@ interface MessageThreadProps {
   className?: string;
 }
 
-export function MessageThread({
+export const MessageThread = memo(function MessageThread({
   messages,
   generation,
   organizationId,
@@ -191,4 +191,4 @@ export function MessageThread({
       )}
     </div>
   );
-}
+});

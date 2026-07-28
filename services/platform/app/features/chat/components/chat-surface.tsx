@@ -36,7 +36,7 @@ import {
   PlugZap,
   Share2,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
 import { SkillLibraryDialog } from '@/app/features/skills/components/skill-library-dialog';
@@ -208,11 +208,16 @@ function ChatSurfaceInner({
   const branchActions = useBranchActions(organizationId);
 
   // The circuit-breaker set: harnesses the health signal flags as recently
-  // failing, so the agent picker can mark them.
-  const degradedHarnesses = new Set(
-    harnessHealth.status === 'ready'
-      ? harnessHealth.data.filter((h) => h.degraded).map((h) => h.harness)
-      : [],
+  // failing, so the agent picker can mark them. Memoized — a fresh Set per
+  // render would defeat every memo boundary it flows into.
+  const degradedHarnesses = useMemo(
+    () =>
+      new Set(
+        harnessHealth.status === 'ready'
+          ? harnessHealth.data.filter((h) => h.degraded).map((h) => h.harness)
+          : [],
+      ),
+    [harnessHealth],
   );
   const modelPreference = useChatModelPreference(organizationId);
 
@@ -734,7 +739,7 @@ function ChatSurfaceInner({
 
   // Edit = a sibling branch carrying the history BEFORE the edited message;
   // the edited text is then sent into it through the normal turn.
-  const handleEditSubmit = (message: ChatMessageView, text: string) => {
+  const handleEditSubmitImpl = (message: ChatMessageView, text: string) => {
     if (viewThreadId === undefined) return;
     const parentId = viewThreadId;
     void branchActions.branchForEdit(parentId, message.id).then((branchId) => {
@@ -749,7 +754,7 @@ function ChatSurfaceInner({
 
   // Try again = a sibling branch carrying the history THROUGH the prompt the
   // reply answered, re-run first-class (no synthetic edit).
-  const handleRegenerate = (message: ChatMessageView) => {
+  const handleRegenerateImpl = (message: ChatMessageView) => {
     if (viewThreadId === undefined || selection.modelId === undefined) return;
     const parentId = viewThreadId;
     const rows = threadView.items;
@@ -786,7 +791,7 @@ function ChatSurfaceInner({
 
   // Fork = a VISIBLE copy of the conversation up to a message — a new chat
   // of its own, unlike the hidden siblings above.
-  const handleFork = (message: ChatMessageView) => {
+  const handleForkImpl = (message: ChatMessageView) => {
     if (viewThreadId === undefined) return;
     const title = t('forkOf', {
       title: activeThread?.title ?? t('history.untitled'),
@@ -805,6 +810,34 @@ function ChatSurfaceInner({
         });
       });
   };
+
+  // Stable identities for the per-row handlers: the row memo compares them,
+  // and a fresh closure per render would re-render every row on every push.
+  // The trampoline reads the LATEST implementation from a render-refreshed
+  // ref, so stability never means staleness.
+  const rowHandlersRef = useRef({
+    edit: handleEditSubmitImpl,
+    regenerate: handleRegenerateImpl,
+    fork: handleForkImpl,
+  });
+  rowHandlersRef.current = {
+    edit: handleEditSubmitImpl,
+    regenerate: handleRegenerateImpl,
+    fork: handleForkImpl,
+  };
+  const handleEditSubmit = useCallback(
+    (message: ChatMessageView, text: string) =>
+      rowHandlersRef.current.edit(message, text),
+    [],
+  );
+  const handleRegenerate = useCallback(
+    (message: ChatMessageView) => rowHandlersRef.current.regenerate(message),
+    [],
+  );
+  const handleFork = useCallback(
+    (message: ChatMessageView) => rowHandlersRef.current.fork(message),
+    [],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-row">

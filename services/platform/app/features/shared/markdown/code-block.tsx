@@ -134,11 +134,29 @@ export function CodeBlock({
     };
   }, []);
 
+  // Follow growth one frame at a time: reveal ticks arrive at animation
+  // rate, and an unconditional scrollTop write per tick forces layout every
+  // time — coalescing into a single rAF keeps the follow at frame cost.
+  const followRafRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (followRafRef.current !== null) {
+        cancelAnimationFrame(followRafRef.current);
+      }
+    };
+  }, []);
   useEffect(() => {
     const pre = preRef.current;
-    if (pre && stickToBottomRef.current) {
-      pre.scrollTop = pre.scrollHeight;
-    }
+    if (!pre || !stickToBottomRef.current) return;
+    if (pre.scrollHeight <= pre.clientHeight) return;
+    if (followRafRef.current !== null) return;
+    followRafRef.current = requestAnimationFrame(() => {
+      followRafRef.current = null;
+      const current = preRef.current;
+      if (current && stickToBottomRef.current) {
+        current.scrollTop = current.scrollHeight;
+      }
+    });
   }, [children]);
 
   const handleCopy = async () => {

@@ -14,7 +14,14 @@
 
 import { Button } from '@tale/ui/button';
 import { Pencil, TriangleAlert } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
@@ -35,6 +42,12 @@ import { VoiceOutputIndicator } from './voice-output-indicator';
  * scrollbar honest while off-screen items stay unrendered. */
 const HISTORY_CONTENT_VISIBILITY =
   '[content-visibility:auto] [contain-intrinsic-size:auto_200px]';
+
+/** Breathing room between the last revealed segment and the toolbar's
+ * arrival, so the chrome never lands inside the settling text. */
+const TOOLBAR_REVEAL_DELAY_MS = 450;
+/** A reveal that never reports completion still frees the toolbar. */
+const REVEAL_SAFETY_TIMEOUT_MS = 10_000;
 
 /** The ‹ n/m › state of the fork point AT this message, when one exists. */
 export interface MessageForkGroupView {
@@ -68,7 +81,7 @@ interface MessageItemProps {
   isFreshSinceMount?: boolean;
 }
 
-export function MessageItem({
+function MessageItemComponent({
   message,
   isLast,
   organizationId,
@@ -134,6 +147,30 @@ export function MessageItem({
     </li>
   );
 }
+
+/**
+ * The row memo: the identity seam upstream hands back the SAME item reference
+ * unless a rendered field changed, so the first check settles almost every
+ * row on a streamed tick. The remaining props are scalars or
+ * identity-stabilized by the surface; `forkGroup` compares by identity
+ * because its map rebuilds only on branch changes, never mid-stream.
+ */
+export const MessageItem = memo(
+  MessageItemComponent,
+  (prevProps, nextProps) =>
+    prevProps.message === nextProps.message &&
+    prevProps.isLast === nextProps.isLast &&
+    prevProps.organizationId === nextProps.organizationId &&
+    prevProps.threadId === nextProps.threadId &&
+    prevProps.feedbackRating === nextProps.feedbackRating &&
+    prevProps.forkGroup === nextProps.forkGroup &&
+    prevProps.onEditSubmit === nextProps.onEditSubmit &&
+    prevProps.onRegenerate === nextProps.onRegenerate &&
+    prevProps.onFork === nextProps.onFork &&
+    prevProps.voiceEnabled === nextProps.voiceEnabled &&
+    prevProps.speakAvailable === nextProps.speakAvailable &&
+    prevProps.isFreshSinceMount === nextProps.isFreshSinceMount,
+);
 
 /** The user's turn: a right-aligned bubble, clamped when it runs long, with
  * the edit affordance and the fork navigator underneath. */
@@ -258,6 +295,27 @@ function AssistantBody({
   const { text, isStreaming } = message;
   const waitingForFirstToken = isStreaming && text.length === 0;
 
+  // The toolbar waits for the REVEAL to finish, not just the stream: the
+  // buffered typewriter keeps writing after the turn settles, and a toolbar
+  // mounting mid-drain is pushed down by every revealed segment. History
+  // rows mount settled and skip the wait.
+  const [revealDone, setRevealDone] = useState(
+    () => !message.isStreaming && !message.isFinalReveal,
+  );
+  const handleRevealComplete = useCallback(() => {
+    window.setTimeout(() => setRevealDone(true), TOOLBAR_REVEAL_DELAY_MS);
+  }, []);
+  useEffect(() => {
+    // Safety valve: a settled row whose reveal never reports completion (a
+    // hidden tab froze the rAF loop) still gets its toolbar.
+    if (revealDone || isStreaming) return undefined;
+    const timer = window.setTimeout(
+      () => setRevealDone(true),
+      REVEAL_SAFETY_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [revealDone, isStreaming]);
+
   // Auto-voice: reads the reply aloud as it streams (fresh messages only —
   // the fresh gate keeps a revisited thread from re-reading history). The
   // hook renders nothing and idles unless enabled.
@@ -296,18 +354,23 @@ function AssistantBody({
           organizationId={organizationId}
         />
       )}
-      {waitingForFirstToken ? (
-        <ThinkingDots />
-      ) : (
-        <MessageMarkdown
-          text={text}
-          parts={message.parts}
-          isStreaming={isStreaming}
-        />
-      )}
-      {/* The toolbar arrives when the turn settles — the live region below
+      {/* One persistent wrapper across the dots → text transition, so the
+          swap never collapses the row's box. */}
+      <div className="min-h-5 w-full min-w-0">
+        {waitingForFirstToken ? (
+          <ThinkingDots />
+        ) : (
+          <MessageMarkdown
+            text={text}
+            parts={message.parts}
+            isStreaming={isStreaming}
+            onRevealComplete={revealDone ? undefined : handleRevealComplete}
+          />
+        )}
+      </div>
+      {/* The toolbar arrives when the REVEAL settles — the live region below
           the transcript narrates the in-flight states. */}
-      {!isStreaming && (
+      {!isStreaming && revealDone && (
         <MessageToolbar
           message={message}
           alwaysVisible={isLast}
