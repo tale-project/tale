@@ -1,8 +1,8 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ChevronRight, FileText, Upload } from 'lucide-react';
+import { FolderInput, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -21,6 +21,7 @@ import {
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
 import { splitFolderFiles } from '../lib/folder-files';
+import { FileOpenButton } from './file-open-button';
 
 /**
  * The FILES zone of an automation-owned task bound to a project folder: the
@@ -31,17 +32,27 @@ import { splitFolderFiles } from '../lib/folder-files';
  * looks.
  *
  * Everything the Outcome zone promotes is left to it, and everything else stays
- * here — a run's working material is folded away, never hidden. The body starts
- * open while the folder is empty (uploading IS the next step) and collapsed once
- * files exist (the deliverables are what a reviewer came for); a manual toggle
- * always wins, so the zone never folds itself away under the operator when an
- * upload lands. Long folders list the first `MAX_LISTED` and expand on "+N
- * more", and every row opens the file — the same card behaviour the pre-rewrite
- * desk had.
+ * here — a run's working material is shortened, never hidden.
+ *
+ * ALWAYS OPEN, like the Outcome zone it sits beside: a heading with the count,
+ * the first `MAX_LISTED` names, "+N more" for the rest, then the drop target. A
+ * disclosure that collapsed itself as soon as files existed hid the count's own
+ * subject AND the place to put more input behind a click, and made two adjacent
+ * lists of the same folder's files look like two different kinds of thing.
+ *
+ * Every file owns a LINE, and only its NAME is the target ({@link
+ * FileOpenButton}) — a full-width row painted a hover band across the column for
+ * a target three words wide. Which few names show is {@link splitFolderFiles}'s
+ * preview order: the operator's uploads before the run's derived material, so
+ * the zone answers "did my upload land?" instead of listing `.ocr.json`.
  */
 
-/** Rows listed before the "+N more" toggle. */
-const MAX_LISTED = 8;
+/**
+ * Names listed before the "+N more" toggle. A few, deliberately: every file owns
+ * a line, and a quarter's folder runs to two dozen, so a preview that showed
+ * eight pushed the deliverables below the fold to list working material.
+ */
+const MAX_LISTED = 5;
 export function TaskInputFilesCard({
   organizationId,
   projectId,
@@ -71,8 +82,6 @@ export function TaskInputFilesCard({
     api.documents.mutations.createDocumentFromUpload,
   );
   const [uploading, setUploading] = useState(false);
-  // null = follow the data (open while the folder is empty); a toggle pins it.
-  const [openOverride, setOpenOverride] = useState<boolean | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(
     null,
@@ -82,7 +91,6 @@ export function TaskInputFilesCard({
     () => splitFolderFiles(documentsQuery.data ?? [], folderId, contract).rest,
     [documentsQuery.data, folderId, contract],
   );
-  const open = openOverride ?? files.length === 0;
   const listed = showAll ? files : files.slice(0, MAX_LISTED);
 
   const uploadFiles = async (picked: File[]) => {
@@ -135,94 +143,83 @@ export function TaskInputFilesCard({
   };
 
   return (
-    <Stack as="section" gap={0} className="border-border rounded-lg border">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpenOverride(!open)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
-      >
-        <FileText
+    <Stack as="section" gap={2}>
+      <Row gap={2}>
+        {/* A folder, not a document: this zone IS the project folder the run
+            reads, and the arrow into it says which way input travels. */}
+        <FolderInput
           className="text-muted-foreground size-4 shrink-0"
           aria-hidden
         />
-        <Text as="span" variant="label">
+        {/* Semibold: the two file zones are what an automation-owned task is
+            FOR, so they title themselves a step louder than the task-admin
+            sections below them (Subtasks, Comments, Activity). */}
+        <Text as="h3" variant="label" className="font-semibold">
           {t('inputFiles.titleWithCount', { count: files.length })}
         </Text>
-        <ChevronRight
-          className={`text-muted-foreground ml-auto size-4 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
-          aria-hidden
-        />
-      </button>
-      {open && (
-        <Stack gap={2} className="px-3 pt-1 pb-3">
-          {files.length === 0 ? (
-            <Text as="p" variant="muted">
-              {t('inputFiles.empty', { name: automationName })}
-            </Text>
-          ) : (
-            <ul className="flex flex-col gap-0.5">
-              {listed.map((document) => {
-                const name = document.title ?? t('inputFiles.untitled');
-                return (
-                  <li key={document._id} className="flex min-w-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPreview({ id: String(document._id), name })
-                      }
-                      className="hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
-                      aria-label={t('inputFiles.open', { name })}
-                    >
-                      <FileText
-                        className="text-muted-foreground size-4 shrink-0"
-                        aria-hidden
-                      />
-                      <span className="truncate">{name}</span>
-                    </button>
-                  </li>
-                );
-              })}
-              {files.length > MAX_LISTED && (
-                <li>
-                  <button
-                    type="button"
-                    aria-expanded={showAll}
-                    onClick={() => setShowAll((value) => !value)}
-                    className="focus-visible:ring-ring text-muted-foreground rounded-md px-2 py-1 text-left text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
-                  >
-                    {showAll
-                      ? t('inputFiles.showLess')
-                      : t('inputFiles.more', {
-                          count: files.length - MAX_LISTED,
-                        })}
-                  </button>
-                </li>
-              )}
-            </ul>
-          )}
-          {canEdit && (
-            <FileUpload.Root>
-              <FileUpload.DropZone
-                onFilesSelected={(picked) => void uploadFiles(picked)}
-                accept={DOCUMENT_UPLOAD_ACCEPT}
-                multiple
-                disabled={uploading}
-                inputId="task-input-files-upload"
-                aria-label={t('inputFiles.title')}
-                className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed p-4 transition-colors"
+      </Row>
+      {files.length === 0 ? (
+        <Text as="p" variant="muted">
+          {t('inputFiles.empty', { name: automationName })}
+        </Text>
+      ) : (
+        <ul className="flex min-w-0 flex-col items-start gap-2">
+          {listed.map((document) => {
+            const name = document.title ?? t('inputFiles.untitled');
+            return (
+              <li key={document._id} className="flex max-w-full min-w-0">
+                <FileOpenButton
+                  name={name}
+                  label={t('inputFiles.open', { name })}
+                  onOpen={() => setPreview({ id: String(document._id), name })}
+                />
+              </li>
+            );
+          })}
+          {/* Its own line under the list, not trailing the last name: it acts on
+              the WHOLE list, and inline it read as a sibling of the file beside
+              it. Underlined at rest for the same reason — a toggle among file
+              names has to look unlike a file name. */}
+          {files.length > MAX_LISTED && (
+            <li>
+              <button
+                type="button"
+                aria-expanded={showAll}
+                onClick={() => setShowAll((value) => !value)}
+                className="focus-visible:ring-ring text-muted-foreground rounded-md px-1.5 py-0.5 text-left text-sm underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
               >
-                <Upload className="text-muted-foreground size-5" aria-hidden />
-                <Text as="p" variant="muted" className="text-xs">
-                  {uploading
-                    ? t('inputFiles.uploading')
-                    : t('inputFiles.dropHint')}
-                </Text>
-                <FileUpload.Overlay />
-              </FileUpload.DropZone>
-            </FileUpload.Root>
+                {showAll
+                  ? t('inputFiles.showLess')
+                  : t('inputFiles.more', {
+                      count: files.length - MAX_LISTED,
+                    })}
+              </button>
+            </li>
           )}
-        </Stack>
+        </ul>
+      )}
+      {canEdit && (
+        <FileUpload.Root>
+          {/* One compact drop row, whatever the folder holds. The zone is
+              always open now, so a 90px dashed box would sit on every task
+              forever; a single line is target enough to drop onto and to
+              click. */}
+          <FileUpload.DropZone
+            onFilesSelected={(picked) => void uploadFiles(picked)}
+            accept={DOCUMENT_UPLOAD_ACCEPT}
+            multiple
+            disabled={uploading}
+            inputId="task-input-files-upload"
+            aria-label={t('inputFiles.title')}
+            className="hover:border-primary/50 relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2 transition-colors"
+          >
+            <Upload className="text-muted-foreground size-4" aria-hidden />
+            <Text as="p" variant="muted" className="text-xs">
+              {uploading ? t('inputFiles.uploading') : t('inputFiles.dropHint')}
+            </Text>
+            <FileUpload.Overlay />
+          </FileUpload.DropZone>
+        </FileUpload.Root>
       )}
       <DocumentPreviewDialog
         open={preview !== null}

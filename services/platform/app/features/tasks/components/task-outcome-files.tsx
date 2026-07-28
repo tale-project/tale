@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
 import { splitFolderFiles } from '../lib/folder-files';
+import { FileOpenButton } from './file-open-button';
 
 /**
  * The OUTCOME zone of an automation-owned task bound to a project folder: the
@@ -68,7 +69,7 @@ export function TaskOutcomeFilesCard({
           className="text-muted-foreground size-4 shrink-0"
           aria-hidden
         />
-        <Text as="h3" variant="label">
+        <Text as="h3" variant="label" className="font-semibold">
           {t('outcome.title')}
         </Text>
         {pending > 0 && (
@@ -81,17 +82,18 @@ export function TaskOutcomeFilesCard({
           the first look at the task, so a reviewer knows what a run will
           produce before it produces it.
 
-          ONE layout, promised or filed — a quiet line-up of rows, never a
-          framed and divided list. Framing the filed state turned three
-          deliverables into what reads as a table (a table of what? there is one
-          column), and it made the zone restyle itself the moment a run landed,
-          so the same three rows looked like two different things depending on
-          when you opened the task. This is `main`'s OutcomeStrip behaviour:
-          plain rows in a flex column, with the row idiom of the Files zone
-          directly above it — the act is identical (open this file), so the
-          affordance must be too. */}
+          ONE layout, promised or filed, and never a framed and divided list —
+          framing the filed state turned three deliverables into what reads as a
+          table (of what? there is one column) and made the zone restyle itself
+          the moment a run landed.
+
+          A file always owns its line, exactly as in the Files zone above: a
+          deliverable is a thing to open and to name in conversation, not a tag
+          in a row of tags, and names of unequal length packed onto one line have
+          no scan order at all. What the line does NOT do is act as the target —
+          that is the name itself ({@link FileOpenButton}). */}
       <ul
-        className="flex min-w-0 flex-col gap-0.5"
+        className="flex min-w-0 flex-col items-start gap-2"
         {...(pending > 0 ? { role: 'status' } : {})}
       >
         {outcome.map((slot, index) => {
@@ -99,26 +101,27 @@ export function TaskOutcomeFilesCard({
           // the declared-pattern path always carries one.
           const name = slot.label === '' ? t('outcome.untitled') : slot.label;
           return (
-            <li key={`${slot.label}:${index}`} className="flex min-w-0">
+            <li
+              key={`${slot.label}:${index}`}
+              className="flex max-w-full min-w-0"
+            >
               {slot.file === null ? (
-                // Same padding and height as a filed row; the only difference
-                // is the promise dot, which is the whole point of the row.
-                <Row gap={2} className="min-w-0 flex-1 px-2 py-1">
+                // A promise is not a button — the dot is what distinguishes it,
+                // and the padding matches so a name does not jump when it lands.
+                <span className="px-1.5 py-0.5">
                   <StatusIndicator variant="neutral" size="sm">
                     <span className="truncate text-sm">{name}</span>
                   </StatusIndicator>
-                </Row>
+                </span>
               ) : (
-                <button
-                  type="button"
-                  onClick={() =>
+                <FileOpenButton
+                  name={name}
+                  label={t('outcome.open', { name })}
+                  emphasis
+                  onOpen={() =>
                     setPreview({ id: String(slot.file?._id), name })
                   }
-                  className="hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
-                  aria-label={t('outcome.open', { name })}
-                >
-                  <span className="truncate font-medium">{name}</span>
-                </button>
+                />
               )}
             </li>
           );

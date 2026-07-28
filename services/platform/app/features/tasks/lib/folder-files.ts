@@ -59,6 +59,30 @@ export interface OutcomeSlot<T> {
 }
 
 /**
+ * The rest of the folder, in the order the Files zone should PREVIEW it: the
+ * operator's own input first, the run's working material after, each newest
+ * first.
+ *
+ * The zone shows a few names and hides the tail behind "+N more", so which few
+ * decides whether it is useful. A quarter's folder holds a handful of uploaded
+ * documents and one derived artifact per document, all newer — in raw folder
+ * order the preview is therefore nothing but `.ocr.json` sidecars, while the
+ * questions a reader has about the INPUT zone ("did my upload land? what is
+ * this run reading?") are answered by the uploads.
+ */
+function previewOrder<T extends FolderFileLike & { _creationTime: number }>(
+  files: readonly T[],
+): T[] {
+  return [...files].sort((a, b) => {
+    const byProvenance =
+      Number(isProducedByRun(a)) - Number(isProducedByRun(b));
+    return byProvenance !== 0
+      ? byProvenance
+      : b._creationTime - a._creationTime;
+  });
+}
+
+/**
  * The bound folder's files, split into the deliverables and the rest.
  *
  * `outcome` follows the contract's declared ORDER (the author's reading order,
@@ -66,6 +90,8 @@ export interface OutcomeSlot<T> {
  * so the zone can promise what is coming. Without a declaration the produced
  * files stand in, newest first — a run writes its working material before its
  * deliverables, so the newest rows are the ones the review is about.
+ *
+ * `rest` comes back in {@link previewOrder}.
  */
 export function splitFolderFiles<
   T extends FolderFileLike & { _creationTime: number },
@@ -84,7 +110,7 @@ export function splitFolderFiles<
     const promoted = new Set(produced);
     return {
       outcome: produced.map((file) => ({ label: file.title ?? '', file })),
-      rest: inFolder.filter((file) => !promoted.has(file)),
+      rest: previewOrder(inFolder.filter((file) => !promoted.has(file))),
     };
   }
 
@@ -103,5 +129,8 @@ export function splitFolderFiles<
     if (match !== null) promoted.add(match);
     return { label: match?.title ?? pattern, file: match };
   });
-  return { outcome, rest: inFolder.filter((file) => !promoted.has(file)) };
+  return {
+    outcome,
+    rest: previewOrder(inFolder.filter((file) => !promoted.has(file))),
+  };
 }

@@ -71,7 +71,8 @@ describe('splitFolderFiles — declared deliverables', () => {
       'report.md',
       'journal.csv',
     ]);
-    expect(rest.map((f) => f.title)).toEqual(['scan-1.ocr.json', 'sales.csv']);
+    // `rest` comes back in preview order: the operator's own upload first.
+    expect(rest.map((f) => f.title)).toEqual(['sales.csv', 'scan-1.ocr.json']);
   });
 
   it('keeps a promised slot for a deliverable no run has filed yet', () => {
