@@ -19,6 +19,7 @@
 
 import { asRecord } from '../../lib/automations_builder/results';
 import type { BuilderMessage } from '../../lib/automations_builder/session';
+import type { TurnSampling } from '../../lib/chat/effort';
 import type { ApiFormat } from '../../lib/shared/schemas/providers';
 
 export interface ChatWireRequest {
@@ -39,8 +40,16 @@ export interface ChatWireArgs {
   modelId: string;
   apiKey: string;
   messages: BuilderMessage[];
-  temperature: number;
+  /** Absent OMITS the parameter from the body — a thinking-enabled request
+   * must not carry a custom temperature. */
+  temperature?: number;
   maxTokens: number;
+  /**
+   * The turn's reasoning control, when one was resolved. Each dialect spells
+   * only its own knob: Anthropic takes a thinking budget, OpenAI-compatible
+   * endpoints a named effort level; the other kind is ignored by that body.
+   */
+  reasoning?: TurnSampling['reasoning'];
   /** Provider attribution headers the platform sends where they apply. */
   extraHeaders?: Record<string, string>;
 }
@@ -96,7 +105,17 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
       body: JSON.stringify({
         model: args.modelId,
         max_tokens: args.maxTokens,
-        temperature: args.temperature,
+        ...(args.temperature !== undefined
+          ? { temperature: args.temperature }
+          : {}),
+        ...(args.reasoning?.kind === 'thinking'
+          ? {
+              thinking: {
+                type: 'enabled',
+                budget_tokens: args.reasoning.budgetTokens,
+              },
+            }
+          : {}),
         ...(system ? { system } : {}),
         messages: turns,
       }),
@@ -113,7 +132,12 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
     body: JSON.stringify({
       model: args.modelId,
       max_tokens: args.maxTokens,
-      temperature: args.temperature,
+      ...(args.temperature !== undefined
+        ? { temperature: args.temperature }
+        : {}),
+      ...(args.reasoning?.kind === 'effort'
+        ? { reasoning_effort: args.reasoning.value }
+        : {}),
       messages: args.messages.map((message) => ({
         role: message.role,
         content: message.content,

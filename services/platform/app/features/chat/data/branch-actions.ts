@@ -14,6 +14,7 @@ import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
 import { api } from '@/convex/_generated/api';
+import type { ReasoningEffort } from '@/lib/chat/effort';
 
 export interface BranchActions {
   readonly available: boolean;
@@ -33,6 +34,7 @@ export interface BranchActions {
     threadId: string,
     modelId: string,
     providerSlug?: string,
+    reasoningEffort?: ReasoningEffort,
   ) => Promise<{ refused: boolean; reason?: string }>;
   /** Persist which sibling a fork point shows. Fire-and-forget. */
   readonly select: (
@@ -96,6 +98,7 @@ export function useBranchActions(organizationId: string): BranchActions {
       threadId: string,
       modelId: string,
       providerSlug?: string,
+      reasoningEffort?: ReasoningEffort,
     ): Promise<{ refused: boolean; reason?: string }> => {
       if (!convex) return { refused: true };
       try {
@@ -106,6 +109,7 @@ export function useBranchActions(organizationId: string): BranchActions {
             threadId,
             modelId,
             ...(providerSlug !== undefined ? { providerSlug } : {}),
+            ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
           },
         );
         return outcome.status === 'refused'

@@ -35,6 +35,11 @@ import type { ModelCatalogEntry } from '../shared/schemas/providers';
 import { assembleContext, type AssembledContext } from './context';
 import type { AgentInstructions, ContextBudget, ToolDoc } from './context';
 import {
+  resolveTurnSampling,
+  type ReasoningEffort,
+  type TurnSampling,
+} from './effort';
+import {
   createOutputTransform,
   runGuardrailChain,
   type GuardrailChainOptions,
@@ -75,6 +80,10 @@ export interface ModelCallRequest {
   readonly messages: readonly ChatMessage[];
   /** How the turn runs — direct API call, or the harness in a sandbox. */
   readonly execution: ExecutionResolution;
+  /** The turn's resolved sampling — maxTokens, temperature (absent while
+   * thinking is enabled), and the reasoning control, per
+   * {@link resolveTurnSampling}. */
+  readonly sampling: TurnSampling;
   readonly signal?: AbortSignal;
 }
 
@@ -182,6 +191,9 @@ export interface TurnRequest {
   readonly toolDocs?: readonly ToolDoc[];
   /** The explicitly chosen model. Never inferred. */
   readonly model: ModelCatalogEntry;
+  /** The user's reasoning-effort pick for this turn. Absent — and any pick on
+   * a model with no reasoning capability — samples the default. */
+  readonly reasoningEffort?: ReasoningEffort;
   readonly credential: CredentialAuth;
   readonly executionMode: ExecutionMode;
   /**
@@ -310,6 +322,8 @@ export async function streamWithOutputGuardrails(
   request: TurnRequest,
   context: AssembledContext,
   execution: ExecutionResolution,
+  /** The sampling the turn resolved once, up front — see `runTurn`. */
+  sampling: TurnSampling,
   deps: TurnDeps,
   /** The placeholder assistant message the cleared text streams into. */
   assistantMessageId?: string,
@@ -365,6 +379,7 @@ export async function streamWithOutputGuardrails(
     system: context.system,
     messages: context.messages,
     execution,
+    sampling,
     signal: request.signal,
   })) {
     if (chunk.usage) reportedUsage = chunk.usage;
@@ -507,10 +522,17 @@ export async function runTurn(
 
   try {
     steps.push('stream');
+    // Resolved ONCE per turn, before any chunk flows: the model call, and
+    // nothing else, decides how to spell it on the wire.
+    const sampling = resolveTurnSampling(
+      request.model,
+      request.reasoningEffort,
+    );
     const streamed = await streamWithOutputGuardrails(
       request,
       context,
       execution,
+      sampling,
       deps,
       placeholder.id,
     );

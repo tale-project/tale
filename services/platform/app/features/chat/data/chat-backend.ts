@@ -46,6 +46,7 @@ import {
 
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import type { ReasoningEffort } from '@/lib/chat/effort';
 
 import type {
   CanvasSources,
@@ -729,6 +730,8 @@ export interface ChatTurnRequest {
   readonly harness?: string;
   readonly sandbox?: boolean;
   readonly agentSlug?: string;
+  /** The reasoning-effort pick riding this turn (platform lane only). */
+  readonly reasoningEffort?: ReasoningEffort;
   /** The conversation's capability assembly, stored on a NEW thread. */
   readonly capabilities?: {
     readonly skills: readonly string[];
@@ -839,6 +842,9 @@ export function useChatSend(organizationId: string): {
         ...(request.providerSlug !== undefined
           ? { providerSlug: request.providerSlug }
           : {}),
+        ...(request.reasoningEffort !== undefined
+          ? { reasoningEffort: request.reasoningEffort }
+          : {}),
         sandbox: request.sandbox ?? false,
         ...(request.agentSlug !== undefined
           ? { agentSlug: request.agentSlug }
@@ -928,6 +934,48 @@ export function useThreadCapabilities(organizationId: string): {
           },
           (error: unknown) => {
             console.warn('[chat] could not save the capability picks', error);
+          },
+        );
+    },
+    [convex, organizationId],
+  );
+
+  return { available: convex !== undefined, save };
+}
+
+/**
+ * Persist the conversation's reasoning-effort pick on its thread, so the
+ * level holds for every turn that follows — `null` clears the override and
+ * the thread falls back to the default sampling. Fire-and-forget like the
+ * capability picks: a lost write costs one re-pick, never a blocked send.
+ * `available` mirrors the reads for a provider-less render.
+ */
+export function useThreadReasoningEffort(organizationId: string): {
+  readonly available: boolean;
+  readonly save: (threadId: string, effort: ReasoningEffort | null) => void;
+} {
+  const convex = useConvex();
+
+  const save = useCallback(
+    (threadId: string, effort: ReasoningEffort | null) => {
+      if (!convex) return;
+      convex
+        .mutation(api.chat.threads.setThreadReasoningEffort, {
+          organizationId,
+          threadId,
+          // An absent arg clears the stored pick server-side.
+          ...(effort !== null ? { reasoningEffort: effort } : {}),
+        })
+        .then(
+          (owned) => {
+            if (!owned) {
+              console.warn(
+                '[chat] effort save skipped: the thread is not the caller’s',
+              );
+            }
+          },
+          (error: unknown) => {
+            console.warn('[chat] could not save the effort pick', error);
           },
         );
     },

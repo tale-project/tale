@@ -12,6 +12,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import type { ReasoningEffort } from '../../lib/chat/effort';
 import {
   classifyChatErrorCode,
   encodeChatError,
@@ -20,6 +21,7 @@ import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
+import { reasoningEffortValidator } from './schema';
 import { executeTurn } from './turn_action';
 
 const sideResultValidator = v.object({
@@ -43,6 +45,7 @@ async function runSide(
     userText: string;
     modelId: string;
     providerSlug?: string;
+    reasoningEffort?: ReasoningEffort;
     agentSlug?: string;
     locale: string;
   },
@@ -56,6 +59,9 @@ async function runSide(
       modelId: side.modelId,
       ...(side.providerSlug !== undefined && {
         providerSlug: side.providerSlug,
+      }),
+      ...(side.reasoningEffort !== undefined && {
+        reasoningEffort: side.reasoningEffort,
       }),
       sandbox: false,
       agentSlug: side.agentSlug,
@@ -104,6 +110,9 @@ export const startArenaTurn = action({
     modelIdB: v.string(),
     providerSlugA: v.optional(v.string()),
     providerSlugB: v.optional(v.string()),
+    /** One pick for the whole comparison — BOTH columns run with it, so the
+     * two replies differ by model alone. */
+    reasoningEffort: v.optional(reasoningEffortValidator),
     locale: v.optional(v.string()),
   },
   returns: v.object({ a: sideResultValidator, b: sideResultValidator }),
@@ -150,6 +159,9 @@ export const startArenaTurn = action({
       organizationId: args.organizationId,
       userId: auth.userId,
       userText: args.userText,
+      ...(args.reasoningEffort !== undefined && {
+        reasoningEffort: args.reasoningEffort,
+      }),
       agentSlug: owned.agentSlug,
       locale,
     };

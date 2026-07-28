@@ -8,6 +8,7 @@
  * component renders from data a test can hand it directly.
  */
 
+import type { ReasoningEffort } from '@/lib/chat/effort';
 import type { MessagePart } from '@/lib/chat/types';
 import type { CredentialAuth } from '@/lib/shared/providers/resolve_execution';
 
@@ -29,6 +30,9 @@ export interface ChatThreadSummary {
     readonly skills: readonly string[];
     readonly connectors: readonly string[];
   };
+  /** The owner's explicit reasoning-effort pick for the conversation — the
+   * composer re-hydrates its effort control from this. */
+  readonly reasoningEffort?: ReasoningEffort;
   /** The project the thread is filed under (absent = the loose Chats list). */
   readonly projectId?: string;
   /** Owner's opt-in: readable by everyone with access to its project. */
@@ -207,6 +211,9 @@ export interface ComposerSelection {
   readonly providerSlug?: string;
   /** The third-party agent's harness. */
   readonly harness?: string;
+  /** The reasoning-effort pick riding the next platform turn; absent samples
+   * the default (and a pick is silently ignored by non-reasoning models). */
+  readonly reasoningEffort?: ReasoningEffort;
   /** Org skill slugs the conversation equips its agent with. */
   readonly skills: readonly string[];
   /** Enabled-connector slugs the conversation equips its agent with. */

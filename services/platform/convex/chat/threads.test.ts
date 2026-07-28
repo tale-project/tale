@@ -784,6 +784,107 @@ describe('chat threads — capability assembly', () => {
   });
 });
 
+/**
+ * The reasoning-effort pick is an explicit, per-conversation user choice —
+ * stored like the capability assembly, cleared by an absent argument, and
+ * surfaced through both summary projections so the composer re-hydrates it.
+ */
+describe('chat threads — reasoning effort', () => {
+  it('persists a pick and surfaces it through both projections', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+
+    const updated = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.setThreadReasoningEffort, {
+        organizationId: ORG_A,
+        threadId,
+        reasoningEffort: 'extra',
+      });
+    expect(updated).toBe(true);
+
+    const listed = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(listed[0]?.reasoningEffort).toBe('extra');
+
+    const fetched = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(fetched?.reasoningEffort).toBe('extra');
+  });
+
+  it('clears the pick when the argument is absent, without touching recency', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+    const before = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.setThreadReasoningEffort, {
+        organizationId: ORG_A,
+        threadId,
+        reasoningEffort: 'max',
+      });
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.setThreadReasoningEffort, {
+        organizationId: ORG_A,
+        threadId,
+      });
+
+    const after = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(after?.reasoningEffort).toBeUndefined();
+    // A metadata edit, not chat activity: the list keeps its recency order.
+    expect(after?.updatedAt).toBe(before?.updatedAt);
+  });
+
+  it('refuses a pick on a thread the caller does not own', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    await seedMember(t, BOB, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+      });
+
+    const asBob = await t
+      .withIdentity({ subject: BOB })
+      .mutation(api.chat.threads.setThreadReasoningEffort, {
+        organizationId: ORG_A,
+        threadId,
+        reasoningEffort: 'high',
+      });
+    expect(asBob).toBe(false);
+
+    const asAlice = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(asAlice?.reasoningEffort).toBeUndefined();
+  });
+});
+
 describe('chat threads — sidebar actions', () => {
   /** Create a thread and force a deterministic `updatedAt`. */
   async function seedThread(

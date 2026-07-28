@@ -23,6 +23,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import type { ReasoningEffort } from '../../lib/chat/effort';
 import { runTurn } from '../../lib/chat/turn';
 import type {
   ModelCall,
@@ -59,10 +60,9 @@ import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { reasoningEffortValidator } from './schema';
 import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
-/** A reply ceiling for a chat turn when the model declares none. */
-const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 const REQUEST_TIMEOUT_MS = 180_000;
 /** Enough of an upstream error to act on, never enough to leak a body. */
 const ERROR_EXCERPT = 300;
@@ -307,14 +307,23 @@ export function createDirectModelCall(
     }
     wire ??= await resolveDirectWire(ctx, organizationId, connector);
 
+    // The sampling arrives fully resolved from the pipeline (`lib/chat/
+    // effort.ts`): maxTokens as the reply ceiling, temperature only when the
+    // turn may carry one (a thinking-enabled request must not), and the
+    // reasoning control for the dialect shaping to spell.
     const base = buildChatRequest({
       apiFormat: wire.apiFormat,
       baseUrl: wire.baseUrl,
       modelId: request.model,
       apiKey: wire.apiKey,
       messages: toWireMessages(request.system, request.messages),
-      temperature: 0.7,
-      maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+      ...(request.sampling.temperature !== undefined
+        ? { temperature: request.sampling.temperature }
+        : {}),
+      maxTokens: request.sampling.maxTokens,
+      ...(request.sampling.reasoning !== undefined
+        ? { reasoning: request.sampling.reasoning }
+        : {}),
       extraHeaders: wire.attribution,
     });
     // Reuse the dialect shaping, then flip streaming on. OpenAI-compatible
@@ -371,6 +380,8 @@ export interface ExecuteTurnArgs {
   readonly userText: string;
   readonly modelId: string;
   readonly providerSlug?: string;
+  /** The user's reasoning-effort pick; absent samples the default. */
+  readonly reasoningEffort?: ReasoningEffort;
   readonly sandbox: boolean;
   readonly agentSlug?: string;
   readonly locale: string;
@@ -452,6 +463,9 @@ export async function executeTurn(
     history,
     locale: args.locale,
     model: resolved.entry,
+    ...(args.reasoningEffort !== undefined
+      ? { reasoningEffort: args.reasoningEffort }
+      : {}),
     // Direct chat only serves platform-managed credentials; a subscription
     // credential is refused earlier, before the wire is built.
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
@@ -478,6 +492,7 @@ export const startTurn = action({
     userText: v.string(),
     modelId: v.string(),
     providerSlug: v.optional(v.string()),
+    reasoningEffort: v.optional(reasoningEffortValidator),
     sandbox: v.boolean(),
     agentSlug: v.optional(v.string()),
     locale: v.optional(v.string()),
@@ -528,6 +543,9 @@ export const startTurn = action({
       ...(args.providerSlug !== undefined && {
         providerSlug: args.providerSlug,
       }),
+      ...(args.reasoningEffort !== undefined && {
+        reasoningEffort: args.reasoningEffort,
+      }),
       sandbox: args.sandbox,
       agentSlug: args.agentSlug,
       locale: args.locale ?? 'en',
@@ -551,6 +569,7 @@ export const regenerateTurn = action({
     threadId: v.string(),
     modelId: v.string(),
     providerSlug: v.optional(v.string()),
+    reasoningEffort: v.optional(reasoningEffortValidator),
     agentSlug: v.optional(v.string()),
     locale: v.optional(v.string()),
   },
@@ -592,6 +611,9 @@ export const regenerateTurn = action({
       modelId: args.modelId,
       ...(args.providerSlug !== undefined && {
         providerSlug: args.providerSlug,
+      }),
+      ...(args.reasoningEffort !== undefined && {
+        reasoningEffort: args.reasoningEffort,
       }),
       sandbox: false,
       agentSlug: args.agentSlug,

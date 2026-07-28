@@ -33,7 +33,7 @@ import {
 import { createAuditLog } from '../audit_logs/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { chatKindValidator } from './schema';
+import { chatKindValidator, reasoningEffortValidator } from './schema';
 
 /** What the conversation equips its agent with — the shape
  * `threads.capabilities` stores, shared by every read and write of it here. */
@@ -54,6 +54,9 @@ const threadSummaryValidator = v.object({
    * Connectors picks) — surfaced so the composer re-hydrates its menu from
    * the thread instead of resetting to empty on every remount. */
   capabilities: v.optional(threadCapabilitiesValidator),
+  /** The owner's explicit reasoning-effort pick — surfaced so the composer
+   * re-hydrates its effort control from the thread across remounts. */
+  reasoningEffort: v.optional(reasoningEffortValidator),
   /** The project the thread is filed under (absent = the loose Chats list). */
   projectId: v.optional(v.id('projects')),
   sharedWithProject: v.optional(v.boolean()),
@@ -86,6 +89,7 @@ function toThreadSummary(
   agentSlug?: string;
   harness?: string;
   capabilities?: { skills: string[]; connectors: string[] };
+  reasoningEffort?: Doc<'threads'>['reasoningEffort'];
   projectId?: Doc<'projects'>['_id'];
   sharedWithProject?: boolean;
   archived: boolean;
@@ -106,6 +110,7 @@ function toThreadSummary(
     agentSlug: thread.agentSlug,
     harness: thread.harness,
     capabilities: thread.capabilities,
+    reasoningEffort: thread.reasoningEffort,
     projectId: thread.projectId,
     sharedWithProject: thread.sharedWithProject,
     archived: thread.archived,
@@ -652,6 +657,38 @@ export const setThreadCapabilities = mutation({
     if (!thread) return false;
     await ctx.db.patch(thread._id, {
       capabilities: sanitizeThreadCapabilities(args.capabilities),
+    });
+    return true;
+  },
+});
+
+/**
+ * Remember the conversation's reasoning-effort pick — the composer's effort
+ * control — for every turn that follows. An ABSENT `reasoningEffort` clears
+ * the field, so the thread falls back to the default sampling rather than
+ * pinning a level. Like the capability assembly above: a metadata edit, not
+ * chat activity, so `updatedAt` stays untouched and the list keeps its
+ * recency order. Returns false when the thread is not the caller's, so a
+ * client can distinguish a no-op from a success.
+ */
+export const setThreadReasoningEffort = mutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    reasoningEffort: v.optional(reasoningEffortValidator),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return false;
+    await ctx.db.patch(thread._id, {
+      reasoningEffort: args.reasoningEffort,
     });
     return true;
   },

@@ -26,6 +26,17 @@ export const chatKindValidator = v.union(
   v.literal('sandbox'),
 );
 
+/** The user-facing reasoning-effort scale — the five steps of
+ * `lib/chat/effort.ts`, spelled as literals for every arg and column that
+ * carries a pick. */
+export const reasoningEffortValidator = v.union(
+  v.literal('low'),
+  v.literal('medium'),
+  v.literal('high'),
+  v.literal('extra'),
+  v.literal('max'),
+);
+
 export const threadsTable = defineTable({
   organizationId: v.string(),
   userId: v.string(),
@@ -114,6 +125,16 @@ export const threadsTable = defineTable({
    * mode. Absent falls through to `userPreferences.voiceOutput`; either
    * boolean wins over it (see `tts/queries.ts::getVoiceModeEffective`). */
   voiceOutputOverride: v.optional(v.boolean()),
+  /**
+   * The owner's EXPLICIT reasoning-effort pick for this conversation — the
+   * same class of stored user choice as `capabilities` and
+   * `voiceOutputOverride`, never a routing column (the header's no-routing
+   * rule stands: the model, and how hard it thinks, are both always chosen
+   * by the user). Absent means the default sampling; the turn maps the pick
+   * onto the model's declared reasoning knob, ignoring it for models with
+   * none (`lib/chat/effort.ts`).
+   */
+  reasoningEffort: v.optional(reasoningEffortValidator),
   /**
    * Arena Mode: while present, this thread is one column of a live A/B
    * pair. `role` names the column, `partnerThreadId` the other side, and

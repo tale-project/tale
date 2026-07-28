@@ -368,6 +368,41 @@ describe('runTurn — the happy path', () => {
     expect(d.store.finalized[0]).not.toHaveProperty('text');
   });
 
+  it('resolves the sampling once and hands it to the model call', async () => {
+    const seen: Array<unknown> = [];
+    const capturing: ModelCall = (call) => {
+      seen.push(call.sampling);
+      return (async function* () {
+        yield { text: 'ok' };
+      })();
+    };
+    const d = deps({ model: capturing });
+
+    // No effort on a plain model: today's defaults, unchanged.
+    await runTurn(request(), d.deps);
+    expect(seen[0]).toEqual({ maxTokens: 4096, temperature: 0.7 });
+
+    // An effort on a reasoning model rides the call as the resolved control.
+    const reasoningModel = modelCatalogEntrySchema.parse({
+      id: 'claude-fable-5',
+      provider: 'anthropic',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: true,
+      contextWindow: 200_000,
+      maxOutputTokens: 64_000,
+      reasoning: { knob: 'budget-tokens' },
+    });
+    await runTurn(
+      request({ model: reasoningModel, reasoningEffort: 'medium' }),
+      d.deps,
+    );
+    expect(seen[1]).toEqual({
+      maxTokens: 8192 + 4096,
+      reasoning: { kind: 'thinking', budgetTokens: 8192 },
+    });
+  });
+
   it('assembles the context from the one contract', async () => {
     const d = deps();
     const outcome = await runTurn(request(), d.deps);

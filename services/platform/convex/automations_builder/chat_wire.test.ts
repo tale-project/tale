@@ -87,6 +87,112 @@ describe('the Anthropic shape', () => {
   });
 });
 
+describe('reasoning controls on the body', () => {
+  it('keeps both no-reasoning bodies byte-identical to their pre-reasoning shape', () => {
+    // The exact strings the builders produced before `reasoning` and the
+    // optional temperature existed — a caller that passes neither must get
+    // the same bytes, key order included.
+    expect(request('openai', 'https://example.test/api/v1/').body).toBe(
+      JSON.stringify({
+        model: 'vendor/model-1',
+        max_tokens: 8000,
+        temperature: 0.1,
+        messages,
+      }),
+    );
+    expect(request('anthropic', 'https://api.example.test').body).toBe(
+      JSON.stringify({
+        model: 'vendor/model-1',
+        max_tokens: 8000,
+        temperature: 0.1,
+        system: 'GUIDE',
+        messages: [
+          { role: 'user', content: 'JOB\n\nWHAT THE LAST ATTEMPT LEARNED' },
+          { role: 'assistant', content: 'ACTION' },
+          { role: 'user', content: 'RESULT' },
+        ],
+      }),
+    );
+  });
+
+  it('spells a thinking budget in the Anthropic dialect, with no temperature', () => {
+    const wire = buildChatRequest({
+      apiFormat: 'anthropic',
+      baseUrl: 'https://api.example.test',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages,
+      maxTokens: 12_288,
+      reasoning: { kind: 'thinking', budgetTokens: 8192 },
+    });
+    expect(JSON.parse(wire.body)).toEqual({
+      model: 'vendor/model-1',
+      max_tokens: 12_288,
+      thinking: { type: 'enabled', budget_tokens: 8192 },
+      system: 'GUIDE',
+      messages: [
+        { role: 'user', content: 'JOB\n\nWHAT THE LAST ATTEMPT LEARNED' },
+        { role: 'assistant', content: 'ACTION' },
+        { role: 'user', content: 'RESULT' },
+      ],
+    });
+  });
+
+  it('spells an effort level in the OpenAI dialect', () => {
+    const wire = buildChatRequest({
+      apiFormat: 'openai',
+      baseUrl: 'https://example.test/api/v1/',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages,
+      temperature: 0.7,
+      maxTokens: 4096,
+      reasoning: { kind: 'effort', value: 'high' },
+    });
+    expect(JSON.parse(wire.body)).toEqual({
+      model: 'vendor/model-1',
+      max_tokens: 4096,
+      temperature: 0.7,
+      reasoning_effort: 'high',
+      messages,
+    });
+  });
+
+  it('ignores the knob the dialect cannot spell, and omits an absent temperature', () => {
+    // A thinking budget means no OpenAI `reasoning_effort` — and the omitted
+    // temperature stays omitted rather than defaulting.
+    const openai = buildChatRequest({
+      apiFormat: 'openai',
+      baseUrl: 'https://example.test/api/v1/',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages,
+      maxTokens: 4096,
+      reasoning: { kind: 'thinking', budgetTokens: 8192 },
+    });
+    expect(JSON.parse(openai.body)).toEqual({
+      model: 'vendor/model-1',
+      max_tokens: 4096,
+      messages,
+    });
+    // And an effort level means no Anthropic `thinking` block.
+    const anthropic = buildChatRequest({
+      apiFormat: 'anthropic',
+      baseUrl: 'https://api.example.test',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages,
+      temperature: 0.7,
+      maxTokens: 4096,
+      reasoning: { kind: 'effort', value: 'low' },
+    });
+    const body: unknown = JSON.parse(anthropic.body);
+    expect(body).not.toHaveProperty('thinking');
+    expect(body).not.toHaveProperty('reasoning_effort');
+    expect(body).toMatchObject({ temperature: 0.7 });
+  });
+});
+
 describe('unusable payloads', () => {
   it.each([
     ['openai' as const, { choices: [] }],

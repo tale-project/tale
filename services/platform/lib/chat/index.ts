@@ -77,6 +77,13 @@ export {
 } from './context';
 export { deriveFallbackTitle } from './derive-fallback-title';
 export {
+  EFFORT_LEVELS,
+  isReasoningEffort,
+  resolveTurnSampling,
+  type ReasoningEffort,
+  type TurnSampling,
+} from './effort';
+export {
   DEFAULT_FAIL_BEHAVIOR,
   GUARDRAIL_CHAIN_ORDER,
   createChatFilter,
