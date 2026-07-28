@@ -12,7 +12,6 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
-import { cn } from '@/lib/utils/cn';
 
 import { splitFolderFiles } from '../lib/folder-files';
 
@@ -60,8 +59,7 @@ export function TaskOutcomeFilesCard({
   // no automation here has a use for. The Files zone already says what to do.
   if (outcome.length === 0) return null;
 
-  const filed = outcome.filter((slot) => slot.file !== null);
-  const pending = outcome.length - filed.length;
+  const pending = outcome.filter((slot) => slot.file === null).length;
 
   return (
     <Stack as="section" gap={2}>
@@ -80,17 +78,20 @@ export function TaskOutcomeFilesCard({
         )}
       </Row>
       {/* Announced before it exists: the declared deliverables are named from
-          the first look at the task, so a reviewer knows what this quarter will
-          produce. Nothing filed yet ⇒ a quiet line-up rather than a framed
-          list, because there is nothing to open in it — the frame arrives with
-          the first artifact. */}
+          the first look at the task, so a reviewer knows what a run will
+          produce before it produces it.
+
+          ONE layout, promised or filed — a quiet line-up of rows, never a
+          framed and divided list. Framing the filed state turned three
+          deliverables into what reads as a table (a table of what? there is one
+          column), and it made the zone restyle itself the moment a run landed,
+          so the same three rows looked like two different things depending on
+          when you opened the task. This is `main`'s OutcomeStrip behaviour:
+          plain rows in a flex column, with the row idiom of the Files zone
+          directly above it — the act is identical (open this file), so the
+          affordance must be too. */}
       <ul
-        className={cn(
-          'min-w-0',
-          filed.length === 0
-            ? 'flex flex-col gap-1.5'
-            : 'border-border divide-border divide-y overflow-hidden rounded-lg border',
-        )}
+        className="flex min-w-0 flex-col gap-0.5"
         {...(pending > 0 ? { role: 'status' } : {})}
       >
         {outcome.map((slot, index) => {
@@ -100,13 +101,9 @@ export function TaskOutcomeFilesCard({
           return (
             <li key={`${slot.label}:${index}`} className="flex min-w-0">
               {slot.file === null ? (
-                <Row
-                  gap={2}
-                  className={cn(
-                    'min-w-0 flex-1',
-                    filed.length > 0 && 'px-3 py-2',
-                  )}
-                >
+                // Same padding and height as a filed row; the only difference
+                // is the promise dot, which is the whole point of the row.
+                <Row gap={2} className="min-w-0 flex-1 px-2 py-1">
                   <StatusIndicator variant="neutral" size="sm">
                     <span className="truncate text-sm">{name}</span>
                   </StatusIndicator>
@@ -117,7 +114,7 @@ export function TaskOutcomeFilesCard({
                   onClick={() =>
                     setPreview({ id: String(slot.file?._id), name })
                   }
-                  className="hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  className="hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
                   aria-label={t('outcome.open', { name })}
                 >
                   <span className="truncate font-medium">{name}</span>
