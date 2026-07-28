@@ -13,7 +13,7 @@
  */
 
 import { Button } from '@tale/ui/button';
-import { Pencil, TriangleAlert } from 'lucide-react';
+import { CircleStop, Pencil } from 'lucide-react';
 import {
   memo,
   useCallback,
@@ -26,13 +26,16 @@ import {
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
+import { isStoppedReason } from '@/lib/shared/chat-errors';
 import { cn } from '@/lib/utils/cn';
 
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
 import { useVoiceOutputChunker } from '../hooks/use-voice-output';
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageItem, ChatMessageView } from '../types';
+import { BlockedNotice } from './blocked-notice';
 import { BranchNavigator } from './branch-navigator';
+import { ChatErrorDisplay } from './chat-error-display';
 import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
@@ -107,6 +110,15 @@ function MessageItemComponent({
   const { t } = useT('chat');
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
+  // A user stop is a clean terminal, not a policy event; a guardrail block
+  // with no text SUBSTITUTES the content region (the reply never existed),
+  // while a block on partial output annotates beneath what streamed.
+  const stopped = isStoppedReason(message.blockedReason);
+  const blockedSubstitutes =
+    isAssistant &&
+    message.blockedReason !== undefined &&
+    !stopped &&
+    message.text.length === 0;
 
   return (
     <li
@@ -127,6 +139,8 @@ function MessageItemComponent({
           forkGroup={forkGroup}
           onEditSubmit={onEditSubmit}
         />
+      ) : blockedSubstitutes ? (
+        <BlockedNotice />
       ) : isAssistant ? (
         <AssistantBody
           message={message}
@@ -144,17 +158,25 @@ function MessageItemComponent({
         <MessageParts parts={message.parts} />
       )}
 
-      {message.blockedReason !== undefined && (
+      {stopped && (
         <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-sm">
-          <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-          {t('parts.blocked', { reason: message.blockedReason })}
+          <CircleStop aria-hidden className="size-3.5 shrink-0" />
+          {t('generationStopped')}
         </p>
       )}
+      {message.blockedReason !== undefined &&
+        !stopped &&
+        !blockedSubstitutes && <BlockedNotice />}
       {message.error !== undefined && (
-        <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-sm">
-          <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-          {message.error}
-        </p>
+        <ChatErrorDisplay
+          error={message.error}
+          organizationId={organizationId}
+          onRetry={
+            isLast && isAssistant && onRegenerate !== undefined
+              ? () => onRegenerate(message)
+              : undefined
+          }
+        />
       )}
     </li>
   );

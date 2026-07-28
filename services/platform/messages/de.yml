@@ -1304,7 +1304,6 @@ chat:
     approvalRejected: Abgelehnt
     humanInputPending: Deine Antwort wird gebraucht
     humanInputAnswered: Beantwortet
-    blocked: 'Von einer Schutzregel gestoppt: {reason}'
   slash:
     listLabel: Skills
     noMatches: Kein passender Skill — die Nachricht wird unverändert gesendet.
@@ -1359,6 +1358,16 @@ chat:
   errorHintRateLimitedNamed:
     Ratenlimit bei {provider} erreicht. Bitte warte einen
     Moment und versuche es erneut.
+
+  errorGenerating: Etwas ist schiefgelaufen
+  errorTriedModels: '{count} Modelle wurden vor dem Abbruch versucht.'
+  errorDetailsSummary: Technische Details
+  retryGeneration: Erneut versuchen
+  askAdminProviderKey: Bitte einen Admin, in Einstellungen → KI-Anbieter einen API-Schlüssel hinzuzufügen.
+  openProviderSettings: Anbietereinstellungen öffnen
+  generationStopped: Generierung gestoppt
+  blockedNotice:
+    body: Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert.
 common:
   optional: optional
   or: oder

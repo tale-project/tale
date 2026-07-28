@@ -29,6 +29,10 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // send write. The defaults mirror the provider-less test environment
 // (everything unavailable); suites override per scenario and the shared
 // afterEach below restores the defaults.
+vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
+  DataNoticeFooter: () => null,
+}));
+
 vi.mock('../hooks/use-thread-view', () => ({
   useThreadView: vi.fn(() => ({
     status: 'unavailable' as const,

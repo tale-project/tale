@@ -1259,7 +1259,6 @@ chat:
     approvalRejected: Rejected
     humanInputPending: Your answer is needed
     humanInputAnswered: Answered
-    blocked: 'Stopped by a guardrail: {reason}'
   slash:
     listLabel: Skills
     noMatches: No matching skill — the message sends as typed.
@@ -1306,6 +1305,16 @@ chat:
     The selected model was not found on {provider}. It
     may have been renamed or removed.
   errorHintRateLimitedNamed: Rate limit reached on {provider}. Please wait a moment and try again.
+
+  errorGenerating: Something went wrong
+  errorTriedModels: 'Tried {count} models before giving up.'
+  errorDetailsSummary: Technical details
+  retryGeneration: Try again
+  askAdminProviderKey: Ask an admin to add an API key in Settings → AI providers.
+  openProviderSettings: Open provider settings
+  generationStopped: Generation stopped
+  blockedNotice:
+    body: "This response was blocked by your organization's content policy."
 common:
   optional: optional
   or: or

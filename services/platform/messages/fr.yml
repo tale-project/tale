@@ -1306,7 +1306,6 @@ chat:
     approvalRejected: Refusé
     humanInputPending: Ta réponse est nécessaire
     humanInputAnswered: Répondu
-    blocked: 'Bloqué par une règle de sécurité : {reason}'
   slash:
     listLabel: Skills
     noMatches: Aucun skill correspondant — le message part tel quel.
@@ -1359,6 +1358,16 @@ chat:
     {provider}. Il a peut-être été renommé ou supprimé.
   errorHintRateLimitedNamed: Limite de débit atteinte chez {provider}. Merci de
     patienter un moment puis de réessayer.
+
+  errorGenerating: "Une erreur s'est produite"
+  errorTriedModels: "{count} modèles ont été essayés avant d'abandonner."
+  errorDetailsSummary: Détails techniques
+  retryGeneration: Réessayer
+  askAdminProviderKey: "Demande à un administrateur d'ajouter une clé API dans Paramètres → Fournisseurs d'IA."
+  openProviderSettings: Ouvrir les paramètres du fournisseur
+  generationStopped: Génération arrêtée
+  blockedNotice:
+    body: Cette réponse a été bloquée par la politique de contenu de ton organisation.
 common:
   optional: facultatif
   or: ou

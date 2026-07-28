@@ -1096,6 +1096,7 @@ function ChatSurfaceInner({
 
         <div className="shrink-0 px-4 pb-4">
           <Composer
+            organizationId={organizationId}
             models={models}
             externalAgents={
               composerOptions.status === 'ready'

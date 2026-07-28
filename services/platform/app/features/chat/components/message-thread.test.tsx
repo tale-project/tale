@@ -123,9 +123,12 @@ describe('MessageThread', () => {
       />,
     );
 
+    // The taxonomy stays out of the transcript — the notice is generic; the
+    // raw reason lives in the message info dialog.
     expect(
-      screen.getByText(/Stopped by a guardrail: contained personal data/),
+      screen.getByText(/blocked by your organization's content policy/),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/contained personal data/)).toBeNull();
   });
 
   it('shows the welcome state for a conversation that has not started', () => {
