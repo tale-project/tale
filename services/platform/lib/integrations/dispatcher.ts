@@ -190,6 +190,11 @@ export interface ApprovalGate {
      * retried, instead of prompting again. Derived by the dispatcher, so the
      * gate never has to reconstruct it. */
     idempotencyKey: string;
+    /** Whether the write stays inside the tenant's own platform surface — a
+     * `platform`-auth connector. The dispatcher knows it from the connector it
+     * already resolved; the policy needs it to tell an internal write from one
+     * leaving the tenant. */
+    platformInternal: boolean;
   }): Promise<ApprovalDecision>;
 }
 
@@ -652,6 +657,16 @@ export async function executeIntegrationAction(
     );
   }
 
+  // A platform connector authenticates as the platform itself — there is no
+  // vendor credential to resolve or store, so the credential gate below is
+  // skipped and the backend receives a synthetic identity. The schema refuses
+  // `platform` alongside any other method, so this is all-or-nothing — which
+  // also makes it the honest answer to "does this write leave the tenant?",
+  // read by the approvals policy just below.
+  const platformAuth = connector.auth.some(
+    (method) => method.method === 'platform',
+  );
+
   if (policy.gateApprovals && action.effects === 'write') {
     if (!ctx.approvals) {
       throw new IntegrationError(
@@ -670,6 +685,7 @@ export async function executeIntegrationAction(
       action: action.name,
       input,
       idempotencyKey,
+      platformInternal: platformAuth,
     });
     if (decision.status === 'required') {
       await record('approval-required', {});
@@ -687,14 +703,6 @@ export async function executeIntegrationAction(
       };
     }
   }
-
-  // A platform connector authenticates as the platform itself — there is no
-  // vendor credential to resolve or store, so the credential gate is skipped
-  // and the backend receives a synthetic identity. The schema refuses
-  // `platform` alongside any other method, so this branch is all-or-nothing.
-  const platformAuth = connector.auth.some(
-    (method) => method.method === 'platform',
-  );
 
   let credential: ResolvedCredential;
   if (platformAuth) {

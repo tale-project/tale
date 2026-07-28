@@ -104,6 +104,140 @@ describe('approvals gate — the write policy', () => {
     });
   });
 
+  it('lets a platform-internal write run with no card and no record', async () => {
+    // The gate exists to catch a write LEAVING the tenant. Moving a task card
+    // is the platform acting on itself — asking a human buys nothing and used
+    // to bury the approvals that matter.
+    const t = convexTest(schema, modules);
+    const decision = await evaluate(t, {
+      organizationId: ORG_A,
+      source: 'automation',
+      resourceKey: 'run_1:mark_task_started',
+      connector: 'task',
+      action: 'update_status',
+      platformInternal: true,
+    });
+    expect(decision).toEqual({ decision: 'allow' });
+    expect(await approvalsFor(t, 'run_1:mark_task_started')).toHaveLength(0);
+  });
+
+  it('an org rule can tighten a platform-internal write back to asking', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG_A,
+        domain: 'governance',
+        key: 'approval_policy',
+        config: {
+          rules: [{ connector: 'task', decision: 'require_approval' }],
+        },
+        syncedAt: 0,
+      });
+    });
+    const decision = await evaluate(t, {
+      organizationId: ORG_A,
+      source: 'automation',
+      resourceKey: 'run_2:mark_task_started',
+      connector: 'task',
+      action: 'update_status',
+      platformInternal: true,
+    });
+    expect(decision.decision).toBe('needs-approval');
+  });
+
+  it('an org rule can auto-approve one outbound action', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG_A,
+        domain: 'governance',
+        key: 'approval_policy',
+        config: {
+          rules: [{ action: 'github.create_issue', decision: 'auto_approve' }],
+        },
+        syncedAt: 0,
+      });
+    });
+    const allowed = await evaluate(t, {
+      organizationId: ORG_A,
+      source: 'integration',
+      resourceKey: 'op_allowed',
+    });
+    expect(allowed).toEqual({ decision: 'allow' });
+    expect(await approvalsFor(t, 'op_allowed')).toHaveLength(0);
+    // A different action of the same connector still asks.
+    const gated = await evaluate(t, {
+      organizationId: ORG_A,
+      source: 'integration',
+      resourceKey: 'op_gated',
+      action: 'comment_issue',
+    });
+    expect(gated.decision).toBe('needs-approval');
+  });
+
+  it('a malformed policy file falls back to the built-in rule', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG_A,
+        domain: 'governance',
+        key: 'approval_policy',
+        config: { rules: 'not-a-list' },
+        syncedAt: 0,
+      });
+    });
+    // Outbound still asks…
+    expect(
+      (
+        await evaluate(t, {
+          organizationId: ORG_A,
+          source: 'integration',
+          resourceKey: 'op_malformed_out',
+        })
+      ).decision,
+    ).toBe('needs-approval');
+    // …and platform-internal still runs.
+    expect(
+      await evaluate(t, {
+        organizationId: ORG_A,
+        source: 'automation',
+        resourceKey: 'op_malformed_in',
+        connector: 'task',
+        action: 'comment',
+        platformInternal: true,
+      }),
+    ).toEqual({ decision: 'allow' });
+  });
+
+  it('a decision already on file survives a policy that would now allow it', async () => {
+    const t = convexTest(schema, modules);
+    // A run parked on a pending card; the operator then auto-approves the
+    // action. The parked operation keeps its card rather than being stranded.
+    const first = await evaluate(t, {
+      organizationId: ORG_A,
+      source: 'integration',
+      resourceKey: 'op_parked',
+    });
+    expect(first.decision).toBe('needs-approval');
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG_A,
+        domain: 'governance',
+        key: 'approval_policy',
+        config: {
+          rules: [{ action: 'github.create_issue', decision: 'auto_approve' }],
+        },
+        syncedAt: 0,
+      });
+    });
+    const retry = await evaluate(t, {
+      organizationId: ORG_A,
+      source: 'integration',
+      resourceKey: 'op_parked',
+    });
+    expect(retry).toEqual(first);
+  });
+
   it('reuses the same pending approval when the same operation is retried', async () => {
     const t = convexTest(schema, modules);
     const first = await evaluate(t, {

@@ -71,6 +71,12 @@ export const POLICY_TYPES = [
   // is created (a governance feature, not an automation). Missing row / empty
   // rules ⇒ no routing. See `conversationRoutingConfigSchema`.
   'conversation_routing',
+  // Which live WRITES hold for a human. Missing row / empty rules ⇒ the
+  // built-in rule: a write that LEAVES the tenant asks, a write on the
+  // platform's own surface (a `platform`-auth connector — tasks, documents,
+  // the org's sandbox) does not. See `approvalPolicyConfigSchema`; applied in
+  // `approvals/policy.ts` and enforced by `approvals/gate.ts`.
+  'approval_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -875,6 +881,61 @@ export type ConversationRoutingRule =
   ConversationRoutingConfig['rules'][number];
 
 /**
+ * Which live WRITES hold for a human before they run — the operator's override
+ * on top of the built-in rule.
+ *
+ * The built-in rule follows what the gate is for: a write that LEAVES the
+ * tenant (a connector holding vendor credentials — mail, GitHub, Slack, a
+ * WebDAV share) asks; a write on the platform's own surface (a connector
+ * declaring `auth: platform` — tasks, documents, the org's own sandbox) does
+ * not, because it is already bound by the platform's own authorization and the
+ * automation that performs it was deploy-gated. Missing file / empty `rules` ⇒
+ * exactly that.
+ *
+ * A rule names ONE target — a whole `connector`, or a single `action` as
+ * `connector.action` — and the most specific rule wins, so an org can loosen a
+ * single outbound action (`imap-smtp.send`) or tighten one internal connector
+ * (`task`) without restating the rest.
+ */
+export const approvalPolicyConfigSchema = z.object({
+  rules: z
+    .array(
+      z
+        .object({
+          /** A whole connector by slug, e.g. `github`. */
+          connector: z
+            .string()
+            .min(1)
+            .max(64)
+            .regex(/^[a-z][a-z0-9-]*$/, 'connector is a lowercase slug')
+            .optional(),
+          /** One action as `<connector>.<action>`, e.g. `imap-smtp.send`. */
+          action: z
+            .string()
+            .min(3)
+            .max(129)
+            .regex(
+              /^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$/,
+              'action is "<connector>.<action>"',
+            )
+            .optional(),
+          decision: z.enum(['auto_approve', 'require_approval']),
+        })
+        .refine(
+          (rule) =>
+            (rule.connector === undefined) !== (rule.action === undefined),
+          {
+            message:
+              'a rule names exactly one target — either connector or action',
+          },
+        ),
+    )
+    .default([]),
+});
+export type ApprovalPolicyConfig = z.infer<typeof approvalPolicyConfigSchema>;
+export type ApprovalPolicyRule = ApprovalPolicyConfig['rules'][number];
+
+/**
  * Maps each governance `PolicyType` to its config Zod schema. Single source
  * of truth replacing the per-type `safeParse` switch that used to live in
  * `governance/mutations.ts`. The file-based config store (`governance/file_utils.ts`)
@@ -912,6 +973,7 @@ export const POLICY_SCHEMAS = {
   sandbox_quota: sandboxQuotaConfigSchema,
   conversation_access: conversationAccessConfigSchema,
   conversation_routing: conversationRoutingConfigSchema,
+  approval_policy: approvalPolicyConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

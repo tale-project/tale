@@ -34,9 +34,12 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { approvalPolicyConfigSchema } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
+import { readPolicyRow } from '../governance/helpers';
+import { resolveApprovalRequirement } from './policy';
 
 /** What the gate tells a caller to do. `allow` carries the approval id when the
  * decision came from a granted record, so a caller can reconcile it. */
@@ -71,6 +74,14 @@ export const evaluateApprovalGate = internalMutation({
     action: v.string(),
     effect: v.union(v.literal('read'), v.literal('write')),
     requestedBy: v.optional(v.string()),
+    /**
+     * Whether this write stays inside the tenant's own platform surface (a
+     * `platform`-auth connector: tasks, documents, the org's sandbox). The
+     * CALLER decides it because the connector catalog is read from disk and
+     * this mutation runs in V8. Absent reads as "outbound", so a caller that
+     * has not been taught the distinction keeps the strict behaviour.
+     */
+    platformInternal: v.optional(v.boolean()),
     /** Stored for the card so a reviewer sees what the operation would do. */
     input: v.optional(v.any()),
     credentialRef: v.optional(v.string()),
@@ -127,6 +138,35 @@ export const evaluateApprovalGate = internalMutation({
     const existing =
       candidates.find((row) => row.organizationId === args.organizationId) ??
       null;
+
+    // An operation already on file keeps its answer, whatever the policy says
+    // now: a parked run must not be stranded by a policy loosened mid-flight,
+    // and a granted or rejected decision is a fact about THIS operation.
+    if (existing === null) {
+      const policyRow = await readPolicyRow(
+        ctx.db,
+        args.organizationId,
+        'approval_policy',
+      );
+      const parsed =
+        policyRow === null
+          ? null
+          : approvalPolicyConfigSchema.safeParse(policyRow.config);
+      if (parsed !== null && !parsed.success) {
+        console.warn(
+          `[approvals] malformed approval_policy for org '${args.organizationId}' — falling back to the built-in rule`,
+        );
+      }
+      const requirement = resolveApprovalRequirement({
+        connector: args.connector,
+        action: args.action,
+        platformInternal: args.platformInternal === true,
+        policy: parsed?.success === true ? parsed.data : null,
+      });
+      // Allowed by policy: no card, no record — the run's own trace and the
+      // dispatcher's audit entry are the trail for these.
+      if (requirement === 'allow') return { decision: 'allow' };
+    }
 
     if (existing) {
       switch (existing.status) {

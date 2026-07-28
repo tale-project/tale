@@ -369,6 +369,7 @@ function approvalGate(ctx: ActionCtx): ApprovalGate {
           connector: request.connector,
           action: request.action,
           effect: 'write',
+          platformInternal: request.platformInternal,
           ...(request.userId !== '' && { requestedBy: request.userId }),
           input: request.input,
         },

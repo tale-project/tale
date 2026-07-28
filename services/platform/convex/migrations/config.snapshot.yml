@@ -337,6 +337,391 @@ schemas:
       - reason
       - requestedAt
     type: object
+  automation_settings.automationSettingsSchema:
+    additionalProperties: false
+    properties:
+      folder:
+        maxLength: 100
+        minLength: 1
+        type: string
+      forms:
+        items:
+          additionalProperties: false
+          properties:
+            description:
+              maxLength: 2000
+              type: string
+            fields:
+              items:
+                additionalProperties: false
+                properties:
+                  default:
+                    maxLength: 500
+                    type: string
+                  help:
+                    maxLength: 500
+                    type: string
+                  i18n:
+                    additionalProperties:
+                      additionalProperties: false
+                      properties:
+                        help:
+                          maxLength: 500
+                          type: string
+                        label:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                        placeholder:
+                          maxLength: 200
+                          type: string
+                      type: object
+                    propertyNames:
+                      pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                      type: string
+                    type: object
+                  key:
+                    pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+                    type: string
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                  options:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        i18n:
+                          additionalProperties:
+                            additionalProperties: false
+                            properties:
+                              label:
+                                maxLength: 200
+                                minLength: 1
+                                type: string
+                            type: object
+                          propertyNames:
+                            pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                            type: string
+                          type: object
+                        label:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                        value:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                      required:
+                        - value
+                        - label
+                      type: object
+                    maxItems: 20
+                    minItems: 1
+                    type: array
+                  pattern:
+                    maxLength: 500
+                    type: string
+                  placeholder:
+                    maxLength: 200
+                    type: string
+                  required:
+                    type: boolean
+                  type:
+                    enum:
+                      - text
+                      - number
+                      - boolean
+                      - select
+                    type: string
+                required:
+                  - key
+                  - label
+                  - type
+                type: object
+              maxItems: 30
+              minItems: 1
+              type: array
+            file:
+              maxLength: 100
+              minLength: 1
+              type: string
+            i18n:
+              additionalProperties:
+                additionalProperties: false
+                properties:
+                  description:
+                    maxLength: 2000
+                    type: string
+                  title:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                type: object
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            required:
+              type: boolean
+            title:
+              maxLength: 200
+              minLength: 1
+              type: string
+          required:
+            - file
+            - title
+            - fields
+          type: object
+        maxItems: 10
+        minItems: 1
+        type: array
+    required:
+      - forms
+    type: object
+  automation_settings.settingsFieldOptionSchema:
+    additionalProperties: false
+    properties:
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      label:
+        maxLength: 200
+        minLength: 1
+        type: string
+      value:
+        maxLength: 200
+        minLength: 1
+        type: string
+    required:
+      - value
+      - label
+    type: object
+  automation_settings.settingsFieldSchema:
+    additionalProperties: false
+    properties:
+      default:
+        maxLength: 500
+        type: string
+      help:
+        maxLength: 500
+        type: string
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            help:
+              maxLength: 500
+              type: string
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+            placeholder:
+              maxLength: 200
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      key:
+        pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+        type: string
+      label:
+        maxLength: 200
+        minLength: 1
+        type: string
+      options:
+        items:
+          additionalProperties: false
+          properties:
+            i18n:
+              additionalProperties:
+                additionalProperties: false
+                properties:
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                type: object
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+            value:
+              maxLength: 200
+              minLength: 1
+              type: string
+          required:
+            - value
+            - label
+          type: object
+        maxItems: 20
+        minItems: 1
+        type: array
+      pattern:
+        maxLength: 500
+        type: string
+      placeholder:
+        maxLength: 200
+        type: string
+      required:
+        type: boolean
+      type:
+        enum:
+          - text
+          - number
+          - boolean
+          - select
+        type: string
+    required:
+      - key
+      - label
+      - type
+    type: object
+  automation_settings.settingsFormSchema:
+    additionalProperties: false
+    properties:
+      description:
+        maxLength: 2000
+        type: string
+      fields:
+        items:
+          additionalProperties: false
+          properties:
+            default:
+              maxLength: 500
+              type: string
+            help:
+              maxLength: 500
+              type: string
+            i18n:
+              additionalProperties:
+                additionalProperties: false
+                properties:
+                  help:
+                    maxLength: 500
+                    type: string
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                  placeholder:
+                    maxLength: 200
+                    type: string
+                type: object
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            key:
+              pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+              type: string
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+            options:
+              items:
+                additionalProperties: false
+                properties:
+                  i18n:
+                    additionalProperties:
+                      additionalProperties: false
+                      properties:
+                        label:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                      type: object
+                    propertyNames:
+                      pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                      type: string
+                    type: object
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                  value:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                required:
+                  - value
+                  - label
+                type: object
+              maxItems: 20
+              minItems: 1
+              type: array
+            pattern:
+              maxLength: 500
+              type: string
+            placeholder:
+              maxLength: 200
+              type: string
+            required:
+              type: boolean
+            type:
+              enum:
+                - text
+                - number
+                - boolean
+                - select
+              type: string
+          required:
+            - key
+            - label
+            - type
+          type: object
+        maxItems: 30
+        minItems: 1
+        type: array
+      file:
+        maxLength: 100
+        minLength: 1
+        type: string
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            description:
+              maxLength: 2000
+              type: string
+            title:
+              maxLength: 200
+              minLength: 1
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      required:
+        type: boolean
+      title:
+        maxLength: 200
+        minLength: 1
+        type: string
+    required:
+      - file
+      - title
+      - fields
+    type: object
   branding.brandingFormSchema:
     additionalProperties: false
     properties:
@@ -1259,6 +1644,35 @@ schemas:
       - maxConcurrentJobs
       - ttlMs
       - jobStuckAfterMs
+    type: object
+  governance.approvalPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      rules:
+        items:
+          additionalProperties: false
+          properties:
+            action:
+              maxLength: 129
+              minLength: 3
+              pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
+              type: string
+            connector:
+              maxLength: 64
+              minLength: 1
+              pattern: ^[a-z][a-z0-9-]*$
+              type: string
+            decision:
+              enum:
+                - auto_approve
+                - require_approval
+              type: string
+          required:
+            - decision
+          type: object
+        type: array
+    required:
+      - rules
     type: object
   governance.budgetConfigSchema:
     additionalProperties: false
@@ -4217,6 +4631,48 @@ schemas:
           minLength: 1
           type: string
         type: array
+      tts:
+        additionalProperties: false
+        properties:
+          audioFormat:
+            enum:
+              - mp3
+              - opus
+              - aac
+              - flac
+              - wav
+              - pcm
+            type: string
+          centsPerMillionCharacters:
+            minimum: 0
+            type: number
+          defaultInstructions:
+            maxLength: 2000
+            type: string
+          defaultVoice:
+            maxLength: 100
+            minLength: 1
+            type: string
+          instructionsByLocale:
+            additionalProperties:
+              maxLength: 2000
+              type: string
+            propertyNames:
+              pattern: ^[a-z]{2}(-[A-Z]{2})?$
+              type: string
+            type: object
+          voicesByLocale:
+            additionalProperties:
+              maxLength: 100
+              minLength: 1
+              type: string
+            propertyNames:
+              pattern: ^[a-z]{2}(-[A-Z]{2})?$
+              type: string
+            type: object
+        required:
+          - audioFormat
+        type: object
     required:
       - id
       - provider
@@ -4280,6 +4736,48 @@ schemas:
             minLength: 1
             type: string
           type: array
+        tts:
+          additionalProperties: false
+          properties:
+            audioFormat:
+              enum:
+                - mp3
+                - opus
+                - aac
+                - flac
+                - wav
+                - pcm
+              type: string
+            centsPerMillionCharacters:
+              minimum: 0
+              type: number
+            defaultInstructions:
+              maxLength: 2000
+              type: string
+            defaultVoice:
+              maxLength: 100
+              minLength: 1
+              type: string
+            instructionsByLocale:
+              additionalProperties:
+                maxLength: 2000
+                type: string
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            voicesByLocale:
+              additionalProperties:
+                maxLength: 100
+                minLength: 1
+                type: string
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+          required:
+            - audioFormat
+          type: object
       required:
         - id
         - provider
@@ -4290,6 +4788,48 @@ schemas:
       type: object
     minItems: 1
     type: array
+  providers.modelCatalogTtsSchema:
+    additionalProperties: false
+    properties:
+      audioFormat:
+        enum:
+          - mp3
+          - opus
+          - aac
+          - flac
+          - wav
+          - pcm
+        type: string
+      centsPerMillionCharacters:
+        minimum: 0
+        type: number
+      defaultInstructions:
+        maxLength: 2000
+        type: string
+      defaultVoice:
+        maxLength: 100
+        minLength: 1
+        type: string
+      instructionsByLocale:
+        additionalProperties:
+          maxLength: 2000
+          type: string
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      voicesByLocale:
+        additionalProperties:
+          maxLength: 100
+          minLength: 1
+          type: string
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+    required:
+      - audioFormat
+    type: object
   providers.parserFamilySchema:
     enum:
       - claude-stream-json

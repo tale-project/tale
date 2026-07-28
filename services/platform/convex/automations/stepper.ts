@@ -214,6 +214,23 @@ function nodeEffect(nodeType: string): 'read' | 'write' | 'unknown' {
 }
 
 /**
+ * Whether the node's write stays inside the tenant's own platform surface —
+ * true for a connector declaring `auth: platform` (tasks, documents, the
+ * organization's sandbox), which by schema never also holds vendor
+ * credentials. The approvals policy uses it to tell an internal write from one
+ * leaving the tenant; an unresolvable connector reads as outbound, the strict
+ * side.
+ */
+function nodeIsPlatformInternal(nodeType: string): boolean {
+  const separator = nodeType.indexOf('.');
+  if (separator <= 0) return false;
+  const connector = findIntegrationConnector(nodeType.slice(0, separator));
+  return (
+    connector?.auth.some((method) => method.method === 'platform') === true
+  );
+}
+
+/**
  * The real gate for one run: a live effectful node is decided by the approvals
  * domain, which records a pending approval keyed to this run and node and
  * reports its state on every re-entry. Built per turn so it acts only for the
@@ -245,6 +262,7 @@ function automationApprovalGate(
           connector: request.nodeType.slice(0, separator),
           action: request.nodeType.slice(separator + 1),
           effect: 'write',
+          platformInternal: nodeIsPlatformInternal(request.nodeType),
           runId: request.runId,
           nodeId: request.nodeId,
           nodeType: request.nodeType,

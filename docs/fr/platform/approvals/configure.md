@@ -3,7 +3,7 @@ title: Configurer les approbations
 description: Là où les exigences d’approbation sont déclarées — par opération d’intégration, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter.
 ---
 
-Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si un agent doit d’abord demander, et le drapeau voyage avec l’intégration ou le serveur qui fournit la capacité. Il n’y a pas de table centrale de règles à entretenir — cette page montre où vit chaque drapeau et comment lire ce qui demandera avant de s’exécuter.
+Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si un agent doit d’abord demander, et le drapeau voyage avec l’intégration ou le serveur qui fournit la capacité. Rien n’est à configurer pour que les valeurs par défaut soient justes — cette page montre où vit chaque drapeau, quelles écritures demandent d’elles-mêmes et comment changer cela pour ton organisation.
 
 Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur [Concepts d’approbation](/fr/platform/approvals/concepts). Ce qui suit est la surface de configuration, capacité par capacité.
 
@@ -12,6 +12,31 @@ Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur
 Chaque intégration déclare ses opérations, et chaque opération porte son propre drapeau d’approbation. Ouvre **Paramètres > Intégrations**, clique sur une intégration, et sa liste d’opérations badge celles marquées **Nécessite une approbation** — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; les écritures marquées tiennent dans le chat avec leurs paramètres exacts jusqu’à ce que quelqu’un approuve.
 
 Le drapeau n’est pas un réglage séparé qu’un administrateur bascule. Chaque action déclarée par un connecteur porte un effet — `read` ou `write` — et c’est le versant écriture que la politique d’approbation retient. Cela garde les deux honnêtes l’un envers l’autre : une action ne peut pas passer discrètement d’une lecture à une écriture sans changer aussi ce pour quoi elle doit demander.
+
+## Quelles écritures demandent
+
+Une carte mérite l’attention de quelqu’un quand l’écriture **quitte ton locataire**. C’est là que passe la ligne par défaut :
+
+- **Les écritures vers des systèmes externes demandent** — envoyer du courrier, poster dans Slack, ouvrir un ticket GitHub, écrire sur un partage WebDAV. Ces connecteurs détiennent tes identifiants et agissent sur des systèmes qui n’appartiennent pas à Tale.
+- **Les écritures sur la surface de Tale ne demandent pas** — déplacer une tâche, la commenter, déposer un document dans le projet, lancer un script dans ton propre bac à sable. Elles sont déjà bornées par les droits de qui les exécute, l’automatisation qui les effectue a passé son gate de déploiement, et chacune figure dans la trace de l’exécution et dans le journal d’audit.
+
+Sans cette ligne, une seule exécution empile une demi-douzaine de cartes pour sa propre comptabilité — « passer cette carte à En cours » — et enterre la seule carte qui demandait vraiment un humain.
+
+## Déplacer la ligne pour ton organisation
+
+Les deux directions se configurent par organisation, dans `governance/approval-policy.yml` sous ton répertoire de configuration. Chaque règle nomme **une** cible — un connecteur entier, ou une action précise sous la forme `<connecteur>.<action>` — et la règle la plus spécifique gagne :
+
+```yaml
+rules:
+  # Cette équipe relit chaque tâche que le desk touche.
+  - connector: task
+    decision: require_approval
+  # Le mail de rapport nocturne est de confiance ; les autres actions mail demandent toujours.
+  - action: imap-smtp.send
+    decision: auto_approve
+```
+
+Une opération déjà en attente sur une carte garde sa carte même si la politique est assouplie ensuite — une décision appartient à l’opération pour laquelle elle a été demandée, et une exécution en pause n’est donc jamais laissée en plan.
 
 ## Outils MCP
 
