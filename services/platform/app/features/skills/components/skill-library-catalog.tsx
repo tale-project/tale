@@ -5,21 +5,18 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Stack } from '@tale/ui/layout';
-import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { CatalogGridSkeleton } from '@/app/components/catalog/catalog-card-skeleton';
 import {
   CatalogCard,
   CatalogCardIcon,
-  CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
 import { CatalogLabels } from '@/app/components/catalog/catalog-labels';
 import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
+import { CatalogView } from '@/app/components/catalog/catalog-view';
 import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
-import { useCatalogSearch } from '@/app/components/catalog/use-catalog-search';
+import { useCatalogFacets } from '@/app/components/catalog/use-catalog-facets';
 import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
@@ -27,8 +24,7 @@ import type { SkillUsageMode } from '@/lib/shared/schemas/skills';
 
 import { useSkills } from '../hooks/queries';
 import {
-  collectLabelFacets,
-  matchesLabelFilter,
+  labelsOf,
   matchesScopeTab,
   SKILL_SCOPE_TABS,
   type SkillScopeTab,
@@ -92,17 +88,15 @@ export function SkillLibraryCatalog({
     [teams],
   );
 
-  const scoped = useMemo(
-    () =>
-      skills.filter(
-        (skill) =>
-          matchesScopeTab(skill, tab) &&
-          matchesLabelFilter(skill, selectedLabels),
-      ),
-    [skills, tab, selectedLabels],
-  );
-  const filtered = useCatalogSearch(scoped, query, skillHaystack);
-  const labelFacets = useMemo(() => collectLabelFacets(skills), [skills]);
+  const { filtered, facetOptions: labelFacets } = useCatalogFacets({
+    items: skills,
+    tab,
+    matchesTab: matchesScopeTab,
+    facetValuesOf: labelsOf,
+    selectedFacets: selectedLabels,
+    query,
+    getHaystack: skillHaystack,
+  });
 
   const addMenuGroups: DropdownMenuGroup[] = [
     [
@@ -178,32 +172,32 @@ export function SkillLibraryCatalog({
           onChange: (e) => setQuery(e.target.value),
           placeholder: t('searchPlaceholder'),
         }}
+        filters={
+          labelFacets.length > 0 ? (
+            <div className="w-44">
+              <MultiSelect
+                options={labelFacets.map((label) => ({
+                  value: label,
+                  label,
+                }))}
+                value={selectedLabels}
+                onValueChange={setSelectedLabels}
+                placeholder={t('library.labelFilterLabel')}
+                aria-label={t('library.labelFilterLabel')}
+              />
+            </div>
+          ) : undefined
+        }
         action={
-          <div className="flex items-center gap-2">
-            {labelFacets.length > 0 && (
-              <div className="w-44">
-                <MultiSelect
-                  options={labelFacets.map((label) => ({
-                    value: label,
-                    label,
-                  }))}
-                  value={selectedLabels}
-                  onValueChange={setSelectedLabels}
-                  placeholder={t('library.labelFilterLabel')}
-                  aria-label={t('library.labelFilterLabel')}
-                />
-              </div>
-            )}
-            <DropdownMenu
-              items={addMenuGroups}
-              trigger={
-                <Button>
-                  <Plus className="mr-1 size-4" />
-                  {t('addMenu.label')}
-                </Button>
-              }
-            />
-          </div>
+          <DropdownMenu
+            items={addMenuGroups}
+            trigger={
+              <Button>
+                <Plus className="mr-1 size-4" />
+                {t('addMenu.label')}
+              </Button>
+            }
+          />
         }
       />
 
@@ -235,56 +229,45 @@ export function SkillLibraryCatalog({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        {skillsQuery.isPending ? (
-          <Skeletonize loading>
-            <CatalogGridSkeleton />
-          </Skeletonize>
-        ) : filtered.length === 0 ? (
-          <Stack gap={2} align="center" className="py-12 text-center">
-            <Text as="p" className="font-medium">
-              {skills.length === 0
-                ? tEmpty('skills.title')
-                : t('noResults.title')}
-            </Text>
-            <Text as="p" variant="muted" className="max-w-md">
-              {skills.length === 0
-                ? tEmpty('skills.description')
-                : t('noResults.description')}
-            </Text>
-            {skills.length === 0 && (
+        <CatalogView<SkillSummary>
+          isPending={skillsQuery.isPending}
+          items={filtered}
+          hasItems={skills.length > 0}
+          itemKey={(skill) => skill.slug}
+          renderItem={(skill) => (
+            <CatalogCard
+              media={
+                <CatalogCardIcon>
+                  <SkillIcon icon={skill.icon} className="size-6" />
+                </CatalogCardIcon>
+              }
+              title={skill.slug}
+              headingLevel={3}
+              badge={
+                <span className="flex items-center gap-1">
+                  {visibilityBadge(skill)}
+                  {usageBadge(skill)}
+                </span>
+              }
+              meta={<CatalogLabels labels={skill.labels} tone="quiet" />}
+              description={skill.description}
+              onClick={() => onOpen(skill.slug)}
+              ariaLabel={t('openSkill', { slug: skill.slug })}
+            />
+          )}
+          empty={{
+            title: tEmpty('skills.title'),
+            description: tEmpty('skills.description'),
+            action: (
               <Button
                 variant="secondary"
                 onClick={() => onAdd({ kind: 'blank' })}
               >
                 {t('addMenu.label')}
               </Button>
-            )}
-          </Stack>
-        ) : (
-          <CatalogGrid>
-            {filtered.map((skill) => (
-              <CatalogCard
-                key={skill.slug}
-                media={
-                  <CatalogCardIcon>
-                    <SkillIcon icon={skill.icon} className="size-6" />
-                  </CatalogCardIcon>
-                }
-                title={skill.slug}
-                badge={
-                  <span className="flex items-center gap-1">
-                    {visibilityBadge(skill)}
-                    {usageBadge(skill)}
-                  </span>
-                }
-                meta={<CatalogLabels labels={skill.labels} tone="quiet" />}
-                description={skill.description}
-                onClick={() => onOpen(skill.slug)}
-                ariaLabel={t('openSkill', { slug: skill.slug })}
-              />
-            ))}
-          </CatalogGrid>
-        )}
+            ),
+          }}
+        />
       </div>
     </Stack>
   );

@@ -1,7 +1,8 @@
 /**
- * Pure client-side filtering for the library's list pane: the scope tabs
- * map straight onto `visibility`, and the label facet is derived from the
- * loaded list (the listing is unpaginated).
+ * The library's scope predicate and label accessor — the two skill-specific
+ * pieces the shared `useCatalogFacets` pipeline needs. Everything generic about
+ * narrowing (facet collection, AND semantics, search) lives in that hook, so all
+ * three catalogs behave identically.
  */
 
 export type SkillScopeTab = 'all' | 'org' | 'team' | 'personal';
@@ -29,21 +30,7 @@ export function matchesScopeTab(
   return skill.visibility === 'private';
 }
 
-/** Every label used by at least one skill, deduplicated, sorted. */
-export function collectLabelFacets(skills: readonly ScopedSkill[]): string[] {
-  const labels = new Set<string>();
-  for (const skill of skills) {
-    for (const label of skill.labels ?? []) labels.add(label);
-  }
-  return [...labels].sort((a, b) => a.localeCompare(b));
-}
-
-/** True when `skill` carries every selected label (empty = no narrowing). */
-export function matchesLabelFilter(
-  skill: ScopedSkill,
-  selected: readonly string[],
-): boolean {
-  if (selected.length === 0) return true;
-  const own = new Set(skill.labels ?? []);
-  return selected.every((label) => own.has(label));
+/** The facet values a skill carries. */
+export function labelsOf(skill: ScopedSkill): readonly string[] {
+  return skill.labels ?? [];
 }

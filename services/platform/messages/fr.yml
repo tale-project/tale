@@ -4858,9 +4858,6 @@ skills:
     created: Skill créé
     exists: Un skill avec ce nom existe déjà.
     createFailed: Impossible de créer le skill
-  noResults:
-    title: Aucun skill correspondant
-    description: Aucun skill ne correspond à ta recherche. Essaie un autre terme.
   visibility:
     label: Visibilité
     org: Organisation
