@@ -24,7 +24,7 @@ import type { TaskSubjectContract } from './task_contract';
 
 /** Fallback project folder for settings files when neither the settings block
  * nor the task contract names one. */
-export const DEFAULT_SETTINGS_FOLDER = 'Setup';
+const DEFAULT_SETTINGS_FOLDER = 'Setup';
 
 /** Keys must survive `serializeYamlMap` (its own KEY_RE, mirrored here). */
 const FIELD_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -52,7 +52,7 @@ const localizedFormTextSchema = z
   })
   .strict();
 
-export const settingsFieldOptionSchema = z
+const settingsFieldOptionSchema = z
   .object({
     /** The stored value — written verbatim into the YAML map. */
     value: z.string().min(1).max(200),
@@ -215,7 +215,6 @@ export const automationSettingsSchema = z
 export type AutomationSettings = z.infer<typeof automationSettingsSchema>;
 export type SettingsForm = z.infer<typeof settingsFormSchema>;
 export type SettingsField = z.infer<typeof settingsFieldSchema>;
-export type SettingsFieldOption = z.infer<typeof settingsFieldOptionSchema>;
 
 /** Tolerant read of a stored declaration: an unparsable value reads as none —
  * the surfaces then treat the automation as settings-less rather than failing
