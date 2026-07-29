@@ -32,7 +32,7 @@ vi.mock('@tanstack/react-router', () => ({
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
   authoring: 'Authoring',
   management: 'Run & trigger management',
-  capability: 'Capabilities & knowledge',
+  capability: 'Skills & knowledge',
 };
 
 describe('McpEndpointSection', () => {
