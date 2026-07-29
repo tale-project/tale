@@ -49,7 +49,7 @@ import { FileOpenButton } from './file-open-button';
 
 /**
  * Names listed before the "+N more" toggle. A few, deliberately: every file owns
- * a line, and a quarter's folder runs to two dozen, so a preview that showed
+ * a line, and a busy folder runs to two dozen, so a preview that showed
  * eight pushed the deliverables below the fold to list working material.
  */
 const MAX_LISTED = 5;

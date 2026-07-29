@@ -4,7 +4,7 @@
  * An automation-owned task bound to a folder reads its input from that folder
  * AND writes into it (`document.create`), so the folder holds the operator's
  * uploads, the run's working material and the run's deliverables side by side.
- * One flat list is what made a quarter with three deliverables read as 27 input
+ * One flat list is what made a folder with three deliverables read as 27 input
  * files.
  *
  * ONE rule splits it: the promoted set is the Outcome, the rest is Files.
@@ -34,8 +34,8 @@ export function isProducedByRun(file: FolderFileLike): boolean {
 
 /**
  * Does a declared deliverable name this file? Exact match unless the pattern
- * carries `*`/`?`, so a name whose run derives it (`return-2026Q1.xml`) can be
- * declared as `return-*.xml`. Everything else in the pattern is literal — a
+ * carries `*`/`?`, so a name whose run derives it (`report-2026-03.xml`) can be
+ * declared as `report-*.xml`. Everything else in the pattern is literal — a
  * dot in a file name must not read as "any character".
  */
 export function matchesPattern(name: string, pattern: string): boolean {
@@ -64,7 +64,7 @@ export interface OutcomeSlot<T> {
  * first.
  *
  * The zone shows a few names and hides the tail behind "+N more", so which few
- * decides whether it is useful. A quarter's folder holds a handful of uploaded
+ * decides whether it is useful. A bound folder holds a handful of uploaded
  * documents and one derived artifact per document, all newer — in raw folder
  * order the preview is therefore nothing but `.ocr.json` sidecars, while the
  * questions a reader has about the INPUT zone ("did my upload land? what is

@@ -290,7 +290,7 @@ async function collectFolderFacts(
       continue; // orphaned: folder deleted or not in this project.
     }
     existingFolders.add(folderId);
-    // A small bounded page is enough to answer "any active file?" — quarter
+    // A small bounded page is enough to answer "any active file?" — subject
     // folders hold at most a handful; a trashed doc must not count, so the
     // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
     const docs = await ctx.db
@@ -466,7 +466,7 @@ export const listTasksByProjectPaginated = query({
     );
     // Stamp, per the task's external FOLDER, two signals a folder-driven view
     // gates row actions on: `folderExists` (the bound folder is still there —
-    // a deleted quarter leaves an orphaned return the desk marks and lets you
+    // a deleted folder leaves an orphaned subject the desk marks and lets you
     // remove) and `hasFiles` (it holds ≥1 active file — hide Start until
     // documents are uploaded).
     const { existingFolders, foldersWithFiles } = await collectFolderFacts(

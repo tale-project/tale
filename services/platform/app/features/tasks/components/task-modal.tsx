@@ -321,7 +321,7 @@ function matchesNaming(naming: string, value: string): boolean {
 }
 
 /**
- * The one-field template create: the subject's natural key (e.g. a quarter
+ * The one-field template create: the subject's natural key (e.g. a period
  * folder name) is the only input — the contract derives the title, provisions
  * the bound input folder, and stamps the automation as owner. The run itself
  * starts later, through the status choreography.
@@ -628,7 +628,7 @@ function CreateTaskBody({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const createTask = useCreateTask();
-  // Subject templates ("new quarter"): contracts with `create.enabled` offer
+  // Subject templates: contracts with `create.enabled` offer one chip each;
   // a one-field create beside the blank form.
   const templates = useTaskSubjectTemplates(organizationId, projectId);
   const [templateSlug, setTemplateSlug] = useState<string | null>(null);

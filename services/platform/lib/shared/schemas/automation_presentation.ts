@@ -2,9 +2,9 @@
  * How an automation NAMES ITSELF to people — the display half of a pack
  * manifest, versioned with the document so every surface reads the same thing.
  *
- * The slug is addressing, not a label: `vat-return-desk` is how the store,
- * the run log and the pack directory refer to the automation, and showing it in
- * a dialog title or a task panel leaks that addressing at the reader. Packs
+ * The slug is addressing, not a label: `payroll-desk` is how the store, the
+ * run log and the pack directory refer to the automation, and showing it in a
+ * dialog title or a task panel leaks that addressing at the reader. Packs
  * already declare a real name and its translations (`automation.yml`: `name`,
  * `description`, `icon`, `labels`, `i18n.<locale>`), which the install used to
  * drop on the floor; this is the shape that carries it through.
