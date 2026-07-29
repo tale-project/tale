@@ -69,12 +69,13 @@ export const TURN_ENDED_EXIT_GRACE_MS = 1_500;
  * writes land on the generation row (never the message row), so the cadence
  * matches the direct lane's reading rhythm without invalidating the list. */
 export const STREAM_TEXT_THROTTLE_MS = 250;
-/** Overall wall-clock a turn may run before it is cut as hung — the EXEC's
- * own timeout, so it must never be shorter than the lane's turn deadline
- * (`workflowAgentDeadlineMs`, itself env-overridable): a shorter hard cap here
- * would silently override a longer configured one and cut a legitimately long
- * turn (a document-heavy desk run reading a whole quarter of scans). Shares
- * one knob so raising the lane's deadline actually raises the ceiling. */
+/** The CHAT lane's wall-clock turn deadline. It doubles as the `timeoutMs`
+ * handed to the sandbox exec — but that timer is a SLIDING orphan window
+ * (re-armed on every drain attach, see the daemon's exec manager), not an
+ * absolute cap: an exec whose drainer keeps chaining windows runs unbounded
+ * by it. Work turns (automation agent nodes, task-agent runs) therefore keep
+ * their own, much longer absolute deadline — `agentWorkTurnDeadlineMs` in
+ * `sandbox/agent_deadline.ts` — and are NOT capped by this value. */
 export const EXTERNAL_TURN_DEADLINE_MS = (() => {
   const configured = Number(process.env.TALE_EXTERNAL_TURN_DEADLINE_MS);
   return Number.isFinite(configured) && configured > 0

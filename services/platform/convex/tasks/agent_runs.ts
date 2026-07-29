@@ -15,14 +15,6 @@ import { internalMutation, internalQuery } from '../_generated/server';
 
 const TERMINAL_RUN_STATUSES = new Set(['settled', 'failed', 'cancelled']);
 
-/** Wall-clock one task-agent turn may run — same knob as the automation
- * agent lane (one harness turn is one product concept). V8-safe read; the
- * node host enforces it in the drive loop. */
-export function taskAgentDeadlineMs(): number {
-  const raw = Number(process.env.TALE_AUTOMATION_AGENT_DEADLINE_MS);
-  return Number.isFinite(raw) && raw > 0 ? raw : 30 * 60_000;
-}
-
 export const getTaskAgentRunForDrive = internalQuery({
   args: { runId: v.id('projectAgentRuns') },
   returns: v.union(

@@ -719,6 +719,7 @@ import type * as provisioning_provision_default_automations from "../provisionin
 import type * as provisioning_seed_dev_user from "../provisioning/seed_dev_user.js";
 import type * as provisioning_seed_starter from "../provisioning/seed_starter.js";
 import type * as sandbox_admission from "../sandbox/admission.js";
+import type * as sandbox_agent_deadline from "../sandbox/agent_deadline.js";
 import type * as sandbox_dispatch_auth from "../sandbox/dispatch_auth.js";
 import type * as sandbox_integrations_http from "../sandbox/integrations_http.js";
 import type * as sandbox_quota_policy from "../sandbox/quota_policy.js";
@@ -1582,6 +1583,7 @@ declare const fullApi: ApiFromModules<{
   "provisioning/seed_dev_user": typeof provisioning_seed_dev_user;
   "provisioning/seed_starter": typeof provisioning_seed_starter;
   "sandbox/admission": typeof sandbox_admission;
+  "sandbox/agent_deadline": typeof sandbox_agent_deadline;
   "sandbox/dispatch_auth": typeof sandbox_dispatch_auth;
   "sandbox/integrations_http": typeof sandbox_integrations_http;
   "sandbox/quota_policy": typeof sandbox_quota_policy;

@@ -45,6 +45,7 @@ import {
   assertHumanAssigneeAccess,
   resolveUserAccessContext,
 } from '../projects/resolve_project_access';
+import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import { sessionIdForProjectAgent } from '../sandbox/session_naming';
 import {
   canClaimTask,
@@ -52,7 +53,6 @@ import {
   hasProjectAccess,
   normalizeAssignee,
 } from './access';
-import { taskAgentDeadlineMs } from './agent_runs';
 import {
   cleanupRemovedAttachments,
   validateTaskAttachments,
@@ -2100,7 +2100,7 @@ export const startTaskAgentRun = mutation({
     const now = Date.now();
     const execId = crypto.randomUUID();
     const sessionId = sessionIdForProjectAgent(agentDbId);
-    const deadlineAt = now + taskAgentDeadlineMs();
+    const deadlineAt = now + agentWorkTurnDeadlineMs();
     const runId = await ctx.db.insert('projectAgentRuns', {
       organizationId: task.organizationId,
       projectId: task.projectId,

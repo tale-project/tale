@@ -54,6 +54,7 @@ import {
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
+import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   sessionIdForWorkflowExecution,
   workflowExecutionOwnerId,
@@ -61,17 +62,9 @@ import {
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
 import { resolveServingTarget } from './llm_call';
 
-/** Overall wall-clock one agent turn may run before it is cut as hung. The
- * exec's own timeout (`EXTERNAL_TURN_DEADLINE_MS`) is the hard ceiling under
- * this — raising only this knob cannot outlive the exec, so raise both. */
-const DEFAULT_AGENT_DEADLINE_MS = 30 * 60_000;
-
-export function workflowAgentDeadlineMs(): number {
-  const configured = Number(process.env.TALE_AUTOMATION_AGENT_DEADLINE_MS);
-  return Number.isFinite(configured) && configured > 0
-    ? configured
-    : DEFAULT_AGENT_DEADLINE_MS;
-}
+// The turn's wall-clock deadline is the shared work-turn knob
+// (`agentWorkTurnDeadlineMs`) — the exec's own `timeoutMs` is only a sliding
+// orphan reaper, so this deadline is the sole absolute cap on the turn.
 
 /** Gateway budget for one agent turn, in cents — the chat turn's default. */
 const DEFAULT_AGENT_BUDGET_CENTS = 500;
@@ -158,7 +151,7 @@ export function automationAgentHost(
       const vision = await resolveTurnVisionModel(ctx, organizationId, target);
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
-      const deadlineAt = Date.now() + workflowAgentDeadlineMs();
+      const deadlineAt = Date.now() + agentWorkTurnDeadlineMs();
       await ctx.scheduler.runAfter(
         0,
         internal.automations.agent_host.startWorkflowAgentTurn,
