@@ -850,7 +850,6 @@ automations:
   runs:
     agentLog:
       title: Journal de l'agent
-      latestFirst: Plus récent en premier
       starting: "L'agent démarre dans le bac à sable…"
       empty: "L'agent n'a produit aucun journal pour cette exécution."
     approval:

@@ -95,12 +95,12 @@ export interface AutomationCanvasProps {
   onReturnToFollow?: () => void;
   /**
    * Height of the canvas frame. The default is the editor's — tall enough to
-   * author in. `compact` is for a surface where the graph is orientation
-   * rather than subject (the task modal's run dialog): it fits a short strip
-   * and CLIPS, so the flow's absolutely-positioned viewport can never paint
-   * over what follows it.
+   * author in. `compact` fits a short clipped strip for a surface where the
+   * graph is orientation rather than subject. `fill` is for a column that
+   * owns its height (the run dialog's left pane): a definite strip on small
+   * screens, the column's remaining height from `md` up.
    */
-  size?: 'default' | 'compact';
+  size?: 'default' | 'compact' | 'fill';
 }
 
 const EMPTY_STATUSES: ReadonlyMap<string, NodeRunStatus> = new Map();
@@ -312,7 +312,11 @@ function CanvasInner({
           // A definite height at mount matters: React Flow measures its frame
           // once, and a `flex-1` box inside a scrolling column can start at
           // zero — which paints an empty canvas that never re-fits.
-          size === 'compact' ? 'h-44 shrink-0' : 'h-full min-h-[24rem] flex-1',
+          size === 'compact'
+            ? 'h-44 shrink-0'
+            : size === 'fill'
+              ? 'h-64 shrink-0 md:h-auto md:min-h-[16rem] md:flex-1 md:shrink'
+              : 'h-full min-h-[24rem] flex-1',
         )}
         role="group"
         aria-label={t('canvas.ariaLabel')}

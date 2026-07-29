@@ -812,7 +812,6 @@ automations:
   runs:
     agentLog:
       title: Agent log
-      latestFirst: Latest first
       starting: The agent is starting up in the sandbox…
       empty: The agent produced no log for this run.
     approval:

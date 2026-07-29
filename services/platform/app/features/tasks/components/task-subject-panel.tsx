@@ -53,13 +53,13 @@ import { deriveSubjectState } from '../lib/subject-state';
 /**
  * The run's progress, inspected WITHOUT leaving the task.
  *
- * The graph rides along as a SMALL strip — enough to see where the run is and
- * to click another step — while the weight of the dialog goes to the step the
- * run is on: what it resolved, what it produced, and, for an `agent` step, the
- * transcript of what the agent did inside the sandbox. The step reading is
- * {@link RunStepDetail}, the very component the automation editor's node
- * inspector renders, so a step is described identically on both surfaces.
- * Nothing is fetched until the dialog opens.
+ * Side by side from `md`: the left pane is the RUN — the path it has taken
+ * (cursor followed live) and every outward action so far — and the right pane
+ * is the STEP the reader picked: what it resolved, what it produced, and, for
+ * an `agent` step, the live transcript of what the agent is doing inside the
+ * sandbox. The step reading is {@link RunStepDetail}, the very component the
+ * automation editor's node inspector renders, so a step is described
+ * identically on both surfaces. Nothing is fetched until the dialog opens.
  */
 function TaskRunDetailsDialog({
   organizationId,
@@ -139,33 +139,50 @@ function TaskRunDetailsDialog({
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
+      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:h-[85vh] md:max-w-6xl md:overflow-hidden">
         <ResponsiveDialogTitle className="text-base font-semibold">
           {t('run.detailsTitle', { name })}
         </ResponsiveDialogTitle>
         {run !== null && (
-          <>
-            {/* Orientation only — small on purpose; the step below is the
-                subject of this dialog. It shows the run's own path and keeps
-                the cursor in view; the pill inside hands a wandering selection
-                back to the step in flight. */}
-            <AutomationCanvas
-              graph={graph}
-              positions={positions}
-              selectedNodeId={activeNodeId}
-              onSelectNode={setSelectedNodeId}
-              inspectorId={detailId}
-              runStatusByNode={runStatusByNode}
-              {...(visitedIds.size > 0 ? { visibleNodeIds: visitedIds } : {})}
-              followNodeId={currentNodeId}
-              onReturnToFollow={() => setSelectedNodeId(null)}
-              size="compact"
-            />
+          // Side by side from `md`: the RUN on the left (its path, its outward
+          // actions), the STEP on the right (what it is, what its agent is
+          // doing). The two halves scroll independently, so following a long
+          // transcript never scrolls the map away.
+          <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="flex min-h-0 flex-col gap-4">
+              {/* The run's own path, cursor kept in view; the pill inside
+                  hands a wandering selection back to the step in flight. */}
+              <AutomationCanvas
+                graph={graph}
+                positions={positions}
+                selectedNodeId={activeNodeId}
+                onSelectNode={setSelectedNodeId}
+                inspectorId={detailId}
+                runStatusByNode={runStatusByNode}
+                {...(visitedIds.size > 0 ? { visibleNodeIds: visitedIds } : {})}
+                followNodeId={currentNodeId}
+                onReturnToFollow={() => setSelectedNodeId(null)}
+                size="fill"
+              />
+              <Stack
+                as="section"
+                gap={2}
+                className="shrink-0 md:min-h-0 md:overflow-y-auto"
+              >
+                <Text as="h3" variant="label">
+                  {t('run.effectsTitle')}
+                </Text>
+                <EffectList
+                  effects={projection.effects}
+                  emptyMessage={t('run.noEffectsYet')}
+                />
+              </Stack>
+            </div>
             <Stack
               id={detailId}
               gap={4}
               className={cn(
-                'min-w-0 rounded-lg border p-4',
+                'min-h-0 min-w-0 rounded-lg border p-4',
                 // The step in flight is the subject of this dialog — give it a
                 // frame that says so, rather than looking like any other row.
                 activeNodeId === currentNodeId
@@ -175,20 +192,32 @@ function TaskRunDetailsDialog({
             >
               {activeView !== undefined && activeNodeId !== null ? (
                 <>
-                  <RunStepDetail
-                    runView={activeView}
-                    heading={activeNodeId}
-                    {...(activeNodeId === currentNodeId
-                      ? { badge: t('run.currentStep') }
-                      : {})}
-                  />
+                  <div
+                    className={cn(
+                      'min-h-0',
+                      // With a transcript below, the detail is a header — it
+                      // must not squeeze the log out; alone, it owns the pane.
+                      activeView.type === 'agent'
+                        ? 'max-h-48 shrink-0 overflow-y-auto'
+                        : 'flex-1 overflow-y-auto',
+                    )}
+                  >
+                    <RunStepDetail
+                      runView={activeView}
+                      heading={activeNodeId}
+                      {...(activeNodeId === currentNodeId
+                        ? { badge: t('run.currentStep') }
+                        : {})}
+                    />
+                  </div>
                   {/* The transcript is the AGENT step's detail — never another
                       step's, and nothing at all for a run without one. */}
                   {activeView.type === 'agent' && (
-                    <div className="border-border border-t pt-4">
+                    <div className="border-border flex min-h-0 flex-1 flex-col border-t pt-4">
                       <AgentExecutionLog
                         organizationId={organizationId}
                         runId={runId}
+                        className="max-h-80 md:h-full md:max-h-none"
                       />
                     </div>
                   )}
@@ -201,16 +230,7 @@ function TaskRunDetailsDialog({
                 </Text>
               )}
             </Stack>
-            <Stack as="section" gap={2}>
-              <Text as="h3" variant="label">
-                {t('run.effectsTitle')}
-              </Text>
-              <EffectList
-                effects={projection.effects}
-                emptyMessage={t('run.noEffectsYet')}
-              />
-            </Stack>
-          </>
+          </div>
         )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
