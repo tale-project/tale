@@ -5721,6 +5721,38 @@ settings:
         steps and external runs. Mark a value as a secret to encrypt it; secrets
         are write-only.
     automationBadge: Automation
+  credentials:
+    default: Default
+    makeDefault: Make default
+    enable: Enable
+    disable: Disable
+    edit: Edit credential
+    delete: Delete
+    actionsLabel: Actions for {name}
+    deleteTitle: Delete credential
+    deleteBody: >-
+      Delete "{name}"? Automations and chat actions using it lose access
+      immediately.
+    deleteDefaultWarning: >-
+      This is the default credential. Deleting it leaves no default until you
+      pick another one.
+    deletedToast: Credential deleted
+    updateFailed: 'Could not update the credential: {error}'
+    noDefault: >-
+      No default credential — a call that names none can't pick one
+      automatically. Make one of them the default.
+    emptyTitle: No credentials yet
+    addCredential: Add credential
+    addTitle: Add credential
+    addDescription: New credential for {vendor}.
+    create: Add credential
+    createdToast: Credential added
+    editTitle: Edit credential
+    savedToast: Credential updated
+    method: Authentication method
+    name: Name
+    namePlaceholder: e.g. Support inbox
+    nameHelp: The name a call uses to pick this credential.
   connectors:
     catalog:
       title: Connectors

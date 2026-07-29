@@ -6,11 +6,11 @@ import { useState } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { StorableAuthMethodName } from '@/lib/shared/schemas/connectors';
 
-import { mapConnectorError } from '../connector-errors';
 import type { ConnectorSummary } from '../hooks/backend';
 import { useCreateCredential } from '../hooks/mutations';
 import {
@@ -111,7 +111,7 @@ export function CredentialCreateDialog({
       onOpenChange(false);
     } catch (err) {
       console.error('connectors: create credential failed', err);
-      setError(mapConnectorError(err));
+      setError(mapCredentialError(err));
     }
   };
 

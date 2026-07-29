@@ -9,10 +9,10 @@ import { useMemo } from 'react';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
-import { mapConnectorError } from '../connector-errors';
 import type { MaskedConnectorCredential } from '../hooks/backend';
 import { useConnectors, useConnectorCredentials } from '../hooks/queries';
 import { ConnectorSection } from './connector-section';
@@ -102,7 +102,7 @@ export function ConnectorsSettings({
           <Alert
             variant="destructive"
             description={t('connectors.catalog.credentialsFailed', {
-              error: mapConnectorError(credentialsQuery.error),
+              error: mapCredentialError(credentialsQuery.error),
             })}
           />
         )}
@@ -112,7 +112,7 @@ export function ConnectorsSettings({
         <Alert
           variant="destructive"
           description={t('connectors.catalog.listFailed', {
-            error: mapConnectorError(connectorsQuery.error),
+            error: mapCredentialError(connectorsQuery.error),
           })}
         />
       ) : abilityLoading || connectorsQuery.isPending ? (

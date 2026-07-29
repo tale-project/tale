@@ -5,10 +5,10 @@ import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { mapConnectorError } from '../connector-errors';
 import type {
   ConnectorSummary,
   MaskedConnectorCredential,
@@ -75,7 +75,7 @@ export function CredentialEditDialog({
       onOpenChange(false);
     } catch (err) {
       console.error('connectors: update credential failed', err);
-      setError(mapConnectorError(err));
+      setError(mapCredentialError(err));
     }
   };
 

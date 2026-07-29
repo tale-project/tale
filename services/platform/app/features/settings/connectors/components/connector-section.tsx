@@ -9,6 +9,7 @@ import { Link2, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { VendorIcon } from '@/app/features/settings/credentials/vendor-icon';
 import { useT } from '@/lib/i18n/client';
 
 import { goToAuthorization } from '../connector-oauth';
@@ -16,7 +17,6 @@ import type {
   ConnectorSummary,
   MaskedConnectorCredential,
 } from '../hooks/backend';
-import { ConnectorIcon } from './connector-icon';
 import { CredentialCreateDialog } from './credential-create-dialog';
 import { CredentialRow } from './credential-row';
 
@@ -66,7 +66,7 @@ export function ConnectorSection({
       className={className}
       title={
         <span className="flex items-center gap-2">
-          <ConnectorIcon iconUrl={connector.iconUrl} />
+          <VendorIcon iconUrl={connector.iconUrl} />
           {connector.displayName}
         </span>
       }

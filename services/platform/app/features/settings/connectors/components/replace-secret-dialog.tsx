@@ -5,10 +5,10 @@ import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { mapConnectorError } from '../connector-errors';
 import type { MaskedConnectorCredential } from '../hooks/backend';
 import { useUpdateCredential } from '../hooks/mutations';
 import {
@@ -88,7 +88,7 @@ export function ReplaceSecretDialog({
       onOpenChange(false);
     } catch (err) {
       console.error('connectors: replace credential secret failed', err);
-      setError(mapConnectorError(err));
+      setError(mapCredentialError(err));
     }
   };
 

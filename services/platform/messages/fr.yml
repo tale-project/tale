@@ -1296,7 +1296,7 @@ chat:
     sectionSkills: Skills
     sectionConnectors: Connectors
     emptySkills: Aucun skill dans cette organisation pour l’instant.
-    emptyConnectors: Aucun connecteur activé pour l’instant — ajoutes-en un
+    emptyConnectors: Aucun connector activé pour l’instant — ajoutes-en un
       dans Paramètres → Connectors.
   generation:
     regionLabel: État de la réponse
@@ -5669,16 +5669,48 @@ settings:
         étapes d'automatisation et exécutions externes. Cochez « Secret » pour
         chiffrer une valeur ; les secrets sont en écriture seule.
     automationBadge: Automatisation
+  credentials:
+    default: Par défaut
+    makeDefault: Définir par défaut
+    enable: Activer
+    disable: Désactiver
+    edit: Modifier les identifiants
+    delete: Supprimer
+    actionsLabel: Actions pour {name}
+    deleteTitle: Supprimer les identifiants
+    deleteBody: >-
+      Supprimer {name} ? Les automatisations et actions de chat qui les
+      utilisent perdent immédiatement l'accès.
+    deleteDefaultWarning: >-
+      Ce sont les identifiants par défaut. Les supprimer ne laisse aucun défaut
+      jusqu'à ce que tu en choisisses d'autres.
+    deletedToast: Identifiants supprimés
+    updateFailed: 'Impossible de mettre à jour les identifiants : {error}'
+    noDefault: >-
+      Aucun identifiant par défaut — un appel qui n'en nomme aucun ne peut pas
+      en choisir un automatiquement. Définis-en un par défaut.
+    emptyTitle: Aucun identifiant pour l'instant
+    addCredential: Ajouter des identifiants
+    addTitle: Ajouter des identifiants
+    addDescription: Nouveaux identifiants pour {vendor}.
+    create: Ajouter
+    createdToast: Identifiants ajoutés
+    editTitle: Modifier les identifiants
+    savedToast: Identifiants mis à jour
+    method: Méthode d'authentification
+    name: Nom
+    namePlaceholder: par ex. Boîte de support
+    nameHelp: Le nom sous lequel un appel choisit ces identifiants.
   connectors:
     catalog:
       title: Connectors
       description:
-        Chaque connecteur est livré avec la plateforme. Un connecteur peut
+        Chaque connector est livré avec la plateforme. Un connector peut
         porter autant d'identifiants que nécessaire — un par espace de travail,
         boutique ou bot — et une automatisation ou action de chat qui n'en
-        nomme aucun utilise celui par défaut du connecteur.
-      summary: '{connectors, plural, one {# connecteur} other {# connecteurs}} · {credentials, plural, one {# identifiant configuré} other {# identifiants configurés}}'
-      listFailed: 'Impossible de charger les connecteurs : {error}'
+        nomme aucun utilise celui par défaut du connector.
+      summary: '{connectors, plural, one {# connector} other {# connectors}} · {credentials, plural, one {# identifiant configuré} other {# identifiants configurés}}'
+      listFailed: 'Impossible de charger les connectors : {error}'
       credentialsFailed: 'Impossible de charger les identifiants : {error}'
     authMethod:
       apiKey: Clé API
@@ -5691,7 +5723,7 @@ settings:
       addCredential: Ajouter des identifiants
       connect: Connecter
       noDefault:
-        Aucun identifiant par défaut pour ce connecteur — une action qui n'en
+        Aucun identifiant par défaut pour ce connector — une action qui n'en
         nomme aucun ne peut pas en choisir un automatiquement. Définis l'un des
         identifiants par défaut.
       needsReauth:
@@ -5700,7 +5732,7 @@ settings:
         distingue d'un identifiant que tu as désactivé toi-même.
       emptyTitle: Aucun identifiant pour l'instant
       emptyBody:
-        Ajoute les identifiants avec lesquels ce connecteur s'authentifie, et
+        Ajoute les identifiants avec lesquels ce connector s'authentifie, et
         ses actions deviennent disponibles dans les automatisations et le chat.
       emptyBodyOauth:
         Connecte {connector} pour accorder l'accès à Tale, et ses actions
@@ -5723,9 +5755,9 @@ settings:
       deleteTitle: Supprimer les identifiants
       deleteBody:
         Supprimer {name} ? Les automatisations et actions de chat qui les
-        utilisent perdent immédiatement l'accès à ce connecteur.
+        utilisent perdent immédiatement l'accès à ce connector.
       deleteDefaultWarning:
-        Ce sont les identifiants par défaut. Les supprimer laisse le connecteur
+        Ce sont les identifiants par défaut. Les supprimer laisse le connector
         sans défaut jusqu'à ce que tu en choisisses d'autres.
       deletedToast: Identifiants supprimés
       updateFailed: 'Impossible de mettre à jour les identifiants : {error}'
@@ -6000,7 +6032,7 @@ settings:
   providers:
     catalogs:
       title: Catalogues de modèles
-      description: Chaque fournisseur est livré comme connecteur avec son propre
+      description: Chaque fournisseur est livré comme connector avec son propre
         catalogue de modèles. Les catalogues en ligne sont mis en cache et ne se
         mettent à jour que lorsque tu les actualises ici — il n'y a pas de
         synchronisation en arrière-plan.
@@ -6012,7 +6044,7 @@ settings:
         Tous les catalogues sont livrés avec la plateforme — il n'y a
         rien à actualiser.
       refreshFailed: "Impossible d'actualiser les catalogues : {error}"
-      listFailed: 'Impossible de charger les connecteurs de fournisseurs : {error}'
+      listFailed: 'Impossible de charger les connectors de fournisseurs : {error}'
     harnesses:
       title: Agents tiers
       description:
@@ -6114,8 +6146,7 @@ settings:
         Nom de la variable du déploiement qui contient la clé — le préfixe
         est fixe. La variable elle-même est fournie par ton équipe ops.
       endpointUrl: URL de l'endpoint
-      endpointUrlHelp:
-        Ce connecteur n'a pas d'endpoint fixe — chaque identifiant
+      endpointUrlHelp: Ce connector n'a pas d'endpoint fixe — chaque identifiant
         porte l'URL de sa propre ressource (https).
       allowlist: Modèles autorisés
       allowlistHelp:
@@ -7181,7 +7212,7 @@ tasks:
     agents: Agents
     agentsInfo:
       Tourne dans un bac à sable sur le harness choisi à la création de
-      l'agent — pré-équipé de ses skills, connecteurs et instructions.
+      l'agent — pré-équipé de ses skills, connectors et instructions.
     automations: Automatisations
     automationsInfo:
       Confie la tâche à une automatisation déployée — les changements de
@@ -7742,7 +7773,7 @@ projects:
     connectorsHeading: Connectors
     sectionDescription:
       Crée les agents qui travaillent dans ce projet — choisis le harness sur
-      lequel chacun tourne, équipe-le de skills et de connecteurs, et donne-lui
+      lequel chacun tourne, équipe-le de skills et de connectors, et donne-lui
       des instructions permanentes. Tout le monde ici voit les mêmes agents, et
       les tâches peuvent leur être assignées.
     newAgent: Nouvel agent
@@ -7761,7 +7792,7 @@ projects:
     harnessPlaceholder: Choisis le harness sur lequel il tourne
     modelLabel: Modèle
     modelPlaceholder: Choisis le modèle qu'il appelle
-    equipmentLabel: Skills & connecteurs
+    equipmentLabel: Skills & connectors
     equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
       équipes du projet, pas ta visibilité personnelle.
     instructionsLabel: Instructions

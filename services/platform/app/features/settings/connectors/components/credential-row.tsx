@@ -10,10 +10,10 @@ import {
   EntityRowActions,
   type EntityRowAction,
 } from '@/app/components/ui/entity/entity-row-actions';
+import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { mapConnectorError } from '../connector-errors';
 import { goToAuthorization } from '../connector-oauth';
 import type {
   ConnectorSummary,
@@ -68,7 +68,7 @@ export function CredentialRow({
   const failToast = (err: unknown) =>
     toast({
       title: t('connectors.credential.updateFailed', {
-        error: mapConnectorError(err),
+        error: mapCredentialError(err),
       }),
       variant: 'destructive',
     });

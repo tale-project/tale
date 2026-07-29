@@ -5595,6 +5595,38 @@ settings:
         einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur
         schreibbar.
     automationBadge: Automatisierung
+  credentials:
+    default: Standard
+    makeDefault: Zum Standard machen
+    enable: Aktivieren
+    disable: Deaktivieren
+    edit: Zugangsdaten bearbeiten
+    delete: Löschen
+    actionsLabel: Aktionen für {name}
+    deleteTitle: Zugangsdaten löschen
+    deleteBody: >-
+      "{name}" löschen? Automationen und Chat-Aktionen, die sie verwenden,
+      verlieren sofort den Zugriff.
+    deleteDefaultWarning: >-
+      Das sind die Standard-Zugangsdaten. Nach dem Löschen gibt es keinen
+      Standard mehr, bis du einen neuen wählst.
+    deletedToast: Zugangsdaten gelöscht
+    updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
+    noDefault: >-
+      Keine Standard-Zugangsdaten — ein Aufruf ohne eigene Angabe kann nicht
+      automatisch wählen. Mache einen Eintrag zum Standard.
+    emptyTitle: Noch keine Zugangsdaten
+    addCredential: Zugangsdaten hinzufügen
+    addTitle: Zugangsdaten hinzufügen
+    addDescription: Neue Zugangsdaten für {vendor}.
+    create: Hinzufügen
+    createdToast: Zugangsdaten hinzugefügt
+    editTitle: Zugangsdaten bearbeiten
+    savedToast: Zugangsdaten aktualisiert
+    method: Authentifizierungsmethode
+    name: Name
+    namePlaceholder: z. B. Support-Postfach
+    nameHelp: Unter diesem Namen wählt ein Aufruf diesen Eintrag aus.
   connectors:
     catalog:
       title: Connectors

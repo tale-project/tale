@@ -9,7 +9,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { ConnectorIcon } from '@/app/features/settings/connectors/components/connector-icon';
+import { VendorIcon } from '@/app/features/settings/credentials/vendor-icon';
 import { useT } from '@/lib/i18n/client';
 import { SECRETS_ENV_PREFIX } from '@/lib/shared/schemas/providers';
 
@@ -81,7 +81,7 @@ export function ProviderSection({
       className={className}
       title={
         <span className="inline-flex items-center gap-2">
-          <ConnectorIcon iconUrl={provider.iconUrl} className="size-5" />
+          <VendorIcon iconUrl={provider.iconUrl} className="size-5" />
           {provider.displayName}
         </span>
       }
