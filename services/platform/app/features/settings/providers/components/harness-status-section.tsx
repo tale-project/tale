@@ -28,7 +28,7 @@ import { mapProviderError } from '../provider-errors';
 
 interface HarnessStatusSectionProps {
   organizationId: string;
-  /** Connector slug → display name, from the catalogs the page loaded. */
+  /** Provider slug → display name, from the catalogs the page loaded. */
   displayNames: ReadonlyMap<string, string>;
 }
 

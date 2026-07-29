@@ -488,7 +488,7 @@ import type * as lib_providers_credential_auth from "../lib/providers/credential
 import type * as lib_providers_direct_credential from "../lib/providers/direct_credential.js";
 import type * as lib_providers_harness_status from "../lib/providers/harness_status.js";
 import type * as lib_providers_load_system_config from "../lib/providers/load_system_config.js";
-import type * as lib_providers_org_connectors from "../lib/providers/org_connectors.js";
+import type * as lib_providers_org_providers from "../lib/providers/org_providers.js";
 import type * as lib_providers_resolve_tts_model from "../lib/providers/resolve_tts_model.js";
 import type * as lib_providers_resolve_vision_model from "../lib/providers/resolve_vision_model.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
@@ -1352,7 +1352,7 @@ declare const fullApi: ApiFromModules<{
   "lib/providers/direct_credential": typeof lib_providers_direct_credential;
   "lib/providers/harness_status": typeof lib_providers_harness_status;
   "lib/providers/load_system_config": typeof lib_providers_load_system_config;
-  "lib/providers/org_connectors": typeof lib_providers_org_connectors;
+  "lib/providers/org_providers": typeof lib_providers_org_providers;
   "lib/providers/resolve_tts_model": typeof lib_providers_resolve_tts_model;
   "lib/providers/resolve_vision_model": typeof lib_providers_resolve_vision_model;
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;

@@ -79,7 +79,7 @@ export type ResolvedProviderCredential =
       readonly credentialId: Id<'providerCredentials'>;
       readonly name: string;
       readonly secret: string;
-      /** Per-credential wire endpoint (Azure-style connectors). */
+      /** Per-credential wire endpoint (Azure-style providers). */
       readonly endpointUrl?: string;
     }
   | {
@@ -88,7 +88,7 @@ export type ResolvedProviderCredential =
       readonly name: string;
       readonly envName: string;
       readonly secret: string;
-      /** Per-credential wire endpoint (Azure-style connectors). */
+      /** Per-credential wire endpoint (Azure-style providers). */
       readonly endpointUrl?: string;
     }
   | {
@@ -320,7 +320,7 @@ export async function resolveProviderCredential(
     }
     case 'subscription-key': {
       // A static vendor subscription secret — decrypted like an api key;
-      // the forced-harness constraints live on the connector's auth entry
+      // the forced-harness constraints live on the provider's auth entry
       // and are applied by execution resolution, never here.
       if (!row.encryptedData) throw shapeError(row);
       return {

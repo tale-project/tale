@@ -3740,7 +3740,7 @@ schemas:
       - first
       - round-robin
     type: string
-  providers.harnessConnectorSchema:
+  providers.harnessDefinitionSchema:
     $defs:
       __schema0:
         anyOf:
@@ -4854,7 +4854,7 @@ schemas:
   providers.providerBaseUrlSchema:
     format: uri
     type: string
-  providers.providerConnectorSchema:
+  providers.providerDefinitionSchema:
     additionalProperties: false
     properties:
       apiFormat:

@@ -21,8 +21,8 @@
 
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import { getConnectorCatalog } from './catalog_fetch';
-import { resolveConnectorsForOrgId } from './org_connectors';
+import { getProviderCatalog } from './catalog_fetch';
+import { resolveProvidersForOrgId } from './org_providers';
 
 /** The default-credential fields this module reads (the internal query
  * returns the full row as `v.any()`). */
@@ -50,11 +50,11 @@ export async function resolveTurnVisionModel(
   target: { providerSlug: string; modelId: string },
 ): Promise<VisionModelPick | null> {
   try {
-    const connector = (
-      await resolveConnectorsForOrgId(ctx, organizationId)
-    ).find((entry) => entry.name === target.providerSlug);
-    if (connector) {
-      const entry = (await getConnectorCatalog(connector)).find(
+    const provider = (await resolveProvidersForOrgId(ctx, organizationId)).find(
+      (entry) => entry.name === target.providerSlug,
+    );
+    if (provider) {
+      const entry = (await getProviderCatalog(provider)).find(
         (candidate) => candidate.id === target.modelId,
       );
       if (entry?.supportsVision) return null;
@@ -78,13 +78,10 @@ export async function resolveOrgVisionModel(
     price: number;
   } | null = null;
 
-  for (const connector of await resolveConnectorsForOrgId(
-    ctx,
-    organizationId,
-  )) {
+  for (const provider of await resolveProvidersForOrgId(ctx, organizationId)) {
     const row = (await ctx.runQuery(
       internal.provider_credentials.queries.getDefaultCredentialInternal,
-      { organizationId, providerSlug: connector.name },
+      { organizationId, providerSlug: provider.name },
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names the fields read here
     )) as DefaultCredentialFacts | null;
     // Only api-key/env credentials can back the gateway lane — every
@@ -99,10 +96,10 @@ export async function resolveOrgVisionModel(
 
     let entries;
     try {
-      entries = await getConnectorCatalog(connector);
+      entries = await getProviderCatalog(provider);
     } catch (err) {
       console.warn(
-        `[vision-model] catalog for ${connector.name} unavailable (skipping provider):`,
+        `[vision-model] catalog for ${provider.name} unavailable (skipping provider):`,
         err,
       );
       continue;
@@ -119,7 +116,7 @@ export async function resolveOrgVisionModel(
       }
       const price =
         entry.pricing?.inputCentsPerMillion ?? Number.POSITIVE_INFINITY;
-      const pick = { providerSlug: connector.name, modelId: entry.id };
+      const pick = { providerSlug: provider.name, modelId: entry.id };
       if (
         !best ||
         price < best.price ||

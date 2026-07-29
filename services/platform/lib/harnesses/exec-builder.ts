@@ -1,5 +1,5 @@
 // The ONE exec builder: interprets a harness YAML's declarative `exec` facts
-// (`harnessConnectorSchema.exec` — see the vocabulary header in
+// (`harnessDefinitionSchema.exec` — see the vocabulary header in
 // `lib/shared/schemas/providers.ts`) over a `HarnessRunSpec` and produces the
 // `HarnessExec` the sandbox session-exec API runs. There is no per-harness
 // build code; the golden fixtures under `fixtures/exec/` prove this
@@ -15,7 +15,7 @@
 //  - stream parsing (`parsers/`, keyed by the YAML's `parser` field).
 
 import type {
-  HarnessConnector,
+  HarnessDefinition,
   HarnessExecFacts,
 } from '../shared/schemas/providers';
 import { buildStdinUserMessage } from './parsers/claude-stream-json';
@@ -298,7 +298,7 @@ function setPath(target: DocTree, path: string, value: unknown): void {
 }
 
 export function buildHarnessExec(
-  fact: HarnessConnector,
+  fact: HarnessDefinition,
   spec: HarnessRunSpec,
 ): HarnessExec {
   const exec: HarnessExecFacts = fact.exec;

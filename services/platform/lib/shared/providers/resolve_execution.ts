@@ -34,7 +34,7 @@
 
 import type {
   ExecutionConstraints,
-  HarnessConnector,
+  HarnessDefinition,
   ModelCatalogEntry,
 } from '../schemas/providers';
 
@@ -42,7 +42,7 @@ export type ExecutionMode = 'direct' | 'sandbox';
 
 /**
  * The credential facts resolution needs: the auth method, plus — for the
- * subscription-flavored methods — the execution constraints their connector
+ * subscription-flavored methods — the execution constraints their provider
  * declares. Mirrors the `auth` entry shape in `providers/<name>.yml`, keyed
  * by the credential-row field name `authMethod`.
  */
@@ -69,18 +69,18 @@ export interface ExecutionSelection {
 }
 
 /** The loaded harness table, keyed by slug (`loadHarnesses()` output). */
-export type HarnessTable = ReadonlyMap<string, HarnessConnector>;
+export type HarnessTable = ReadonlyMap<string, HarnessDefinition>;
 
 /** Key a loaded harness list by slug for {@link resolveExecution}. */
 export function buildHarnessTable(
-  harnesses: readonly HarnessConnector[],
+  harnesses: readonly HarnessDefinition[],
 ): HarnessTable {
   return new Map(harnesses.map((harness) => [harness.slug, harness]));
 }
 
 export type ExecutionResolution =
   | { readonly mode: 'direct' }
-  | { readonly mode: 'sandbox'; readonly harness: HarnessConnector }
+  | { readonly mode: 'sandbox'; readonly harness: HarnessDefinition }
   | { readonly mode: 'refused'; readonly reason: string };
 
 function refused(reason: string): ExecutionResolution {

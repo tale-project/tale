@@ -31,8 +31,8 @@ import { ConvexError } from 'convex/values';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
-import { getConnectorCatalog } from '../../lib/providers/catalog_fetch';
-import { resolveConnectorsForOrgId } from '../../lib/providers/org_connectors';
+import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
+import { resolveProvidersForOrgId } from '../../lib/providers/org_providers';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import {
   applyGatewayConfig,
@@ -68,7 +68,7 @@ export async function buildProviderProvision(
   },
 ): Promise<ProviderProvision | null> {
   const connector = (
-    await resolveConnectorsForOrgId(ctx, args.organizationId)
+    await resolveProvidersForOrgId(ctx, args.organizationId)
   ).find((entry) => entry.name === args.providerSlug);
   if (!connector) {
     throw new ConvexError({
@@ -113,7 +113,7 @@ export async function buildProviderProvision(
   const models =
     allowlist !== undefined && allowlist.length > 0
       ? allowlist
-      : (await getConnectorCatalog(connector)).map((entry) => entry.id);
+      : (await getProviderCatalog(connector)).map((entry) => entry.id);
 
   return {
     name: connector.name,

@@ -5,17 +5,17 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  loadOrgCustomConnectors,
-  resolveConnectorsForOrg,
+  loadOrgCustomProviders,
+  resolveProvidersForOrg,
   resolveProvidersDir,
-} from './org_connectors';
+} from './org_providers';
 
 const ORG = 'acme-corp';
 
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(path.join(tmpdir(), 'org-connectors-'));
+  root = await mkdtemp(path.join(tmpdir(), 'org-providers-'));
   vi.stubEnv('TALE_CONFIG_DIR', root);
 });
 
@@ -24,7 +24,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-async function writeConnector(file: string, yaml: string): Promise<void> {
+async function writeProvider(file: string, yaml: string): Promise<void> {
   const dir = path.join(root, ORG, 'providers');
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, file), yaml, 'utf8');
@@ -49,16 +49,16 @@ describe('resolveProvidersDir', () => {
   });
 });
 
-describe('loadOrgCustomConnectors', () => {
+describe('loadOrgCustomProviders', () => {
   it('returns empty for an org with no providers dir', () => {
-    expect(loadOrgCustomConnectors(ORG)).toEqual([]);
+    expect(loadOrgCustomProviders(ORG)).toEqual([]);
   });
 
-  it('loads a valid custom connector', async () => {
-    await writeConnector('ollama-lab.yml', OLLAMA_YML);
-    const connectors = loadOrgCustomConnectors(ORG);
-    expect(connectors).toHaveLength(1);
-    expect(connectors[0]).toMatchObject({
+  it('loads a valid custom provider', async () => {
+    await writeProvider('ollama-lab.yml', OLLAMA_YML);
+    const providers = loadOrgCustomProviders(ORG);
+    expect(providers).toHaveLength(1);
+    expect(providers[0]).toMatchObject({
       name: 'ollama-lab',
       apiFormat: 'openai',
       baseUrl: 'https://ollama.acme.internal/v1',
@@ -67,46 +67,46 @@ describe('loadOrgCustomConnectors', () => {
   });
 
   it('ignores retired-format json files and secrets sidecars', async () => {
-    await writeConnector('ollama-lab.yml', OLLAMA_YML);
-    await writeConnector('openai.json', '{"apiKeyEnv":"OLD"}');
-    await writeConnector('openai.secrets.json', '{"apiKey":"old"}');
-    await writeConnector('ollama-lab.secrets.yml', 'apiKey: nope');
-    const connectors = loadOrgCustomConnectors(ORG);
-    expect(connectors.map((c) => c.name)).toEqual(['ollama-lab']);
+    await writeProvider('ollama-lab.yml', OLLAMA_YML);
+    await writeProvider('openai.json', '{"apiKeyEnv":"OLD"}');
+    await writeProvider('openai.secrets.json', '{"apiKey":"old"}');
+    await writeProvider('ollama-lab.secrets.yml', 'apiKey: nope');
+    const providers = loadOrgCustomProviders(ORG);
+    expect(providers.map((c) => c.name)).toEqual(['ollama-lab']);
   });
 
-  it('skips a connector whose name does not match the file stem, loudly', async () => {
+  it('skips a provider whose name does not match the file stem, loudly', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await writeConnector(
+    await writeProvider(
       'misnamed.yml',
       OLLAMA_YML, // declares name: ollama-lab
     );
-    expect(loadOrgCustomConnectors(ORG)).toEqual([]);
+    expect(loadOrgCustomProviders(ORG)).toEqual([]);
     expect(error).toHaveBeenCalledWith(
       expect.stringContaining('must match the file name "misnamed"'),
     );
     error.mockRestore();
   });
 
-  it('refuses to shadow a shipped connector', async () => {
+  it('refuses to shadow a shipped provider', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await writeConnector(
+    await writeProvider(
       'openrouter.yml',
       OLLAMA_YML.replace('name: ollama-lab', 'name: openrouter'),
     );
-    expect(loadOrgCustomConnectors(ORG)).toEqual([]);
+    expect(loadOrgCustomProviders(ORG)).toEqual([]);
     expect(error).toHaveBeenCalledWith(
-      expect.stringContaining('shadows a shipped connector'),
+      expect.stringContaining('shadows a shipped provider'),
     );
     error.mockRestore();
   });
 
   it('skips an invalid file loudly and keeps the valid ones', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await writeConnector('ollama-lab.yml', OLLAMA_YML);
-    await writeConnector('broken.yml', 'name: broken\nbaseUrl: not-a-url\n');
-    const connectors = loadOrgCustomConnectors(ORG);
-    expect(connectors.map((c) => c.name)).toEqual(['ollama-lab']);
+    await writeProvider('ollama-lab.yml', OLLAMA_YML);
+    await writeProvider('broken.yml', 'name: broken\nbaseUrl: not-a-url\n');
+    const providers = loadOrgCustomProviders(ORG);
+    expect(providers.map((c) => c.name)).toEqual(['ollama-lab']);
     expect(error).toHaveBeenCalledWith(
       expect.stringContaining('broken.yml'),
       expect.anything(),
@@ -115,10 +115,10 @@ describe('loadOrgCustomConnectors', () => {
   });
 });
 
-describe('resolveConnectorsForOrg', () => {
+describe('resolveProvidersForOrg', () => {
   it('unions the shipped set with the org customs', async () => {
-    await writeConnector('ollama-lab.yml', OLLAMA_YML);
-    const names = resolveConnectorsForOrg(ORG).map((c) => c.name);
+    await writeProvider('ollama-lab.yml', OLLAMA_YML);
+    const names = resolveProvidersForOrg(ORG).map((c) => c.name);
     expect(names).toContain('openrouter');
     expect(names).toContain('anthropic');
     expect(names).toContain('ollama-lab');

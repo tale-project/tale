@@ -7,7 +7,7 @@
 // policy, credential env keys, model-id dialect, prompt transport,
 // capabilities, pinned CLI version, AND the full exec construction facts —
 // lives in `configs/platform/system/harnesses/<slug>/harness.yml` and validates
-// through `harnessConnectorSchema`. One generic interpreter
+// through `harnessDefinitionSchema`. One generic interpreter
 // (`exec-builder.ts`) turns those facts plus a `HarnessRunSpec` into a
 // `HarnessExec`; the YAML's `parser` field keys the stream-parser family
 // (`parsers/`), the one genuinely stateful part that stays code. The

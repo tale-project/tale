@@ -13,7 +13,7 @@ import { ConnectorIcon } from '@/app/features/settings/connectors/components/con
 import { useT } from '@/lib/i18n/client';
 import { SECRETS_ENV_PREFIX } from '@/lib/shared/schemas/providers';
 
-import type { ConnectorCatalog, MaskedCredential } from '../hooks/queries';
+import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
 import {
   apiFormatLabel,
   catalogSourceLabel,
@@ -22,39 +22,39 @@ import {
 import { CredentialCreateDialog } from './credential-create-dialog';
 import { CredentialRow } from './credential-row';
 
-interface ConnectorSectionProps {
+interface ProviderSectionProps {
   organizationId: string;
-  connector: ConnectorCatalog;
+  provider: ProviderCatalog;
   credentials: MaskedCredential[];
   className?: string;
 }
 
-/** Host of a connector's base URL, for the wire-facts line. Absent for
- * per-credential-endpoint connectors, whose rows carry their own URL. */
+/** Host of a provider's base URL, for the wire-facts line. Absent for
+ * per-credential-endpoint providers, whose rows carry their own URL. */
 function baseUrlHost(baseUrl: string | undefined): string | undefined {
   if (baseUrl === undefined) return undefined;
   try {
     return new URL(baseUrl).host;
   } catch (err) {
-    console.warn('providers: unparsable connector baseUrl', baseUrl, err);
+    console.warn('providers: unparsable provider baseUrl', baseUrl, err);
     return baseUrl;
   }
 }
 
 /**
- * One shipped connector: the wire facts (API format, endpoint host) in the
- * header, the catalog source + model count line (with the per-connector
+ * One shipped provider: the wire facts (API format, endpoint host) in the
+ * header, the catalog source + model count line (with the per-provider
  * degradation error when the live source is unreachable), and the
  * organization's credentials for this provider. A pair whose default was
  * deleted keeps working rows but no automatic pick — that state is surfaced,
  * never auto-fixed.
  */
-export function ConnectorSection({
+export function ProviderSection({
   organizationId,
-  connector,
+  provider,
   credentials,
   className,
-}: ConnectorSectionProps) {
+}: ProviderSectionProps) {
   const { t } = useT('settings');
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -62,18 +62,18 @@ export function ConnectorSection({
     credentials.length > 0 &&
     !credentials.some((credential) => credential.isDefault);
 
-  // A connector may declare auth methods this page has no form for (e.g. a
+  // A provider may declare auth methods this page has no form for (e.g. a
   // vendor subscription key bound to a harness); adding is only offered when
   // at least one method the dialog can build is available.
-  const offersKnownMethod = connector.authMethods.some(isKnownAuthMethod);
+  const offersKnownMethod = provider.authMethods.some(isKnownAuthMethod);
 
-  const host = baseUrlHost(connector.baseUrl);
-  const format = apiFormatLabel(t, connector.apiFormat);
+  const host = baseUrlHost(provider.baseUrl);
+  const format = apiFormatLabel(t, provider.apiFormat);
   const facts =
     host !== undefined
-      ? t('providers.connector.facts', { format, host })
-      : connector.endpointMode === 'per-credential'
-        ? t('providers.connector.factsPerCredential', { format })
+      ? t('providers.card.facts', { format, host })
+      : provider.endpointMode === 'per-credential'
+        ? t('providers.card.factsPerCredential', { format })
         : format;
 
   return (
@@ -81,8 +81,8 @@ export function ConnectorSection({
       className={className}
       title={
         <span className="inline-flex items-center gap-2">
-          <ConnectorIcon iconUrl={connector.iconUrl} className="size-5" />
-          {connector.displayName}
+          <ConnectorIcon iconUrl={provider.iconUrl} className="size-5" />
+          {provider.displayName}
         </span>
       }
       description={facts}
@@ -93,37 +93,34 @@ export function ConnectorSection({
           onClick={() => setCreateOpen(true)}
           disabled={!offersKnownMethod}
         >
-          {t('providers.connector.addCredential')}
+          {t('providers.card.addCredential')}
         </Button>
       }
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline">
-          {catalogSourceLabel(t, connector.catalogSource)}
+          {catalogSourceLabel(t, provider.catalogSource)}
         </Badge>
         <Text as="span" variant="muted" className="text-xs">
-          {connector.catalogSource === 'none'
-            ? t('providers.connector.noCatalogHint')
-            : t('providers.connector.modelCount', {
-                count: connector.models.length,
+          {provider.catalogSource === 'none'
+            ? t('providers.card.noCatalogHint')
+            : t('providers.card.modelCount', {
+                count: provider.models.length,
               })}
         </Text>
       </div>
 
-      {connector.catalogError !== undefined && (
+      {provider.catalogError !== undefined && (
         <Alert
           variant="warning"
-          description={t('providers.connector.catalogUnavailable', {
-            error: connector.catalogError,
+          description={t('providers.card.catalogUnavailable', {
+            error: provider.catalogError,
           })}
         />
       )}
 
       {hasNoDefault && (
-        <Alert
-          variant="warning"
-          description={t('providers.connector.noDefault')}
-        />
+        <Alert variant="warning" description={t('providers.card.noDefault')} />
       )}
 
       {credentials.length > 0 ? (
@@ -133,7 +130,7 @@ export function ConnectorSection({
               key={credential.id}
               organizationId={organizationId}
               credential={credential}
-              connector={connector}
+              provider={provider}
             />
           ))}
         </ul>
@@ -141,13 +138,13 @@ export function ConnectorSection({
         <div className="border-border rounded-lg border border-dashed px-4 py-6">
           <Stack gap={1}>
             <Text as="p" variant="label">
-              {t('providers.connector.emptyTitle')}
+              {t('providers.card.emptyTitle')}
             </Text>
             <Text as="p" variant="muted" className="text-sm">
-              {t('providers.connector.emptyBody')}
+              {t('providers.card.emptyBody')}
             </Text>
             <Text as="p" variant="muted" className="text-sm">
-              {t('providers.connector.emptyEnvHint', {
+              {t('providers.card.emptyEnvHint', {
                 prefix: SECRETS_ENV_PREFIX,
               })}
             </Text>
@@ -157,7 +154,7 @@ export function ConnectorSection({
 
       <CredentialCreateDialog
         organizationId={organizationId}
-        connector={connector}
+        provider={provider}
         open={createOpen}
         onOpenChange={setCreateOpen}
       />

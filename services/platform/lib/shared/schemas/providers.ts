@@ -2,17 +2,17 @@
  * AI-provider system-config schemas — the shapes of the three shipped config
  * trees under `configs/platform/system/`:
  *
- *  - `providers/<name>/provider.yml`  → {@link providerConnectorSchema} — a provider
+ *  - `providers/<name>/provider.yml`  → {@link providerDefinitionSchema} — a provider
  *    CONNECTOR: which wire dialect the endpoint speaks, where it lives, how
  *    its model catalog is sourced, and which credential auth methods it
  *    accepts. Credentials themselves are org data (the `providerCredentials`
- *    table), never part of the connector.
+ *    table), never part of the provider.
  *  - `models/<provider>/models.yml` → {@link modelCatalogFileSchema} — the static
- *    model catalog for connectors with `catalog.source: static`; one
+ *    model catalog for providers with `catalog.source: static`; one
  *    normalized {@link modelCatalogEntrySchema} shape shared with the
  *    API-fetched catalogs (OpenRouter, models-endpoint), so everything
  *    downstream reads one model vocabulary.
- *  - `harnesses/<slug>/harness.yml`  → {@link harnessConnectorSchema} — the
+ *  - `harnesses/<slug>/harness.yml`  → {@link harnessDefinitionSchema} — the
  *    declarative facts of a sandbox coding harness: credential policy,
  *    credential env keys, model-id dialect, prompt transport, capabilities,
  *    the `parser` stream-dialect family, and the full `exec` construction
@@ -63,7 +63,7 @@ export const providerKeyEnvNameSchema = z
     `must start with ${SECRETS_ENV_PREFIX} and contain only letters, digits, and underscores`,
   );
 
-/** Lower-case kebab slug — connector names and harness slugs. */
+/** Lower-case kebab slug — provider names and harness slugs. */
 const slugSchema = z
   .string()
   .min(1)
@@ -85,16 +85,16 @@ export const apiFormatSchema = z.enum(['openai', 'anthropic']);
 export type ApiFormat = z.infer<typeof apiFormatSchema>;
 
 /**
- * Endpoint base URL. https-only: shipped connectors always point at public
+ * Endpoint base URL. https-only: shipped providers always point at public
  * provider APIs, and the SSRF host policy assumes no cleartext scheme can
- * smuggle past it. Both shipped AND org-defined custom connectors
- * (`providerConnectorSchema.baseUrl`) validate through this schema, so a
+ * smuggle past it. Both shipped AND org-defined custom providers
+ * (`providerDefinitionSchema.baseUrl`) validate through this schema, so a
  * self-hosted model server reachable only over cleartext http (Ollama/vLLM on
  * localhost or a LAN) cannot be configured today — enabling it would need a
  * scheme-and-host-aware relaxation (http permitted only for private/loopback
  * hosts under `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS`, re-enforced at every
  * request boundary), a deliberate security change made with review, not here.
- * Exported for the per-credential endpoint validation (Azure-style connectors).
+ * Exported for the per-credential endpoint validation (Azure-style providers).
  */
 export const providerBaseUrlSchema = z
   .string()
@@ -108,14 +108,14 @@ export const providerBaseUrlSchema = z
   }, 'baseUrl must be an https:// URL');
 
 /**
- * Where a connector's model catalog comes from. The four cases:
+ * Where a provider's model catalog comes from. The four cases:
  *
  *  - `static`          → shipped file `models/<name>.yml` (Anthropic, OpenAI,
  *                        Gemini — vendors without a usable listing endpoint).
  *  - `openrouter-api`  → OpenRouter's own catalog API, normalized at fetch.
- *  - `models-endpoint` → the connector's `GET {baseUrl}/models` listing
+ *  - `models-endpoint` → the provider's `GET {baseUrl}/models` listing
  *                        (Vercel AI Gateway), normalized at fetch.
- *  - `none`            → the connector has no shippable catalog at all
+ *  - `none`            → the provider has no shippable catalog at all
  *                        (Azure: model ids are org-chosen deployment names;
  *                        Nous Portal: a subscription-routed marketplace) —
  *                        availability comes from each credential's own
@@ -153,18 +153,18 @@ export type ExecutionConstraints = z.infer<typeof executionConstraintsSchema>;
 export type SubscriptionBrokerConstraints = ExecutionConstraints;
 
 /**
- * The credential auth methods a connector accepts, discriminated on
+ * The credential auth methods a provider accepts, discriminated on
  * `method`:
  *
  *  - `api-key` — a single secret stored (encrypted) on the credential row.
  *  - `env`     — a deployment environment variable; the credential stores
  *    only the variable NAME, which must pass the {@link SECRETS_ENV_PREFIX}
- *    gate. No connector-side fields.
+ *    gate. No provider-side fields.
  *  - `subscription-key` — a STATIC vendor subscription secret (a coding-plan
  *    key, a portal key, an OAuth credentials blob). Never usable for direct
  *    API calls: it carries forced-execution constraints binding it to one
  *    harness. May override the wire endpoint/format — subscriptions often
- *    ride a dedicated coding endpoint distinct from the connector's API base
+ *    ride a dedicated coding endpoint distinct from the provider's API base
  *    (Z.ai, Kimi expose anthropic-format coding endpoints).
  *  - `subscription-broker` — an external broker endpoint polled for ROTATING
  *    OAuth tokens (the credential row stores endpoint + mapping +
@@ -194,16 +194,16 @@ export type ProviderAuthMethod = z.infer<typeof providerAuthMethodSchema>;
 export type ProviderAuthMethodName = ProviderAuthMethod['method'];
 
 /** The shape of one `configs/platform/system/providers/<name>/provider.yml`. */
-export const providerConnectorSchema = z
+export const providerDefinitionSchema = z
   .object({
     name: slugSchema,
     displayName: displayNameSchema,
     apiFormat: apiFormatSchema,
-    /** Absent only for `endpointMode: per-credential` connectors (Azure) —
+    /** Absent only for `endpointMode: per-credential` providers (Azure) —
      * each credential then carries its own resource endpoint. */
     baseUrl: providerBaseUrlSchema.optional(),
     /**
-     * Where the wire endpoint lives: `fixed` (default — the connector's
+     * Where the wire endpoint lives: `fixed` (default — the provider's
      * `baseUrl`) or `per-credential` (Azure-style resource endpoints — each
      * credential row stores its own `endpointUrl`).
      */
@@ -215,23 +215,23 @@ export const providerConnectorSchema = z
       .refine(
         (methods) =>
           new Set(methods.map((entry) => entry.method)).size === methods.length,
-        { message: 'auth methods must be unique per connector' },
+        { message: 'auth methods must be unique per provider' },
       ),
   })
   .strict()
   .refine(
-    (connector) =>
-      connector.endpointMode === 'per-credential' ||
-      connector.baseUrl !== undefined,
+    (provider) =>
+      provider.endpointMode === 'per-credential' ||
+      provider.baseUrl !== undefined,
     { message: 'baseUrl is required unless endpointMode is per-credential' },
   )
   .refine(
-    (connector) =>
-      connector.catalog.source !== 'models-endpoint' ||
-      connector.baseUrl !== undefined,
+    (provider) =>
+      provider.catalog.source !== 'models-endpoint' ||
+      provider.baseUrl !== undefined,
     { message: 'a models-endpoint catalog needs a fixed baseUrl to list from' },
   );
-export type ProviderConnector = z.infer<typeof providerConnectorSchema>;
+export type ProviderDefinition = z.infer<typeof providerDefinitionSchema>;
 
 /**
  * How hard a reasoning model can be told to think — the two control surfaces
@@ -291,7 +291,7 @@ export const modelCatalogEntrySchema = z
     /** The id requested on the wire, in the CONNECTOR's own dialect (an
      * aggregator's `anthropic/claude-fable-5`, a vendor's `claude-fable-5`). */
     id: z.string().min(1).max(200),
-    /** The connector this entry belongs to (`providers/<name>.yml`). */
+    /** The provider this entry belongs to (`providers/<name>.yml`). */
     provider: slugSchema,
     /** Role/capability tags for grouping and filtering (`chat`, `vision`,
      * `embedding`, `text-to-speech`, …) — open vocabulary, additive. */
@@ -896,7 +896,7 @@ function argvSlotKind(slot: Record<string, unknown>): string {
 }
 
 /** The shape of one `configs/platform/system/harnesses/<slug>/harness.yml`. */
-export const harnessConnectorSchema = z
+export const harnessDefinitionSchema = z
   .object({
     slug: slugSchema,
     displayName: displayNameSchema,
@@ -944,13 +944,13 @@ export const harnessConnectorSchema = z
     pinnedVersion: z.string().min(1).max(64).optional(),
   })
   .strict()
-  .superRefine((connector, ctx) => {
+  .superRefine((provider, ctx) => {
     // The declared capabilities/transport facts and the exec facts describe
     // one process — the schema holds them coherent, replacing the retired
     // behavior-probing registry validator.
     const issue = (message: string) =>
       ctx.addIssue({ code: 'custom', message });
-    const slots = connector.exec.argv as ReadonlyArray<Record<string, unknown>>;
+    const slots = provider.exec.argv as ReadonlyArray<Record<string, unknown>>;
     const counts = new Map<string, number>();
     for (const slot of slots) {
       const kind = argvSlotKind(slot);
@@ -973,34 +973,34 @@ export const harnessConnectorSchema = z
     }
 
     // Plan mode ⇔ a posture slot exists.
-    if (connector.capabilities.planMode !== (counts.get('posture') ?? 0) > 0) {
+    if (provider.capabilities.planMode !== (counts.get('posture') ?? 0) > 0) {
       issue(
         'capabilities.planMode must match the presence of an argv posture slot',
       );
     }
 
     // Steering ⇔ the held-open NDJSON stdin channel.
-    const holdsStdin = connector.exec.stdin.mode === 'ndjson-user-message';
-    if (connector.capabilities.steering !== holdsStdin) {
+    const holdsStdin = provider.exec.stdin.mode === 'ndjson-user-message';
+    if (provider.capabilities.steering !== holdsStdin) {
       issue(
         'capabilities.steering must match the ndjson-user-message stdin mode (the held-open steering channel)',
       );
     }
-    if (connector.exec.steering && !connector.capabilities.steering) {
+    if (provider.exec.steering && !provider.capabilities.steering) {
       issue('a steering env section requires capabilities.steering');
     }
 
     // Prompt transport ⇔ the stdin mode / argv prompt slot.
-    const stdinMode = connector.exec.stdin.mode;
+    const stdinMode = provider.exec.stdin.mode;
     const hasArgvPrompt = (counts.get('prompt') ?? 0) > 0;
     const envelope =
-      connector.exec.stdin.mode === 'json-envelope'
-        ? (connector.exec.stdin.envelope as ReadonlyArray<
+      provider.exec.stdin.mode === 'json-envelope'
+        ? (provider.exec.stdin.envelope as ReadonlyArray<
             Record<string, unknown>
           >)
         : [];
     const envelopeHasPrompt = envelope.some((e) => 'prompt' in e);
-    switch (connector.promptTransport) {
+    switch (provider.promptTransport) {
       case 'argv':
         if (stdinMode !== 'none' || !hasArgvPrompt) {
           issue(
@@ -1035,15 +1035,15 @@ export const harnessConnectorSchema = z
       ?.toolDeny as { managed?: unknown } | undefined;
     const usesManaged =
       (counts.get('managedArgs') ?? 0) > 0 ||
-      connector.exec.env?.managed !== undefined ||
-      connector.exec.vision !== undefined ||
+      provider.exec.env?.managed !== undefined ||
+      provider.exec.vision !== undefined ||
       modelSlot?.managedPrefixArgs !== undefined ||
       modelSlot?.managedEnv !== undefined ||
       toolDenySlot?.managed !== undefined;
-    if (usesManaged && !connector.credentialPolicy.managed) {
+    if (usesManaged && !provider.credentialPolicy.managed) {
       issue('managed-only exec sections require credentialPolicy.managed true');
     }
-    if ((counts.get('byoArgs') ?? 0) > 0 && !connector.credentialPolicy.byo) {
+    if ((counts.get('byoArgs') ?? 0) > 0 && !provider.credentialPolicy.byo) {
       issue('byoArgs requires credentialPolicy.byo true');
     }
 
@@ -1054,7 +1054,7 @@ export const harnessConnectorSchema = z
     const instructionDeliveries =
       (counts.get('instructions') ?? 0) +
       envelopeInstructions +
-      (connector.exec.stagedInstructions ? 1 : 0);
+      (provider.exec.stagedInstructions ? 1 : 0);
     if (instructionDeliveries > 1) {
       issue('instructions may use at most one delivery channel');
     }
@@ -1069,7 +1069,7 @@ export const harnessConnectorSchema = z
         );
       }
     }
-    for (const doc of Object.values(connector.exec.envDocs ?? {})) {
+    for (const doc of Object.values(provider.exec.envDocs ?? {})) {
       fragmentLists.push(
         doc.fragments as ReadonlyArray<Record<string, unknown>>,
       );
@@ -1082,7 +1082,7 @@ export const harnessConnectorSchema = z
 
     // Staged instructions and their doc reference come as a pair.
     if (
-      (connector.exec.stagedInstructions !== undefined) !==
+      (provider.exec.stagedInstructions !== undefined) !==
       instructionsRefCount > 0
     ) {
       issue(
@@ -1099,10 +1099,10 @@ export const harnessConnectorSchema = z
     if (mcpChannels > 1) {
       issue('at most one MCP mounting channel');
     }
-    if (connector.capabilities.mcp !== (mcpChannels === 1)) {
+    if (provider.capabilities.mcp !== (mcpChannels === 1)) {
       issue(
         'capabilities.mcp must match the presence of an MCP mounting channel',
       );
     }
   });
-export type HarnessConnector = z.infer<typeof harnessConnectorSchema>;
+export type HarnessDefinition = z.infer<typeof harnessDefinitionSchema>;

@@ -4,7 +4,7 @@
 //
 //  - `validateHarnessFacts` — the SET pairing: every shipped slug has
 //    exactly one fact and every fact names a shipped slug.
-//  - `harnessConnectorSchema` coherence — the per-file refinements that
+//  - `harnessDefinitionSchema` coherence — the per-file refinements that
 //    replaced the old behavior-probing validator: declared capabilities /
 //    transport / credential policy must match the exec facts. The
 //    failure-mode cases doctor a cloned RAW fact and assert the schema
@@ -17,8 +17,8 @@ import { describe, expect, it } from 'vitest';
 
 import { loadHarnesses } from '../../convex/lib/providers/load_system_config';
 import {
-  harnessConnectorSchema,
-  type HarnessConnector,
+  harnessDefinitionSchema,
+  type HarnessDefinition,
 } from '../shared/schemas/providers';
 import {
   composeHarnessGlue,
@@ -29,12 +29,12 @@ import { HARNESS_SLUGS } from './types';
 
 /** Deep-cloned shipped facts, safe to doctor (the loader caches and returns
  * stable references — mutating those would poison sibling tests). */
-function clonedFacts(): HarnessConnector[] {
+function clonedFacts(): HarnessDefinition[] {
   return structuredClone([...loadHarnesses()]);
 }
 
 /** The clone of one slug's fact, for targeted doctoring. */
-function factOf(facts: HarnessConnector[], slug: string): HarnessConnector {
+function factOf(facts: HarnessDefinition[], slug: string): HarnessDefinition {
   const fact = facts.find((f) => f.slug === slug);
   if (!fact) throw new Error(`shipped facts miss "${slug}"`);
   return fact;
@@ -42,8 +42,8 @@ function factOf(facts: HarnessConnector[], slug: string): HarnessConnector {
 
 /** Re-validate one doctored fact through the schema and return the joined
  * issue messages ('' when it still validates). */
-function schemaProblems(fact: HarnessConnector): string {
-  const result = harnessConnectorSchema.safeParse(fact);
+function schemaProblems(fact: HarnessDefinition): string {
+  const result = harnessDefinitionSchema.safeParse(fact);
   return result.success
     ? ''
     : result.error.issues.map((i) => i.message).join('\n');

@@ -26,7 +26,7 @@ import process from 'node:process';
 
 import {
   loadHarnesses,
-  loadProviderConnectors,
+  loadProviderDefinitions,
   loadStaticCatalogs,
 } from '../convex/lib/providers/load_system_config';
 import { loadConnectorDefinitions } from '../lib/connectors/catalog';
@@ -45,7 +45,7 @@ const SYSTEM_ROOT = path.join(
 function main(): void {
   const options = { root: SYSTEM_ROOT } as const;
   try {
-    const providers = loadProviderConnectors(options);
+    const providers = loadProviderDefinitions(options);
     const modelCatalogs = loadStaticCatalogs(options);
     const harnesses = loadHarnesses(options);
     const connectors = loadConnectorDefinitions(options);

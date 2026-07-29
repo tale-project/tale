@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
-import { getConnectorCatalog } from '../../lib/providers/catalog_fetch';
+import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import {
   buildProviderProvision,
@@ -27,23 +27,23 @@ vi.mock('../../provider_credentials/resolve_credential', () => ({
   resolveProviderCredential: vi.fn(),
 }));
 vi.mock('../../lib/providers/catalog_fetch', () => ({
-  getConnectorCatalog: vi.fn(async () => [
+  getProviderCatalog: vi.fn(async () => [
     { id: 'anthropic/claude-sonnet-5' },
     { id: 'openai/gpt-5.5' },
   ]),
 }));
 // The org-aware connector resolution needs a live org-slug lookup; serve the
 // SHIPPED connector set directly so the tests pin the real system YAMLs.
-vi.mock('../../lib/providers/org_connectors', () => ({
-  resolveConnectorsForOrgId: vi.fn(async () => {
-    const { loadProviderConnectors } =
+vi.mock('../../lib/providers/org_providers', () => ({
+  resolveProvidersForOrgId: vi.fn(async () => {
+    const { loadProviderDefinitions } =
       await import('../../lib/providers/load_system_config');
-    return loadProviderConnectors();
+    return loadProviderDefinitions();
   }),
 }));
 
 const mockedResolve = vi.mocked(resolveProviderCredential);
-const mockedCatalog = vi.mocked(getConnectorCatalog);
+const mockedCatalog = vi.mocked(getProviderCatalog);
 
 /** Fake ActionCtx whose runQuery serves the credential-row read. */
 function fakeCtx(row: { modelAllowlist?: string[] } | null = {}): ActionCtx {
@@ -178,7 +178,7 @@ describe('provisionSessionGatewayKey', () => {
     mockedCatalog.mockResolvedValue([
       { id: 'deepseek-chat' },
       { id: 'deepseek-reasoner' },
-    ] as unknown as Awaited<ReturnType<typeof getConnectorCatalog>>);
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
     await provisionSessionGatewayKey(fakeCtx(), {
       organizationId: 'org_1',
       sessionId: 'sess-ds',

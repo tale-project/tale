@@ -8,7 +8,7 @@ import { api } from '@/convex/_generated/api';
  * Read hooks for the AI-providers settings page. Credentials come from a
  * reactive Convex query (masked by construction — the server never selects
  * ciphertext), so writes through the credential mutations/actions propagate
- * without manual invalidation. The connector catalogs come from a Convex
+ * without manual invalidation. The provider catalogs come from a Convex
  * ACTION (it reads shipped config files and cached live catalogs), so it goes
  * through `useActionQuery`; the explicit catalog refresh invalidates its key.
  */
@@ -18,13 +18,13 @@ export type MaskedCredential = FunctionReturnType<
   typeof api.provider_credentials.queries.listCredentials
 >[number];
 
-/** One shipped connector with its current model catalog. */
-export type ConnectorCatalog = FunctionReturnType<
+/** One shipped provider with its current model catalog. */
+export type ProviderCatalog = FunctionReturnType<
   typeof api.lib.providers.catalog_actions.listProviderCatalogs
 >[number];
 
-/** One model entry of a connector's catalog. */
-export type CatalogModel = ConnectorCatalog['models'][number];
+/** One model entry of a provider's catalog. */
+export type CatalogModel = ProviderCatalog['models'][number];
 
 /** React-query key of the catalog listing — shared with the refresh hook. */
 export function providerCatalogsQueryKey(organizationId: string) {
@@ -38,7 +38,7 @@ export function useProviderCredentials(organizationId: string) {
   });
 }
 
-/** Every shipped connector with its model catalog (may carry a per-connector
+/** Every shipped provider with its model catalog (may carry a per-provider
  * `catalogError` when a live source is unreachable). */
 export function useProviderCatalogs(organizationId: string) {
   return useActionQuery(

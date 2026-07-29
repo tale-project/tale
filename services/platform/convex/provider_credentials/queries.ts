@@ -29,7 +29,7 @@ const maskedCredentialValidator = v.object({
   authMethod: providerAuthMethodValidator,
   name: v.string(),
   envName: v.optional(v.string()),
-  /** Per-credential wire endpoint (Azure-style connectors) — an endpoint
+  /** Per-credential wire endpoint (Azure-style providers) — an endpoint
    * hostname, not a secret. */
   endpointUrl: v.optional(v.string()),
   maskedPreview: v.optional(v.string()),

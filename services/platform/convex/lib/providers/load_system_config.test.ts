@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildHarnessTable } from '../../../lib/shared/providers/resolve_execution';
 import {
   loadHarnesses,
-  loadProviderConnectors,
+  loadProviderDefinitions,
   loadStaticCatalogs,
 } from './load_system_config';
 
@@ -19,9 +19,9 @@ import {
 // malformed or incoherent shipped file fails the suite — the
 // registry-completeness gate for the provider foundation.
 
-describe('shipped provider connectors', () => {
-  it('loads the twelve shipped connectors', () => {
-    const names = loadProviderConnectors().map((c) => c.name);
+describe('shipped providers', () => {
+  it('loads the twelve shipped providers', () => {
+    const names = loadProviderDefinitions().map((c) => c.name);
     expect(names).toEqual([
       'anthropic',
       'azure',
@@ -39,7 +39,7 @@ describe('shipped provider connectors', () => {
   });
 
   it('anthropic ships the subscription-broker method forcing claude-code', () => {
-    const anthropic = loadProviderConnectors().find(
+    const anthropic = loadProviderDefinitions().find(
       (c) => c.name === 'anthropic',
     );
     expect(anthropic?.apiFormat).toBe('anthropic');
@@ -54,8 +54,8 @@ describe('shipped provider connectors', () => {
 
   it('every subscription constraint names a shipped, byo-capable harness', () => {
     const harnesses = buildHarnessTable(loadHarnesses());
-    for (const connector of loadProviderConnectors()) {
-      for (const auth of connector.auth) {
+    for (const provider of loadProviderDefinitions()) {
+      for (const auth of provider.auth) {
         if (
           auth.method !== 'subscription-broker' &&
           auth.method !== 'subscription-key'
@@ -65,7 +65,7 @@ describe('shipped provider connectors', () => {
         const forced = harnesses.get(auth.constraints.harness);
         expect(
           forced,
-          `${connector.name} forces an unshipped harness`,
+          `${provider.name} forces an unshipped harness`,
         ).toBeDefined();
         // The subscription secret is injected byo-style into the forced
         // harness, so that harness must accept byo credentials.
@@ -74,30 +74,30 @@ describe('shipped provider connectors', () => {
     }
   });
 
-  it('every static-source connector ships a models file, and every models file belongs to a connector', () => {
-    const connectors = loadProviderConnectors();
+  it('every static-source provider ships a models file, and every models file belongs to a provider', () => {
+    const providers = loadProviderDefinitions();
     const catalogProviders = new Set(loadStaticCatalogs().keys());
-    for (const connector of connectors) {
-      if (connector.catalog.source === 'static') {
+    for (const provider of providers) {
+      if (provider.catalog.source === 'static') {
         expect(
-          catalogProviders.has(connector.name),
-          `${connector.name} declares a static catalog but ships no models file`,
+          catalogProviders.has(provider.name),
+          `${provider.name} declares a static catalog but ships no models file`,
         ).toBe(true);
       }
     }
     // A models file may also back a LIVE source as its curated default set
-    // (openrouter) — but never dangle without a connector.
-    const connectorNames = new Set(connectors.map((c) => c.name));
+    // (openrouter) — but never dangle without a provider.
+    const providerNames = new Set(providers.map((c) => c.name));
     for (const provider of catalogProviders) {
       expect(
-        connectorNames.has(provider),
-        `models/${provider}.yml has no connector`,
+        providerNames.has(provider),
+        `models/${provider}.yml has no provider`,
       ).toBe(true);
     }
   });
 
   it('returns a stable reference while files are unchanged', () => {
-    expect(loadProviderConnectors()).toBe(loadProviderConnectors());
+    expect(loadProviderDefinitions()).toBe(loadProviderDefinitions());
     expect(loadHarnesses()).toBe(loadHarnesses());
   });
 });
@@ -226,17 +226,17 @@ describe('registry-completeness posture (fixture tree)', () => {
   });
 
   it('loads a valid fixture tree', () => {
-    expect(loadProviderConnectors({ root }).map((c) => c.name)).toEqual([
+    expect(loadProviderDefinitions({ root }).map((c) => c.name)).toEqual([
       'openai',
     ]);
   });
 
   it('errors on an unexpected file in a shipped directory', async () => {
     await writeFile(path.join(root, 'providers', 'notes.txt'), 'scratch');
-    expect(() => loadProviderConnectors({ root })).toThrow(/notes\.txt/);
+    expect(() => loadProviderDefinitions({ root })).toThrow(/notes\.txt/);
   });
 
-  it('errors on a connector whose name differs from its directory name', async () => {
+  it('errors on a provider whose name differs from its directory name', async () => {
     await mkdir(path.join(root, 'providers', 'renamed'));
     await writeFile(
       path.join(root, 'providers', 'renamed', 'provider.yml'),
@@ -252,7 +252,7 @@ describe('registry-completeness posture (fixture tree)', () => {
         '',
       ].join('\n'),
     );
-    expect(() => loadProviderConnectors({ root })).toThrow(
+    expect(() => loadProviderDefinitions({ root })).toThrow(
       /must match its directory name "renamed"/,
     );
   });
@@ -302,7 +302,7 @@ describe('registry-completeness posture (fixture tree)', () => {
 
   it('errors on an entry directory missing its canonical file', async () => {
     await mkdir(path.join(root, 'providers', 'empty-entry'));
-    expect(() => loadProviderConnectors({ root })).toThrow(
+    expect(() => loadProviderDefinitions({ root })).toThrow(
       /missing its provider\.yml/,
     );
   });
@@ -312,7 +312,7 @@ describe('registry-completeness posture (fixture tree)', () => {
       path.join(root, 'providers', 'openai', 'icon.svg'),
       '<svg xmlns="http://www.w3.org/2000/svg"/>',
     );
-    expect(loadProviderConnectors({ root }).map((c) => c.name)).toEqual([
+    expect(loadProviderDefinitions({ root }).map((c) => c.name)).toEqual([
       'openai',
     ]);
   });

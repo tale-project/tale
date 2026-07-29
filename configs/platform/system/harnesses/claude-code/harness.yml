@@ -5,7 +5,7 @@
 # vendor-native model id.
 #
 # The exec section is interpreted by lib/harnesses/exec-builder.ts (the slot
-# vocabulary is documented at harnessConnectorSchema); everything here is
+# vocabulary is documented at harnessDefinitionSchema); everything here is
 # verified against the pinned CLI version below, and the golden fixtures in
 # lib/harnesses/fixtures/exec/claude-code.json pin the built execs.
 slug: claude-code

@@ -13,7 +13,7 @@ import type { BrokerCredentialData } from '@/lib/shared/schemas/providers';
 import { SECRETS_ENV_PREFIX } from '@/lib/shared/schemas/providers';
 
 import { useCreateCredential } from '../hooks/mutations';
-import type { ConnectorCatalog } from '../hooks/queries';
+import type { ProviderCatalog } from '../hooks/queries';
 import {
   authMethodLabel,
   isKnownAuthMethod,
@@ -31,23 +31,23 @@ import { ModelAllowlistField } from './model-allowlist-field';
 
 interface CredentialCreateDialogProps {
   organizationId: string;
-  connector: ConnectorCatalog;
+  provider: ProviderCatalog;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 /**
- * "Add credential" dialog of one connector. The method picker offers exactly
- * the connector's declared auth methods; the fields below switch with the
+ * "Add credential" dialog of one provider. The method picker offers exactly
+ * the provider's declared auth methods; the fields below switch with the
  * picked method (api-key or subscription-key secret / env-var name under the
  * fixed `TALE_PROVIDER_KEY_` prefix / the broker configuration form).
- * Per-credential-endpoint connectors additionally require the resource URL.
+ * Per-credential-endpoint providers additionally require the resource URL.
  * Server refusals (name taken, invalid env name or endpoint, broker issues)
  * render inline with the server's own message.
  */
 export function CredentialCreateDialog({
   organizationId,
-  connector,
+  provider,
   open,
   onOpenChange,
 }: CredentialCreateDialogProps) {
@@ -55,14 +55,14 @@ export function CredentialCreateDialog({
   const { toast } = useToast();
   const create = useCreateCredential();
 
-  const offeredMethods = connector.authMethods.filter(isKnownAuthMethod);
+  const offeredMethods = provider.authMethods.filter(isKnownAuthMethod);
   const fallbackMethod: KnownAuthMethod = offeredMethods[0] ?? 'api-key';
-  // Azure-style connectors have no fixed baseUrl — every credential carries
+  // Azure-style providers have no fixed baseUrl — every credential carries
   // its own resource endpoint, entered here.
-  const needsEndpoint = connector.endpointMode === 'per-credential';
+  const needsEndpoint = provider.endpointMode === 'per-credential';
   // Without a catalog there is nothing to pick from — the allowlist becomes
   // free-entry (on Azure the ids are the resource's deployment names).
-  const freeTextAllowlist = connector.catalogSource === 'none';
+  const freeTextAllowlist = provider.catalogSource === 'none';
 
   const [method, setMethod] = useState<KnownAuthMethod | null>(null);
   const [name, setName] = useState('');
@@ -132,7 +132,7 @@ export function CredentialCreateDialog({
     try {
       await create.mutateAsync({
         organizationId,
-        providerSlug: connector.name,
+        providerSlug: provider.name,
         authMethod: activeMethod,
         name: name.trim(),
         ...methodArgs,
@@ -157,7 +157,7 @@ export function CredentialCreateDialog({
       }}
       title={t('providers.dialog.addTitle')}
       description={t('providers.dialog.addDescription', {
-        provider: connector.displayName,
+        provider: provider.displayName,
       })}
       submitText={t('providers.dialog.create')}
       isSubmitting={create.isPending}
@@ -245,9 +245,9 @@ export function CredentialCreateDialog({
           required
         />
       )}
-      {(connector.models.length > 0 || freeTextAllowlist) && (
+      {(provider.models.length > 0 || freeTextAllowlist) && (
         <ModelAllowlistField
-          models={connector.models}
+          models={provider.models}
           freeText={freeTextAllowlist}
           value={allowlist}
           onValueChange={setAllowlist}

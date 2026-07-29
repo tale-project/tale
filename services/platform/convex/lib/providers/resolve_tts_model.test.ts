@@ -1,5 +1,5 @@
 /**
- * The TTS model resolver walks the org's connectors for the first
+ * The TTS model resolver walks the org's providers for the first
  * text-to-speech entry a DIRECT credential can serve, then picks voice and
  * instructions by locale → base language → default. These tests pin the
  * fallback ladder and the two coded refusals (`UNKNOWN_VOICE`,
@@ -12,15 +12,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../../_generated/server';
 
-const resolveConnectorsMock = vi.fn();
-vi.mock('./org_connectors', () => ({
-  resolveConnectorsForOrgId: (...args: unknown[]) =>
-    resolveConnectorsMock(...(args as [])),
+const resolveProvidersMock = vi.fn();
+vi.mock('./org_providers', () => ({
+  resolveProvidersForOrgId: (...args: unknown[]) =>
+    resolveProvidersMock(...(args as [])),
 }));
 
 const catalogMock = vi.fn();
 vi.mock('./catalog_fetch', () => ({
-  getConnectorCatalog: (...args: unknown[]) => catalogMock(...(args as [])),
+  getProviderCatalog: (...args: unknown[]) => catalogMock(...(args as [])),
 }));
 
 const credentialMock = vi.fn();
@@ -34,7 +34,7 @@ import { resolveTtsModel } from './resolve_tts_model';
 const ctx = {} as ActionCtx;
 const ORG = 'org_a';
 
-function connector(name: string, baseUrl = `https://${name}.example/v1`) {
+function provider(name: string, baseUrl = `https://${name}.example/v1`) {
   return { name, baseUrl };
 }
 
@@ -75,14 +75,14 @@ async function caughtCode(promise: Promise<unknown>): Promise<string> {
 }
 
 beforeEach(() => {
-  resolveConnectorsMock.mockReset();
+  resolveProvidersMock.mockReset();
   catalogMock.mockReset();
   credentialMock.mockReset();
 });
 
 describe('resolveTtsModel', () => {
   it('resolves the first text-to-speech entry with an exact-locale voice', async () => {
-    resolveConnectorsMock.mockResolvedValue([connector('openai')]);
+    resolveProvidersMock.mockResolvedValue([provider('openai')]);
     catalogMock.mockResolvedValue([
       { id: 'gpt-4o', tags: ['chat'] },
       ttsEntry(),
@@ -106,7 +106,7 @@ describe('resolveTtsModel', () => {
   });
 
   it('falls back exact locale → base language → default voice', async () => {
-    resolveConnectorsMock.mockResolvedValue([connector('openai')]);
+    resolveProvidersMock.mockResolvedValue([provider('openai')]);
     catalogMock.mockResolvedValue([ttsEntry()]);
     credentialMock.mockResolvedValue(apiKeyCredential());
 
@@ -127,7 +127,7 @@ describe('resolveTtsModel', () => {
   });
 
   it('throws UNKNOWN_VOICE when the entry declares no usable voice', async () => {
-    resolveConnectorsMock.mockResolvedValue([connector('openai')]);
+    resolveProvidersMock.mockResolvedValue([provider('openai')]);
     catalogMock.mockResolvedValue([ttsEntry({ tts: {} })]);
     credentialMock.mockResolvedValue(apiKeyCredential());
 
@@ -139,10 +139,10 @@ describe('resolveTtsModel', () => {
   });
 
   it('skips subscription credentials and unreachable catalogs, then refuses with NO_PROVIDER', async () => {
-    resolveConnectorsMock.mockResolvedValue([
-      connector('anthropic'),
-      connector('copilot'),
-      connector('chat-only'),
+    resolveProvidersMock.mockResolvedValue([
+      provider('anthropic'),
+      provider('copilot'),
+      provider('chat-only'),
     ]);
     catalogMock.mockImplementation(async (c: { name: string }) => {
       if (c.name === 'anthropic') throw new Error('catalog unreachable');
@@ -164,9 +164,9 @@ describe('resolveTtsModel', () => {
   });
 
   it('prefers the requested provider and applies mp3 as the format default', async () => {
-    resolveConnectorsMock.mockResolvedValue([
-      connector('openai'),
-      connector('elevenlabs'),
+    resolveProvidersMock.mockResolvedValue([
+      provider('openai'),
+      provider('elevenlabs'),
     ]);
     catalogMock.mockImplementation(async (c: { name: string }) => [
       c.name === 'elevenlabs'

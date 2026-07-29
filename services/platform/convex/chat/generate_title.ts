@@ -30,9 +30,9 @@ import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import { internalAction, type ActionCtx } from '../_generated/server';
 import { createBuilderModel } from '../automations_builder/model_call';
-import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
+import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
-import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 
 /** The whole naming attempt shares one wall-clock budget; past it the
  * fallback title wins and the reply, if it ever arrives, is discarded. */
@@ -78,7 +78,7 @@ async function pickTitleModel(
   organizationId: string,
   preferredModelId: string | null,
 ): Promise<TitleModelTarget | null> {
-  const connectors = await resolveConnectorsForOrgId(ctx, organizationId);
+  const connectors = await resolveProvidersForOrgId(ctx, organizationId);
 
   /** The connectors a direct call could use, catalogs resolved. */
   const candidates: Array<{
@@ -96,7 +96,7 @@ async function pickTitleModel(
 
     let catalog: readonly ModelCatalogEntry[];
     try {
-      catalog = await getConnectorCatalog(connector);
+      catalog = await getProviderCatalog(connector);
     } catch (error) {
       // One connector's unreachable /models endpoint must not cost the title;
       // skip it loudly and try the next.

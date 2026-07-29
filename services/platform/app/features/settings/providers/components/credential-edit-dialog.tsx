@@ -9,21 +9,21 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateCredential } from '../hooks/mutations';
-import type { ConnectorCatalog, MaskedCredential } from '../hooks/queries';
+import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
 import { mapProviderError } from '../provider-errors';
 import { ModelAllowlistField } from './model-allowlist-field';
 
 interface CredentialEditDialogProps {
   organizationId: string;
   credential: MaskedCredential;
-  connector: ConnectorCatalog;
+  provider: ProviderCatalog;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 /**
  * Edit a credential's non-secret fields: label, model allowlist, and — on
- * per-credential-endpoint connectors — the resource endpoint URL (a plain
+ * per-credential-endpoint providers — the resource endpoint URL (a plain
  * coordinate, listed unmasked). The secret material has its own per-method
  * replacement dialog. An emptied allowlist is sent as `null` so the server
  * clears the restriction instead of storing an empty list.
@@ -31,7 +31,7 @@ interface CredentialEditDialogProps {
 export function CredentialEditDialog({
   organizationId,
   credential,
-  connector,
+  provider,
   open,
   onOpenChange,
 }: CredentialEditDialogProps) {
@@ -45,7 +45,7 @@ export function CredentialEditDialog({
   const [error, setError] = useState<string | null>(null);
 
   const hasEndpoint = credential.endpointUrl !== undefined;
-  const freeTextAllowlist = connector.catalogSource === 'none';
+  const freeTextAllowlist = provider.catalogSource === 'none';
 
   const baselineAllowlist = credential.modelAllowlist ?? [];
   const isDirty =
@@ -121,11 +121,11 @@ export function CredentialEditDialog({
           required
         />
       )}
-      {(connector.models.length > 0 ||
+      {(provider.models.length > 0 ||
         allowlist.length > 0 ||
         freeTextAllowlist) && (
         <ModelAllowlistField
-          models={connector.models}
+          models={provider.models}
           freeText={freeTextAllowlist}
           value={allowlist}
           onValueChange={setAllowlist}

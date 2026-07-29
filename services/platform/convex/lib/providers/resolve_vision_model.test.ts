@@ -1,25 +1,25 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProviderConnector } from '../../../lib/shared/schemas/providers';
+import type { ProviderDefinition } from '../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../../_generated/server';
-import { getConnectorCatalog } from './catalog_fetch';
-import { resolveConnectorsForOrgId } from './org_connectors';
+import { getProviderCatalog } from './catalog_fetch';
+import { resolveProvidersForOrgId } from './org_providers';
 import {
   resolveOrgVisionModel,
   resolveTurnVisionModel,
 } from './resolve_vision_model';
 
-vi.mock('./org_connectors', () => ({
-  resolveConnectorsForOrgId: vi.fn(),
+vi.mock('./org_providers', () => ({
+  resolveProvidersForOrgId: vi.fn(),
 }));
 vi.mock('./catalog_fetch', () => ({
-  getConnectorCatalog: vi.fn(),
+  getProviderCatalog: vi.fn(),
 }));
 
-const mockedResolveConnectors = vi.mocked(resolveConnectorsForOrgId);
-const mockedCatalog = vi.mocked(getConnectorCatalog);
+const mockedResolveProviders = vi.mocked(resolveProvidersForOrgId);
+const mockedCatalog = vi.mocked(getProviderCatalog);
 
-function connector(name: string) {
+function provider(name: string) {
   return {
     name,
     displayName: name,
@@ -27,13 +27,13 @@ function connector(name: string) {
     baseUrl: `https://${name}.example.com/v1`,
     catalog: { source: 'static' },
     auth: [{ method: 'api-key' }],
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal connector shape for a unit test
-  } as unknown as ProviderConnector;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal provider shape for a unit test
+  } as unknown as ProviderDefinition;
 }
 
-/** The resolver walks whatever connector set the org resolves to. */
-function mockConnectors(connectors: ProviderConnector[]): void {
-  mockedResolveConnectors.mockResolvedValue(connectors);
+/** The resolver walks whatever provider set the org resolves to. */
+function mockProviders(providers: ProviderDefinition[]): void {
+  mockedResolveProviders.mockResolvedValue(providers);
 }
 
 interface FakeCredentialRow {
@@ -80,7 +80,7 @@ afterEach(() => {
 
 describe('resolveOrgVisionModel', () => {
   it('picks the cheapest vision-capable chat model across active default credentials', async () => {
-    mockConnectors([connector('alpha'), connector('beta')]);
+    mockProviders([provider('alpha'), provider('beta')]);
     mockedCatalog.mockImplementation(async (c) =>
       c.name === 'alpha'
         ? [
@@ -100,11 +100,11 @@ describe('resolveOrgVisionModel', () => {
   });
 
   it('skips providers without an active, gateway-servable default credential', async () => {
-    mockConnectors([
-      connector('none'),
-      connector('disabled'),
-      connector('broker'),
-      connector('good'),
+    mockProviders([
+      provider('none'),
+      provider('disabled'),
+      provider('broker'),
+      provider('good'),
     ]);
     mockedCatalog.mockResolvedValue([entry({ id: 'vl', inputPrice: 10 })]);
     const ctx = fakeCtx({
@@ -122,7 +122,7 @@ describe('resolveOrgVisionModel', () => {
   });
 
   it("respects the default credential's model allowlist", async () => {
-    mockConnectors([connector('alpha')]);
+    mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([
       entry({ id: 'cheap-vl', inputPrice: 1 }),
       entry({ id: 'allowed-vl', inputPrice: 100 }),
@@ -142,7 +142,7 @@ describe('resolveOrgVisionModel', () => {
 
   it('a failing catalog skips that provider, not the whole resolution', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mockConnectors([connector('flaky'), connector('good')]);
+    mockProviders([provider('flaky'), provider('good')]);
     mockedCatalog.mockImplementation(async (c) => {
       if (c.name === 'flaky') throw new Error('endpoint down');
       return [entry({ id: 'vl', inputPrice: 10 })];
@@ -163,7 +163,7 @@ describe('resolveOrgVisionModel', () => {
   });
 
   it('returns null when nothing vision-capable is reachable', async () => {
-    mockConnectors([connector('alpha')]);
+    mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([
       entry({ id: 'text-only', vision: false }),
       entry({ id: 'embed', vision: true, tags: ['embedding'] }),
@@ -175,7 +175,7 @@ describe('resolveOrgVisionModel', () => {
   });
 
   it('ranks unpriced entries last and tie-breaks deterministically', async () => {
-    mockConnectors([connector('zeta'), connector('alpha')]);
+    mockProviders([provider('zeta'), provider('alpha')]);
     mockedCatalog.mockImplementation(async (c) =>
       c.name === 'zeta'
         ? [entry({ id: 'vl-z', inputPrice: 10 }), entry({ id: 'unpriced' })]
@@ -186,7 +186,7 @@ describe('resolveOrgVisionModel', () => {
       alpha: { authMethod: 'api-key', status: 'active' },
     });
     // Same price on two providers → the lexically smaller provider wins,
-    // regardless of connector iteration order.
+    // regardless of provider iteration order.
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
       providerSlug: 'alpha',
       modelId: 'vl-a',
@@ -201,7 +201,7 @@ describe('resolveOrgVisionModel', () => {
 // a scanned PDF 404s the whole turn without one.
 describe('resolveTurnVisionModel', () => {
   it('returns null when the serving model reads images itself', async () => {
-    mockConnectors([connector('alpha')]);
+    mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([
       entry({ id: 'omni-vl', inputPrice: 900 }),
       entry({ id: 'cheap-vl', inputPrice: 5 }),
@@ -216,7 +216,7 @@ describe('resolveTurnVisionModel', () => {
   });
 
   it('picks the org vision model for a TEXT-ONLY serving model', async () => {
-    mockConnectors([connector('alpha')]);
+    mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([
       entry({ id: 'text-only', vision: false, inputPrice: 1 }),
       entry({ id: 'cheap-vl', inputPrice: 5 }),
@@ -233,7 +233,7 @@ describe('resolveTurnVisionModel', () => {
   it('resolves a vision model when the serving model is not in the catalog', async () => {
     // A model served by a credential allowlist but absent from the fetched
     // catalog must not be assumed vision-capable.
-    mockConnectors([connector('alpha')]);
+    mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([entry({ id: 'cheap-vl', inputPrice: 5 })]);
     const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
     await expect(
@@ -245,7 +245,7 @@ describe('resolveTurnVisionModel', () => {
   });
 
   it('degrades to null (turn runs text-only) when resolution throws', async () => {
-    mockedResolveConnectors.mockRejectedValue(new Error('catalog down'));
+    mockedResolveProviders.mockRejectedValue(new Error('catalog down'));
     const ctx = fakeCtx({});
     await expect(
       resolveTurnVisionModel(ctx, 'org_1', {

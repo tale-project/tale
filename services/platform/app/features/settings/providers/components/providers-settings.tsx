@@ -17,14 +17,14 @@ import { useRefreshProviderCatalogs } from '../hooks/mutations';
 import {
   useProviderCatalogs,
   useProviderCredentials,
-  type ConnectorCatalog,
+  type ProviderCatalog,
   type MaskedCredential,
 } from '../hooks/queries';
 import { mapProviderError } from '../provider-errors';
-import { ConnectorSection } from './connector-section';
 import { HarnessStatusSection } from './harness-status-section';
+import { ProviderSection } from './provider-section';
 
-/** One line of the per-connector refresh report. */
+/** One line of the per-provider refresh report. */
 interface RefreshOutcome {
   name: string;
   modelCount: number;
@@ -103,7 +103,7 @@ function CatalogRefreshSection({
 }
 
 /** Placeholder sections shown while the catalog action resolves. */
-function ConnectorsLoading() {
+function ProvidersLoading() {
   return (
     <Skeletonize loading>
       <SkeletonBox fullWidth>
@@ -117,11 +117,11 @@ function ConnectorsLoading() {
 }
 
 /**
- * The AI-providers settings page: shipped provider connectors (from the
+ * The AI-providers settings page: shipped providers (from the
  * system config, with their model catalogs) and the organization's
- * credentials per connector. Developer-gated, matching its nav entry and the
+ * credentials per provider. Developer-gated, matching its nav entry and the
  * backend's write gate. Catalogs come from a Convex action and degrade per
- * connector; the credential list is a reactive query, so writes propagate
+ * provider; the credential list is a reactive query, so writes propagate
  * without manual refresh.
  */
 export function ProvidersSettings({
@@ -151,8 +151,8 @@ export function ProvidersSettings({
 
   const displayNames = useMemo(() => {
     const names = new Map<string, string>();
-    for (const connector of catalogsQuery.data ?? []) {
-      names.set(connector.name, connector.displayName);
+    for (const provider of catalogsQuery.data ?? []) {
+      names.set(provider.name, provider.displayName);
     }
     return names;
   }, [catalogsQuery.data]);
@@ -161,7 +161,7 @@ export function ProvidersSettings({
     return <AccessDenied message={tAccessDenied('providers')} />;
   }
 
-  const connectors: ConnectorCatalog[] = catalogsQuery.data ?? [];
+  const providers: ProviderCatalog[] = catalogsQuery.data ?? [];
 
   return (
     <SettingsPage>
@@ -177,14 +177,14 @@ export function ProvidersSettings({
           })}
         />
       ) : abilityLoading || catalogsQuery.isPending ? (
-        <ConnectorsLoading />
+        <ProvidersLoading />
       ) : (
-        connectors.map((connector) => (
-          <ConnectorSection
-            key={connector.name}
+        providers.map((provider) => (
+          <ProviderSection
+            key={provider.name}
             organizationId={organizationId}
-            connector={connector}
-            credentials={credentialsByProvider.get(connector.name) ?? []}
+            provider={provider}
+            credentials={credentialsByProvider.get(provider.name) ?? []}
           />
         ))
       )}

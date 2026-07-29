@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
-import type { ConnectorCatalog, MaskedCredential } from '../hooks/queries';
+import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
 import { ProvidersSettings } from './providers-settings';
 
 /**
- * Component coverage for the AI-providers settings page. The connector cards
+ * Component coverage for the AI-providers settings page. The provider cards
  * render from the catalog action's (mocked) listing with wire facts, catalog
- * meta, and per-connector degradation; the credential rows show masked
- * values only; the add-credential dialog offers exactly the connector's auth
+ * meta, and per-provider degradation; the credential rows show masked
+ * values only; the add-credential dialog offers exactly the provider's auth
  * methods; delete runs through an explicit confirm; a deleted default
  * surfaces the "no default" state instead of auto-fixing it. Backend
  * behaviour (encryption, method validation, default swaps) is covered by the
@@ -111,7 +111,7 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
 }));
 
-function model(id: string): ConnectorCatalog['models'][number] {
+function model(id: string): ProviderCatalog['models'][number] {
   return {
     id,
     provider: 'anthropic',
@@ -122,7 +122,7 @@ function model(id: string): ConnectorCatalog['models'][number] {
   };
 }
 
-const anthropicConnector = {
+const anthropicProvider = {
   name: 'anthropic',
   displayName: 'Anthropic',
   apiFormat: 'anthropic',
@@ -130,9 +130,9 @@ const anthropicConnector = {
   catalogSource: 'static',
   authMethods: ['api-key', 'env', 'subscription-broker'],
   models: [model('claude-fable-5'), model('claude-haiku-4')],
-} as unknown as ConnectorCatalog;
+} as unknown as ProviderCatalog;
 
-const azureConnector = {
+const azureProvider = {
   name: 'azure',
   displayName: 'Azure OpenAI',
   apiFormat: 'openai',
@@ -140,9 +140,9 @@ const azureConnector = {
   catalogSource: 'none',
   authMethods: ['api-key', 'env'],
   models: [],
-} as unknown as ConnectorCatalog;
+} as unknown as ProviderCatalog;
 
-const zaiConnector = {
+const zaiProvider = {
   name: 'zai',
   displayName: 'Z.ai (GLM)',
   apiFormat: 'openai',
@@ -150,9 +150,9 @@ const zaiConnector = {
   catalogSource: 'static',
   authMethods: ['api-key', 'env', 'subscription-key'],
   models: [model('glm-4.6')],
-} as unknown as ConnectorCatalog;
+} as unknown as ProviderCatalog;
 
-const openrouterConnector = {
+const openrouterProvider = {
   name: 'openrouter',
   displayName: 'OpenRouter',
   apiFormat: 'openai',
@@ -161,7 +161,7 @@ const openrouterConnector = {
   authMethods: ['api-key'],
   models: [],
   catalogError: 'OpenRouter API unreachable',
-} as unknown as ConnectorCatalog;
+} as unknown as ProviderCatalog;
 
 function credential(
   overrides: Partial<Omit<MaskedCredential, 'id'>> & {
@@ -208,11 +208,11 @@ describe('ProvidersSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     abilityState.canRead = true;
-    fixtures.catalogs = [anthropicConnector, openrouterConnector];
+    fixtures.catalogs = [anthropicProvider, openrouterProvider];
     fixtures.credentials = [...defaultCredentials];
   });
 
-  it('renders one section per connector with wire facts and catalog meta', async () => {
+  it('renders one section per provider with wire facts and catalog meta', async () => {
     const { container } = render(<ProvidersSettings organizationId="org-1" />);
 
     expect(
@@ -258,19 +258,19 @@ describe('ProvidersSettings', () => {
     expect(screen.getByText('1 model allowed')).toBeInTheDocument();
   });
 
-  it('surfaces a per-connector catalog error without blanking the page', () => {
+  it('surfaces a per-provider catalog error without blanking the page', () => {
     render(<ProvidersSettings organizationId="org-1" />);
 
     expect(
       screen.getByText('Model catalog unavailable: OpenRouter API unreachable'),
     ).toBeInTheDocument();
-    // The degraded connector still renders its section and add affordance.
+    // The degraded provider still renders its section and add affordance.
     expect(
       screen.getByRole('heading', { name: 'OpenRouter' }),
     ).toBeInTheDocument();
   });
 
-  it('explains the three auth methods on a connector without credentials', () => {
+  it('explains the three auth methods on a provider without credentials', () => {
     render(<ProvidersSettings organizationId="org-1" />);
 
     // OpenRouter has no credentials in the fixture.
@@ -305,7 +305,7 @@ describe('ProvidersSettings', () => {
     ).toBeNull();
   });
 
-  it('offers only the connector’s auth methods in the add dialog', async () => {
+  it('offers only the provider’s auth methods in the add dialog', async () => {
     const { user } = render(<ProvidersSettings organizationId="org-1" />);
 
     // OpenRouter offers api-key only — the picker lists exactly that.
@@ -325,7 +325,7 @@ describe('ProvidersSettings', () => {
     expect(options.map((option) => option.textContent)).toEqual(['API key']);
   });
 
-  it('lists all three methods for a connector that offers them', async () => {
+  it('lists all three methods for a provider that offers them', async () => {
     const { user } = render(<ProvidersSettings organizationId="org-1" />);
 
     const anthropicSection = screen.getByRole('region', { name: 'Anthropic' });
@@ -451,7 +451,7 @@ describe('ProvidersSettings', () => {
     expect(makeDefault).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('refreshes the catalogs and reports the per-connector outcomes', async () => {
+  it('refreshes the catalogs and reports the per-provider outcomes', async () => {
     refreshCatalogs.mockResolvedValue([
       { name: 'openrouter', modelCount: 342 },
       { name: 'vercel-ai-gateway', modelCount: 0, error: 'gateway down' },
@@ -465,7 +465,7 @@ describe('ProvidersSettings', () => {
         organizationId: 'org-1',
       }),
     );
-    // Known connectors report under their display name; unknown slugs (not
+    // Known providers report under their display name; unknown slugs (not
     // in the current listing) fall back to the slug.
     expect(
       await screen.findByText('OpenRouter: 342 models'),
@@ -475,8 +475,8 @@ describe('ProvidersSettings', () => {
     ).toBeInTheDocument();
   });
 
-  it('describes a per-credential-endpoint connector and requires its URL', async () => {
-    fixtures.catalogs = [azureConnector];
+  it('describes a per-credential-endpoint provider and requires its URL', async () => {
+    fixtures.catalogs = [azureProvider];
     fixtures.credentials = [];
     createCredential.mockResolvedValue({ credentialId: 'cred-a' });
     const { user } = render(<ProvidersSettings organizationId="org-1" />);
@@ -536,7 +536,7 @@ describe('ProvidersSettings', () => {
   });
 
   it('shows the per-credential endpoint on the credential row', () => {
-    fixtures.catalogs = [azureConnector];
+    fixtures.catalogs = [azureProvider];
     fixtures.credentials = [
       credential({
         id: 'cred-a1',
@@ -557,7 +557,7 @@ describe('ProvidersSettings', () => {
   });
 
   it('authors a subscription key with the sandboxed-execution explainer', async () => {
-    fixtures.catalogs = [zaiConnector];
+    fixtures.catalogs = [zaiProvider];
     fixtures.credentials = [];
     createCredential.mockResolvedValue({ credentialId: 'cred-z' });
     const { user } = render(<ProvidersSettings organizationId="org-1" />);

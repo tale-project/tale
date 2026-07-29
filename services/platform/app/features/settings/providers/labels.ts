@@ -3,7 +3,7 @@
  * (credential auth methods, catalog sources, wire formats). The backend hands
  * these out as plain strings, so each helper switches over the known values
  * with static translation keys and falls back to the raw value for anything
- * a future connector might add — the UI then still renders something honest.
+ * a future provider might add — the UI then still renders something honest.
  */
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
@@ -38,13 +38,13 @@ export function authMethodLabel(t: Translator, method: string): string {
 export function catalogSourceLabel(t: Translator, source: string): string {
   switch (source) {
     case 'static':
-      return t('providers.connector.sourceStatic');
+      return t('providers.card.sourceStatic');
     case 'openrouter-api':
-      return t('providers.connector.sourceOpenrouterApi');
+      return t('providers.card.sourceOpenrouterApi');
     case 'models-endpoint':
-      return t('providers.connector.sourceModelsEndpoint');
+      return t('providers.card.sourceModelsEndpoint');
     case 'none':
-      return t('providers.connector.sourceNone');
+      return t('providers.card.sourceNone');
     default:
       return source;
   }

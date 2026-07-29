@@ -6,7 +6,7 @@
  * The picker shows two groups. MODELS lists the models a turn can call
  * directly; a model appears only when the org has an ACTIVE credential for the
  * connector that lists it — resolved through the SAME connector set and
- * catalog a turn resolves (`resolveConnectorsForOrgId` + `getConnectorCatalog`)
+ * catalog a turn resolves (`resolveProvidersForOrgId` + `getProviderCatalog`)
  * — so the picker never offers a model no configured credential could serve.
  * Each model carries the credential's auth shape in the exact form
  * `resolveExecution` reads, so the composer's sandbox toggle locks (or stays
@@ -25,13 +25,13 @@ import { loadConnectorDefinitions } from '../../lib/connectors/catalog';
 import { api, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
+import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { credentialAuthFor } from '../lib/providers/credential_auth';
 import {
   loadHarnesses,
   readSystemEntryIcon,
 } from '../lib/providers/load_system_config';
-import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 
 /** The forced-execution constraints a subscription credential carries. */
 const executionConstraintsValidator = v.object({
@@ -113,10 +113,7 @@ export const listComposerModels = action({
       .filter((credential) => credential.status === 'active')
       .sort((a, b) => directFirst(a.authMethod) - directFirst(b.authMethod));
 
-    const connectors = await resolveConnectorsForOrgId(
-      ctx,
-      args.organizationId,
-    );
+    const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
     const connectorByName = new Map(
       connectors.map((connector) => [connector.name, connector] as const),
     );
@@ -138,7 +135,7 @@ export const listComposerModels = action({
 
       let catalog;
       try {
-        catalog = await getConnectorCatalog(connector);
+        catalog = await getProviderCatalog(connector);
       } catch (error) {
         // One connector's unreachable /models endpoint must not blank the
         // whole picker; skip it loudly and offer the rest.

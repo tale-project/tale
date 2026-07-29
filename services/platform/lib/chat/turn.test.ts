@@ -6,9 +6,9 @@ import {
   type CredentialAuth,
 } from '../shared/providers/resolve_execution';
 import {
-  harnessConnectorSchema,
+  harnessDefinitionSchema,
   modelCatalogEntrySchema,
-  type HarnessConnector,
+  type HarnessDefinition,
 } from '../shared/schemas/providers';
 import type { GuardrailFilter } from './guardrails';
 import {
@@ -33,8 +33,8 @@ const ORG = 'org_1';
 function harness(
   slug: string,
   policy: { managed: boolean; byo: boolean },
-): HarnessConnector {
-  return harnessConnectorSchema.parse({
+): HarnessDefinition {
+  return harnessDefinitionSchema.parse({
     slug,
     displayName: slug,
     credentialPolicy: policy,

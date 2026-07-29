@@ -56,16 +56,16 @@ import {
 import type {
   ApiFormat,
   ModelCatalogEntry,
-  ProviderConnector,
+  ProviderDefinition,
 } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
-import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
+import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { loadHarnesses } from '../lib/providers/load_system_config';
-import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { reasoningEffortValidator } from './schema';
@@ -79,7 +79,7 @@ const ERROR_EXCERPT = 300;
 
 interface ResolvedModel {
   readonly entry: ModelCatalogEntry;
-  readonly connector: ProviderConnector;
+  readonly connector: ProviderDefinition;
 }
 
 /** Find the catalog entry for an explicit model id in the org's connectors.
@@ -93,7 +93,7 @@ async function resolveModel(
   modelId: string,
   providerSlug?: string,
 ): Promise<ResolvedModel> {
-  const connectors = await resolveConnectorsForOrgId(ctx, organizationId);
+  const connectors = await resolveProvidersForOrgId(ctx, organizationId);
   const ordered =
     providerSlug === undefined
       ? connectors
@@ -102,7 +102,7 @@ async function resolveModel(
           ...connectors.filter((connector) => connector.name !== providerSlug),
         ];
   for (const connector of ordered) {
-    const catalog = await getConnectorCatalog(connector);
+    const catalog = await getProviderCatalog(connector);
     const entry = catalog.find((candidate) => candidate.id === modelId);
     if (entry) return { entry, connector };
   }
@@ -128,7 +128,7 @@ interface DirectWire {
 async function resolveDirectWire(
   ctx: ActionCtx,
   organizationId: string,
-  connector: ProviderConnector,
+  connector: ProviderDefinition,
 ): Promise<DirectWire> {
   const credential = await resolveProviderCredential(ctx, {
     organizationId,
@@ -317,7 +317,7 @@ async function* streamSse(
 export function createDirectModelCall(
   ctx: ActionCtx,
   organizationId: string,
-  connector: ProviderConnector,
+  connector: ProviderDefinition,
 ): ModelCall {
   let wire: DirectWire | null = null;
   return async function* directModelCall(

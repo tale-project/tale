@@ -34,9 +34,9 @@ import {
   createBuilderModel,
   type BuilderModelTarget,
 } from '../automations_builder/model_call';
-import { getConnectorCatalog } from '../lib/providers/catalog_fetch';
+import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
-import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 
 /** What one llm node asks for — the engine seam's shape, minus nothing. */
 export interface AutomationLlmRequest {
@@ -83,7 +83,7 @@ export async function resolveServingTarget(
   organizationId: string,
   modelId: string,
 ): Promise<BuilderModelTarget> {
-  const connectors = await resolveConnectorsForOrgId(ctx, organizationId);
+  const connectors = await resolveProvidersForOrgId(ctx, organizationId);
   const unreachable: string[] = [];
   for (const connector of connectors) {
     const row: unknown = await ctx.runQuery(
@@ -100,7 +100,7 @@ export async function resolveServingTarget(
     }
     let catalog: readonly ModelCatalogEntry[];
     try {
-      catalog = await getConnectorCatalog(connector);
+      catalog = await getProviderCatalog(connector);
     } catch (error) {
       console.warn(
         `[automations] could not resolve catalog for "${connector.name}"`,

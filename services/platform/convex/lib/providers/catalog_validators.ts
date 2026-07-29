@@ -47,13 +47,13 @@ export const modelEntryValidator = v.object({
   tts: v.optional(ttsValidator),
 });
 
-export const connectorCatalogValidator = v.object({
+export const providerCatalogValidator = v.object({
   name: v.string(),
   displayName: v.string(),
-  /** The connector's shipped `icon.svg`, inlined as a data URL. */
+  /** The provider's shipped `icon.svg`, inlined as a data URL. */
   iconUrl: v.optional(v.string()),
   apiFormat: v.union(v.literal('openai'), v.literal('anthropic')),
-  /** Absent for per-credential-endpoint connectors (Azure). */
+  /** Absent for per-credential-endpoint providers (Azure). */
   baseUrl: v.optional(v.string()),
   endpointMode: v.optional(
     v.union(v.literal('fixed'), v.literal('per-credential')),
@@ -64,7 +64,7 @@ export const connectorCatalogValidator = v.object({
     v.literal('models-endpoint'),
     v.literal('none'),
   ),
-  /** The auth methods this connector's credentials may use. */
+  /** The auth methods this provider's credentials may use. */
   authMethods: v.array(v.string()),
   models: v.array(modelEntryValidator),
   /** Present when the live catalog could not be served at all. */

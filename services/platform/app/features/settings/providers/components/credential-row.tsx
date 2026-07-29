@@ -17,7 +17,7 @@ import {
   useSetDefaultCredential,
   useUpdateCredential,
 } from '../hooks/mutations';
-import type { ConnectorCatalog, MaskedCredential } from '../hooks/queries';
+import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
 import { authMethodLabel, isKnownAuthMethod } from '../labels';
 import { mapProviderError } from '../provider-errors';
 import { CredentialEditDialog } from './credential-edit-dialog';
@@ -26,11 +26,11 @@ import { ReplaceSecretDialog } from './replace-secret-dialog';
 interface CredentialRowProps {
   organizationId: string;
   credential: MaskedCredential;
-  connector: ConnectorCatalog;
+  provider: ProviderCatalog;
 }
 
 /**
- * One credential of a connector: name + default/status markers on the first
+ * One credential of a provider: name + default/status markers on the first
  * line, the auth-method badge with the masked preview (api-key / broker) or
  * the env-var name (env) on the second, and the row actions menu (default,
  * enable/disable, secret replacement, edit, delete-with-confirm). The list
@@ -40,7 +40,7 @@ interface CredentialRowProps {
 export function CredentialRow({
   organizationId,
   credential,
-  connector,
+  provider,
 }: CredentialRowProps) {
   const { t } = useT('settings');
   const { toast } = useToast();
@@ -111,7 +111,7 @@ export function CredentialRow({
           ? t('providers.replace.subscriptionKeyTitle')
           : t('providers.replace.brokerTitle');
   // Secret replacement exists only for the methods this page can author; a
-  // method outside that set (a future connector vocabulary) keeps the rest
+  // method outside that set (a future provider vocabulary) keeps the rest
   // of the row's actions.
   const replaceable = isKnownAuthMethod(credential.authMethod);
 
@@ -213,7 +213,7 @@ export function CredentialRow({
       <CredentialEditDialog
         organizationId={organizationId}
         credential={credential}
-        connector={connector}
+        provider={provider}
         open={editOpen}
         onOpenChange={setEditOpen}
       />

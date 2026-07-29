@@ -159,7 +159,7 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   },
   // Custom AI-provider connectors — one `<name>.yml` per org-defined
   // connector (a vLLM/Ollama box, an internal gateway), read directly from
-  // `'use node'` actions (`convex/lib/providers/org_connectors.ts`) wherever
+  // `'use node'` actions (`convex/lib/providers/org_providers.ts`) wherever
   // provider resolution runs. Not catalog-scaffolded: there is no builtin
   // seed — the domain dir is created on demand when an org authors its first
   // custom connector. Credentials for custom connectors live in the same

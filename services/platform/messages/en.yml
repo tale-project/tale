@@ -6024,8 +6024,7 @@ settings:
   providers:
     catalogs:
       title: Model catalogs
-      description:
-        Every provider ships as a connector with its own model catalog.
+      description: Every provider ships with its own model catalog.
         Live catalogs are cached and update only when you refresh them here —
         there is no background sync.
       refresh: Refresh catalogs
@@ -6034,7 +6033,7 @@ settings:
       resultError: '{name}: {error}'
       nothingToRefresh: Every catalog ships with the platform — there is nothing to refresh.
       refreshFailed: 'Could not refresh the catalogs: {error}'
-      listFailed: 'Could not load the provider connectors: {error}'
+      listFailed: 'Could not load the providers: {error}'
     harnesses:
       title: Third-party agents
       description:
@@ -6060,7 +6059,7 @@ settings:
       env: Environment variable
       subscriptionKey: Subscription key
       subscriptionBroker: Subscription broker
-    connector:
+    card:
       facts: '{format} · {host}'
       factsPerCredential: '{format} · endpoint set per credential'
       sourceStatic: Built-in catalog
@@ -6130,7 +6129,7 @@ settings:
         fixed. The variable itself is provided by your operations team.
       endpointUrl: Endpoint URL
       endpointUrlHelp:
-        This connector has no fixed endpoint — every credential carries
+        This provider has no fixed endpoint — every credential carries
         its own resource URL (https).
       allowlist: Model allowlist
       allowlistHelp: Optional. When set, this credential may only use the selected models.

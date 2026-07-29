@@ -1,19 +1,19 @@
 'use node';
 
 /**
- * Org-defined custom provider connectors — the `providers` config domain.
+ * Org-defined custom providers — the `providers` config domain.
  *
- * Beyond the shipped system connectors, an organization can point the
+ * Beyond the shipped system providers, an organization can point the
  * platform at its own OpenAI-compatible (or Anthropic-format) endpoint —
  * a vLLM/Ollama box, an internal gateway — by dropping one YAML per
- * connector into its config tree:
+ * provider into its config tree:
  *
  *   {TALE_CONFIG_DIR}/<orgSlug>/providers/<name>.yml
  *
- * Each file validates against the SAME `providerConnectorSchema` the shipped
- * connectors use; the connector name must equal the filename stem, and a
- * custom connector may never shadow a shipped connector's name. A custom
- * connector normally declares `catalog: { source: models-endpoint }` (its
+ * Each file validates against the SAME `providerDefinitionSchema` the shipped
+ * providers use; the provider name must equal the filename stem, and a
+ * custom provider may never shadow a shipped provider's name. A custom
+ * provider normally declares `catalog: { source: models-endpoint }` (its
  * own `/models` listing); `static` has no org-side models file, so it
  * resolves to an empty catalog with a logged warning.
  *
@@ -24,9 +24,9 @@
  * generations never collide.
  *
  * A file that fails to parse or validate is skipped LOUDLY (console.error
- * naming the file and reason): one corrupt connector must not take down
+ * naming the file and reason): one corrupt provider must not take down
  * provider resolution for the org, and a silent skip would break the
- * connector invisibly.
+ * provider invisibly.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -35,13 +35,13 @@ import path from 'node:path';
 import { parseYaml } from '../../../lib/shared/config/yaml';
 import { zodErrorMessage } from '../../../lib/shared/schemas/format-error';
 import {
-  providerConnectorSchema,
-  type ProviderConnector,
+  providerDefinitionSchema,
+  type ProviderDefinition,
 } from '../../../lib/shared/schemas/providers';
 import { errnoCode, getConfigRoot, validateOrgSlug } from '../file_io';
 import { orgSlugFromId } from '../helpers/org_slug';
 import {
-  loadProviderConnectors,
+  loadProviderDefinitions,
   type LoadSystemConfigOptions,
 } from './load_system_config';
 
@@ -54,13 +54,13 @@ export function resolveProvidersDir(orgSlug: string): string {
 }
 
 /**
- * The org's custom connectors, sorted by name. Missing dir → empty (the
+ * The org's custom providers, sorted by name. Missing dir → empty (the
  * domain is created on demand); invalid files are skipped with an error log.
  */
-export function loadOrgCustomConnectors(
+export function loadOrgCustomProviders(
   orgSlug: string,
   options: LoadSystemConfigOptions = {},
-): ProviderConnector[] {
+): ProviderDefinition[] {
   const dir = resolveProvidersDir(orgSlug);
   let entries: string[];
   try {
@@ -72,59 +72,57 @@ export function loadOrgCustomConnectors(
   }
 
   const shippedNames = new Set(
-    loadProviderConnectors(options).map((connector) => connector.name),
+    loadProviderDefinitions(options).map((provider) => provider.name),
   );
-  const connectors: ProviderConnector[] = [];
+  const providers: ProviderDefinition[] = [];
   for (const entry of entries.sort()) {
     if (!entry.endsWith('.yml') || entry.endsWith('.secrets.yml')) continue;
     const file = path.join(dir, entry);
     const stem = entry.slice(0, -'.yml'.length);
-    let connector: ProviderConnector;
+    let provider: ProviderDefinition;
     try {
       const parsed = parseYaml(readFileSync(file, 'utf8'));
       if (!parsed.ok) throw new Error(parsed.error);
-      const outcome = providerConnectorSchema.safeParse(parsed.data);
+      const outcome = providerDefinitionSchema.safeParse(parsed.data);
       if (!outcome.success) {
-        throw new Error(
-          zodErrorMessage('Invalid provider connector', outcome.error),
-        );
+        throw new Error(zodErrorMessage('Invalid provider', outcome.error));
       }
-      connector = outcome.data;
+      provider = outcome.data;
     } catch (err) {
       console.error(
-        `[org-connectors] skipping unreadable connector ${file}:`,
+        `[org-providers] skipping unreadable provider ${file}:`,
         err instanceof Error ? err.message : err,
       );
       continue;
     }
-    if (connector.name !== stem) {
+    if (provider.name !== stem) {
       console.error(
-        `[org-connectors] skipping ${file}: connector name "${connector.name}" must match the file name "${stem}"`,
+        `[org-providers] skipping ${file}: provider name "${provider.name}" must match the file name "${stem}"`,
       );
       continue;
     }
-    if (shippedNames.has(connector.name)) {
+    if (shippedNames.has(provider.name)) {
       console.error(
-        `[org-connectors] skipping ${file}: "${connector.name}" shadows a shipped connector — rename the custom connector`,
+        `[org-providers] skipping ${file}: "${provider.name}" shadows a shipped provider — rename the custom provider`,
       );
       continue;
     }
-    connectors.push(connector);
+    providers.push(provider);
   }
-  return connectors;
+  return providers;
 }
 
 /**
- * Every connector available to an org: the shipped set plus its custom ones
+ * Every provider available to an org: the shipped set plus its custom ones
  * (shadowing is refused at load, so names are unique across the union).
  */
-export function resolveConnectorsForOrg(
+export function resolveProvidersForOrg(
   orgSlug: string,
   options: LoadSystemConfigOptions = {},
-): ProviderConnector[] {
+): ProviderDefinition[] {
   return [
-    ...loadProviderConnectors(options),
-    ...loadOrgCustomConnectors(orgSlug, options),
+    ...loadProviderDefinitions(options),
+    ...loadOrgCustomProviders(orgSlug, options),
   ];
 }
 
@@ -132,14 +130,14 @@ export function resolveConnectorsForOrg(
 type CtxWithRunQuery = Parameters<typeof orgSlugFromId>[0];
 
 /**
- * `resolveConnectorsForOrg` keyed by the Better Auth organization id —
+ * `resolveProvidersForOrg` keyed by the Better Auth organization id —
  * the id every Convex action ctx carries.
  */
-export async function resolveConnectorsForOrgId(
+export async function resolveProvidersForOrgId(
   ctx: CtxWithRunQuery,
   organizationId: string,
   options: LoadSystemConfigOptions = {},
-): Promise<ProviderConnector[]> {
+): Promise<ProviderDefinition[]> {
   const orgSlug = await orgSlugFromId(ctx, organizationId);
-  return resolveConnectorsForOrg(orgSlug, options);
+  return resolveProvidersForOrg(orgSlug, options);
 }
