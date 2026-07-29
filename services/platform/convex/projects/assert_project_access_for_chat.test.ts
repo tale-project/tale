@@ -6,7 +6,7 @@ import { hasProjectAccess } from './access';
  * Decision-shape tests for the chat-path defense-in-depth used by
  * `internal_queries.assertProjectAccessForChat`. The query itself
  * wires `getOrganizationMember` + `getUserTeamIds` + `hasProjectAccess`;
- * the actual Convex query handler is exercised by integration via the
+ * the actual Convex query handler is exercised by connector via the
  * chat path. Here we lock in the EXPECTED VERDICTS for each access
  * shape, so a regression in `hasProjectAccess` would be loud.
  */

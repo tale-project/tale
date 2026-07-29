@@ -1,15 +1,15 @@
 ---
 title: Configure approvals
-description: Where approval requirements are declared — per integration operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs.
+description: Where approval requirements are declared — per connector operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs.
 ---
 
-Approval requirements in Tale are declarative: each capability carries its own flag saying whether an agent must ask first, and the flag travels with the integration or server that provides the capability. Nothing has to be configured for the defaults to be right — this page shows where each flag lives, which writes ask by default, and how to change that for your organization.
+Approval requirements in Tale are declarative: each capability carries its own flag saying whether an agent must ask first, and the flag travels with the connector or server that provides the capability. Nothing has to be configured for the defaults to be right — this page shows where each flag lives, which writes ask by default, and how to change that for your organization.
 
 The model of what an approval card is and who decides it lives on [Approval concepts](/platform/approvals/concepts). What follows is the configuration surface, capability by capability.
 
-## Integration operations
+## Connector operations
 
-Every integration declares its operations, and each operation carries its own approval flag. Open **Settings > Integrations**, click an integration, and its operations list badges the ones marked **Requires approval** — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; flagged writes hold in chat with their exact parameters until someone approves.
+Every connector declares its operations, and each operation carries its own approval flag. Open **Settings > Connectors**, click an connector, and its operations list badges the ones marked **Requires approval** — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; flagged writes hold in chat with their exact parameters until someone approves.
 
 The flag is not a separate setting an admin toggles. Every action a connector declares carries an effect — `read` or `write` — and the write side is what the approval policy gates. That keeps the two honest with each other: an action cannot quietly change from a read to a write without also changing what it has to ask for.
 
@@ -40,7 +40,7 @@ An operation that is already waiting on a card keeps its card even if the policy
 
 ## MCP tools
 
-An MCP server's manifest marks which of its tools need sign-off. Open **Settings > API > MCP**, expand a server, and its **Discovered Tools** list badges each flagged tool with **Requires approval** — those ask in chat every time an agent calls them. The flag comes from the server's author; connecting a server is how you accept its tool contract, so review the list before activating one. [MCP servers](/platform/integrations/mcp-servers) covers registration.
+An MCP server's manifest marks which of its tools need sign-off. Open **Settings > API > MCP**, expand a server, and its **Discovered Tools** list badges each flagged tool with **Requires approval** — those ask in chat every time an agent calls them. The flag comes from the server's author; connecting a server is how you accept its tool contract, so review the list before activating one. [MCP servers](/platform/connectors/mcp-servers) covers registration.
 
 ## Built-in write gates
 
@@ -58,8 +58,8 @@ The lever for these is not the approval flag but the capability itself: an agent
 
 ## Verifying what will ask
 
-Before putting an agent in front of real systems, read its capabilities the way an approver would: the integration's operations list for flagged writes, the MCP server's **Discovered Tools** for flagged tools, and the agent's tool tab for whether it holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
+Before putting an agent in front of real systems, read its capabilities the way an approver would: the connector's operations list for flagged writes, the MCP server's **Discovered Tools** for flagged tools, and the agent's tool tab for whether it holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
 
 ## Where this fits
 
-Configuration here is distribution — flags live with the integrations and servers that own the capabilities. Read [Approval concepts](/platform/approvals/concepts) for the card lifecycle those flags produce, and [Agent tools](/platform/agents/tools) for the capability side of the same boundary.
+Configuration here is distribution — flags live with the connectors and servers that own the capabilities. Read [Approval concepts](/platform/approvals/concepts) for the card lifecycle those flags produce, and [Agent tools](/platform/agents/tools) for the capability side of the same boundary.

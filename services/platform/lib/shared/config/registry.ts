@@ -10,7 +10,7 @@
  * and the browser. NO `node:*`, NO `convex/_generated`, NO `'use node'`.
  *
  * This is the seed of the config-system rewrite registry. The rebuilt
- * AI-backend domains (agents, automations, integrations, …) re-register here
+ * AI-backend domains (agents, automations, connectors, …) re-register here
  * as their phases land. The default on-disk format is YAML-first with a
  * `.json` fallback per file (the shared reader in
  * `convex/lib/config_store/read_domain_file.ts`): a versioned node migration
@@ -159,7 +159,7 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   },
   // Custom AI-provider connectors — one `<name>.yml` per org-defined
   // connector (a vLLM/Ollama box, an internal gateway), read directly from
-  // `'use node'` actions (`convex/lib/providers/org_connectors.ts`) wherever
+  // `'use node'` actions (`convex/lib/providers/org_providers.ts`) wherever
   // provider resolution runs. Not catalog-scaffolded: there is no builtin
   // seed — the domain dir is created on demand when an org authors its first
   // custom connector. Credentials for custom connectors live in the same

@@ -20,8 +20,8 @@ describe('isStructuredConvexError', () => {
 describe('convexErrorCode', () => {
   it('returns the code from a structured ConvexError', () => {
     expect(
-      convexErrorCode(new ConvexError({ code: 'INTEGRATION_NOT_CONNECTED' })),
-    ).toBe('INTEGRATION_NOT_CONNECTED');
+      convexErrorCode(new ConvexError({ code: 'CONNECTOR_NOT_CONNECTED' })),
+    ).toBe('CONNECTOR_NOT_CONNECTED');
   });
 
   it('returns undefined when there is no string code', () => {

@@ -4,7 +4,7 @@
 > edit/branch/regenerate, attachments, the tool surface and write-op approval
 > cards, reasoning/next-steps/human-input, memory proposals, arena mode, share
 > links, and export. Write operations route through approvals; the agent reaches
-> knowledge reads, sub-agents, document generation, and integration tools.
+> knowledge reads, sub-agents, document generation, and connector tools.
 > The side-panel surfaces (canvas viewers, workspace files, live browser,
 > research plan) are covered by [workspace.md](workspace.md) — this guide stays
 > scoped to the conversation surface.
@@ -72,7 +72,7 @@ Legend: ✅ fully automated · 🔶 covered by a component test only (no e2e spe
 > create/open/revoke, text-file chip; `chat-scenarios` = reasoning / next-steps /
 > human-input / arena / error (mock-only); `search` = command-palette chat
 > search. The manual-only rows span title auto-gen, memory proposal, live tools,
-> image/limits attachments, and voice. The `conversations`, `integrations`, and
+> image/limits attachments, and voice. The `conversations`, `connectors`, and
 > `token-sources` specs cover other areas and do not touch chat.
 
 ## Functional tests

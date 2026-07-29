@@ -15,7 +15,7 @@ export type PlatformResource =
   | 'agents'
   | 'contacts'
   | 'documents'
-  | 'integrations'
+  | 'connectors'
   | 'onedriveSyncConfigs'
   | 'products'
   | 'projects'
@@ -31,7 +31,7 @@ export type PlatformResource =
 export type UiSubject =
   /** Admin-only sections: organization settings, teams, branding, audit logs */
   | 'orgSettings'
-  /** Admin + developer sections: integrations, API keys */
+  /** Admin + developer sections: connectors, API keys */
   | 'developerSettings'
   /** All roles except disabled: can view knowledge resources (documents, products, etc.) */
   | 'knowledgeRead'
@@ -92,10 +92,10 @@ export function defineAbilityFor(role: string | null): AppAbility {
         can('read', resource);
         can('write', resource);
       }
-      // read-only on workflow/integration resources;
+      // read-only on workflow/connector resources;
       // audit-log reads are admin-only (#1505)
       const readOnlyResources: PlatformResource[] = [
-        'integrations',
+        'connectors',
         'onedriveSyncConfigs',
         'wfDefinitions',
         'wfExecutions',

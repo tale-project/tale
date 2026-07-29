@@ -11,7 +11,7 @@ on a fresh \`tale init\`. Multi-org deployments add sibling subtrees
 default/                    — Canonical/template org (created by 'tale init')
   agents/                   — Agent JSON configs (one file per agent)
   workflows/                — Workflow JSON configs (organized by category)
-  integrations/             — Integration bundles (config.json + connector.ts + icon.svg)
+  connectors/             — Connector bundles (config.json + connector.ts + icon.svg)
   branding/                 — Branding config (branding.json + images/)
   providers/                — LLM provider configs (and *.secrets.json sidecars)
   skills/                   — Skill bundles (per-skill subdirs)
@@ -32,10 +32,10 @@ project as examples.
 
 ## How modules connect
 
-- Agents can simultaneously bind integrations (\`integrationBindings\`),
+- Agents can simultaneously bind connectors (\`connectorBindings\`),
   delegate to other agents (\`delegates\`), and attach workflows
   (\`workflows\`)
-- Workflows use integration operations within their steps and can be
+- Workflows use connector operations within their steps and can be
   triggered by agents
 - Check existing configs to understand available bindings before creating
   new ones
@@ -46,7 +46,7 @@ project as examples.
   the literal \`default\`)
 - Agent filenames: \`[a-z0-9][a-z0-9_-]*\\.json\`
 - Workflow step slugs: \`[a-z0-9][a-z0-9_-]*\`
-- Integration directory names: lowercase alphanumeric with hyphens/underscores
+- Connector directory names: lowercase alphanumeric with hyphens/underscores
 
 ## Secrets
 

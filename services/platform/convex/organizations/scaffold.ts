@@ -21,7 +21,7 @@
  * Re-expands this with the `configs/` YAML catalog and the
  * `bundle`/`tree` scaffoldKind branches (dir-bundle replace, recursive
  * per-file tree overwrite) as the ripped-out domains (agents/automations/
- * integrations/providers/skills/…) re-register in the Layer-A registry.
+ * connectors/providers/skills/…) re-register in the Layer-A registry.
  *
  * `scaffoldNewOrganization`:
  *   - org-create path (`cleanFirst:true`, scheduled from
@@ -108,7 +108,7 @@ export type DomainResult = {
 //     keys is schema-validated before being written (corrupt files are
 //     skipped, never copied); anything else (e.g. `retention.yml`) copies
 //     unchecked.
-// `bundle` (skills/integrations/automations pre-rewrite) and `tree`
+// `bundle` (skills/connectors/automations pre-rewrite) and `tree`
 // (agents/branding pre-rewrite) are NOT implemented — `seedDomain` throws for
 // them; see its doc comment.
 

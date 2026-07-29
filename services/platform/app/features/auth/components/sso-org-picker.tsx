@@ -25,11 +25,11 @@ function useProtocolLabel(protocol: string): string {
   const { t } = useT('settings');
   switch (protocol) {
     case 'saml':
-      return t('integrations.enterpriseSso.protocol.saml');
+      return t('enterpriseSso.protocol.saml');
     case 'oauth2':
-      return t('integrations.enterpriseSso.protocol.oauth2');
+      return t('enterpriseSso.protocol.oauth2');
     default:
-      return t('integrations.enterpriseSso.protocol.oidc');
+      return t('enterpriseSso.protocol.oidc');
   }
 }
 

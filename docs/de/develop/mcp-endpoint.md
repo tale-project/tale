@@ -5,7 +5,7 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Tale ist selbst ein MCP-Server. Richte einen beliebigen MCP-Client — ein Agent-Harness, eine IDE, deine eigene SDK-Schleife — auf einen Endpoint, und er kann Automatisierungen autorieren und betreiben, durchsuchen, was die Organisation kann, eine Capability aufrufen und Wissen abrufen — mit demselben API-Schlüssel wie die REST-Oberfläche. Wo REST die Integrationsnaht für deinen Code ist, ist der MCP-Endpoint die Naht für _Modelle_: jedes Tool antwortet Text, den ein Modell lesen und verwerten kann.
+Tale ist selbst ein MCP-Server. Richte einen beliebigen MCP-Client — ein Agent-Harness, eine IDE, deine eigene SDK-Schleife — auf einen Endpoint, und er kann Automatisierungen autorieren und betreiben, durchsuchen, was die Organisation kann, eine Capability aufrufen und Wissen abrufen — mit demselben API-Schlüssel wie die REST-Oberfläche. Wo REST die Connectorsnaht für deinen Code ist, ist der MCP-Endpoint die Naht für _Modelle_: jedes Tool antwortet Text, den ein Modell lesen und verwerten kann.
 
 Lies das, um einen Client zu verbinden und das Tool-Inventar zu verstehen. Die Grammatik zum Autorieren von Automatisierungen ist hier bewusst nicht dupliziert — der Endpoint lehrt sie selbst, über `get_docs`.
 
@@ -73,11 +73,11 @@ Nimm `run_deployed`, wenn die Automatisierung schnell ist und du einen Aufruf mi
 
 | Tool                  | Was es tut                                                                                                                                |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `search_capabilities` | Alles durchsuchen, was diese Organisation kann — ihre Automatisierungen, Integrationsaktionen, Skills und Tools.                          |
+| `search_capabilities` | Alles durchsuchen, was diese Organisation kann — ihre Automatisierungen, Connectorsaktionen, Skills und Tools.                            |
 | `invoke_capability`   | Eine Capability per id aufrufen. Eine Aktion, die die Organisation gated, antwortet mit einem Pending-Approval-Ergebnis, statt zu laufen. |
 | `get_knowledge`       | Passagen aus dem Wissen der Organisation abrufen — ihren Dokumenten und ihren gecrawlten Webseiten.                                       |
 
-Das ist dieselbe Registry, die ein Chat-Turn sieht: ein Namensraum über Builtins, Integrationsaktionen, Skills, Automatisierungen und verbundene MCP-Tools. Eine Capability, die die Organisation hinter eine Freigabe stellt, läuft nicht lautlos — `invoke_capability` antwortet mit einem Pending-Approval-Ergebnis, das das Modell weitergeben kann.
+Das ist dieselbe Registry, die ein Chat-Turn sieht: ein Namensraum über Builtins, Connectorsaktionen, Skills, Automatisierungen und verbundene MCP-Tools. Eine Capability, die die Organisation hinter eine Freigabe stellt, läuft nicht lautlos — `invoke_capability` antwortet mit einem Pending-Approval-Ergebnis, das das Modell weitergeben kann.
 
 ## Was der Schlüssel darf
 
@@ -90,4 +90,4 @@ Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer le
 
 ## Wo das hingehört
 
-Der MCP-Endpoint und die [REST-API](/de/develop/api-reference) sind eine Oberfläche in zwei Dialekten — derselbe Schlüssel, dieselbe Organisations-Scopung, dieselben Lauf-Objekte (`start_run` hier und `POST .../runs` dort erzeugen denselben durablen Lauf). Einen eigenen MCP-Server bauen, den Tale konsumiert, ist die Gegenrichtung — das sind [MCP-Server](/de/platform/integrations/mcp-servers) unter Integrationen.
+Der MCP-Endpoint und die [REST-API](/de/develop/api-reference) sind eine Oberfläche in zwei Dialekten — derselbe Schlüssel, dieselbe Organisations-Scopung, dieselben Lauf-Objekte (`start_run` hier und `POST .../runs` dort erzeugen denselben durablen Lauf). Einen eigenen MCP-Server bauen, den Tale konsumiert, ist die Gegenrichtung — das sind [MCP-Server](/de/platform/connectors/mcp-servers) unter Connectors.

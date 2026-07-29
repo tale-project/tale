@@ -11,7 +11,7 @@ Cette vue d’ensemble nomme ce que fait un Éditeur, où il le fait, et quelles
 
 Le travail d’un Éditeur tombe dans quatre seaux : construire des **agents** (instructions, liaisons de connaissance, tools, modèles), curer la **base de connaissances** (téléverser des documents, maintenir contacts, produits, fournisseurs, sites web), écrire des **automatisations** (workflows avec déclencheurs, étapes, gates d’approbation), et empaqueter des **projets** (jeux de fichiers, agents cadrés, instructions de projet). Chaque seau a sa propre section dans Platform ; l’onglet Éditeur est l’index à travers.
 
-Les Éditeurs partagent la surface de construction avec les Développeurs — les Développeurs voient aussi les quatre seaux et peuvent tout ce qu’un Éditeur peut, plus le plan API et intégrations. Va vers un Éditeur quand le travail quotidien est contenu et configuration ; va vers un Développeur quand le travail croise le code ou les systèmes externes.
+Les Éditeurs partagent la surface de construction avec les Développeurs — les Développeurs voient aussi les quatre seaux et peuvent tout ce qu’un Éditeur peut, plus le plan API et connectors. Va vers un Éditeur quand le travail quotidien est contenu et configuration ; va vers un Développeur quand le travail croise le code ou les systèmes externes.
 
 ## Pages dans cette section
 

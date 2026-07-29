@@ -6,7 +6,7 @@
  *   2. The connector URL-rewrite contract — `upstreamHosts` maps a real third-party
  *      origin to its mock mount prefix so outbound connector calls can be redirected
  *      offline. (The Convex sandbox keeps a tiny prism-free mirror of this host→prefix
- *      map in `convex/node_only/integration_sandbox/helpers/mock_rewrite.ts`; the
+ *      map in `convex/node_only/connector_sandbox/helpers/mock_rewrite.ts`; the
  *      per-connector contract tests fail end-to-end if the two drift.)
  *
  * This module imports NOTHING heavy (no Prism) so it stays cheap to import.
@@ -22,8 +22,8 @@ const SPECS_DIR = path.join(
 
 interface MockSpec {
   /**
-   * Stable key. For integrations this matches the directory name under
-   * `configs/platform/system/integrations/<name>`.
+   * Stable key. For connectors this matches the directory name under
+   * `configs/platform/system/connectors/<name>`.
    */
   readonly name: string;
   /** Human label for logs. */
@@ -48,7 +48,7 @@ interface MockSpec {
    * so spec operation paths line up. e.g. Slack calls `https://slack.com/api/…`,
    * so the spec documents `/api/conversations.list`.
    */
-  readonly category: 'provider' | 'integration';
+  readonly category: 'provider' | 'connector';
 }
 
 function spec(file: string): string {
@@ -73,91 +73,91 @@ const PROVIDER_SPECS: readonly MockSpec[] = [
 ];
 
 /**
- * Third-party integration specs, trimmed to the operations our shipped
- * connectors (`configs/platform/system/integrations/<name>/connector.yml`) actually call.
+ * Third-party connector specs, trimmed to the operations our shipped
+ * connectors (`configs/platform/system/connectors/<name>/connector.yml`) actually call.
  */
-const INTEGRATION_SPECS: readonly MockSpec[] = [
+const CONNECTOR_SPECS: readonly MockSpec[] = [
   {
     name: 'github',
     label: 'GitHub REST API',
-    specPath: spec('integrations/github.openapi.yaml'),
+    specPath: spec('connectors/github.openapi.yaml'),
     mountPrefix: '/mock/github',
     upstreamHosts: ['api.github.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'slack',
     label: 'Slack Web API',
-    specPath: spec('integrations/slack.openapi.yaml'),
+    specPath: spec('connectors/slack.openapi.yaml'),
     mountPrefix: '/mock/slack',
     upstreamHosts: ['slack.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'confluence',
     label: 'Confluence Cloud REST API',
-    specPath: spec('integrations/confluence.openapi.yaml'),
+    specPath: spec('connectors/confluence.openapi.yaml'),
     mountPrefix: '/mock/confluence',
     upstreamHosts: ['*.atlassian.net'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'discord',
     label: 'Discord API',
-    specPath: spec('integrations/discord.openapi.yaml'),
+    specPath: spec('connectors/discord.openapi.yaml'),
     mountPrefix: '/mock/discord',
     upstreamHosts: ['discord.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     // Teams and Outlook both call the Microsoft Graph API on the same host, so
     // one spec serves both connectors.
     name: 'microsoft-graph',
     label: 'Microsoft Graph API (Teams + Outlook)',
-    specPath: spec('integrations/microsoft-graph.openapi.yaml'),
+    specPath: spec('connectors/microsoft-graph.openapi.yaml'),
     mountPrefix: '/mock/microsoft-graph',
     upstreamHosts: ['graph.microsoft.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'gmail',
     label: 'Gmail API',
-    specPath: spec('integrations/gmail.openapi.yaml'),
+    specPath: spec('connectors/gmail.openapi.yaml'),
     mountPrefix: '/mock/gmail',
     upstreamHosts: ['gmail.googleapis.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'google-drive',
     label: 'Google Drive API',
-    specPath: spec('integrations/google-drive.openapi.yaml'),
+    specPath: spec('connectors/google-drive.openapi.yaml'),
     mountPrefix: '/mock/google-drive',
     upstreamHosts: ['www.googleapis.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'twilio',
     label: 'Twilio REST API',
-    specPath: spec('integrations/twilio.openapi.yaml'),
+    specPath: spec('connectors/twilio.openapi.yaml'),
     mountPrefix: '/mock/twilio',
     upstreamHosts: ['api.twilio.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'tavily',
     label: 'Tavily Search API',
-    specPath: spec('integrations/tavily.openapi.yaml'),
+    specPath: spec('connectors/tavily.openapi.yaml'),
     mountPrefix: '/mock/tavily',
     upstreamHosts: ['api.tavily.com'],
-    category: 'integration',
+    category: 'connector',
   },
   {
     name: 'shopify',
     label: 'Shopify Admin REST API',
-    specPath: spec('integrations/shopify.openapi.yaml'),
+    specPath: spec('connectors/shopify.openapi.yaml'),
     mountPrefix: '/mock/shopify',
     upstreamHosts: ['*.myshopify.com'],
-    category: 'integration',
+    category: 'connector',
   },
 ];
 
@@ -182,7 +182,7 @@ const AUTH_SPECS: readonly MockSpec[] = [
 export const MOCK_SPECS: readonly MockSpec[] = [
   ...PROVIDER_SPECS,
   ...AUTH_SPECS,
-  ...INTEGRATION_SPECS,
+  ...CONNECTOR_SPECS,
 ];
 
 /**

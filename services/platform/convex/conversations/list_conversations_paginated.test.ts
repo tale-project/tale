@@ -218,31 +218,31 @@ describe('listConversationsPaginated', () => {
     expect(builder.paginate).toHaveBeenCalledWith(opts);
   });
 
-  it('uses by_org_integration_status_lastMessageAt when integrationName and status are provided', async () => {
+  it('uses by_org_connector_status_lastMessageAt when connectorName and status are provided', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listConversationsPaginated(ctx as unknown as QueryCtx, {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
       status: 'open',
-      integrationName: 'outlook',
+      connectorName: 'outlook',
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_org_integration_status_lastMessageAt',
+      'by_org_connector_status_lastMessageAt',
       expect.any(Function),
     );
     expect(builder.order).toHaveBeenCalledWith('desc');
     expect(builder.filter).not.toHaveBeenCalled();
   });
 
-  it('uses by_org_lastMessageAt and filters integrationName when only integrationName is provided', async () => {
+  it('uses by_org_lastMessageAt and filters connectorName when only connectorName is provided', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listConversationsPaginated(ctx as unknown as QueryCtx, {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
-      integrationName: 'outlook',
+      connectorName: 'outlook',
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
@@ -252,19 +252,19 @@ describe('listConversationsPaginated', () => {
     expect(builder.filter).toHaveBeenCalledTimes(1);
   });
 
-  it('uses the integration index and filters priority when integrationName, status and priority are provided', async () => {
+  it('uses the connector index and filters priority when connectorName, status and priority are provided', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listConversationsPaginated(ctx as unknown as QueryCtx, {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
       status: 'open',
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       priority: 'high',
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_org_integration_status_lastMessageAt',
+      'by_org_connector_status_lastMessageAt',
       expect.any(Function),
     );
     expect(builder.filter).toHaveBeenCalledTimes(1);
@@ -273,7 +273,7 @@ describe('listConversationsPaginated', () => {
 
 // Row-level checks against the real schema indexes — the mock-based suite
 // above proves dispatch, this one proves the rows an email app actually gets.
-describe('listConversationsPaginated integrationName row filtering', () => {
+describe('listConversationsPaginated connectorName row filtering', () => {
   const ORG = 'org_conv_list_rows';
   type T = TestConvex<typeof schema>;
 
@@ -289,27 +289,27 @@ describe('listConversationsPaginated integrationName row filtering', () => {
       const outlookOpen = await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'open',
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Outlook open',
         lastMessageAt: 400,
       });
       const gmailOpen = await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'open',
-        integrationName: 'gmail',
+        connectorName: 'gmail',
         subject: 'Gmail open',
         lastMessageAt: 300,
       });
       const unsetOpen = await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'open',
-        subject: 'No integration',
+        subject: 'No connector',
         lastMessageAt: 200,
       });
       const outlookClosed = await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'closed',
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Outlook closed',
         lastMessageAt: 100,
       });
@@ -317,7 +317,7 @@ describe('listConversationsPaginated integrationName row filtering', () => {
     });
   }
 
-  it('returns only rows of the requested integration and status — other integrations, unset-integration rows and other statuses are excluded', async () => {
+  it('returns only rows of the requested connector and status — other connectors, unset-connector rows and other statuses are excluded', async () => {
     const t = convexTest(schema, modules);
     const ids = await seedRows(t);
 
@@ -326,14 +326,14 @@ describe('listConversationsPaginated integrationName row filtering', () => {
         paginationOpts: { numItems: 10, cursor: null },
         organizationId: ORG,
         status: 'open',
-        integrationName: 'outlook',
+        connectorName: 'outlook',
       }),
     );
 
     expect(result.page.map((c) => c._id)).toEqual([ids.outlookOpen]);
   });
 
-  it('filters by integrationName across statuses (recency order) when status is not set', async () => {
+  it('filters by connectorName across statuses (recency order) when status is not set', async () => {
     const t = convexTest(schema, modules);
     const ids = await seedRows(t);
 
@@ -341,7 +341,7 @@ describe('listConversationsPaginated integrationName row filtering', () => {
       listConversationsPaginated(ctx as unknown as QueryCtx, {
         paginationOpts: { numItems: 10, cursor: null },
         organizationId: ORG,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
       }),
     );
 
@@ -351,7 +351,7 @@ describe('listConversationsPaginated integrationName row filtering', () => {
     ]);
   });
 
-  it('keeps the unfiltered listing unchanged when integrationName is absent', async () => {
+  it('keeps the unfiltered listing unchanged when connectorName is absent', async () => {
     const t = convexTest(schema, modules);
     const ids = await seedRows(t);
 
@@ -399,7 +399,7 @@ describe('listConversationsPaginated flat list-row fields', () => {
       const withContact = await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'open',
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         contactId,
         subject: 'With contact',
         lastMessageAt: 200,
@@ -418,7 +418,7 @@ describe('listConversationsPaginated flat list-row fields', () => {
       await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'open',
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Bare',
         lastMessageAt: 100,
       });
@@ -429,7 +429,7 @@ describe('listConversationsPaginated flat list-row fields', () => {
         paginationOpts: { numItems: 10, cursor: null },
         organizationId: ORG,
         status: 'open',
-        integrationName: 'outlook',
+        connectorName: 'outlook',
       }),
     );
 

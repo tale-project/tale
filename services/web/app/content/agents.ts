@@ -10,12 +10,9 @@ import {
   OpenCodeIcon,
   PiAgentIcon,
 } from '@/app/components/icons/agent-icons';
+import { ClaudeIcon, OpenAIIcon } from '@/app/components/icons/connector-icons';
 import { CursorIcon } from '@/app/components/icons/cursor-icon';
 import { GeminiIcon } from '@/app/components/icons/gemini-icon';
-import {
-  ClaudeIcon,
-  OpenAIIcon,
-} from '@/app/components/icons/integration-icons';
 import type { BrandIcon } from '@/app/components/icons/types';
 
 interface AgentEntry {

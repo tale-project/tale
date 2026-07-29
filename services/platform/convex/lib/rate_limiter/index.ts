@@ -75,9 +75,9 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 15,
   },
-  // Agent integration dispatch (in-sandbox MCP bridge → /api/integrations/execute).
+  // Agent connector dispatch (in-sandbox MCP bridge → /api/connectors/execute).
   // Per-session token bucket — the dispatch is otherwise unmetered.
-  'integrations:dispatch': {
+  'connectors:dispatch': {
     kind: 'token bucket',
     rate: 60,
     period: MINUTE,
@@ -85,7 +85,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     shards: 4,
   },
   // Workspace-tool dispatch (in-sandbox MCP bridge → /api/tools/execute).
-  // Same posture as integrations:dispatch — per-session token bucket on an
+  // Same posture as connectors:dispatch — per-session token bucket on an
   // otherwise-unmetered surface.
   'tools:dispatch': {
     kind: 'token bucket',
@@ -355,7 +355,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // and keyed by client IP for FORGED/unsigned requests (401, or 429 under
   // flood). Signature verification authenticates signed traffic, so it is never
   // 429'd. Intentionally generous — a flood backstop, not a per-user limit.
-  'integration:slack-events': {
+  'connector:slack-events': {
     kind: 'token bucket',
     rate: 120,
     period: MINUTE,

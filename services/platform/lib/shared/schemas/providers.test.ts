@@ -4,10 +4,10 @@ import {
   BROKER_SECRET_ENV_PREFIX,
   BROKER_SECRET_ENV_REGEX,
   brokerCredentialDataSchema,
-  harnessConnectorSchema,
+  harnessDefinitionSchema,
   modelCatalogEntrySchema,
   modelCatalogFileSchema,
-  providerConnectorSchema,
+  providerDefinitionSchema,
   providerKeyEnvNameSchema,
   SECRETS_ENV_PREFIX,
   SECRETS_ENV_REGEX,
@@ -82,7 +82,7 @@ const VALID_HARNESS = {
         mcp: {
           delivery: 'config-json-flag',
           flag: '--mcp-config',
-          bridgeEnv: { TALE_INTEGRATIONS_URL: '${bridgeUrl}' },
+          bridgeEnv: { TALE_CONNECTORS_URL: '${bridgeUrl}' },
         },
       },
     ],
@@ -127,16 +127,16 @@ describe('SECRETS_ENV prefix gate', () => {
   });
 });
 
-describe('providerConnectorSchema', () => {
-  it('accepts a full connector with all three auth methods', () => {
-    expect(providerConnectorSchema.safeParse(VALID_CONNECTOR).success).toBe(
+describe('providerDefinitionSchema', () => {
+  it('accepts a full provider with all three auth methods', () => {
+    expect(providerDefinitionSchema.safeParse(VALID_CONNECTOR).success).toBe(
       true,
     );
   });
 
   it('accepts each catalog source', () => {
     for (const source of ['static', 'openrouter-api', 'models-endpoint']) {
-      const result = providerConnectorSchema.safeParse({
+      const result = providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         catalog: { source },
       });
@@ -146,24 +146,26 @@ describe('providerConnectorSchema', () => {
 
   it('rejects a non-slug name', () => {
     expect(
-      providerConnectorSchema.safeParse({ ...VALID_CONNECTOR, name: 'OpenAI' })
+      providerDefinitionSchema.safeParse({ ...VALID_CONNECTOR, name: 'OpenAI' })
         .success,
     ).toBe(false);
     expect(
-      providerConnectorSchema.safeParse({ ...VALID_CONNECTOR, name: 'open_ai' })
-        .success,
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        name: 'open_ai',
+      }).success,
     ).toBe(false);
   });
 
   it('rejects a non-https baseUrl', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         baseUrl: 'http://api.anthropic.com',
       }).success,
     ).toBe(false);
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         baseUrl: 'not a url',
       }).success,
@@ -172,7 +174,7 @@ describe('providerConnectorSchema', () => {
 
   it('rejects an unknown apiFormat', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         apiFormat: 'gemini',
       }).success,
@@ -181,7 +183,7 @@ describe('providerConnectorSchema', () => {
 
   it('rejects an unknown catalog source', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         catalog: { source: 'weekly-sync' },
       }).success,
@@ -190,14 +192,14 @@ describe('providerConnectorSchema', () => {
 
   it('rejects an empty auth array', () => {
     expect(
-      providerConnectorSchema.safeParse({ ...VALID_CONNECTOR, auth: [] })
+      providerDefinitionSchema.safeParse({ ...VALID_CONNECTOR, auth: [] })
         .success,
     ).toBe(false);
   });
 
   it('rejects duplicate auth methods', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         auth: [{ method: 'api-key' }, { method: 'api-key' }],
       }).success,
@@ -206,7 +208,7 @@ describe('providerConnectorSchema', () => {
 
   it('rejects a subscription-broker method without constraints', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         auth: [{ method: 'subscription-broker' }],
       }).success,
@@ -215,7 +217,7 @@ describe('providerConnectorSchema', () => {
 
   it('rejects broker constraints demanding direct execution', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         auth: [
           {
@@ -229,13 +231,13 @@ describe('providerConnectorSchema', () => {
 
   it('rejects extra fields on api-key and env auth entries', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         auth: [{ method: 'api-key', apiKey: 'sk-live-oops' }],
       }).success,
     ).toBe(false);
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         auth: [{ method: 'env', name: 'TALE_PROVIDER_KEY_X' }],
       }).success,
@@ -244,7 +246,7 @@ describe('providerConnectorSchema', () => {
 
   it('rejects unknown top-level keys', () => {
     expect(
-      providerConnectorSchema.safeParse({
+      providerDefinitionSchema.safeParse({
         ...VALID_CONNECTOR,
         models: [],
       }).success,
@@ -481,19 +483,19 @@ describe('brokerCredentialDataSchema', () => {
   });
 });
 
-describe('harnessConnectorSchema', () => {
+describe('harnessDefinitionSchema', () => {
   it('accepts a full harness', () => {
-    expect(harnessConnectorSchema.safeParse(VALID_HARNESS).success).toBe(true);
+    expect(harnessDefinitionSchema.safeParse(VALID_HARNESS).success).toBe(true);
   });
 
   it('accepts a harness without a pinned version', () => {
     const { pinnedVersion: _pinnedVersion, ...unpinned } = VALID_HARNESS;
-    expect(harnessConnectorSchema.safeParse(unpinned).success).toBe(true);
+    expect(harnessDefinitionSchema.safeParse(unpinned).success).toBe(true);
   });
 
   it('accepts one-sided credential policies', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         credentialPolicy: { managed: false, byo: true },
         // A byo-only harness must carry no managed-only exec sections (the
@@ -502,7 +504,7 @@ describe('harnessConnectorSchema', () => {
       }).success,
     ).toBe(true);
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         credentialPolicy: { managed: true, byo: false },
       }).success,
@@ -511,7 +513,7 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects a policy that accepts neither credential mode', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         credentialPolicy: { managed: false, byo: false },
       }).success,
@@ -520,13 +522,13 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects malformed or duplicate credential env keys', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         credentialEnvKeys: ['anthropic_api_key'],
       }).success,
     ).toBe(false);
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         credentialEnvKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'],
       }).success,
@@ -535,7 +537,7 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects the retired argv-positional transport spelling', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         promptTransport: 'argv-positional',
       }).success,
@@ -544,7 +546,7 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects an unknown model-id dialect', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         modelIdDialect: 'native',
       }).success,
@@ -553,7 +555,7 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects an incomplete capabilities object', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         capabilities: { planMode: true, steering: true },
       }).success,
@@ -562,7 +564,7 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects unknown keys', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         mcpDelivery: 'inline-argv',
       }).success,
@@ -571,9 +573,11 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects a missing or unknown parser family', () => {
     const { parser: _parser, ...withoutParser } = VALID_HARNESS;
-    expect(harnessConnectorSchema.safeParse(withoutParser).success).toBe(false);
+    expect(harnessDefinitionSchema.safeParse(withoutParser).success).toBe(
+      false,
+    );
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         parser: 'brand-new-stream',
       }).success,
@@ -582,7 +586,7 @@ describe('harnessConnectorSchema', () => {
 
   it('rejects a harness without exec facts', () => {
     const { exec: _exec, ...withoutExec } = VALID_HARNESS;
-    expect(harnessConnectorSchema.safeParse(withoutExec).success).toBe(false);
+    expect(harnessDefinitionSchema.safeParse(withoutExec).success).toBe(false);
   });
 
   it('rejects an exec incoherent with the declared capabilities', () => {
@@ -590,7 +594,7 @@ describe('harnessConnectorSchema', () => {
     // refinements are exercised in depth over the shipped tree in
     // lib/harnesses/registry.test.ts.
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         exec: {
           ...VALID_HARNESS.exec,
@@ -602,7 +606,7 @@ describe('harnessConnectorSchema', () => {
 
   it('accepts and gates the subscription delivery shapes', () => {
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         subscription: {
           kind: 'env',
@@ -612,19 +616,19 @@ describe('harnessConnectorSchema', () => {
       }).success,
     ).toBe(true);
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         subscription: { kind: 'staged-file', path: '.runtime/home/creds.json' },
       }).success,
     ).toBe(true);
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         subscription: { kind: 'env', tokenVar: 'not-an-env-name' },
       }).success,
     ).toBe(false);
     expect(
-      harnessConnectorSchema.safeParse({
+      harnessDefinitionSchema.safeParse({
         ...VALID_HARNESS,
         subscription: { kind: 'staged-file' },
       }).success,

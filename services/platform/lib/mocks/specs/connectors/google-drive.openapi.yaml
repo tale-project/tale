@@ -1,0 +1,97 @@
+openapi: 3.1.0
+info:
+  title: Google Drive API v3 (mock)
+  version: 'v3'
+  description: >-
+    Trimmed spec for the operations the Google Drive connector
+    (`configs/platform/system/connectors/google-drive/connector.yml`) actually calls.
+    Mounted by the mock gateway at `/mock/google-drive`; paths mirror
+    `https://www.googleapis.com/drive/v3`.
+servers:
+  - url: /mock/google-drive
+components:
+  schemas:
+    About:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            emailAddress: { type: string }
+            displayName: { type: string }
+    File:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        size: { type: string }
+        mimeType: { type: string }
+        modifiedTime: { type: string }
+        md5Checksum: { type: string }
+    FileList:
+      type: object
+      properties:
+        nextPageToken: { type: string }
+        files:
+          type: array
+          items: { $ref: '#/components/schemas/File' }
+paths:
+  /drive/v3/about:
+    get:
+      operationId: getAbout
+      summary: Get information about the user (test connection).
+      parameters:
+        - { name: fields, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Information about the authenticated user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/About' }
+              example:
+                user:
+                  emailAddress: tale-mock-user@example.com
+                  displayName: Tale Mock User
+  /drive/v3/files:
+    get:
+      operationId: listFiles
+      summary: List files in a folder.
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: fields, in: query, schema: { type: string } }
+        - { name: pageSize, in: query, schema: { type: integer } }
+        - { name: pageToken, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: A list of files.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileList' }
+              example:
+                files:
+                  - id: 1aBcD3fGhIjKlMnOpQrStUvWxYz000001
+                    name: quarterly-report.pdf
+                    size: '204813'
+                    mimeType: application/pdf
+                    modifiedTime: '2026-06-10T14:32:00.000Z'
+                    md5Checksum: 9e107d9d372bb6826bd81d3542a419d6
+                  - id: 1aBcD3fGhIjKlMnOpQrStUvWxYz000002
+                    name: meeting-notes.docx
+                    size: '15827'
+                    mimeType: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+                    modifiedTime: '2026-06-12T09:05:00.000Z'
+                    md5Checksum: e2fc714c4727ee9395f324cd2e7f331f
+  /drive/v3/files/{fileId}:
+    get:
+      operationId: downloadFile
+      summary: Download a file's content (alt=media).
+      parameters:
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+        - { name: alt, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The raw file content.
+          content:
+            application/octet-stream:
+              schema: { type: string }
+              example: 'Tale mock file content for quarterly-report.pdf'

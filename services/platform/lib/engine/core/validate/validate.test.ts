@@ -9,12 +9,12 @@ import { validate } from './index';
 beforeAll(() => {
   registerNodeType({
     type: 'weather.current',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
     description: 'test connector: current weather',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'weather.current',
       description: 'current weather for a city',
       inputSchema: {
@@ -34,12 +34,12 @@ beforeAll(() => {
   });
   registerNodeType({
     type: 'web.fetch_text',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'unstructured',
     description: 'test connector: fetch a page as text',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'web.fetch_text',
       description: 'fetch a page as plain text',
       inputSchema: {
@@ -55,12 +55,12 @@ beforeAll(() => {
   });
   registerNodeType({
     type: 'notes.append',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
     description: 'test connector: appends a note',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'notes.append',
       description: 'append a note',
       inputSchema: {
@@ -497,7 +497,7 @@ describe('contracts', () => {
       { output: '{{ nodes.w.output }}' },
     );
     expect(codesOf((await validate(templated)).errors)).not.toContain(
-      'INTEGRATION_INPUT_INVALID',
+      'CONNECTOR_INPUT_INVALID',
     );
 
     const literal = automationDoc(
@@ -505,16 +505,16 @@ describe('contracts', () => {
       { output: '{{ nodes.w.output }}' },
     );
     const { errors } = await validate(literal);
-    expect(codesOf(errors)).toContain('INTEGRATION_INPUT_INVALID');
+    expect(codesOf(errors)).toContain('CONNECTOR_INPUT_INVALID');
   });
 
-  it('always reports missing required integration fields', async () => {
+  it('always reports missing required connector fields', async () => {
     const doc = automationDoc(
       [{ id: 'w', type: 'weather.current', input: { units: 'metric' } }],
       { output: '{{ nodes.w.output }}' },
     );
     const { errors } = await validate(doc);
-    const issue = errors.find((i) => i.code === 'INTEGRATION_INPUT_INVALID');
+    const issue = errors.find((i) => i.code === 'CONNECTOR_INPUT_INVALID');
     expect(issue?.message).toContain("must have required property 'city'");
   });
 
@@ -580,7 +580,7 @@ describe('contracts', () => {
     );
   });
 
-  it('exempts effectful integrations, elseOf partners, and the final node from UNUSED_NODE', async () => {
+  it('exempts effectful connectors, elseOf partners, and the final node from UNUSED_NODE', async () => {
     const doc = automationDoc(
       [
         // Effectful: exempt even though nobody reads it.

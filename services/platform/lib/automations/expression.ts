@@ -29,7 +29,7 @@
 /** What a converted step's output looks like to expressions that read it. */
 export type StepOutputKind =
   /** A connector action: reachable, but its payload shape is the connector's. */
-  | 'integration'
+  | 'connector'
   /** A model call with no schema: only `.text` exists. */
   | 'llm-text'
   /** A model call with an output schema: the schema-shaped object. */
@@ -582,7 +582,7 @@ class Emitter {
   ): Chain['path'] {
     const withoutData = rest[0]?.name === 'data' ? rest.slice(1) : rest;
     switch (kind) {
-      case 'integration': {
+      case 'connector': {
         const withoutResult =
           withoutData[0]?.name === 'result'
             ? withoutData.slice(1)

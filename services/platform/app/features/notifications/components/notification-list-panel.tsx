@@ -59,7 +59,7 @@ interface NotificationListPanelProps {
   onExpand?: () => void;
   /**
    * When provided, renders a back-chevron button in the header (left of the
-   * title) that invokes this callback. Used by the profile-dropdown integration
+   * title) that invokes this callback. Used by the profile-dropdown connector
    * to swap back to the profile view without closing the dropdown.
    */
   onBack?: () => void;

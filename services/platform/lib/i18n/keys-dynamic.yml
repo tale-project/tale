@@ -122,7 +122,7 @@ entries:
   - 'projects.agents.emptyModelsAdminTitle'
   - 'projects.agents.emptyModelsMemberBody'
   - 'projects.agents.emptyModelsMemberTitle'
-  - 'projects.agents.integrationsHeading'
+  - 'projects.agents.connectorsHeading'
   - 'projects.agents.recommendedBadge'
   - 'projects.agents.recommendedListLabel'
   - 'projects.composer'
@@ -339,6 +339,11 @@ entries:
   - 'skills.library.tabs'
   - 'skills.upload.errors'
   - 'skills.upload.sharingAs'
+
+  # Catalog scope tabs: each surface maps its own tab enum over one template
+  # (`t(`<ns>.tabs.${value}`)`), which the regex scanner can't follow.
+  - 'settings.connectors.tabs'
+  - 'settings.providers.tabs'
   # `common.aria.selectAll` / `common.aria.selectRow` label the data-table
   # selection checkboxes
   # (`app/components/ui/data-table/column-builders.tsx#createSelectColumn`, used
@@ -367,7 +372,7 @@ entries:
   - 'approvalCommon'
   - 'documentWriteApproval'
   - 'humanInputRequest'
-  - 'integrationApproval'
+  - 'connectorApproval'
   - 'knowledgeWriteApproval'
   - 'locationRequest'
   - 'operator'

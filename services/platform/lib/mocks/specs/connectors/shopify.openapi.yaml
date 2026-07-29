@@ -1,0 +1,311 @@
+openapi: 3.1.0
+info:
+  title: Shopify Admin API (mock)
+  version: '2026-01'
+  description: >-
+    Trimmed spec for the operations the Shopify connector
+    (`configs/platform/system/connectors/shopify/connector.yml`) actually calls.
+    Mounted by the mock gateway at `/mock/shopify`; paths mirror the upstream
+    `https://{shopDomain}/admin/api/2026-01`. List endpoints paginate via a
+    `Link` header with `rel="next"` carrying a `page_info` cursor.
+servers:
+  - url: /mock/shopify
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        handle: { type: string }
+        status: { type: string }
+        vendor: { type: string }
+        product_type: { type: string }
+        created_at: { type: string }
+        updated_at: { type: string }
+    Customer:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        state: { type: string }
+        orders_count: { type: integer }
+        total_spent: { type: string }
+        created_at: { type: string }
+        updated_at: { type: string }
+    Order:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        financial_status: { type: string }
+        fulfillment_status: { type: string }
+        total_price: { type: string }
+        currency: { type: string }
+        created_at: { type: string }
+        updated_at: { type: string }
+    Count:
+      type: object
+      required: [count]
+      properties:
+        count: { type: integer }
+  parameters:
+    limit: { name: limit, in: query, schema: { type: integer } }
+    pageInfo: { name: page_info, in: query, schema: { type: string } }
+    sinceId: { name: since_id, in: query, schema: { type: integer } }
+    createdAtMin: { name: created_at_min, in: query, schema: { type: string } }
+    updatedAtMin: { name: updated_at_min, in: query, schema: { type: string } }
+    status: { name: status, in: query, schema: { type: string } }
+    fields: { name: fields, in: query, schema: { type: string } }
+    resourceId:
+      { name: resourceId, in: path, required: true, schema: { type: string } }
+paths:
+  /admin/api/2026-01/products.json:
+    get:
+      operationId: listProducts
+      summary: List products.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/pageInfo'
+        - $ref: '#/components/parameters/sinceId'
+        - $ref: '#/components/parameters/createdAtMin'
+        - $ref: '#/components/parameters/updatedAtMin'
+        - $ref: '#/components/parameters/status'
+        - $ref: '#/components/parameters/fields'
+      responses:
+        '200':
+          description: A list of products.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [products]
+                properties:
+                  products:
+                    type: array
+                    items: { $ref: '#/components/schemas/Product' }
+              example:
+                products:
+                  - id: 7800000000001
+                    title: Classic Hoodie
+                    handle: classic-hoodie
+                    status: active
+                    vendor: TaleCorp
+                    product_type: Apparel
+                    created_at: '2026-01-05T10:00:00-05:00'
+                    updated_at: '2026-01-06T08:30:00-05:00'
+                  - id: 7800000000002
+                    title: Travel Mug
+                    handle: travel-mug
+                    status: active
+                    vendor: TaleCorp
+                    product_type: Drinkware
+                    created_at: '2026-01-05T11:00:00-05:00'
+                    updated_at: '2026-01-06T09:15:00-05:00'
+  /admin/api/2026-01/products/{resourceId}.json:
+    get:
+      operationId: getProduct
+      summary: Get a single product.
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: The product.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product: { $ref: '#/components/schemas/Product' }
+              example:
+                product:
+                  id: 7800000000001
+                  title: Classic Hoodie
+                  handle: classic-hoodie
+                  status: active
+                  vendor: TaleCorp
+                  product_type: Apparel
+                  created_at: '2026-01-05T10:00:00-05:00'
+                  updated_at: '2026-01-06T08:30:00-05:00'
+  /admin/api/2026-01/products/count.json:
+    get:
+      operationId: countProducts
+      summary: Count products.
+      responses:
+        '200':
+          description: The product count.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Count' }
+              example:
+                count: 2
+  /admin/api/2026-01/customers.json:
+    get:
+      operationId: listCustomers
+      summary: List customers.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/pageInfo'
+        - $ref: '#/components/parameters/sinceId'
+        - $ref: '#/components/parameters/createdAtMin'
+        - $ref: '#/components/parameters/updatedAtMin'
+        - $ref: '#/components/parameters/status'
+        - $ref: '#/components/parameters/fields'
+      responses:
+        '200':
+          description: A list of customers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [customers]
+                properties:
+                  customers:
+                    type: array
+                    items: { $ref: '#/components/schemas/Customer' }
+              example:
+                customers:
+                  - id: 6100000000001
+                    email: ada@example.com
+                    first_name: Ada
+                    last_name: Lovelace
+                    state: enabled
+                    orders_count: 3
+                    total_spent: '149.97'
+                    created_at: '2026-01-02T09:00:00-05:00'
+                    updated_at: '2026-01-06T12:00:00-05:00'
+                  - id: 6100000000002
+                    email: alan@example.com
+                    first_name: Alan
+                    last_name: Turing
+                    state: enabled
+                    orders_count: 1
+                    total_spent: '49.99'
+                    created_at: '2026-01-03T14:30:00-05:00'
+                    updated_at: '2026-01-05T16:45:00-05:00'
+  /admin/api/2026-01/customers/{resourceId}.json:
+    get:
+      operationId: getCustomer
+      summary: Get a single customer.
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: The customer.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [customer]
+                properties:
+                  customer: { $ref: '#/components/schemas/Customer' }
+              example:
+                customer:
+                  id: 6100000000001
+                  email: ada@example.com
+                  first_name: Ada
+                  last_name: Lovelace
+                  state: enabled
+                  orders_count: 3
+                  total_spent: '149.97'
+                  created_at: '2026-01-02T09:00:00-05:00'
+                  updated_at: '2026-01-06T12:00:00-05:00'
+  /admin/api/2026-01/customers/count.json:
+    get:
+      operationId: countCustomers
+      summary: Count customers.
+      responses:
+        '200':
+          description: The customer count.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Count' }
+              example:
+                count: 2
+  /admin/api/2026-01/orders.json:
+    get:
+      operationId: listOrders
+      summary: List orders.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/pageInfo'
+        - $ref: '#/components/parameters/sinceId'
+        - $ref: '#/components/parameters/createdAtMin'
+        - $ref: '#/components/parameters/updatedAtMin'
+        - $ref: '#/components/parameters/status'
+        - $ref: '#/components/parameters/fields'
+      responses:
+        '200':
+          description: A list of orders.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orders]
+                properties:
+                  orders:
+                    type: array
+                    items: { $ref: '#/components/schemas/Order' }
+              example:
+                orders:
+                  - id: 5400000000001
+                    name: '#1001'
+                    email: ada@example.com
+                    financial_status: paid
+                    fulfillment_status: fulfilled
+                    total_price: '99.98'
+                    currency: USD
+                    created_at: '2026-01-04T10:15:00-05:00'
+                    updated_at: '2026-01-04T18:20:00-05:00'
+                  - id: 5400000000002
+                    name: '#1002'
+                    email: alan@example.com
+                    financial_status: pending
+                    fulfillment_status: null
+                    total_price: '49.99'
+                    currency: USD
+                    created_at: '2026-01-05T13:40:00-05:00'
+                    updated_at: '2026-01-05T13:40:00-05:00'
+  /admin/api/2026-01/orders/{resourceId}.json:
+    get:
+      operationId: getOrder
+      summary: Get a single order.
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [order]
+                properties:
+                  order: { $ref: '#/components/schemas/Order' }
+              example:
+                order:
+                  id: 5400000000001
+                  name: '#1001'
+                  email: ada@example.com
+                  financial_status: paid
+                  fulfillment_status: fulfilled
+                  total_price: '99.98'
+                  currency: USD
+                  created_at: '2026-01-04T10:15:00-05:00'
+                  updated_at: '2026-01-04T18:20:00-05:00'
+  /admin/api/2026-01/orders/count.json:
+    get:
+      operationId: countOrders
+      summary: Count orders.
+      responses:
+        '200':
+          description: The order count.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Count' }
+              example:
+                count: 2

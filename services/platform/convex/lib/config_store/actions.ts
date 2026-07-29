@@ -11,7 +11,7 @@
  * (`read_domain_file.ts`): `<fileBase>.yml` first, `<fileBase>.json` while
  * the org tree is not yet converted to YAML.
  *
- * Future areas (provider, integration, ...) add their internal actions
+ * Future areas (provider, connector, ...) add their internal actions
  * here too, instead of scattering `'use node'` directives across
  * separate files. Keep these thin — no business logic, no auth.
  */

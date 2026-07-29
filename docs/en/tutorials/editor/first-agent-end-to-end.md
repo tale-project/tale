@@ -30,7 +30,7 @@ If you wanted to add knowledge later — say, an escalation matrix the agent sho
 
 Tools are what the agent can do beyond reply with text. For triage, no tools are needed: the agent reads input and writes output. Open the **Tools** tab and leave every toggle off. Every tool you grant widens the trust boundary; keep the list short.
 
-If the agent should write the recommended action back to a CRM, you would toggle the corresponding integration tool on later — but not before the text-only version works.
+If the agent should write the recommended action back to a CRM, you would toggle the corresponding connector tool on later — but not before the text-only version works.
 
 ## Step 4 — Pick the model and publish
 

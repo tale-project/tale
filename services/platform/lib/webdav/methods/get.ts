@@ -93,7 +93,7 @@ interface ParsedRange {
 // unparseable input (caller ignores Range), or `'unsatisfiable'` for
 // well-formed-but-out-of-bounds requests (caller returns 416).
 // Exported for unit testing (the streamed GET paths are otherwise
-// excluded from the integration suite).
+// excluded from the connector suite).
 export function parseRangeHeader(
   header: string | null,
   size: number,

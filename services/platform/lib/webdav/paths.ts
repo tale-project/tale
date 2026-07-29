@@ -119,7 +119,7 @@ function isValidOrgSlug(s: string): boolean {
 // HTTP headers, filesystems, and CSV/log lines.
 //
 // Exported because it is the grammar for a name in the org tree, not a
-// detail of URL parsing: the native WebDAV integration actions validate
+// detail of URL parsing: the native WebDAV connector actions validate
 // their caller-supplied path segments with the same rule, so a name one
 // surface accepts is a name the other accepts too.
 //

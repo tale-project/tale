@@ -9,7 +9,7 @@ Die konzeptionelle Seite (Fähigkeits-Teilmengen, Budgets, Methodiken) steht in 
 
 ## Bevor du beginnst
 
-Du brauchst einen chatfähigen Agenten (der eingebaute Assistent funktioniert direkt) auf einem Modell mit Tool-Calling. Für Live-Webquellen verbinde eine Such-Integration wie Tavily unter **Einstellungen > Integrationen** — ohne sie fällt der Worker auf einfaches Web-Abrufen zurück und sagt das in seinem Ergebnis.
+Du brauchst einen chatfähigen Agenten (der eingebaute Assistent funktioniert direkt) auf einem Modell mit Tool-Calling. Für Live-Webquellen verbinde eine Such-Connector wie Tavily unter **Einstellungen > Connectors** — ohne sie fällt der Worker auf einfaches Web-Abrufen zurück und sagt das in seinem Ergebnis.
 
 ## Schritt 1 — Frag nach etwas, das einen Worker verdient
 
@@ -19,7 +19,7 @@ Du brauchst einen chatfähigen Agenten (der eingebaute Assistent funktioniert di
 
 Der Assistent ruft `spawn_agent` auf, und unter seinem Zug erscheint eine **Job-Karte**: der Name des Workers, ein Live-Status und die eigene Fortschritts-Checkliste des Workers, die sich füllt, während er plant und die Teilfragen abarbeitet. Die Karte blockiert nie den Eingabebereich — du kannst weitertippen, während der Worker läuft.
 
-Zeigt die Karte einen „Übersprungen“-Hinweis, hat der Assistent etwas außerhalb seiner eigenen Freigaben angefragt (etwa eine nicht verbundene Integration); der Lauf geht mit dem Rest weiter, und der Hinweis sagt dir, was du fürs nächste Mal verbinden solltest.
+Zeigt die Karte einen „Übersprungen“-Hinweis, hat der Assistent etwas außerhalb seiner eigenen Freigaben angefragt (etwa eine nicht verbundene Connector); der Lauf geht mit dem Rest weiter, und der Hinweis sagt dir, was du fürs nächste Mal verbinden solltest.
 
 ## Schritt 3 — Lies Ergebnis und Protokoll
 

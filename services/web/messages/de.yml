@@ -45,7 +45,7 @@ seo:
       Freigaben im Chat.'
   platformAutomations:
     title: Was sind Automations in Tale?
-    description: Tale Automations bündeln Integrationen, Agents und typisierte
+    description: Tale Automations bündeln Connectors, Agents und typisierte
       Workflow-Schritte — Trigger, Bedingungen, Aktionen und menschliche
       Freigaben auf deiner Infrastruktur.
   platformKnowledge:
@@ -373,7 +373,7 @@ home:
     subtitle: Verbinde, was du nutzt. Bündle dein Wissen. Delegiere die Arbeit.
       Kontrolliere das Ergebnis — vergleiche Modelle und grenze nach Projekt ab.
     connect:
-      eyebrow: Agents & Integrationen
+      eyebrow: Agents & Connectors
       title: |-
         Bring die Agents mit,
         denen du schon vertraust
@@ -445,7 +445,7 @@ home:
         description:
           Der gesamte Code ist öffentlich, unter MIT-Lizenz. Lies ihn,
           auditier ihn, ändere, was du brauchst — ohne jemanden zu fragen.
-  integrations:
+  connectors:
     title: Angedockt an die Tools, die du schon nutzt
     subtitle: Verbinde Gmail, Slack, GitHub, Shopify und deine Modell-Anbieter
       einmal pro Organisation — alle Agents und Automatisierungen teilen
@@ -1059,7 +1059,7 @@ platformAgents:
 platformAutomations:
   eyebrow: Automations
   title: Was sind Automations in Tale?
-  description: Eine Automation bündelt Integrationen, Agents, einen Workflow und
+  description: Eine Automation bündelt Connectors, Agents, einen Workflow und
     die Views, die sie mitbringt — zum Beispiel eine Inbox — zu einer
     installierbaren Einheit. Der Workflow darin ist ein Graph typisierter
     Schritte — LLM, Action, Condition, Loop, Sandbox — mit Zeitplänen, Webhooks,
@@ -1102,7 +1102,7 @@ platformAutomations:
     items:
       - q: Was ist eine Automation in Tale?
         a:
-          Eine Tale-Automation ist ein installierbares Bündel — Integrationen, Agents,
+          Eine Tale-Automation ist ein installierbares Bündel — Connectors, Agents,
           ein Workflow und fertige Views wie eine Inbox — das mehrstufige Arbeit
           mit Triggern und Freigaben ausführt.
       - q: Gibt es ein eigenständiges Workflow-Produkt?
@@ -1300,7 +1300,7 @@ platformChat:
           aus, damit du Antworten vergleichen kannst, bevor du wählst.
       - q: Kann Chat auch handeln — oder nur antworten?
         a:
-          Beides. Würde eine Antwort eine Integration aufrufen oder einen Workflow
+          Beides. Würde eine Antwort eine Connector aufrufen oder einen Workflow
           starten, pausiert die Aktion zuerst auf einer Freigabe-Karte im Chat —
           genau dort, wo die Arbeit passiert.
   docs:
@@ -1375,7 +1375,7 @@ platformChat:
         Release-Ankündigung in den Slack-Kanal #customers gepostet werden darf;
         die Freigabe wird erteilt und journaliert.'
       approvalTitle: 'Ankündigung in #customers auf Slack posten?'
-      requester: Comms-Agent · Integrations-Aufruf
+      requester: Comms-Agent · Connector-Aufruf
       audit1: Freigegeben von comms@nordwind.eu
       audit2: 'Ankündigung in #customers gepostet'
       audit3: Entscheid im Audit-Log festgehalten
@@ -1438,10 +1438,10 @@ platformGovernance:
     items:
       - title: Freigabe-Karten im Chat
         body: Pläne, Dokument-Schreibvorgänge, Knowledge-Schreibvorgänge,
-          Integrations-Aufrufe, MCP-Tools und Workflow-Läufe pausieren bis
+          Connector-Aufrufe, MCP-Tools und Workflow-Läufe pausieren bis
           Freigabe oder Ablehnung.
         docsLabel: Freigabe-Konzepte
-      - title: Änderungen bei Integrationen vorschlagen
+      - title: Änderungen bei Connectors vorschlagen
         body:
           Beschreibe, was falsch ist; der Agent überarbeitet den Aufruf statt die
           Arbeit abzubrechen.
@@ -1480,7 +1480,7 @@ platformGovernance:
       - q: Kann ich wählen, welche Aktionen eine Freigabe brauchen?
         a:
           Ja. Freigaben sind pro Aktionstyp konfigurierbar — Pläne, Dokument- und
-          Knowledge-Schreibvorgänge, Integrations-Aufrufe, MCP-Tools und
+          Knowledge-Schreibvorgänge, Connector-Aufrufe, MCP-Tools und
           Workflow-Läufe können jeweils eine menschliche Entscheidung verlangen,
           bevor sie laufen.
       - q: Können Agents Emails ohne Freigabe senden?

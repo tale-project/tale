@@ -52,8 +52,8 @@ vi.mock('../_generated/api', () => ({
       internal_queries: { getActiveExecutionForSubject: 'getActive' },
     },
     agent_tools: {
-      integrations: {
-        internal_actions: { executeIntegration: 'executeIntegration' },
+      connectors: {
+        internal_actions: { executeConnector: 'executeConnector' },
       },
     },
   },
@@ -264,7 +264,7 @@ function createMergeCtx(opts: {
     ),
     runAction: vi.fn(async (ref: unknown, args: Record<string, unknown>) => {
       runActionCalls.push({ ref, args });
-      // Mirror the executeIntegration return shape: { result: <connectorReturn> }.
+      // Mirror the executeConnector return shape: { result: <connectorReturn> }.
       if (args.operation === 'list_pull_requests') {
         return { result: { data: opts.pulls ?? [] } };
       }
@@ -284,7 +284,7 @@ describe('mergeTaskPullRequest', () => {
   const handler = (mergeTaskPullRequest as unknown as Handler).handler;
 
   it('fails with a typed offline error and leaves the task untouched', async () => {
-    // The GitHub connector rides the integrations backend, which is offline
+    // The GitHub connector rides the connectors backend, which is offline
     // while it is rebuilt: the guards above the gate still run, then the
     // action refuses with a typed error and performs no writes.
     const { ctx, runActionCalls, runMutationCalls } = createMergeCtx({

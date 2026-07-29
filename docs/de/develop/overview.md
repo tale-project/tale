@@ -1,6 +1,6 @@
 ---
 title: Entwicklung
-description: Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, Webhooks, Integrations-SDK, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits.
+description: Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, Webhooks, Connector-SDK, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits.
 ---
 
 Entwicklung ist der Abschnitt für Integratoren und Contributors — alle, die Tale an ein anderes System anbinden, auf der API aufsetzen oder eine Änderung am Quellcode liefern. Die Seiten hier beschreiben die externe Oberfläche (REST, Webhooks, OpenAI-kompatible Endpoints) und den Contributor-Workflow.
@@ -35,9 +35,9 @@ Tale-Agents nutzen, um Tale-Workflows zu schreiben; die `.agents/`-Skill-Dateien
 
 </Card>
 
-<Card title="Integrationen" icon="plug" href="/de/develop/integrations">
+<Card title="Connectors" icon="plug" href="/de/develop/connectors">
 
-Drittanbieter-Integrationen aus Entwicklersicht.
+Drittanbieter-Connectors aus Entwicklersicht.
 
 </Card>
 

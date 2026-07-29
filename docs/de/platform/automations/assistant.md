@@ -3,7 +3,7 @@ title: Automatisierungs-Assistent
 description: Der Chat-Agent, der auf eine Automatisierung fixiert ist — was er direkt editiert, was er für dich entwirft, und wie er bestehende Automatisierungen findet, bevor er eine neue baut.
 ---
 
-Der **Automatisierungs-Assistent** ist der Chat-Agent, der auf eine einzelne Automatisierung ausgerichtet ist und mit deren Dokument, ihren Agents, ihren Skills und ihren Integrationen bereits im Kontext antwortet. Admins und Entwickler nutzen ihn, um eine Automatisierung zu verstehen, die sie nicht gebaut haben, eine bestehende zu erweitern statt sie zu duplizieren, oder Hilfe beim Verfassen der Bestandteile zu bekommen, die die eigene Seite der Automatisierung nicht editiert. Frag ihn, was etwas tut, bevor du von Hand daran rührst — er liest das ganze Dokument auf einmal statt eine Node nach der anderen.
+Der **Automatisierungs-Assistent** ist der Chat-Agent, der auf eine einzelne Automatisierung ausgerichtet ist und mit deren Dokument, ihren Agents, ihren Skills und ihren Connectors bereits im Kontext antwortet. Admins und Entwickler nutzen ihn, um eine Automatisierung zu verstehen, die sie nicht gebaut haben, eine bestehende zu erweitern statt sie zu duplizieren, oder Hilfe beim Verfassen der Bestandteile zu bekommen, die die eigene Seite der Automatisierung nicht editiert. Frag ihn, was etwas tut, bevor du von Hand daran rührst — er liest das ganze Dokument auf einmal statt eine Node nach der anderen.
 
 ## Was er direkt editiert
 
@@ -11,13 +11,13 @@ Das Dokument der Automatisierung ist der eine Bestandteil, auf den der Assistent
 
 ## Was er stattdessen entwirft
 
-Für Skills, Integrationen und mitgelieferte Ansichten gibt es überhaupt kein Editier-Werkzeug: Der Assistent schreibt die Definition im richtigen Format und sagt dir genau, wo du sie anwendest — Einstellungen > Integrationen für eine Anmeldung, die eigene Seite der Automatisierung für eine Ansicht. Installation und Einrichtung laufen genauso: Er geht die Einrichtungs-Checkliste mit dir durch und benennt, was noch verbunden und was noch aktiviert werden muss, statt selbst zu verbinden.
+Für Skills, Connectors und mitgelieferte Ansichten gibt es überhaupt kein Editier-Werkzeug: Der Assistent schreibt die Definition im richtigen Format und sagt dir genau, wo du sie anwendest — Einstellungen > Connectors für eine Anmeldung, die eigene Seite der Automatisierung für eine Ansicht. Installation und Einrichtung laufen genauso: Er geht die Einrichtungs-Checkliste mit dir durch und benennt, was noch verbunden und was noch aktiviert werden muss, statt selbst zu verbinden.
 
 Dieselbe Grenze gilt für Trigger. Der Assistent kann dir sagen, welchen Zeitplan-, Webhook- oder Ereignis-Trigger eine Automatisierung trägt und was jeder davon in einen Lauf schicken würde, und er kann dir den gewünschten Trigger genau ausformulieren — aber die Entscheidung, eine Automatisierung nach außen freizugeben, bleibt eine menschliche. [Automatisierungs-Trigger](/de/platform/automations/triggers) behandelt, was jede Art tut.
 
 ## Finden, was schon existiert
 
-Bevor er irgendetwas baut, sucht der Assistent nach einer Automatisierung oder einem Bundle, das er erweitern statt duplizieren kann — dieselbe Regel „Erst wiederverwenden, dann bauen", die auch beim Verfassen neuer Skills oder Integrationen gilt. Seine Suche reicht bis zu Automatisierungen, die der Katalog selbst versteckt: Die versteckten Mitglieder eines Bundles (siehe [Automatisierungskonzepte](/de/platform/automations/concepts)) bleiben für den Assistenten sichtbar, sodass er dich zum Beispiel auf den PR-Creator-Agent verweisen kann, der in GitHub-Issues lösen vergraben ist, statt einen neuen vorzuschlagen.
+Bevor er irgendetwas baut, sucht der Assistent nach einer Automatisierung oder einem Bundle, das er erweitern statt duplizieren kann — dieselbe Regel „Erst wiederverwenden, dann bauen", die auch beim Verfassen neuer Skills oder Connectors gilt. Seine Suche reicht bis zu Automatisierungen, die der Katalog selbst versteckt: Die versteckten Mitglieder eines Bundles (siehe [Automatisierungskonzepte](/de/platform/automations/concepts)) bleiben für den Assistenten sichtbar, sodass er dich zum Beispiel auf den PR-Creator-Agent verweisen kann, der in GitHub-Issues lösen vergraben ist, statt einen neuen vorzuschlagen.
 
 ## Wo das hineinpasst
 

@@ -630,7 +630,7 @@ function generateEnvContent(config: EnvConfig): string {
     '# Security Secrets (auto-generated)',
     '# ============================================================================',
     `BETTER_AUTH_SECRET=${config.betterAuthSecret}`,
-    '# 32-byte hex key. Direct AES-256 key for OAuth/integration credentials',
+    '# 32-byte hex key. Direct AES-256 key for OAuth/connector credentials',
     '# in DB; HKDF input for the guardrails secret-box. Rotation invalidates',
     '# DB-stored ciphertexts — affected secrets must be re-entered.',
     `ENCRYPTION_SECRET_HEX=${config.encryptionSecretHex}`,

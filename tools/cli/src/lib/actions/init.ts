@@ -172,13 +172,10 @@ export async function init(options: InitOptions): Promise<InitResult> {
   const workflowFiles = getEmbeddedExamples('workflows');
   await writeEmbeddedFiles(workflowFiles, join(defaultOrgDir, 'workflows'));
 
-  // Copy integrations from embedded examples
-  logger.step('Copying integration configurations...');
-  const integrationFiles = getEmbeddedExamples('integrations');
-  await writeEmbeddedFiles(
-    integrationFiles,
-    join(defaultOrgDir, 'integrations'),
-  );
+  // Copy connectors from embedded examples
+  logger.step('Copying connector configurations...');
+  const connectorFiles = getEmbeddedExamples('connectors');
+  await writeEmbeddedFiles(connectorFiles, join(defaultOrgDir, 'connectors'));
 
   // Copy the branding config from the embedded example (fall back to an empty
   // object). Written directly rather than through writeEmbeddedFiles so this
@@ -250,9 +247,9 @@ export async function init(options: InitOptions): Promise<InitResult> {
       computeContentHash(content),
     );
   }
-  for (const [relPath, content] of integrationFiles) {
+  for (const [relPath, content] of connectorFiles) {
     allFiles.set(
-      join('default', 'integrations', relPath),
+      join('default', 'connectors', relPath),
       computeContentHash(content),
     );
   }
@@ -350,7 +347,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
   logger.blank();
   // Honest inventory: a file on disk is a catalog entry, not an active
   // install (default/README.md explains the split). Agents split by
-  // `metadata.autoInstall`; integrations and skills are bundles of several
+  // `metadata.autoInstall`; connectors and skills are bundles of several
   // files each, so count entries rather than files.
   const agentCounts = countAutoInstall(agentFiles);
   logger.table([
@@ -361,7 +358,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
       `${agentCounts.active} active, ${agentCounts.catalog} in catalog`,
     ],
     ['Workflows', `${workflowFiles.size} available`],
-    ['Integrations', `${countTopLevelEntries(integrationFiles)} available`],
+    ['Connectors', `${countTopLevelEntries(connectorFiles)} available`],
     ['Providers', `${providerConfigFiles.size} available`],
     ['Skills', `${countTopLevelEntries(skillFiles)} available`],
     ['Branding', '1 file'],

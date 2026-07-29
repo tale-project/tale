@@ -37,8 +37,8 @@ const TILES: ReadonlyArray<{ name: string; source: string }> = [
     source: 'platform/automation-editor-canvas',
   },
   {
-    name: 'readme-gallery-integrations',
-    source: 'platform/integrations-catalog',
+    name: 'readme-gallery-connectors',
+    source: 'platform/connectors-catalog',
   },
   {
     name: 'readme-gallery-guardrails',
@@ -51,7 +51,7 @@ const TOUR_FRAMES: readonly string[] = [
   'get-started/agent-editor-general',
   'platform/projects-task-board',
   'platform/automation-editor-canvas',
-  'platform/integrations-catalog',
+  'platform/connectors-catalog',
   'platform/governance-guardrails',
 ] as const;
 

@@ -32,7 +32,7 @@ Instructions, knowledge, tools, model — plus skills, workers, versioning, and 
 
 <Card title="Automations" icon="layout-grid" href="/platform/automations/concepts">
 
-Installable bundles of integrations, agents, skills, and a workflow — the catalog, the install wizard, the editor and triggers behind each one, and the run history it leaves.
+Installable bundles of connectors, agents, skills, and a workflow — the catalog, the install wizard, the editor and triggers behind each one, and the run history it leaves.
 
 </Card>
 
@@ -60,7 +60,7 @@ The model catalog behind every picker — capability tags, defaults, and the shi
 
 </Card>
 
-<Card title="Integrations" icon="plug" href="/platform/integrations/overview">
+<Card title="Connectors" icon="plug" href="/platform/connectors/overview">
 
 Third-party SaaS pairings and MCP servers.
 
@@ -94,7 +94,7 @@ API keys, custom tools, webhooks, MCP servers — wiring Tale to external code.
 
 <Card title="Admin" icon="shield" href="/platform/admin/overview">
 
-Organization settings, providers, branding, integrations, and the governance sub-tree.
+Organization settings, providers, branding, connectors, and the governance sub-tree.
 
 </Card>
 

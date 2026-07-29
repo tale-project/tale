@@ -1,9 +1,9 @@
 ---
 title: Admin
-description: Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Integrationen, Branding, Richtlinien. Die Seiten hier sind das, was ein Admin oder Inhaber durchklickt, um eine Organisation aufzusetzen und am Laufen zu halten.
+description: Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Connectors, Branding, Richtlinien. Die Seiten hier sind das, was ein Admin oder Inhaber durchklickt, um eine Organisation aufzusetzen und am Laufen zu halten.
 ---
 
-Admin ist die Konfigurationsebene von Tale. Sie umfasst die Personen, die sich anmelden dürfen, die Teams, die sie gruppieren, die KI-Anbieter hinter jeder Antwort, die API-Schlüssel, mit denen externer Code mit der Organisation spricht, die Drittanbieter-Integrationen, durch die Agents nach außen greifen, und das Branding, das der Rest der Organisation sieht. Nur Admins und Inhaber sehen das volle Admin-Menü; Entwickler sehen eine Teilmenge, andere Rollen sehen es gar nicht.
+Admin ist die Konfigurationsebene von Tale. Sie umfasst die Personen, die sich anmelden dürfen, die Teams, die sie gruppieren, die KI-Anbieter hinter jeder Antwort, die API-Schlüssel, mit denen externer Code mit der Organisation spricht, die Drittanbieter-Connectors, durch die Agents nach außen greifen, und das Branding, das der Rest der Organisation sieht. Nur Admins und Inhaber sehen das volle Admin-Menü; Entwickler sehen eine Teilmenge, andere Rollen sehen es gar nicht.
 
 Diese Seiten beschreiben, was jede Einstellung tut und was sie am laufenden Produkt ändert. Die meisten liest du einmal beim Aufsetzen und besuchst sie wieder, wenn sich etwas ändert — eine neue Person, ein rotierter Schlüssel, ein neuer Anbieter. Die Rollen- und Berechtigungsgeschichte hinter dem ganzen Menü liegt in [Mitglieder und Rollen](/de/platform/admin/members-and-roles); fang dort an, denn jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.
 
@@ -25,7 +25,7 @@ Die sechs Rollen und die ressourcengenaue Matrix, die sagt, wer lesen, schreiben
 
 <Card title="Teams" icon="users-round" href="/de/platform/admin/teams">
 
-Gruppiere Mitglieder in Teams, die Agents, Skills und Integrationen teilen.
+Gruppiere Mitglieder in Teams, die Agents, Skills und Connectors teilen.
 
 </Card>
 
@@ -41,7 +41,7 @@ Hinterleg die Zugangsdaten hinter jeder Antwort und wähl, welche Modelle die Or
 
 </Card>
 
-<Card title="Integrationen" icon="plug" href="/de/platform/admin/integrations">
+<Card title="Connectors" icon="plug" href="/de/platform/admin/connectors">
 
 Hinterleg und ersetz die Zugangsdaten hinter Slack, Gmail, Outlook, Google Drive, GitHub, Shopify und mehr.
 
@@ -87,4 +87,4 @@ Audit-Logs, Richtlinien und Limits, Guardrails, Analysen, Aufbewahrung und Legal
 
 ## Wo das hingehört
 
-Admin ist die Oberfläche, die jeder andere Tab voraussetzt. Chat löst ein Modell über die hier konfigurierten Anbieter auf; Agents rufen Tools über die hier konfigurierten Integrationen auf; die Skill-Bibliothek und die Inbox respektieren die hier konfigurierten Team-Grenzen. Die natürliche erste Lektüre ist [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.
+Admin ist die Oberfläche, die jeder andere Tab voraussetzt. Chat löst ein Modell über die hier konfigurierten Anbieter auf; Agents rufen Tools über die hier konfigurierten Connectors auf; die Skill-Bibliothek und die Inbox respektieren die hier konfigurierten Team-Grenzen. Die natürliche erste Lektüre ist [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.

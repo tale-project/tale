@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { providerConnectorSchema } from '../../../lib/shared/schemas/providers';
+import { providerDefinitionSchema } from '../../../lib/shared/schemas/providers';
 import { safeFetch, SafeFetchError } from '../http/safe_fetch';
 import {
   CATALOG_TTL_MS,
-  getConnectorCatalog,
+  getProviderCatalog,
   invalidateCatalogFetchCache,
 } from './catalog_fetch';
 
@@ -32,7 +32,7 @@ const USABLE_PAYLOAD = {
   ],
 };
 
-const OPENROUTER = providerConnectorSchema.parse({
+const OPENROUTER = providerDefinitionSchema.parse({
   name: 'openrouter',
   displayName: 'OpenRouter',
   apiFormat: 'openai',
@@ -41,7 +41,7 @@ const OPENROUTER = providerConnectorSchema.parse({
   auth: [{ method: 'api-key' }],
 });
 
-const VERCEL = providerConnectorSchema.parse({
+const VERCEL = providerDefinitionSchema.parse({
   name: 'vercel-ai-gateway',
   displayName: 'Vercel AI Gateway',
   apiFormat: 'openai',
@@ -51,7 +51,7 @@ const VERCEL = providerConnectorSchema.parse({
   auth: [{ method: 'api-key' }],
 });
 
-const STATIC_ANTHROPIC = providerConnectorSchema.parse({
+const STATIC_ANTHROPIC = providerDefinitionSchema.parse({
   name: 'anthropic',
   displayName: 'Anthropic',
   apiFormat: 'anthropic',
@@ -71,10 +71,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('getConnectorCatalog — live sources', () => {
+describe('getProviderCatalog — live sources', () => {
   it('fetches OpenRouter once, serves the cache within the daily window, and appends the shipped defaults', async () => {
     mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
-    const first = await getConnectorCatalog(OPENROUTER);
+    const first = await getProviderCatalog(OPENROUTER);
     // Fetched entries lead; the shipped models/openrouter/models.yml defaults
     // follow for every id the listing didn't carry. The fetched
     // claude-sonnet-5 wins over the default of the same id (exactly one).
@@ -94,29 +94,29 @@ describe('getConnectorCatalog — live sources', () => {
       expect.objectContaining({ method: 'GET' }),
     );
 
-    const second = await getConnectorCatalog(OPENROUTER);
+    const second = await getProviderCatalog(OPENROUTER);
     expect(second).toEqual(first);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
   });
 
   it('refetches after the daily window elapses', async () => {
     mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
-    await getConnectorCatalog(OPENROUTER);
+    await getProviderCatalog(OPENROUTER);
     vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
-    await getConnectorCatalog(OPENROUTER);
+    await getProviderCatalog(OPENROUTER);
     expect(mockedFetch).toHaveBeenCalledTimes(2);
   });
 
   it('forceRefresh bypasses a fresh cache', async () => {
     mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
-    await getConnectorCatalog(OPENROUTER);
-    await getConnectorCatalog(OPENROUTER, { forceRefresh: true });
+    await getProviderCatalog(OPENROUTER);
+    await getProviderCatalog(OPENROUTER, { forceRefresh: true });
     expect(mockedFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('joins the models endpoint onto the connector base URL', async () => {
+  it('joins the models endpoint onto the provider base URL', async () => {
     mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
-    const entries = await getConnectorCatalog(VERCEL);
+    const entries = await getProviderCatalog(VERCEL);
     expect(mockedFetch).toHaveBeenCalledWith(
       'https://ai-gateway.vercel.sh/v1/models',
       expect.anything(),
@@ -127,13 +127,13 @@ describe('getConnectorCatalog — live sources', () => {
   it('serves the previous catalog when a refresh fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockResolvedValueOnce(listingResponse(USABLE_PAYLOAD));
-    const first = await getConnectorCatalog(OPENROUTER, { maxAttempts: 1 });
+    const first = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
 
     vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
     mockedFetch.mockRejectedValueOnce(
       new SafeFetchError('network_error', 'connect refused'),
     );
-    const second = await getConnectorCatalog(OPENROUTER, { maxAttempts: 1 });
+    const second = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
     expect(second).toEqual(first);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('serving the previous catalog'),
@@ -142,10 +142,10 @@ describe('getConnectorCatalog — live sources', () => {
     warn.mockRestore();
   });
 
-  it('serves the shipped defaults on a cold failure when the connector has them', async () => {
+  it('serves the shipped defaults on a cold failure when the provider has them', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockRejectedValue(new SafeFetchError('timeout', 'timed out'));
-    const entries = await getConnectorCatalog(OPENROUTER, { maxAttempts: 1 });
+    const entries = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.map((e) => e.id)).toContain('anthropic/claude-fable-5');
     expect(warn).toHaveBeenCalledWith(
@@ -155,11 +155,11 @@ describe('getConnectorCatalog — live sources', () => {
     warn.mockRestore();
   });
 
-  it('propagates a cold failure when the connector ships no defaults', async () => {
+  it('propagates a cold failure when the provider ships no defaults', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockRejectedValue(new SafeFetchError('timeout', 'timed out'));
     await expect(
-      getConnectorCatalog(VERCEL, { maxAttempts: 1 }),
+      getProviderCatalog(VERCEL, { maxAttempts: 1 }),
     ).rejects.toThrow('timed out');
   });
 
@@ -171,7 +171,7 @@ describe('getConnectorCatalog — live sources', () => {
       statusText: 'Service Unavailable',
     });
     await expect(
-      getConnectorCatalog(VERCEL, { maxAttempts: 1 }),
+      getProviderCatalog(VERCEL, { maxAttempts: 1 }),
     ).rejects.toThrow('HTTP 503');
   });
 
@@ -181,16 +181,16 @@ describe('getConnectorCatalog — live sources', () => {
       listingResponse({ data: [{ id: 'missing-context-window' }] }),
     );
     await expect(
-      getConnectorCatalog(VERCEL, { maxAttempts: 1 }),
+      getProviderCatalog(VERCEL, { maxAttempts: 1 }),
     ).rejects.toThrow('no usable models');
 
     mockedFetch.mockResolvedValueOnce(listingResponse(USABLE_PAYLOAD));
-    const entries = await getConnectorCatalog(VERCEL, { maxAttempts: 1 });
+    const entries = await getProviderCatalog(VERCEL, { maxAttempts: 1 });
     expect(entries).toHaveLength(2);
   });
 
-  it('returns empty for a catalog-less connector without touching the network', async () => {
-    const connector = providerConnectorSchema.parse({
+  it('returns empty for a catalog-less provider without touching the network', async () => {
+    const provider = providerDefinitionSchema.parse({
       name: 'nous-portal',
       displayName: 'Nous Portal',
       apiFormat: 'openai',
@@ -203,26 +203,26 @@ describe('getConnectorCatalog — live sources', () => {
         },
       ],
     });
-    await expect(getConnectorCatalog(connector)).resolves.toEqual([]);
+    await expect(getProviderCatalog(provider)).resolves.toEqual([]);
     expect(mockedFetch).not.toHaveBeenCalled();
   });
 });
 
-describe('getConnectorCatalog — static source', () => {
+describe('getProviderCatalog — static source', () => {
   it('serves the shipped static catalog without touching the network', async () => {
-    const entries = await getConnectorCatalog(STATIC_ANTHROPIC);
+    const entries = await getProviderCatalog(STATIC_ANTHROPIC);
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every((e) => e.provider === 'anthropic')).toBe(true);
     expect(mockedFetch).not.toHaveBeenCalled();
   });
 
-  it('warns and returns empty for a static connector with no catalog file', async () => {
+  it('warns and returns empty for a static provider with no catalog file', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const connector = providerConnectorSchema.parse({
+    const provider = providerDefinitionSchema.parse({
       ...STATIC_ANTHROPIC,
       name: 'no-such-provider',
     });
-    await expect(getConnectorCatalog(connector)).resolves.toEqual([]);
+    await expect(getProviderCatalog(provider)).resolves.toEqual([]);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('no-such-provider'),
     );

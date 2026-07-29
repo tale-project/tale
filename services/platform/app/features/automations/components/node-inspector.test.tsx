@@ -163,7 +163,7 @@ describe('NodeInspector', () => {
           effects: [
             {
               node: 'summary',
-              integration: 'slack.post_message',
+              connector: 'slack.post_message',
               input: { text: 'done' },
             },
           ],

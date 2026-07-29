@@ -5,7 +5,7 @@ import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { type EmailIntegrationOption } from '../lib/email-integrations';
+import { type EmailConnectorOption } from '../lib/email-connectors';
 
 export type Conversation = ConvexItemOf<
   typeof api.conversations.queries.listConversations
@@ -30,7 +30,7 @@ interface ListConversationsPaginatedArgs {
   channel?: string;
   /** Filter to one connected inbox provider (e.g. `gmail`) — the Inbox
    *  toolbar's channel filter. */
-  integrationName?: string;
+  connectorName?: string;
   initialNumItems: number;
 }
 
@@ -88,21 +88,21 @@ export function useComposeContactName(
 
 /**
  * The inboxes the compose dialog can send through. These were derived from
- * the installed inbox automations' `requiredIntegrations` merged with the
- * integration credentials — both live in the automations/integrations
+ * the installed inbox automations' `requiredConnectors` merged with the
+ * connector credentials — both live in the automations/connectors
  * backend, which is offline while it is rebuilt. Until then no send-capable
  * inbox can be resolved, so compose degrades to its "no connected mailbox"
  * empty state while existing conversations stay readable.
  */
-export function useEmailIntegrations(_organizationId: string): {
-  emailIntegrations: EmailIntegrationOption[];
+export function useEmailConnectors(_organizationId: string): {
+  emailConnectors: EmailConnectorOption[];
   isLoading: boolean;
 } {
-  return { emailIntegrations: EMPTY_EMAIL_INTEGRATIONS, isLoading: false };
+  return { emailConnectors: EMPTY_EMAIL_CONNECTORS, isLoading: false };
 }
 
 // Stable identity so consumers' memos don't re-run every render.
-const EMPTY_EMAIL_INTEGRATIONS: EmailIntegrationOption[] = [];
+const EMPTY_EMAIL_CONNECTORS: EmailConnectorOption[] = [];
 
 export function useConversationWithMessages(conversationId: string | null) {
   const organizationId = useOrganizationId();

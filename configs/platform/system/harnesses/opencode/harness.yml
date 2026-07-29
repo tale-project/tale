@@ -119,6 +119,6 @@ exec:
             serverShape: opencode-local
             bridgeEnvField: environment
             bridgeEnv:
-              TALE_INTEGRATIONS_URL: '${bridgeUrl}'
-              TALE_INTEGRATIONS_TOKEN: '{env:TALE_GATEWAY_TOKEN}'
+              TALE_CONNECTORS_URL: '${bridgeUrl}'
+              TALE_CONNECTORS_TOKEN: '{env:TALE_GATEWAY_TOKEN}'
 pinnedVersion: 1.17.3

@@ -8,7 +8,7 @@
  * two it is looking at.
  *
  * Effects are kept as a flat, ordered list as well as per node. An effect is the
- * auditable part of a run: it says what was done, to which integration, with
+ * auditable part of a run: it says what was done, to which connector, with
  * what input. Summarising it away would defeat the point, so the list shows
  * every one, in the order it happened.
  */
@@ -106,9 +106,9 @@ export function readEffects(value: unknown): Effect[] {
   for (const entry of value) {
     if (!isRecord(entry)) continue;
     const node = entry.node;
-    const integration = entry.integration;
-    if (typeof node !== 'string' || typeof integration !== 'string') continue;
-    out.push({ node, integration, input: entry.input });
+    const connector = entry.connector;
+    if (typeof node !== 'string' || typeof connector !== 'string') continue;
+    out.push({ node, connector, input: entry.input });
   }
   return out;
 }

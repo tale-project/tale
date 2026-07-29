@@ -8,7 +8,7 @@
   Why this exists: compose can interpolate `${VAR}` but cannot glob env-var
   *names*, so there is no declarative way to forward "whatever the developer
   exported" (e.g. a TALE_PROVIDER_KEY_* under any suffix, or a non-prefixed key
-  some integration reads). Generating the `environment:` block here closes that
+  some connector reads). Generating the `environment:` block here closes that
   gap — export a var and it reaches the container on the next `docker:dev` with
   no compose edit.
 
@@ -17,7 +17,7 @@
   Overriding PATH/HOME/NODE_PATH/etc. with host values (which point at host
   paths absent inside the image) breaks command and module resolution and the
   container fails to boot — that is a correctness floor, not a scoping
-  preference. Everything else (provider keys, app config, integration secrets)
+  preference. Everything else (provider keys, app config, connector secrets)
   is passed straight through.
 
   Only the platform container is targeted: its entrypoint runs

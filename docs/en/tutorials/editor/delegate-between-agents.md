@@ -9,7 +9,7 @@ The conceptual side (capability subsets, budgets, methodologies) lives in [Agent
 
 ## Before you begin
 
-You need a chat-capable agent (the built-in Assistant works as-is) on a model with tool-calling support. For live web sources, connect a search integration such as Tavily under **Settings > Integrations** — without it the worker falls back to plain web fetching and says so in its result.
+You need a chat-capable agent (the built-in Assistant works as-is) on a model with tool-calling support. For live web sources, connect a search connector such as Tavily under **Settings > Connectors** — without it the worker falls back to plain web fetching and says so in its result.
 
 ## Step 1 — Ask for something worth a worker
 
@@ -19,7 +19,7 @@ Open a chat with `Assistant` and ask for open-ended, citable work, for example: 
 
 The assistant calls `spawn_agent` and a **job card** appears under its turn: the worker's name, a live status, and the worker's own progress checklist filling in as it plans and works through sub-questions. The card never blocks the chat — you can keep typing while the worker runs.
 
-If the card shows a "skipped" note, the assistant requested something outside its own grants (say, an unconnected integration); the run continues with what remains, and the note tells you what to connect for next time.
+If the card shows a "skipped" note, the assistant requested something outside its own grants (say, an unconnected connector); the run continues with what remains, and the note tells you what to connect for next time.
 
 ## Step 3 — Read the result and the transcript
 

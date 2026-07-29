@@ -47,7 +47,7 @@ async function seedReader(t: T): Promise<void> {
 
 interface SeedRow {
   status: 'open' | 'closed' | 'spam' | 'archived';
-  integrationName?: string;
+  connectorName?: string;
   unreadCount?: number;
 }
 
@@ -58,8 +58,8 @@ async function seedConversations(t: T, rows: SeedRow[]): Promise<void> {
         organizationId: ORG,
         status: row.status,
         subject: 'Seeded',
-        ...(row.integrationName !== undefined
-          ? { integrationName: row.integrationName }
+        ...(row.connectorName !== undefined
+          ? { connectorName: row.connectorName }
           : {}),
         ...(row.unreadCount !== undefined
           ? { metadata: { unread_count: row.unreadCount } }
@@ -69,12 +69,12 @@ async function seedConversations(t: T, rows: SeedRow[]): Promise<void> {
   });
 }
 
-function countUnread(t: T, integrationName?: string): Promise<number> {
+function countUnread(t: T, connectorName?: string): Promise<number> {
   return t
     .withIdentity({ subject: READER })
     .query(api.conversations.queries.approxCountUnreadConversations, {
       organizationId: ORG,
-      ...(integrationName !== undefined ? { integrationName } : {}),
+      ...(connectorName !== undefined ? { connectorName } : {}),
     });
 }
 
@@ -93,27 +93,27 @@ describe('approxCountUnreadConversations', () => {
     const t = convexTest(schema, modules);
     await seedReader(t);
     await seedConversations(t, [
-      { status: 'open', integrationName: 'outlook', unreadCount: 2 },
-      { status: 'open', integrationName: 'gmail', unreadCount: 1 },
-      { status: 'open', integrationName: 'outlook', unreadCount: 0 },
-      { status: 'open', integrationName: 'outlook' },
-      { status: 'closed', integrationName: 'outlook', unreadCount: 5 },
+      { status: 'open', connectorName: 'outlook', unreadCount: 2 },
+      { status: 'open', connectorName: 'gmail', unreadCount: 1 },
+      { status: 'open', connectorName: 'outlook', unreadCount: 0 },
+      { status: 'open', connectorName: 'outlook' },
+      { status: 'closed', connectorName: 'outlook', unreadCount: 5 },
       { status: 'open', unreadCount: 4 },
     ]);
 
-    // outlook-unread + gmail-unread + integrationless-unread; read (0),
+    // outlook-unread + gmail-unread + connectorless-unread; read (0),
     // markerless and closed rows never count.
     expect(await countUnread(t)).toBe(3);
   });
 
-  it('filters by integrationName via the compound index', async () => {
+  it('filters by connectorName via the compound index', async () => {
     const t = convexTest(schema, modules);
     await seedReader(t);
     await seedConversations(t, [
-      { status: 'open', integrationName: 'outlook', unreadCount: 2 },
-      { status: 'open', integrationName: 'gmail', unreadCount: 1 },
+      { status: 'open', connectorName: 'outlook', unreadCount: 2 },
+      { status: 'open', connectorName: 'gmail', unreadCount: 1 },
       { status: 'open', unreadCount: 4 },
-      { status: 'closed', integrationName: 'outlook', unreadCount: 5 },
+      { status: 'closed', connectorName: 'outlook', unreadCount: 5 },
     ]);
 
     expect(await countUnread(t, 'outlook')).toBe(1);
@@ -128,7 +128,7 @@ describe('approxCountUnreadConversations', () => {
       t,
       Array.from({ length: DEFAULT_COUNT_CAP + 5 }, () => ({
         status: 'open' as const,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         unreadCount: 1,
       })),
     );

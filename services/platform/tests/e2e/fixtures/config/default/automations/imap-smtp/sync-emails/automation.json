@@ -41,7 +41,7 @@
       }
     },
     "requires": {
-      "integrations": [
+      "connectors": [
         {
           "name": "imap_smtp",
           "operations": ["list_messages"]
@@ -69,7 +69,7 @@
             "channel": "email",
             "direction": "inbound",
             "deliveryState": "delivered",
-            "integrationName": "imap_smtp"
+            "connectorName": "imap_smtp"
           }
         },
         "nextSteps": {
@@ -94,7 +94,7 @@
         "name": "Fetch New Emails (Incremental)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "imap_smtp",
             "operation": "list_messages",
@@ -113,7 +113,7 @@
         "name": "Fetch Latest Emails (First Run)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "imap_smtp",
             "operation": "list_messages",
@@ -149,7 +149,7 @@
             "operation": "create_from_email",
             "emails": "{{steps.fetch_new_emails.output.data.result.data || steps.fetch_latest_emails.output.data.result.data}}",
             "status": "{{config.conversationStatus}}",
-            "integrationName": "imap_smtp"
+            "connectorName": "imap_smtp"
           }
         },
         "nextSteps": {
@@ -165,7 +165,7 @@
           "parameters": {
             "operation": "query_latest_outbound_message_for_sync",
             "channel": "email",
-            "integrationName": "imap_smtp"
+            "connectorName": "imap_smtp"
           }
         },
         "nextSteps": {
@@ -190,7 +190,7 @@
         "name": "Fetch New Sent Emails (Incremental)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "imap_smtp",
             "operation": "list_messages",
@@ -210,7 +210,7 @@
         "name": "Fetch Latest Sent Emails (First Run)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "imap_smtp",
             "operation": "list_messages",
@@ -247,7 +247,7 @@
             "operation": "create_from_sent_email",
             "emails": "{{steps.fetch_new_sent_emails.output.data.result.data || steps.fetch_latest_sent_emails.output.data.result.data}}",
             "status": "{{config.conversationStatus}}",
-            "integrationName": "imap_smtp"
+            "connectorName": "imap_smtp"
           }
         },
         "nextSteps": {
@@ -257,6 +257,6 @@
     ]
   },
   "requires": {
-    "integrations": ["imap_smtp"]
+    "connectors": ["imap_smtp"]
   }
 }

@@ -37,7 +37,7 @@ async function verifyApprovalAccess(
   );
 }
 
-export const executeApprovedIntegrationOperation = action({
+export const executeApprovedConnectorOperation = action({
   args: {
     approvalId: v.id('approvals'),
   },

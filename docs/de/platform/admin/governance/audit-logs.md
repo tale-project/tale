@@ -19,7 +19,7 @@ Um den Moment zu finden, in dem die Rolle eines Mitglieds geändert wurde, öffn
 | Aktion           | string   | ja      | Die semantische Aktion — `update_member_role`, `provider_created`, `agent_saved`.           |
 | Benutzer         | string   | ja      | Anzeigename des Akteurs; `System`, `API` oder `Workflow`, wenn der Akteur keine Person ist. |
 | Ressource        | string   | ja      | Die berührte Ressource — `agent`, `provider`, `member`, `workflow`.                         |
-| Kategorie        | enum     | ja      | Auth, Mitglied, Daten, Integration, Workflow, Sicherheit, Admin, AI, Skill, Agent.          |
+| Kategorie        | enum     | ja      | Auth, Mitglied, Daten, Connector, Workflow, Sicherheit, Admin, AI, Skill, Agent.            |
 | Status           | enum     | ja      | Erfolg, Fehlschlag, Verweigert.                                                             |
 | Geänderte Felder | JSON     | nein    | Der Diff zwischen vorherigem und neuem Status bei Update-Aktionen.                          |
 

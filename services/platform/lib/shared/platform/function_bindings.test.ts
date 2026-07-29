@@ -292,7 +292,7 @@ describe('collectViewBindings + validateViewBindings', () => {
           {
             type: 'ExternalList',
             props: {
-              source: { path: 'integrations/public_actions:listGitHubIssues' },
+              source: { path: 'connectors/public_actions:listGitHubIssues' },
               actions: [
                 {
                   path: 'tasks/public_actions:createTaskFromExternalIssue',
@@ -306,7 +306,7 @@ describe('collectViewBindings + validateViewBindings', () => {
     };
     expect(collectViewBindings(sourced)).toEqual([
       {
-        path: 'integrations/public_actions:listGitHubIssues',
+        path: 'connectors/public_actions:listGitHubIssues',
         mode: 'action',
       },
       {
@@ -323,7 +323,7 @@ describe('collectViewBindings + validateViewBindings', () => {
           {
             type: 'ExternalList',
             props: {
-              source: { path: 'integrations/public_actions:listGitHubIssues' },
+              source: { path: 'connectors/public_actions:listGitHubIssues' },
               excludeBy: {
                 query: { path: 'tasks/queries:listTasksByOrg' },
                 refField: 'externalId',
@@ -337,7 +337,7 @@ describe('collectViewBindings + validateViewBindings', () => {
     expect(collectViewBindings(withExclude)).toEqual([
       { path: 'tasks/queries:listTasksByOrg', mode: 'query' },
       {
-        path: 'integrations/public_actions:listGitHubIssues',
+        path: 'connectors/public_actions:listGitHubIssues',
         mode: 'action',
       },
     ]);

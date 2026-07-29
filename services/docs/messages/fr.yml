@@ -25,7 +25,7 @@ nav:
     agents: Agents
     automations: Automatisations
     knowledge: Connaissances
-    integrations: Intégrations
+    connectors: Connectors
     member: Membre
     editor: Éditeur
     developer: Développeur

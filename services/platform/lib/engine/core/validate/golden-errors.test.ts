@@ -55,12 +55,12 @@ beforeAll(() => {
 
   registerNodeType({
     type: 'weather.current',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
     description: 'test connector: current weather',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'weather.current',
       description: 'current weather for a city',
       inputSchema: {
@@ -80,12 +80,12 @@ beforeAll(() => {
   });
   registerNodeType({
     type: 'web.fetch_text',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'unstructured',
     description: 'test connector: fetch a page as text',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'web.fetch_text',
       description: 'fetch a page as plain text',
       inputSchema: {
@@ -185,7 +185,7 @@ const fixtures: Record<string, unknown> = {
   }),
   'unknown-node-type-keyword': flow({
     nodes: [
-      { id: 'fetch', type: 'integration', input: { city: 'Berlin' } },
+      { id: 'fetch', type: 'connector', input: { city: 'Berlin' } },
       { id: 'main', type: 'transform', code: 'return 1;' },
     ],
   }),
@@ -352,7 +352,7 @@ const fixtures: Record<string, unknown> = {
       },
     ],
   }),
-  'ref-unstructured-path-integration': flow({
+  'ref-unstructured-path-connector': flow({
     nodes: [
       {
         id: 'page',
@@ -389,7 +389,7 @@ const fixtures: Record<string, unknown> = {
     ],
     output: '{{ nodes.gen.output.text }}',
   }),
-  'integration-input-invalid': flow({
+  'connector-input-invalid': flow({
     nodes: [
       {
         id: 'w',
@@ -450,7 +450,7 @@ const VALIDATION_CODES: IssueCode[] = [
   'REF_UNSTRUCTURED_PATH',
   'ITEM_WITHOUT_FOREACH',
   'INPUT_KEY_UNKNOWN',
-  'INTEGRATION_INPUT_INVALID',
+  'CONNECTOR_INPUT_INVALID',
   'OUTPUT_MISSING',
   'UNUSED_NODE',
 ];

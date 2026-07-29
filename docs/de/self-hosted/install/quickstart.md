@@ -55,7 +55,7 @@ tale init my-project
 cd my-project
 ```
 
-`tale init` legt ein Projektverzeichnis an, generiert jedes Security-Secret und schreibt die `.env`, sodass es nichts von Hand zu editieren gibt. Die Defaults sind localhost und ein selbstsigniertes Zertifikat; die Produktions-Domäne wählst du später, bei `tale deploy`. Die eine Frage, die es stellt, ist, ob Agents in ihren Sandboxes `docker` / `docker compose` ausführen dürfen — der Default ist Nein, denn die Freigabe startet einen privilegierten inneren Docker; auf einer Einzelnutzer-Maschine kannst du zustimmen, als Multi-Tenant-Betreiber installierst du stattdessen Sysbox. Nach einem API-Schlüssel fragt es nicht; den sammelt die App ein, sobald du dich anmeldest. Es legt außerdem Beispiel-Agents, -Workflows, -Integrationen, -Provider, -Skills und -Branding unter `default/` ab und schreibt `AGENTS.md` (plus einen `CLAUDE.md`-Verweis), damit ein KI-Editor Konfigurationen mit voller Schema-Kenntnis bauen kann. Das meiste davon ist ein Katalog, keine aktive Konfiguration: Auf einer neuen Organisation sind nur Einträge mit `autoInstall` aktiv — den Unterschied erklärt die generierte `default/README.md`.
+`tale init` legt ein Projektverzeichnis an, generiert jedes Security-Secret und schreibt die `.env`, sodass es nichts von Hand zu editieren gibt. Die Defaults sind localhost und ein selbstsigniertes Zertifikat; die Produktions-Domäne wählst du später, bei `tale deploy`. Die eine Frage, die es stellt, ist, ob Agents in ihren Sandboxes `docker` / `docker compose` ausführen dürfen — der Default ist Nein, denn die Freigabe startet einen privilegierten inneren Docker; auf einer Einzelnutzer-Maschine kannst du zustimmen, als Multi-Tenant-Betreiber installierst du stattdessen Sysbox. Nach einem API-Schlüssel fragt es nicht; den sammelt die App ein, sobald du dich anmeldest. Es legt außerdem Beispiel-Agents, -Workflows, -Connectors, -Provider, -Skills und -Branding unter `default/` ab und schreibt `AGENTS.md` (plus einen `CLAUDE.md`-Verweis), damit ein KI-Editor Konfigurationen mit voller Schema-Kenntnis bauen kann. Das meiste davon ist ein Katalog, keine aktive Konfiguration: Auf einer neuen Organisation sind nur Einträge mit `autoInstall` aktiv — den Unterschied erklärt die generierte `default/README.md`.
 
 </Step>
 
@@ -73,7 +73,7 @@ Dein Browser zeigt eine Zertifikatswarnung für das lokale selbstsignierte Zerti
 
 </Note>
 
-Deine Konfiguration unter `default/` wird in die laufende Instanz gemountet, sodass Änderungen an Agents, Workflows und Integrationen live nachladen. Stopp den Stack mit `Ctrl-C` (oder `tale dev --detach`, um ihn im Hintergrund laufen zu lassen).
+Deine Konfiguration unter `default/` wird in die laufende Instanz gemountet, sodass Änderungen an Agents, Workflows und Connectors live nachladen. Stopp den Stack mit `Ctrl-C` (oder `tale dev --detach`, um ihn im Hintergrund laufen zu lassen).
 
 </Step>
 

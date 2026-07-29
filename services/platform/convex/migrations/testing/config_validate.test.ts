@@ -142,7 +142,7 @@ describe('configSchemaCandidates', () => {
   });
 
   it('returns no candidates for unmapped files', () => {
-    expect(configSchemaCandidates('integrations/foo.json')).toEqual([]);
+    expect(configSchemaCandidates('connectors/foo.json')).toEqual([]);
     expect(configSchemaCandidates('branding/logo.png')).toEqual([]);
   });
 });

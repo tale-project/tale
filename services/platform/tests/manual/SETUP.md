@@ -20,13 +20,13 @@ canned replies are byte-stable, no keys, no cost.
 
 Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
-reply plus Prism-mocked AI endpoints and integration APIs — so chat, AI, and
-integration connectors all work offline with no API keys and no cost. Every new
+reply plus Prism-mocked AI endpoints and connector APIs — so chat, AI, and
+connectors all work offline with no API keys and no cost. Every new
 org is seeded with the `E2E Assistant` agent, the mock provider, the
 `Summarize Text` prompt, and the `test` workflow.
 
 ```bash
-# Terminal 1 — the mock gateway (chat SSE + AI + integration APIs on :4141)
+# Terminal 1 — the mock gateway (chat SSE + AI + connector APIs on :4141)
 cd services/platform && bun lib/mocks/start.ts
 
 # Terminal 2 — platform dev pointed at the hermetic fixtures config
@@ -36,7 +36,7 @@ cd services/platform && \
   TALE_CONFIG_BUILTIN_DIR="$(pwd)/tests/e2e/fixtures/config/default" \
   TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
-  TALE_MOCK_INTEGRATIONS_BASE=http://127.0.0.1:4141 \
+  TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
   bun scripts/dev.ts
 ```
 
@@ -47,10 +47,10 @@ org dir, so every new org — wizard-created or API-minted — scaffolds from th
 hermetic fixtures (the `e2e-mock` provider, the **E2E Assistant** agent) instead
 of the real `builtin-configs/` catalog; without it, `scaffoldNewOrganization`
 falls back to the real catalog and `save-auth-state.ts`'s wait for "E2E
-Assistant" never resolves. `TALE_MOCK_INTEGRATIONS_BASE` redirects integration
-connectors' outbound HTTP to the gateway so you can connect/test integrations
-offline. The integration catalog in the fixtures is a symlink to the real
-`builtin-configs/integrations`.)
+Assistant" never resolves. `TALE_MOCK_CONNECTORS_BASE` redirects connector
+connectors' outbound HTTP to the gateway so you can connect/test connectors
+offline. The connector catalog in the fixtures is a symlink to the real
+`builtin-configs/connectors`.)
 
 > **Wizard-created orgs are mock-wired too, with `TALE_CONFIG_BUILTIN_DIR` set**
 > (observed live): with the var set as above, an org minted through the
@@ -155,11 +155,11 @@ dashboard URL (`/dashboard/AbCd…/chat`).
   and add it under Settings → Organization, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
 - **Sample upload artifacts** — an automation-bundle zip (zip a copy of
-  `builtin-configs/automations/github/create-pull-requests`) for automations F14, an integration config package
-  (zip a copy of `builtin-configs/integrations/tavily`) for integrations F12,
+  `builtin-configs/automations/github/create-pull-requests`) for automations F14, an connector config package
+  (zip a copy of `builtin-configs/connectors/tavily`) for connectors F12,
   and a skill bundle for settings F15.
 - **Optional live credentials for mode-B rows** — a real IMAP/SMTP mailbox
-  (integrations F9), a Slack app (integrations F11), a moderation-provider key
+  (connectors F9), a Slack app (connectors F11), a moderation-provider key
   (governance F17), and a TTS-capable
   provider (chat F31). Skipping any of these means marking the dependent cases
   **ENVIRONMENT**, per the guides' convention.
@@ -177,8 +177,8 @@ gets the plain canned reply, byte-for-byte):
 | `e2e:humaninput`       | a `request_human_input` tool card                 |
 | `e2e:error`            | an HTTP 500 on generation → the provider-error UI |
 
-Integrations are deterministic too: connecting an API-key/token integration
-(Settings → Integrations) runs the connector's real `testConnection`, whose
+Connectors are deterministic too: connecting an API-key/token connector
+(Settings → Connectors) runs the connector's real `testConnection`, whose
 outbound HTTP the stack redirects to the gateway — so it succeeds offline against
 the spec-backed mock. See
 [`lib/mocks/overrides/canned.ts`](../../lib/mocks/overrides/canned.ts)
@@ -239,7 +239,7 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/settings/organization`              | org details                                                    |
 | `/dashboard/{org}/settings/teams`                     | teams list                                                     |
 | `/dashboard/{org}/settings/branding`                  | branding + preview                                             |
-| `/dashboard/{org}/settings/integrations`              | integration catalog                                            |
+| `/dashboard/{org}/settings/connectors`                | connector catalog                                              |
 | `/dashboard/{org}/settings/sandboxes`                 | table or **No active sandboxes**                               |
 | `/dashboard/{org}/settings/enterprise-sso`            | SSO config form (or access denied)                             |
 | `/dashboard/{org}/settings/api/rest`                  | API keys                                                       |

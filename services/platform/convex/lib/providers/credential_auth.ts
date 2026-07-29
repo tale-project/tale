@@ -1,7 +1,7 @@
 /**
  * The credential's auth shape as `resolveExecution` reads it, taken from the
- * connector's own declaration of that method (subscription constraints live
- * on the connector, not the credential row). One lookup shared by every
+ * provider's own declaration of that method (subscription constraints live
+ * on the provider, not the credential row). One lookup shared by every
  * surface that turns a credential row into resolver input — the composer's
  * model listing and the harness status listing — so the shape can never
  * drift between them.
@@ -12,19 +12,19 @@
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
 import type {
   ProviderAuthMethodName,
-  ProviderConnector,
+  ProviderDefinition,
 } from '../../../lib/shared/schemas/providers';
 
 /**
- * Returns `null` when the connector does not offer the method the credential
- * names — a stale credential for a method the connector dropped — so the
+ * Returns `null` when the provider does not offer the method the credential
+ * names — a stale credential for a method the provider dropped — so the
  * caller simply skips it.
  */
 export function credentialAuthFor(
-  connector: ProviderConnector,
+  provider: ProviderDefinition,
   authMethod: ProviderAuthMethodName,
 ): CredentialAuth | null {
-  const entry = connector.auth.find(
+  const entry = provider.auth.find(
     (candidate) => candidate.method === authMethod,
   );
   if (!entry) return null;

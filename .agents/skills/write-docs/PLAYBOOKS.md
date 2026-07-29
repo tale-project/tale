@@ -8,7 +8,7 @@ pattern page for each type where one exists — read it before writing your firs
 ## 1. Journey page
 
 **What it does.** Takes the reader from "I want to do X" to a working, verified result, end to
-end. Tutorials, quickstarts, get-started paths, and integration guides are all journeys.
+end. Tutorials, quickstarts, get-started paths, and connector guides are all journeys.
 
 **Shape.**
 
@@ -26,7 +26,7 @@ end. Tutorials, quickstarts, get-started paths, and integration guides are all j
 6. **Closing** — what exists now and why it matters, then a fan-out (cards or contextual links)
    to the next journey and the reference pages that deepen it.
 
-**Integration-guide variant.** Add a **trust boundary** section before the closing naming what
+**Connector-guide variant.** Add a **trust boundary** section before the closing naming what
 crosses the network in each direction and what doesn't.
 
 **Common failures.** A step that does three things (split it); a step with no verification; a UI

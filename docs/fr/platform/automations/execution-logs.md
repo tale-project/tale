@@ -44,7 +44,7 @@ Les nœuds ignorés méritent d’être lus plutôt que survolés, car la raison
 
 ### Effets
 
-Une exécution conserve aussi la liste ordonnée de tout ce qu’elle a changé hors de la plateforme — chaque entrée nommant le nœud responsable, l’intégration appelée et l’entrée avec laquelle elle a été appelée. Une exécution qui n’a rien changé hors de la plateforme le dit explicitement, et c’est une vraie réponse plutôt qu’une section vide.
+Une exécution conserve aussi la liste ordonnée de tout ce qu’elle a changé hors de la plateforme — chaque entrée nommant le nœud responsable, l’connector appelée et l’entrée avec laquelle elle a été appelée. Une exécution qui n’a rien changé hors de la plateforme le dit explicitement, et c’est une vraie réponse plutôt qu’une section vide.
 
 La liste des effets est ce qui rend une exécution vérifiable après coup. Quand quelqu’un demande si un message est vraiment parti, c’est cette liste qui répond, et elle reste attachée à l’exécution en permanence.
 

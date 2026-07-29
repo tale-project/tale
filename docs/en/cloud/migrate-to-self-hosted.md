@@ -18,9 +18,9 @@ Have these in place before exporting anything:
 
 ## What moves and what does not
 
-Moves: chats, threads, messages, attachments, documents, knowledge embeddings, agents, agent versions, workflows, executions, audit logs, members, roles, teams, branding, API keys, integrations metadata.
+Moves: chats, threads, messages, attachments, documents, knowledge embeddings, agents, agent versions, workflows, executions, audit logs, members, roles, teams, branding, API keys, connectors metadata.
 
-Does not move: external integrations have to be re-authenticated against the new instance (the credentials live in the provider, not in the export bundle); active running workflows pause and resume on the new instance after the cutover; voice audio retained past the org's retention window stays in the Cloud object store until purged.
+Does not move: external connectors have to be re-authenticated against the new instance (the credentials live in the provider, not in the export bundle); active running workflows pause and resume on the new instance after the cutover; voice audio retained past the org's retention window stays in the Cloud object store until purged.
 
 ## Step 1 — Export
 

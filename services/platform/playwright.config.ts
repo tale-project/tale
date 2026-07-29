@@ -22,7 +22,7 @@ import { createPlaywrightConfig, devices } from '@tale/e2e/config';
  * provider whose `baseUrl` is the OpenAPI-driven mock gateway in the
  * `lib/mocks` package), so chat assertions never depend on a live LLM. The
  * gateway serves the deterministic chat-completions override plus Prism-mocked
- * AI endpoints and third-party integration APIs (all offline). Set
+ * AI endpoints and third-party connector APIs (all offline). Set
  * `E2E_MOCK_LLM=0` to run the suite against an already-running dev stack with
  * real provider keys — canned-text assertions are skipped in that mode.
  */
@@ -90,7 +90,7 @@ export default createPlaywrightConfig({
           {
             // OpenAPI-driven mock gateway (lib/mocks): the deterministic
             // chat-completions override + Prism-mocked AI endpoints and
-            // third-party integration APIs, all offline.
+            // third-party connector APIs, all offline.
             command: 'bun lib/mocks/start.ts',
             url: `http://127.0.0.1:${MOCK_LLM_PORT}/health`,
             reuseExistingServer: !process.env.CI,
@@ -144,7 +144,7 @@ export default createPlaywrightConfig({
           '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
         // `tests/manual/SETUP.md` §1A's mode-A command block mirrors this exact
         // env set (TALE_CONFIG_DIR, TALE_CONFIG_BUILTIN_DIR, TALE_PROVIDER_KEY_
-        // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_MOCK_INTEGRATIONS_
+        // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_MOCK_CONNECTORS_
         // BASE) for AI/manual testers — when you change a value or add/remove a
         // var here, update that doc in the same change (#2633 was a drift here).
         ...(useMockLlm
@@ -167,12 +167,12 @@ export default createPlaywrightConfig({
               TALE_PROVIDER_KEY_E2E_MOCK: 'tale-e2e-mock-key',
               // The mock gateway lives on 127.0.0.1, which the provider host
               // policy blocks by default (SSRF defence) — opt in for the E2E
-              // stack. Also authorizes the loopback integration-mock host.
+              // stack. Also authorizes the loopback connector-mock host.
               TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
-              // Redirect third-party integration connector calls (Slack/GitHub/
-              // …) to the mock gateway so integration flows run offline too.
+              // Redirect third-party connector calls (Slack/GitHub/
+              // …) to the mock gateway so connector flows run offline too.
               // Consumed by the sandbox URL rewrite (`mock_rewrite.ts`).
-              TALE_MOCK_INTEGRATIONS_BASE: `http://127.0.0.1:${MOCK_LLM_PORT}`,
+              TALE_MOCK_CONNECTORS_BASE: `http://127.0.0.1:${MOCK_LLM_PORT}`,
             }
           : {}),
       },

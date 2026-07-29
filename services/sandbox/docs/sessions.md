@@ -68,7 +68,7 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
   sandbox holds only a session-scoped gateway virtual key (`sk-bf-*`); LLM
   traffic transits the gateway, which attaches the real key. Bought: per-key
   budget, model allowlist, instant revoke, server-side usage metering.
-- **Tier 2 — managed-entry credentials** (integration secrets — git tokens,
+- **Tier 2 — managed-entry credentials** (connector secrets — git tokens,
   DB passwords, third-party API keys — that can't be transparently proxied):
   enter the sandbox, but only through one managed pipeline — explicit
   per-turn grant (default empty; the turn's equipped connectors ∩ the

@@ -83,11 +83,11 @@ export const sandboxSessionTokensTable = defineTable({
   scope: v.object({
     agentKind: v.string(),
     allowedModels: v.array(v.string()),
-    integrationGrants: v.array(v.string()),
+    connectorGrants: v.array(v.string()),
     budgetCents: v.number(),
     /** Workspace-tool grant set for /api/tools/execute — the external
      * agent's `toolNames` (⊆ EXTERNAL_AGENT_TOOL_NAMES), snapshotted at
-     * token mint exactly like integrationGrants. Optional: pre-feature
+     * token mint exactly like connectorGrants. Optional: pre-feature
      * rows lack it (absent = no workspace tools). */
     toolGrants: v.optional(v.array(v.string())),
     /** Dispatch execution context for workspace tools — the turn's agent,
@@ -346,7 +346,7 @@ export const sandboxAdmissionTicketsTable = defineTable({
   .index('by_status_lastSeen', ['status', 'lastSeenAt']);
 
 /**
- * Audit row for every Tier-2 credential fetch (the integration-credential
+ * Audit row for every Tier-2 credential fetch (the connector-credential
  * broker), so a session's use of a granted GitHub/etc. token is traceable.
  */
 export const sandboxCredentialAccessTable = defineTable({
@@ -360,13 +360,13 @@ export const sandboxCredentialAccessTable = defineTable({
   .index('by_organizationId', ['organizationId']);
 
 /**
- * Audit row for every agent-initiated integration DISPATCH call (the in-sandbox
- * MCP bridge → /api/integrations/execute). Forensic trail for the otherwise
+ * Audit row for every agent-initiated connector DISPATCH call (the in-sandbox
+ * MCP bridge → /api/connectors/execute). Forensic trail for the otherwise
  * unmetered read surface: who/what/when/outcome and a sorted param-KEY
  * fingerprint, never param values or secrets. Distinct from
  * sandboxCredentialAccessTable (Tier-2 git/bootstrap credential fetches).
  */
-export const sandboxIntegrationCallsTable = defineTable({
+export const sandboxConnectorCallsTable = defineTable({
   organizationId: v.string(),
   sessionId: v.string(),
   slug: v.string(),
@@ -385,10 +385,10 @@ export const sandboxIntegrationCallsTable = defineTable({
 /**
  * Audit row for every agent-initiated workspace-TOOL dispatch call (the
  * in-sandbox MCP bridge → /api/tools/execute). Same forensic role as
- * sandboxIntegrationCallsTable plays for the integration surface:
+ * sandboxConnectorCallsTable plays for the connector surface:
  * who/what/when/outcome and a sorted param-KEY fingerprint, never param
  * values. A separate table because the two surfaces are distinct concepts
- * (first-party workspace tools vs third-party integrations) with different
+ * (first-party workspace tools vs third-party connectors) with different
  * analytics downstream.
  */
 export const sandboxToolCallsTable = defineTable({

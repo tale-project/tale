@@ -38,7 +38,7 @@ import { ConversationsEmptyState } from './conversations-empty-state';
 import { ConversationsList } from './conversations-list';
 
 export interface ChannelFilterOption {
-  /** Integration slug of a connected inbox provider (e.g. `gmail`). */
+  /** Connector slug of a connected inbox provider (e.g. `gmail`). */
   value: string;
   /** Display title (e.g. "Gmail"). */
   label: string;
@@ -87,7 +87,7 @@ interface ConversationsProps {
 type BodyState = 'activate-empty' | 'loading' | 'skeleton' | 'data';
 
 /** Radio sentinel for the channel filter's unfiltered state — never a real
- *  integration slug. */
+ *  connector slug. */
 const ALL_CHANNELS = 'all';
 
 function deriveBodyState(
@@ -488,7 +488,7 @@ export function Conversations({
           )}
 
           {/* Channel filter — the connected inbox providers (server-side:
-              the selected slug becomes the query's `integrationName` arg).
+              the selected slug becomes the query's `connectorName` arg).
               Icon-only, mirrors FilterButton's chrome; sits to the right of
               the search box. Rendered only when the org has at least one
               provider to filter by. */}

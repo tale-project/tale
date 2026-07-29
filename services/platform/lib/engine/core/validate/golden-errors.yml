@@ -65,18 +65,18 @@ secret-api-key:
     - code: SECRET_IN_DOCUMENT
       path: nodes[0].prompt
       message: the document appears to contain a credential (API key (sk-…))
-      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in automations
+      hint: remove it — secrets are configured on the connector and injected at runtime, never stored in automations
   warnings: []
 secret-injected-values:
   errors:
     - code: SECRET_IN_DOCUMENT
       path: nodes[0].input.authorization
       message: the document appears to contain a credential (bearer token)
-      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in automations
+      hint: remove it — secrets are configured on the connector and injected at runtime, never stored in automations
     - code: SECRET_IN_DOCUMENT
       path: nodes[0].input.api_key
       message: the document appears to contain a credential (credential-looking value under "api_key")
-      hint: remove it — secrets are configured on the integration and injected at runtime, never stored in automations
+      hint: remove it — secrets are configured on the connector and injected at runtime, never stored in automations
   warnings: []
 tests-invalid:
   errors:
@@ -86,7 +86,7 @@ tests-invalid:
     - code: TESTS_INVALID
       path: tests[1].expect
       message: 'tests[1].expect has unknown key(s): outputs'
-      hint: 'expect supports {output?, effects?: [{integration, input?}]}'
+      hint: 'expect supports {output?, effects?: [{connector, input?}]}'
   warnings: []
 node-not-an-object:
   errors:
@@ -118,7 +118,7 @@ unknown-node-type-keyword:
   errors:
     - code: UNKNOWN_NODE_TYPE
       nodeId: fetch
-      message: unknown node type "integration"
+      message: unknown node type "connector"
       hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, agent, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
   warnings: []
 node-unknown-field:
@@ -167,7 +167,7 @@ code-no-io:
     - code: CODE_NO_IO
       nodeId: main
       message: 'node "main": transform code has no network or module access — "fetch(" will fail at runtime'
-      hint: transforms only reshape data; use an integration node for external calls
+      hint: transforms only reshape data; use an connector node for external calls
   warnings: []
 code-no-return:
   errors: []
@@ -281,7 +281,7 @@ ref-unstructured-path:
       message: 'node "main": "nodes.gen.output.summary" — node "gen" (llm) returns unstructured text; only .output.text exists'
       hint: give "gen" an outputSchema to get structured output, or read nodes.gen.output.text
   warnings: []
-ref-unstructured-path-integration:
+ref-unstructured-path-connector:
   errors:
     - code: REF_UNSTRUCTURED_PATH
       nodeId: main
@@ -302,17 +302,17 @@ input-key-unknown:
       nodeId: gen
       message: node "gen" uses input.citi, which is not declared in the inputs schema
       hint: 'did you mean "city"? declared keys: city'
-integration-input-invalid:
+connector-input-invalid:
   errors:
-    - code: INTEGRATION_INPUT_INVALID
+    - code: CONNECTOR_INPUT_INVALID
       nodeId: w
       message: 'node "w" (weather.current): input must have required property ''city'''
       hint: 'schema: {"type":"object","properties":{"city":{"type":"string"},"units":{"type":"string","enum":["metric","imperial"]},"days":{"type":"integer"}},"required":["city"],"additionalProperties":false}'
-    - code: INTEGRATION_INPUT_INVALID
+    - code: CONNECTOR_INPUT_INVALID
       nodeId: w
       message: 'node "w" (weather.current): input must NOT have additional properties ("extra")'
       hint: 'schema: {"type":"object","properties":{"city":{"type":"string"},"units":{"type":"string","enum":["metric","imperial"]},"days":{"type":"integer"}},"required":["city"],"additionalProperties":false}'
-    - code: INTEGRATION_INPUT_INVALID
+    - code: CONNECTOR_INPUT_INVALID
       nodeId: w
       path: /units
       message: 'node "w" (weather.current): input/units must be equal to one of the allowed values'

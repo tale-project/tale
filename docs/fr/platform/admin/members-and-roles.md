@@ -31,11 +31,11 @@ Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le cha
 
 **Propriétaire** a chaque permission qu’a Admin, plus celle qui manque à Admin : transférer la propriété et supprimer l’organisation. La plupart des équipes ont exactement un Propriétaire ; certaines en gardent deux pour la continuité.
 
-**Admin** gouverne l’organisation : membres, fournisseurs, branding, politiques de gouvernance, intégrations, le journal d’audit. Les Administrateurs font tout ce que fait Éditeur et tout ce que fait Développeur, plus la surface de configuration. Ils ne peuvent pas transférer la propriété.
+**Admin** gouverne l’organisation : membres, fournisseurs, branding, politiques de gouvernance, connectors, le journal d’audit. Les Administrateurs font tout ce que fait Éditeur et tout ce que fait Développeur, plus la surface de configuration. Ils ne peuvent pas transférer la propriété.
 
-**Développeur** construit : agents, automatisations, intégrations, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’intégration.
+**Développeur** construit : agents, automatisations, connectors, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’connector.
 
-**Éditeur** organise et opère : agents, base de connaissances (documents, contacts, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de skills. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les intégrations mais pas les configurer. Va vers Éditeur quand quelqu’un fait le travail produit quotidien sans toucher au plan API ou intégrations.
+**Éditeur** organise et opère : agents, base de connaissances (documents, contacts, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de skills. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les connectors mais pas les configurer. Va vers Éditeur quand quelqu’un fait le travail produit quotidien sans toucher au plan API ou connectors.
 
 **Membre** exécute : chat, parcourt la base de connaissances, et lit les conversations et approbations. La lecture des conversations est organisationnelle par défaut ; active **Contrôle selon l’assignation des conversations** sous [Politiques et limites](/fr/platform/admin/governance/policies-and-limits#controle-selon-lassignation-des-conversations) quand les Membres ne doivent voir que les fils non assignés plus ceux qui leur sont assignés ou à leurs équipes. Les Membres n’écrivent que dans le feedback de message (pouce en haut / en bas). Va vers Membre comme défaut — la plupart des utilisateurs dans la plupart des organisations sont Membres.
 
@@ -57,7 +57,7 @@ Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le cha
 | Approbations              | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Exécutions workflow       | R / W        | R / W | R / W       | R       | R      | —         |
 | Traitement workflow       | R / W        | R / W | R / W       | R       | R      | —         |
-| Intégrations              | R / W        | R / W | R / W       | R       | R      | —         |
+| Connectors                | R / W        | R / W | R / W       | R       | R      | —         |
 | Configs OneDrive sync     | R / W        | R / W | R / W       | R       | R      | —         |
 | Templates de prompts      | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Journaux d’audit          | R / W        | R / W | R / W       | R / W   | R      | —         |

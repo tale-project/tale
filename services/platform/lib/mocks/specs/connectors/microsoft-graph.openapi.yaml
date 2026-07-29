@@ -1,0 +1,832 @@
+openapi: 3.1.0
+info:
+  title: Microsoft Graph API (mock)
+  version: 'v1.0'
+  description: >-
+    Trimmed spec for the operations the Microsoft Teams connector
+    (`configs/platform/system/connectors/teams/connector.yml`) and the Microsoft
+    Outlook connector (`configs/platform/system/connectors/outlook/connector.yml`)
+    actually call. Both share the Microsoft Graph host. Mounted by the mock
+    gateway at `/mock/microsoft-graph`; paths mirror
+    `https://graph.microsoft.com` (the connectors target the `/v1.0` base).
+servers:
+  - url: /mock/microsoft-graph
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        mail: { type: [string, 'null'] }
+        userPrincipalName: { type: string }
+    Team:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        description: { type: string }
+    TeamList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Team' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    Channel:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        description: { type: string }
+        membershipType: { type: string }
+    ChannelList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Channel' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string }
+        createdDateTime: { type: string }
+        body:
+          type: object
+          properties:
+            content: { type: string }
+            contentType: { type: string }
+    ChatMessageList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/ChatMessage' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    Member:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        email: { type: [string, 'null'] }
+        roles:
+          type: array
+          items: { type: string }
+    MemberList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Member' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    Chat:
+      type: object
+      properties:
+        id: { type: string }
+        topic: { type: [string, 'null'] }
+        chatType: { type: string }
+    ChatList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Chat' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    EmailAddress:
+      type: object
+      properties:
+        name: { type: string }
+        address: { type: string }
+    Recipient:
+      type: object
+      properties:
+        emailAddress: { $ref: '#/components/schemas/EmailAddress' }
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        internetMessageId: { type: string }
+        conversationId: { type: string }
+        subject: { type: string }
+        receivedDateTime: { type: string }
+        sentDateTime: { type: string }
+        isRead: { type: boolean }
+        hasAttachments: { type: boolean }
+        bodyPreview: { type: string }
+        from: { $ref: '#/components/schemas/Recipient' }
+        toRecipients:
+          type: array
+          items: { $ref: '#/components/schemas/Recipient' }
+        ccRecipients:
+          type: array
+          items: { $ref: '#/components/schemas/Recipient' }
+        body:
+          type: object
+          properties:
+            contentType: { type: string }
+            content: { type: string }
+    MessageList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    Attachment:
+      type: object
+      properties:
+        '@odata.type': { type: string }
+        id: { type: string }
+        name: { type: string }
+        contentType: { type: string }
+        contentId: { type: [string, 'null'] }
+        contentBytes: { type: [string, 'null'] }
+        size: { type: integer }
+    AttachmentList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Attachment' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    Event:
+      type: object
+      properties:
+        id: { type: string }
+        subject: { type: string }
+        isAllDay: { type: boolean }
+        bodyPreview: { type: string }
+        start:
+          type: object
+          properties:
+            dateTime: { type: string }
+            timeZone: { type: string }
+        end:
+          type: object
+          properties:
+            dateTime: { type: string }
+            timeZone: { type: string }
+        location:
+          type: object
+          properties:
+            displayName: { type: string }
+        organizer: { $ref: '#/components/schemas/Recipient' }
+    EventList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Event' }
+        '@odata.nextLink': { type: [string, 'null'] }
+    Contact:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        givenName: { type: string }
+        surname: { type: string }
+        companyName: { type: string }
+        jobTitle: { type: string }
+        mobilePhone: { type: [string, 'null'] }
+        businessPhones:
+          type: array
+          items: { type: string }
+        emailAddresses:
+          type: array
+          items: { $ref: '#/components/schemas/EmailAddress' }
+    ContactList:
+      type: object
+      properties:
+        value:
+          type: array
+          items: { $ref: '#/components/schemas/Contact' }
+        '@odata.nextLink': { type: [string, 'null'] }
+paths:
+  /v1.0/me:
+    get:
+      operationId: getMe
+      summary: Get the signed-in user (test connection + account email lookup).
+      parameters:
+        - { name: $select, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The signed-in user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+              example:
+                id: 00000000-0000-0000-0000-000000000001
+                displayName: Tale Mock User
+                mail: tale.mock@example.com
+                userPrincipalName: tale.mock@example.com
+  /v1.0/me/joinedTeams:
+    get:
+      operationId: listJoinedTeams
+      summary: List the teams the signed-in user has joined.
+      responses:
+        '200':
+          description: A list of teams.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamList' }
+              example:
+                value:
+                  - id: team-0000000000000001
+                    displayName: Engineering
+                    description: The engineering team.
+                '@odata.nextLink': null
+  /v1.0/teams/{teamId}:
+    get:
+      operationId: getTeam
+      summary: Get a team by id.
+      parameters:
+        - { name: teamId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The team.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Team' }
+              example:
+                id: team-0000000000000001
+                displayName: Engineering
+                description: The engineering team.
+  /v1.0/teams/{teamId}/channels:
+    get:
+      operationId: listChannels
+      summary: List channels for a team.
+      parameters:
+        - { name: teamId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: A list of channels.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChannelList' }
+              example:
+                value:
+                  - id: channel-000000000000001
+                    displayName: General
+                    description: The general channel.
+                    membershipType: standard
+                '@odata.nextLink': null
+  /v1.0/teams/{teamId}/channels/{channelId}:
+    get:
+      operationId: getChannel
+      summary: Get a channel by id.
+      parameters:
+        - { name: teamId, in: path, required: true, schema: { type: string } }
+        - {
+            name: channelId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      responses:
+        '200':
+          description: The channel.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Channel' }
+              example:
+                id: channel-000000000000001
+                displayName: General
+                description: The general channel.
+                membershipType: standard
+  /v1.0/teams/{teamId}/channels/{channelId}/messages:
+    get:
+      operationId: listChannelMessages
+      summary: List messages in a channel.
+      parameters:
+        - { name: teamId, in: path, required: true, schema: { type: string } }
+        - {
+            name: channelId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+        - { name: $top, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: A list of channel messages.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatMessageList' }
+              example:
+                value:
+                  - id: msg-00000000000000001
+                    createdDateTime: '2026-06-15T09:00:00Z'
+                    body:
+                      content: Hello from the mock channel.
+                      contentType: text
+                '@odata.nextLink': null
+    post:
+      operationId: sendChannelMessage
+      summary: Send a message to a channel.
+      parameters:
+        - { name: teamId, in: path, required: true, schema: { type: string } }
+        - {
+            name: channelId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: object
+                  properties:
+                    content: { type: string }
+                    contentType: { type: string }
+      responses:
+        '201':
+          description: The created channel message.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatMessage' }
+              example:
+                id: msg-00000000000000002
+                createdDateTime: '2026-06-15T09:05:00Z'
+                body:
+                  content: Posted by the mock.
+                  contentType: text
+  /v1.0/teams/{teamId}/members:
+    get:
+      operationId: listTeamMembers
+      summary: List members of a team.
+      parameters:
+        - { name: teamId, in: path, required: true, schema: { type: string } }
+        - { name: $top, in: query, schema: { type: integer } }
+        - { name: $skip, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: A list of team members.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MemberList' }
+              example:
+                value:
+                  - id: member-00000000000001
+                    displayName: Tale Mock User
+                    email: tale.mock@example.com
+                    roles:
+                      - owner
+                '@odata.nextLink': null
+  /v1.0/me/chats:
+    get:
+      operationId: listChats
+      summary: List the signed-in user's chats.
+      parameters:
+        - { name: $top, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: A list of chats.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatList' }
+              example:
+                value:
+                  - id: chat-0000000000000001
+                    topic: Project sync
+                    chatType: group
+                '@odata.nextLink': null
+  /v1.0/chats/{chatId}/messages:
+    post:
+      operationId: sendChatMessage
+      summary: Send a message to a chat.
+      parameters:
+        - { name: chatId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: object
+                  properties:
+                    content: { type: string }
+                    contentType: { type: string }
+      responses:
+        '201':
+          description: The created chat message.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatMessage' }
+              example:
+                id: msg-00000000000000003
+                createdDateTime: '2026-06-15T09:10:00Z'
+                body:
+                  content: Sent to the chat by the mock.
+                  contentType: text
+  /v1.0/me/messages:
+    get:
+      operationId: listMessages
+      summary: List, filter, or search the signed-in user's mail messages.
+      parameters:
+        - { name: $top, in: query, schema: { type: integer } }
+        - { name: $skip, in: query, schema: { type: integer } }
+        - { name: $orderby, in: query, schema: { type: string } }
+        - { name: $filter, in: query, schema: { type: string } }
+        - { name: $search, in: query, schema: { type: string } }
+        - { name: $select, in: query, schema: { type: string } }
+        - { name: $expand, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: A list of messages.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageList' }
+              example:
+                value:
+                  - id: AAMkAGmock0000000000000001
+                    internetMessageId: <mock0001@prod.outlook.com>
+                    conversationId: conv-0000000000000001
+                    subject: Welcome to the mock mailbox
+                    receivedDateTime: '2026-06-15T08:00:00Z'
+                    isRead: false
+                    hasAttachments: false
+                    bodyPreview: This is a deterministic mock message.
+                    from:
+                      emailAddress:
+                        name: Mock Sender
+                        address: sender@example.com
+                    toRecipients:
+                      - emailAddress:
+                          name: Tale Mock User
+                          address: tale.mock@example.com
+                    body:
+                      contentType: text
+                      content: This is a deterministic mock message.
+                '@odata.nextLink': null
+    post:
+      operationId: createMessage
+      summary: Create a draft message.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject: { type: string }
+                body:
+                  type: object
+                  properties:
+                    contentType: { type: string }
+                    content: { type: string }
+                toRecipients:
+                  type: array
+                  items: { $ref: '#/components/schemas/Recipient' }
+                ccRecipients:
+                  type: array
+                  items: { $ref: '#/components/schemas/Recipient' }
+      responses:
+        '201':
+          description: The created draft message.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example:
+                id: AAMkAGmock0000000000000002
+                internetMessageId: <mock0002@prod.outlook.com>
+                subject: Draft created by the mock
+                hasAttachments: false
+                body:
+                  contentType: text
+                  content: Draft body.
+  /v1.0/me/messages/{messageId}:
+    get:
+      operationId: getMessage
+      summary: Get a single mail message by id.
+      parameters:
+        - {
+            name: messageId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      responses:
+        '200':
+          description: The message.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example:
+                id: AAMkAGmock0000000000000001
+                internetMessageId: <mock0001@prod.outlook.com>
+                conversationId: conv-0000000000000001
+                subject: Welcome to the mock mailbox
+                receivedDateTime: '2026-06-15T08:00:00Z'
+                isRead: false
+                hasAttachments: false
+                bodyPreview: This is a deterministic mock message.
+                from:
+                  emailAddress:
+                    name: Mock Sender
+                    address: sender@example.com
+                toRecipients:
+                  - emailAddress:
+                      name: Tale Mock User
+                      address: tale.mock@example.com
+                body:
+                  contentType: text
+                  content: This is a deterministic mock message.
+  /v1.0/me/messages/{messageId}/send:
+    post:
+      operationId: sendDraftMessage
+      summary: Send an existing draft message.
+      parameters:
+        - {
+            name: messageId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      responses:
+        '202':
+          description: Accepted. The draft is being sent (no body).
+  /v1.0/me/messages/{messageId}/createReply:
+    post:
+      operationId: createReplyDraft
+      summary: Create a reply draft for a message.
+      parameters:
+        - {
+            name: messageId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { $ref: '#/components/schemas/Message' }
+      responses:
+        '201':
+          description: The created reply draft.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example:
+                id: AAMkAGmock0000000000000003
+                internetMessageId: <mock0003@prod.outlook.com>
+                conversationId: conv-0000000000000001
+                subject: 'RE: Welcome to the mock mailbox'
+                hasAttachments: false
+                body:
+                  contentType: text
+                  content: Reply draft body.
+  /v1.0/me/messages/{messageId}/attachments:
+    get:
+      operationId: listAttachments
+      summary: List the attachments on a message.
+      parameters:
+        - {
+            name: messageId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      responses:
+        '200':
+          description: A list of attachments.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttachmentList' }
+              example:
+                value:
+                  - '@odata.type': '#microsoft.graph.fileAttachment'
+                    id: att-0000000000000001
+                    name: report.pdf
+                    contentType: application/pdf
+                    contentId: null
+                    contentBytes: TW9jayBhdHRhY2htZW50IGJ5dGVz
+                    size: 24
+                '@odata.nextLink': null
+    post:
+      operationId: addAttachment
+      summary: Add a file attachment to a draft message.
+      parameters:
+        - {
+            name: messageId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                '@odata.type': { type: string }
+                name: { type: string }
+                contentType: { type: string }
+                contentBytes: { type: string }
+      responses:
+        '201':
+          description: The created attachment.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Attachment' }
+              example:
+                '@odata.type': '#microsoft.graph.fileAttachment'
+                id: att-0000000000000002
+                name: report.pdf
+                contentType: application/pdf
+                contentId: null
+                contentBytes: TW9jayBhdHRhY2htZW50IGJ5dGVz
+                size: 24
+  /v1.0/me/events:
+    get:
+      operationId: listEvents
+      summary: List the signed-in user's calendar events.
+      parameters:
+        - { name: $top, in: query, schema: { type: integer } }
+        - { name: $orderby, in: query, schema: { type: string } }
+        - { name: $select, in: query, schema: { type: string } }
+        - { name: $filter, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: A list of events.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventList' }
+              example:
+                value:
+                  - id: event-0000000000000001
+                    subject: Sprint planning
+                    isAllDay: false
+                    bodyPreview: Plan the next sprint.
+                    start:
+                      dateTime: '2026-06-16T10:00:00.0000000'
+                      timeZone: UTC
+                    end:
+                      dateTime: '2026-06-16T11:00:00.0000000'
+                      timeZone: UTC
+                    location:
+                      displayName: Conference Room A
+                    organizer:
+                      emailAddress:
+                        name: Tale Mock User
+                        address: tale.mock@example.com
+                '@odata.nextLink': null
+    post:
+      operationId: createEvent
+      summary: Create a calendar event.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject: { type: string }
+                isAllDay: { type: boolean }
+                start:
+                  type: object
+                  properties:
+                    dateTime: { type: string }
+                    timeZone: { type: string }
+                end:
+                  type: object
+                  properties:
+                    dateTime: { type: string }
+                    timeZone: { type: string }
+                body:
+                  type: object
+                  properties:
+                    contentType: { type: string }
+                    content: { type: string }
+                location:
+                  type: object
+                  properties:
+                    displayName: { type: string }
+                attendees:
+                  type: array
+                  items: { type: object }
+      responses:
+        '201':
+          description: The created event.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Event' }
+              example:
+                id: event-0000000000000002
+                subject: New event from the mock
+                isAllDay: false
+                bodyPreview: Created by the mock.
+                start:
+                  dateTime: '2026-06-17T14:00:00.0000000'
+                  timeZone: UTC
+                end:
+                  dateTime: '2026-06-17T15:00:00.0000000'
+                  timeZone: UTC
+                location:
+                  displayName: Conference Room B
+                organizer:
+                  emailAddress:
+                    name: Tale Mock User
+                    address: tale.mock@example.com
+  /v1.0/me/events/{eventId}:
+    get:
+      operationId: getEvent
+      summary: Get a single calendar event by id.
+      parameters:
+        - { name: eventId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The event.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Event' }
+              example:
+                id: event-0000000000000001
+                subject: Sprint planning
+                isAllDay: false
+                bodyPreview: Plan the next sprint.
+                start:
+                  dateTime: '2026-06-16T10:00:00.0000000'
+                  timeZone: UTC
+                end:
+                  dateTime: '2026-06-16T11:00:00.0000000'
+                  timeZone: UTC
+                location:
+                  displayName: Conference Room A
+                organizer:
+                  emailAddress:
+                    name: Tale Mock User
+                    address: tale.mock@example.com
+  /v1.0/me/contacts:
+    get:
+      operationId: listContacts
+      summary: List the signed-in user's contacts.
+      parameters:
+        - { name: $top, in: query, schema: { type: integer } }
+        - { name: $skip, in: query, schema: { type: integer } }
+        - { name: $orderby, in: query, schema: { type: string } }
+        - { name: $select, in: query, schema: { type: string } }
+        - { name: $filter, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: A list of contacts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactList' }
+              example:
+                value:
+                  - id: contact-0000000000000001
+                    displayName: Jordan Mock
+                    givenName: Jordan
+                    surname: Mock
+                    companyName: Example Inc.
+                    jobTitle: Account Manager
+                    mobilePhone: '+1-555-0100'
+                    businessPhones:
+                      - '+1-555-0101'
+                    emailAddresses:
+                      - name: Jordan Mock
+                        address: jordan@example.com
+                '@odata.nextLink': null
+  /v1.0/me/contacts/{contactId}:
+    get:
+      operationId: getContact
+      summary: Get a single contact by id.
+      parameters:
+        - {
+            name: contactId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      responses:
+        '200':
+          description: The contact.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contact' }
+              example:
+                id: contact-0000000000000001
+                displayName: Jordan Mock
+                givenName: Jordan
+                surname: Mock
+                companyName: Example Inc.
+                jobTitle: Account Manager
+                mobilePhone: '+1-555-0100'
+                businessPhones:
+                  - '+1-555-0101'
+                emailAddresses:
+                  - name: Jordan Mock
+                    address: jordan@example.com

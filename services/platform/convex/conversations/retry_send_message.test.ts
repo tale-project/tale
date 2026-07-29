@@ -1,6 +1,6 @@
 // Retry of a failed outbound send — drives the REAL `mutationWithRLS` wrapper
 // through convex-test. Fake timers keep the rescheduled send action (a
-// 'use node' integration call) from executing: the assertion boundary is the
+// 'use node' connector call) from executing: the assertion boundary is the
 // row flipping failed → queued and the scheduled job's rebuilt args.
 
 import { convexTest, type TestConvex } from 'convex-test';
@@ -55,7 +55,7 @@ async function seedConversation(t: T): Promise<Id<'conversations'>> {
     ctx.db.insert('conversations', {
       organizationId: ORG,
       status: 'open',
-      integrationName: 'imap_smtp',
+      connectorName: 'imap_smtp',
       subject: 'Need help',
     }),
   );
@@ -73,17 +73,17 @@ async function seedFailedMessage(
       channel: 'email',
       direction: 'outbound',
       deliveryState: 'failed',
-      integrationName: 'imap_smtp',
+      connectorName: 'imap_smtp',
       content: '<p>Happy to help</p>',
       sentAt: 1_000,
       deliveredAt: 1_000,
       metadata: {
-        sender: 'integration',
+        sender: 'connector',
         isCustomer: false,
         to: ['jane@acme.test'],
         cc: ['boss@acme.test'],
         subject: 'Re: Need help',
-        integrationName: 'imap_smtp',
+        connectorName: 'imap_smtp',
         sendContentType: 'HTML',
         inReplyTo: '<root@acme.test>',
         error: 'SMTP send failed: connect ETIMEDOUT 1.2.3.4:465',
@@ -100,7 +100,7 @@ async function scheduledSendJobs(t: T) {
     ctx.db.system.query('_scheduled_functions').collect(),
   );
   return scheduled.filter((job) =>
-    job.name.includes('sendMessageViaIntegrationAction'),
+    job.name.includes('sendMessageViaConnectorAction'),
   );
 }
 
@@ -138,7 +138,7 @@ describe('retrySendMessage', () => {
     expect(jobs[0].args[0]).toMatchObject({
       messageId,
       organizationId: ORG,
-      integrationName: 'imap_smtp',
+      connectorName: 'imap_smtp',
       to: ['jane@acme.test'],
       cc: ['boss@acme.test'],
       subject: 'Re: Need help',
@@ -171,7 +171,7 @@ describe('retrySendMessage', () => {
     const conversationId = await seedConversation(t);
     const messageId = await seedFailedMessage(t, conversationId, {
       metadata: { error: 'boom' },
-      integrationName: undefined,
+      connectorName: undefined,
     });
 
     const error: unknown = await t

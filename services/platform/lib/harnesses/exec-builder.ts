@@ -1,5 +1,5 @@
 // The ONE exec builder: interprets a harness YAML's declarative `exec` facts
-// (`harnessConnectorSchema.exec` — see the vocabulary header in
+// (`harnessDefinitionSchema.exec` — see the vocabulary header in
 // `lib/shared/schemas/providers.ts`) over a `HarnessRunSpec` and produces the
 // `HarnessExec` the sandbox session-exec API runs. There is no per-harness
 // build code; the golden fixtures under `fixtures/exec/` prove this
@@ -15,7 +15,7 @@
 //  - stream parsing (`parsers/`, keyed by the YAML's `parser` field).
 
 import type {
-  HarnessConnector,
+  HarnessDefinition,
   HarnessExecFacts,
 } from '../shared/schemas/providers';
 import { buildStdinUserMessage } from './parsers/claude-stream-json';
@@ -179,11 +179,11 @@ const PLAYWRIGHT_MCP_CDP_ARGS = [
 const PLAYWRIGHT_VISION_ARGS = ['--image-responses', 'omit'] as const;
 
 /** The capability-dispatch bridge — lets the agent use the org's connected
- * integrations. The credential stays server-side; the bridge only relays
+ * connectors. The credential stays server-side; the bridge only relays
  * dispatch requests to the platform, authed by the session key. Because it
  * is authed by the minted session key it is managed-only: byo runs carry no
  * session key and therefore no bridge. */
-const BRIDGE_MCP_COMMAND = 'tale-integrations-mcp';
+const BRIDGE_MCP_COMMAND = 'tale-connectors-mcp';
 
 // ---------------------------------------------------------------------------
 // Placeholder substitution
@@ -298,7 +298,7 @@ function setPath(target: DocTree, path: string, value: unknown): void {
 }
 
 export function buildHarnessExec(
-  fact: HarnessConnector,
+  fact: HarnessDefinition,
   spec: HarnessRunSpec,
 ): HarnessExec {
   const exec: HarnessExecFacts = fact.exec;
@@ -379,7 +379,7 @@ export function buildHarnessExec(
     }
     if (spec.mcp?.bridgeUrl && managed) {
       const env = substituteMap(bridgeEnv, subs);
-      servers.integrations =
+      servers.connectors =
         serverShape === 'command-args'
           ? { command: BRIDGE_MCP_COMMAND, [bridgeEnvField]: env }
           : {
@@ -521,9 +521,9 @@ export function buildHarnessExec(
         if (spec.mcp?.bridgeUrl && managed) {
           argv.push(
             '-c',
-            `mcp_servers.integrations.command=${JSON.stringify(BRIDGE_MCP_COMMAND)}`,
+            `mcp_servers.connectors.command=${JSON.stringify(BRIDGE_MCP_COMMAND)}`,
             '-c',
-            `mcp_servers.integrations.env_vars=${tomlStringArray(Object.keys(m.bridgeEnv))}`,
+            `mcp_servers.connectors.env_vars=${tomlStringArray(Object.keys(m.bridgeEnv))}`,
           );
           Object.assign(slotEnv, substituteMap(m.bridgeEnv, subs));
         }

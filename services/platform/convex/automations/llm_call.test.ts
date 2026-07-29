@@ -15,12 +15,12 @@ import type { ActionCtx } from '../_generated/server';
 const {
   builderModel,
   createBuilderModel,
-  getConnectorCatalog,
+  getProviderCatalog,
   resolveConnectors,
 } = vi.hoisted(() => ({
   builderModel: vi.fn(),
   createBuilderModel: vi.fn(),
-  getConnectorCatalog: vi.fn(),
+  getProviderCatalog: vi.fn(),
   resolveConnectors: vi.fn(),
 }));
 
@@ -28,10 +28,10 @@ vi.mock('../automations_builder/model_call', () => ({
   createBuilderModel,
 }));
 vi.mock('../lib/providers/catalog_fetch', () => ({
-  getConnectorCatalog,
+  getProviderCatalog,
 }));
-vi.mock('../lib/providers/org_connectors', () => ({
-  resolveConnectorsForOrgId: resolveConnectors,
+vi.mock('../lib/providers/org_providers', () => ({
+  resolveProvidersForOrgId: resolveConnectors,
 }));
 
 import {
@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   credentials = {};
   resolveConnectors.mockResolvedValue([{ name: 'first' }, { name: 'second' }]);
-  getConnectorCatalog.mockResolvedValue([]);
+  getProviderCatalog.mockResolvedValue([]);
   createBuilderModel.mockReturnValue(builderModel);
   builderModel.mockResolvedValue({ content: 'a fine sentence' });
 });
@@ -102,7 +102,7 @@ describe('automationLlmCall', () => {
   it('picks the first connector that serves the model directly', async () => {
     // "first" has the credential but not the model; "second" serves it.
     credentials = { first: DIRECT, second: DIRECT };
-    getConnectorCatalog.mockImplementation(
+    getProviderCatalog.mockImplementation(
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
           connector.name === 'second' ? [{ id: 'vendor/small-1' }] : [],
@@ -141,7 +141,7 @@ describe('automationLlmCall', () => {
       first: { status: 'active', authMethod: 'subscription' },
       second: { ...DIRECT, modelAllowlist: ['other/model'] },
     };
-    getConnectorCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
 
     await expect(
       automationLlmCall(ctx, ORG)({ model: 'vendor/small-1', prompt: 'x' }),
@@ -150,7 +150,7 @@ describe('automationLlmCall', () => {
 
   it('says so when the only catalogs were unreachable', async () => {
     credentials = { first: DIRECT, second: DIRECT };
-    getConnectorCatalog.mockRejectedValue(new Error('models endpoint 500'));
+    getProviderCatalog.mockRejectedValue(new Error('models endpoint 500'));
 
     await expect(
       automationLlmCall(ctx, ORG)({ model: 'vendor/small-1', prompt: 'x' }),
@@ -159,7 +159,7 @@ describe('automationLlmCall', () => {
 
   it('resolves each model once per door, not once per call', async () => {
     credentials = { first: DIRECT };
-    getConnectorCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
 
     const door = automationLlmCall(ctx, ORG);
     await door({ model: 'vendor/small-1', prompt: 'one' });
@@ -172,7 +172,7 @@ describe('automationLlmCall', () => {
 
   it('asks for the schema in the system prompt and returns the parsed data', async () => {
     credentials = { first: DIRECT };
-    getConnectorCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
     builderModel.mockResolvedValue({ content: '```json\n{"score": 7}\n```' });
     const outputSchema = {
       type: 'object',
@@ -199,7 +199,7 @@ describe('automationLlmCall', () => {
 
   it('fails the call, naming the problem, when the reply defies the schema', async () => {
     credentials = { first: DIRECT };
-    getConnectorCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
     const outputSchema = {
       type: 'object',
       properties: { score: { type: 'number' } },

@@ -54,7 +54,7 @@ When the conversation outgrows the model's context window, the oldest messages a
 
 ## What the model can call
 
-Built-in tools, integration actions, skills, automations, and tools from connected MCP servers all live in one registry behind one dispatcher. The model searches that surface and invokes an entry by its id, so an org's own automations are as discoverable as the platform's built-in tools. Every call has its input validated before anything runs.
+Built-in tools, connector actions, skills, automations, and tools from connected MCP servers all live in one registry behind one dispatcher. The model searches that surface and invokes an entry by its id, so an org's own automations are as discoverable as the platform's built-in tools. Every call has its input validated before anything runs.
 
 Knowledge retrieval is deliberately a separate call rather than another search result — finding a fact and finding a tool are different questions. An automation that can only be started by an event is listed with that fact attached, and invoking it is refused with a hint instead of being hidden from view.
 

@@ -14,7 +14,7 @@
  * to. Unavailability reasons travel as enum codes; the client renders the
  * localized sentence.
  *
- * `'use node'` by necessity — the harness facts and org connectors are files.
+ * `'use node'` by necessity — the harness facts and org providers are files.
  */
 
 import { v, type Infer } from 'convex/values';
@@ -25,7 +25,7 @@ import {
   type CredentialAuth,
 } from '../../../lib/shared/providers/resolve_execution';
 import type {
-  HarnessConnector,
+  HarnessDefinition,
   ModelCatalogEntry,
 } from '../../../lib/shared/schemas/providers';
 import { api } from '../../_generated/api';
@@ -33,7 +33,7 @@ import { action } from '../../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../auth/require_org_admin_or_developer';
 import { credentialAuthFor } from './credential_auth';
 import { loadHarnesses } from './load_system_config';
-import { resolveConnectorsForOrgId } from './org_connectors';
+import { resolveProvidersForOrgId } from './org_providers';
 
 const harnessManagedStatusValidator = v.union(
   v.object({
@@ -93,7 +93,7 @@ function neutralModelEntry(id: string): ModelCatalogEntry {
  * one status row per harness, sorted by label.
  */
 export function deriveHarnessStatus(inputs: {
-  harnesses: readonly HarnessConnector[];
+  harnesses: readonly HarnessDefinition[];
   /** Direct-served composer models, in the order the picker lists them —
    * the first is the kick's fallback default. */
   directModels: readonly { id: string }[];
@@ -178,19 +178,16 @@ export const listHarnessStatus = action({
       api.provider_credentials.queries.listCredentials,
       { organizationId: args.organizationId },
     );
-    const connectors = await resolveConnectorsForOrgId(
-      ctx,
-      args.organizationId,
-    );
-    const connectorByName = new Map(
-      connectors.map((connector) => [connector.name, connector] as const),
+    const providers = await resolveProvidersForOrgId(ctx, args.organizationId);
+    const providerByName = new Map(
+      providers.map((provider) => [provider.name, provider] as const),
     );
     const subscriptions = credentials
       .filter((credential) => credential.status === 'active')
       .flatMap((credential): SubscriptionCredentialFact[] => {
-        const connector = connectorByName.get(credential.providerSlug);
-        if (!connector) return [];
-        const auth = credentialAuthFor(connector, credential.authMethod);
+        const provider = providerByName.get(credential.providerSlug);
+        if (!provider) return [];
+        const auth = credentialAuthFor(provider, credential.authMethod);
         return auth?.authMethod === 'subscription-key' ||
           auth?.authMethod === 'subscription-broker'
           ? [{ providerSlug: credential.providerSlug, credential: auth }]

@@ -27,7 +27,7 @@ Um die Synchronisierung zu beenden — bei einem ganzen synchronisierten Ordner 
 
 Jede Zeile trägt eine Zelle **Teams** — standardmäßig **Organisationsweit**, oder die Teams, die du über **Team zuweisen** im Zeilenmenü wählst. Ein team-gebundenes Dokument ist für Mitglieder und Agenten außerhalb des Teams unsichtbar; das ist der Zugriffshebel der Wissensdatenbank. Projekt-Dateien liegen ganz außerhalb dieses Modells: Der **Wissen**-Tab eines Projekts hält Dateien, die auf dieses eine Projekt begrenzt sind, und sie tauchen weder in dieser Bibliothek noch in ihrer Team-Bindung auf — siehe [Dateien verwalten](/de/platform/projects/manage-files).
 
-**Neuer Ordner** hält große Bibliotheken navigierbar, und Integrationen bringen ihre eigene Struktur mit: Dokumente aus einem OneDrive- oder SharePoint-Sync landen unter Sync-Ordnern und zeigen ihre Herkunft in der Spalte **Quelle**, was Zitate bis ins Quellsystem nachvollziehbar hält.
+**Neuer Ordner** hält große Bibliotheken navigierbar, und Connectors bringen ihre eigene Struktur mit: Dokumente aus einem OneDrive- oder SharePoint-Sync landen unter Sync-Ordnern und zeigen ihre Herkunft in der Spalte **Quelle**, was Zitate bis ins Quellsystem nachvollziehbar hält.
 
 <Warning>
 

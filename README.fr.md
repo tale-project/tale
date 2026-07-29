@@ -38,12 +38,12 @@ Mets leur savoir en commun, délègue du vrai travail — sur une infrastructure
   </tr>
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Le canvas de l’éditeur de workflows, avec les étapes typées d’une automatisation" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="Le catalogue d’intégrations avec Confluence, GitHub, Gmail, Google Drive, Shopify et plus" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="Le catalogue d’connectors avec Confluence, GitHub, Gmail, Google Drive, Shopify et plus" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Les guardrails de gouvernance — filtrage du contenu, détection PII et fournisseur de modération" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Éditeur de workflows</b> — étapes typées, planifications et approbations humaines</sub></td>
-    <td align="center"><sub><b>Intégrations</b> — Slack, Gmail, GitHub, serveurs MCP et plus</sub></td>
+    <td align="center"><sub><b>Connectors</b> — Slack, Gmail, GitHub, serveurs MCP et plus</sub></td>
     <td align="center"><sub><b>Gouvernance</b> — guardrails, filtres PII, piste d’audit, plafonds de dépense</sub></td>
   </tr>
 </table>
@@ -89,9 +89,9 @@ bun run dev
 
 ## Tale en action
 
-<img src=".github/assets/readme-tour.webp" alt="Visite du produit Tale — éditeur d’agent, tableau de tâches d’un projet, canvas d’automatisation, catalogue d’intégrations et guardrails de gouvernance" width="100%">
+<img src=".github/assets/readme-tour.webp" alt="Visite du produit Tale — éditeur d’agent, tableau de tâches d’un projet, canvas d’automatisation, catalogue d’connectors et guardrails de gouvernance" width="100%">
 
-Agents → Projets → Automatisations → Intégrations → Gouvernance — un tour de la plateforme. La visite complète est dans les [docs](https://tale.dev/docs/fr).
+Agents → Projets → Automatisations → Connectors → Gouvernance — un tour de la plateforme. La visite complète est dans les [docs](https://tale.dev/docs/fr).
 
 ## Dans la boîte
 
@@ -101,7 +101,7 @@ Agents → Projets → Automatisations → Intégrations → Gouvernance — un 
 - **[Base de connaissances](https://tale.dev/docs/fr/platform/knowledge/overview)** — documents, sites web explorés et fiches typées que les agents consultent et citent, pour des réponses qui reflètent ta réalité.
 - **[Agents](https://tale.dev/docs/fr/platform/agents/concepts)** — instructions, connaissances, outils et modèle en une seule unité ; fais-les tourner sur la plateforme, ou branche Claude Code, Codex et Cursor dans des sandboxes isolées.
 - **[Automatisations](https://tale.dev/docs/fr/platform/automations/concepts)** — des workflows typés (étapes LLM, Action, Condition, Loop et Sandbox), déclenchés par planification, webhook ou événement — avec des approbations humaines aux étapes qui comptent.
-- **[Intégrations](https://tale.dev/docs/fr/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify et serveurs MCP.
+- **[Connectors](https://tale.dev/docs/fr/platform/connectors/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify et serveurs MCP.
 - **[Boîte de réception unifiée](https://tale.dev/docs/fr/platform/automations/builtin)** — transforme une messagerie partagée (Gmail, Outlook, IMAP/SMTP) en boîte de réception d’équipe, avec des réponses assistées par l’IA.
 - **[Gouvernance](https://tale.dev/docs/fr/platform/approvals/concepts)** — des approbations avant qu’une action parte, une piste d’audit complète, des guardrails, des filtres PII et des plafonds de dépense — plus le SSO via [Microsoft Entra ID ou trusted headers](https://tale.dev/docs/fr/platform/admin/enterprise-sso).
 

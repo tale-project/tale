@@ -14,13 +14,13 @@ Jede Karte stammt von einem Agent, der auf etwas wirken will, das das Gespräch 
 - **Pläne** — ein Agent schlägt einen mehrstufigen Plan als Karte **Vorgeschlagener Plan** vor; **Genehmigen & ausführen** startet ihn.
 - **Dokument-Schreibzugriffe** — eine Karte **In Dokumenten speichern** hält Dateien, die ein Agent ablegen will; nichts landet im Dokumenten-Hub, bevor du genehmigst.
 - **Wissens-Schreibzugriffe** — eine Karte **In Wissensdatenbank speichern** hält einen Fakt, den ein Agent organisationsweit festhalten will.
-- **Integrationsaufrufe** — eine Operation mit Genehmigungspflicht (typischerweise ausgehende Schreibzugriffe) hält an, mit den exakten Parametern sichtbar.
+- **Connector-Aufrufe** — eine Operation mit Genehmigungspflicht (typischerweise ausgehende Schreibzugriffe) hält an, mit den exakten Parametern sichtbar.
 - **MCP-Tools** — ein Tool, das der Server mit **Genehmigung erforderlich** markiert, fragt, bevor es läuft.
 - **Workflow-Erstellung, -Aktualisierungen und -Läufe** — die Tore auf der Workflow-Seite, behandelt in [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows).
 
 ## Die Entscheidungen auf einer Karte
 
-Jede Karte trägt den exakten Payload der Aktion — die Datei, den Fakt, die Parameter — und zwei Entscheidungen: genehmigen (der Button benennt die Aktion, etwa **Workflow ausführen** oder **Genehmigen & ausführen**) oder ablehnen. Integrationskarten fügen einen dritten Weg hinzu, **Änderungen vorschlagen**: Beschreib in freiem Text, was falsch ist, und der Agent überarbeitet den Aufruf, statt ihn aufzugeben.
+Jede Karte trägt den exakten Payload der Aktion — die Datei, den Fakt, die Parameter — und zwei Entscheidungen: genehmigen (der Button benennt die Aktion, etwa **Workflow ausführen** oder **Genehmigen & ausführen**) oder ablehnen. Connectorskarten fügen einen dritten Weg hinzu, **Änderungen vorschlagen**: Beschreib in freiem Text, was falsch ist, und der Agent überarbeitet den Aufruf, statt ihn aufzugeben.
 
 <Note>
 

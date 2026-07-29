@@ -8,7 +8,7 @@
  * agent's config file + binding — node runtime because the config is a file
  * under $TALE_CONFIG_DIR (same reason resolveAgentConfigInline is node).
  *
- * Fresh-per-call on purpose (like the integration dispatch's availability
+ * Fresh-per-call on purpose (like the connector dispatch's availability
  * check): a config edit mid-session applies to the next tool call, and the
  * grant snapshot on the token row still bounds WHICH tools are callable.
  */

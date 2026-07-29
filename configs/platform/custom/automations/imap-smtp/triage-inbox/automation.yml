@@ -9,7 +9,7 @@ labels:
   - IMAP
 scope: org
 requires:
-  integrations:
+  connectors:
     - imap-smtp
 triggers:
   - kind: schedule

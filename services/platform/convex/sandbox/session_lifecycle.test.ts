@@ -542,7 +542,7 @@ describe('revokeTokensForSession', () => {
         scope: {
           agentKind: 'claude-code',
           allowedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
-          integrationGrants: [],
+          connectorGrants: [],
           budgetCents: 100,
         },
         createdAt: 0,

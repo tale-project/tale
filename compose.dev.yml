@@ -98,7 +98,7 @@ services:
   # `--internal` tale-sandbox-net (SSRF-locked) and `bun dev` runs convex on the
   # HOST, so in-container code can't reach it. This socat relay is dual-homed
   # (internal + sandbox), aliased `convex` on the sandbox net, forwarding BOTH
-  # :3211 (HTTP actions / integration bridge) AND :3210 (storage — the session
+  # :3211 (HTTP actions / connector bridge) AND :3210 (storage — the session
   # daemon fetches staged file URLs from here) → the host-run convex. In prod the
   # real convex container is dual-homed onto `sandbox` instead (compose.yml).
   convex-relay:

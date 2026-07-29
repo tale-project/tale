@@ -10,7 +10,7 @@
  *
  * Creation validates the requested auth method against the provider
  * CONNECTOR's declared auth list (`configs/platform/system/providers/`) — a
- * credential for a method the connector doesn't offer is refused with the
+ * credential for a method the provider doesn't offer is refused with the
  * methods it does. Broker payloads validate against
  * `brokerCredentialDataSchema` before encryption.
  *
@@ -28,12 +28,12 @@ import {
   providerBaseUrlSchema,
   providerKeyEnvNameSchema,
 } from '../../lib/shared/schemas/providers';
-import type { ProviderConnector } from '../../lib/shared/schemas/providers';
+import type { ProviderDefinition } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
-import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import {
   decryptSecret,
   encryptSecret,
@@ -98,18 +98,18 @@ function parseBrokerData(raw: unknown): BrokerCredentialData {
 }
 
 /**
- * Require the connector for `providerSlug` (shipped or org-defined) to offer
+ * Require the provider for `providerSlug` (shipped or org-defined) to offer
  * `authMethod`; refusals name what IS available so the caller can act on
  * them.
  */
-function requireConnectorAuthMethod(
-  connectors: readonly ProviderConnector[],
+function requireProviderAuthMethod(
+  providers: readonly ProviderDefinition[],
   providerSlug: string,
   authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker',
-): ProviderConnector {
-  const connector = connectors.find((entry) => entry.name === providerSlug);
-  if (!connector) {
-    const known = connectors
+): ProviderDefinition {
+  const provider = providers.find((entry) => entry.name === providerSlug);
+  if (!provider) {
+    const known = providers
       .map((entry) => entry.name)
       .sort()
       .join(', ');
@@ -118,30 +118,30 @@ function requireConnectorAuthMethod(
       message: `Unknown provider "${providerSlug}" — available providers: ${known}.`,
     });
   }
-  if (!connector.auth.some((entry) => entry.method === authMethod)) {
-    const offered = connector.auth.map((entry) => entry.method).join(', ');
+  if (!provider.auth.some((entry) => entry.method === authMethod)) {
+    const offered = provider.auth.map((entry) => entry.method).join(', ');
     throw new ConvexError({
       code: 'AUTH_METHOD_NOT_SUPPORTED',
       message: `Provider "${providerSlug}" does not accept ${authMethod} credentials — it offers: ${offered}. Pick one of those methods, or a provider that supports ${authMethod}.`,
     });
   }
-  return connector;
+  return provider;
 }
 
 /**
- * Per-credential wire endpoint (Azure-style connectors): required exactly
- * when the connector declares `endpointMode: per-credential`, refused
- * otherwise; https-only like every connector base URL.
+ * Per-credential wire endpoint (Azure-style providers): required exactly
+ * when the provider declares `endpointMode: per-credential`, refused
+ * otherwise; https-only like every provider base URL.
  */
 function normalizeEndpointUrl(
-  connector: ProviderConnector,
+  provider: ProviderDefinition,
   raw: string | undefined,
 ): string | undefined {
-  if (connector.endpointMode === 'per-credential') {
+  if (provider.endpointMode === 'per-credential') {
     if (raw === undefined) {
       throw new ConvexError({
         code: 'CREDENTIAL_ENDPOINT_REQUIRED',
-        message: `Provider "${connector.name}" uses per-credential endpoints — enter the resource endpoint URL (e.g. https://YOUR-RESOURCE.openai.azure.com/openai/v1).`,
+        message: `Provider "${provider.name}" uses per-credential endpoints — enter the resource endpoint URL (e.g. https://YOUR-RESOURCE.openai.azure.com/openai/v1).`,
       });
     }
     const outcome = providerBaseUrlSchema.safeParse(raw.trim());
@@ -156,7 +156,7 @@ function normalizeEndpointUrl(
   if (raw !== undefined) {
     throw new ConvexError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
-      message: `Provider "${connector.name}" has a fixed endpoint — a per-credential endpoint URL does not apply here.`,
+      message: `Provider "${provider.name}" has a fixed endpoint — a per-credential endpoint URL does not apply here.`,
     });
   }
   return undefined;
@@ -177,7 +177,7 @@ function buildSecretPayload(args: {
 }): SecretPayload {
   switch (args.authMethod) {
     // A subscription-key is a static vendor secret stored exactly like an
-    // api key; its forced-execution constraints live on the connector.
+    // api key; its forced-execution constraints live on the provider.
     case 'api-key':
     case 'subscription-key': {
       if (args.secret === undefined) {
@@ -226,7 +226,7 @@ function buildSecretPayload(args: {
 
 /**
  * Create one provider credential. The auth method must be offered by the
- * provider's connector; the first credential of an (org, provider) pair
+ * provider's provider; the first credential of an (org, provider) pair
  * becomes its default.
  */
 export const createCredential = action({
@@ -243,7 +243,7 @@ export const createCredential = action({
     /** subscription-broker only: a `brokerCredentialDataSchema` document
      * (validated here; encrypted whole, including its authSecret). */
     broker: v.optional(v.any()),
-    /** Per-credential-endpoint connectors (Azure) only: the resource
+    /** Per-credential-endpoint providers (Azure) only: the resource
      * endpoint URL. */
     endpointUrl: v.optional(v.string()),
     modelAllowlist: v.optional(v.array(v.string())),
@@ -251,12 +251,12 @@ export const createCredential = action({
   returns: v.object({ credentialId: v.id('providerCredentials') }),
   handler: async (ctx, args) => {
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    const connector = requireConnectorAuthMethod(
-      await resolveConnectorsForOrgId(ctx, args.organizationId),
+    const provider = requireProviderAuthMethod(
+      await resolveProvidersForOrgId(ctx, args.organizationId),
       args.providerSlug,
       args.authMethod,
     );
-    const endpointUrl = normalizeEndpointUrl(connector, args.endpointUrl);
+    const endpointUrl = normalizeEndpointUrl(provider, args.endpointUrl);
     const payload = buildSecretPayload(args);
     const credentialId: Id<'providerCredentials'> = await ctx.runMutation(
       internal.provider_credentials.mutations.insertCredentialInternal,
@@ -296,7 +296,7 @@ export const updateCredential = action({
     secret: v.optional(v.string()),
     envName: v.optional(v.string()),
     broker: v.optional(v.any()),
-    /** Per-credential-endpoint connectors (Azure) only: replace the
+    /** Per-credential-endpoint providers (Azure) only: replace the
      * resource endpoint URL. */
     endpointUrl: v.optional(v.string()),
   },
@@ -315,24 +315,24 @@ export const updateCredential = action({
       });
     }
 
-    // An endpoint replacement re-validates against the connector's declared
+    // An endpoint replacement re-validates against the provider's declared
     // endpoint mode, exactly like create.
     let endpointReplacement: string | undefined;
     if (args.endpointUrl !== undefined) {
-      const connectors = await resolveConnectorsForOrgId(
+      const providers = await resolveProvidersForOrgId(
         ctx,
         args.organizationId,
       );
-      const connector = connectors.find(
+      const provider = providers.find(
         (entry) => entry.name === row.providerSlug,
       );
-      if (!connector) {
+      if (!provider) {
         throw new ConvexError({
           code: 'PROVIDER_UNKNOWN',
-          message: `Credential "${row.name}" belongs to provider "${row.providerSlug}", which has no connector on this deployment.`,
+          message: `Credential "${row.name}" belongs to provider "${row.providerSlug}", which has no provider on this deployment.`,
         });
       }
-      endpointReplacement = normalizeEndpointUrl(connector, args.endpointUrl);
+      endpointReplacement = normalizeEndpointUrl(provider, args.endpointUrl);
     }
 
     let replacement: SecretPayload = {};

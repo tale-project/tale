@@ -17,6 +17,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -24,11 +25,10 @@ import {
   useHarnessStatus,
   type HarnessStatus,
 } from '../hooks/queries';
-import { mapProviderError } from '../provider-errors';
 
 interface HarnessStatusSectionProps {
   organizationId: string;
-  /** Connector slug → display name, from the catalogs the page loaded. */
+  /** Provider slug → display name, from the catalogs the page loaded. */
   displayNames: ReadonlyMap<string, string>;
 }
 
@@ -115,7 +115,7 @@ export function HarnessStatusSection({
         <Alert
           variant="destructive"
           description={t('providers.harnesses.listFailed', {
-            error: mapProviderError(statusQuery.error),
+            error: mapCredentialError(statusQuery.error),
           })}
         />
       ) : statusQuery.isPending ? (

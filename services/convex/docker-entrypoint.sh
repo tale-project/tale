@@ -360,10 +360,10 @@ atomic_cp() {
 # the next-run `[ -d "$dest" ]` check then treats the partial bundle
 # as "already seeded" and skips it permanently. Round-3 P2 R32-P2-c.
 #
-# `FORCE_SEED=true` is destructive for bundle dirs (skills, integrations,
+# `FORCE_SEED=true` is destructive for bundle dirs (skills, connectors,
 # branding sub-bundles): the existing dest is removed wholesale before
 # the new one lands. If the operator added custom files inside a bundle
-# (e.g. an integration's `custom_state.json`), force-seed would wipe
+# (e.g. an connector's `custom_state.json`), force-seed would wipe
 # them. Take a timestamped snapshot under `<dest>.history/<ts>/` first
 # so the operator can recover the pre-force tree. Best-effort — a
 # snapshot failure must not block the seed.

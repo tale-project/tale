@@ -43,7 +43,7 @@ import {
 } from './access';
 import { PROJECT_AUDIT_ACTIONS, PROJECT_RESOURCE_TYPE } from './audit_actions';
 import {
-  projectIntegrationsModeValidator,
+  projectConnectorsModeValidator,
   projectKnowledgeModeValidator,
   projectModeValidator,
 } from './schema';
@@ -1138,14 +1138,14 @@ export const updateProjectModelSettings = mutation({
 });
 
 // ---------------------------------------------------------------------------
-// Integration settings (schema only in v1; mutation works for future UI)
+// Connector settings (schema only in v1; mutation works for future UI)
 // ---------------------------------------------------------------------------
 
-export const updateProjectIntegrationSettings = mutation({
+export const updateProjectConnectorSettings = mutation({
   args: {
     projectId: v.id('projects'),
-    integrationsMode: projectIntegrationsModeValidator,
-    allowedIntegrationSlugs: v.optional(v.array(v.string())),
+    connectorsMode: projectConnectorsModeValidator,
+    allowedConnectorSlugs: v.optional(v.array(v.string())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -1154,27 +1154,27 @@ export const updateProjectIntegrationSettings = mutation({
     assertWritable(project, auth);
 
     const previousState = {
-      integrationsMode: project.integrationsMode ?? 'all',
-      allowedIntegrationSlugs: project.allowedIntegrationSlugs ?? [],
+      connectorsMode: project.connectorsMode ?? 'all',
+      allowedConnectorSlugs: project.allowedConnectorSlugs ?? [],
     };
     const newState = {
-      integrationsMode: args.integrationsMode,
-      allowedIntegrationSlugs: args.allowedIntegrationSlugs ?? [],
+      connectorsMode: args.connectorsMode,
+      allowedConnectorSlugs: args.allowedConnectorSlugs ?? [],
     };
 
     await ctx.db.patch(args.projectId, {
-      integrationsMode: args.integrationsMode,
-      allowedIntegrationSlugs:
-        newState.allowedIntegrationSlugs.length > 0
-          ? newState.allowedIntegrationSlugs
+      connectorsMode: args.connectorsMode,
+      allowedConnectorSlugs:
+        newState.allowedConnectorSlugs.length > 0
+          ? newState.allowedConnectorSlugs
           : undefined,
       updatedAt: Date.now(),
     });
 
     // H8: log slug diffs explicitly alongside previous/new state.
     const allowedDiff = arrayDiff(
-      previousState.allowedIntegrationSlugs,
-      newState.allowedIntegrationSlugs,
+      previousState.allowedConnectorSlugs,
+      newState.allowedConnectorSlugs,
     );
 
     await createAuditLog(ctx, {
@@ -1182,7 +1182,7 @@ export const updateProjectIntegrationSettings = mutation({
       actorId: auth.userId,
       actorEmail: auth.email,
       actorType: 'user',
-      action: PROJECT_AUDIT_ACTIONS.integrationsChanged,
+      action: PROJECT_AUDIT_ACTIONS.connectorsChanged,
       category: 'data',
       resourceType: PROJECT_RESOURCE_TYPE,
       resourceId: String(args.projectId),
@@ -1702,7 +1702,7 @@ export const deleteProject = mutation({
 
 /**
  * Duplicate a project: copies identity (with " (copy)" suffix), instructions,
- * knowledge mode, agent/model/integration mode + lists, and sharing config.
+ * knowledge mode, agent/model/connector mode + lists, and sharing config.
  *
  * Does NOT copy:
  *   - files (separate sharing semantics; user must explicitly attach)
@@ -1774,8 +1774,8 @@ export const duplicateProject = mutation({
       modelMode: source.modelMode,
       recommendedModels: source.recommendedModels,
       allowedModels: source.allowedModels,
-      integrationsMode: source.integrationsMode,
-      allowedIntegrationSlugs: source.allowedIntegrationSlugs,
+      connectorsMode: source.connectorsMode,
+      allowedConnectorSlugs: source.allowedConnectorSlugs,
       createdBy: auth.userId,
       createdAt: now,
       updatedAt: now,

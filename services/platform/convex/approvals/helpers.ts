@@ -415,7 +415,7 @@ export async function linkApprovalsToMessage(
   const { threadId, messageId } = args;
 
   const resourceTypesToLink = [
-    'integration_operation',
+    'connector_operation',
     'workflow_creation',
     'workflow_run',
     'workflow_update',

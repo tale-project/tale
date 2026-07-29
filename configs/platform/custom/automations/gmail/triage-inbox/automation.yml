@@ -9,7 +9,7 @@ labels:
   - Gmail
 scope: org
 requires:
-  integrations:
+  connectors:
     - gmail
 triggers:
   - kind: schedule

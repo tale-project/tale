@@ -237,8 +237,8 @@ export const EP6_PROJECTS: EpisodeSpec = {
       id: 'outro',
       tailMs: 3600,
       narration: {
-        en: 'Next time: integrations — where your workspace connects to the tools your team already uses. See you in episode seven.',
-        de: 'Nächstes Mal: Integrationen — wo dein Arbeitsbereich die Werkzeuge erreicht, die dein Team schon nutzt. Bis zur siebten Episode.',
+        en: 'Next time: connectors — where your workspace connects to the tools your team already uses. See you in episode seven.',
+        de: 'Nächstes Mal: Connectoren — wo dein Arbeitsbereich die Werkzeuge erreicht, die dein Team schon nutzt. Bis zur siebten Episode.',
         fr: 'La prochaine fois : les intégrations — là où ton espace de travail rejoint les outils que ton équipe utilise déjà. À bientôt pour l’épisode sept.',
       },
     },

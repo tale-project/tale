@@ -444,7 +444,7 @@ export const cancelTaskWorkflow = action({
  *
  * Idempotent: an OPEN PR is squash-merged; a PR that is ALREADY merged counts as
  * success (no-op merge). Either way the task is closed to `done`. The explicit
- * user click (+ confirm) authorizes the merge, so the integration approval gate
+ * user click (+ confirm) authorizes the merge, so the connector approval gate
  * is skipped — `merge_pull_request` stays `requiresApproval` for any
  * agent/workflow caller.
  */
@@ -484,14 +484,14 @@ export const mergeTaskPullRequest = action({
         'This task is not linked to a GitHub repository, so its pull request cannot be merged.',
       );
     }
-    // Merging rides the integrations backend (GitHub connector), which is
+    // Merging rides the connectors backend (GitHub connector), which is
     // offline while it is rebuilt. Fail with a typed error the task UI can
     // render; the pull request itself is untouched and can be merged on
     // GitHub directly in the meantime.
     throw new ConvexError({
       code: 'FEATURE_OFFLINE',
       message:
-        'Merging from Tale is unavailable right now: the integrations backend is offline while it is rewritten. Merge the pull request on GitHub directly.',
+        'Merging from Tale is unavailable right now: the connectors backend is offline while it is rewritten. Merge the pull request on GitHub directly.',
     });
   },
 });

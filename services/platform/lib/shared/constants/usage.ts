@@ -3,11 +3,11 @@
 // its own sentinel so the Top Assistants table renders precise labels
 // instead of collapsing everything into a single fallback.
 const DIRECT_API_SLUG = '__direct_api__';
-const INTEGRATION_SLUG = '__integration__';
+const CONNECTOR_SLUG = '__connector__';
 const TRANSCRIPTION_SLUG = '__transcription__';
 export const TTS_SLUG = '__tts__';
 
-type UsageRowKind = 'llm' | 'integration' | 'transcription' | 'tts';
+type UsageRowKind = 'llm' | 'connector' | 'transcription' | 'tts';
 
 // Subset of usageLedger fields needed to classify a row by kind. Kept
 // intentionally narrow so client and server code can share the helper without
@@ -16,20 +16,20 @@ interface UsageLedgerDiscriminators {
   agentSlug?: string;
   model?: string;
   provider?: string;
-  integrationName?: string;
+  connectorName?: string;
   audioDurationSec?: number;
   characterCount?: number;
 }
 
 // Classify a usageLedger row by precedence over its natural discriminators.
-// Order matters: integrationName beats audioDurationSec because a hypothetical
-// audio-bearing integration is still an integration row first. TTS rows are
+// Order matters: connectorName beats audioDurationSec because a hypothetical
+// audio-bearing connector is still an connector row first. TTS rows are
 // identified by `characterCount` alone — character-billing is unique to TTS
 // in the current schema, so the discriminator works regardless of whether
 // the row carries the synthetic `TTS_SLUG` (legacy) or a real assistant
 // `agentSlug` (post per-assistant-attribution).
 export function classifyUsageRow(row: UsageLedgerDiscriminators): UsageRowKind {
-  if (row.integrationName !== undefined) return 'integration';
+  if (row.connectorName !== undefined) return 'connector';
   if (row.audioDurationSec !== undefined) return 'transcription';
   if (row.characterCount !== undefined) return 'tts';
   return 'llm';
@@ -48,8 +48,8 @@ export function bucketAgentSlug(
   if (kind === 'tts') return TTS_SLUG;
   if (row.agentSlug !== undefined && row.agentSlug !== '') return row.agentSlug;
   switch (kind) {
-    case 'integration':
-      return INTEGRATION_SLUG;
+    case 'connector':
+      return CONNECTOR_SLUG;
     case 'transcription':
       return TRANSCRIPTION_SLUG;
     case 'llm':
@@ -61,8 +61,8 @@ export function isDirectApiSlug(slug: string): boolean {
   return slug === DIRECT_API_SLUG;
 }
 
-export function isIntegrationSlug(slug: string): boolean {
-  return slug === INTEGRATION_SLUG;
+export function isConnectorSlug(slug: string): boolean {
+  return slug === CONNECTOR_SLUG;
 }
 
 export function isTranscriptionSlug(slug: string): boolean {
@@ -78,7 +78,7 @@ export function isTtsSlug(slug: string): boolean {
 export function isSyntheticAgentSlug(slug: string): boolean {
   return (
     isDirectApiSlug(slug) ||
-    isIntegrationSlug(slug) ||
+    isConnectorSlug(slug) ||
     isTranscriptionSlug(slug) ||
     isTtsSlug(slug)
   );

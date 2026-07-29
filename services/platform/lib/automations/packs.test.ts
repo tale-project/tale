@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { loadConnectors } from '../connectors/registry';
 import { runAutomationTests } from '../engine/api/tests';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeTypes } from '../engine/core/slots';
@@ -9,7 +10,6 @@ import { templateExprsIn } from '../engine/core/template';
 import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { nodeVmRunner } from '../engine/runners/node-vm';
-import { loadConnectors } from '../integrations/registry';
 import type { AutomationPack } from './packs';
 import { automationPackManifestSchema, loadAutomationPacks } from './packs';
 
@@ -67,9 +67,7 @@ describe('the shipped automation packs', () => {
       });
 
       it('declares exactly the connectors its document calls', () => {
-        const declared = [
-          ...(pack.manifest.requires?.integrations ?? []),
-        ].sort();
+        const declared = [...(pack.manifest.requires?.connectors ?? [])].sort();
         expect(declared).toEqual(connectorsUsedBy(pack.automation));
         for (const name of declared) expect(connectorNames).toContain(name);
       });

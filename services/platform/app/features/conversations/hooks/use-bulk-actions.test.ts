@@ -18,7 +18,7 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-const mockSendMessageViaIntegration = vi.fn();
+const mockSendMessageViaConnector = vi.fn();
 const noopMutation = () => ({ mutateAsync: vi.fn() });
 
 vi.mock('./mutations', () => ({
@@ -27,8 +27,8 @@ vi.mock('./mutations', () => ({
   useBulkReopenConversations: () => noopMutation(),
   useBulkSpamConversations: () => noopMutation(),
   useBulkUnarchiveConversations: () => noopMutation(),
-  useSendMessageViaIntegration: () => ({
-    mutateAsync: mockSendMessageViaIntegration,
+  useSendMessageViaConnector: () => ({
+    mutateAsync: mockSendMessageViaConnector,
   }),
 }));
 
@@ -60,7 +60,7 @@ function makeConversation(
     _creationTime: 0,
     organizationId: 'org-1',
     subject: 'Original subject',
-    integrationName: 'gmail',
+    connectorName: 'gmail',
     id,
     title: 'title',
     description: 'description',
@@ -101,7 +101,7 @@ function setup(
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockSendMessageViaIntegration.mockResolvedValue(undefined);
+  mockSendMessageViaConnector.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -168,7 +168,7 @@ describe('getSelectedConversationIds', () => {
 });
 
 describe('useBulkActions handleSendMessages', () => {
-  it('dispatches via integration once per selected conversation with resolved fields', async () => {
+  it('dispatches via connector once per selected conversation with resolved fields', async () => {
     const conversations = [
       makeConversation('conv-1', 'alice@example.com'),
       makeConversation('conv-2', 'bob@example.com'),
@@ -182,19 +182,19 @@ describe('useBulkActions handleSendMessages', () => {
       await result.current.handleSendMessages('  Hello there  ');
     });
 
-    expect(mockSendMessageViaIntegration).toHaveBeenCalledTimes(2);
-    expect(mockSendMessageViaIntegration).toHaveBeenCalledWith(
+    expect(mockSendMessageViaConnector).toHaveBeenCalledTimes(2);
+    expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: 'conv-1',
         organizationId: 'org-1',
-        integrationName: 'gmail',
+        connectorName: 'gmail',
         content: 'Hello there',
         text: 'Hello there',
         to: ['alice@example.com'],
         subject: 'panel.replySubjectPrefix:{"subject":"Original subject"}',
       }),
     );
-    expect(mockSendMessageViaIntegration).toHaveBeenCalledWith(
+    expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: 'conv-2',
         to: ['bob@example.com'],
@@ -213,7 +213,7 @@ describe('useBulkActions handleSendMessages', () => {
       await result.current.handleSendMessages('Hi');
     });
 
-    expect(mockSendMessageViaIntegration).toHaveBeenCalledWith(
+    expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
       expect.objectContaining({
         subject: 'panel.replySubjectPrefix:{"subject":"panel.defaultSubject"}',
       }),
@@ -236,8 +236,8 @@ describe('useBulkActions handleSendMessages', () => {
     });
 
     // Only the conversation with a usable email is dispatched.
-    expect(mockSendMessageViaIntegration).toHaveBeenCalledTimes(1);
-    expect(mockSendMessageViaIntegration).toHaveBeenCalledWith(
+    expect(mockSendMessageViaConnector).toHaveBeenCalledTimes(1);
+    expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: 'conv-1' }),
     );
 
@@ -266,7 +266,7 @@ describe('useBulkActions handleSendMessages', () => {
       await result.current.handleSendMessages('Hello');
     });
 
-    expect(mockSendMessageViaIntegration).not.toHaveBeenCalled();
+    expect(mockSendMessageViaConnector).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         description:
@@ -277,10 +277,10 @@ describe('useBulkActions handleSendMessages', () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it('tallies integration failures into the failed count', async () => {
-    mockSendMessageViaIntegration
+  it('tallies connector failures into the failed count', async () => {
+    mockSendMessageViaConnector
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('integration down'));
+      .mockRejectedValueOnce(new Error('connector down'));
     const conversations = [
       makeConversation('conv-1', 'alice@example.com'),
       makeConversation('conv-2', 'bob@example.com'),
@@ -314,7 +314,7 @@ describe('useBulkActions handleSendMessages', () => {
       await result.current.handleSendMessages('   ');
     });
 
-    expect(mockSendMessageViaIntegration).not.toHaveBeenCalled();
+    expect(mockSendMessageViaConnector).not.toHaveBeenCalled();
     expect(mockToast).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
   });
@@ -330,6 +330,6 @@ describe('useBulkActions handleSendMessages', () => {
       await result.current.handleSendMessages('Hello');
     });
 
-    expect(mockSendMessageViaIntegration).toHaveBeenCalledTimes(2);
+    expect(mockSendMessageViaConnector).toHaveBeenCalledTimes(2);
   });
 });

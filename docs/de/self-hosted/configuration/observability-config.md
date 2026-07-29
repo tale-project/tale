@@ -15,7 +15,7 @@ Jeder Container schreibt strukturierte JSON- oder Console-Logs nach stdout, vom 
 - Einzelner Host ohne journald — `docker compose logs -f <service>` für live tailing.
 - Aggregator (Loki, Vector, Fluent Bit) — richte den Docker-Logging-Driver über `daemon.json` dorthin.
 
-Tale bringt keinen Log-Shipper mit. Der Driver-Tausch ist der unterstützte Integrations-Punkt.
+Tale bringt keinen Log-Shipper mit. Der Driver-Tausch ist der unterstützte Connector-Punkt.
 
 ## Metriken
 

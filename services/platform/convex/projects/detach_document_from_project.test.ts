@@ -75,7 +75,7 @@ vi.mock('../events/emit', () => ({
 vi.mock('./schema', () => ({
   projectModeValidator: 'validator',
   projectKnowledgeModeValidator: 'validator',
-  projectIntegrationsModeValidator: 'validator',
+  projectConnectorsModeValidator: 'validator',
 }));
 
 type Handler = (

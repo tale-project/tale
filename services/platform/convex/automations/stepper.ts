@@ -23,8 +23,8 @@
  * attempt.
  *
  * The node behaviours are NOT reimplemented here. Templates, conditions and
- * transform bodies go through the engine's own evaluator; every integration
- * call goes through `integrations/execute_action`, the platform's single door
+ * transform bodies go through the engine's own evaluator; every connector
+ * call goes through `connectors/execute_action`, the platform's single door
  * to a connector (catalog, schema validation, credentials, host allowlist,
  * audit). What this module owns is the part the in-memory executor has no
  * concept of: order, persistence, suspension, hand-off and cancellation.
@@ -36,6 +36,7 @@
 
 import { v } from 'convex/values';
 
+import { findConnector } from '../../lib/connectors/catalog';
 import { refsOf, topoSort } from '../../lib/engine/core/execute/controlflow';
 import {
   cloneData,
@@ -57,7 +58,6 @@ import type {
   Automation,
 } from '../../lib/engine/core/types';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
-import { findIntegrationConnector } from '../../lib/integrations/catalog';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
@@ -206,7 +206,7 @@ export function setAutomationAgentHostFactory(
 function nodeEffect(nodeType: string): 'read' | 'write' | 'unknown' {
   const separator = nodeType.indexOf('.');
   if (separator <= 0 || separator === nodeType.length - 1) return 'unknown';
-  const connector = findIntegrationConnector(nodeType.slice(0, separator));
+  const connector = findConnector(nodeType.slice(0, separator));
   const action = connector?.actions.find(
     (candidate) => candidate.name === nodeType.slice(separator + 1),
   );
@@ -224,7 +224,7 @@ function nodeEffect(nodeType: string): 'read' | 'write' | 'unknown' {
 function nodeIsPlatformInternal(nodeType: string): boolean {
   const separator = nodeType.indexOf('.');
   if (separator <= 0) return false;
-  const connector = findIntegrationConnector(nodeType.slice(0, separator));
+  const connector = findConnector(nodeType.slice(0, separator));
   return (
     connector?.auth.some((method) => method.method === 'platform') === true
   );
@@ -384,7 +384,7 @@ interface BodyArgs {
 /**
  * Run one node once, for one scope. Every branch delegates: transform code and
  * templates to the engine's evaluator, connector actions to the platform's
- * integration door, a subautomation to a nested walk.
+ * connector door, a subautomation to a nested walk.
  */
 async function runNodeBody(args: BodyArgs): Promise<unknown> {
   const { run, node, extra, outputs, input, record, trace, effects } = args;
@@ -421,7 +421,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       ...(system !== undefined && { system }),
     };
     if (record) trace.input = llmInput;
-    effects.push({ node: node.id, integration: 'llm', input: llmInput });
+    effects.push({ node: node.id, connector: 'llm', input: llmInput });
     if (run.mode === 'live') {
       const reply = await run.llm({
         model,
@@ -468,7 +468,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       ...(files !== undefined && { files }),
     };
     if (record) trace.input = agentInput;
-    effects.push({ node: node.id, integration: 'agent', input: agentInput });
+    effects.push({ node: node.id, connector: 'agent', input: agentInput });
     if (run.mode === 'live') {
       // Unreachable: stepNode routes live agent nodes to stepAgentNode before
       // any body runs. Kept as a guard so a future path cannot silently mock
@@ -524,7 +524,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     for (const effect of subEffects) {
       effects.push({
         node: `${node.id}/${effect.node}`,
-        integration: effect.integration,
+        connector: effect.connector,
         input: effect.input,
       });
     }
@@ -537,7 +537,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   }
 
   // Everything else is a connector action. It is dispatched through the
-  // platform's one integration door, which owns the catalog, the input schema,
+  // platform's one connector door, which owns the catalog, the input schema,
   // credentials, the host allowlist and the audit record — including in `mock`
   // mode, where the connector's deterministic mock body runs and nothing
   // reaches the network.
@@ -553,7 +553,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   if (record) trace.input = resolved;
   const index = typeof extra.index === 'number' ? extra.index : 0;
   const result = await run.ctx.runAction(
-    internal.integrations.execute_action.runIntegrationAction,
+    internal.connectors.execute_action.runConnectorAction,
     {
       organizationId: run.organizationId,
       connector,
@@ -571,7 +571,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     throw new Error(result.message);
   }
   if (result.effects === 'write') {
-    effects.push({ node: node.id, integration: node.type, input: resolved });
+    effects.push({ node: node.id, connector: node.type, input: resolved });
   }
   return result.output;
 }
@@ -1044,7 +1044,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
   // Parked: the resolved request recorded at kick time is this entry's trace
   // input and effect, whatever happens next — the turn ran either way.
   trace.input = parked.input;
-  effects.push({ node: node.id, integration: 'agent', input: parked.input });
+  effects.push({ node: node.id, connector: 'agent', input: parked.input });
 
   // The settle may have landed after this turn loaded its checkpoints, so a
   // missing in-memory result polls fresh once before parking again.

@@ -125,7 +125,7 @@ managed-mcp-headless-bridge:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /user/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}}'
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}}'
   stdinMode: close
 managed-mcp-cdp:
   argv:
@@ -149,7 +149,7 @@ managed-mcp-bridge-only:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /user/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}}'
+    test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}}'
   stdinMode: close
 managed-vision:
   argv:
@@ -189,7 +189,7 @@ managed-kitchen-sink:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","config":{"agents":{"defaults":{"workspace":"/user/workspace","skipBootstrap":true,"model":{"primary":"tale/claude-opus-4-6"}}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[{"id":"claude-opus-4-6","name":"Tale
     gateway
-    model","reasoning":false,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000}]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}},"system_prompt":"Golden
+    model","reasoning":false,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000}]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}},"system_prompt":"Golden
     instructions: follow the org runbook."}'
   stdinMode: close
 byo-baseline:

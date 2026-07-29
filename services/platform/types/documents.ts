@@ -20,7 +20,7 @@ export interface DocumentItem {
   extension?: string;
   folderId?: string;
   /**
-   * Source provider — integration slug for integration-sourced docs
+   * Source provider — connector slug for connector-sourced docs
    * (`onedrive`, `sharepoint`, `google_drive`, …) or reserved values
    * `upload` (user upload) / `agent` (AI-created).
    */

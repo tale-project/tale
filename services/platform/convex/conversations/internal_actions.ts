@@ -5,13 +5,13 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 
-// Conversation email send/receive via integrations.
-// `../integrations/{build_test_secrets,guards/is_imap_smtp_integration,
+// Conversation email send/receive via connectors.
+// `../connectors/{build_test_secrets,guards/is_imap_smtp_connector,
 // imap_smtp_config,should_save_sent_to_imap}` and
 // `../workflow_engine/action_defs/conversation/helpers/normalize_external_message_id`
-// moved with the automations/integrations rewrite.
+// moved with the automations/connectors rewrite.
 //
-// `sendMessageViaIntegrationAction` is the send path — offline, marking the
+// `sendMessageViaConnectorAction` is the send path — offline, marking the
 // message `'failed'` with an explanatory error the same way the real
 // implementation's own catch block already reported a send failure (this
 // action never threw; it always resolved `null` and recorded the outcome via
@@ -25,11 +25,11 @@ import { internalAction } from '../_generated/server';
 // neither is "send", both are safe to skip silently per the stub policy for
 // fire-and-forget paths that must not break their caller.
 
-export const sendMessageViaIntegrationAction = internalAction({
+export const sendMessageViaConnectorAction = internalAction({
   args: {
     messageId: v.id('conversationMessages'),
     organizationId: v.string(),
-    integrationName: v.string(),
+    connectorName: v.string(),
     to: v.array(v.string()),
     cc: v.optional(v.array(v.string())),
     subject: v.string(),
@@ -54,7 +54,7 @@ export const sendMessageViaIntegrationAction = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     console.debug(
-      `[sendMessageViaIntegrationAction] Sending via integration is offline while the platform AI backend is rewritten; marking message ${args.messageId} failed`,
+      `[sendMessageViaConnectorAction] Sending via connector is offline while the platform AI backend is rewritten; marking message ${args.messageId} failed`,
     );
     await ctx.runMutation(
       internal.conversations.internal_mutations.updateConversationMessage,
@@ -63,7 +63,7 @@ export const sendMessageViaIntegrationAction = internalAction({
         deliveryState: 'failed',
         metadata: {
           error:
-            'Sending via integration is offline while the platform AI backend is rewritten.',
+            'Sending via connector is offline while the platform AI backend is rewritten.',
         },
       },
     );
@@ -80,7 +80,7 @@ export const checkMessageDeliveryAction = internalAction({
   args: {
     messageId: v.id('conversationMessages'),
     organizationId: v.string(),
-    integrationName: v.string(),
+    connectorName: v.string(),
     internetMessageId: v.string(),
     retryCount: v.optional(v.number()),
   },
@@ -102,13 +102,13 @@ export const downloadAttachmentsAction = internalAction({
   args: {
     messageId: v.id('conversationMessages'),
     organizationId: v.string(),
-    integrationName: v.string(),
+    connectorName: v.string(),
     externalMessageId: v.string(),
   },
   returns: v.null(),
   handler: async (_ctx, args): Promise<null> => {
     console.debug(
-      `[downloadAttachmentsAction] Attachment download via integration is offline while the platform AI backend is rewritten; skipping message ${args.messageId}`,
+      `[downloadAttachmentsAction] Attachment download via connector is offline while the platform AI backend is rewritten; skipping message ${args.messageId}`,
     );
     return null;
   },

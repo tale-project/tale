@@ -96,7 +96,7 @@ export function SettingsRail({
 
     // Order is the designer's reading sequence: who we are (organization,
     // teams, members), then what the workspace runs on (providers,
-    // integrations), then the rest.
+    // connectors), then the rest.
     const organization: RailItem[] = [
       {
         kind: 'leaf',
@@ -126,8 +126,8 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
-        labelKey: 'integrations',
-        path: 'integrations',
+        labelKey: 'connectors',
+        path: 'connectors',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
       },

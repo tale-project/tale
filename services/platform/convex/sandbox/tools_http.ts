@@ -1,11 +1,11 @@
 /**
  * The in-sandbox WORKSPACE-TOOL dispatch surface —
  * `POST /api/tools/{execute,status}` — the platform end of the baked
- * `tale-integrations-mcp` bridge's `workspace_tool`/`workspace_status` face.
- * The first-party sibling of `integrations_http.ts`.
+ * `tale-connectors-mcp` bridge's `workspace_tool`/`workspace_status` face.
+ * The first-party sibling of `connectors_http.ts`.
  *
  * Contract (fixed by the shim shipped in the sandbox image — it derives this
- * base URL from the integrations one, `…/api/integrations` → `…/api/tools`, so
+ * base URL from the connectors one, `…/api/connectors` → `…/api/tools`, so
  * no image rebuild and no second env var):
  *   execute: body `{tool, args}` → JSON status body
  *   status:  body `{}`           → JSON listing body

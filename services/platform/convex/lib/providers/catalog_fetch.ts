@@ -1,17 +1,17 @@
 'use node';
 
 /**
- * Model-catalog resolution per provider connector — the one place that turns
- * a connector's declared `catalog.source` into normalized `ModelCatalogEntry`
+ * Model-catalog resolution per provider — the one place that turns
+ * a provider's declared `catalog.source` into normalized `ModelCatalogEntry`
  * lists:
  *
  *  - `static`          — the shipped `configs/platform/system/models/<name>.yml`
  *                        (mtime-cached by the system-config loader).
  *  - `openrouter-api`  — OpenRouter's public `/api/v1/models`.
- *  - `models-endpoint` — the connector's own OpenAI-compatible `/models`
+ *  - `models-endpoint` — the provider's own OpenAI-compatible `/models`
  *                        listing (e.g. the Vercel AI Gateway).
  *
- * Live sources are fetched at most once a day per connector (in-process
+ * Live sources are fetched at most once a day per provider (in-process
  * cache); an explicit user-triggered refresh bypasses the window. There is no
  * background merge into org config — the catalog is a read-through cache, and
  * the fetched facts never overwrite anything an operator wrote.
@@ -28,7 +28,7 @@
 import { normalizeCatalogPayload } from '../../../lib/shared/providers/catalog_normalize';
 import type {
   ModelCatalogEntry,
-  ProviderConnector,
+  ProviderDefinition,
 } from '../../../lib/shared/schemas/providers';
 import { safeFetch, SafeFetchError } from '../http/safe_fetch';
 import {
@@ -53,7 +53,7 @@ interface CachedCatalog {
   entries: ModelCatalogEntry[];
 }
 
-/** Keyed by connector name; lives for the Node action runtime's lifetime. */
+/** Keyed by provider name; lives for the Node action runtime's lifetime. */
 const liveCatalogCache = new Map<string, CachedCatalog>();
 
 /** Test seam: drop every cached live catalog. */
@@ -147,14 +147,14 @@ function mergeWithDefaults(
 }
 
 async function cachedLiveCatalog(
-  connectorName: string,
+  providerName: string,
   url: string,
   options: CatalogFetchOptions,
 ): Promise<readonly ModelCatalogEntry[]> {
   // A live source may ship a curated default set (`models/<name>.yml`) —
   // the offline floor and the guaranteed-flagships overlay.
-  const defaults = loadStaticCatalogs(options).get(connectorName);
-  const cached = liveCatalogCache.get(connectorName);
+  const defaults = loadStaticCatalogs(options).get(providerName);
+  const cached = liveCatalogCache.get(providerName);
   const fresh =
     cached !== undefined && Date.now() - cached.fetchedAt < CATALOG_TTL_MS;
   if (fresh && !options.forceRefresh) {
@@ -164,22 +164,22 @@ async function cachedLiveCatalog(
   try {
     const entries = await fetchLiveCatalog(
       url,
-      connectorName,
+      providerName,
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     );
-    liveCatalogCache.set(connectorName, { fetchedAt: Date.now(), entries });
+    liveCatalogCache.set(providerName, { fetchedAt: Date.now(), entries });
     return mergeWithDefaults(entries, defaults);
   } catch (err) {
     if (cached !== undefined) {
       console.warn(
-        `[catalog] ${connectorName}: refresh failed, serving the previous catalog (${cached.entries.length} models):`,
+        `[catalog] ${providerName}: refresh failed, serving the previous catalog (${cached.entries.length} models):`,
         err,
       );
       return mergeWithDefaults(cached.entries, defaults);
     }
     if (defaults !== undefined && defaults.length > 0) {
       console.warn(
-        `[catalog] ${connectorName}: fetch failed with nothing cached; serving the shipped defaults (${defaults.length} models):`,
+        `[catalog] ${providerName}: fetch failed with nothing cached; serving the shipped defaults (${defaults.length} models):`,
         err,
       );
       return defaults;
@@ -194,21 +194,21 @@ function modelsEndpointUrl(baseUrl: string): string {
 }
 
 /**
- * The catalog for one connector, per its declared source. The exhaustive
+ * The catalog for one provider, per its declared source. The exhaustive
  * switch is the case list: static file, OpenRouter API, own models endpoint,
  * or no shippable catalog at all.
  */
-export async function getConnectorCatalog(
-  connector: ProviderConnector,
+export async function getProviderCatalog(
+  provider: ProviderDefinition,
   options: CatalogFetchOptions = {},
 ): Promise<readonly ModelCatalogEntry[]> {
-  const source = connector.catalog.source;
+  const source = provider.catalog.source;
   switch (source) {
     case 'static': {
-      const catalog = loadStaticCatalogs(options).get(connector.name);
+      const catalog = loadStaticCatalogs(options).get(provider.name);
       if (!catalog) {
         console.warn(
-          `[catalog] connector "${connector.name}" declares a static catalog but ships no models/${connector.name}.yml`,
+          `[catalog] provider "${provider.name}" declares a static catalog but ships no models/${provider.name}.yml`,
         );
         return [];
       }
@@ -216,21 +216,21 @@ export async function getConnectorCatalog(
     }
     case 'openrouter-api':
       return await cachedLiveCatalog(
-        connector.name,
+        provider.name,
         OPENROUTER_CATALOG_URL,
         options,
       );
     case 'models-endpoint': {
       // The schema refuses a models-endpoint catalog without a fixed
       // baseUrl; this guard keeps the invariant visible at the use site.
-      if (connector.baseUrl === undefined) {
+      if (provider.baseUrl === undefined) {
         throw new Error(
-          `[catalog] connector "${connector.name}" declares a models-endpoint catalog but no baseUrl`,
+          `[catalog] provider "${provider.name}" declares a models-endpoint catalog but no baseUrl`,
         );
       }
       return await cachedLiveCatalog(
-        connector.name,
-        modelsEndpointUrl(connector.baseUrl),
+        provider.name,
+        modelsEndpointUrl(provider.baseUrl),
         options,
       );
     }

@@ -37,7 +37,7 @@ describe('reference roots are re-rooted onto the engine scope', () => {
     {
       name: 'a connector result loses the step-runner envelope and is flagged',
       source: 'steps.list_issues.output.data.result.data',
-      scope: scope({ steps: { list_issues: 'integration' } }),
+      scope: scope({ steps: { list_issues: 'connector' } }),
       text: 'nodes.list_issues.output',
       issues: [/connector actions now return their own shape/],
     },
@@ -87,7 +87,7 @@ describe('reference roots are re-rooted onto the engine scope', () => {
       name: 'a sibling iterating the same list is read by index',
       source: 'steps.fetch_diff.output.data.result.data',
       scope: scope({
-        steps: { fetch_diff: 'integration' },
+        steps: { fetch_diff: 'connector' },
         iterating: true,
         perItemOutputs: new Set(['fetch_diff']),
       }),

@@ -86,7 +86,7 @@ Des parcours indexés par rôle, de « je veux faire X » au résultat qui fon
 
 <Card title="Développement" icon="terminal" href="/fr/develop/overview">
 
-REST API, webhooks, SDK d’intégration, workflows pour les contributeurs.
+REST API, webhooks, SDK d’connector, workflows pour les contributeurs.
 
 </Card>
 

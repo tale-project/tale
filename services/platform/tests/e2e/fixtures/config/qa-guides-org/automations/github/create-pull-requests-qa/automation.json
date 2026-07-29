@@ -124,6 +124,6 @@
     "creator": "github/create-pull-requests-qa/pr-creator"
   },
   "requires": {
-    "integrations": ["github"]
+    "connectors": ["github"]
   }
 }

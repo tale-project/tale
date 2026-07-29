@@ -1,6 +1,6 @@
 ---
 title: Outils d’agent
-description: Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les intégrations et automatisations comme capacités.
+description: Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les connectors et automatisations comme capacités.
 ---
 
 Les outils sont ce qu’un agent peut faire au-delà de produire du texte. Le modèle choisit quel outil appeler dans la liste que l’auteur de l’agent a accordée ; Tale exécute l’outil, rend le résultat, et le modèle continue. L’onglet **Outils** de l’agent est cette liste — un catalogue interrogeable d’interrupteurs par outil, groupés en cartes de catégorie.
@@ -27,9 +27,9 @@ Un agent lance de lui-même un **worker** ciblé pour une sous-tâche — ce n�
 
 La recherche web est dans le catalogue comme le reste. Accorde-la et l’agent peut chercher quand il le juge bon ; laisse-la éteinte et il ne peut pas chercher du tout. Il n’y a aucun mode distinct à régler et aucune injection automatique de résultats dans une réponse — l’agent va chercher comme il va chercher n’importe quel autre outil. Ce qu’il parcourt, c’est le matériel que ton organisation a ajouté, pas un crawl ouvert ; gère donc les sources sous [Sites web](/fr/platform/knowledge/crawling).
 
-## Les intégrations et les automatisations sont aussi des capacités
+## Les connectors et les automatisations sont aussi des capacités
 
-Une intégration connectée et une automatisation publiée atteignent l’agent par cette même liste. Il n’y a pas de seconde surface de liaison en dessous : nomme la capacité dans la liste d’autorisation de l’agent, et il peut l’appeler sans avoir à citer l’intégration ou l’identifiant de l’automatisation. Les [serveurs MCP](/fr/platform/integrations/mcp-servers) connectés arrivent par le même chemin, à travers les intégrations de l’organisation.
+Une connector connectée et une automatisation publiée atteignent l’agent par cette même liste. Il n’y a pas de seconde surface de liaison en dessous : nomme la capacité dans la liste d’autorisation de l’agent, et il peut l’appeler sans avoir à citer l’connector ou l’identifiant de l’automatisation. Les [serveurs MCP](/fr/platform/connectors/mcp-servers) connectés arrivent par le même chemin, à travers les connectors de l’organisation.
 
 Une automatisation que seul un événement peut lancer est listée mais pas appelable. L’agent voit qu’elle existe et on lui dit clairement qu’elle tourne quand son événement se déclenche, pas sur demande — un agent qui ne voit pas les automatisations de l’organisation invente des détours au lieu de pointer sur celle qui fait déjà le travail.
 

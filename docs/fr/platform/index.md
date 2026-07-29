@@ -32,7 +32,7 @@ Instructions, connaissances, outils, modèle — plus compétences, workers, ver
 
 <Card title="Automatisations" icon="layout-grid" href="/fr/platform/automations/concepts">
 
-Des paquets installables qui regroupent intégrations, agents, compétences et un workflow — le catalogue, l’assistant d’installation, l’éditeur et les déclencheurs derrière chaque automatisation, et l’historique des runs qu’elle laisse.
+Des paquets installables qui regroupent connectors, agents, compétences et un workflow — le catalogue, l’assistant d’installation, l’éditeur et les déclencheurs derrière chaque automatisation, et l’historique des runs qu’elle laisse.
 
 </Card>
 
@@ -60,7 +60,7 @@ Le catalogue de modèles derrière chaque sélecteur — étiquettes de capacit�
 
 </Card>
 
-<Card title="Intégrations" icon="plug" href="/fr/platform/integrations/overview">
+<Card title="Connectors" icon="plug" href="/fr/platform/connectors/overview">
 
 Appariements SaaS tiers et serveurs MCP.
 
@@ -94,7 +94,7 @@ Clés API, outils personnalisés, webhooks, serveurs MCP — brancher Tale à du
 
 <Card title="Administration" icon="shield" href="/fr/platform/admin/overview">
 
-Paramètres de l’organisation, fournisseurs, branding, intégrations et le sous-arbre gouvernance.
+Paramètres de l’organisation, fournisseurs, branding, connectors et le sous-arbre gouvernance.
 
 </Card>
 

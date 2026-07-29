@@ -73,6 +73,24 @@ describe('CatalogToolbar', () => {
     expect(onChange).toHaveBeenCalled();
   });
 
+  it('keeps facet filters with the search and the primary action apart from them', () => {
+    render(
+      <CatalogToolbar
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search…' }}
+        filters={<button type="button">Filter by tag</button>}
+        action={<button type="button">Add</button>}
+      />,
+    );
+    const search = screen.getByPlaceholderText('Search…');
+    const filter = screen.getByRole('button', { name: 'Filter by tag' });
+    const action = screen.getByRole('button', { name: 'Add' });
+    // The facet narrows the grid like the search does, so they share one
+    // cluster; the primary verb must sit outside it.
+    const cluster = filter.parentElement;
+    expect(cluster).toContainElement(search);
+    expect(cluster).not.toContainElement(action);
+  });
+
   it('disables the search input when asked', () => {
     render(
       <CatalogToolbar

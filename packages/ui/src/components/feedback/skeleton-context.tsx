@@ -47,9 +47,10 @@ interface SkeletonizeProps {
  * (individual masked leaves are `aria-hidden`), so screen readers announce
  * "Loading" once, not per leaf.
  *
- * For data that arrives via `useSuspenseConvexQuery`, prefer letting a
- * `<LoadingBoundary>` show a skeletonized fallback. Use `<Skeletonize>`
- * inline to mask a section whose data loads via a non-suspending read.
+ * For data that arrives via `useSuspenseConvexQuery`, prefer letting the
+ * enclosing Suspense fallback render the skeletonized tree. Use
+ * `<Skeletonize>` inline to mask a section whose data loads via a
+ * non-suspending read.
  */
 export function Skeletonize({
   loading,

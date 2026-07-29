@@ -2,7 +2,7 @@
  * The real backends behind two capability kinds — the ones that MUST NOT get a
  * second path.
  *
- * An integration action reaches a vendor through `executeIntegrationAction`
+ * An connector action reaches a vendor through `executeConnectorAction`
  * and nothing else: that is where input-schema enforcement, the mediated live
  * host, approval gating, and the audit trail live, so a chat tool that called
  * a connector directly would bypass all four. The caller mode is `user`,
@@ -17,28 +17,28 @@
  * anywhere; these adapters pull the node-side dispatcher and engine.
  */
 
+import { executeConnectorAction } from '../connectors/dispatcher';
+import type { ConnectorDispatchContext } from '../connectors/dispatcher';
+import { ConnectorError } from '../connectors/errors';
 import { dispatch, type DispatchStore } from '../engine/api/dispatch';
-import { executeIntegrationAction } from '../integrations/dispatcher';
-import type { IntegrationDispatchContext } from '../integrations/dispatcher';
-import { IntegrationError } from '../integrations/errors';
 import type {
   AutomationInvocation,
   BackendResult,
-  IntegrationInvocation,
+  ConnectorInvocation,
 } from './capabilities';
 
-export interface IntegrationBackendOptions {
+export interface ConnectorBackendOptions {
   /** Everything the dispatcher needs except the organization, which arrives
    * with each invocation. */
-  readonly ctx: Omit<IntegrationDispatchContext, 'organizationId'>;
+  readonly ctx: Omit<ConnectorDispatchContext, 'organizationId'>;
   /** Swappable for tests only; production always uses the one dispatcher. */
-  readonly execute?: typeof executeIntegrationAction;
+  readonly execute?: typeof executeConnectorAction;
 }
 
-export function createIntegrationBackend(
-  options: IntegrationBackendOptions,
-): (request: IntegrationInvocation) => Promise<BackendResult> {
-  const execute = options.execute ?? executeIntegrationAction;
+export function createConnectorBackend(
+  options: ConnectorBackendOptions,
+): (request: ConnectorInvocation) => Promise<BackendResult> {
+  const execute = options.execute ?? executeConnectorAction;
   return async (request) => {
     try {
       const result = await execute({
@@ -58,7 +58,7 @@ export function createIntegrationBackend(
       }
       return { status: 'ok', output: result.output };
     } catch (error) {
-      if (error instanceof IntegrationError) {
+      if (error instanceof ConnectorError) {
         return { status: 'refused', reason: error.message, hint: error.hint };
       }
       throw error;
@@ -70,7 +70,7 @@ export interface AutomationsBackendOptions {
   /** The org-scoped automations store — the same one the automations host
    * uses, so a chat-started run is indistinguishable from any other. */
   readonly store: DispatchStore;
-  /** Live integration calls. A chat-triggered run is a real run, so hosts
+  /** Live connector calls. A chat-triggered run is a real run, so hosts
    * pass true; a test loop does not. */
   readonly allowLive?: boolean;
 }

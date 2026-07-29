@@ -296,15 +296,15 @@ managed-mcp-headless-bridge:
     - -c
     - mcp_servers.playwright.args=["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]
     - -c
-    - mcp_servers.integrations.command="tale-integrations-mcp"
+    - mcp_servers.connectors.command="tale-connectors-mcp"
     - -c
-    - mcp_servers.integrations.env_vars=["TALE_INTEGRATIONS_URL","TALE_INTEGRATIONS_TOKEN"]
+    - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
     - '-'
   env:
     CODEX_HOME: /user/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-    TALE_INTEGRATIONS_TOKEN: golden-session-virtual-key
-    TALE_INTEGRATIONS_URL: http://platform.internal/bridge
+    TALE_CONNECTORS_TOKEN: golden-session-virtual-key
+    TALE_CONNECTORS_URL: http://platform.internal/bridge
   cwd: /user/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
@@ -364,15 +364,15 @@ managed-mcp-bridge-only:
     - -c
     - model_providers.tale.wire_api="responses"
     - -c
-    - mcp_servers.integrations.command="tale-integrations-mcp"
+    - mcp_servers.connectors.command="tale-connectors-mcp"
     - -c
-    - mcp_servers.integrations.env_vars=["TALE_INTEGRATIONS_URL","TALE_INTEGRATIONS_TOKEN"]
+    - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
     - '-'
   env:
     CODEX_HOME: /user/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-    TALE_INTEGRATIONS_TOKEN: golden-session-virtual-key
-    TALE_INTEGRATIONS_URL: http://platform.internal/bridge
+    TALE_CONNECTORS_TOKEN: golden-session-virtual-key
+    TALE_CONNECTORS_URL: http://platform.internal/bridge
   cwd: /user/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
@@ -469,17 +469,17 @@ managed-kitchen-sink:
     - -c
     - mcp_servers.playwright.args=["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]
     - -c
-    - mcp_servers.integrations.command="tale-integrations-mcp"
+    - mcp_servers.connectors.command="tale-connectors-mcp"
     - -c
-    - mcp_servers.integrations.env_vars=["TALE_INTEGRATIONS_URL","TALE_INTEGRATIONS_TOKEN"]
+    - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
     - -m
     - claude-opus-4-6
     - '-'
   env:
     CODEX_HOME: /user/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-    TALE_INTEGRATIONS_TOKEN: golden-session-virtual-key
-    TALE_INTEGRATIONS_URL: http://platform.internal/bridge
+    TALE_CONNECTORS_TOKEN: golden-session-virtual-key
+    TALE_CONNECTORS_URL: http://platform.internal/bridge
   cwd: /user/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close

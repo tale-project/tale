@@ -50,11 +50,11 @@ When a manual case earns automation, bring it here under these rules.
 
 The `lib/mocks` gateway (booted by `playwright.config.ts`, port 4141) stands in
 for every third-party API offline: a canned chat reply plus Prism-mocked AI
-endpoints and integration APIs. Keyword triggers in a message exercise specific
+endpoints and connector APIs. Keyword triggers in a message exercise specific
 chat paths — see [`lib/mocks` canned content](../../../packages/mocks/src/overrides/canned.ts):
-`e2e:reasoning`, `e2e:nextsteps`, `e2e:humaninput`, `e2e:error`. Integration
-specs (`specs/integrations.spec.ts`) drive the real connector → gateway path via
-`TALE_MOCK_INTEGRATIONS_BASE`.
+`e2e:reasoning`, `e2e:nextsteps`, `e2e:humaninput`, `e2e:error`. Connector
+specs (`specs/connectors.spec.ts`) drive the real connector → gateway path via
+`TALE_MOCK_CONNECTORS_BASE`.
 
 ## Adding a flow
 

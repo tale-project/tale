@@ -7,7 +7,7 @@
 // policy, credential env keys, model-id dialect, prompt transport,
 // capabilities, pinned CLI version, AND the full exec construction facts —
 // lives in `configs/platform/system/harnesses/<slug>/harness.yml` and validates
-// through `harnessConnectorSchema`. One generic interpreter
+// through `harnessDefinitionSchema`. One generic interpreter
 // (`exec-builder.ts`) turns those facts plus a `HarnessRunSpec` into a
 // `HarnessExec`; the YAML's `parser` field keys the stream-parser family
 // (`parsers/`), the one genuinely stateful part that stays code. The
@@ -108,7 +108,7 @@ export interface HarnessMcpConfig {
   readonly browser?: 'headless' | 'cdp';
   /**
    * Platform base URL of the capability-dispatch bridge. When set on a
-   * managed run, the glue mounts the in-image `tale-integrations-mcp` server,
+   * managed run, the glue mounts the in-image `tale-connectors-mcp` server,
    * authenticated with the session key — credentials stay server-side; the
    * bridge only relays dispatch requests. Managed-only: byo runs carry no
    * session key, so the bridge is not mounted.

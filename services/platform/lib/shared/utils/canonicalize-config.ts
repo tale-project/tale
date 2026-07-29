@@ -97,7 +97,7 @@ export function sortStringArrayFields<T extends object>(
  */
 const AGENT_SET_ARRAY_FIELDS = [
   'toolNames',
-  'integrationBindings',
+  'connectorBindings',
   'workflows',
   'skillBindings',
 ] as const;
@@ -126,7 +126,7 @@ export function canonicalizeAgentConfig<T extends object>(config: T): T {
 
 /**
  * Canonicalize a workflow config: sort `steps` by `stepSlug` and
- * `requires.integrations` by `name` (with each integration's `operations`
+ * `requires.connectors` by `name` (with each connector's `operations`
  * sorted). Execution order is driven by each step's `order`/`nextSteps`, not
  * its array index, so sorting the steps array is safe and yields stable
  * diffs. Pure — returns a new object; absent fields are left as-is.
@@ -145,8 +145,8 @@ export function canonicalizeWorkflowConfig<T extends object>(config: T): T {
   }
 
   const requires = next.requires;
-  if (isPlainObject(requires) && Array.isArray(requires.integrations)) {
-    const integrations = requires.integrations.map((dep) => {
+  if (isPlainObject(requires) && Array.isArray(requires.connectors)) {
+    const connectors = requires.connectors.map((dep) => {
       if (isPlainObject(dep) && Array.isArray(dep.operations)) {
         return {
           ...dep,
@@ -157,12 +157,12 @@ export function canonicalizeWorkflowConfig<T extends object>(config: T): T {
       }
       return dep;
     });
-    integrations.sort((a, b) => {
+    connectors.sort((a, b) => {
       const aName = isPlainObject(a) ? String(a.name ?? '') : '';
       const bName = isPlainObject(b) ? String(b.name ?? '') : '';
       return byCodeUnit(aName, bName);
     });
-    next.requires = { ...requires, integrations };
+    next.requires = { ...requires, connectors };
   }
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same shape, sorted fields

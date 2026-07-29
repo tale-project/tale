@@ -3,7 +3,7 @@ title: WebDAV API
 description: Protocol reference for Tale's WebDAV server — URL scheme, authentication, supported methods, property list, lock semantics, and limits.
 ---
 
-Tale exposes the document store under `/dav/<orgSlug>/` as a read-write WebDAV Class 2 endpoint (RFC 4918). This page is the protocol reference — the wire-level surface a client implementer or a third-party tool needs to integrate. For the end-user setup guide and per-client instructions, see [Platform > Integrations > WebDAV](/platform/integrations/webdav).
+Tale exposes the document store under `/dav/<orgSlug>/` as a read-write WebDAV Class 2 endpoint (RFC 4918). This page is the protocol reference — the wire-level surface a client implementer or a third-party tool needs to integrate. For the end-user setup guide and per-client instructions, see [Platform > Connectors > WebDAV](/platform/connectors/webdav).
 
 ## URL scheme
 

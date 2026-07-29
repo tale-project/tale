@@ -89,8 +89,8 @@ operator:
     repair: Reparatur
 accessDenied:
   title: Zugriff verweigert
-  integrations: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
-    Integrationseinstellungen zuzugreifen.
+  connectors: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
+    Connector-Einstellungen zuzugreifen.
   apiKeys:
     Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu
     verwalten.
@@ -178,7 +178,7 @@ analytics:
       enthält. Verringere den Zeitraum für vollständige Daten.
     activeUsersTooltip: Benutzer, die in diesem Zeitraum KI-Anfragen gestellt haben.
     directApi: Direkter API-Aufruf
-    integration: Integration
+    connector: Connector
     transcription: Transkription
     tts: Sprachausgabe
     granularity:
@@ -238,7 +238,7 @@ analytics:
       title: Noch keine Modellnutzung
       description:
         Für den ausgewählten Zeitraum wurden keine LLM-Aufrufe erfasst.
-        Integrations- und Transkriptionsnutzung wird unter Top-Assistenten
+        Connector- und Transkriptionsnutzung wird unter Top-Assistenten
         angezeigt.
     emptyVoiceModels:
       title: Noch keine Sprachnutzung
@@ -657,7 +657,7 @@ automations:
     title: Neue Automatisierung
     description:
       Beschreibe, was die Automatisierung tun soll. Ein KI-Builder baut sie
-      gegen Mock-Integrationen und speichert das Ergebnis hier als Entwurf —
+      gegen Mock-Connectors und speichert das Ergebnis hier als Entwurf —
       live läuft nichts, bevor du eine Version live schaltest.
     goalLabel: Ziel
     goalPlaceholder:
@@ -706,7 +706,7 @@ automations:
     runLiveNeedsDeploy: Schalte zuerst eine Version live — ein Live-Lauf führt
       die Version aus, die live ist.
     runLiveTitle: Live ausführen?
-    runLiveBody: Ein Live-Lauf ruft echte Integrationen im Namen der
+    runLiveBody: Ein Live-Lauf ruft echte Connectors im Namen der
       Organisation auf — Mails gehen raus, Daten ändern sich. Die Live-Version
       läuft einmal, jetzt.
   trigger:
@@ -1296,7 +1296,7 @@ chat:
     sectionConnectors: Connectors
     emptySkills: Noch keine Skills in dieser Organisation.
     emptyConnectors: Noch keine Connectors aktiviert — füge einen unter
-      Einstellungen → Integrationen hinzu.
+      Einstellungen → Connectors hinzu.
   generation:
     regionLabel: Status der Antwort
     queued: In der Warteschlange — startet gleich
@@ -1719,7 +1719,7 @@ conversations:
     fromDomainHint: Beliebige Adresse unter {domain}
     fromLocalPlaceholder: support
     from: 'Absender: {from}'
-    noEmailIntegration: Verbinde eine E-Mail-Integration, um E-Mails zu senden.
+    noEmailConnector: Verbinde einen E-Mail-Connector, um E-Mails zu senden.
     subject: Betreff
     subjectPlaceholder: Worum geht es?
     assignLabel: Zuständig
@@ -2414,7 +2414,7 @@ emptyStates:
   apiKeys:
     title: Noch keine API-Schlüssel
     description:
-      Erstelle einen API-Schlüssel, um externe Integrationen via REST API
+      Erstelle einen API-Schlüssel, um externe Connectors via REST API
       zu ermöglichen
 governance:
   title: Richtlinien
@@ -2647,8 +2647,7 @@ governance:
       description: 'Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten.'
     externalConversations:
       title: Externe Konversationen
-      description:
-        Top-Level-Kontaktkanal-Posteingang (E-Mail/Chat-Integrationen).
+      description: Top-Level-Kontaktkanal-Posteingang (E-Mail/Chat-Connectors).
         Kaskadiert zu Nachrichteninhalten.
     chatFilterEvents:
       title: Chat-Filter-Ereignisse
@@ -3996,7 +3995,7 @@ humanInputRequest:
   todoItemAriaLabel: '{label} Eintrag {n}'
   todoRemoveItem: Eintrag {n} entfernen
   todoAddItem: Eintrag hinzufügen
-integrationApproval:
+connectorApproval:
   approve: Genehmigen
   reject: Ablehnen
   executedSuccessfully: Ausgeführt
@@ -4184,12 +4183,12 @@ metadata:
   agents:
     title: Agenten
     description: KI-Agents für den Kontaktsupport erstellen und verwalten.
-  integrations:
-    title: Integrationen
+  connectors:
+    title: Connectors
     description: Drittanbieter-Dienste verbinden.
   providers:
     title: KI-Anbieter
-    description: Anbieter-Connectoren, Zugangsdaten und Modellkataloge.
+    description: Anbieter-Connectors, Zugangsdaten und Modellkataloge.
   logs:
     title: Protokolle
     description: Systemprotokolle und Aktivitäten anzeigen.
@@ -4243,7 +4242,7 @@ metadata:
     description: Automatisierungstrigger, Zeitpläne und Webhooks verwalten.
   apiKeys:
     title: API-Schlüssel
-    description: API-Schlüssel für Integrationen erstellen und verwalten.
+    description: API-Schlüssel für Connectors erstellen und verwalten.
   dataResidency:
     title: Datenresidenz
     description: Wo deine Daten gespeichert und verarbeitet werden.
@@ -4287,7 +4286,7 @@ navigation:
   organization: Organisation
   teams: Teams
   members: Mitglieder
-  integrations: Integrationen
+  connectors: Connectors
   providers: KI-Anbieter
   apiKeys: API-Schlüssel
   api: API
@@ -4807,9 +4806,6 @@ skills:
     created: Skill erstellt
     exists: Ein Skill mit diesem Namen existiert bereits.
     createFailed: Skill konnte nicht erstellt werden
-  noResults:
-    title: Keine passenden Skills
-    description: Keine Skills passen zu deiner Suche. Versuch einen anderen Begriff.
   visibility:
     label: Sichtbarkeit
     org: Organisation
@@ -4892,7 +4888,7 @@ settings:
       description: Teams und ihre Mitglieder.
     branding:
       description: Logo, Farben und der Name, den deine Nutzer sehen.
-    integrations:
+    connectors:
       description: Verbinde externe Apps mit deinem Workspace.
     providers:
       description: Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen.
@@ -5002,7 +4998,7 @@ settings:
     deleteDialogTitle: Organisation löschen
     deleteDialogDescription:
       „{name}“ löschen? Damit werden Agents, Automatisierungen,
-      Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff.
+      Anbieter und Connectors entfernt. Mitglieder verlieren den Zugriff.
       Dies kann nicht rückgängig gemacht werden.
     dangerZoneTitle: Gefahrenzone
     dangerZoneDescription: Unwiderrufliche Aktionen, die die gesamte Organisation betreffen.
@@ -5245,20 +5241,19 @@ settings:
       sectionToolsDescription: Auswählen, welche Tools dieser Agent verwenden kann
       sectionToolsExternalDescription:
         'Externe Agenten laufen in einer Sandbox und
-        nutzen, was hier gebunden ist: Integrationen und die freigegebenen
+        nutzen, was hier gebunden ist: Connectors und die freigegebenen
         Plattform-Tools (Wissenssuche, Dokumente). Automatisierungen gelten hier nicht.'
-      sectionIntegrationBindings: Gebundene Integrationen
-      sectionIntegrationBindingsDescription:
-        Bestimmte Integrationen als dedizierte
-        Tools binden. Der Agent muss den Integrationsnamen nicht angeben.
-      noIntegrationsAvailable: Keine aktiven Integrationen verfügbar.
+      sectionConnectorBindings: Gebundene Connectors
+      sectionConnectorBindingsDescription: Bestimmte Connectors als dedizierte
+        Tools binden. Der Agent muss den Connector-Namen nicht angeben.
+      noConnectorsAvailable: Keine aktiven Connectors verfügbar.
       sectionAutomationBindings: Gebundene Automatisierungen
       sectionAutomationBindingsDescription:
         Bestimmte Automatisierungen als dedizierte
         Tools binden. Der Agent muss den Namen der Automatisierung nicht
         angeben.
       noAutomationsAvailable: Keine aktiven Automatisierungen verfügbar.
-      bindIntegrationsPlaceholder: Integrationen binden…
+      bindConnectorsPlaceholder: Connectors binden…
       bindAutomationsPlaceholder: Automatisierungen binden…
       skillBindingsExternalNoCustomSkillsDescription: Noch keine zusätzlichen
         Org-Skills zum Binden — Workflow-Disziplinen laden trotzdem automatisch.
@@ -5377,14 +5372,14 @@ settings:
         switchToExternalDescription:
           Dadurch wird der Agent ein Coding-Agent in einer
           Sandbox; seine Plattform-Tools und Automatisierungen werden entfernt.
-          Gebundene Integrationen bleiben erhalten.
+          Gebundene Connectors bleiben erhalten.
         switchToChatDescription:
           Dadurch läuft der Agent über die Tool-Schleife der
           Plattform; seine Sandbox-CLI- und Anmeldedaten-Einstellungen werden
           entfernt.
         switchToImageDescription:
           Dadurch wird der Agent auf Bildgenerierung umgestellt;
-          seine Tools, Automatisierungen, Integrationen und Sandbox-CLI-Einstellungen
+          seine Tools, Automatisierungen, Connectors und Sandbox-CLI-Einstellungen
           werden entfernt.
         switchTaskDispatchNote: Task-Dispatch-Einstellungen in der Agent-JSON bleiben unverändert.
         noModelWarning:
@@ -5424,7 +5419,7 @@ settings:
           WebSearch- und WebFetch-Tools direkt nutzen — am besten, wenn das
           Modell sie unterstützt (z. B. OpenRouter). Wenn deaktiviert, sind die
           nativen Web-Tools gesperrt und der Webzugriff muss über eine
-          verbundene Such-Integration laufen (auditiert und abgerechnet).
+          verbundenen Such-Connector laufen (auditiert und abgerechnet).
       vision:
         sectionTitle: Vision-Modell
         sectionDescription:
@@ -5494,7 +5489,7 @@ settings:
         tasksProjects: Aufgaben & Projekte
         agents: Agenten
         workflows: Automatisierungen
-        integrations: Integrationen & Daten
+        connectors: Connectors & Daten
         analytics: Analysen
         web: Web
         files: Dateien
@@ -5519,9 +5514,9 @@ settings:
         save_workflow_definition: Eine vollständige Automatisierungsdefinition speichern
         create_workflow: Eine neue Automatisierung erstellen
         run_workflow: Einen Automatisierungslauf starten
-        integration: Eine verbundene Integration aufrufen
-        integration_batch: Mehrere Integrationsaufrufe auf einmal ausführen
-        integration_introspect: Die Fähigkeiten einer verbundenen Integration einsehen
+        connector: Einen verbundenen Connector aufrufen
+        connector_batch: Mehrere Connector-Aufrufe auf einmal ausführen
+        connector_introspect: Die Fähigkeiten eines verbundenen Connectors einsehen
         database_schema: Das Schema verbundener Datenbanken lesen
         request_human_input: Innehalten und eine Person um Eingabe bitten
         document_find: Dokumente nach Name oder Inhalt finden
@@ -5597,36 +5592,67 @@ settings:
         einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur
         schreibbar.
     automationBadge: Automatisierung
-  integrations:
+  credentials:
+    default: Standard
+    makeDefault: Zum Standard machen
+    enable: Aktivieren
+    disable: Deaktivieren
+    edit: Zugangsdaten bearbeiten
+    delete: Löschen
+    actionsLabel: Aktionen für {name}
+    deleteTitle: Zugangsdaten löschen
+    deleteBody: >-
+      "{name}" löschen? Automationen und Chat-Aktionen, die sie verwenden,
+      verlieren sofort den Zugriff.
+    deleteDefaultWarning: >-
+      Das sind die Standard-Zugangsdaten. Nach dem Löschen gibt es keinen
+      Standard mehr, bis du einen neuen wählst.
+    deletedToast: Zugangsdaten gelöscht
+    updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
+    noDefault: >-
+      Keine Standard-Zugangsdaten — ein Aufruf ohne eigene Angabe kann nicht
+      automatisch wählen. Mache einen Eintrag zum Standard.
+    emptyTitle: Noch keine Zugangsdaten
+    addCredential: Zugangsdaten hinzufügen
+    addTitle: Zugangsdaten hinzufügen
+    addDescription: Neue Zugangsdaten für {vendor}.
+    create: Hinzufügen
+    createdToast: Zugangsdaten hinzugefügt
+    editTitle: Zugangsdaten bearbeiten
+    savedToast: Zugangsdaten aktualisiert
+    method: Authentifizierungsmethode
+    name: Name
+    namePlaceholder: z. B. Support-Postfach
+    nameHelp: Unter diesem Namen wählt ein Aufruf diesen Eintrag aus.
+  connectors:
+    searchPlaceholder: Connectors durchsuchen…
+    tagFilterLabel: Tags
+    tabs:
+      all: Alle
+      connected: Verbunden
+      available: Verfügbar
     catalog:
-      title: Connectoren
-      description:
-        Jeder Connector wird mit der Plattform ausgeliefert. Ein Connector kann
-        beliebig viele Zugangsdaten halten — einen Eintrag pro Workspace, Shop
-        oder Bot — und eine Automation oder Chat-Aktion ohne eigene Angabe
-        verwendet den Standard des Connectors.
-      summary: '{connectors, plural, one {# Connector} other {# Connectoren}} · {credentials, plural, one {# Eintrag eingerichtet} other {# Einträge eingerichtet}}'
-      listFailed: 'Konnte die Connectoren nicht laden: {error}'
+      emptyTitle: Keine Connectors verfügbar
+      emptyBody: >-
+        Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
+        Config-Root eingebunden und lesbar ist.
+      listFailed: 'Konnte die Connectors nicht laden: {error}'
       credentialsFailed: 'Konnte die Zugangsdaten nicht laden: {error}'
     authMethod:
       apiKey: API-Schlüssel
       bearer: Token
       basic: Benutzername & Passwort
       oauth2: OAuth
-    connector:
+    card:
+      credentialCount: '{count, plural, one {# Eintrag} other {# Einträge}}'
+      open: '{connector} öffnen'
       actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
       perCredentialFact: Jeder Eintrag nennt seine eigene Instanz.
-      addCredential: Zugangsdaten hinzufügen
       connect: Verbinden
-      noDefault:
-        Keine Standard-Zugangsdaten für diesen Connector — eine Aktion ohne
-        eigene Angabe kann nicht automatisch wählen. Mache einen Eintrag zum
-        Standard.
       needsReauth:
         Die Autorisierung eines Eintrags funktioniert nicht mehr. Neu verbinden
         startet die Freigabe erneut und stellt den Zugriff wieder her — genau
         darin unterscheidet es sich von einem Eintrag, den du deaktiviert hast.
-      emptyTitle: Noch keine Zugangsdaten
       emptyBody:
         Füge die Zugangsdaten hinzu, mit denen sich dieser Connector anmeldet —
         danach stehen seine Aktionen in Automationen und im Chat bereit.
@@ -5634,28 +5660,13 @@ settings:
         Verbinde {connector}, um Tale Zugriff zu geben — danach stehen die
         Aktionen in Automationen und im Chat bereit.
     credential:
-      default: Standard
       disabled: Deaktiviert
       needsReauth: Neu verbinden nötig
       needsReauthHint:
         Die gespeicherte Autorisierung ist abgelaufen oder wurde widerrufen.
         Verbinde neu, um die Freigabe erneut zu erteilen.
       needsReauthDetail: '{detail} Verbinde neu, um die Freigabe erneut zu erteilen.'
-      makeDefault: Zum Standard machen
-      enable: Aktivieren
-      disable: Deaktivieren
       reconnect: Neu verbinden
-      edit: Name & Instanz bearbeiten
-      delete: Löschen
-      actionsLabel: Aktionen für {name}
-      deleteTitle: Zugangsdaten löschen
-      deleteBody: '"{name}" löschen? Automationen und Chat-Aktionen, die sie
-        verwenden, verlieren sofort den Zugriff auf diesen Connector.'
-      deleteDefaultWarning:
-        Das sind die Standard-Zugangsdaten. Nach dem Löschen hat der Connector
-        keinen Standard mehr, bis du einen neuen wählst.
-      deletedToast: Zugangsdaten gelöscht
-      updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       tokenTitle: Token ersetzen
@@ -5664,16 +5675,6 @@ settings:
         Das gespeicherte Secret wird nie angezeigt. Ein neuer Wert ersetzt es
         überall dort, wo dieser Eintrag verwendet wird.
     dialog:
-      addTitle: Zugangsdaten hinzufügen
-      addDescription: Neue Zugangsdaten für {connector}.
-      editTitle: Zugangsdaten bearbeiten
-      create: Hinzufügen
-      createdToast: Zugangsdaten hinzugefügt
-      savedToast: Zugangsdaten aktualisiert
-      method: Authentifizierungsmethode
-      name: Name
-      namePlaceholder: z. B. Support-Postfach
-      nameHelp: Unter diesem Namen wählt eine Aktion diesen Eintrag aus.
       apiKey: API-Schlüssel
       token: Token
       tokenHelp: Wird bei jeder Anfrage als Authorization-Header gesendet.
@@ -5685,245 +5686,248 @@ settings:
         Die myshopify.com-Adresse deines Shops — die Admin-Adresse, nicht die
         Storefront-Domain.
       endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
-    enterpriseSso:
-      description:
-        Single Sign-On (OIDC, OAuth2, SAML) und SCIM-Bereitstellung von
-        Benutzern und Gruppen.
-      connected: Die Anmeldung ist aktiviert.
-      copied: In die Zwischenablage kopiert
-      copy: Kopieren
-      protocolLabel: Protokoll
-      protocolHelp:
-        Legen Sie fest, wie sich Benutzer anmelden. OIDC-Endpunkte werden
-        automatisch erkannt.
-      protocol:
-        entra: Microsoft Entra ID
-        oidc: Generisches OIDC
-        oauth2: OAuth2
-        saml: SAML 2.0
-      displayNameLabel: Anzeigename
-      signInSection: Anmeldung
-      issuerLabel: Issuer-URL
-      authzEndpointLabel: Autorisierungs-Endpunkt
-      tokenEndpointLabel: Token-Endpunkt
-      userinfoEndpointLabel: Userinfo-Endpunkt
-      clientIdLabel: Client-ID
-      clientSecretLabel: Client-Secret
-      clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
-      scopesLabel: Scopes
-      pkceLabel: PKCE verwenden
-      pkceDescription:
-        Sendet bei jeder Autorisierungsanfrage eine PKCE-Challenge —
-        empfohlen, wenn der IdP sie unterstützt.
-      advanced: Erweitert
-      defaultDisplayName:
-        entra: Microsoft Entra ID
-        oidc: OIDC-SSO
-        oauth2: OAuth2-SSO
-        saml: SAML-SSO
-      metadata:
-        title: IdP-Metadaten importieren
-        help:
-          Dein IdP veröffentlicht Entity-ID, Anmelde-URL und Signaturzertifikat als
-          Föderations-Metadaten-XML. Importiere sie hier, um die Felder unten zu
-          füllen — du kannst jeden Wert vor dem Speichern prüfen und anpassen.
-        urlLabel: Metadaten-URL
-        importUrl: Importieren
-        uploadXml: XML hochladen
-        imported: IdP-Metadaten importiert — prüfe die Felder unten und speichere dann.
-        importFailed: Die IdP-Metadaten ließen sich nicht importieren.
-        errorTooLarge: Das Metadaten-Dokument ist zu groß (max. 1 MB).
-        errorInvalid: Das sieht nicht nach gültigem Föderations-Metadaten-XML aus.
-        errorNotIdp:
-          Die Metadaten beschreiben keinen Identity Provider — hast du
-          versehentlich SP-Metadaten hochgeladen?
-        errorIncomplete:
-          In den Metadaten fehlt die Entity-ID, die Anmelde-URL oder das
-          Signaturzertifikat.
-        errorFetchFailed:
-          Die Metadaten-URL ließ sich nicht abrufen. Prüfe die Adresse
-          oder lade die Datei herunter und lade sie hier hoch.
-      idpEntityIdLabel: IdP-Entity-ID
-      idpSsoUrlLabel: IdP-Anmelde-URL
-      idpCertLabel: IdP-Signaturzertifikat (PEM)
-      idpCertHelp: Das X.509-Zertifikat, mit dem der IdP Assertions signiert.
-      spMetadataLabel: SP-Metadaten-URL
-      acsUrlLabel: ACS-URL (Antwort)
-      provisioningSection: Bereitstellung
-      defaultRoleLabel: Standardrolle
-      role:
-        admin: Administrator
-        developer: Entwickler
-        editor: Bearbeiter
-        member: Mitglied
-      autoRoleLabel: Rollen automatisch vom IdP zuweisen
-      autoRoleDescription:
-        Weist Plattformrollen bei der Anmeldung anhand der Gruppen,
-        App-Rollen oder Claims des IdP zu.
-      autoTeamLabel: IdP-Gruppen mit Teams synchronisieren
-      autoTeamDescription: Erstellt und aktualisiert Teams aus den
-        Gruppenmitgliedschaften des IdP bei der Anmeldung.
-      excludeGroupsLabel: Gruppen ausschließen
-      excludeGroupsHelp: Kommagetrennte Gruppennamen, die bei der
-        Team-Synchronisierung übersprungen werden.
-      scim:
-        section: SCIM-Bereitstellung
-        help:
-          Lassen Sie Ihren IdP Benutzer und Gruppen automatisch übertragen (anlegen,
-          aktualisieren, deaktivieren).
-        enabled: Aktiviert
-        disabled: Deaktiviert
-        tokenCreatedHelp: Kopieren Sie dieses Token jetzt – es wird nicht erneut angezeigt.
-        regenerate: Token neu generieren
-        generate: Token generieren
-        disable: Deaktivieren
-        baseUrlLabel: SCIM-Basis-URL
-        tokenFailed: SCIM-Token konnte nicht generiert werden
-      disable: Anmeldung deaktivieren
-      remove: Entfernen
-      test: Verbindung testen
-      saveFailed: Speichern fehlgeschlagen
-      testOk: Verbindung sieht gut aus
-      testFailed: Verbindungstest fehlgeschlagen
-      testMissingFields: Bitte fülle die erforderlichen Felder aus, bevor du testest.
-      formHint: Lege fest, wie sich Mitglieder anmelden, und speichere deine
-        Änderungen oben in der Kopfzeile.
-      validation:
-        required: Dieses Feld ist erforderlich.
-        url: Gib eine gültige URL ein (inklusive https://).
-        clientSecretRequired: Ein Client-Secret ist erforderlich.
-      roleMapping:
-        help:
-          Ordne Gruppen, App-Rollen oder Jobtitel aus dem Identity-Provider einer
-          Plattformrolle zu. Wer auf keine Regel passt, erhält die
-          Standardrolle.
-        empty: Noch keine Regeln — alle erhalten die Standardrolle.
-        addRule: Regel hinzufügen
-        removeRule: Entfernen
-        sourceLabel: Quelle
-        source:
-          group: IdP-Gruppe
-          appRole: App-Rolle
-          jobTitle: Jobtitel
-          claim: Claim
-        patternLabel: Passender Wert
-        targetRoleLabel: Weist Rolle zu
-        claimLabel: Claim-Pfad
-        claimHelp: Punktpfad in die Token-Claims, z. B. realm_access.roles.
-      redirectUrlLabel: In Entra zu registrierende Weiterleitungs-URL
-      redirectUrlHelp:
-        Registrieren Sie genau diese URL als "Web"-Weiterleitungs-URI
-        in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema,
-        Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die
-        Anmeldung mit AADSTS50011 fehl.
-      deploymentWarning:
-        title: Deployment für SSO nicht vollständig konfiguriert
-        callbackMissing:
-          Die Weiterleitungs-URL ist leer, weil SITE_URL auf dem Server
-          nicht gesetzt ist. Die SSO-Anmeldung schlägt fehl, bis dies
-          konfiguriert ist.
-        authSecretMissing:
-          BETTER_AUTH_SECRET ist auf dem Server nicht gesetzt. Die
-          SSO-Anmeldung schlägt mit einem Serverfehler fehl, bis dies
-          konfiguriert ist.
-      guide:
-        title: Einrichtungsleitfaden
-        redirectLabel: Weiterleitungs-/Callback-URL
-        samlIntro: Erstellen Sie in Ihrem IdP eine SAML-App mit der oben im
-          Anmeldebereich angezeigten SP-Metadaten-URL und ACS-URL.
-        entra:
-          intro:
-            Registrieren Sie eine App im Microsoft Entra Admin Center und tragen Sie
-            die Daten unten ein.
-          s1:
-            Melden Sie sich im Microsoft Entra Admin Center (entra.microsoft.com)
-            mindestens als Anwendungsentwickler an.
-          s2:
-            Gehen Sie zu Entra ID › App-Registrierungen › Neue Registrierung; benennen
-            Sie sie und wählen Sie „Einzelner Mandant".
-          s3:
-            Wählen Sie unter Umleitungs-URI die Plattform „Web", fügen Sie die oben
-            angezeigte Weiterleitungs-URL ein und klicken Sie auf Registrieren.
-          s4:
-            Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die
-            Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet
-            https://login.microsoftonline.com/{tenant-id}/v2.0.
-          s5:
-            Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren
-            Sie den Geheimnis-Wert (nicht die Geheimnis-ID).
-          s6: Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.
-          s7:
-            Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen
-            die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und
-            erteilen Sie die Administratorzustimmung.
-          s8: Für die OneDrive-/SharePoint-Dokumentensynchronisation füge unter
-            API-Berechtigungen die Microsoft-Graph-Berechtigungen Files.Read und
-            Sites.Read.All hinzu und erteile die Administratorzustimmung. Willst
-            du nur die Anmeldung, entferne die beiden Scopes oben aus dem Feld
-            Scopes.
-        google:
-          intro:
-            Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen
-            Sie die Daten unten ein.
-          s1:
-            Öffnen Sie in der Google Cloud Console APIs & Dienste › Anmeldedaten ›
-            Anmeldedaten erstellen › OAuth-Client-ID.
-          s2: Wählen Sie den Anwendungstyp „Webanwendung".
-          s3:
-            Fügen Sie unter Autorisierte Weiterleitungs-URIs die oben angezeigte
-            Weiterleitungs-URL hinzu und speichern Sie.
-          s4: Kopieren Sie die Client-ID und das Clientgeheimnis oben auf der
-            Client-Seite.
-          s5:
-            Tragen Sie sie oben mit der Issuer-URL https://accounts.google.com ein – die
-            Endpunkte werden automatisch erkannt.
-          groupsNote: 'Hinweis: Das Standard-OIDC von Google liefert keine
-            Gruppenmitgliedschaften – die Gruppen-zu-Team-Synchronisierung
-            benötigt das Admin SDK / die Cloud Identity API mit einem
-            Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0,
-            Keycloak) funktionieren genauso: Issuer-URL und Client-Anmeldedaten
-            eintragen.'
-        oauth2:
-          intro: Für Anbieter ohne OIDC-Discovery konfigurieren Sie die Endpunkte manuell.
-          s1:
-            Registrieren Sie eine Web-/OAuth2-Anwendung bei Ihrem Anbieter und fügen Sie
-            die oben angezeigte Weiterleitungs-URL hinzu.
-          s2: Kopieren Sie Client-ID und Clientgeheimnis.
-          s3:
-            Tragen Sie die URLs für Autorisierungs-, Token- und Userinfo-Endpunkt aus
-            der Dokumentation Ihres Anbieters ein.
-          s4: Falls Ihr Anbieter abweichende Claim-Namen verwendet, ordnen Sie
-            E-Mail/Name/Gruppen unter „Erweitert" zu.
-        saml:
-          intro:
-            Konfigurieren Sie in Ihrem IdP eine SAML-2.0-Anwendung und tragen Sie die
-            Daten unten ein.
-          s1: Erstellen Sie in Ihrem IdP eine neue SAML-2.0-Anwendung.
-          s2: Setzen Sie die ACS-URL (Assertion Consumer Service) und die
-            Entity-ID/Audience auf die oben angezeigten SP-Werte oder laden Sie
-            die SP-Metadaten-URL hoch.
-          s3: Setzen Sie das Name-ID-Format auf E-Mail-Adresse.
-          s4: Kopieren Sie die IdP-Entity-ID, die IdP-Anmelde-URL und das
-            IdP-Signaturzertifikat (PEM) in die Felder oben.
-          s5:
-            Ordnen Sie in Ihrem IdP die Attribute für E-Mail, Name und Gruppe zu;
-            weichen die Namen ab, tragen Sie die passenden Attributnamen unter
-            „Erweitert" ein.
-      disableConfirmTitle: SSO-Anmeldung deaktivieren?
-      disableConfirmDescription:
-        Mitglieder können sich nicht mehr per SSO anmelden,
-        bis es wieder aktiviert wird. Bestehende Sitzungen bleiben angemeldet.
-      removeConfirmTitle: SSO-Verbindung entfernen?
-      removeConfirmDescription:
-        Die Verbindungskonfiguration wird gelöscht – samt
-        Client-Zugangsdaten und Rollenzuordnungen. Die SSO-Anmeldung ist sofort
-        deaktiviert. Das kann nicht rückgängig gemacht werden.
+  enterpriseSso:
+    description: Single Sign-On (OIDC, OAuth2, SAML) und SCIM-Bereitstellung von
+      Benutzern und Gruppen.
+    connected: Die Anmeldung ist aktiviert.
+    copied: In die Zwischenablage kopiert
+    copy: Kopieren
+    protocolLabel: Protokoll
+    protocolHelp:
+      Legen Sie fest, wie sich Benutzer anmelden. OIDC-Endpunkte werden
+      automatisch erkannt.
+    protocol:
+      entra: Microsoft Entra ID
+      oidc: Generisches OIDC
+      oauth2: OAuth2
+      saml: SAML 2.0
+    displayNameLabel: Anzeigename
+    signInSection: Anmeldung
+    issuerLabel: Issuer-URL
+    authzEndpointLabel: Autorisierungs-Endpunkt
+    tokenEndpointLabel: Token-Endpunkt
+    userinfoEndpointLabel: Userinfo-Endpunkt
+    clientIdLabel: Client-ID
+    clientSecretLabel: Client-Secret
+    clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
+    scopesLabel: Scopes
+    pkceLabel: PKCE verwenden
+    pkceDescription:
+      Sendet bei jeder Autorisierungsanfrage eine PKCE-Challenge —
+      empfohlen, wenn der IdP sie unterstützt.
+    advanced: Erweitert
+    defaultDisplayName:
+      entra: Microsoft Entra ID
+      oidc: OIDC-SSO
+      oauth2: OAuth2-SSO
+      saml: SAML-SSO
+    metadata:
+      title: IdP-Metadaten importieren
+      help:
+        Dein IdP veröffentlicht Entity-ID, Anmelde-URL und Signaturzertifikat als
+        Föderations-Metadaten-XML. Importiere sie hier, um die Felder unten zu
+        füllen — du kannst jeden Wert vor dem Speichern prüfen und anpassen.
+      urlLabel: Metadaten-URL
+      importUrl: Importieren
+      uploadXml: XML hochladen
+      imported: IdP-Metadaten importiert — prüfe die Felder unten und speichere dann.
+      importFailed: Die IdP-Metadaten ließen sich nicht importieren.
+      errorTooLarge: Das Metadaten-Dokument ist zu groß (max. 1 MB).
+      errorInvalid: Das sieht nicht nach gültigem Föderations-Metadaten-XML aus.
+      errorNotIdp: Die Metadaten beschreiben keinen Identity Provider — hast du
+        versehentlich SP-Metadaten hochgeladen?
+      errorIncomplete:
+        In den Metadaten fehlt die Entity-ID, die Anmelde-URL oder das
+        Signaturzertifikat.
+      errorFetchFailed:
+        Die Metadaten-URL ließ sich nicht abrufen. Prüfe die Adresse
+        oder lade die Datei herunter und lade sie hier hoch.
+    idpEntityIdLabel: IdP-Entity-ID
+    idpSsoUrlLabel: IdP-Anmelde-URL
+    idpCertLabel: IdP-Signaturzertifikat (PEM)
+    idpCertHelp: Das X.509-Zertifikat, mit dem der IdP Assertions signiert.
+    spMetadataLabel: SP-Metadaten-URL
+    acsUrlLabel: ACS-URL (Antwort)
+    provisioningSection: Bereitstellung
+    defaultRoleLabel: Standardrolle
+    role:
+      admin: Administrator
+      developer: Entwickler
+      editor: Bearbeiter
+      member: Mitglied
+    autoRoleLabel: Rollen automatisch vom IdP zuweisen
+    autoRoleDescription:
+      Weist Plattformrollen bei der Anmeldung anhand der Gruppen,
+      App-Rollen oder Claims des IdP zu.
+    autoTeamLabel: IdP-Gruppen mit Teams synchronisieren
+    autoTeamDescription: Erstellt und aktualisiert Teams aus den
+      Gruppenmitgliedschaften des IdP bei der Anmeldung.
+    excludeGroupsLabel: Gruppen ausschließen
+    excludeGroupsHelp: Kommagetrennte Gruppennamen, die bei der
+      Team-Synchronisierung übersprungen werden.
+    scim:
+      section: SCIM-Bereitstellung
+      help:
+        Lassen Sie Ihren IdP Benutzer und Gruppen automatisch übertragen (anlegen,
+        aktualisieren, deaktivieren).
+      enabled: Aktiviert
+      disabled: Deaktiviert
+      tokenCreatedHelp: Kopieren Sie dieses Token jetzt – es wird nicht erneut angezeigt.
+      regenerate: Token neu generieren
+      generate: Token generieren
+      disable: Deaktivieren
+      baseUrlLabel: SCIM-Basis-URL
+      tokenFailed: SCIM-Token konnte nicht generiert werden
+    disable: Anmeldung deaktivieren
+    remove: Entfernen
+    test: Verbindung testen
+    saveFailed: Speichern fehlgeschlagen
+    testOk: Verbindung sieht gut aus
+    testFailed: Verbindungstest fehlgeschlagen
+    testMissingFields: Bitte fülle die erforderlichen Felder aus, bevor du testest.
+    formHint: Lege fest, wie sich Mitglieder anmelden, und speichere deine
+      Änderungen oben in der Kopfzeile.
+    validation:
+      required: Dieses Feld ist erforderlich.
+      url: Gib eine gültige URL ein (inklusive https://).
+      clientSecretRequired: Ein Client-Secret ist erforderlich.
+    roleMapping:
+      help:
+        Ordne Gruppen, App-Rollen oder Jobtitel aus dem Identity-Provider einer
+        Plattformrolle zu. Wer auf keine Regel passt, erhält die
+        Standardrolle.
+      empty: Noch keine Regeln — alle erhalten die Standardrolle.
+      addRule: Regel hinzufügen
+      removeRule: Entfernen
+      sourceLabel: Quelle
+      source:
+        group: IdP-Gruppe
+        appRole: App-Rolle
+        jobTitle: Jobtitel
+        claim: Claim
+      patternLabel: Passender Wert
+      targetRoleLabel: Weist Rolle zu
+      claimLabel: Claim-Pfad
+      claimHelp: Punktpfad in die Token-Claims, z. B. realm_access.roles.
+    redirectUrlLabel: In Entra zu registrierende Weiterleitungs-URL
+    redirectUrlHelp:
+      Registrieren Sie genau diese URL als "Web"-Weiterleitungs-URI
+      in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema,
+      Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die
+      Anmeldung mit AADSTS50011 fehl.
+    deploymentWarning:
+      title: Deployment für SSO nicht vollständig konfiguriert
+      callbackMissing:
+        Die Weiterleitungs-URL ist leer, weil SITE_URL auf dem Server
+        nicht gesetzt ist. Die SSO-Anmeldung schlägt fehl, bis dies
+        konfiguriert ist.
+      authSecretMissing:
+        BETTER_AUTH_SECRET ist auf dem Server nicht gesetzt. Die
+        SSO-Anmeldung schlägt mit einem Serverfehler fehl, bis dies
+        konfiguriert ist.
+    guide:
+      title: Einrichtungsleitfaden
+      redirectLabel: Weiterleitungs-/Callback-URL
+      samlIntro: Erstellen Sie in Ihrem IdP eine SAML-App mit der oben im
+        Anmeldebereich angezeigten SP-Metadaten-URL und ACS-URL.
+      entra:
+        intro:
+          Registrieren Sie eine App im Microsoft Entra Admin Center und tragen Sie
+          die Daten unten ein.
+        s1:
+          Melden Sie sich im Microsoft Entra Admin Center (entra.microsoft.com)
+          mindestens als Anwendungsentwickler an.
+        s2:
+          Gehen Sie zu Entra ID › App-Registrierungen › Neue Registrierung; benennen
+          Sie sie und wählen Sie „Einzelner Mandant".
+        s3:
+          Wählen Sie unter Umleitungs-URI die Plattform „Web", fügen Sie die oben
+          angezeigte Weiterleitungs-URL ein und klicken Sie auf Registrieren.
+        s4:
+          Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die
+          Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet
+          https://login.microsoftonline.com/{tenant-id}/v2.0.
+        s5:
+          Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren
+          Sie den Geheimnis-Wert (nicht die Geheimnis-ID).
+        s6: Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.
+        s7:
+          Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen
+          die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und
+          erteilen Sie die Administratorzustimmung.
+        s8: Für die OneDrive-/SharePoint-Dokumentensynchronisation füge unter
+          API-Berechtigungen die Microsoft-Graph-Berechtigungen Files.Read und
+          Sites.Read.All hinzu und erteile die Administratorzustimmung. Willst
+          du nur die Anmeldung, entferne die beiden Scopes oben aus dem Feld
+          Scopes.
+      google:
+        intro:
+          Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen
+          Sie die Daten unten ein.
+        s1:
+          Öffnen Sie in der Google Cloud Console APIs & Dienste › Anmeldedaten ›
+          Anmeldedaten erstellen › OAuth-Client-ID.
+        s2: Wählen Sie den Anwendungstyp „Webanwendung".
+        s3: Fügen Sie unter Autorisierte Weiterleitungs-URIs die oben angezeigte
+          Weiterleitungs-URL hinzu und speichern Sie.
+        s4: Kopieren Sie die Client-ID und das Clientgeheimnis oben auf der
+          Client-Seite.
+        s5:
+          Tragen Sie sie oben mit der Issuer-URL https://accounts.google.com ein – die
+          Endpunkte werden automatisch erkannt.
+        groupsNote: 'Hinweis: Das Standard-OIDC von Google liefert keine
+          Gruppenmitgliedschaften – die Gruppen-zu-Team-Synchronisierung
+          benötigt das Admin SDK / die Cloud Identity API mit einem
+          Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0,
+          Keycloak) funktionieren genauso: Issuer-URL und Client-Anmeldedaten
+          eintragen.'
+      oauth2:
+        intro: Für Anbieter ohne OIDC-Discovery konfigurieren Sie die Endpunkte manuell.
+        s1:
+          Registrieren Sie eine Web-/OAuth2-Anwendung bei Ihrem Anbieter und fügen Sie
+          die oben angezeigte Weiterleitungs-URL hinzu.
+        s2: Kopieren Sie Client-ID und Clientgeheimnis.
+        s3:
+          Tragen Sie die URLs für Autorisierungs-, Token- und Userinfo-Endpunkt aus
+          der Dokumentation Ihres Anbieters ein.
+        s4: Falls Ihr Anbieter abweichende Claim-Namen verwendet, ordnen Sie
+          E-Mail/Name/Gruppen unter „Erweitert" zu.
+      saml:
+        intro:
+          Konfigurieren Sie in Ihrem IdP eine SAML-2.0-Anwendung und tragen Sie die
+          Daten unten ein.
+        s1: Erstellen Sie in Ihrem IdP eine neue SAML-2.0-Anwendung.
+        s2: Setzen Sie die ACS-URL (Assertion Consumer Service) und die
+          Entity-ID/Audience auf die oben angezeigten SP-Werte oder laden Sie
+          die SP-Metadaten-URL hoch.
+        s3: Setzen Sie das Name-ID-Format auf E-Mail-Adresse.
+        s4: Kopieren Sie die IdP-Entity-ID, die IdP-Anmelde-URL und das
+          IdP-Signaturzertifikat (PEM) in die Felder oben.
+        s5:
+          Ordnen Sie in Ihrem IdP die Attribute für E-Mail, Name und Gruppe zu;
+          weichen die Namen ab, tragen Sie die passenden Attributnamen unter
+          „Erweitert" ein.
+    disableConfirmTitle: SSO-Anmeldung deaktivieren?
+    disableConfirmDescription:
+      Mitglieder können sich nicht mehr per SSO anmelden,
+      bis es wieder aktiviert wird. Bestehende Sitzungen bleiben angemeldet.
+    removeConfirmTitle: SSO-Verbindung entfernen?
+    removeConfirmDescription: Die Verbindungskonfiguration wird gelöscht – samt
+      Client-Zugangsdaten und Rollenzuordnungen. Die SSO-Anmeldung ist sofort
+      deaktiviert. Das kann nicht rückgängig gemacht werden.
   providers:
+    searchPlaceholder: Anbieter und Modelle durchsuchen…
+    formatFilterLabel: API-Format
+    tabs:
+      all: Alle
+      configured: Eingerichtet
+      unconfigured: Nicht eingerichtet
     catalogs:
-      title: Modellkataloge
-      description: Jeder Anbieter wird als Connector mit eigenem Modellkatalog
-        ausgeliefert. Live-Kataloge werden zwischengespeichert und nur beim
-        Aktualisieren hier neu geladen — es gibt keinen Hintergrundabgleich.
+      emptyTitle: Keine Anbieter verfügbar
+      emptyBody: >-
+        Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das
+        Config-Root eingebunden und lesbar ist.
+      refreshed: Kataloge aktualisiert
       refresh: Kataloge aktualisieren
       refreshing: Aktualisierung läuft…
       resultOk: '{name}: {count, plural, one {# Modell} other {# Modelle}}'
@@ -5932,7 +5936,7 @@ settings:
         Alle Kataloge werden mit der Plattform ausgeliefert — hier
         gibt es nichts zu aktualisieren.
       refreshFailed: 'Konnte die Kataloge nicht aktualisieren: {error}'
-      listFailed: 'Konnte die Anbieter-Connectoren nicht laden: {error}'
+      listFailed: 'Konnte die Anbieter nicht laden: {error}'
     harnesses:
       title: Drittanbieter-Agenten
       description:
@@ -5959,7 +5963,10 @@ settings:
       env: Umgebungsvariable
       subscriptionKey: Abo-Schlüssel
       subscriptionBroker: Abo-Broker
-    connector:
+    card:
+      catalogFailed: Katalog nicht verfügbar
+      credentialCount: '{count, plural, one {# Eintrag} other {# Einträge}}'
+      open: '{provider} öffnen'
       facts: '{format} · {host}'
       factsPerCredential: '{format} · Endpunkt pro Eintrag'
       sourceStatic: Mitgelieferter Katalog
@@ -5971,11 +5978,6 @@ settings:
         Die verfügbaren Modelle kommen aus den erlaubten Modellen der
         jeweiligen Zugangsdaten.
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
-      addCredential: Zugangsdaten hinzufügen
-      noDefault:
-        Keine Standard-Zugangsdaten für diesen Anbieter — Anfragen können
-        nicht automatisch wählen. Mache einen Eintrag zum Standard.
-      emptyTitle: Noch keine Zugangsdaten
       emptyBody: Verbinde diesen Anbieter mit einem hier gespeicherten API- oder
         Abo-Schlüssel, mit einer Umgebungsvariable des Deployments oder über
         einen Abo-Broker (z. B. ein Claude-Abo).
@@ -5984,23 +5986,8 @@ settings:
         unter {prefix} und verweise mit Zugangsdaten vom Typ Umgebungsvariable
         darauf.'
     credential:
-      default: Standard
       disabled: Deaktiviert
-      makeDefault: Zum Standard machen
-      enable: Aktivieren
-      disable: Deaktivieren
-      edit: Name & Modelle bearbeiten
-      delete: Löschen
-      actionsLabel: Aktionen für {name}
       allowlistCount: '{count, plural, one {# Modell erlaubt} other {# Modelle erlaubt}}'
-      deleteTitle: Zugangsdaten löschen
-      deleteBody: '"{name}" löschen? Agenten und Anfragen, die sie verwenden,
-        verlieren sofort den Zugriff auf diesen Anbieter.'
-      deleteDefaultWarning:
-        Das sind die Standard-Zugangsdaten. Nach dem Löschen hat
-        der Anbieter keinen Standard mehr, bis du einen neuen wählst.
-      deletedToast: Zugangsdaten gelöscht
-      updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       envTitle: Umgebungsvariable ändern
@@ -6012,16 +5999,7 @@ settings:
         Gespeicherte Broker-Werte können nicht angezeigt werden. Gib die
         Konfiguration vollständig neu ein — lasse das Broker-Secret leer, um das
         gespeicherte zu behalten.
-      savedToast: Zugangsdaten aktualisiert
     dialog:
-      addTitle: Zugangsdaten hinzufügen
-      addDescription: Neue Zugangsdaten für {provider}.
-      editTitle: Zugangsdaten bearbeiten
-      create: Hinzufügen
-      createdToast: Zugangsdaten hinzugefügt
-      method: Authentifizierungsmethode
-      name: Name
-      namePlaceholder: z. B. Produktionsschlüssel
       secret: API-Schlüssel
       subscriptionSecret: Abo-Schlüssel
       sandboxedExplainer: Läuft in der Sandbox auf dem Harness des Anbieters.
@@ -6031,7 +6009,7 @@ settings:
         fest. Die Variable selbst stellt dein Ops-Team bereit.
       endpointUrl: Endpoint-URL
       endpointUrlHelp:
-        Dieser Connector hat keinen festen Endpunkt — jeder Eintrag
+        Dieser Anbieter hat keinen festen Endpunkt — jeder Eintrag
         trägt seine eigene Ressourcen-URL (https).
       allowlist: Erlaubte Modelle
       allowlistHelp: Optional. Wenn gesetzt, dürfen diese Zugangsdaten nur die
@@ -6127,7 +6105,7 @@ settings:
         1year: 1 Jahr
         never: Nie
     neverUsed: Nie verwendet
-    description: API-Schlüssel für externe Integrationen verwalten
+    description: API-Schlüssel für externe Connectors verwalten
     title: API-Schlüssel
   apiDocs:
     openDocs: API-Dokumentation
@@ -6245,7 +6223,7 @@ settings:
         auth: Authentifizierung
         member: Mitglied
         data: Daten
-        integration: Integration
+        connector: Connector
         workflow: Automatisierung
         security: Sicherheit
         admin: Admin
@@ -6275,7 +6253,7 @@ settings:
         auth: Authentifizierung
         member: Mitglied
         data: Daten
-        integration: Integration
+        connector: Connector
         workflow: Automatisierung
         security: Sicherheit
         admin: Admin
@@ -6309,7 +6287,7 @@ settings:
         add_message_to_conversation: Nachricht zur Konversation hinzugefügt
         mark_conversation_as_read: Konversation als gelesen markiert
         mark_conversation_as_spam: Konversation als Spam markiert
-        send_message_via_integration: Nachricht über Integration gesendet
+        send_message_via_connector: Nachricht über Connector gesendet
         bulk_archive_conversations: Konversationen gesammelt archiviert
         bulk_close_conversations: Konversationen gesammelt geschlossen
         bulk_reopen_conversations: Konversationen gesammelt wieder geöffnet
@@ -6371,8 +6349,8 @@ settings:
         model_access.denied: Modellzugriff abgelehnt
         ai.completion: KI-Antwort
         ai.budget_blocked: KI-Budget gesperrt
-        create_integration: Integration erstellt
-        delete_integration: Integration gelöscht
+        create_connector: Connector erstellt
+        delete_connector: Connector gelöscht
         update_credential: Zugangsdaten aktualisiert
         delete_credential: Zugangsdaten gelöscht
         provider_deleted: Anbieter gelöscht
@@ -6400,7 +6378,7 @@ settings:
         project.knowledge_mode.changed: Wissensmodus des Projekts geändert
         project.agents.changed: Projektagenten geändert
         project.models.changed: Projektmodelle geändert
-        project.integrations.changed: Projektintegrationen geändert
+        project.connectors.changed: Projekt-Connectors geändert
         project.file.attached: Datei an Projekt angehängt
         project.file.detached: Datei vom Projekt entfernt
         project.thread.shared: Chat mit Projekt geteilt
@@ -6494,8 +6472,8 @@ settings:
         chat_thread: Chat
         member: Mitglied
         project: Projekt
-        integration: Integration
-        integration_operation: Integrationsvorgang
+        connector: Connector
+        connector_operation: Connector-Vorgang
         sso_provider: SSO-Anbieter
         video_link: Video-Link
         location_request: Standortanfrage
@@ -7651,7 +7629,7 @@ projects:
   agents:
     agentsHeading: Agenten
     modelsHeading: Modelle
-    integrationsHeading: Integrationen
+    connectorsHeading: Connectors
     sectionDescription:
       Erstelle die Agenten, die in diesem Projekt arbeiten — wähle das Harness,
       auf dem jeder läuft, rüste ihn mit Skills und Connectors aus und gib ihm

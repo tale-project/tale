@@ -31,11 +31,11 @@ Pick the role on the form before you submit; promoting or changing it later is a
 
 **Owner** has every permission Admin has, plus the one Admin lacks: transferring ownership and deleting the organisation. Most teams have exactly one Owner; some keep two for continuity.
 
-**Admin** governs the organisation: members, providers, branding, governance policies, integrations, the audit log. Admins do everything Editor does and everything Developer does, plus the configuration surface. They cannot transfer ownership.
+**Admin** governs the organisation: members, providers, branding, governance policies, connectors, the audit log. Admins do everything Editor does and everything Developer does, plus the configuration surface. They cannot transfer ownership.
 
-**Developer** builds: agents, workflows, integrations, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the integration tooling.
+**Developer** builds: agents, workflows, connectors, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the connector tooling.
 
-**Editor** curates and operates: agents, the knowledge base (documents, contacts, products, vendors, websites), the conversation inbox, approvals, the skill library. Editors can read workflows but not modify them; they can read integrations but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or integration plane.
+**Editor** curates and operates: agents, the knowledge base (documents, contacts, products, vendors, websites), the conversation inbox, approvals, the skill library. Editors can read workflows but not modify them; they can read connectors but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or connector plane.
 
 **Member** runs: chat, browse the knowledge base, and read conversations and approvals. Conversation read is org-wide by default; turn on **Conversation assignee control** under [Policies and limits](/platform/admin/governance/policies-and-limits#conversation-assignee-control) when Members should only see unassigned threads plus those assigned to them or their teams. Members write only to message feedback (thumbs up / down). Reach for Member as the default — most users in most organisations are Members.
 
@@ -57,7 +57,7 @@ Pick the role on the form before you submit; promoting or changing it later is a
 | Approvals             | R / W | R / W | R / W     | R / W  | R      | —        |
 | Workflow executions   | R / W | R / W | R / W     | R      | R      | —        |
 | Workflow processing   | R / W | R / W | R / W     | R      | R      | —        |
-| Integrations          | R / W | R / W | R / W     | R      | R      | —        |
+| Connectors            | R / W | R / W | R / W     | R      | R      | —        |
 | OneDrive sync configs | R / W | R / W | R / W     | R      | R      | —        |
 | Prompt templates      | R / W | R / W | R / W     | R / W  | R      | —        |
 | Audit logs            | R / W | R / W | R / W     | R / W  | R      | —        |

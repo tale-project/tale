@@ -19,7 +19,7 @@ Pour trouver le moment où le rôle d'un membre a changé, ouvre **Paramètres >
 | Action          | string   | oui    | L'action sémantique — `update_member_role`, `provider_created`, `agent_saved`.                 |
 | Utilisateur     | string   | oui    | Nom affiché de l'acteur ; `System`, `API` ou `Workflow` quand l'acteur n'est pas une personne. |
 | Ressource       | string   | oui    | La ressource touchée par l'action — `agent`, `provider`, `member`, `workflow`.                 |
-| Catégorie       | enum     | oui    | Auth, Membre, Données, Intégration, Workflow, Sécurité, Admin, AI, Skill, Agent.               |
+| Catégorie       | enum     | oui    | Auth, Membre, Données, Connector, Workflow, Sécurité, Admin, AI, Skill, Agent.                 |
 | Statut          | enum     | oui    | Succès, Échec, Refusé.                                                                         |
 | Champs modifiés | JSON     | non    | Le diff entre l'état précédent et le nouveau pour les actions de mise à jour.                  |
 

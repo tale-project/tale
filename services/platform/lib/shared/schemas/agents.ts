@@ -15,7 +15,7 @@
  *    runs in a sandbox is decided in the conversation (and some credentials
  *    force a harness), so a persona cannot pre-commit to one.
  *  - **environment variables and secrets** — an agent holds no credentials;
- *    credentials belong to the organization's provider and integration
+ *    credentials belong to the organization's provider and connector
  *    records, where they can be rotated and audited in one place.
  *  - **routing metadata** — nothing picks an agent on the user's behalf.
  *  - **conversation starters** — the composer is the entry point.
@@ -126,7 +126,7 @@ export const RETIRED_AGENT_SETTINGS: Readonly<Record<string, string>> = {
     'an execution ceiling belongs to the host that runs the turn, not to a persona',
   'output-reserve':
     'the context budget is derived from the model chosen for the turn',
-  'max-integration-calls-per-run':
+  'max-connector-calls-per-run':
     'an execution ceiling belongs to the host that runs the turn, not to a persona',
   'max-concurrent-tasks':
     'concurrency is an organization-level limit, not a per-agent one',
@@ -168,8 +168,8 @@ export const RETIRED_AGENT_SETTINGS: Readonly<Record<string, string>> = {
   'system-instructions': 'renamed to `instructions`',
   'tool-names': 'renamed to `tools`',
   'skill-bindings': 'renamed to `skills`',
-  'integration-bindings':
-    'integrations are reached as capabilities; name them in `tools`',
+  'connector-bindings':
+    'connectors are reached as capabilities; name them in `tools`',
   workflows: 'automations are reached as capabilities; name them in `tools`',
   slug: 'the file name is the slug; `name` must match it',
 };

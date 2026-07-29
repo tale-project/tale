@@ -130,7 +130,7 @@ export async function armVisionLane(
         scope: {
           agentKind: 'run_code_vision',
           allowedModels: [gatewayModel],
-          integrationGrants: [],
+          connectorGrants: [],
           toolGrants: [],
           budgetCents: VISION_BUDGET_CENTS,
           threadId: args.threadId,

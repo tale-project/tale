@@ -31,7 +31,7 @@ import {
   classifyHarnessEnd,
   drainHarnessWindow,
   type HarnessTimelinePart,
-  integrationsBridgeUrlForSessions,
+  connectorsBridgeUrlForSessions,
   isManagedHarness,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
@@ -647,7 +647,7 @@ export const startWorkflowAgentTurn = internalAction({
           scope: {
             agentKind: args.harness,
             allowedModels: [args.gatewayModel],
-            integrationGrants: [...(args.request.connectors ?? [])],
+            connectorGrants: [...(args.request.connectors ?? [])],
             budgetCents,
           },
           expiresAt: args.deadlineAt,
@@ -693,7 +693,7 @@ export const startWorkflowAgentTurn = internalAction({
         prompt: args.request.prompt,
         execId: args.execId,
         ...(connectors.length > 0
-          ? { bridgeUrl: integrationsBridgeUrlForSessions() }
+          ? { bridgeUrl: connectorsBridgeUrlForSessions() }
           : {}),
         ...(visionRef !== null
           ? {

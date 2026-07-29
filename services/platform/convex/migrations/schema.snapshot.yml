@@ -154,7 +154,7 @@ tables:
           - type: literal
             value: conversations
           - type: literal
-            value: integration_operation
+            value: connector_operation
           - type: literal
             value: workflow_creation
           - type: literal
@@ -358,7 +358,7 @@ tables:
           - type: literal
             value: data
           - type: literal
-            value: integration
+            value: connector
           - type: literal
             value: workflow
           - type: literal
@@ -627,10 +627,18 @@ tables:
       ft:
         type: string
       optional: false
+    presentation:
+      ft:
+        type: any
+      optional: true
     projectId:
       ft:
         tableName: projects
         type: id
+      optional: true
+    settings:
+      ft:
+        type: any
       optional: true
     taskContract:
       ft:
@@ -1083,6 +1091,139 @@ tables:
       ft:
         type: number
       optional: false
+  connectorCredentials:
+    authMethod:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: api-key
+          - type: literal
+            value: bearer
+          - type: literal
+            value: basic
+          - type: literal
+            value: oauth2
+      optional: false
+    config:
+      ft:
+        keys:
+          type: string
+        type: record
+        values:
+          fieldType:
+            type: union
+            value:
+              - type: string
+              - type: number
+              - type: boolean
+          optional: false
+      optional: true
+    connectorSlug:
+      ft:
+        type: string
+      optional: false
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    createdBy:
+      ft:
+        type: string
+      optional: false
+    encryptedData:
+      ft:
+        type: object
+        value:
+          authTag:
+            fieldType:
+              type: string
+            optional: false
+          ciphertext:
+            fieldType:
+              type: string
+            optional: false
+          keyFingerprint:
+            fieldType:
+              type: string
+            optional: false
+          nonce:
+            fieldType:
+              type: string
+            optional: false
+      optional: false
+    endpointUrl:
+      ft:
+        type: string
+      optional: true
+    isDefault:
+      ft:
+        type: boolean
+      optional: false
+    maskedPreview:
+      ft:
+        type: string
+      optional: true
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: active
+          - type: literal
+            value: disabled
+          - type: literal
+            value: needs-reauth
+      optional: false
+    statusDetail:
+      ft:
+        type: string
+      optional: true
+    updatedAt:
+      ft:
+        type: number
+      optional: false
+  connectorOauthStates:
+    codeVerifier:
+      ft:
+        type: string
+      optional: false
+    connectorSlug:
+      ft:
+        type: string
+      optional: false
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    expiresAt:
+      ft:
+        type: number
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    redirectUri:
+      ft:
+        type: string
+      optional: false
+    stateHash:
+      ft:
+        type: string
+      optional: false
+    userId:
+      ft:
+        type: string
+      optional: false
   contacts:
     address:
       ft:
@@ -1225,6 +1366,10 @@ tables:
       ft:
         type: string
       optional: false
+    connectorName:
+      ft:
+        type: string
+      optional: true
     content:
       ft:
         type: string
@@ -1264,10 +1409,6 @@ tables:
       ft:
         type: string
       optional: true
-    integrationName:
-      ft:
-        type: string
-      optional: true
     metadata:
       ft:
         type: any
@@ -1297,6 +1438,10 @@ tables:
       ft:
         type: string
       optional: true
+    connectorName:
+      ft:
+        type: string
+      optional: true
     contactId:
       ft:
         tableName: contacts
@@ -1312,10 +1457,6 @@ tables:
             value: outbound
       optional: true
     externalMessageId:
-      ft:
-        type: string
-      optional: true
-    integrationName:
       ft:
         type: string
       optional: true
@@ -1994,7 +2135,15 @@ tables:
     streamId:
       ft:
         type: string
-      optional: false
+      optional: true
+    streamReasoning:
+      ft:
+        type: string
+      optional: true
+    streamText:
+      ft:
+        type: string
+      optional: true
     threadId:
       ft:
         type: string
@@ -2033,139 +2182,6 @@ tables:
         type: number
       optional: false
     updatedBy:
-      ft:
-        type: string
-      optional: false
-  integrationCredentials:
-    authMethod:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: api-key
-          - type: literal
-            value: bearer
-          - type: literal
-            value: basic
-          - type: literal
-            value: oauth2
-      optional: false
-    config:
-      ft:
-        keys:
-          type: string
-        type: record
-        values:
-          fieldType:
-            type: union
-            value:
-              - type: string
-              - type: number
-              - type: boolean
-          optional: false
-      optional: true
-    connectorSlug:
-      ft:
-        type: string
-      optional: false
-    createdAt:
-      ft:
-        type: number
-      optional: false
-    createdBy:
-      ft:
-        type: string
-      optional: false
-    encryptedData:
-      ft:
-        type: object
-        value:
-          authTag:
-            fieldType:
-              type: string
-            optional: false
-          ciphertext:
-            fieldType:
-              type: string
-            optional: false
-          keyFingerprint:
-            fieldType:
-              type: string
-            optional: false
-          nonce:
-            fieldType:
-              type: string
-            optional: false
-      optional: false
-    endpointUrl:
-      ft:
-        type: string
-      optional: true
-    isDefault:
-      ft:
-        type: boolean
-      optional: false
-    maskedPreview:
-      ft:
-        type: string
-      optional: true
-    name:
-      ft:
-        type: string
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    status:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: active
-          - type: literal
-            value: disabled
-          - type: literal
-            value: needs-reauth
-      optional: false
-    statusDetail:
-      ft:
-        type: string
-      optional: true
-    updatedAt:
-      ft:
-        type: number
-      optional: false
-  integrationOauthStates:
-    codeVerifier:
-      ft:
-        type: string
-      optional: false
-    connectorSlug:
-      ft:
-        type: string
-      optional: false
-    createdAt:
-      ft:
-        type: number
-      optional: false
-    expiresAt:
-      ft:
-        type: number
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    redirectUri:
-      ft:
-        type: string
-      optional: false
-    stateHash:
-      ft:
-        type: string
-      optional: false
-    userId:
       ft:
         type: string
       optional: false
@@ -2652,6 +2668,15 @@ tables:
       ft:
         type: string
       optional: false
+    truncation:
+      ft:
+        type: object
+        value:
+          droppedMessages:
+            fieldType:
+              type: number
+            optional: false
+      optional: true
     usage:
       ft:
         type: any
@@ -3445,7 +3470,7 @@ tables:
         value:
           type: string
       optional: true
-    allowedIntegrationSlugs:
+    allowedConnectorSlugs:
       ft:
         type: array
         value:
@@ -3464,6 +3489,15 @@ tables:
     color:
       ft:
         type: string
+      optional: true
+    connectorsMode:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: all
+          - type: literal
+            value: restricted
       optional: true
     createdAt:
       ft:
@@ -3484,15 +3518,6 @@ tables:
     instructions:
       ft:
         type: string
-      optional: true
-    integrationsMode:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: all
-          - type: literal
-            value: restricted
       optional: true
     key:
       ft:
@@ -3934,33 +3959,7 @@ tables:
       ft:
         type: number
       optional: false
-  sandboxCredentialAccess:
-    fetchedAt:
-      ft:
-        type: number
-      optional: false
-    kind:
-      ft:
-        type: union
-        value:
-          - type: literal
-            value: bootstrap
-          - type: literal
-            value: git
-      optional: false
-    organizationId:
-      ft:
-        type: string
-      optional: false
-    sessionId:
-      ft:
-        type: string
-      optional: false
-    slug:
-      ft:
-        type: string
-      optional: false
-  sandboxIntegrationCalls:
+  sandboxConnectorCalls:
     calledAt:
       ft:
         type: number
@@ -3997,6 +3996,32 @@ tables:
       ft:
         type: string
       optional: true
+  sandboxCredentialAccess:
+    fetchedAt:
+      ft:
+        type: number
+      optional: false
+    kind:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: bootstrap
+          - type: literal
+            value: git
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    sessionId:
+      ft:
+        type: string
+      optional: false
+    slug:
+      ft:
+        type: string
+      optional: false
   sandboxSessionOps:
     agentIdleAt:
       ft:
@@ -4304,7 +4329,7 @@ tables:
             fieldType:
               type: number
             optional: false
-          integrationGrants:
+          connectorGrants:
             fieldType:
               type: array
               value:
@@ -5858,7 +5883,49 @@ tables:
       ft:
         type: boolean
       optional: false
+    arena:
+      ft:
+        type: object
+        value:
+          createdAt:
+            fieldType:
+              type: number
+            optional: false
+          pairId:
+            fieldType:
+              type: string
+            optional: false
+          partnerThreadId:
+            fieldType:
+              type: string
+            optional: false
+          role:
+            fieldType:
+              type: union
+              value:
+                - type: literal
+                  value: a
+                - type: literal
+                  value: b
+            optional: false
+      optional: true
     branchedFromMessageId:
+      ft:
+        type: string
+      optional: true
+    branchForkSequence:
+      ft:
+        type: number
+      optional: true
+    branchParentId:
+      ft:
+        type: string
+      optional: true
+    branchRootId:
+      ft:
+        type: string
+      optional: true
+    branchSelections:
       ft:
         type: string
       optional: true
@@ -5895,6 +5962,11 @@ tables:
       ft:
         type: string
       optional: true
+    hidden:
+      ft:
+        type: literal
+        value: true
+      optional: true
     isShared:
       ft:
         type: boolean
@@ -5908,14 +5980,52 @@ tables:
           - type: literal
             value: sandbox
       optional: false
+    lastReadAt:
+      ft:
+        type: number
+      optional: true
+    lastReplyAt:
+      ft:
+        type: number
+      optional: true
+    lifecycleStatus:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: trashed
+          - type: literal
+            value: expired
+          - type: literal
+            value: deleted
+      optional: true
     organizationId:
       ft:
         type: string
       optional: false
+    pinnedAt:
+      ft:
+        type: number
+      optional: true
     projectId:
       ft:
         tableName: projects
         type: id
+      optional: true
+    reasoningEffort:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: low
+          - type: literal
+            value: medium
+          - type: literal
+            value: high
+          - type: literal
+            value: extra
+          - type: literal
+            value: max
       optional: true
     sharedAt:
       ft:
@@ -5925,9 +6035,17 @@ tables:
       ft:
         type: string
       optional: true
+    sharedWithProject:
+      ft:
+        type: boolean
+      optional: true
     shareToken:
       ft:
         type: string
+      optional: true
+    statusChangedAt:
+      ft:
+        type: number
       optional: true
     title:
       ft:
@@ -5940,6 +6058,172 @@ tables:
     userId:
       ft:
         type: string
+      optional: false
+    voiceOutputOverride:
+      ft:
+        type: boolean
+      optional: true
+  ttsAudioChunks:
+    agentSlug:
+      ft:
+        type: string
+      optional: true
+    attemptCreatedAt:
+      ft:
+        type: number
+      optional: true
+    characterCount:
+      ft:
+        type: number
+      optional: true
+    costEstimateCents:
+      ft:
+        type: number
+      optional: true
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    error:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: NO_PROVIDER
+          - type: literal
+            value: UNKNOWN_MODEL
+          - type: literal
+            value: UNKNOWN_PROVIDER
+          - type: literal
+            value: UNKNOWN_VOICE
+          - type: literal
+            value: HOST_POLICY
+          - type: literal
+            value: RATE_LIMITED
+          - type: literal
+            value: CONTENTION
+          - type: literal
+            value: BUDGET_EXCEEDED
+          - type: literal
+            value: MESSAGE_CHAR_LIMIT
+          - type: literal
+            value: TIMEOUT
+          - type: literal
+            value: PROVIDER_AUTH
+          - type: literal
+            value: PROVIDER_BAD_REQUEST
+          - type: literal
+            value: PROVIDER_PAYLOAD_TOO_LARGE
+          - type: literal
+            value: PROVIDER_4XX
+          - type: literal
+            value: PROVIDER_5XX
+          - type: literal
+            value: PROVIDER_INVALID_RESPONSE
+          - type: literal
+            value: PROVIDER_ERROR
+          - type: literal
+            value: WATCHDOG_TIMEOUT
+      optional: true
+    format:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: mp3
+          - type: literal
+            value: opus
+          - type: literal
+            value: aac
+          - type: literal
+            value: flac
+          - type: literal
+            value: wav
+          - type: literal
+            value: pcm
+      optional: true
+    index:
+      ft:
+        type: number
+      optional: false
+    locale:
+      ft:
+        type: string
+      optional: false
+    messageId:
+      ft:
+        type: string
+      optional: false
+    modelId:
+      ft:
+        type: string
+      optional: true
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    providerName:
+      ft:
+        type: string
+      optional: true
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: pending
+          - type: literal
+            value: ready
+          - type: literal
+            value: failed
+      optional: false
+    storageId:
+      ft:
+        type: union
+        value:
+          - tableName: _storage
+            type: id
+          - type: string
+      optional: true
+    teamId:
+      ft:
+        type: string
+      optional: true
+    text:
+      ft:
+        type: string
+      optional: false
+    threadId:
+      ft:
+        type: string
+      optional: false
+    usageRecordedAt:
+      ft:
+        type: number
+      optional: true
+    userId:
+      ft:
+        type: string
+      optional: true
+    voice:
+      ft:
+        type: string
+      optional: true
+  ttsGcCursor:
+    job:
+      ft:
+        type: string
+      optional: false
+    lastOrgId:
+      ft:
+        type: union
+        value:
+          - type: string
+          - type: 'null'
+      optional: false
+    updatedAt:
+      ft:
+        type: number
       optional: false
   twoFactorAttempts:
     consecutiveFailures:
@@ -5978,6 +6262,18 @@ tables:
       ft:
         type: number
       optional: true
+    connectorCallCount:
+      ft:
+        type: number
+      optional: true
+    connectorName:
+      ft:
+        type: string
+      optional: true
+    connectorOperation:
+      ft:
+        type: string
+      optional: true
     costEstimate:
       ft:
         type: number
@@ -5997,18 +6293,6 @@ tables:
       ft:
         type: number
       optional: false
-    integrationCallCount:
-      ft:
-        type: number
-      optional: true
-    integrationName:
-      ft:
-        type: string
-      optional: true
-    integrationOperation:
-      ft:
-        type: string
-      optional: true
     lifecycleStatus:
       ft:
         type: union

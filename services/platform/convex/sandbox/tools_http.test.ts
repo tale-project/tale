@@ -36,7 +36,7 @@ async function getHandlers(): Promise<{
 const AUTH = {
   organizationId: 'org_1',
   sessionId: 'session_1',
-  integrationGrants: [],
+  connectorGrants: [],
   toolGrants: ['rag_search'],
   userId: 'user_1',
 };

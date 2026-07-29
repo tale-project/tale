@@ -30,7 +30,7 @@ Wolltest du später Wissen ergänzen — etwa eine Eskalations-Matrix, die der A
 
 Tools sind das, was der Agent jenseits von Text-Antworten tun kann. Für Triage brauchst du keine Tools: der Agent liest Input und schreibt Output. Öffne den Tab **Tools** und lass jeden Schalter aus. Jedes Tool, das du gewährst, erweitert die Vertrauensgrenze; halt die Liste kurz.
 
-Soll der Agent die empfohlene Aktion in ein CRM zurückschreiben, würdest du später den entsprechenden Integrations-Tool-Schalter aktivieren — aber nicht, bevor die reine Text-Variante funktioniert.
+Soll der Agent die empfohlene Aktion in ein CRM zurückschreiben, würdest du später den entsprechenden Connector-Tool-Schalter aktivieren — aber nicht, bevor die reine Text-Variante funktioniert.
 
 ## Schritt 4 — Modell wählen und veröffentlichen
 

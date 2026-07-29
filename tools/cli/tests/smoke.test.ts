@@ -221,7 +221,7 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       for (const domain of [
         'agents',
         'workflows',
-        'integrations',
+        'connectors',
         'providers',
         'skills',
       ]) {

@@ -20,7 +20,7 @@ describe('sourceFromProvider', () => {
       'onedrive',
       'sharepoint',
       'webdav',
-      'some_custom_integration',
+      'some_custom_connector',
     ]) {
       expect(sourceFromProvider(slug)).toBe(slug);
     }

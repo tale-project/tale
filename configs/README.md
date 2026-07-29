@@ -16,7 +16,7 @@ every file's shape).
   - `providers/<slug>.yml` — AI provider connectors (wire format, auth
     methods, catalog source)
   - `models/<provider>.yml` — static model catalogs
-  - `integrations/<slug>/` — integration connectors (`connector.yml` +
+  - `connectors/<slug>/` — connectors (`connector.yml` +
     `icon.svg`)
   - `harnesses/<slug>.yml` — coding-agent harness facts
   - `pii/patterns/*.yml` — PII pattern definitions

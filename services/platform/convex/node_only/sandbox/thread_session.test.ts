@@ -126,7 +126,7 @@ describe('armVisionLane', () => {
         scope: {
           agentKind: string;
           allowedModels: string[];
-          integrationGrants: string[];
+          connectorGrants: string[];
           toolGrants: string[];
           budgetCents: number;
           threadId: string;
@@ -140,7 +140,7 @@ describe('armVisionLane', () => {
     expect(mutationArgs.scope.allowedModels).toEqual([
       'openrouter/qwen/qwen-vl-max',
     ]);
-    expect(mutationArgs.scope.integrationGrants).toEqual([]);
+    expect(mutationArgs.scope.connectorGrants).toEqual([]);
     expect(mutationArgs.scope.toolGrants).toEqual([]);
     expect(mutationArgs.scope.budgetCents).toBe(200);
     expect(mutationArgs.scope.threadId).toBe('thr_1');

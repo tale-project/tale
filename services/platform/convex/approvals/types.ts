@@ -31,10 +31,10 @@ type StepType =
   | 'output'
   | 'sandbox';
 
-export interface IntegrationOperationMetadata {
-  integrationId: string;
-  integrationName: string;
-  integrationType: 'sql' | 'rest_api';
+export interface ConnectorOperationMetadata {
+  connectorId: string;
+  connectorName: string;
+  connectorType: 'sql' | 'rest_api';
   operationName: string;
   operationTitle: string;
   operationType: 'read' | 'write';

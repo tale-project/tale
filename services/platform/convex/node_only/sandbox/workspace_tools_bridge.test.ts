@@ -1,6 +1,6 @@
 // Coverage for the workspace-tool bridge dispatch — the server side of the
-// `tale-integrations-mcp` `workspace_tool`/`workspace_status` face. Uses the
-// same handler-extraction pattern as integrations_bridge.test.ts: mock
+// `tale-connectors-mcp` `workspace_tool`/`workspace_status` face. Uses the
+// same handler-extraction pattern as connectors_bridge.test.ts: mock
 // `internalAction` to a plain config so `.handler` is directly callable, and
 // mock the read primitives (searchKnowledge, org-slug, ctx.runQuery) so the
 // bridge's mapping, the read-only surface, the per-dispatch access gate, and

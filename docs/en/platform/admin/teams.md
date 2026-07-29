@@ -1,9 +1,9 @@
 ---
 title: Teams
-description: Teams are named groups of members that share access to agents, prompts, projects, and integrations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer.
+description: Teams are named groups of members that share access to agents, prompts, projects, and connectors. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer.
 ---
 
-A team is a named group of members that shares access to agents, prompts, projects, integrations, and conversations. Where roles define what a person _can_ do, teams define which slice of the org's data that person works in. Most orgs end up with a handful of teams — support, sales, ops — and most of the day-to-day permission decisions land on the team boundary, not the role boundary. Admins manage teams under **Settings > Teams**.
+A team is a named group of members that shares access to agents, prompts, projects, connectors, and conversations. Where roles define what a person _can_ do, teams define which slice of the org's data that person works in. Most orgs end up with a handful of teams — support, sales, ops — and most of the day-to-day permission decisions land on the team boundary, not the role boundary. Admins manage teams under **Settings > Teams**.
 
 This page is the reference for what a team owns, how membership works, and how the team boundary interacts with the role-based permissions documented under [Members and roles](/platform/admin/members-and-roles). Read it once when you stand up the org's teams; come back when you reorganise.
 
@@ -20,7 +20,7 @@ A team holds membership and a set of resources scoped to it. The resources are:
 - **Agents** — agents created with a team scope are visible and editable only by members of that team. Org-wide agents stay visible to everyone with the right role.
 - **Prompts** — saved prompts with `Team` visibility appear only to that team's members. Personal prompts stay private to their owner; Global prompts are visible org-wide.
 - **Projects** — projects can be assigned to a team; the team's members inherit project access without being added one by one.
-- **Integrations** — integrations restricted to certain teams (under the **Allowed teams** lever on **Settings > Integrations**) only appear in pickers for those teams.
+- **Connectors** — connectors restricted to certain teams (under the **Allowed teams** lever on **Settings > Connectors**) only appear in pickers for those teams.
 - **Conversations** — a conversation can be assigned to a team as well as to an individual, from the assignee picker in its header. Whether that assignment also _restricts_ who can see the conversation is the opt-in **Conversation access** policy under [Governance](/platform/admin/governance/policies-and-limits); with it off, conversations stay visible org-wide.
 
 A resource without a team scope stays visible to everyone whose role allows it. Teams are an _additive_ scoping layer — they narrow visibility, never widen it.
@@ -47,4 +47,4 @@ Click the team's row, then **Delete team**. Deletion is hard-stop — the team i
 
 ## Where this fits
 
-Teams are the scoping layer right below roles — roles say _what_, teams say _where_. The natural next read depends on the resource you are scoping: [Skill library](/platform/workspace/skills) for how a shared instruction reaches everyone, [Integrations (admin view)](/platform/admin/integrations) for the credentials a team's automations call, and [Projects](/platform/projects/overview) for project-to-team assignment.
+Teams are the scoping layer right below roles — roles say _what_, teams say _where_. The natural next read depends on the resource you are scoping: [Skill library](/platform/workspace/skills) for how a shared instruction reaches everyone, [Connectors (admin view)](/platform/admin/connectors) for the credentials a team's automations call, and [Projects](/platform/projects/overview) for project-to-team assignment.

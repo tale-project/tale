@@ -1,6 +1,6 @@
 ---
 title: Stand up an MCP server from scratch
-description: Wire a Model Context Protocol server as a custom integration so any Tale agent in the org can call its tools.
+description: Wire a Model Context Protocol server as a custom connector so any Tale agent in the org can call its tools.
 ---
 
 A Model Context Protocol (MCP) server is a process that exposes a list of tools over a small JSON-RPC protocol. Tale registers an MCP server once at the org level; from then on, every agent whose tools tab includes that server can call its tools. This walk takes a brand-new MCP server from "empty repo" to "called by an agent in a chat" on one Tale instance.
@@ -56,7 +56,7 @@ A 200 confirms reachability. A 502 or timeout means the tunnel is not forwarding
 
 ## Step 3 — Register the server in Tale
 
-A reachable MCP server is invisible to Tale until you register it. Open **Settings > Integrations > MCP servers** and click **New server**. Fill in:
+A reachable MCP server is invisible to Tale until you register it. Open **Settings > Connectors > MCP servers** and click **New server**. Fill in:
 
 - **Name** — `Hello Tale time`
 - **URL** — the public HTTPS URL from Step 2 (e.g. `https://abcd.ngrok.app/mcp`)
@@ -72,4 +72,4 @@ A registered server is reachable only by agents that opt in. Open any agent, cli
 
 An MCP server is the right shape when a tool needs to live outside Tale — code your team owns, a service in another network, a third-party API you wrap. Custom tools in [Build a custom tool](/tutorials/developer/build-a-custom-tool) are the right shape when the tool is one-off and lives inside one org's settings.
 
-For the bigger picture of how tools widen what an agent can do, see [Agent tools](/platform/agents/tools). For wiring an integration that wraps a third-party API instead of your own code, [Integrations overview](/platform/integrations/overview) is the next read.
+For the bigger picture of how tools widen what an agent can do, see [Agent tools](/platform/agents/tools). For wiring an connector that wraps a third-party API instead of your own code, [Connectors overview](/platform/connectors/overview) is the next read.

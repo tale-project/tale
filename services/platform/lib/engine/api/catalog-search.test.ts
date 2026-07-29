@@ -3,15 +3,15 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { registerNodeType } from '../core/slots';
 import { searchCatalog } from './catalog-search';
 
-function testIntegration(type: string, description: string, tags: string[]) {
+function testConnector(type: string, description: string, tags: string[]) {
   registerNodeType({
     type,
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
     description,
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: type,
       description,
       inputSchema: { type: 'object' },
@@ -24,12 +24,12 @@ function testIntegration(type: string, description: string, tags: string[]) {
 }
 
 beforeAll(() => {
-  testIntegration('mail.send', 'Send an email to a recipient', ['email']);
-  testIntegration('slack.post_message', 'Post a chat message to a channel', [
+  testConnector('mail.send', 'Send an email to a recipient', ['email']);
+  testConnector('slack.post_message', 'Post a chat message to a channel', [
     'chat',
   ]);
-  testIntegration('weather.lookup', 'Current weather for a city', ['forecast']);
-  testIntegration('crm.create_ticket', 'Open a support ticket', ['helpdesk']);
+  testConnector('weather.lookup', 'Current weather for a city', ['forecast']);
+  testConnector('crm.create_ticket', 'Open a support ticket', ['helpdesk']);
 });
 
 describe('searchCatalog', () => {

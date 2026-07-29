@@ -184,7 +184,7 @@ function useCopy() {
     try {
       await navigator.clipboard.writeText(value);
       toast({
-        title: t('integrations.enterpriseSso.copied'),
+        title: t('enterpriseSso.copied'),
         variant: 'success',
       });
     } catch {
@@ -236,8 +236,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   // -------------------------------------------------------------------------
   const hasStoredOidcSecret = !!config?.oidc;
   const schema = useMemo(() => {
-    const requiredMsg = t('integrations.enterpriseSso.validation.required');
-    const urlMsg = t('integrations.enterpriseSso.validation.url');
+    const requiredMsg = t('enterpriseSso.validation.required');
+    const urlMsg = t('enterpriseSso.validation.url');
 
     return z
       .object({
@@ -336,10 +336,10 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   // stays editable, and a stored custom name always wins.
   const defaultDisplayNames = useMemo<Record<UiProtocol, string>>(
     () => ({
-      'entra-id': t('integrations.enterpriseSso.defaultDisplayName.entra'),
-      'generic-oidc': t('integrations.enterpriseSso.defaultDisplayName.oidc'),
-      oauth2: t('integrations.enterpriseSso.defaultDisplayName.oauth2'),
-      saml: t('integrations.enterpriseSso.defaultDisplayName.saml'),
+      'entra-id': t('enterpriseSso.defaultDisplayName.entra'),
+      'generic-oidc': t('enterpriseSso.defaultDisplayName.oidc'),
+      oauth2: t('enterpriseSso.defaultDisplayName.oauth2'),
+      saml: t('enterpriseSso.defaultDisplayName.saml'),
     }),
     [t],
   );
@@ -485,7 +485,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           throw error;
         console.error('[sso] save failed', error);
         throw new Error(
-          convexErrorMessage(error, t('integrations.enterpriseSso.saveFailed')),
+          convexErrorMessage(error, t('enterpriseSso.saveFailed')),
           { cause: error },
         );
       }
@@ -499,9 +499,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         return [
           {
             path: 'clientSecret',
-            message: t(
-              'integrations.enterpriseSso.validation.clientSecretRequired',
-            ),
+            message: t('enterpriseSso.validation.clientSecretRequired'),
           },
         ];
       }
@@ -599,7 +597,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     const ok = await trigger(fieldsToCheck);
     if (!ok) {
       toast({
-        title: t('integrations.enterpriseSso.testMissingFields'),
+        title: t('enterpriseSso.testMissingFields'),
         variant: 'destructive',
       });
       return;
@@ -621,13 +619,13 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       });
       toast({
         title: result.valid
-          ? t('integrations.enterpriseSso.testOk')
-          : (result.error ?? t('integrations.enterpriseSso.testFailed')),
+          ? t('enterpriseSso.testOk')
+          : (result.error ?? t('enterpriseSso.testFailed')),
         variant: result.valid ? 'success' : 'destructive',
       });
     } catch {
       toast({
-        title: t('integrations.enterpriseSso.testFailed'),
+        title: t('enterpriseSso.testFailed'),
         variant: 'destructive',
       });
     }
@@ -657,32 +655,22 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         setValue(field, value, { shouldDirty: true, shouldValidate: true });
       }
       toast({
-        title: t('integrations.enterpriseSso.metadata.imported'),
+        title: t('enterpriseSso.metadata.imported'),
         variant: 'success',
       });
     } catch (error) {
       const errorByCode: Record<string, string> = {
-        sso_metadata_too_large: t(
-          'integrations.enterpriseSso.metadata.errorTooLarge',
-        ),
-        sso_metadata_invalid: t(
-          'integrations.enterpriseSso.metadata.errorInvalid',
-        ),
-        sso_metadata_not_idp: t(
-          'integrations.enterpriseSso.metadata.errorNotIdp',
-        ),
-        sso_metadata_incomplete: t(
-          'integrations.enterpriseSso.metadata.errorIncomplete',
-        ),
-        sso_metadata_fetch_failed: t(
-          'integrations.enterpriseSso.metadata.errorFetchFailed',
-        ),
+        sso_metadata_too_large: t('enterpriseSso.metadata.errorTooLarge'),
+        sso_metadata_invalid: t('enterpriseSso.metadata.errorInvalid'),
+        sso_metadata_not_idp: t('enterpriseSso.metadata.errorNotIdp'),
+        sso_metadata_incomplete: t('enterpriseSso.metadata.errorIncomplete'),
+        sso_metadata_fetch_failed: t('enterpriseSso.metadata.errorFetchFailed'),
       };
       const code = convexErrorCode(error);
       toast({
         title:
           (code !== undefined ? errorByCode[code] : undefined) ??
-          t('integrations.enterpriseSso.metadata.importFailed'),
+          t('enterpriseSso.metadata.importFailed'),
         variant: 'destructive',
       });
     }
@@ -692,7 +680,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     // Fast client-side cap; the server re-checks authoritatively.
     if (file.size > MAX_METADATA_UPLOAD_BYTES) {
       toast({
-        title: t('integrations.enterpriseSso.metadata.errorTooLarge'),
+        title: t('enterpriseSso.metadata.errorTooLarge'),
         variant: 'destructive',
       });
       return;
@@ -706,14 +694,14 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       setScimToken(result.token);
     } catch {
       toast({
-        title: t('integrations.enterpriseSso.scim.tokenFailed'),
+        title: t('enterpriseSso.scim.tokenFailed'),
         variant: 'destructive',
       });
     }
   }
 
   const roleOptions = (['admin', 'developer', 'editor', 'member'] as const).map(
-    (r) => ({ value: r, label: t(`integrations.enterpriseSso.role.${r}`) }),
+    (r) => ({ value: r, label: t(`enterpriseSso.role.${r}`) }),
   );
 
   return (
@@ -740,21 +728,17 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 variant="warning"
                 icon={AlertTriangle}
                 live="assertive"
-                title={t('integrations.enterpriseSso.deploymentWarning.title')}
+                title={t('enterpriseSso.deploymentWarning.title')}
                 description={
                   <ul className="list-disc space-y-1 pl-4">
                     {callbackMissing && (
                       <li>
-                        {t(
-                          'integrations.enterpriseSso.deploymentWarning.callbackMissing',
-                        )}
+                        {t('enterpriseSso.deploymentWarning.callbackMissing')}
                       </li>
                     )}
                     {authSecretMissing && (
                       <li>
-                        {t(
-                          'integrations.enterpriseSso.deploymentWarning.authSecretMissing',
-                        )}
+                        {t('enterpriseSso.deploymentWarning.authSecretMissing')}
                       </li>
                     )}
                   </ul>
@@ -765,22 +749,22 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
 
           <SettingsSection
             title={tNav('enterpriseSso')}
-            description={t('integrations.enterpriseSso.description')}
+            description={t('enterpriseSso.description')}
           >
             {connected && (
               <StatusIndicator variant="success">
-                {t('integrations.enterpriseSso.connected')}
+                {t('enterpriseSso.connected')}
               </StatusIndicator>
             )}
 
             <Text variant="muted" className="text-sm">
-              {t('integrations.enterpriseSso.formHint')}
+              {t('enterpriseSso.formHint')}
             </Text>
 
             <SettingsFieldList>
               <SettingsFieldRow
-                label={t('integrations.enterpriseSso.protocolLabel')}
-                description={t('integrations.enterpriseSso.protocolHelp')}
+                label={t('enterpriseSso.protocolLabel')}
+                description={t('enterpriseSso.protocolHelp')}
               >
                 <Controller
                   control={control}
@@ -788,7 +772,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   render={({ field }) => (
                     <Select
                       id="sso-protocol"
-                      aria-label={t('integrations.enterpriseSso.protocolLabel')}
+                      aria-label={t('enterpriseSso.protocolLabel')}
                       // Default to a defined value so the Select is controlled from
                       // the first render — `field.value` is undefined while `data`
                       // is still loading (avoids the uncontrolled→controlled warning).
@@ -825,33 +809,29 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                       options={[
                         {
                           value: 'entra-id',
-                          label: t('integrations.enterpriseSso.protocol.entra'),
+                          label: t('enterpriseSso.protocol.entra'),
                         },
                         {
                           value: 'generic-oidc',
-                          label: t('integrations.enterpriseSso.protocol.oidc'),
+                          label: t('enterpriseSso.protocol.oidc'),
                         },
                         {
                           value: 'oauth2',
-                          label: t(
-                            'integrations.enterpriseSso.protocol.oauth2',
-                          ),
+                          label: t('enterpriseSso.protocol.oauth2'),
                         },
                         {
                           value: 'saml',
-                          label: t('integrations.enterpriseSso.protocol.saml'),
+                          label: t('enterpriseSso.protocol.saml'),
                         },
                       ]}
                     />
                   )}
                 />
               </SettingsFieldRow>
-              <SettingsFieldRow
-                label={t('integrations.enterpriseSso.displayNameLabel')}
-              >
+              <SettingsFieldRow label={t('enterpriseSso.displayNameLabel')}>
                 <Input
                   id="sso-display-name"
-                  aria-label={t('integrations.enterpriseSso.displayNameLabel')}
+                  aria-label={t('enterpriseSso.displayNameLabel')}
                   errorMessage={errors.displayName?.message}
                   {...register('displayName')}
                   wrapperClassName="w-full"
@@ -860,9 +840,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             </SettingsFieldList>
           </SettingsSection>
 
-          <SettingsSection
-            title={t('integrations.enterpriseSso.signInSection')}
-          >
+          <SettingsSection title={t('enterpriseSso.signInSection')}>
             {isOidcLike ? (
               <>
                 <SettingsFieldList>
@@ -870,16 +848,14 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     buried in the guide) — a mismatch here is the top cause of a
                     failed sign-in (AADSTS50011). */}
                   <ReadOnlyCopy
-                    label={t('integrations.enterpriseSso.redirectUrlLabel')}
+                    label={t('enterpriseSso.redirectUrlLabel')}
                     value={config?.oidcCallbackUrl ?? ''}
-                    helpText={t('integrations.enterpriseSso.redirectUrlHelp')}
+                    helpText={t('enterpriseSso.redirectUrlHelp')}
                   />
-                  <SettingsFieldRow
-                    label={t('integrations.enterpriseSso.issuerLabel')}
-                  >
+                  <SettingsFieldRow label={t('enterpriseSso.issuerLabel')}>
                     <Input
                       id="sso-issuer"
-                      aria-label={t('integrations.enterpriseSso.issuerLabel')}
+                      aria-label={t('enterpriseSso.issuerLabel')}
                       placeholder="https://idp.example.com"
                       errorMessage={errors.issuer?.message}
                       {...register('issuer')}
@@ -889,45 +865,33 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   {protocol === 'oauth2' && (
                     <>
                       <SettingsFieldRow
-                        label={t(
-                          'integrations.enterpriseSso.authzEndpointLabel',
-                        )}
+                        label={t('enterpriseSso.authzEndpointLabel')}
                       >
                         <Input
                           id="sso-authz"
-                          aria-label={t(
-                            'integrations.enterpriseSso.authzEndpointLabel',
-                          )}
+                          aria-label={t('enterpriseSso.authzEndpointLabel')}
                           errorMessage={errors.authzEndpoint?.message}
                           {...register('authzEndpoint')}
                           wrapperClassName="w-full"
                         />
                       </SettingsFieldRow>
                       <SettingsFieldRow
-                        label={t(
-                          'integrations.enterpriseSso.tokenEndpointLabel',
-                        )}
+                        label={t('enterpriseSso.tokenEndpointLabel')}
                       >
                         <Input
                           id="sso-token-ep"
-                          aria-label={t(
-                            'integrations.enterpriseSso.tokenEndpointLabel',
-                          )}
+                          aria-label={t('enterpriseSso.tokenEndpointLabel')}
                           errorMessage={errors.tokenEndpoint?.message}
                           {...register('tokenEndpoint')}
                           wrapperClassName="w-full"
                         />
                       </SettingsFieldRow>
                       <SettingsFieldRow
-                        label={t(
-                          'integrations.enterpriseSso.userinfoEndpointLabel',
-                        )}
+                        label={t('enterpriseSso.userinfoEndpointLabel')}
                       >
                         <Input
                           id="sso-userinfo"
-                          aria-label={t(
-                            'integrations.enterpriseSso.userinfoEndpointLabel',
-                          )}
+                          aria-label={t('enterpriseSso.userinfoEndpointLabel')}
                           errorMessage={errors.userinfoEndpoint?.message}
                           {...register('userinfoEndpoint')}
                           wrapperClassName="w-full"
@@ -935,45 +899,37 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                       </SettingsFieldRow>
                     </>
                   )}
-                  <SettingsFieldRow
-                    label={t('integrations.enterpriseSso.clientIdLabel')}
-                  >
+                  <SettingsFieldRow label={t('enterpriseSso.clientIdLabel')}>
                     <Input
                       id="sso-client-id"
-                      aria-label={t('integrations.enterpriseSso.clientIdLabel')}
+                      aria-label={t('enterpriseSso.clientIdLabel')}
                       errorMessage={errors.clientId?.message}
                       {...register('clientId')}
                       wrapperClassName="w-full"
                     />
                   </SettingsFieldRow>
                   <SettingsFieldRow
-                    label={t('integrations.enterpriseSso.clientSecretLabel')}
+                    label={t('enterpriseSso.clientSecretLabel')}
                     {...(connected
                       ? {
-                          description: t(
-                            'integrations.enterpriseSso.clientSecretKeep',
-                          ),
+                          description: t('enterpriseSso.clientSecretKeep'),
                         }
                       : {})}
                   >
                     <Input
                       id="sso-client-secret"
                       type="password"
-                      aria-label={t(
-                        'integrations.enterpriseSso.clientSecretLabel',
-                      )}
+                      aria-label={t('enterpriseSso.clientSecretLabel')}
                       placeholder={connected ? '••••••••' : undefined}
                       errorMessage={errors.clientSecret?.message}
                       {...register('clientSecret')}
                       wrapperClassName="w-full"
                     />
                   </SettingsFieldRow>
-                  <SettingsFieldRow
-                    label={t('integrations.enterpriseSso.scopesLabel')}
-                  >
+                  <SettingsFieldRow label={t('enterpriseSso.scopesLabel')}>
                     <Input
                       id="sso-scopes"
-                      aria-label={t('integrations.enterpriseSso.scopesLabel')}
+                      aria-label={t('enterpriseSso.scopesLabel')}
                       {...register('scopes')}
                       wrapperClassName="w-full"
                     />
@@ -982,19 +938,15 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 {/* PKCE has one sensible value (on) — a top-level switch
                       invited turning off a security feature, so it lives under
                       Advanced now (#2653). Default unchanged. */}
-                <CollapsibleDetails
-                  summary={t('integrations.enterpriseSso.advanced')}
-                >
+                <CollapsibleDetails summary={t('enterpriseSso.advanced')}>
                   <Stack gap={4} className="pt-3 pl-5">
                     <Controller
                       control={control}
                       name="pkce"
                       render={({ field }) => (
                         <SettingsToggleRow
-                          label={t('integrations.enterpriseSso.pkceLabel')}
-                          description={t(
-                            'integrations.enterpriseSso.pkceDescription',
-                          )}
+                          label={t('enterpriseSso.pkceLabel')}
+                          description={t('enterpriseSso.pkceDescription')}
                           // `false` until `data` loads so the Switch stays controlled
                           // from the first render (no uncontrolled→controlled warning).
                           checked={field.value ?? false}
@@ -1014,18 +966,16 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   <Stack gap={3}>
                     <Stack gap={1}>
                       <Text variant="label" className="text-sm">
-                        {t('integrations.enterpriseSso.metadata.title')}
+                        {t('enterpriseSso.metadata.title')}
                       </Text>
                       <Text variant="muted" className="text-xs">
-                        {t('integrations.enterpriseSso.metadata.help')}
+                        {t('enterpriseSso.metadata.help')}
                       </Text>
                     </Stack>
                     <Row gap={2} align="end" wrap>
                       <Input
                         id="saml-metadata-url"
-                        label={t(
-                          'integrations.enterpriseSso.metadata.urlLabel',
-                        )}
+                        label={t('enterpriseSso.metadata.urlLabel')}
                         placeholder="https://idp.example.com/federationmetadata.xml"
                         value={metadataUrl}
                         onChange={(e) => setMetadataUrl(e.target.value)}
@@ -1046,7 +996,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                         {parseMetadata.isPending && (
                           <Loader2 className="size-4 animate-spin" />
                         )}
-                        {t('integrations.enterpriseSso.metadata.importUrl')}
+                        {t('enterpriseSso.metadata.importUrl')}
                       </Button>
                       <Button
                         type="button"
@@ -1055,7 +1005,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                         disabled={parseMetadata.isPending}
                         onClick={() => metadataFileRef.current?.click()}
                       >
-                        {t('integrations.enterpriseSso.metadata.uploadXml')}
+                        {t('enterpriseSso.metadata.uploadXml')}
                       </Button>
                       {/* Hidden picker; the visible button above carries the
                           accessible name. */}
@@ -1077,39 +1027,31 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   </Stack>
                 </Card>
                 <SettingsFieldList>
-                  <SettingsFieldRow
-                    label={t('integrations.enterpriseSso.idpEntityIdLabel')}
-                  >
+                  <SettingsFieldRow label={t('enterpriseSso.idpEntityIdLabel')}>
                     <Input
                       id="saml-entity"
-                      aria-label={t(
-                        'integrations.enterpriseSso.idpEntityIdLabel',
-                      )}
+                      aria-label={t('enterpriseSso.idpEntityIdLabel')}
                       errorMessage={errors.idpEntityId?.message}
                       {...register('idpEntityId')}
                       wrapperClassName="w-full"
                     />
                   </SettingsFieldRow>
-                  <SettingsFieldRow
-                    label={t('integrations.enterpriseSso.idpSsoUrlLabel')}
-                  >
+                  <SettingsFieldRow label={t('enterpriseSso.idpSsoUrlLabel')}>
                     <Input
                       id="saml-sso-url"
-                      aria-label={t(
-                        'integrations.enterpriseSso.idpSsoUrlLabel',
-                      )}
+                      aria-label={t('enterpriseSso.idpSsoUrlLabel')}
                       errorMessage={errors.idpSsoUrl?.message}
                       {...register('idpSsoUrl')}
                       wrapperClassName="w-full"
                     />
                   </SettingsFieldRow>
                   <SettingsFieldRow
-                    label={t('integrations.enterpriseSso.idpCertLabel')}
-                    description={t('integrations.enterpriseSso.idpCertHelp')}
+                    label={t('enterpriseSso.idpCertLabel')}
+                    description={t('enterpriseSso.idpCertHelp')}
                   >
                     <Textarea
                       id="saml-cert"
-                      aria-label={t('integrations.enterpriseSso.idpCertLabel')}
+                      aria-label={t('enterpriseSso.idpCertLabel')}
                       rows={4}
                       errorMessage={errors.idpCertificate?.message}
                       {...register('idpCertificate')}
@@ -1117,11 +1059,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     />
                   </SettingsFieldRow>
                   <ReadOnlyCopy
-                    label={t('integrations.enterpriseSso.spMetadataLabel')}
+                    label={t('enterpriseSso.spMetadataLabel')}
                     value={config?.samlSpMetadataUrl ?? ''}
                   />
                   <ReadOnlyCopy
-                    label={t('integrations.enterpriseSso.acsUrlLabel')}
+                    label={t('enterpriseSso.acsUrlLabel')}
                     value={config?.samlAcsUrl ?? ''}
                   />
                 </SettingsFieldList>
@@ -1131,55 +1073,45 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             {/* Per-provider setup guide — collapsed by default so the walkthrough
               prose doesn't dominate the section (the redirect/metadata URLs it
               references are shown up-front above). */}
-            <CollapsibleDetails
-              summary={t('integrations.enterpriseSso.guide.title')}
-            >
+            <CollapsibleDetails summary={t('enterpriseSso.guide.title')}>
               <Stack gap={3} className="pt-3 pl-5">
                 {!isOidcLike ? (
                   <Text variant="muted" className="text-sm">
-                    {t('integrations.enterpriseSso.guide.samlIntro')}
+                    {t('enterpriseSso.guide.samlIntro')}
                   </Text>
                 ) : (
                   <ReadOnlyCopy
-                    label={t('integrations.enterpriseSso.guide.redirectLabel')}
+                    label={t('enterpriseSso.guide.redirectLabel')}
                     value={config?.oidcCallbackUrl ?? ''}
                   />
                 )}
                 <Text variant="muted" className="text-sm">
-                  {t(`integrations.enterpriseSso.guide.${guideKey}.intro`)}
+                  {t(`enterpriseSso.guide.${guideKey}.intro`)}
                 </Text>
                 <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
                   {guideSteps.map((s) => (
-                    <li key={s}>
-                      {t(`integrations.enterpriseSso.guide.${guideKey}.${s}`)}
-                    </li>
+                    <li key={s}>{t(`enterpriseSso.guide.${guideKey}.${s}`)}</li>
                   ))}
                 </ol>
                 {protocol === 'generic-oidc' && (
                   <Text variant="muted" className="text-sm">
-                    {t('integrations.enterpriseSso.guide.google.groupsNote')}
+                    {t('enterpriseSso.guide.google.groupsNote')}
                   </Text>
                 )}
               </Stack>
             </CollapsibleDetails>
           </SettingsSection>
 
-          <SettingsSection
-            title={t('integrations.enterpriseSso.provisioningSection')}
-          >
+          <SettingsSection title={t('enterpriseSso.provisioningSection')}>
             <SettingsFieldList>
-              <SettingsFieldRow
-                label={t('integrations.enterpriseSso.defaultRoleLabel')}
-              >
+              <SettingsFieldRow label={t('enterpriseSso.defaultRoleLabel')}>
                 <Controller
                   control={control}
                   name="defaultRole"
                   render={({ field }) => (
                     <Select
                       id="sso-default-role"
-                      aria-label={t(
-                        'integrations.enterpriseSso.defaultRoleLabel',
-                      )}
+                      aria-label={t('enterpriseSso.defaultRoleLabel')}
                       // Default to a defined value so the Select is controlled from
                       // the first render — `field.value` is undefined while `data`
                       // is still loading (avoids the uncontrolled→controlled warning).
@@ -1206,10 +1138,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 render={({ field }) => (
                   <SettingsToggleRow
                     className="py-5"
-                    label={t('integrations.enterpriseSso.autoRoleLabel')}
-                    description={t(
-                      'integrations.enterpriseSso.autoRoleDescription',
-                    )}
+                    label={t('enterpriseSso.autoRoleLabel')}
+                    description={t('enterpriseSso.autoRoleDescription')}
                     // `false` until `data` loads so the Switch stays controlled
                     // from the first render (no uncontrolled→controlled warning).
                     checked={field.value ?? false}
@@ -1228,10 +1158,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 render={({ field }) => (
                   <SettingsToggleRow
                     className="py-5"
-                    label={t('integrations.enterpriseSso.autoTeamLabel')}
-                    description={t(
-                      'integrations.enterpriseSso.autoTeamDescription',
-                    )}
+                    label={t('enterpriseSso.autoTeamLabel')}
+                    description={t('enterpriseSso.autoTeamDescription')}
                     // `false` until `data` loads so the Switch stays controlled
                     // from the first render (no uncontrolled→controlled warning).
                     checked={field.value ?? false}
@@ -1240,14 +1168,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 )}
               />
               <SettingsFieldRow
-                label={t('integrations.enterpriseSso.excludeGroupsLabel')}
-                description={t('integrations.enterpriseSso.excludeGroupsHelp')}
+                label={t('enterpriseSso.excludeGroupsLabel')}
+                description={t('enterpriseSso.excludeGroupsHelp')}
               >
                 <Input
                   id="sso-exclude-groups"
-                  aria-label={t(
-                    'integrations.enterpriseSso.excludeGroupsLabel',
-                  )}
+                  aria-label={t('enterpriseSso.excludeGroupsLabel')}
                   {...register('excludeGroups')}
                   wrapperClassName="w-full"
                 />
@@ -1259,16 +1185,16 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               independent of the SSO config Save). Status sits in `action` so it
               scans next to the title — same placement as deployment Built-in. */}
           <SettingsSection
-            title={t('integrations.enterpriseSso.scim.section')}
-            description={t('integrations.enterpriseSso.scim.help')}
+            title={t('enterpriseSso.scim.section')}
+            description={t('enterpriseSso.scim.help')}
             action={
               config?.scim.enabled ? (
                 <Badge variant="green" dot>
-                  {t('integrations.enterpriseSso.scim.enabled')}
+                  {t('enterpriseSso.scim.enabled')}
                 </Badge>
               ) : (
                 <Badge variant="slate" dot>
-                  {t('integrations.enterpriseSso.scim.disabled')}
+                  {t('enterpriseSso.scim.disabled')}
                 </Badge>
               )
             }
@@ -1277,7 +1203,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               {scimToken ? (
                 <Stack gap={2}>
                   <Text variant="muted" className="text-sm">
-                    {t('integrations.enterpriseSso.scim.tokenCreatedHelp')}
+                    {t('enterpriseSso.scim.tokenCreatedHelp')}
                   </Text>
                   <code className="bg-muted block w-full rounded-md p-3 font-mono text-xs break-all">
                     {scimToken}
@@ -1289,7 +1215,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     onClick={() => copy(scimToken)}
                   >
                     <Copy className="size-4" />
-                    {t('integrations.enterpriseSso.copy')}
+                    {t('enterpriseSso.copy')}
                   </Button>
                 </Stack>
               ) : (
@@ -1305,8 +1231,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                       <Loader2 className="size-4 animate-spin" />
                     )}
                     {config?.scim.enabled
-                      ? t('integrations.enterpriseSso.scim.regenerate')
-                      : t('integrations.enterpriseSso.scim.generate')}
+                      ? t('enterpriseSso.scim.regenerate')
+                      : t('enterpriseSso.scim.generate')}
                   </Button>
                   {config?.scim.enabled && (
                     <Button
@@ -1316,14 +1242,14 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                       disabled={!canEdit}
                       onClick={() => disableScim.mutate({ organizationId })}
                     >
-                      {t('integrations.enterpriseSso.scim.disable')}
+                      {t('enterpriseSso.scim.disable')}
                     </Button>
                   )}
                 </HStack>
               )}
               {config?.scim.baseUrl && (
                 <ReadOnlyCopy
-                  label={t('integrations.enterpriseSso.scim.baseUrlLabel')}
+                  label={t('enterpriseSso.scim.baseUrlLabel')}
                   value={config.scim.baseUrl}
                 />
               )}
@@ -1345,7 +1271,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   disabled={!canEdit}
                   onClick={() => setPendingAction('disable')}
                 >
-                  {t('integrations.enterpriseSso.disable')}
+                  {t('enterpriseSso.disable')}
                 </Button>
               )}
               {config?.configured && (
@@ -1356,7 +1282,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   disabled={!canEdit}
                   onClick={() => setPendingAction('remove')}
                 >
-                  {t('integrations.enterpriseSso.remove')}
+                  {t('enterpriseSso.remove')}
                 </Button>
               )}
             </HStack>
@@ -1371,7 +1297,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 {testConn.isPending && (
                   <Loader2 className="size-4 animate-spin" />
                 )}
-                {t('integrations.enterpriseSso.test')}
+                {t('enterpriseSso.test')}
               </Button>
             )}
           </HStack>
@@ -1386,18 +1312,18 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         variant="destructive"
         title={
           pendingAction === 'remove'
-            ? t('integrations.enterpriseSso.removeConfirmTitle')
-            : t('integrations.enterpriseSso.disableConfirmTitle')
+            ? t('enterpriseSso.removeConfirmTitle')
+            : t('enterpriseSso.disableConfirmTitle')
         }
         description={
           pendingAction === 'remove'
-            ? t('integrations.enterpriseSso.removeConfirmDescription')
-            : t('integrations.enterpriseSso.disableConfirmDescription')
+            ? t('enterpriseSso.removeConfirmDescription')
+            : t('enterpriseSso.disableConfirmDescription')
         }
         confirmText={
           pendingAction === 'remove'
-            ? t('integrations.enterpriseSso.remove')
-            : t('integrations.enterpriseSso.disable')
+            ? t('enterpriseSso.remove')
+            : t('enterpriseSso.disable')
         }
         isLoading={disableSso.isPending || removeSso.isPending}
         onConfirm={async () => {
@@ -1460,22 +1386,22 @@ function RoleMappingRulesEditor({
   });
   const sourceOptions = ROLE_RULE_SOURCES.map((s) => ({
     value: s,
-    label: t(`integrations.enterpriseSso.roleMapping.source.${s}`),
+    label: t(`enterpriseSso.roleMapping.source.${s}`),
   }));
   const roleOptions = ROLE_RULE_TARGETS.map((r) => ({
     value: r,
-    label: t(`integrations.enterpriseSso.role.${r}`),
+    label: t(`enterpriseSso.role.${r}`),
   }));
 
   return (
     <Card padding="sm">
       <Stack gap={3}>
         <Text variant="muted" className="text-sm">
-          {t('integrations.enterpriseSso.roleMapping.help')}
+          {t('enterpriseSso.roleMapping.help')}
         </Text>
         {fields.length === 0 ? (
           <Text variant="muted" className="text-sm">
-            {t('integrations.enterpriseSso.roleMapping.empty')}
+            {t('enterpriseSso.roleMapping.empty')}
           </Text>
         ) : (
           <Stack gap={3}>
@@ -1500,7 +1426,7 @@ function RoleMappingRulesEditor({
               append({ source: 'group', pattern: '', targetRole: 'member' })
             }
           >
-            {t('integrations.enterpriseSso.roleMapping.addRule')}
+            {t('enterpriseSso.roleMapping.addRule')}
           </Button>
         </HStack>
       </Stack>
@@ -1537,7 +1463,7 @@ function RoleMappingRuleRow({
             render={({ field }) => (
               <Select
                 id={`role-rule-source-${index}`}
-                label={t('integrations.enterpriseSso.roleMapping.sourceLabel')}
+                label={t('enterpriseSso.roleMapping.sourceLabel')}
                 value={field.value ?? 'group'}
                 onValueChange={(value) => {
                   const next = narrowStringUnion<RoleRuleSource>(
@@ -1556,7 +1482,7 @@ function RoleMappingRuleRow({
             render={({ field }) => (
               <Input
                 id={`role-rule-pattern-${index}`}
-                label={t('integrations.enterpriseSso.roleMapping.patternLabel')}
+                label={t('enterpriseSso.roleMapping.patternLabel')}
                 name={field.name}
                 value={field.value ?? ''}
                 onChange={field.onChange}
@@ -1570,9 +1496,7 @@ function RoleMappingRuleRow({
             render={({ field }) => (
               <Select
                 id={`role-rule-target-${index}`}
-                label={t(
-                  'integrations.enterpriseSso.roleMapping.targetRoleLabel',
-                )}
+                label={t('enterpriseSso.roleMapping.targetRoleLabel')}
                 value={field.value ?? 'member'}
                 onValueChange={(value) => {
                   const next = narrowStringUnion<PlatformRole>(
@@ -1586,7 +1510,7 @@ function RoleMappingRuleRow({
             )}
           />
           <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
-            {t('integrations.enterpriseSso.roleMapping.removeRule')}
+            {t('enterpriseSso.roleMapping.removeRule')}
           </Button>
         </Row>
         {source === 'claim' && (
@@ -1596,10 +1520,8 @@ function RoleMappingRuleRow({
             render={({ field }) => (
               <Input
                 id={`role-rule-claim-${index}`}
-                label={t('integrations.enterpriseSso.roleMapping.claimLabel')}
-                description={t(
-                  'integrations.enterpriseSso.roleMapping.claimHelp',
-                )}
+                label={t('enterpriseSso.roleMapping.claimLabel')}
+                description={t('enterpriseSso.roleMapping.claimHelp')}
                 name={field.name}
                 value={field.value ?? ''}
                 onChange={field.onChange}

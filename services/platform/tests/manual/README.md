@@ -48,8 +48,8 @@ Playwright MCP — proving behaviour by observing the real outcome, per the
 | [knowledge.md](knowledge.md)         | documents, knowledge entries, products, contacts, websites                           |
 | [conversations.md](conversations.md) | inbox: statuses, priority, search                                                    |
 | [workflows.md](workflows.md)         | editor, configuration, triggers, executions, per-node run status                     |
-| [settings.md](settings.md)           | account, personalization, org, teams, branding, integrations, API, providers, skills |
-| [integrations.md](integrations.md)   | connect/disconnect integrations; mailbox (IMAP/SMTP), Slack config, package upload   |
+| [settings.md](settings.md)           | account, personalization, org, teams, branding, connectors, API, providers, skills   |
+| [connectors.md](connectors.md)       | connect/disconnect connectors; mailbox (IMAP/SMTP), Slack config, package upload     |
 | [governance.md](governance.md)       | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
 | [notifications.md](notifications.md) | notification center, inbox reviews                                                   |
 | [navigation.md](navigation.md)       | side-nav, breadcrumbs, command palette, changelog, page-loads                        |
@@ -75,7 +75,7 @@ _Automated coverage_ table is case-by-case.
 | conversations | 🔶 partial     | `conversations` (read-only / empty-state only; status transitions, bulk actions, search uncovered — and transitions currently FAIL, crit audit-log RLS defect, see the guide's Issues) |
 | workflows     | ✅ strong      | `workflow-editor`                                                                                                                                                                      |
 | settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`, `token-sources`                                                                                                                           |
-| integrations  | ✅ strong      | `integrations` (connect + offline `testConnection`)                                                                                                                                    |
+| connectors    | ✅ strong      | `connectors` (connect + offline `testConnection`)                                                                                                                                      |
 | governance    | 🔶 partial     | `governance` (system-prompt, voice-output, run-code, content-safety toggle, budget guard; DSAR/legal-hold dialogs, logs, security-monitoring, usage, trash uncovered)                  |
 | notifications | ⛔ manual-only | — (no spec)                                                                                                                                                                            |
 | navigation    | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                                                                                       |

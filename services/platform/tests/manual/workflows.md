@@ -76,7 +76,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 > **Mailbox event**: `conversation.message_received` (label **Message received**,
 > from `convex/workflows/triggers/event_types.ts`) is the mailbox event — it is
 > fed by IMAP/Gmail/Outlook ingestion, which is env-gated; see the mailbox
-> integration case in [integrations.md](integrations.md) (F9).
+> connector case in [connectors.md](connectors.md) (F9).
 
 ## Boundary & error tests
 

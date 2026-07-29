@@ -55,7 +55,7 @@ export const Landing: Story = {
           icon={<Box className="size-4" />}
           href="/develop/api-reference"
         >
-          API reference, webhooks, and integration patterns.
+          API reference, webhooks, and connector patterns.
         </Card>
       </CardGroup>,
     ),

@@ -11,7 +11,7 @@ const ALL_TABLES = [
   'documents',
   'products',
   'contacts',
-  'integrations',
+  'connectors',
   'onedriveSyncConfigs',
   'conversations',
   'conversationMessages',
@@ -64,7 +64,7 @@ describe('authorizeRls', () => {
       'websites',
     ];
     const readOnly: Table[] = [
-      'integrations',
+      'connectors',
       'onedriveSyncConfigs',
       'wfDefinitions',
       'wfExecutions',

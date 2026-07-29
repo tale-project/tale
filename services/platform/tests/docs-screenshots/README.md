@@ -13,7 +13,7 @@ repo facts in [`docs/AGENTS.md`](../../../../docs/AGENTS.md); the gate in
 bun install
 bunx playwright install chromium
 
-# 1. Terminal 1 — mock gateway (chat SSE + AI + integration mocks) on :4141
+# 1. Terminal 1 — mock gateway (chat SSE + AI + connector mocks) on :4141
 cd services/platform && bun lib/mocks/start.ts
 
 # 2. Terminal 2 — platform dev stack (app on :3000), hermetic, seeded from the
@@ -26,7 +26,7 @@ cd services/platform && \
   TALE_CONFIG_BUILTIN_DIR="$(pwd)/tests/e2e/fixtures/config/docs-demo" \
   TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
-  TALE_MOCK_INTEGRATIONS_BASE=http://127.0.0.1:4141 \
+  TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
   bun scripts/dev.ts
 # wait for the READY banner
 
@@ -70,7 +70,7 @@ bun run --filter @tale/docs dev                   # docs on :3002
 
 - **Ports 3000/4141 must be owned by THIS stack.** If another dev stack holds :3000, its config
   dir seeds the orgs and nothing here works (`waitForSeededOrg`'s error explains the same trap).
-  Override the app origin with `E2E_BASE_URL`, the gateway with `TALE_MOCK_INTEGRATIONS_BASE`.
+  Override the app origin with `E2E_BASE_URL`, the gateway with `TALE_MOCK_CONNECTORS_BASE`.
 - **`TALE_CONFIG_BUILTIN_DIR` must point at `docs-demo/`** — without it, wizard orgs seed from
   the real `builtin-configs/` (OpenRouter with no key) and chat is dead.
 - **Wizard orgs and mock wiring**: `docs-demo/providers/openrouter.json` is the real OpenRouter

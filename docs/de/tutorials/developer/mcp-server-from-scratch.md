@@ -1,6 +1,6 @@
 ---
 title: Einen MCP-Server von Grund auf hochziehen
-description: Verdrahte einen Model-Context-Protocol-Server als eigene Integration, damit jeder Agent in der Org seine Tools aufrufen kann.
+description: Verdrahte einen Model-Context-Protocol-Server als eigene Connector, damit jeder Agent in der Org seine Tools aufrufen kann.
 ---
 
 Ein Model-Context-Protocol-Server (MCP-Server) ist ein Prozess, der eine Liste von Tools über ein kleines JSON-RPC-Protokoll bereitstellt. Tale registriert einen MCP-Server einmal auf Org-Ebene; ab dann kann jeder Agent, der diesen Server in seinem Tools-Tab führt, dessen Tools aufrufen. Dieser Spaziergang führt einen brandneuen MCP-Server von „leerem Repo" zu „aus einem Chat von einem Agent aufgerufen" auf einer Tale-Instanz.
@@ -56,7 +56,7 @@ Eine 200 bestätigt Erreichbarkeit. Eine 502 oder ein Timeout heisst, der Tunnel
 
 ## Schritt 3 — Den Server in Tale registrieren
 
-Ein erreichbarer MCP-Server ist für Tale unsichtbar, bis du ihn registrierst. Öffne **Einstellungen > Integrationen > MCP-Server** und klick **Neuer Server**. Füll aus:
+Ein erreichbarer MCP-Server ist für Tale unsichtbar, bis du ihn registrierst. Öffne **Einstellungen > Connectors > MCP-Server** und klick **Neuer Server**. Füll aus:
 
 - **Name** — `Hello Tale time`
 - **URL** — die öffentliche HTTPS-URL aus Schritt 2 (z.B. `https://abcd.ngrok.app/mcp`)
@@ -72,4 +72,4 @@ Ein registrierter Server ist nur erreichbar für Agenten, die sich anmelden. Öf
 
 Ein MCP-Server ist die richtige Form, wenn ein Tool ausserhalb von Tale leben muss — Code, der deinem Team gehört, ein Dienst in einem anderen Netz, eine Drittanbieter-API, die du umschnürst. Eigene Tools aus [Ein eigenes Tool bauen](/de/tutorials/developer/build-a-custom-tool) sind die richtige Form, wenn das Tool einmalig ist und in den Einstellungen einer Org lebt.
 
-Fürs grössere Bild, wie Tools erweitern, was ein Agent kann, siehe [Agent-Tools](/de/platform/agents/tools). Für die Verdrahtung einer Integration, die statt eigenem Code eine Drittanbieter-API umschliesst, ist [Integrationen-Überblick](/de/platform/integrations/overview) die nächste Lektüre.
+Fürs grössere Bild, wie Tools erweitern, was ein Agent kann, siehe [Agent-Tools](/de/platform/agents/tools). Für die Verdrahtung einer Connector, die statt eigenem Code eine Drittanbieter-API umschliesst, ist [Connectors-Überblick](/de/platform/connectors/overview) die nächste Lektüre.

@@ -154,7 +154,7 @@ export interface DispatchStore extends StoreAdapter {
 
 export interface DispatchContext {
   store: DispatchStore;
-  /** Enable live integration calls — deployments/hosts only, never a builder
+  /** Enable live connector calls — deployments/hosts only, never a builder
    * test loop. */
   allowLive?: boolean;
 }
@@ -203,9 +203,9 @@ export async function dispatch(
             ),
           ],
         };
-        if (t.integration) {
-          entry.input_schema = t.integration.inputSchema;
-          entry.output = t.integration.outputSignature;
+        if (t.connector) {
+          entry.input_schema = t.connector.inputSchema;
+          entry.output = t.connector.outputSignature;
         }
         node_types.push(entry);
       }

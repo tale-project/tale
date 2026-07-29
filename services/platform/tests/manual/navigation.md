@@ -12,16 +12,16 @@
 
 ## Scope & routes
 
-| Surface              | Route                                                                                                                                                                                  |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Primary nav sections | `/dashboard/{org}/{chat\|projects\|documents\|agents\|automations\|settings}`                                                                                                          |
-| Knowledge            | `/dashboard/{org}/documents` (the "Knowledge" rail item)                                                                                                                               |
-| Settings landing     | `/dashboard/{org}/settings` → redirects by role (`getDefaultSettingsRoute`): `…/settings/organization` (owner/admin), `…/settings/integrations` (developer), else `…/settings/account` |
-| Governance group     | `/dashboard/{org}/settings/governance` → redirects to `…/governance/content-models`                                                                                                    |
-| Governance sub-page  | `/dashboard/{org}/settings/governance/policies-limits`                                                                                                                                 |
-| Org-switch staging   | `/dashboard/switching?to={otherOrg}` → redirects to `/dashboard/{otherOrg}`                                                                                                            |
-| Changelog            | `/dashboard/changelog` (`?from=…&to=…`)                                                                                                                                                |
-| Swagger              | `/docs`                                                                                                                                                                                |
+| Surface              | Route                                                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Primary nav sections | `/dashboard/{org}/{chat\|projects\|documents\|agents\|automations\|settings}`                                                                                                        |
+| Knowledge            | `/dashboard/{org}/documents` (the "Knowledge" rail item)                                                                                                                             |
+| Settings landing     | `/dashboard/{org}/settings` → redirects by role (`getDefaultSettingsRoute`): `…/settings/organization` (owner/admin), `…/settings/connectors` (developer), else `…/settings/account` |
+| Governance group     | `/dashboard/{org}/settings/governance` → redirects to `…/governance/content-models`                                                                                                  |
+| Governance sub-page  | `/dashboard/{org}/settings/governance/policies-limits`                                                                                                                               |
+| Org-switch staging   | `/dashboard/switching?to={otherOrg}` → redirects to `/dashboard/{otherOrg}`                                                                                                          |
+| Changelog            | `/dashboard/changelog` (`?from=…&to=…`)                                                                                                                                              |
+| Swagger              | `/docs`                                                                                                                                                                              |
 
 ## Prerequisites
 

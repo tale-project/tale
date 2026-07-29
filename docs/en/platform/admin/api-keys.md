@@ -5,7 +5,7 @@ description: Org-wide credentials that let external code call Tale's REST API on
 
 API keys are the org-wide credentials Tale issues so external code can call its REST API without a human in the loop. A key authenticates the caller as the organisation, scoped by the role you pick when you mint it. Admins and Developers manage keys; other roles cannot see the page. This is the reference for what a key is, how to create one, how to scope it, and how to retire it without breaking anything that depends on it.
 
-The keys listed here are different from the per-user session tokens Tale issues when someone signs in. Those are short-lived and tied to a person; API keys are long-lived and tied to the organisation. Reach for an API key when you wire a script, a cron job, an internal service, or a third-party integration to Tale; reach for the in-product UI when a person is at the keyboard.
+The keys listed here are different from the per-user session tokens Tale issues when someone signs in. Those are short-lived and tied to a person; API keys are long-lived and tied to the organisation. Reach for an API key when you wire a script, a cron job, an internal service, or a third-party connector to Tale; reach for the in-product UI when a person is at the keyboard.
 
 <Frame caption="Settings > API keys — where keys are created, rotated, and revoked.">
 
@@ -41,4 +41,4 @@ A key can be restricted further by IP allowlist on creation. The allowlist takes
 
 ## Where this fits
 
-API keys are the bridge between Tale and external code; they sit beside [Integrations](/platform/admin/integrations) (third-party systems Tale calls out to) and [Automation webhook triggers](/platform/automations/triggers) (systems that call into Tale on events). The natural next read is the REST API itself — see the API reference in the Develop tab for the surface a key authenticates against, and see [Members and roles](/platform/admin/members-and-roles) for the role-to-permission map every key inherits.
+API keys are the bridge between Tale and external code; they sit beside [Connectors](/platform/admin/connectors) (third-party systems Tale calls out to) and [Automation webhook triggers](/platform/automations/triggers) (systems that call into Tale on events). The natural next read is the REST API itself — see the API reference in the Develop tab for the surface a key authenticates against, and see [Members and roles](/platform/admin/members-and-roles) for the role-to-permission map every key inherits.

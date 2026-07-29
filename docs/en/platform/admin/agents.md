@@ -19,7 +19,7 @@ Admins inherit every permission Editors and Developers carry on the agent surfac
 
 - **Narrow an agent's reach.** Flipping a shared agent back to private takes it out of every member's picker without deleting anything — its conversations and its history stay intact, and sharing it again restores the previous behaviour. Reach for this when an agent is misbehaving and you need it to stop being used while you work out why.
 - **Reassign ownership.** An agent's owner is the member responsible for it, and a private agent must always have one. Reassigning hands the agent to somebody else; the previous owner keeps whatever access their role gives them and nothing more. Reach for it when an owner changes teams or leaves.
-- **Apply a governance policy.** Admins can attach a policy to an agent — required approvals on writes, which tool families are permitted, which integrations may be reached. The policy wins over the agent's own configuration wherever the two disagree, and the agent's owner sees it as a read-only badge in the editor.
+- **Apply a governance policy.** Admins can attach a policy to an agent — required approvals on writes, which tool families are permitted, which connectors may be reached. The policy wins over the agent's own configuration wherever the two disagree, and the agent's owner sees it as a read-only badge in the editor.
 
 ## What stays with the agent owner
 

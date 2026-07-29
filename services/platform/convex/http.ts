@@ -26,6 +26,7 @@ import {
   threadPostActions,
   threadReads,
 } from './chat/rest_api';
+import { connectorsHostcallHandler } from './connectors/hostcall_http';
 import {
   listContacts,
   createContact,
@@ -53,11 +54,10 @@ import {
 } from './enterprise_sso/http_handlers';
 import { sandboxBlobServeHandler } from './files/sandbox_blob_http';
 import {
-  integrationsOauth2CallbackHandler,
-  integrationsOauth2StartHandler,
-  integrationsSlackEventsHandler,
-} from './http_integrations/http_actions';
-import { integrationsHostcallHandler } from './integrations/hostcall_http';
+  connectorsOauth2CallbackHandler,
+  connectorsOauth2StartHandler,
+  connectorsSlackEventsHandler,
+} from './http_connectors/http_actions';
 import { searchKnowledge } from './knowledge/rest_api';
 import {
   createKnowledgeEntry,
@@ -83,9 +83,9 @@ import {
   deleteProduct,
 } from './products/rest_api';
 import {
-  integrationsExecuteHandler,
-  integrationsStatusHandler,
-} from './sandbox/integrations_http';
+  connectorsExecuteHandler,
+  connectorsStatusHandler,
+} from './sandbox/connectors_http';
 import { toolsExecuteHandler, toolsStatusHandler } from './sandbox/tools_http';
 import {
   scimGroupResourceHandler,
@@ -831,26 +831,26 @@ http.route({
 
 authComponent.registerRoutes(http, createAuth);
 
-// Integration connector routes. The OAuth2 pair is the consent flow that turns
+// Connector routes. The OAuth2 pair is the consent flow that turns
 // a connector into a stored credential: `start` is session-authenticated and
 // mints a single-use, server-side state; `callback` consumes it and exchanges
 // the code server-to-server. The Slack endpoint is the shared inbound Request
 // URL — signature-verified over the raw body, then routed to exactly one
-// organization by `team_id`. See http_integrations/.
+// organization by `team_id`. See http_connectors/.
 http.route({
-  path: '/api/integrations/oauth2/start',
+  path: '/api/connectors/oauth2/start',
   method: 'GET',
-  handler: integrationsOauth2StartHandler,
+  handler: connectorsOauth2StartHandler,
 });
 http.route({
-  path: '/api/integrations/oauth2/callback',
+  path: '/api/connectors/oauth2/callback',
   method: 'GET',
-  handler: integrationsOauth2CallbackHandler,
+  handler: connectorsOauth2CallbackHandler,
 });
 http.route({
-  path: '/api/integrations/slack/events',
+  path: '/api/connectors/slack/events',
   method: 'POST',
-  handler: integrationsSlackEventsHandler,
+  handler: connectorsSlackEventsHandler,
 });
 
 // Automation webhook triggers. The token in the path IS the credential: it is
@@ -883,28 +883,28 @@ http.route({
   handler: restOptionsHandler,
 });
 
-// The in-sandbox integrations bridge: the platform end of the baked
-// `tale-integrations-mcp` MCP server, VK-bearer-authed against the session
+// The in-sandbox connectors bridge: the platform end of the baked
+// `tale-connectors-mcp` MCP server, VK-bearer-authed against the session
 // token row (org + grants come from the row, never the body). Read-only in V1.
 http.route({
-  path: '/api/integrations/execute',
+  path: '/api/connectors/execute',
   method: 'POST',
-  handler: integrationsExecuteHandler,
+  handler: connectorsExecuteHandler,
 });
 http.route({
-  path: '/api/integrations/status',
+  path: '/api/connectors/status',
   method: 'POST',
-  handler: integrationsStatusHandler,
+  handler: connectorsStatusHandler,
 });
 
 // The host-call end of a live connector body running out of process: the
 // in-sandbox portable façade round-trips each `ctx.http.*` here, authed by a
 // one-run HMAC capability token minted at dispatch. See
-// integrations/hostcall_http.ts.
+// connectors/hostcall_http.ts.
 http.route({
-  path: '/api/integrations/hostcall',
+  path: '/api/connectors/hostcall',
   method: 'POST',
-  handler: integrationsHostcallHandler,
+  handler: connectorsHostcallHandler,
 });
 
 // The workspace-tool half of the same bridge (the shim's

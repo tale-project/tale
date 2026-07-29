@@ -40,11 +40,11 @@ Org-wide caps (run concurrency, per-task runs per hour) ship as fixed platform d
 
 Not every task belongs on a sandbox agent. Use this rule of thumb:
 
-| Task shape                                                                 | Assign                                                                                                                                                                                 |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Research, writing, summaries, personal deliverables                        | A **person** — disable unassigned triage on personal projects so agents do not auto-pick them up                                                                                       |
-| General automation with platform tools (comments, workflows, integrations) | An **Agent** (platform tool loop)                                                                                                                                                      |
-| Repository work — bugs, features, refactors, PRs                           | A **Sandbox agent** with the right dispatch: a durable sandbox when configured, or accept that sandbox-only agents still run the platform loop on the board until you add those fields |
+| Task shape                                                               | Assign                                                                                                                                                                                 |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Research, writing, summaries, personal deliverables                      | A **person** — disable unassigned triage on personal projects so agents do not auto-pick them up                                                                                       |
+| General automation with platform tools (comments, workflows, connectors) | An **Agent** (platform tool loop)                                                                                                                                                      |
+| Repository work — bugs, features, refactors, PRs                         | A **Sandbox agent** with the right dispatch: a durable sandbox when configured, or accept that sandbox-only agents still run the platform loop on the board until you add those fields |
 
 The assignee picker groups **Agents** and **Sandbox agents** separately and shows a one-line dispatch hint for each sandbox agent.
 

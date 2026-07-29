@@ -1,4 +1,4 @@
-// Unit coverage for the pure GET/PUT stream helpers that the integration
+// Unit coverage for the pure GET/PUT stream helpers that the connector
 // suite intentionally skips (streamed paths). Locks in the Range math,
 // weak-ETag handling, and — critically — the PUT cap's backpressure +
 // 413 mapping (the lone "critical" review finding).

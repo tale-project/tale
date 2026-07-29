@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Row } from '@tale/ui/layout';
+import { useNavigate } from '@tanstack/react-router';
 import {
   type ReactNode,
   createContext,
@@ -36,8 +37,10 @@ import { cn } from '@/lib/utils/cn';
 
 import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
+import { useThreadListFrame } from './thread-list-context';
 
 const NO_PROJECT_DROPPABLE_ID = 'project:none';
+const ARCHIVE_DROPPABLE_ID = 'archive';
 
 /** Payload a chat row advertises while it is being dragged. */
 export interface ThreadDragData {
@@ -49,10 +52,11 @@ export interface ThreadDragData {
   title: string;
 }
 
-/** Payload a drop target advertises (`null` projectId = the "no project" zone). */
-interface ThreadDropData {
-  projectId: string | null;
-}
+/** Payload a drop target advertises: a project folder (`null` projectId = the
+ * "no project" zone), or the ARCHIVED drawer, where a drop archives the chat. */
+type ThreadDropData =
+  | { kind: 'project'; projectId: string | null }
+  | { kind: 'archive' };
 
 /**
  * dnd-kit types `data.current` as `Record<string, any>`, so these readers
@@ -77,10 +81,14 @@ function readDragData(
 function readDropData(
   data: Record<string, unknown> | undefined,
 ): ThreadDropData | null {
-  if (!data || !('projectId' in data)) return null;
-  return {
-    projectId: typeof data.projectId === 'string' ? data.projectId : null,
-  };
+  if (data?.kind === 'archive') return { kind: 'archive' };
+  if (data?.kind === 'project' && 'projectId' in data) {
+    return {
+      kind: 'project',
+      projectId: typeof data.projectId === 'string' ? data.projectId : null,
+    };
+  }
+  return null;
 }
 
 // Pointer-first collision: drop into whatever zone sits under the cursor, which
@@ -126,10 +134,17 @@ const dropAnimation: DropAnimation = {
 interface ActiveThread {
   id: string;
   title: string;
+  /** The dragged row came from the ARCHIVED drawer. */
+  archived: boolean;
 }
 
-const ThreadDndStateContext = createContext<{ isDragging: boolean }>({
+const ThreadDndStateContext = createContext<{
+  isDragging: boolean;
+  /** True while the row being dragged is an archived one. */
+  activeIsArchived: boolean;
+}>({
   isDragging: false,
+  activeIsArchived: false,
 });
 
 /** True while a chat row is being dragged anywhere in the tree. */
@@ -153,6 +168,8 @@ export function ThreadDndProvider({
   const { t } = useT('chat');
   const { move } = useThreadProjectMove(organizationId);
   const actions = useThreadActions(organizationId);
+  const { activeThreadId } = useThreadListFrame();
+  const navigate = useNavigate();
   const [activeThread, setActiveThread] = useState<ActiveThread | null>(null);
 
   const sensors = useSensors(
@@ -167,7 +184,13 @@ export function ThreadDndProvider({
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const drag = readDragData(event.active.data.current);
     setActiveThread(
-      drag ? { id: String(event.active.id), title: drag.title } : null,
+      drag
+        ? {
+            id: String(event.active.id),
+            title: drag.title,
+            archived: drag.archived === true,
+          }
+        : null,
     );
   }, []);
 
@@ -177,13 +200,33 @@ export function ThreadDndProvider({
       const drag = readDragData(event.active.data.current);
       const drop = readDropData(event.over?.data.current);
       if (!drag || !drop) return;
+      const threadId = String(event.active.id);
+      // Dropping onto the ARCHIVED drawer files the chat away — the drag
+      // counterpart of the row menu's Archive action, same toasts and same
+      // leave-the-conversation behaviour when the open chat is archived.
+      if (drop.kind === 'archive') {
+        if (drag.archived === true) return;
+        void actions.setArchived(threadId, true).then((ok: boolean) => {
+          if (!ok) {
+            toast({ title: t('archiveFailed'), variant: 'destructive' });
+            return;
+          }
+          toast({ title: t('archiveSuccess') });
+          if (threadId === activeThreadId) {
+            void navigate({
+              to: '/dashboard/$id/chat',
+              params: { id: organizationId },
+            });
+          }
+        });
+        return;
+      }
       const rehomes = drag.projectId !== drop.projectId;
       // Dragging an archived chat anywhere out of the drawer means "bring it
       // back": unarchive first, so the row actually appears where it was
       // dropped instead of silently staying filed under ARCHIVED.
       const revives = drag.archived === true;
       if (!rehomes && !revives) return;
-      const threadId = String(event.active.id);
       const restore = revives
         ? actions.setArchived(threadId, false).then((ok: boolean) => {
             if (!ok) throw new Error('unarchive refused');
@@ -199,13 +242,16 @@ export function ThreadDndProvider({
           });
         });
     },
-    [actions, move, t],
+    [actions, activeThreadId, move, navigate, organizationId, t],
   );
 
   const handleDragCancel = useCallback(() => setActiveThread(null), []);
 
   const state = useMemo(
-    () => ({ isDragging: activeThread !== null }),
+    () => ({
+      isDragging: activeThread !== null,
+      activeIsArchived: activeThread?.archived === true,
+    }),
     [activeThread],
   );
 
@@ -267,10 +313,27 @@ export function useThreadDraggable(thread: {
 
 /** Register a project folder (or the "no project" zone, when `projectId` is null) as a drop target. */
 export function useProjectDropZone(projectId: string | null) {
-  const data: ThreadDropData = { projectId };
+  const data: ThreadDropData = { kind: 'project', projectId };
   const { setNodeRef, isOver } = useDroppable({
     id: projectId ? `project:${projectId}` : NO_PROJECT_DROPPABLE_ID,
     data,
+  });
+  return { setNodeRef, isOver };
+}
+
+/**
+ * Register the ARCHIVED drawer as a drop target — dropping a chat on it
+ * archives the chat. Disabled while the dragged row is itself an archived one
+ * (dropping it back where it came from would be a no-op, so the zone should
+ * not light up as if it did something).
+ */
+export function useArchiveDropZone() {
+  const { activeIsArchived } = useThreadDndState();
+  const data: ThreadDropData = { kind: 'archive' };
+  const { setNodeRef, isOver } = useDroppable({
+    id: ARCHIVE_DROPPABLE_ID,
+    data,
+    disabled: activeIsArchived,
   });
   return { setNodeRef, isOver };
 }

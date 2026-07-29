@@ -25,7 +25,7 @@ nav:
     agents: Agents
     automations: Automations
     knowledge: Knowledge
-    integrations: Integrations
+    connectors: Connectors
     member: Member
     editor: Editor
     developer: Developer

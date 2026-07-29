@@ -3,7 +3,7 @@ title: Rate limits
 description: REST and MCP rate limits — the two buckets, the 429 response, and how to retry without making things worse.
 ---
 
-The API is rate-limited per key with token buckets: bursts pass, sustained hammering answers **429**. The budgets are sized so a normal integration never sees them — when a previously healthy client starts hitting 429, the answer is almost always a missing backoff or a hot loop, not missing capacity.
+The API is rate-limited per key with token buckets: bursts pass, sustained hammering answers **429**. The budgets are sized so a normal connector never sees them — when a previously healthy client starts hitting 429, the answer is almost always a missing backoff or a hot loop, not missing capacity.
 
 Read this when you are wiring a client that calls the API on a schedule or under load.
 

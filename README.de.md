@@ -38,12 +38,12 @@ Bündle ihr Wissen, delegiere echte Arbeit — auf Infrastruktur, die du betreib
   </tr>
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/de/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Canvas des Workflow-Editors mit den typisierten, verzweigten Schritten einer Automatisierung" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="Der Integrationskatalog mit Confluence, GitHub, Gmail, Google Drive, Shopify und mehr" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="Der Connector-Katalog mit Confluence, GitHub, Gmail, Google Drive, Shopify und mehr" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/de/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Die Guardrails-Einstellungen mit Inhaltsfilter, PII-Erkennung und Moderations-Provider" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Workflow-Editor</b> — typisierte Schritte, Zeitpläne und Genehmigungstore</sub></td>
-    <td align="center"><sub><b>Integrationen</b> — Slack, Gmail, GitHub, MCP-Server und mehr</sub></td>
+    <td align="center"><sub><b>Connectors</b> — Slack, Gmail, GitHub, MCP-Server und mehr</sub></td>
     <td align="center"><sub><b>Governance</b> — Guardrails, PII-Filter, Audit-Trail, Ausgabenlimits</sub></td>
   </tr>
 </table>
@@ -89,9 +89,9 @@ bun run dev
 
 ## Tale in Aktion
 
-<img src=".github/assets/readme-tour.webp" alt="Tale-Produkttour durch Agent-Editor, Projekt-Taskboard, Automatisierungs-Canvas, Integrationskatalog und Governance-Guardrails" width="100%">
+<img src=".github/assets/readme-tour.webp" alt="Tale-Produkttour durch Agent-Editor, Projekt-Taskboard, Automatisierungs-Canvas, Connector-Katalog und Governance-Guardrails" width="100%">
 
-Agents → Projekte → Automatisierungen → Integrationen → Governance — eine Runde durch die Plattform. Die volle Tour findest du in den [Docs](https://tale.dev/docs/de).
+Agents → Projekte → Automatisierungen → Connectors → Governance — eine Runde durch die Plattform. Die volle Tour findest du in den [Docs](https://tale.dev/docs/de).
 
 ## Was steckt drin
 
@@ -101,7 +101,7 @@ Agents → Projekte → Automatisierungen → Integrationen → Governance — e
 - **[Wissen](https://tale.dev/docs/de/platform/knowledge/overview)** — Dokumente, gecrawlte Websites und typisierte Datensätze, die Agents abrufen und zitieren, damit Antworten deine Realität spiegeln.
 - **[Agents](https://tale.dev/docs/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools und Modell als eine Einheit; lass sie auf der Plattform laufen oder dock Claude Code, Codex und Cursor in isolierten Sandboxes an.
 - **[Automatisierungen](https://tale.dev/docs/de/platform/automations/concepts)** — typisierte Workflows (LLM-, Action-, Condition-, Loop- und Sandbox-Schritte) auf Zeitplänen, Webhooks und Events — mit Genehmigungstoren für Menschen.
-- **[Integrationen](https://tale.dev/docs/de/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify und MCP-Server.
+- **[Connectors](https://tale.dev/docs/de/platform/connectors/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify und MCP-Server.
 - **[Gemeinsamer Posteingang](https://tale.dev/docs/de/platform/automations/builtin)** — mach aus einem geteilten Postfach (Gmail, Outlook, IMAP/SMTP) einen Team-Posteingang mit KI-gestützten Antworten.
 - **[Governance](https://tale.dev/docs/de/platform/approvals/concepts)** — Genehmigungen, bevor Aktionen rausgehen, ein lückenloser Audit-Trail, Guardrails, PII-Filter und Ausgabenlimits — plus SSO über [Microsoft Entra ID oder Trusted Headers](https://tale.dev/docs/de/platform/admin/enterprise-sso).
 

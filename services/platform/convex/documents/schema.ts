@@ -15,9 +15,9 @@ export const documentsTable = defineTable({
   fileId: v.optional(blobRefValidator),
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
-  // Open string. Equal to the integration slug for integration-sourced docs
+  // Open string. Equal to the connector slug for connector-sourced docs
   // (`onedrive`, `sharepoint`, `google_drive`, …); reserved values `upload` and
-  // `agent` cover non-integration sources. New integrations require no schema
+  // `agent` cover non-connector sources. New connectors require no schema
   // change.
   sourceProvider: v.optional(v.string()),
   externalItemId: v.optional(v.string()),

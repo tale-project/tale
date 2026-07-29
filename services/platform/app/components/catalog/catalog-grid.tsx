@@ -12,7 +12,7 @@ const catalogCardSurfaceClass = 'dark:bg-card';
 /**
  * Shared catalog UI — one compact, equal-height card and the responsive grid
  * that lays them out. Used by the card-based "browse and act" surfaces (the
- * automations, integrations, and skills catalogs) so they stay visually
+ * automations, connectors, and skills catalogs) so they stay visually
  * identical.
  *
  * `CatalogCard` is the catalog-specific composition of the `@tale/ui/card`
@@ -98,6 +98,14 @@ interface CatalogCardProps {
    * pattern as `McpServerCard`.
    */
   menu?: ReactNode;
+  /**
+   * Renders the title as a real heading at this level instead of a `<span>`.
+   * Give a grid of cards a heading level whenever the cards ARE the page's
+   * content: it puts them in the document outline, so a screen-reader user can
+   * jump card to card instead of tabbing through every one. Omit it for cards
+   * inside a surface that already headings them (a dialog pane).
+   */
+  headingLevel?: 2 | 3 | 4;
 }
 
 export function CatalogCard({
@@ -114,8 +122,13 @@ export function CatalogCard({
   ariaLabel,
   className,
   menu,
+  headingLevel,
 }: CatalogCardProps) {
   const interactive = Boolean(onClick) && !actions;
+  // Same box either way (`h-6.5` centred) so a heading card and a plain card
+  // line up in one grid row.
+  const Title =
+    headingLevel === undefined ? 'span' : (`h${headingLevel}` as const);
 
   const inner = (
     <>
@@ -133,9 +146,9 @@ export function CatalogCard({
               centering — the title must sit at the same y whether or not a
               badge is present, and the row must never grow. */}
           <div className="flex h-6.5 items-center justify-between gap-2">
-            <span className="text-foreground line-clamp-1 text-sm font-medium tracking-tight">
+            <Title className="text-foreground line-clamp-1 text-sm font-medium tracking-tight">
               {title}
-            </span>
+            </Title>
             {badge ? <span className="shrink-0">{badge}</span> : null}
           </div>
           <div className="flex min-h-4 items-center">{meta}</div>

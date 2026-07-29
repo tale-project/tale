@@ -28,7 +28,7 @@ export const EQUALITY_EXEMPTIONS = Object.freeze({
    * Key: table name; value: field names + the reason they may differ.
    */
   dropFields: Object.freeze({
-    integrationCredentials: Object.freeze([
+    connectorCredentials: Object.freeze([
       // AES-256-GCM envelope minted by 0.4.0/23 with a random nonce: the same
       // plaintext re-encrypts to different bytes on every run, so two
       // independent `up`s can never agree byte-for-byte (chain C compares

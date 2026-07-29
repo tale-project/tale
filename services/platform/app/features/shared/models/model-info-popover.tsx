@@ -229,8 +229,12 @@ export function ModelInfoPopover({
         ) : null}
         {providerSlug ? (
           <Link
-            to="/dashboard/$id/settings/providers/$providerName"
-            params={{ id: organizationId, providerName: providerSlug }}
+            to="/dashboard/$id/settings/providers"
+            params={{ id: organizationId }}
+            // The provider's card opens itself from the search param, so this
+            // lands on the provider rather than on the index for the reader to
+            // find again.
+            search={{ provider: providerSlug }}
             className="text-primary block text-xs hover:underline"
             onClick={() => setOpen(false)}
           >

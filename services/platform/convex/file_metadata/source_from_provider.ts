@@ -9,7 +9,7 @@
  *                                    model-generated, or provenance unknown)
  *  - anything else       → the connector slug verbatim ('confluence',
  *                          'google_drive', 'onedrive', 'sharepoint', 'webdav',
- *                          any integration slug) — an external import
+ *                          any connector slug) — an external import
  *
  * Only 'user'/'agent' are swept by the temp-retention GC, so import slugs are
  * inherently retention-safe. Returning undefined means "do not change source".

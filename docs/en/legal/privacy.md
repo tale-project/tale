@@ -13,7 +13,7 @@ Read this when you want to know what Tale stores about you, why, and how to remo
 Three buckets of data exist, each with its own retention rule:
 
 - **Account data.** Name, email, organisation, role, and the credentials you use to sign in. Required to operate the service.
-- **Product data.** Everything you put into the product — agents, workflows, documents, conversations, knowledge base entries, integration credentials. Stored as long as the parent org exists; deleted on org deletion or via the data-subject request flow.
+- **Product data.** Everything you put into the product — agents, workflows, documents, conversations, knowledge base entries, connector credentials. Stored as long as the parent org exists; deleted on org deletion or via the data-subject request flow.
 - **Operational data.** Server logs, audit trails, support ticket contents, performance metrics. Tied to your account or org for as long as the data is useful for security, debugging, and compliance — typically up to 90 days for logs and indefinitely for audit trails.
 
 We do not sell personal data. We do not use product data to train models — your conversations and documents are not part of any model training set, neither ours nor any provider's, except where you have explicitly enabled a feature that requires it and acknowledged the consent prompt.

@@ -191,7 +191,7 @@ ENV NODE_ENV=production \
     # CA cert path for self-signed mode (entrypoint checks if file exists)
     CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
     # Root config directory consumed by Convex actions (file-based configs).
-    # Sub-dirs (agents/workflows/integrations/providers) are derived inside
+    # Sub-dirs (agents/workflows/connectors/providers) are derived inside
     # Convex via `convex/*/file_utils.ts` — no need to set them explicitly.
     TALE_CONFIG_DIR=/app/data
     # NOTE: RAG_AUTH_TOKEN is not baked into the image. If set on BOTH
@@ -214,7 +214,7 @@ COPY --from=convex-dashboard --chown=app:app /app /dashboard
 # ----------------------------------------------------------------------------
 COPY --chown=app:app configs/platform/custom/ /app/builtin/
 
-# System config (providers/models/harnesses/integrations) is org-independent and
+# System config (providers/models/harnesses/connectors) is org-independent and
 # read by 'use node' actions at $TALE_CONFIG_SYSTEM_DIR (set on the platform
 # image, synced into the deployment env). A container has no repo checkout, so
 # unlike host dev it cannot fall back to walking up to configs/platform/system.

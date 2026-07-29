@@ -52,6 +52,6 @@ Open a chat with the agent and ask "what is the status of order ORD-12345". The 
 
 ## Where this fits
 
-A custom tool is the seam between an agent and your domain — order lookup, internal search, calculator, anything an off-the-shelf integration does not cover. The schema is what the model uses to decide whether to call, so spend the time to write a tight description and only the fields you need.
+A custom tool is the seam between an agent and your domain — order lookup, internal search, calculator, anything an off-the-shelf connector does not cover. The schema is what the model uses to decide whether to call, so spend the time to write a tight description and only the fields you need.
 
 For tools you want to share across orgs, see [MCP servers from scratch](/tutorials/developer/mcp-server-from-scratch) — MCP is the protocol for "one tool, many Tale instances". For the conceptual side of what tools do inside an agent, see [Agent tools](/platform/agents/tools).

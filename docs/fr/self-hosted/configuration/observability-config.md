@@ -15,7 +15,7 @@ Chaque conteneur écrit des logs JSON structurés ou console vers stdout, captur
 - Hôte unique sans journald — `docker compose logs -f <service>` pour le tailing en direct.
 - Aggregator (Loki, Vector, Fluent Bit) — pointe le driver de logging Docker dessus via `daemon.json`.
 
-Tale ne ship pas de log shipper. L'échange de driver est le point d'intégration supporté.
+Tale ne ship pas de log shipper. L'échange de driver est le point de connector supporté.
 
 ## Métriques
 

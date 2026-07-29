@@ -1,0 +1,112 @@
+# Connector — a private IMAP + SMTP mailbox, connected to
+# Conversations without a Gmail/Outlook account. Both actions run through the
+# platform's native mail module (IMAP fetch + SMTP send are not HTTP, so there
+# is no yaml-js body); the mocks are deterministic. Basic auth carries the
+# mailbox login + the server/port config the native module reads.
+name: imap-smtp
+displayName: IMAP / SMTP Mailbox
+description: >-
+  Connect a private IMAP + SMTP mail server to Conversations — no Gmail or
+  Outlook account required.
+tags:
+  - Email
+configFields:
+  - key: imapHost
+    label: IMAP server
+    type: string
+    required: true
+    description: Hostname of the IMAP server, e.g. imap.example.com.
+  - key: imapPort
+    label: IMAP port
+    type: number
+    default: 993
+    description: IMAP port (993 for implicit TLS).
+  - key: smtpHost
+    label: SMTP server
+    type: string
+    required: true
+    description: Hostname of the SMTP server, e.g. smtp.example.com.
+  - key: smtpPort
+    label: SMTP port
+    type: number
+    default: 587
+    description: SMTP port (587 for STARTTLS, 465 for implicit TLS).
+  - key: security
+    label: Connection security
+    type: string
+    enum: [tls, starttls]
+    default: tls
+    description: Transport security for both servers.
+  - key: sentMailbox
+    label: Sent folder
+    type: string
+    default: Sent
+    description: IMAP folder name used when reading sent mail.
+auth:
+  - method: basic
+actions:
+  - name: list_messages
+    description: >-
+      Fetch messages from an IMAP mailbox as standard email objects (from, to,
+      subject, body, attachments). Omit mailbox for INBOX; pass `sent` to read
+      the configured Sent folder. Used by the scheduled sync to import mail
+      into conversations.
+    effects: read
+    input:
+      type: object
+      properties:
+        since:
+          {
+            type: number,
+            description: 'Only messages on/after this epoch-ms timestamp (the sync cursor).',
+          }
+        limit:
+          {
+            type: number,
+            description: 'Max messages to return in one pass (default 25).',
+          }
+        mailbox:
+          {
+            type: string,
+            description: 'IMAP folder to read. Omit for INBOX; pass `sent` for the Sent folder.',
+          }
+    output: '{ messages: Array<{ uid: string, from: string, subject: string, sentAt: number }> }'
+    mock: |
+      const limit = typeof input.limit === 'number' ? input.limit : 25;
+      const count = Math.min(2, limit);
+      return {
+        messages: Array.from({ length: count }, (_, i) => ({
+          uid: `mock-${i + 1}`,
+          from: `sender${i + 1}@example.com`,
+          subject: `Mock message ${i + 1}`,
+          sentAt: (input.since || 0) + (i + 1) * 1000,
+        })),
+      };
+    backend:
+      kind: native
+      impl: imap-smtp.list_messages
+    exampleInput: { mailbox: 'INBOX', limit: 25 }
+  - name: send
+    description: Send an email through the configured SMTP server.
+    effects: write
+    input:
+      type: object
+      required: [to, subject]
+      properties:
+        to: { type: string, description: 'Recipient email address.' }
+        subject: { type: string, description: 'Message subject.' }
+        text: { type: string, description: 'Plain-text body.' }
+        html: { type: string, description: 'HTML body (optional).' }
+        inReplyTo:
+          {
+            type: string,
+            description: 'Message-ID this replies to (threading).',
+          }
+    output: '{ messageId: string }'
+    mock: |
+      return { messageId: `mock-smtp-${input.to}-${input.subject.length}` };
+    backend:
+      kind: native
+      impl: imap-smtp.send
+    exampleInput:
+      { to: 'user@example.com', subject: 'Hello', text: 'Hi there.' }

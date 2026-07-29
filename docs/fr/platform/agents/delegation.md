@@ -17,11 +17,11 @@ Les workers ne te parlent jamais. Si un worker a besoin d'une information que se
 
 Un worker ne peut détenir au plus que ce que détient l'agent qui le lance. Trois couches décident de la sélection effective :
 
-- **La configuration de l'org** — les outils, skills et intégrations de l'agent, tels que configurés par tes admins. Rien à gérer par worker.
+- **La configuration de l'org** — les outils, skills et connectors de l'agent, tels que configurés par tes admins. Rien à gérer par worker.
 - **La sélection par job** — l'agent choisit le plus petit ensemble dans ses propres capacités pour cette tâche (moins d'outils = un worker plus ciblé).
 - **Les exceptions de plateforme** — quelques outils ne se transmettent jamais, au premier rang l'outil de question à l'utilisateur : les questions d'un worker passent par l'agent, pour qu'une réponse ne parte jamais dans le vide. Les workers ne peuvent pas non plus lancer de workers. Une exception va dans l'autre sens : chaque worker peut toujours lister et lire les fichiers du thread (téléversements, sorties générées) — écrire des fichiers ou exécuter du code reste une sélection explicite.
 
-Tout ce qui sort de ces bornes est silencieusement ignoré et signalé — la carte de job montre ce qui a été retranché, et l'agent s'adapte (en te disant par exemple qu'une intégration doit être connectée).
+Tout ce qui sort de ces bornes est silencieusement ignoré et signalé — la carte de job montre ce qui a été retranché, et l'agent s'adapte (en te disant par exemple qu'une connector doit être connectée).
 
 ## Méthodes de travail
 

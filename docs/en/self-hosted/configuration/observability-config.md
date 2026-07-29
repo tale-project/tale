@@ -15,7 +15,7 @@ Every container writes structured JSON or console logs to stdout, captured by Do
 - Single host without journald — `docker compose logs -f <service>` for live tailing.
 - Aggregator (Loki, Vector, Fluent Bit) — point the Docker logging driver at it via `daemon.json`.
 
-Tale does not ship a log shipper. The driver swap is the supported integration point.
+Tale does not ship a log shipper. The driver swap is the supported connector point.
 
 ## Metrics
 

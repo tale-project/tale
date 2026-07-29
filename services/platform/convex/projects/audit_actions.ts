@@ -13,7 +13,7 @@ export const PROJECT_AUDIT_ACTIONS = {
   knowledgeModeChanged: 'project.knowledge_mode.changed',
   agentsChanged: 'project.agents.changed',
   modelsChanged: 'project.models.changed',
-  integrationsChanged: 'project.integrations.changed',
+  connectorsChanged: 'project.connectors.changed',
   fileAttached: 'project.file.attached',
   fileDetached: 'project.file.detached',
   threadShared: 'project.thread.shared',

@@ -1,6 +1,6 @@
 ---
 title: Monter un serveur MCP depuis zéro
-description: Câble un serveur Model Context Protocol comme intégration personnalisée pour que n'importe quel agent Tale de l'organisation appelle ses outils.
+description: Câble un serveur Model Context Protocol comme connector personnalisée pour que n'importe quel agent Tale de l'organisation appelle ses outils.
 ---
 
 Un serveur Model Context Protocol (MCP) est un processus qui expose une liste d'outils via un petit protocole JSON-RPC. Tale enregistre un serveur MCP une fois au niveau de l'organisation ; à partir de là, chaque agent dont l'onglet Outils inclut ce serveur peut appeler ses outils. Ce parcours mène un serveur MCP tout neuf de « repo vide » à « appelé par un agent dans un chat » sur une instance Tale.
@@ -56,7 +56,7 @@ Un 200 confirme la joignabilité. Un 502 ou un timeout veut dire que le tunnel n
 
 ## Étape 3 — Enregistrer le serveur dans Tale
 
-Un serveur MCP joignable reste invisible pour Tale tant que tu ne l'as pas enregistré. Ouvre **Paramètres > Intégrations > Serveurs MCP** et clique **Nouveau serveur**. Remplis :
+Un serveur MCP joignable reste invisible pour Tale tant que tu ne l'as pas enregistré. Ouvre **Paramètres > Connectors > Serveurs MCP** et clique **Nouveau serveur**. Remplis :
 
 - **Nom** — `Hello Tale time`
 - **URL** — l'URL HTTPS publique de l'étape 2 (par ex. `https://abcd.ngrok.app/mcp`)
@@ -72,4 +72,4 @@ Un serveur enregistré n'est joignable que par les agents qui s'y abonnent. Ouvr
 
 Un serveur MCP est la bonne forme quand un outil doit vivre hors de Tale — du code possédé par ton équipe, un service dans un autre réseau, une API tierce que tu enveloppes. Les outils personnalisés de [Construire un outil personnalisé](/fr/tutorials/developer/build-a-custom-tool) sont la bonne forme quand l'outil est ponctuel et vit dans les paramètres d'une seule organisation.
 
-Pour la grande image de comment les outils élargissent ce qu'un agent peut faire, voir [Outils d'agent](/fr/platform/agents/tools). Pour câbler une intégration qui enveloppe une API tierce plutôt que ton propre code, [Aperçu des intégrations](/fr/platform/integrations/overview) est la lecture suivante.
+Pour la grande image de comment les outils élargissent ce qu'un agent peut faire, voir [Outils d'agent](/fr/platform/agents/tools). Pour câbler une connector qui enveloppe une API tierce plutôt que ton propre code, [Aperçu des connectors](/fr/platform/connectors/overview) est la lecture suivante.

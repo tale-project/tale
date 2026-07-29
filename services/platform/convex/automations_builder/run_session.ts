@@ -24,15 +24,15 @@
 import { v } from 'convex/values';
 
 import { runBuilderSession } from '../../lib/automations_builder/session';
+import { installConnectorCatalog } from '../../lib/connectors/dispatcher';
+import { registerConnector } from '../../lib/connectors/registry';
 import { dispatch, type DispatchStore } from '../../lib/engine/api/dispatch';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
-import { installConnectorCatalog } from '../../lib/integrations/dispatcher';
-import { registerConnector } from '../../lib/integrations/registry';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { automationActionStore } from '../automations/store';
-import { loadIntegrationConnectors } from '../integration_credentials/connector_catalog';
+import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
 import { createBuilderModel, type BuilderModelTarget } from './model_call';
 
 /**
@@ -47,7 +47,7 @@ import { createBuilderModel, type BuilderModelTarget } from './model_call';
  */
 function assembleBuilderHost(): void {
   if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
-  const connectors = loadIntegrationConnectors();
+  const connectors = loadConnectorDefinitions();
   installConnectorCatalog(connectors);
   for (const connector of connectors) registerConnector(connector);
 }

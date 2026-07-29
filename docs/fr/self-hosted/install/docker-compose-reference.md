@@ -34,7 +34,7 @@ Le fichier le plus à gauche est la base ; chaque fichier suivant fusionne ses c
 | `compose.test.yml`      | Lance la suite de tests platform contre la pile | Remplace l'image platform par la variante de forme test                                 |
 | `compose.web.test.yml`  | Lance les tests web                             | Comme `web.yml`, mais la variante de forme test                                         |
 | `compose.docs.test.yml` | Lance les tests docs                            | Comme `docs.yml`, mais la variante de forme test                                        |
-| `compose.test.mock.yml` | Tests d'intégration adossés à des mocks         | Remplace les fournisseurs par des implémentations mock                                  |
+| `compose.test.mock.yml` | Tests de connector adossés à des mocks          | Remplace les fournisseurs par des implémentations mock                                  |
 
 ## Services et leurs rôles
 

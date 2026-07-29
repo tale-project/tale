@@ -19,7 +19,7 @@ Admins erben jede Berechtigung, die Editoren und Developer auf der Agenten-Oberf
 
 - **Die Reichweite eines Agenten verengen.** Einen freigegebenen Agenten wieder auf privat zu stellen nimmt ihn aus der Auswahl jedes Mitglieds, ohne etwas zu löschen — seine Gespräche und sein Verlauf bleiben unversehrt, und eine erneute Freigabe stellt das vorige Verhalten wieder her. Greif dazu, wenn ein Agent aus der Reihe tanzt und du seine Nutzung stoppen willst, während du der Ursache nachgehst.
 - **Den Besitz übertragen.** Der Besitzer eines Agenten ist das Mitglied, das für ihn verantwortlich ist, und ein privater Agent muss immer eines haben. Ein Übertrag gibt den Agenten an jemand anderen; der bisherige Besitzer behält nur, was seine Rolle ihm gibt. Greif dazu, wenn ein Besitzer das Team wechselt oder geht.
-- **Eine Governance-Policy anlegen.** Admins können einem Agenten eine Policy anheften — verlangte Freigaben bei Schreibvorgängen, welche Tool-Familien erlaubt sind, welche Integrationen erreichbar. Wo beide sich widersprechen, gewinnt die Policy über die eigene Konfiguration des Agenten, und dessen Besitzer sieht sie im Editor als schreibgeschütztes Abzeichen.
+- **Eine Governance-Policy anlegen.** Admins können einem Agenten eine Policy anheften — verlangte Freigaben bei Schreibvorgängen, welche Tool-Familien erlaubt sind, welche Connectors erreichbar. Wo beide sich widersprechen, gewinnt die Policy über die eigene Konfiguration des Agenten, und dessen Besitzer sieht sie im Editor als schreibgeschütztes Abzeichen.
 
 ## Was beim Agenten-Besitzer bleibt
 

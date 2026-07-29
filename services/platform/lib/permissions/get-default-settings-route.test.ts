@@ -15,9 +15,9 @@ describe('getDefaultSettingsRoute', () => {
     );
   });
 
-  it('redirects developer to integrations', () => {
+  it('redirects developer to connectors', () => {
     expect(getDefaultSettingsRoute('developer')).toBe(
-      '/dashboard/$id/settings/integrations',
+      '/dashboard/$id/settings/connectors',
     );
   });
 

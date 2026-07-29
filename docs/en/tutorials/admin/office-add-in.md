@@ -9,13 +9,13 @@ You need an Admin role in Tale, a Microsoft 365 tenant where you can manage Inte
 
 ## Before you begin
 
-Confirm three things on the Microsoft side: you are a Global Administrator (or have the Exchange Admin role with Integrated Apps), centralised deployment is enabled for your tenant, and the mailbox you will test with has not blocked add-ins via mailbox policy. On the Tale side, open **Settings > Integrations** and check that **Microsoft 365** is listed — that is where the add-in publishes the manifest URL.
+Confirm three things on the Microsoft side: you are a Global Administrator (or have the Exchange Admin role with Integrated Apps), centralised deployment is enabled for your tenant, and the mailbox you will test with has not blocked add-ins via mailbox policy. On the Tale side, open **Settings > Connectors** and check that **Microsoft 365** is listed — that is where the add-in publishes the manifest URL.
 
 ## Step 1 — Get the manifest URL from Tale
 
-The add-in talks to Tale through a manifest XML the Microsoft 365 admin centre hosts. Tale generates the manifest per instance so the sidebar points at your URL, not at a shared multi-tenant endpoint. Open **Settings > Integrations > Microsoft 365** and copy the **Add-in manifest URL** the panel shows.
+The add-in talks to Tale through a manifest XML the Microsoft 365 admin centre hosts. Tale generates the manifest per instance so the sidebar points at your URL, not at a shared multi-tenant endpoint. Open **Settings > Connectors > Microsoft 365** and copy the **Add-in manifest URL** the panel shows.
 
-You should see a URL ending in `/integrations/office/manifest.xml`. Open it in a new tab to confirm it returns XML and not an HTML error page — if it errors, your instance is not reachable from outside or the integration is disabled.
+You should see a URL ending in `/connectors/office/manifest.xml`. Open it in a new tab to confirm it returns XML and not an HTML error page — if it errors, your instance is not reachable from outside or the connector is disabled.
 
 ## Step 2 — Deploy through the Microsoft 365 admin centre
 
@@ -35,4 +35,4 @@ After sign-in the sidebar lists the user's available agents. Picking one and cli
 
 The add-in is the lightest path to "Tale where your members already work" — no portal switch, no copy-paste. The sidebar is a thin shell around the same agents you publish in [Create an agent](/platform/agents/create); changes to the agent's instructions, knowledge, or tools land in the sidebar on the next request.
 
-For the broader integration story — Slack, Gmail, custom MCP servers — see [Integrations overview](/platform/integrations/overview). If you operate a self-hosted instance and the manifest URL is unreachable from Microsoft 365, the [Linux server](/self-hosted/install/linux-server) page covers the public-HTTPS prerequisite.
+For the broader connector story — Slack, Gmail, custom MCP servers — see [Connectors overview](/platform/connectors/overview). If you operate a self-hosted instance and the manifest URL is unreachable from Microsoft 365, the [Linux server](/self-hosted/install/linux-server) page covers the public-HTTPS prerequisite.

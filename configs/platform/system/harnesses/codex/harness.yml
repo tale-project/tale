@@ -98,8 +98,8 @@ exec:
     - mcp:
         delivery: codex-config-flags
         bridgeEnv:
-          TALE_INTEGRATIONS_URL: '${bridgeUrl}'
-          TALE_INTEGRATIONS_TOKEN: '${gateway.token}'
+          TALE_CONNECTORS_URL: '${bridgeUrl}'
+          TALE_CONNECTORS_TOKEN: '${gateway.token}'
     # Model: managed = the gateway model id (matches the virtual-key
     # allowlist); byo = the caller-resolved vendor-native id.
     - model: { flag: '-m' }

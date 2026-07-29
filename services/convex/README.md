@@ -22,7 +22,7 @@ Notable variables (canonical list in `compose.yml`):
 
 - `POSTGRES_URL` — DB derived from `INSTANCE_NAME`
 - `INSTANCE_NAME`, `INSTANCE_SECRET`
-- `TALE_CONFIG_DIR` — root for file-based configs (`agents/`, `workflows/`, `integrations/`, `providers/`, `branding/`); defaults to `/app/data`
+- `TALE_CONFIG_DIR` — root for file-based configs (`agents/`, `workflows/`, `connectors/`, `providers/`, `branding/`); defaults to `/app/data`
 - `DASHBOARD_BASE_PATH` — defaults to `/convex-dashboard`
 
 Convex performance tunables (UDF/action timeouts, isolate sizes, concurrency limits) are set in the Dockerfile and can be overridden at runtime.

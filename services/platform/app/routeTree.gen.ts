@@ -49,11 +49,11 @@ import { Route as DashboardIdSettingsMembersRouteImport } from './routes/dashboa
 import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers';
 import { Route as DashboardIdSettingsMcpRouteImport } from './routes/dashboard/$id/settings/mcp';
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs';
-import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations';
 import { Route as DashboardIdSettingsEnvironmentRouteImport } from './routes/dashboard/$id/settings/environment';
 import { Route as DashboardIdSettingsEnterpriseSsoRouteImport } from './routes/dashboard/$id/settings/enterprise-sso';
 import { Route as DashboardIdSettingsDeploymentRouteImport } from './routes/dashboard/$id/settings/deployment';
 import { Route as DashboardIdSettingsDataResidencyRouteImport } from './routes/dashboard/$id/settings/data-residency';
+import { Route as DashboardIdSettingsConnectorsRouteImport } from './routes/dashboard/$id/settings/connectors';
 import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding';
 import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys';
 import { Route as DashboardIdSettingsAccountRouteImport } from './routes/dashboard/$id/settings/account';
@@ -333,12 +333,6 @@ const DashboardIdSettingsLogsRoute = DashboardIdSettingsLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => DashboardIdSettingsRoute,
 } as any);
-const DashboardIdSettingsIntegrationsRoute =
-  DashboardIdSettingsIntegrationsRouteImport.update({
-    id: '/integrations',
-    path: '/integrations',
-    getParentRoute: () => DashboardIdSettingsRoute,
-  } as any);
 const DashboardIdSettingsEnvironmentRoute =
   DashboardIdSettingsEnvironmentRouteImport.update({
     id: '/environment',
@@ -361,6 +355,12 @@ const DashboardIdSettingsDataResidencyRoute =
   DashboardIdSettingsDataResidencyRouteImport.update({
     id: '/data-residency',
     path: '/data-residency',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsConnectorsRoute =
+  DashboardIdSettingsConnectorsRouteImport.update({
+    id: '/connectors',
+    path: '/connectors',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsBrandingRoute =
@@ -792,11 +792,11 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute;
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/connectors': typeof DashboardIdSettingsConnectorsRoute;
   '/dashboard/$id/settings/data-residency': typeof DashboardIdSettingsDataResidencyRoute;
   '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
   '/dashboard/$id/settings/enterprise-sso': typeof DashboardIdSettingsEnterpriseSsoRoute;
   '/dashboard/$id/settings/environment': typeof DashboardIdSettingsEnvironmentRoute;
-  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
@@ -891,11 +891,11 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute;
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/connectors': typeof DashboardIdSettingsConnectorsRoute;
   '/dashboard/$id/settings/data-residency': typeof DashboardIdSettingsDataResidencyRoute;
   '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
   '/dashboard/$id/settings/enterprise-sso': typeof DashboardIdSettingsEnterpriseSsoRoute;
   '/dashboard/$id/settings/environment': typeof DashboardIdSettingsEnvironmentRoute;
-  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
@@ -1001,11 +1001,11 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute;
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/connectors': typeof DashboardIdSettingsConnectorsRoute;
   '/dashboard/$id/settings/data-residency': typeof DashboardIdSettingsDataResidencyRoute;
   '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
   '/dashboard/$id/settings/enterprise-sso': typeof DashboardIdSettingsEnterpriseSsoRoute;
   '/dashboard/$id/settings/environment': typeof DashboardIdSettingsEnvironmentRoute;
-  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
@@ -1112,11 +1112,11 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/connectors'
     | '/dashboard/$id/settings/data-residency'
     | '/dashboard/$id/settings/deployment'
     | '/dashboard/$id/settings/enterprise-sso'
     | '/dashboard/$id/settings/environment'
-    | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
@@ -1211,11 +1211,11 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/connectors'
     | '/dashboard/$id/settings/data-residency'
     | '/dashboard/$id/settings/deployment'
     | '/dashboard/$id/settings/enterprise-sso'
     | '/dashboard/$id/settings/environment'
-    | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
@@ -1320,11 +1320,11 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/connectors'
     | '/dashboard/$id/settings/data-residency'
     | '/dashboard/$id/settings/deployment'
     | '/dashboard/$id/settings/enterprise-sso'
     | '/dashboard/$id/settings/environment'
-    | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
@@ -1683,13 +1683,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsLogsRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
-    '/dashboard/$id/settings/integrations': {
-      id: '/dashboard/$id/settings/integrations';
-      path: '/integrations';
-      fullPath: '/dashboard/$id/settings/integrations';
-      preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport;
-      parentRoute: typeof DashboardIdSettingsRoute;
-    };
     '/dashboard/$id/settings/environment': {
       id: '/dashboard/$id/settings/environment';
       path: '/environment';
@@ -1716,6 +1709,13 @@ declare module '@tanstack/react-router' {
       path: '/data-residency';
       fullPath: '/dashboard/$id/settings/data-residency';
       preLoaderRoute: typeof DashboardIdSettingsDataResidencyRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/connectors': {
+      id: '/dashboard/$id/settings/connectors';
+      path: '/connectors';
+      fullPath: '/dashboard/$id/settings/connectors';
+      preLoaderRoute: typeof DashboardIdSettingsConnectorsRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/branding': {
@@ -2418,11 +2418,11 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute;
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute;
   DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute;
+  DashboardIdSettingsConnectorsRoute: typeof DashboardIdSettingsConnectorsRoute;
   DashboardIdSettingsDataResidencyRoute: typeof DashboardIdSettingsDataResidencyRoute;
   DashboardIdSettingsDeploymentRoute: typeof DashboardIdSettingsDeploymentRoute;
   DashboardIdSettingsEnterpriseSsoRoute: typeof DashboardIdSettingsEnterpriseSsoRoute;
   DashboardIdSettingsEnvironmentRoute: typeof DashboardIdSettingsEnvironmentRoute;
-  DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute;
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute;
   DashboardIdSettingsMcpRoute: typeof DashboardIdSettingsMcpRoute;
   DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute;
@@ -2449,11 +2449,11 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsAccountRoute: DashboardIdSettingsAccountRoute,
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
   DashboardIdSettingsBrandingRoute: DashboardIdSettingsBrandingRoute,
+  DashboardIdSettingsConnectorsRoute: DashboardIdSettingsConnectorsRoute,
   DashboardIdSettingsDataResidencyRoute: DashboardIdSettingsDataResidencyRoute,
   DashboardIdSettingsDeploymentRoute: DashboardIdSettingsDeploymentRoute,
   DashboardIdSettingsEnterpriseSsoRoute: DashboardIdSettingsEnterpriseSsoRoute,
   DashboardIdSettingsEnvironmentRoute: DashboardIdSettingsEnvironmentRoute,
-  DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsMcpRoute: DashboardIdSettingsMcpRoute,
   DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,

@@ -22,11 +22,15 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useArchivedThreads } from '../data/chat-backend';
+import { dropZoneClassName, useArchiveDropZone } from './thread-dnd';
 import { useThreadListFrame } from './thread-list-context';
 import { ThreadRow } from './thread-row';
 
 export function ArchivedSection() {
   const { t } = useT('chat');
+  // The whole section — header included, so the collapsed drawer still works —
+  // takes a dropped chat and archives it.
+  const { setNodeRef, isOver } = useArchiveDropZone();
   const [expanded, setExpanded] = usePersistedState(
     'chat-sidebar-archived-expanded',
     false,
@@ -41,7 +45,13 @@ export function ArchivedSection() {
   if (expanded && !everExpanded) setEverExpanded(true);
 
   return (
-    <section className="border-border mt-1.5 shrink-0 border-t pt-2">
+    <section
+      ref={setNodeRef}
+      className={cn(
+        'border-border mt-1.5 shrink-0 border-t pt-2',
+        dropZoneClassName(isOver),
+      )}
+    >
       {/* Same header vocabulary as PROJECTS and CHATS, but the WHOLE row is
           the disclosure — exactly like a project folder's header — with the
           trailing chevron as its state. */}

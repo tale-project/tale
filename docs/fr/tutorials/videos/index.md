@@ -45,7 +45,7 @@ Le tableau en plein vol, les fichiers comme contexte borné, et une tâche cré�
 
 </Card>
 
-<Card title="Épisode 7 — Intégrations & le monde extérieur" icon="play" href="/fr/tutorials/videos/integrations">
+<Card title="Épisode 7 — Connectors & le monde extérieur" icon="play" href="/fr/tutorials/videos/connectors">
 
 Des connecteurs qu'on lit avant d'ouvrir, des outils MCP avec drapeaux de validation, et une sortie réseau qui échoue fermée. Chaque porte ouverte délibérément. Deux minutes et demie.
 

@@ -26,6 +26,6 @@ export * from './bulk_reopen_conversations';
 export * from './bulk_spam_conversations';
 export * from './bulk_unarchive_conversations';
 export * from './transform_conversation';
-export * from './send_message_via_integration';
+export * from './send_message_via_connector';
 export * from './query_conversation_messages';
 export * from './delete_conversation';

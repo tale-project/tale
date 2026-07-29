@@ -366,11 +366,11 @@ export function buildDockerSessionRunArgs(
     '--env',
     `HTTP_PROXY=${cfg.egressProxy}`,
     // Session execs reach the LLM gateway (sandbox-llm-gateway) and the convex
-    // http-actions (the in-sandbox integration bridge → /api/integrations/*)
+    // http-actions (the in-sandbox connector bridge → /api/connectors/*)
     // directly on the internal bridge — not through tinyproxy. The agent adapters
     // set ANTHROPIC_BASE_URL at the gateway and the bridge calls http://convex:3211,
     // so both must be in NO_PROXY or the CONNECT would be denied. If
-    // EXTERNAL_AGENT_INTEGRATIONS_URL overrides the host, this list must match.
+    // EXTERNAL_AGENT_CONNECTORS_URL overrides the host, this list must match.
     // The old `llm-gateway` alias is kept for one release so in-flight sessions
     // pinned to the pre-rename hostname keep resolving (see the transitional
     // network alias in compose.yml).

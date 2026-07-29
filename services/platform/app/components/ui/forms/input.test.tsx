@@ -346,7 +346,7 @@ describe('Input', () => {
     });
   });
 
-  describe('react hook form integration', () => {
+  describe('react hook form connector', () => {
     function PasswordForm() {
       const { register } = useForm({
         defaultValues: { password: 'secret123' },

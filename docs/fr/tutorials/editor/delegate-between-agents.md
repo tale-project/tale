@@ -9,7 +9,7 @@ Le versant conceptuel (sous-ensembles de capacités, budgets, méthodologies) vi
 
 ## Avant de commencer
 
-Il te faut un agent de chat (l'Assistant intégré fonctionne tel quel) sur un modèle avec tool-calling. Pour des sources web en direct, connecte une intégration de recherche comme Tavily sous **Paramètres > Intégrations** — sans elle, le worker retombe sur la simple récupération web et le dit dans son résultat.
+Il te faut un agent de chat (l'Assistant intégré fonctionne tel quel) sur un modèle avec tool-calling. Pour des sources web en direct, connecte une connector de recherche comme Tavily sous **Paramètres > Connectors** — sans elle, le worker retombe sur la simple récupération web et le dit dans son résultat.
 
 ## Étape 1 — Demande quelque chose qui mérite un worker
 
@@ -19,7 +19,7 @@ Ouvre un chat avec `Assistant` et demande un travail ouvert et citable, par exem
 
 L'assistant appelle `spawn_agent` et une **carte de job** apparaît sous son tour : le nom du worker, un statut en direct et la checklist de progression du worker qui se remplit pendant qu'il planifie et traite les sous-questions. La carte ne bloque jamais le champ de saisie — tu peux continuer à écrire pendant que le worker tourne.
 
-Si la carte affiche une note « ignoré », l'assistant a demandé quelque chose hors de ses propres accès (par exemple une intégration non connectée) ; l'exécution continue avec le reste, et la note te dit quoi connecter pour la prochaine fois.
+Si la carte affiche une note « ignoré », l'assistant a demandé quelque chose hors de ses propres accès (par exemple une connector non connectée) ; l'exécution continue avec le reste, et la note te dit quoi connecter pour la prochaine fois.
 
 ## Étape 3 — Lis le résultat et la transcription
 

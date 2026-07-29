@@ -19,7 +19,7 @@ To find the moment a member's role was changed, open **Settings > Governance > L
 | Action         | string   | yes      | The semantic action — `update_member_role`, `provider_created`, `agent_saved`.            |
 | User           | string   | yes      | Display name of the actor; `System`, `API`, or `Workflow` when the actor is not a person. |
 | Resource       | string   | yes      | The resource the action touched — `agent`, `provider`, `member`, `workflow`.              |
-| Category       | enum     | yes      | Auth, Member, Data, Integration, Workflow, Security, Admin, AI, Skill, Agent.             |
+| Category       | enum     | yes      | Auth, Member, Data, Connector, Workflow, Security, Admin, AI, Skill, Agent.               |
 | Status         | enum     | yes      | Success, Failure, Denied.                                                                 |
 | Changed fields | JSON     | no       | The diff between previous and new state for update actions.                               |
 

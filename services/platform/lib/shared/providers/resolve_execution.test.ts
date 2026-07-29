@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  harnessConnectorSchema,
+  harnessDefinitionSchema,
   modelCatalogEntrySchema,
-  type HarnessConnector,
+  type HarnessDefinition,
 } from '../schemas/providers';
 import {
   buildHarnessTable,
@@ -20,8 +20,8 @@ import {
 function harness(
   slug: string,
   policy: { managed: boolean; byo: boolean },
-): HarnessConnector {
-  return harnessConnectorSchema.parse({
+): HarnessDefinition {
+  return harnessDefinitionSchema.parse({
     slug,
     displayName: slug,
     credentialPolicy: policy,

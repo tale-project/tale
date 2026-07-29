@@ -38,11 +38,11 @@ The `SITE_URL` must match what the user types in the browser exactly. A trailing
 
 ## Security secrets (required)
 
-| Name                    | Default                       | Description                                                                                                                                                                                                                                                     |
-| ----------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | example value in shipped file | **Required.** Base64 secret for the Better Auth session signer. Generate with `openssl rand -base64 32`. Rotating invalidates every session.                                                                                                                    |
-| `ENCRYPTION_SECRET_HEX` | example value in shipped file | **Required.** 32-byte hex key. AES-256 key for OAuth and integration credentials and HKDF input for the guardrails secret box. Generate with `openssl rand -hex 32`. Rotating invalidates every DB-stored ciphertext; operators must re-enter affected secrets. |
-| `INSTANCE_SECRET`       | example value in shipped file | **Required.** Used to derive the Convex admin key for `tale deploy`. Deploy fails if unset.                                                                                                                                                                     |
+| Name                    | Default                       | Description                                                                                                                                                                                                                                                   |
+| ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`    | example value in shipped file | **Required.** Base64 secret for the Better Auth session signer. Generate with `openssl rand -base64 32`. Rotating invalidates every session.                                                                                                                  |
+| `ENCRYPTION_SECRET_HEX` | example value in shipped file | **Required.** 32-byte hex key. AES-256 key for OAuth and connector credentials and HKDF input for the guardrails secret box. Generate with `openssl rand -hex 32`. Rotating invalidates every DB-stored ciphertext; operators must re-enter affected secrets. |
+| `INSTANCE_SECRET`       | example value in shipped file | **Required.** Used to derive the Convex admin key for `tale deploy`. Deploy fails if unset.                                                                                                                                                                   |
 
 Replace the values that ship in `.env.example` before exposing the instance — they are intentionally insecure placeholders.
 
@@ -87,7 +87,7 @@ Optional toggles for features not enabled by default. Each flag turns one featur
 | Name                            | Default | Description                                                                                                                     |
 | ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `TRUSTED_HEADERS_ENABLED`       | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy).                                                 |
-| `FILE_EVENTS_ENABLED`           | `false` | Enables file-watching events for the OneDrive-sync integration.                                                                 |
+| `FILE_EVENTS_ENABLED`           | `false` | Enables file-watching events for the OneDrive-sync connector.                                                                   |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Comma-separated email allowlist of operators allowed to edit deployment data residency. Empty/unset = read-only for all admins. |
 
 ## Restart controller

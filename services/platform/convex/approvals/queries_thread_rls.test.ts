@@ -20,7 +20,7 @@ vi.mock('../lib/rls/auth/can_access_thread', () => ({
 }));
 
 const {
-  getPendingIntegrationApprovalsForThread,
+  getPendingConnectorApprovalsForThread,
   getWorkflowCreationApprovalsForThread,
   getHumanInputRequestsForThread,
 } = await import('./queries');
@@ -30,8 +30,8 @@ type Handler = (
   args: Record<string, unknown>,
 ) => Promise<unknown>;
 
-const getIntegration =
-  getPendingIntegrationApprovalsForThread as unknown as Handler;
+const getConnector =
+  getPendingConnectorApprovalsForThread as unknown as Handler;
 const getWorkflow = getWorkflowCreationApprovalsForThread as unknown as Handler;
 const getHumanInput = getHumanInputRequestsForThread as unknown as Handler;
 
@@ -72,7 +72,7 @@ function approvalRow(over: Partial<Row> = {}): Row {
     _id: 'apr_1',
     threadId: 'thread_1',
     organizationId: 'org_1',
-    resourceType: 'integration_operation',
+    resourceType: 'connector_operation',
     status: 'pending',
     messageId: undefined,
     ...over,
@@ -91,9 +91,9 @@ beforeEach(() => {
 
 const cases: Array<{ name: string; handler: Handler; resourceType: string }> = [
   {
-    name: 'getPendingIntegrationApprovalsForThread',
-    handler: getIntegration,
-    resourceType: 'integration_operation',
+    name: 'getPendingConnectorApprovalsForThread',
+    handler: getConnector,
+    resourceType: 'connector_operation',
   },
   {
     name: 'getWorkflowCreationApprovalsForThread',

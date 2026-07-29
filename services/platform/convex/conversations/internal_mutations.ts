@@ -29,7 +29,7 @@ export const createConversation = internalMutation({
     type: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    integrationName: v.optional(v.string()),
+    connectorName: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.object({
@@ -52,7 +52,7 @@ export const createConversationWithMessage = internalMutation({
     type: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    integrationName: v.optional(v.string()),
+    connectorName: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
 
     initialMessage: v.object({
@@ -66,7 +66,7 @@ export const createConversationWithMessage = internalMutation({
       metadata: v.optional(jsonRecordValidator),
       sentAt: v.optional(v.number()),
       deliveredAt: v.optional(v.number()),
-      integrationName: v.optional(v.string()),
+      connectorName: v.optional(v.string()),
     }),
   },
   returns: v.object({
@@ -119,7 +119,7 @@ export const addMessageToConversation = internalMutation({
     metadata: v.optional(jsonRecordValidator),
     sentAt: v.optional(v.number()),
     deliveredAt: v.optional(v.number()),
-    integrationName: v.optional(v.string()),
+    connectorName: v.optional(v.string()),
   },
   returns: v.id('conversations'),
   handler: async (ctx, args) => {

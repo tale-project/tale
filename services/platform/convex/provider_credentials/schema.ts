@@ -2,8 +2,8 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
- * AI-provider credentials — org-owned, MULTIPLE per provider connector. A row
- * pairs one shipped connector (`configs/platform/system/providers/<slug>.yml`)
+ * AI-provider credentials — org-owned, MULTIPLE per provider. A row
+ * pairs one shipped provider (`configs/platform/system/providers/<slug>.yml`)
  * with one way to authenticate against it, discriminated by `authMethod`:
  *
  *  - `api-key`             — a single secret, encrypted at rest with
@@ -48,8 +48,8 @@ export const providerCredentialStatusValidator = v.union(
 
 export const providerCredentialsTable = defineTable({
   organizationId: v.string(),
-  /** Connector name (`providers/<slug>.yml`); migrated rows may carry a
-   * legacy provider name with no matching shipped connector. */
+  /** Provider name (`providers/<slug>.yml`); migrated rows may carry a
+   * legacy provider name with no matching shipped provider. */
   providerSlug: v.string(),
   authMethod: providerAuthMethodValidator,
   /** Human label, unique per (organization, provider). */
@@ -60,7 +60,7 @@ export const providerCredentialsTable = defineTable({
   encryptedData: v.optional(encryptedSecretValidator),
   /** Env-var NAME for `env`; must satisfy the `TALE_PROVIDER_KEY_` gate. */
   envName: v.optional(v.string()),
-  /** Per-credential wire endpoint (https), only for connectors declaring
+  /** Per-credential wire endpoint (https), only for providers declaring
    * `endpointMode: per-credential` (Azure resource endpoints). Not secret —
    * an endpoint hostname, stored plain for listing. */
   endpointUrl: v.optional(v.string()),
@@ -69,7 +69,7 @@ export const providerCredentialsTable = defineTable({
    * stores no secret or the secret is too short to mask safely. */
   maskedPreview: v.optional(v.string()),
   /** When present, restricts this credential to the listed catalog model
-   * ids; absent means every model the connector offers. */
+   * ids; absent means every model the provider offers. */
   modelAllowlist: v.optional(v.array(v.string())),
   /** At most one default per (organization, provider) — the credential
    * resolution falls back to when no explicit credential is selected. */

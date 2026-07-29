@@ -114,7 +114,7 @@ type CapabilityToolName = (typeof CAPABILITY_TOOL_NAMES)[number];
 
 const CAPABILITY_TOOL_DESCRIPTIONS: Record<CapabilityToolName, string> = {
   search_capabilities:
-    'Search everything this organization can do — its automations, integration actions, skills and tools.',
+    'Search everything this organization can do — its automations, connector actions, skills and tools.',
   invoke_capability:
     'Invoke one capability by id. An action the organization gates returns a pending-approval result instead of running.',
   get_knowledge:

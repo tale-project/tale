@@ -50,7 +50,7 @@
           "type": "conversation",
           "parameters": {
             "operation": "get_email_sync_cursor",
-            "integrationName": "outlook"
+            "connectorName": "outlook"
           }
         },
         "nextSteps": {
@@ -75,7 +75,7 @@
         "name": "Fetch Latest Email (First Run)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "outlook",
             "operation": "list_messages",
@@ -96,7 +96,7 @@
         "name": "Fetch New Emails (Incremental)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "outlook",
             "operation": "list_messages",
@@ -150,7 +150,7 @@
         "name": "Fetch Thread Messages",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "outlook",
             "operation": "list_messages",
@@ -177,7 +177,7 @@
             "operation": "create_from_email",
             "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
             "status": "{{config.conversationStatus}}",
-            "integrationName": "outlook"
+            "connectorName": "outlook"
           }
         },
         "nextSteps": {
@@ -192,7 +192,7 @@
           "type": "conversation",
           "parameters": {
             "operation": "update_email_sync_cursor",
-            "integrationName": "outlook",
+            "connectorName": "outlook",
             "cursor": "{{steps.fetch_new_emails.output.data.result.nextCursor || steps.fetch_latest_email.output.data.result.nextCursor}}"
           }
         },
@@ -212,6 +212,6 @@
     }
   },
   "requires": {
-    "integrations": ["outlook"]
+    "connectors": ["outlook"]
   }
 }

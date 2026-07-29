@@ -19,7 +19,7 @@ export { setCodeRunner } from './runner';
  * two behaviors: a deterministic mock (required — the fast feedback loop is
  * the product) and an optional live implementation the host gates.
  */
-export interface IntegrationLike {
+export interface ConnectorLike {
   name: string;
   description: string;
   /** JSON Schema for the node's resolved `input` — machine-validated. */
@@ -40,7 +40,7 @@ export interface IntegrationLike {
    * wire-separated. Callers must await the result.
    */
   mock(input: unknown): unknown;
-  live?(input: unknown, ctx: IntegrationContext): Promise<unknown>;
+  live?(input: unknown, ctx: ConnectorContext): Promise<unknown>;
 }
 
 /**
@@ -57,14 +57,14 @@ export interface StoredFileRef {
 }
 
 /** One HTTP response, reduced to what a connector body may observe. */
-export interface IntegrationHttpResponse {
+export interface ConnectorHttpResponse {
   status: number;
   headers: Record<string, string>;
   json(): unknown;
   text(): string;
 }
 
-export interface IntegrationHttpRequest {
+export interface ConnectorHttpRequest {
   headers?: Record<string, string>;
   body?: string;
   /** Ask the host to return the body base64-encoded — how a connector pulls
@@ -83,7 +83,7 @@ export interface IntegrationHttpRequest {
  * and for making `idempotencyKey` stable across a retried step so a re-run
  * cannot double-send.
  */
-export interface IntegrationContext {
+export interface ConnectorContext {
   /** Secret values the body places itself (vendor headers, body fields).
    * Tokens the platform injects as Authorization do NOT appear here. */
   secrets: { get(name: string): string };
@@ -105,24 +105,24 @@ export interface IntegrationContext {
   http: {
     get(
       url: string,
-      req?: IntegrationHttpRequest,
-    ): Promise<IntegrationHttpResponse>;
+      req?: ConnectorHttpRequest,
+    ): Promise<ConnectorHttpResponse>;
     post(
       url: string,
-      req?: IntegrationHttpRequest,
-    ): Promise<IntegrationHttpResponse>;
+      req?: ConnectorHttpRequest,
+    ): Promise<ConnectorHttpResponse>;
     put(
       url: string,
-      req?: IntegrationHttpRequest,
-    ): Promise<IntegrationHttpResponse>;
+      req?: ConnectorHttpRequest,
+    ): Promise<ConnectorHttpResponse>;
     patch(
       url: string,
-      req?: IntegrationHttpRequest,
-    ): Promise<IntegrationHttpResponse>;
+      req?: ConnectorHttpRequest,
+    ): Promise<ConnectorHttpResponse>;
     delete(
       url: string,
-      req?: IntegrationHttpRequest,
-    ): Promise<IntegrationHttpResponse>;
+      req?: ConnectorHttpRequest,
+    ): Promise<ConnectorHttpResponse>;
   };
   /** Present when the caller can persist blobs; a body that needs it must say
    * so rather than assume it (attachment actions check and throw). */
@@ -145,12 +145,12 @@ export interface IntegrationContext {
 }
 
 /**
- * What a host supplies per integration so the executor can build an
- * {@link IntegrationContext}. The engine adds the parts only it knows — the
+ * What a host supplies per connector so the executor can build an
+ * {@link ConnectorContext}. The engine adds the parts only it knows — the
  * resolved secrets and the retry-stable idempotency key.
  */
-export type IntegrationHostCapabilities = Pick<
-  IntegrationContext,
+export type ConnectorHostCapabilities = Pick<
+  ConnectorContext,
   'endpoint' | 'config' | 'http' | 'files' | 'base64Encode' | 'base64Decode'
 >;
 
@@ -168,13 +168,13 @@ export type OutputKind = 'structured' | 'unstructured';
 
 export interface NodeTypeDef {
   type: string;
-  kind: 'core' | 'integration';
+  kind: 'core' | 'connector';
   description: string;
   outputKind: OutputKind;
   /** Allowed fields beyond id/type/control-flow. */
   allowedFields: string[];
   requiredFields: string[];
-  integration?: IntegrationLike;
+  connector?: ConnectorLike;
 }
 
 // The built-in node kinds. Connectors and platform natives (knowledge

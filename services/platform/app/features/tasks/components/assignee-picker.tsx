@@ -385,9 +385,9 @@ export function AssigneePicker({
       footer={
         <Stack gap={0}>
           {/* #2610: only installed + enabled agents ever reach this list
-              — a connected integration alone does not make its bundled
+              — a connected connector alone does not make its bundled
               agents assignable, so a familiar name (e.g. an
-              integration's own agent) can be legitimately absent, up to
+              connector's own agent) can be legitimately absent, up to
               and including the whole Agents section. Always shown (not
               gated on the section being non-empty) so that exact "why
               can't I find it" case still gets an answer. */}

@@ -326,7 +326,7 @@ ENV NODE_ENV=production \
     # ($TALE_CONFIG_BUILTIN_DIR/<domain>/), with no org level and no fallback.
     # Every org is seeded from it. See convex/organizations/scaffold.ts.
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
-    # Org-independent system config (providers/models/harnesses/integrations),
+    # Org-independent system config (providers/models/harnesses/connectors),
     # read by 'use node' actions. Same push-to-Convex-env path as above; a
     # container has no repo checkout to fall back on. Baked at /app/system in
     # the convex image (services/convex/Dockerfile).

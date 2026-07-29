@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadHarnesses } from '../../convex/lib/providers/load_system_config';
-import type { HarnessConnector } from '../shared/schemas/providers';
+import type { HarnessDefinition } from '../shared/schemas/providers';
 import { buildHarnessExec } from './exec-builder';
 import { GOLDEN_BYO_ENV, GOLDEN_GATEWAY, goldenBattery } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
@@ -25,7 +25,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function fact(slug: string): HarnessConnector {
+function fact(slug: string): HarnessDefinition {
   const found = loadHarnesses().find((f) => f.slug === slug);
   if (!found) throw new Error(`shipped facts miss "${slug}"`);
   return found;
@@ -181,7 +181,7 @@ describe('placeholder substitution safety', () => {
       managedSpec({ mcp: { browser: 'headless', bridgeUrl: 'http://b' } }),
     );
     expect(gemini.stdin).toContain(
-      '"TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"',
+      '"TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"',
     );
     const opencode = buildHarnessExec(fact('opencode'), managedSpec());
     expect(opencode.env.OPENCODE_CONFIG_CONTENT).toContain(

@@ -68,7 +68,7 @@ describe('registration', () => {
     // A read-only node must never be gated behind an approval or counted as a
     // side effect of a run.
     expect(
-      nodeTypes().get(KNOWLEDGE_SEARCH_NODE_TYPE)?.integration?.hasEffect,
+      nodeTypes().get(KNOWLEDGE_SEARCH_NODE_TYPE)?.connector?.hasEffect,
     ).toBe(false);
   });
 
@@ -210,7 +210,7 @@ describe('the live backend', () => {
     const result = await execute(WORKFLOW, {
       input: { question: 'parental leave' },
       mode: 'live',
-      integrationHost: () => ({
+      connectorHost: () => ({
         config: {},
         http: {
           get: () => Promise.reject(new Error('a search makes no HTTP call')),
@@ -233,7 +233,7 @@ describe('the live backend', () => {
     const result = await execute(WORKFLOW, {
       input: { question: 'parental leave' },
       mode: 'live',
-      integrationHost: () => ({
+      connectorHost: () => ({
         config: {},
         http: {
           get: () => Promise.reject(new Error('unused')),

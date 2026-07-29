@@ -2,7 +2,7 @@
 
 /**
  * Loader for the shipped AI-provider system config — one directory per entry,
- * holding that entry's canonical file (the same layout the integrations
+ * holding that entry's canonical file (the same layout the providers
  * catalog uses, so an entry can carry siblings like `icon.svg`):
  * `providers/<name>/provider.yml`, `models/<provider>/models.yml`,
  * `harnesses/<slug>/harness.yml`.
@@ -40,12 +40,12 @@ import { z } from 'zod/v4';
 import { parseYaml } from '../../../lib/shared/config/yaml';
 import { formatZodError } from '../../../lib/shared/schemas/format-error';
 import {
-  harnessConnectorSchema,
+  harnessDefinitionSchema,
   modelCatalogFileSchema,
-  providerConnectorSchema,
-  type HarnessConnector,
+  providerDefinitionSchema,
+  type HarnessDefinition,
   type ModelCatalogEntry,
-  type ProviderConnector,
+  type ProviderDefinition,
 } from '../../../lib/shared/schemas/providers';
 
 /** Repo-relative location of the shipped system config tree. */
@@ -240,8 +240,8 @@ function loadDir<T>(
   return values;
 }
 
-const connectorParseCache = new Map<string, CachedParse<ProviderConnector>>();
-const connectorDirCache = new Map<string, CachedDir<ProviderConnector>>();
+const providerParseCache = new Map<string, CachedParse<ProviderDefinition>>();
+const providerDirCache = new Map<string, CachedDir<ProviderDefinition>>();
 
 const catalogParseCache = new Map<
   string,
@@ -252,28 +252,28 @@ const catalogDirCache = new Map<
   CachedDir<readonly ModelCatalogEntry[]>
 >();
 
-const harnessParseCache = new Map<string, CachedParse<HarnessConnector>>();
-const harnessDirCache = new Map<string, CachedDir<HarnessConnector>>();
+const harnessParseCache = new Map<string, CachedParse<HarnessDefinition>>();
+const harnessDirCache = new Map<string, CachedDir<HarnessDefinition>>();
 
-/** Load the shipped provider connectors (`providers/<name>/provider.yml`). */
-export function loadProviderConnectors(
+/** Load the shipped providers (`providers/<name>/provider.yml`). */
+export function loadProviderDefinitions(
   options: LoadSystemConfigOptions = {},
-): readonly ProviderConnector[] {
+): readonly ProviderDefinition[] {
   return loadDir(
     resolveRoot(options),
     'providers',
     'provider.yml',
-    connectorParseCache,
-    connectorDirCache,
+    providerParseCache,
+    providerDirCache,
     false,
     (data, file) => {
-      const connector = providerConnectorSchema.parse(data);
-      if (connector.name !== file.stem) {
+      const provider = providerDefinitionSchema.parse(data);
+      if (provider.name !== file.stem) {
         throw new Error(
-          `connector name "${connector.name}" must match its directory name "${file.stem}"`,
+          `provider name "${provider.name}" must match its directory name "${file.stem}"`,
         );
       }
-      return connector;
+      return provider;
     },
   );
 }
@@ -281,7 +281,7 @@ export function loadProviderConnectors(
 /**
  * Load the shipped static model catalogs (`models/<provider>/models.yml`),
  * keyed by provider slug. Every entry's `provider` must equal its directory
- * name — a catalog cannot smuggle entries for another connector.
+ * name — a catalog cannot smuggle entries for another provider.
  */
 export function loadStaticCatalogs(
   options: LoadSystemConfigOptions = {},
@@ -312,10 +312,10 @@ export function loadStaticCatalogs(
   );
 }
 
-/** Load the shipped harness connectors (`harnesses/<slug>/harness.yml`). */
+/** Load the shipped harness providers (`harnesses/<slug>/harness.yml`). */
 export function loadHarnesses(
   options: LoadSystemConfigOptions = {},
-): readonly HarnessConnector[] {
+): readonly HarnessDefinition[] {
   return loadDir(
     resolveRoot(options),
     'harnesses',
@@ -324,7 +324,7 @@ export function loadHarnesses(
     harnessDirCache,
     false,
     (data, file) => {
-      const harness = harnessConnectorSchema.parse(data);
+      const harness = harnessDefinitionSchema.parse(data);
       if (harness.slug !== file.stem) {
         throw new Error(
           `harness slug "${harness.slug}" must match its directory name "${file.stem}"`,
@@ -337,7 +337,7 @@ export function loadHarnesses(
 
 /**
  * A shipped entry's `icon.svg` as an inline data URL, or `undefined` when it
- * ships none. Served inline for the same reasons the integrations catalog
+ * ships none. Served inline for the same reasons the providers catalog
  * serves its icons inline: the SVGs are small, identical for every
  * organization, and live in the same tree the entries themselves resolve
  * from — no extra HTTP surface, and the UI falls back to its placeholder.

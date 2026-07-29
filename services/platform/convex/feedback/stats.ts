@@ -9,7 +9,7 @@ export const ARENA_VERDICTS: ArenaVerdict[] = [
 ];
 
 const SYNTHETIC_AGENT_DIRECT_API = '__direct_api__';
-const SYNTHETIC_AGENT_INTEGRATION = '__integration__';
+const SYNTHETIC_AGENT_CONNECTOR = '__connector__';
 // Sentinel slug used in the ranking when a row has no agent attribution
 // (typically arena rows or legacy / pre-attribution rows). Distinct from
 // the Usage-page synthetic slugs so the UI can label it differently.
@@ -317,6 +317,6 @@ export function isFeedbackSyntheticAgentSlug(slug: string): boolean {
   return (
     slug === UNATTRIBUTED_AGENT_SLUG ||
     slug === SYNTHETIC_AGENT_DIRECT_API ||
-    slug === SYNTHETIC_AGENT_INTEGRATION
+    slug === SYNTHETIC_AGENT_CONNECTOR
   );
 }

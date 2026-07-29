@@ -158,7 +158,7 @@ export const legacyAppInstallationsWithConfigTable = defineTable({
   installedBy: v.string(),
   status: v.union(v.literal('active'), v.literal('broken')),
   uninstalling: v.optional(v.boolean()),
-  requiredIntegrations: v.array(v.string()),
+  requiredConnectors: v.array(v.string()),
   resources: v.array(
     v.object({
       domain: v.string(),
@@ -378,7 +378,7 @@ export const legacySlackInstallationsTable = defineTable({
   slug: v.string(),
   botUserId: v.optional(v.string()),
   appId: v.optional(v.string()),
-  // `integrationCredentials` id in production; widened (see the group header).
+  // `connectorCredentials` id in production; widened (see the group header).
   credentialId: v.string(),
   installedAt: v.number(),
   updatedAt: v.number(),
@@ -696,14 +696,14 @@ const legacyAgentJobSpec = v.object({
   requestedTools: v.array(v.string()),
   effectiveTools: v.array(v.string()),
   skills: v.array(v.string()),
-  integrations: v.array(v.string()),
+  connectors: v.array(v.string()),
   modelTier: v.optional(v.union(v.literal('fast'), v.literal('capable'))),
   model: v.string(),
   provider: v.optional(v.string()),
   narrowed: v.object({
     tools: v.array(v.string()),
     skills: v.array(v.string()),
-    integrations: v.array(v.string()),
+    connectors: v.array(v.string()),
     methodology: v.optional(v.string()),
   }),
 });

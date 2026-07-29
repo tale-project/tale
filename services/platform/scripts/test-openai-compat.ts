@@ -3,7 +3,7 @@
  * End-to-end tests for the OpenAI-compatible Chat Completions API.
  *
  * Two surfaces are exercised:
- *   - AI SDK v6 integration via @ai-sdk/openai-compatible (generateText, streamText, tools)
+ *   - AI SDK v6 connector via @ai-sdk/openai-compatible (generateText, streamText, tools)
  *   - OpenAI wire-protocol conformance via raw HTTP for features the SDK abstracts away
  *     (response_format, stop sequences, citations field, manual multi-round tool
  *     continuation, error responses)

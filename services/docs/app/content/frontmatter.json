@@ -20,7 +20,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Entwicklung",
-      "description": "Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, Webhooks, Integrations-SDK, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits."
+      "description": "Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, Webhooks, Connector-SDK, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits."
     }
   },
   "de:develop/ai-assisted-development": {
@@ -39,20 +39,20 @@
       "description": "REST- und MCP-Rate-Limits — die zwei Buckets, die 429-Antwort und wie du wiederholst, ohne es schlimmer zu machen."
     }
   },
-  "de:develop/integrations": {
-    "slug": "develop/integrations",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Integrationen",
-      "description": "Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wann stattdessen ein MCP-Server die richtige Wahl ist."
-    }
-  },
   "de:develop/webhooks": {
     "slug": "develop/webhooks",
     "locale": "de",
     "frontmatter": {
       "title": "Webhooks",
       "description": "Eingehende Webhook-Trigger — poste an eine Token-URL und eine deployte Automatisierung läuft. Token-Handhabung, Rotation, Idempotenz und die Antwortcodes."
+    }
+  },
+  "de:develop/connectors": {
+    "slug": "develop/connectors",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Connectors",
+      "description": "Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wann stattdessen ein MCP-Server die richtige Wahl ist."
     }
   },
   "de:develop/mcp-endpoint": {
@@ -79,6 +79,30 @@
       "title": "API-Referenz",
       "description": "Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell. Die einzige Quelle der Wahrheit für die REST-Oberfläche.",
       "i18nLintExclude": ""
+    }
+  },
+  "de:platform/connectors/overview": {
+    "slug": "platform/connectors/overview",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Connectors",
+      "description": "Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und im Chat landen."
+    }
+  },
+  "de:platform/connectors/webdav": {
+    "slug": "platform/connectors/webdav",
+    "locale": "de",
+    "frontmatter": {
+      "title": "WebDAV",
+      "description": "Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein — erzeuge ein App-Passwort unter Einstellungen > API > WebDAV und verbinde dich von deinem Gerät."
+    }
+  },
+  "de:platform/connectors/mcp-servers": {
+    "slug": "platform/connectors/mcp-servers",
+    "locale": "de",
+    "frontmatter": {
+      "title": "MCP-Server",
+      "description": "Registriere externe Tool-Server unter Einstellungen > API > MCP — Transport, Authentifizierung, die Liste der erkannten Tools und die Genehmigungs-Flags pro Tool, die die Vertrauensgrenze eng halten."
     }
   },
   "de:platform/developer/overview": {
@@ -278,7 +302,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Integrationen, Branding, Richtlinien. Die Seiten hier sind das, was ein Admin oder Inhaber durchklickt, um eine Organisation aufzusetzen und am Laufen zu halten."
+      "description": "Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Connectors, Branding, Richtlinien. Die Seiten hier sind das, was ein Admin oder Inhaber durchklickt, um eine Organisation aufzusetzen und am Laufen zu halten."
     }
   },
   "de:platform/admin/providers": {
@@ -313,12 +337,12 @@
       "description": "TOTP-Registrierung, Passkeys, Backup-Codes, die organisationsweite Erzwingungsrichtlinie und wie ein Admin ein Mitglied zurücksetzt, das seinen Authenticator verloren hat. Lies das, wenn du 2FA für die Org verdrahtest oder einen Account wiederherstellst."
     }
   },
-  "de:platform/admin/integrations": {
-    "slug": "platform/admin/integrations",
+  "de:platform/admin/connectors": {
+    "slug": "platform/admin/connectors",
     "locale": "de",
     "frontmatter": {
-      "title": "Zugangsdaten für Integrationen",
-      "description": "Unter Einstellungen > Integrationen legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet — benennen, zum Standard machen, deaktivieren, neu verbinden."
+      "title": "Zugangsdaten für Connectors",
+      "description": "Unter Einstellungen > Connectors legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet — benennen, zum Standard machen, deaktivieren, neu verbinden."
     }
   },
   "de:platform/admin/branding": {
@@ -422,7 +446,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene."
+      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Connectors teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene."
     }
   },
   "de:platform/agents/concepts": {
@@ -494,31 +518,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Tools",
-      "description": "Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Integrationen und Automatisierungen als Fähigkeiten."
-    }
-  },
-  "de:platform/integrations/overview": {
-    "slug": "platform/integrations/overview",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Integrationen",
-      "description": "Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und im Chat landen."
-    }
-  },
-  "de:platform/integrations/webdav": {
-    "slug": "platform/integrations/webdav",
-    "locale": "de",
-    "frontmatter": {
-      "title": "WebDAV",
-      "description": "Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein — erzeuge ein App-Passwort unter Einstellungen > API > WebDAV und verbinde dich von deinem Gerät."
-    }
-  },
-  "de:platform/integrations/mcp-servers": {
-    "slug": "platform/integrations/mcp-servers",
-    "locale": "de",
-    "frontmatter": {
-      "title": "MCP-Server",
-      "description": "Registriere externe Tool-Server unter Einstellungen > API > MCP — Transport, Authentifizierung, die Liste der erkannten Tools und die Genehmigungs-Flags pro Tool, die die Vertrauensgrenze eng halten."
+      "description": "Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Connectors und Automatisierungen als Fähigkeiten."
     }
   },
   "de:platform/index": {
@@ -655,7 +655,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungen konfigurieren",
-      "description": "Wo Genehmigungspflichten deklariert werden — pro Integrations-Operation, pro MCP-Tool und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt."
+      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, pro MCP-Tool und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt."
     }
   },
   "de:platform/editor/overview": {
@@ -753,7 +753,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen MCP-Server von Grund auf hochziehen",
-      "description": "Verdrahte einen Model-Context-Protocol-Server als eigene Integration, damit jeder Agent in der Org seine Tools aufrufen kann."
+      "description": "Verdrahte einen Model-Context-Protocol-Server als eigene Connector, damit jeder Agent in der Org seine Tools aufrufen kann."
     }
   },
   "de:tutorials/overview": {
@@ -828,14 +828,6 @@
       "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser, Sandbox-Agents und die Run-Code-Richtlinie, die alles einhegt."
     }
   },
-  "de:tutorials/videos/integrations": {
-    "slug": "tutorials/videos/integrations",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Episode 7 — Integrationen & die Außenwelt",
-      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Integration, MCP-Server mit Freigabe-Flags pro Werkzeug und Egress, der im Zweifel schließt."
-    }
-  },
   "de:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "de",
@@ -850,6 +842,14 @@
     "frontmatter": {
       "title": "Episode 2 — Chat, im Detail",
       "description": "Eine echte Arbeitssitzung — dieselbe Frage ohne und mit Verankerung, ein Quellen-Check, ein Arena-Urteil mit Begründung und ein Briefing, das im Canvas entsteht und dort gekürzt wird."
+    }
+  },
+  "de:tutorials/videos/connectors": {
+    "slug": "tutorials/videos/connectors",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 7 — Connectors & die Außenwelt",
+      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, MCP-Server mit Freigabe-Flags pro Werkzeug und Egress, der im Zweifel schließt."
     }
   },
   "de:tutorials/videos/projects-with-ai": {
@@ -1237,7 +1237,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développement",
-      "description": "Développement couvre la surface côté consommateur d’API — REST API, webhooks, SDK d’intégration, workflow de développement assisté par IA, page de statut, limites de débit."
+      "description": "Développement couvre la surface côté consommateur d’API — REST API, webhooks, SDK d’connector, workflow de développement assisté par IA, page de statut, limites de débit."
     }
   },
   "fr:develop/ai-assisted-development": {
@@ -1256,20 +1256,20 @@
       "description": "Limites de débit REST et MCP — les deux buckets, la réponse 429, et comment relancer sans empirer la situation."
     }
   },
-  "fr:develop/integrations": {
-    "slug": "develop/integrations",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Intégrations",
-      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et quand héberger un serveur MCP à la place."
-    }
-  },
   "fr:develop/webhooks": {
     "slug": "develop/webhooks",
     "locale": "fr",
     "frontmatter": {
       "title": "Webhooks",
       "description": "Déclencheurs webhook entrants — poste sur une URL à jeton et une automatisation déployée s'exécute. Gestion du jeton, rotation, idempotence et codes de réponse."
+    }
+  },
+  "fr:develop/connectors": {
+    "slug": "develop/connectors",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Connectors",
+      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et quand héberger un serveur MCP à la place."
     }
   },
   "fr:develop/mcp-endpoint": {
@@ -1296,6 +1296,30 @@
       "title": "Référence API",
       "description": "Comment appeler Tale de l'extérieur — authentification, inventaire des endpoints, pagination, les boucles asynchrones d'exécution et de tour, et le modèle d'erreur. La seule source de vérité pour la surface REST.",
       "i18nLintExclude": ""
+    }
+  },
+  "fr:platform/connectors/overview": {
+    "slug": "platform/connectors/overview",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Connectors",
+      "description": "Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et le chat."
+    }
+  },
+  "fr:platform/connectors/webdav": {
+    "slug": "platform/connectors/webdav",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "WebDAV",
+      "description": "Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV — génère un mot de passe applicatif sous Paramètres > API > WebDAV et connecte-toi depuis ton appareil."
+    }
+  },
+  "fr:platform/connectors/mcp-servers": {
+    "slug": "platform/connectors/mcp-servers",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Serveurs MCP",
+      "description": "Enregistre des serveurs d’outils externes sous Paramètres > API > MCP — le transport, l’authentification, la liste des outils découverts et les drapeaux d’approbation par outil qui gardent la frontière de confiance serrée."
     }
   },
   "fr:platform/developer/overview": {
@@ -1495,7 +1519,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, intégrations, branding, gouvernance. Les pages ici sont ce qu’un Administrateur ou Propriétaire parcourt pour monter une organisation et la faire tourner."
+      "description": "Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, connectors, branding, gouvernance. Les pages ici sont ce qu’un Administrateur ou Propriétaire parcourt pour monter une organisation et la faire tourner."
     }
   },
   "fr:platform/admin/providers": {
@@ -1530,12 +1554,12 @@
       "description": "Inscription TOTP, passkeys, codes de secours, la politique d’application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l’org ou que tu récupères un compte."
     }
   },
-  "fr:platform/admin/integrations": {
-    "slug": "platform/admin/integrations",
+  "fr:platform/admin/connectors": {
+    "slug": "platform/admin/connectors",
     "locale": "fr",
     "frontmatter": {
-      "title": "Identifiants d’intégration",
-      "description": "Sous Paramètres > Intégrations, une organisation ajoute, nomme, promeut, désactive et reconnecte les identifiants avec lesquels chaque connecteur livré s’authentifie."
+      "title": "Identifiants d’connector",
+      "description": "Sous Paramètres > Connectors, une organisation ajoute, nomme, promeut, désactive et reconnecte les identifiants avec lesquels chaque connecteur livré s’authentifie."
     }
   },
   "fr:platform/admin/branding": {
@@ -1639,7 +1663,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Équipes",
-      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux agents, prompts, projets et intégrations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
+      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux agents, prompts, projets et connectors. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
     }
   },
   "fr:platform/agents/concepts": {
@@ -1711,31 +1735,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Outils d’agent",
-      "description": "Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les intégrations et automatisations comme capacités."
-    }
-  },
-  "fr:platform/integrations/overview": {
-    "slug": "platform/integrations/overview",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Intégrations",
-      "description": "Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et le chat."
-    }
-  },
-  "fr:platform/integrations/webdav": {
-    "slug": "platform/integrations/webdav",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "WebDAV",
-      "description": "Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV — génère un mot de passe applicatif sous Paramètres > API > WebDAV et connecte-toi depuis ton appareil."
-    }
-  },
-  "fr:platform/integrations/mcp-servers": {
-    "slug": "platform/integrations/mcp-servers",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Serveurs MCP",
-      "description": "Enregistre des serveurs d’outils externes sous Paramètres > API > MCP — le transport, l’authentification, la liste des outils découverts et les drapeaux d’approbation par outil qui gardent la frontière de confiance serrée."
+      "description": "Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les connectors et automatisations comme capacités."
     }
   },
   "fr:platform/index": {
@@ -1872,7 +1872,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Configurer les approbations",
-      "description": "Là où les exigences d’approbation sont déclarées — par opération d’intégration, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter."
+      "description": "Là où les exigences d’approbation sont déclarées — par opération d’connector, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter."
     }
   },
   "fr:platform/editor/overview": {
@@ -1970,7 +1970,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Monter un serveur MCP depuis zéro",
-      "description": "Câble un serveur Model Context Protocol comme intégration personnalisée pour que n'importe quel agent Tale de l'organisation appelle ses outils."
+      "description": "Câble un serveur Model Context Protocol comme connector personnalisée pour que n'importe quel agent Tale de l'organisation appelle ses outils."
     }
   },
   "fr:tutorials/overview": {
@@ -2045,14 +2045,6 @@
       "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, agents sandbox, et la politique d'exécution de code qui contient le tout."
     }
   },
-  "fr:tutorials/videos/integrations": {
-    "slug": "tutorials/videos/integrations",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Épisode 7 — Intégrations & le monde extérieur",
-      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une intégration reliée, les serveurs MCP avec drapeaux de validation par outil, et une sortie réseau qui échoue fermée."
-    }
-  },
   "fr:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "fr",
@@ -2067,6 +2059,14 @@
     "frontmatter": {
       "title": "Épisode 2 — Le chat, en profondeur",
       "description": "Une vraie session de travail — la même question sans puis avec ancrage, un contrôle de source, un verdict d'Arène motivé, et une synthèse construite puis raccourcie sur le canevas."
+    }
+  },
+  "fr:tutorials/videos/connectors": {
+    "slug": "tutorials/videos/connectors",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 7 — Connectors & le monde extérieur",
+      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, les serveurs MCP avec drapeaux de validation par outil, et une sortie réseau qui échoue fermée."
     }
   },
   "fr:tutorials/videos/projects-with-ai": {
@@ -2413,7 +2413,7 @@
     "slug": "get-started/developers",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ton premier jour d’intégration avec Tale",
+      "title": "Ton premier jour d’connector avec Tale",
       "description": "Le parcours développeur — crée une clé API, envoie ta première requête authentifiée et sache où vit la surface d’API."
     }
   },
@@ -2454,7 +2454,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Develop",
-      "description": "Develop covers the API-consumer surface — REST API, webhooks, integration SDK, AI-assisted development workflow, status page, rate limits."
+      "description": "Develop covers the API-consumer surface — REST API, webhooks, connector SDK, AI-assisted development workflow, status page, rate limits."
     }
   },
   "en:develop/ai-assisted-development": {
@@ -2473,20 +2473,20 @@
       "description": "REST and MCP rate limits — the two buckets, the 429 response, and how to retry without making things worse."
     }
   },
-  "en:develop/integrations": {
-    "slug": "develop/integrations",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Integrations",
-      "description": "How a connector is declared, what one of its actions promises a caller, and when to reach for an MCP server instead."
-    }
-  },
   "en:develop/webhooks": {
     "slug": "develop/webhooks",
     "locale": "en",
     "frontmatter": {
       "title": "Webhooks",
       "description": "Inbound webhook triggers — POST to a token URL and a deployed automation runs. Token handling, rotation, idempotency, and the response codes."
+    }
+  },
+  "en:develop/connectors": {
+    "slug": "develop/connectors",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Connectors",
+      "description": "How a connector is declared, what one of its actions promises a caller, and when to reach for an MCP server instead."
     }
   },
   "en:develop/mcp-endpoint": {
@@ -2513,6 +2513,30 @@
       "title": "API reference",
       "description": "How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model. The single source of truth for the REST surface.",
       "i18nLintExclude": ""
+    }
+  },
+  "en:platform/connectors/overview": {
+    "slug": "platform/connectors/overview",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Connectors",
+      "description": "The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and chat."
+    }
+  },
+  "en:platform/connectors/webdav": {
+    "slug": "platform/connectors/webdav",
+    "locale": "en",
+    "frontmatter": {
+      "title": "WebDAV",
+      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client — generate an app-password under Settings > API > WebDAV and connect from your device."
+    }
+  },
+  "en:platform/connectors/mcp-servers": {
+    "slug": "platform/connectors/mcp-servers",
+    "locale": "en",
+    "frontmatter": {
+      "title": "MCP servers",
+      "description": "Register external tool servers under Settings > API > MCP — transport, authentication, the discovered tool list, and the per-tool approval flags that keep the trust boundary tight."
     }
   },
   "en:platform/developer/overview": {
@@ -2712,7 +2736,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin is the configuration plane — members, teams, providers, API keys, integrations, branding, governance. The pages here are what an Admin or Owner clicks through to set up an org and keep it running."
+      "description": "Admin is the configuration plane — members, teams, providers, API keys, connectors, branding, governance. The pages here are what an Admin or Owner clicks through to set up an org and keep it running."
     }
   },
   "en:platform/admin/providers": {
@@ -2747,12 +2771,12 @@
       "description": "TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account."
     }
   },
-  "en:platform/admin/integrations": {
-    "slug": "platform/admin/integrations",
+  "en:platform/admin/connectors": {
+    "slug": "platform/admin/connectors",
     "locale": "en",
     "frontmatter": {
-      "title": "Integration credentials",
-      "description": "Settings > Integrations is where an organisation adds, names, defaults, disables, and reconnects the credentials each shipped connector authenticates with."
+      "title": "Connector credentials",
+      "description": "Settings > Connectors is where an organisation adds, names, defaults, disables, and reconnects the credentials each shipped connector authenticates with."
     }
   },
   "en:platform/admin/branding": {
@@ -2856,7 +2880,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams are named groups of members that share access to agents, prompts, projects, and integrations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer."
+      "description": "Teams are named groups of members that share access to agents, prompts, projects, and connectors. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer."
     }
   },
   "en:platform/agents/concepts": {
@@ -2928,31 +2952,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent tools",
-      "description": "The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and integrations and automations as capabilities."
-    }
-  },
-  "en:platform/integrations/overview": {
-    "slug": "platform/integrations/overview",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Integrations",
-      "description": "The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and chat."
-    }
-  },
-  "en:platform/integrations/webdav": {
-    "slug": "platform/integrations/webdav",
-    "locale": "en",
-    "frontmatter": {
-      "title": "WebDAV",
-      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client — generate an app-password under Settings > API > WebDAV and connect from your device."
-    }
-  },
-  "en:platform/integrations/mcp-servers": {
-    "slug": "platform/integrations/mcp-servers",
-    "locale": "en",
-    "frontmatter": {
-      "title": "MCP servers",
-      "description": "Register external tool servers under Settings > API > MCP — transport, authentication, the discovered tool list, and the per-tool approval flags that keep the trust boundary tight."
+      "description": "The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and connectors and automations as capabilities."
     }
   },
   "en:platform/index": {
@@ -3089,7 +3089,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Configure approvals",
-      "description": "Where approval requirements are declared — per integration operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs."
+      "description": "Where approval requirements are declared — per connector operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs."
     }
   },
   "en:platform/editor/overview": {
@@ -3187,7 +3187,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Stand up an MCP server from scratch",
-      "description": "Wire a Model Context Protocol server as a custom integration so any Tale agent in the org can call its tools."
+      "description": "Wire a Model Context Protocol server as a custom connector so any Tale agent in the org can call its tools."
     }
   },
   "en:tutorials/overview": {
@@ -3262,14 +3262,6 @@
       "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, sandbox agents, and the run-code policy that keeps everything contained."
     }
   },
-  "en:tutorials/videos/integrations": {
-    "slug": "tutorials/videos/integrations",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Episode 7 — Integrations & the outside world",
-      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound integration, MCP servers with per-tool approval flags, and fail-closed egress."
-    }
-  },
   "en:tutorials/videos/knowledge": {
     "slug": "tutorials/videos/knowledge",
     "locale": "en",
@@ -3284,6 +3276,14 @@
     "frontmatter": {
       "title": "Episode 2 — Chat, in depth",
       "description": "A real working session — the same question ungrounded and grounded, a source check, an Arena verdict with reasons, and a brief built and refined on the canvas."
+    }
+  },
+  "en:tutorials/videos/connectors": {
+    "slug": "tutorials/videos/connectors",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 7 — Connectors & the outside world",
+      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound connector, MCP servers with per-tool approval flags, and fail-closed egress."
     }
   },
   "en:tutorials/videos/projects-with-ai": {

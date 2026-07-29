@@ -1,7 +1,7 @@
 'use node';
 
 /**
- * Resolve the organization's text-to-speech model against the connector
+ * Resolve the organization's text-to-speech model against the provider
  * world: the first `text-to-speech`-tagged catalog entry served by an active
  * DIRECT credential (api-key/env), with the voice and speaking instructions
  * picked by locale → base language → default.
@@ -16,8 +16,8 @@ import { ConvexError } from 'convex/values';
 import type { AudioFormat } from '../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../../_generated/server';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
-import { getConnectorCatalog } from './catalog_fetch';
-import { resolveConnectorsForOrgId } from './org_connectors';
+import { getProviderCatalog } from './catalog_fetch';
+import { resolveProvidersForOrgId } from './org_providers';
 
 export interface ResolvedTtsModel {
   readonly modelId: string;
@@ -34,23 +34,23 @@ export async function resolveTtsModel(
   ctx: ActionCtx,
   opts: { organizationId: string; locale: string; providerName?: string },
 ): Promise<ResolvedTtsModel> {
-  const connectors = await resolveConnectorsForOrgId(ctx, opts.organizationId);
+  const providers = await resolveProvidersForOrgId(ctx, opts.organizationId);
   const ordered =
     opts.providerName === undefined
-      ? connectors
+      ? providers
       : [
-          ...connectors.filter((c) => c.name === opts.providerName),
-          ...connectors.filter((c) => c.name !== opts.providerName),
+          ...providers.filter((c) => c.name === opts.providerName),
+          ...providers.filter((c) => c.name !== opts.providerName),
         ];
 
-  for (const connector of ordered) {
+  for (const provider of ordered) {
     let catalog;
     try {
-      catalog = await getConnectorCatalog(connector);
+      catalog = await getProviderCatalog(provider);
     } catch (error) {
       // One unreachable catalog must not blank voice for the whole org.
       console.warn(
-        `[tts] could not resolve catalog for "${connector.name}"`,
+        `[tts] could not resolve catalog for "${provider.name}"`,
         error instanceof Error ? error.message : error,
       );
       continue;
@@ -64,11 +64,11 @@ export async function resolveTtsModel(
     try {
       credential = await resolveProviderCredential(ctx, {
         organizationId: opts.organizationId,
-        providerSlug: connector.name,
+        providerSlug: provider.name,
       });
     } catch (error) {
       console.warn(
-        `[tts] no usable credential for "${connector.name}"`,
+        `[tts] no usable credential for "${provider.name}"`,
         error instanceof Error ? error.message : error,
       );
       continue;
@@ -81,7 +81,7 @@ export async function resolveTtsModel(
     ) {
       continue;
     }
-    const baseUrl = credential.endpointUrl ?? connector.baseUrl;
+    const baseUrl = credential.endpointUrl ?? provider.baseUrl;
     if (!baseUrl) continue;
 
     const tts = entry.tts;
@@ -103,7 +103,7 @@ export async function resolveTtsModel(
 
     return {
       modelId: entry.id,
-      providerName: connector.name,
+      providerName: provider.name,
       baseUrl,
       apiKey: credential.secret,
       voice,

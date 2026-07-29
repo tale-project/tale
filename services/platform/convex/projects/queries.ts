@@ -23,7 +23,7 @@ import {
 } from './access';
 import { getProjectAccessibleUserIds } from './accessible_members';
 import {
-  projectIntegrationsModeValidator,
+  projectConnectorsModeValidator,
   projectKnowledgeModeValidator,
   projectModeValidator,
 } from './schema';
@@ -82,8 +82,8 @@ const projectRowValidator = v.object({
   modelMode: v.optional(projectModeValidator),
   recommendedModels: v.optional(v.array(v.string())),
   allowedModels: v.optional(v.array(v.string())),
-  integrationsMode: v.optional(projectIntegrationsModeValidator),
-  allowedIntegrationSlugs: v.optional(v.array(v.string())),
+  connectorsMode: v.optional(projectConnectorsModeValidator),
+  allowedConnectorSlugs: v.optional(v.array(v.string())),
   createdBy: v.string(),
   createdAt: v.number(),
   updatedAt: v.number(),

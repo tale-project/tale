@@ -25,8 +25,8 @@ const finishedRun = {
     { node: 'fallback', type: 'transform', status: 'skipped', note: 'else' },
   ],
   effects: [
-    { node: 'notify', integration: 'slack.post', input: { text: 'hi' } },
-    { node: 'notify', integration: 'slack.post', input: { text: 'again' } },
+    { node: 'notify', connector: 'slack.post', input: { text: 'hi' } },
+    { node: 'notify', connector: 'slack.post', input: { text: 'again' } },
   ],
 };
 
@@ -58,7 +58,7 @@ describe('projectRun', () => {
             output: { ok: true },
             trace: { node: 'fetch', type: 'http.get', status: 'ok' },
             effects: [
-              { node: 'fetch', integration: 'http.get', input: { url: 'x' } },
+              { node: 'fetch', connector: 'http.get', input: { url: 'x' } },
             ],
           },
         },
@@ -66,7 +66,7 @@ describe('projectRun', () => {
     });
     expect(projection.byNode.get('fetch')?.status).toBe('ok');
     expect(projection.effects).toEqual([
-      { node: 'fetch', integration: 'http.get', input: { url: 'x' } },
+      { node: 'fetch', connector: 'http.get', input: { url: 'x' } },
     ]);
   });
 
@@ -127,13 +127,13 @@ describe('isRunFinished', () => {
 });
 
 describe('readEffects', () => {
-  it('drops a record that names no node or no integration', () => {
+  it('drops a record that names no node or no connector', () => {
     expect(
       readEffects([
-        { node: 'a', integration: 'x', input: 1 },
+        { node: 'a', connector: 'x', input: 1 },
         { node: 'a' },
         'nonsense',
       ]),
-    ).toEqual([{ node: 'a', integration: 'x', input: 1 }]);
+    ).toEqual([{ node: 'a', connector: 'x', input: 1 }]);
   });
 });

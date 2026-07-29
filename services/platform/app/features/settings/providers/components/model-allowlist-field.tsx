@@ -12,10 +12,10 @@ import { useT } from '@/lib/i18n/client';
 import type { CatalogModel } from '../hooks/queries';
 
 interface ModelAllowlistFieldProps {
-  /** The connector's current catalog (the pickable ids). */
+  /** The provider's current catalog (the pickable ids). */
   models: ReadonlyArray<CatalogModel>;
   /**
-   * Free-entry mode for connectors without any catalog (`catalog.source:
+   * Free-entry mode for providers without any catalog (`catalog.source:
    * none`, e.g. Azure): the allowlist is typed as comma-separated ids
    * instead of picked from a listing — on Azure the ids are the resource's
    * deployment names and effectively define which models exist at all.
@@ -38,8 +38,8 @@ function parseFreeTextIds(raw: string): string[] {
 
 /**
  * Optional model allowlist of a credential: a searchable multi-select over
- * the connector's catalog ids, or a comma-separated text field when the
- * connector has no catalog to pick from. Ids already on the credential but
+ * the provider's catalog ids, or a comma-separated text field when the
+ * provider has no catalog to pick from. Ids already on the credential but
  * missing from the current catalog (removed upstream, or the catalog is
  * degraded) stay listed so they remain visible and removable.
  */

@@ -1,0 +1,363 @@
+# Connector — Shopify Admin REST API. Every merchant serves the API
+# from their own store domain, so the endpoint is per-credential: the live bodies
+# build their URLs from `ctx.endpoint` (the credential's https://<store>.myshopify.com
+# origin) and place the Admin API access token in Shopify's own
+# X-Shopify-Access-Token header. List actions return the page's records plus the
+# cursor for the next page. Every mock is deterministic — same input, same
+# output, no IO.
+name: shopify
+displayName: Shopify
+description: Sync products, customers, and orders from your Shopify store.
+tags:
+  - Commerce
+endpointMode: per-credential
+allowedHosts:
+  - myshopify.com
+auth:
+  - method: api-key
+actions:
+  - name: list_products
+    description: List products in the store, newest first, with cursor pagination.
+    effects: read
+    input:
+      type: object
+      properties:
+        limit:
+          { type: number, description: 'Results per page (1-250, default 50).' }
+        page_info:
+          {
+            type: string,
+            description: "Cursor from a previous response's nextPageInfo.",
+          }
+        since_id:
+          {
+            type: string,
+            description: 'Return only products with an ID greater than this value.',
+          }
+        created_at_min:
+          {
+            type: string,
+            description: 'Only products created at or after this ISO 8601 timestamp.',
+          }
+        updated_at_min:
+          {
+            type: string,
+            description: 'Only products updated at or after this ISO 8601 timestamp.',
+          }
+        status:
+          {
+            type: string,
+            description: 'Filter by product status: active, archived, or draft.',
+          }
+        fields:
+          {
+            type: string,
+            description: 'Comma-separated list of fields to return.',
+          }
+    output: '{ products: Array<{ id: number, title: string, handle: string, status: string, created_at: string }>, nextPageInfo: string }'
+    mock: |
+      return {
+        products: [
+          { id: 1001, title: 'Demo product', handle: 'demo-product', status: input.status || 'active', created_at: '2025-01-15T09:00:00-05:00' },
+          { id: 1002, title: 'Second product', handle: 'second-product', status: input.status || 'active', created_at: '2025-01-14T09:00:00-05:00' },
+        ],
+        nextPageInfo: '',
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const q = ['limit=' + Math.min(Number(input.limit) || 50, 250)];
+        for (const k of ['page_info', 'since_id', 'created_at_min', 'updated_at_min', 'status', 'fields']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/products.json?${q.join('&')}`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify list_products failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify list_products failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error('Shopify list_products failed: store not found — verify the store domain on this credential.');
+        if (!r.status || r.status >= 400) throw new Error(`Shopify list_products failed (${r.status}): ${r.text()}`);
+        const link = (r.headers && (r.headers.link || r.headers.Link)) || '';
+        const next = link.split(',').filter((p) => p.indexOf('rel="next"') !== -1)[0] || '';
+        const m = next.match(/page_info=([^>&]+)/);
+        return { products: r.json().products || [], nextPageInfo: m ? m[1] : '' };
+    exampleInput: { limit: 50, status: 'active' }
+  - name: get_product
+    description: Get a single product by ID, including its variants and images.
+    effects: read
+    input:
+      type: object
+      properties:
+        resourceId:
+          {
+            type: string,
+            description: "The product's numeric Shopify ID (e.g. '8123456789012').",
+          }
+      required: [resourceId]
+    output: '{ product: { id: number, title: string, handle: string, status: string, variants: Array<{ id: number, title: string, price: string, sku: string }> } }'
+    mock: |
+      return {
+        product: {
+          id: Number(input.resourceId) || 1001,
+          title: 'Demo product',
+          handle: 'demo-product',
+          status: 'active',
+          variants: [{ id: 2001, title: 'Default', price: '49.90', sku: 'DEMO-1' }],
+        },
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/products/${encodeURIComponent(input.resourceId)}.json`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify get_product failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify get_product failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error(`Shopify get_product failed: product ${input.resourceId} not found.`);
+        if (!r.status || r.status >= 400) throw new Error(`Shopify get_product failed (${r.status}): ${r.text()}`);
+        return { product: r.json().product };
+    exampleInput: { resourceId: '8123456789012' }
+  - name: list_customers
+    description: List customers of the store with cursor pagination.
+    effects: read
+    input:
+      type: object
+      properties:
+        limit:
+          { type: number, description: 'Results per page (1-250, default 50).' }
+        page_info:
+          {
+            type: string,
+            description: "Cursor from a previous response's nextPageInfo.",
+          }
+        since_id:
+          {
+            type: string,
+            description: 'Return only customers with an ID greater than this value.',
+          }
+        created_at_min:
+          {
+            type: string,
+            description: 'Only customers created at or after this ISO 8601 timestamp.',
+          }
+        updated_at_min:
+          {
+            type: string,
+            description: 'Only customers updated at or after this ISO 8601 timestamp.',
+          }
+        fields:
+          {
+            type: string,
+            description: 'Comma-separated list of fields to return.',
+          }
+    output: '{ customers: Array<{ id: number, email: string, first_name: string, last_name: string, orders_count: number }>, nextPageInfo: string }'
+    mock: |
+      return {
+        customers: [
+          { id: 3001, email: 'ada@example.com', first_name: 'Ada', last_name: 'Lovelace', orders_count: 3 },
+          { id: 3002, email: 'grace@example.com', first_name: 'Grace', last_name: 'Hopper', orders_count: 1 },
+        ],
+        nextPageInfo: '',
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const q = ['limit=' + Math.min(Number(input.limit) || 50, 250)];
+        for (const k of ['page_info', 'since_id', 'created_at_min', 'updated_at_min', 'fields']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/customers.json?${q.join('&')}`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify list_customers failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify list_customers failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error('Shopify list_customers failed: store not found — verify the store domain on this credential.');
+        if (!r.status || r.status >= 400) throw new Error(`Shopify list_customers failed (${r.status}): ${r.text()}`);
+        const link = (r.headers && (r.headers.link || r.headers.Link)) || '';
+        const next = link.split(',').filter((p) => p.indexOf('rel="next"') !== -1)[0] || '';
+        const m = next.match(/page_info=([^>&]+)/);
+        return { customers: r.json().customers || [], nextPageInfo: m ? m[1] : '' };
+    exampleInput: { limit: 50 }
+  - name: get_customer
+    description: Get a single customer by ID, including contact details and order totals.
+    effects: read
+    input:
+      type: object
+      properties:
+        resourceId:
+          {
+            type: string,
+            description: "The customer's numeric Shopify ID (e.g. '7123456789012').",
+          }
+      required: [resourceId]
+    output: '{ customer: { id: number, email: string, first_name: string, last_name: string, orders_count: number, total_spent: string } }'
+    mock: |
+      return {
+        customer: {
+          id: Number(input.resourceId) || 3001,
+          email: 'ada@example.com',
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+          orders_count: 3,
+          total_spent: '149.70',
+        },
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/customers/${encodeURIComponent(input.resourceId)}.json`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify get_customer failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify get_customer failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error(`Shopify get_customer failed: customer ${input.resourceId} not found.`);
+        if (!r.status || r.status >= 400) throw new Error(`Shopify get_customer failed (${r.status}): ${r.text()}`);
+        return { customer: r.json().customer };
+    exampleInput: { resourceId: '7123456789012' }
+  - name: list_orders
+    description: List orders in the store with cursor pagination.
+    effects: read
+    input:
+      type: object
+      properties:
+        limit:
+          { type: number, description: 'Results per page (1-250, default 50).' }
+        page_info:
+          {
+            type: string,
+            description: "Cursor from a previous response's nextPageInfo.",
+          }
+        since_id:
+          {
+            type: string,
+            description: 'Return only orders with an ID greater than this value.',
+          }
+        created_at_min:
+          {
+            type: string,
+            description: 'Only orders created at or after this ISO 8601 timestamp.',
+          }
+        updated_at_min:
+          {
+            type: string,
+            description: 'Only orders updated at or after this ISO 8601 timestamp.',
+          }
+        status:
+          {
+            type: string,
+            description: 'Filter by order status: open, closed, cancelled, or any.',
+          }
+        fields:
+          {
+            type: string,
+            description: 'Comma-separated list of fields to return.',
+          }
+    output: '{ orders: Array<{ id: number, name: string, total_price: string, financial_status: string, fulfillment_status: string, created_at: string }>, nextPageInfo: string }'
+    mock: |
+      return {
+        orders: [
+          { id: 5001, name: '#1001', total_price: '49.90', financial_status: 'paid', fulfillment_status: 'fulfilled', created_at: '2025-01-15T09:00:00-05:00' },
+          { id: 5002, name: '#1002', total_price: '99.80', financial_status: 'pending', fulfillment_status: 'unfulfilled', created_at: '2025-01-14T09:00:00-05:00' },
+        ],
+        nextPageInfo: '',
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const q = ['limit=' + Math.min(Number(input.limit) || 50, 250)];
+        for (const k of ['page_info', 'since_id', 'created_at_min', 'updated_at_min', 'status', 'fields']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders.json?${q.join('&')}`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify list_orders failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify list_orders failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error('Shopify list_orders failed: store not found — verify the store domain on this credential.');
+        if (!r.status || r.status >= 400) throw new Error(`Shopify list_orders failed (${r.status}): ${r.text()}`);
+        const link = (r.headers && (r.headers.link || r.headers.Link)) || '';
+        const next = link.split(',').filter((p) => p.indexOf('rel="next"') !== -1)[0] || '';
+        const m = next.match(/page_info=([^>&]+)/);
+        return { orders: r.json().orders || [], nextPageInfo: m ? m[1] : '' };
+    exampleInput: { limit: 50, status: 'any' }
+  - name: get_order
+    description: Get a single order by ID, including its line items and totals.
+    effects: read
+    input:
+      type: object
+      properties:
+        resourceId:
+          {
+            type: string,
+            description: "The order's numeric Shopify ID (e.g. '5123456789012').",
+          }
+      required: [resourceId]
+    output: '{ order: { id: number, name: string, total_price: string, financial_status: string, fulfillment_status: string, line_items: Array<{ id: number, title: string, quantity: number, price: string }> } }'
+    mock: |
+      return {
+        order: {
+          id: Number(input.resourceId) || 5001,
+          name: '#1001',
+          total_price: '49.90',
+          financial_status: 'paid',
+          fulfillment_status: 'fulfilled',
+          line_items: [{ id: 6001, title: 'Demo product', quantity: 1, price: '49.90' }],
+        },
+      };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders/${encodeURIComponent(input.resourceId)}.json`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify get_order failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify get_order failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error(`Shopify get_order failed: order ${input.resourceId} not found.`);
+        if (!r.status || r.status >= 400) throw new Error(`Shopify get_order failed (${r.status}): ${r.text()}`);
+        return { order: r.json().order };
+    exampleInput: { resourceId: '5123456789012' }
+  - name: count_products
+    description: Get the total number of products in the store.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ count: number }'
+    mock: |
+      return { count: 42 };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/products/count.json`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify count_products failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify count_products failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error('Shopify count_products failed: store not found — verify the store domain on this credential.');
+        if (!r.status || r.status >= 400) throw new Error(`Shopify count_products failed (${r.status}): ${r.text()}`);
+        return { count: r.json().count || 0 };
+  - name: count_customers
+    description: Get the total number of customers in the store.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ count: number }'
+    mock: |
+      return { count: 17 };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/customers/count.json`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify count_customers failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify count_customers failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error('Shopify count_customers failed: store not found — verify the store domain on this credential.');
+        if (!r.status || r.status >= 400) throw new Error(`Shopify count_customers failed (${r.status}): ${r.text()}`);
+        return { count: r.json().count || 0 };
+  - name: count_orders
+    description: Get the total number of orders in the store.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ count: number }'
+    mock: |
+      return { count: 128 };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders/count.json`, { headers: h });
+        if (r.status === 401) throw new Error('Shopify count_orders failed: authentication failed — verify the access token (it starts with "shpat_").');
+        if (r.status === 403) throw new Error('Shopify count_orders failed: access denied — verify the app has the required API scopes.');
+        if (r.status === 404) throw new Error('Shopify count_orders failed: store not found — verify the store domain on this credential.');
+        if (!r.status || r.status >= 400) throw new Error(`Shopify count_orders failed (${r.status}): ${r.text()}`);
+        return { count: r.json().count || 0 };

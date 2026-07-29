@@ -1,5 +1,5 @@
-// The exec side of the integrations bridge: an external-agent exec mounts the
-// in-image `tale-integrations-mcp` server exactly when the turn passes a
+// The exec side of the connectors bridge: an external-agent exec mounts the
+// in-image `tale-connectors-mcp` server exactly when the turn passes a
 // bridgeUrl (i.e. the agent is equipped with at least one connector), and the
 // bridge env carries the platform URL + the session key. Uses the real
 // harness glue + shipped YAML, so a dialect change that drops the bridge
@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildExternalTurnExec,
-  integrationsBridgeUrlForSessions,
+  connectorsBridgeUrlForSessions,
 } from './external_turn_shared';
 
 const BASE = {
@@ -21,29 +21,29 @@ const BASE = {
   execId: 'exec_1',
 };
 
-describe('integrationsBridgeUrlForSessions', () => {
+describe('connectorsBridgeUrlForSessions', () => {
   it('rides the sandbox-reachable platform origin with the route prefix', () => {
     // No env override in the test process — the documented default applies.
-    expect(integrationsBridgeUrlForSessions()).toBe(
-      'http://convex:3211/api/integrations',
+    expect(connectorsBridgeUrlForSessions()).toBe(
+      'http://convex:3211/api/connectors',
     );
   });
 });
 
-describe('buildExternalTurnExec — integrations bridge mount', () => {
+describe('buildExternalTurnExec — connectors bridge mount', () => {
   it('mounts the bridge with URL + session key when a bridgeUrl is passed', () => {
     const exec = buildExternalTurnExec({
       ...BASE,
-      bridgeUrl: 'http://convex:3211/api/integrations',
+      bridgeUrl: 'http://convex:3211/api/connectors',
     });
     const flat = JSON.stringify(exec);
-    expect(flat).toContain('tale-integrations-mcp');
-    expect(flat).toContain('http://convex:3211/api/integrations');
+    expect(flat).toContain('tale-connectors-mcp');
+    expect(flat).toContain('http://convex:3211/api/connectors');
     expect(flat).toContain('sk-bf-test-token');
   });
 
   it('mounts no bridge for an unequipped turn', () => {
     const exec = buildExternalTurnExec(BASE);
-    expect(JSON.stringify(exec)).not.toContain('tale-integrations-mcp');
+    expect(JSON.stringify(exec)).not.toContain('tale-connectors-mcp');
   });
 });

@@ -6,7 +6,7 @@
 // field. There are no per-slug code modules.
 //
 // Validation lives in layers that cannot drift from behavior:
-//  - `harnessConnectorSchema` holds each file internally coherent (declared
+//  - `harnessDefinitionSchema` holds each file internally coherent (declared
 //    capabilities/transport must match the exec facts — the schema's
 //    superRefine replaced the old behavior-probing validator);
 //  - `validateHarnessFacts` holds the SET coherent with `HARNESS_SLUGS`
@@ -18,7 +18,7 @@
 // caller loads the YAML facts — `loadHarnesses()` in
 // `convex/lib/providers/load_system_config.ts` — and passes them in.
 
-import type { HarnessConnector } from '../shared/schemas/providers';
+import type { HarnessDefinition } from '../shared/schemas/providers';
 import { buildHarnessExec } from './exec-builder';
 import { PARSER_FAMILIES } from './parsers';
 import type { HarnessGlue } from './types';
@@ -27,14 +27,14 @@ import { HARNESS_SLUGS, isHarnessSlug, type HarnessSlug } from './types';
 /** Composed-glue cache. The loader memoizes and returns stable fact
  * references, so keying on the fact object gives every caller the same glue
  * instance until the underlying file actually changes. */
-const composed = new WeakMap<HarnessConnector, HarnessGlue>();
+const composed = new WeakMap<HarnessDefinition, HarnessGlue>();
 
 /**
  * The glue surface for one validated harness fact: exec building via the
  * generic interpreter, stream parsing via the named family. Pure and
  * memoized per fact reference.
  */
-export function composeHarnessGlue(fact: HarnessConnector): HarnessGlue {
+export function composeHarnessGlue(fact: HarnessDefinition): HarnessGlue {
   const cached = composed.get(fact);
   if (cached) return cached;
   const slug = fact.slug;
@@ -60,7 +60,7 @@ export function composeHarnessGlue(fact: HarnessConnector): HarnessGlue {
  */
 export function getHarnessGlue(
   slug: HarnessSlug,
-  facts: readonly HarnessConnector[],
+  facts: readonly HarnessDefinition[],
 ): HarnessGlue {
   const fact = facts.find((f) => f.slug === slug);
   if (!fact) {
@@ -77,7 +77,9 @@ export function getHarnessGlue(
  * coherence (parser family, exec facts vs capabilities) is the schema's job
  * and already ran in the loader.
  */
-export function validateHarnessFacts(facts: readonly HarnessConnector[]): void {
+export function validateHarnessFacts(
+  facts: readonly HarnessDefinition[],
+): void {
   const problems: string[] = [];
   const seen = new Set<string>();
   for (const fact of facts) {

@@ -151,9 +151,8 @@ settings:
             Deployments werden in deinen Bucket kopiert und von dort
             ausgeliefert. Das läuft im Hintergrund und kann bei grossen
             Dateibeständen eine Weile dauern.
-  integrations:
-    enterpriseSso:
-      excludeGroupsLabel: Gruppen ausschliessen
+  enterpriseSso:
+    excludeGroupsLabel: Gruppen ausschliessen
   providers:
     broker:
       maxResponseBytes: Maximale Antwortgrösse (Bytes)

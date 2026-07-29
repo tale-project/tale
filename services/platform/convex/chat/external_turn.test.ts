@@ -375,7 +375,7 @@ describe('markSessionTokenRevokedByKeyId — the leak close', () => {
         scope: {
           agentKind: 'claude-code',
           allowedModels: ['anthropic/claude'],
-          integrationGrants: [],
+          connectorGrants: [],
           budgetCents: 500,
         },
         createdAt: 0,

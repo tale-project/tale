@@ -20,7 +20,7 @@ import type {
   SandboxScriptOutcome,
   SandboxScriptRun,
   SandboxScriptRunner,
-} from '../../lib/integrations/natives/sandbox-script';
+} from '../../lib/connectors/natives/sandbox-script';
 import type { ActionCtx } from '../_generated/server';
 import {
   sessionReadFile,

@@ -1,0 +1,183 @@
+openapi: 3.1.0
+info:
+  title: Confluence Cloud REST API (mock)
+  version: '1.0'
+  description: >-
+    Trimmed spec for the operations the Confluence connector
+    (`configs/platform/system/connectors/confluence/connector.yml`) actually calls.
+    Mounted by the mock gateway at `/mock/confluence`; paths mirror the upstream
+    `https://{site}.atlassian.net/wiki/rest/api` base (the gateway strips the
+    mount prefix, so paths are the full upstream path after the hostname).
+servers:
+  - url: /mock/confluence
+components:
+  schemas:
+    PageRef:
+      type: object
+      description: A single content result as the connector reads it.
+      properties:
+        id: { type: string }
+        type: { type: string }
+        title: { type: string }
+        version:
+          type: object
+          properties:
+            number: { type: integer }
+            when: { type: string }
+        ancestors:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              title: { type: string }
+        space:
+          type: object
+          properties:
+            key: { type: string }
+        _links:
+          type: object
+          properties:
+            webui: { type: string }
+    SearchPage:
+      type: object
+      description: A paginated content-search response.
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/PageRef' }
+        _links:
+          type: object
+          properties:
+            base: { type: string }
+            next: { type: string }
+    ContentBody:
+      type: object
+      description: A single content item expanded with body.export_view + body.storage.
+      properties:
+        id: { type: string }
+        title: { type: string }
+        body:
+          type: object
+          properties:
+            export_view:
+              type: object
+              properties:
+                value: { type: string }
+            storage:
+              type: object
+              properties:
+                value: { type: string }
+    SpaceList:
+      type: object
+      description: Space listing used only by testConnection.
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              key: { type: string }
+              name: { type: string }
+        _links:
+          type: object
+          properties:
+            base: { type: string }
+paths:
+  /wiki/rest/api/space:
+    get:
+      operationId: listSpaces
+      summary: List spaces (test connection probe).
+      parameters:
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: A list of spaces.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpaceList' }
+              example:
+                results:
+                  - id: '65537'
+                    key: ENG
+                    name: Engineering
+                _links:
+                  base: https://mysite.atlassian.net/wiki
+  /wiki/rest/api/content/search:
+    get:
+      operationId: searchContent
+      summary: Search content by CQL (paginated via _links.next).
+      parameters:
+        - { name: cql, in: query, required: true, schema: { type: string } }
+        - { name: expand, in: query, schema: { type: string } }
+        - { name: cqlcontext, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: start, in: query, schema: { type: integer } }
+        - { name: next, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: A page of content results.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchPage' }
+              example:
+                results:
+                  - id: '65540'
+                    type: page
+                    title: Overview
+                    version:
+                      number: 3
+                      when: '2026-01-01T00:00:00Z'
+                    ancestors:
+                      - id: '65538'
+                        title: Home
+                    space:
+                      key: ENG
+                    _links:
+                      webui: /spaces/ENG/pages/65540/Overview
+                  - id: '65541'
+                    type: page
+                    title: Getting Started
+                    version:
+                      number: 1
+                      when: '2026-01-02T00:00:00Z'
+                    ancestors:
+                      - id: '65538'
+                        title: Home
+                      - id: '65540'
+                        title: Overview
+                    space:
+                      key: ENG
+                    _links:
+                      webui: /spaces/ENG/pages/65541/Getting+Started
+                _links:
+                  base: https://mysite.atlassian.net/wiki
+  /wiki/rest/api/content/{id}:
+    get:
+      operationId: getContentById
+      summary: Get a single page expanded with export_view + storage body.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: expand, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The page content.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContentBody' }
+              example:
+                id: '65540'
+                title: Overview
+                body:
+                  export_view:
+                    value: <h1>Overview</h1><p>Welcome to the <b>Engineering</b> space.</p>
+                  storage:
+                    value: <h1>Overview</h1><p>Welcome to the Engineering space.</p>
+        '404':
+          description: Page no longer exists.
+          content:
+            application/json:
+              schema: { type: object }
+              example: { message: 'No content found with id : 65540' }

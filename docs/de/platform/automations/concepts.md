@@ -62,7 +62,7 @@ Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen.
 
 ### Node-Typen
 
-Drei Typen sind eingebaut, und jede Integrationsaktion sowie jede Plattformfunktion — Wissenssuche, Dokumentoperationen — reiht sich in dieselbe Tabelle daneben ein.
+Drei Typen sind eingebaut, und jede Connectorsaktion sowie jede Plattformfunktion — Wissenssuche, Dokumentoperationen — reiht sich in dieselbe Tabelle daneben ein.
 
 **`transform`** führt reines JavaScript aus, um Daten umzuformen. Ohne Netzwerk und ohne Imports: Der Rumpf liest die aufgelöste `input` der Node und muss einen Wert zurückgeben.
 

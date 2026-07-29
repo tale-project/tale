@@ -31,11 +31,11 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 
 **Inhaber** hat jede Berechtigung, die Admin hat, plus die eine, die Admin fehlt: Eigentum übertragen und die Organisation löschen. Die meisten Teams haben genau einen Inhaber; manche behalten zwei für Kontinuität.
 
-**Admin** regelt die Organisation: Mitglieder, Anbieter, Branding, Governance-Richtlinien, Integrationen, das Audit-Log. Admins tun alles, was Redakteur und Entwickler tun, plus die Konfigurationsoberfläche. Sie können das Eigentum nicht übertragen.
+**Admin** regelt die Organisation: Mitglieder, Anbieter, Branding, Governance-Richtlinien, Connectors, das Audit-Log. Admins tun alles, was Redakteur und Entwickler tun, plus die Konfigurationsoberfläche. Sie können das Eigentum nicht übertragen.
 
-**Entwickler** baut: Agents, Workflows, Integrationen, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Integrations-Tooling braucht.
+**Entwickler** baut: Agents, Workflows, Connectors, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Connector-Tooling braucht.
 
-**Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Skill-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Integrationen lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Integrationsebene zu berühren.
+**Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Skill-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Connectors lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Connectorsebene zu berühren.
 
 **Mitglied** nutzt: Chat, durchsucht die Wissensdatenbank und liest Konversationen und Genehmigungen. Konversationen sind standardmäßig organisationsweit lesbar; schalt **Konversationssteuerung nach Zuständigkeit** unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits#konversationssteuerung-nach-zustaendigkeit) ein, wenn Mitglieder nur nicht zugewiesene Threads plus die sehen sollen, die ihnen oder ihren Teams zugewiesen sind. Mitglieder schreiben nur an Nachrichten-Feedback (Daumen hoch / runter). Greif zu Mitglied als Default — die meisten Benutzer in den meisten Organisationen sind Mitglieder.
 
@@ -57,7 +57,7 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 | Genehmigungen             | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Workflow-Ausführungen     | R / W   | R / W | R / W      | R         | R        | —           |
 | Workflow-Processing       | R / W   | R / W | R / W      | R         | R        | —           |
-| Integrationen             | R / W   | R / W | R / W      | R         | R        | —           |
+| Connectors                | R / W   | R / W | R / W      | R         | R        | —           |
 | OneDrive-Sync-Konfigs     | R / W   | R / W | R / W      | R         | R        | —           |
 | Prompt-Templates          | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Audit-Logs                | R / W   | R / W | R / W      | R / W     | R        | —           |

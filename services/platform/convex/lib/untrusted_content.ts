@@ -1,7 +1,7 @@
 /**
  * Untrusted-content wrapping for external tool outputs.
  *
- * External tools (web search, integrations, RAG over external sources) return content
+ * External tools (web search, connectors, RAG over external sources) return content
  * that originates from untrusted systems and may contain prompt-injection payloads.
  * Wrapping such content in explicit XML tags signals to the LLM that it is DATA, not
  * instructions, and pairs with a system-prompt rule that commands must never be
@@ -12,7 +12,7 @@ type UntrustedSourceMeta = {
   tool: string;
   url?: string;
   operation?: string;
-  integration?: string;
+  connector?: string;
 };
 
 const MAX_ATTR_LENGTH = 2000;
@@ -60,8 +60,8 @@ export function wrapUntrusted(
   source: UntrustedSourceMeta,
 ): string {
   const attrs = [`tool="${escapeAttribute(source.tool)}"`];
-  if (source.integration) {
-    attrs.push(`integration="${escapeAttribute(source.integration)}"`);
+  if (source.connector) {
+    attrs.push(`connector="${escapeAttribute(source.connector)}"`);
   }
   if (source.operation) {
     attrs.push(`operation="${escapeAttribute(source.operation)}"`);

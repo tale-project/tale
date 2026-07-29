@@ -165,7 +165,7 @@ managed-mcp-headless-bridge:
   env:
     OPENCODE_CONFIG_CONTENT:
       '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
-      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true},"integrations":{"type":"local","command":["tale-integrations-mcp"],"environment":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
+      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true},"connectors":{"type":"local","command":["tale-connectors-mcp"],"environment":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /user/workspace
   stdinMode: close
@@ -197,7 +197,7 @@ managed-mcp-bridge-only:
   env:
     OPENCODE_CONFIG_CONTENT:
       '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
-      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"integrations":{"type":"local","command":["tale-integrations-mcp"],"environment":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
+      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"connectors":{"type":"local","command":["tale-connectors-mcp"],"environment":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /user/workspace
   stdinMode: close
@@ -249,7 +249,7 @@ managed-kitchen-sink:
   env:
     OPENCODE_CONFIG_CONTENT:
       '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
-      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"claude-opus-4-6":{"name":"claude-opus-4-6"}}}},"model":"tale/claude-opus-4-6","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"instructions":["/user/.runtime/tale/instructions/exec-golden-42.md"],"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true},"integrations":{"type":"local","command":["tale-integrations-mcp"],"environment":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
+      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"claude-opus-4-6":{"name":"claude-opus-4-6"}}}},"model":"tale/claude-opus-4-6","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"instructions":["/user/.runtime/tale/instructions/exec-golden-42.md"],"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true},"connectors":{"type":"local","command":["tale-connectors-mcp"],"environment":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /user/workspace
   stdinMode: close

@@ -26,7 +26,7 @@ export type Json =
  *  - `agent`          — one turn of an external coding agent in the sandbox,
  *                       with staged files, skills and brokered connectors
  *  - `subautomation`  — run a saved automation as a node
- *  - any registered capability name (integration actions, platform natives
+ *  - any registered capability name (connector actions, platform natives
  *    such as knowledge search) — an external connector
  */
 export interface NodeDef {
@@ -52,7 +52,7 @@ export interface NodeDef {
   onError?: 'fail' | 'continue';
 
   // Per-type payloads.
-  /** Integration/transform input mapping; template strings allowed in
+  /** Connector/transform input mapping; template strings allowed in
    * values. */
   input?: Record<string, unknown>;
   /** transform: a JavaScript function body over `input`/`nodes` (+ `item`
@@ -101,7 +101,7 @@ export interface AutomationTest {
     output?: unknown;
     /** Each listed effect must occur; `input` is compared deeply when
      * given. */
-    effects?: Array<{ integration: string; input?: unknown }>;
+    effects?: Array<{ connector: string; input?: unknown }>;
   };
 }
 
@@ -155,7 +155,7 @@ export interface NodeTrace {
  * execution order. */
 export interface Effect {
   node: string;
-  integration: string;
+  connector: string;
   input: unknown;
 }
 

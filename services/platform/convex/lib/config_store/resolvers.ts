@@ -18,7 +18,7 @@ import { resolveAgentsDir } from '../../agents/file_utils';
 import { resolveSsoDir } from '../../enterprise_sso/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
-import { resolveProvidersDir } from '../providers/org_connectors';
+import { resolveProvidersDir } from '../providers/org_providers';
 
 export type DomainDirResolver = (orgSlug: string) => string;
 

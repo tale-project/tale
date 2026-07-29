@@ -5,7 +5,7 @@
 # vendor-native model id.
 #
 # The exec section is interpreted by lib/harnesses/exec-builder.ts (the slot
-# vocabulary is documented at harnessConnectorSchema); everything here is
+# vocabulary is documented at harnessDefinitionSchema); everything here is
 # verified against the pinned CLI version below, and the golden fixtures in
 # lib/harnesses/fixtures/exec/claude-code.json pin the built execs.
 slug: claude-code
@@ -99,8 +99,8 @@ exec:
         trailingArgs: ['--strict-mcp-config']
         omitImagesOnVision: true
         bridgeEnv:
-          TALE_INTEGRATIONS_URL: '${bridgeUrl}'
-          TALE_INTEGRATIONS_TOKEN: '${gateway.token}'
+          TALE_CONNECTORS_URL: '${bridgeUrl}'
+          TALE_CONNECTORS_TOKEN: '${gateway.token}'
     # A deny rule with a bare built-in name removes the tool from the
     # model's context entirely (verified against the permissions docs).
     # AskUserQuestion: there is NO answer path in our chat surface — the

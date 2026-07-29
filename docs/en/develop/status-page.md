@@ -5,7 +5,7 @@ description: Tale's public status page — what it covers, how incidents are sco
 
 The status page is the canonical record of Tale Cloud availability. Each rotatable service has its own status row, incident history is kept for the audit trail, and the page is the channel Tale uses during an incident — before email goes out, before support tickets are answered, the page is updated.
 
-Read this when something is misbehaving and you want to know whether it is just you. Subscribe to the feed when you are responsible for the integration on your side — the page tells you which service degraded so you can route the alert to the right team without waking the wrong on-call.
+Read this when something is misbehaving and you want to know whether it is just you. Subscribe to the feed when you are responsible for the connector on your side — the page tells you which service degraded so you can route the alert to the right team without waking the wrong on-call.
 
 ## A worked subscription
 
@@ -21,7 +21,7 @@ The RSS feed carries every state change — open, update, resolved — for every
 
 | Service    | What it covers                                                                     | When it goes red                                 |
 | ---------- | ---------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `platform` | The TanStack Start + Convex application — agents, workflows, integrations, UI.     | UI unreachable; API returns 5xx; auth broken.    |
+| `platform` | The TanStack Start + Convex application — agents, workflows, connectors, UI.       | UI unreachable; API returns 5xx; auth broken.    |
 | `rag`      | The Python FastAPI document-processing service — indexing, retrieval.              | Document uploads stall; retrieval is empty.      |
 | `crawler`  | The Crawl4AI web-extraction service — used by document ingest and Tavily fallback. | Web-pulled documents fail; deep research stalls. |
 | `proxy`    | The Caddy edge — TLS termination, HTTP routing.                                    | All Tale Cloud traffic affected.                 |
@@ -43,4 +43,4 @@ That page reports the availability of the deployment itself. For deeper operatio
 
 ## Where this fits
 
-The status page is the operational channel; [Trust and compliance](/cloud/trust-and-compliance) is the audit channel and lists the page as evidence for the infrastructure-availability control. If you are wiring Tale into a pipeline and need the integration to react to a Tale outage, the RSS feed is the input; if you are reading this because something in your integration is failing right now, [API reference](/develop/api-reference) lists the error codes you should branch on.
+The status page is the operational channel; [Trust and compliance](/cloud/trust-and-compliance) is the audit channel and lists the page as evidence for the infrastructure-availability control. If you are wiring Tale into a pipeline and need the connector to react to a Tale outage, the RSS feed is the input; if you are reading this because something in your connector is failing right now, [API reference](/develop/api-reference) lists the error codes you should branch on.

@@ -5,7 +5,7 @@ description: Organisationsweite Anmeldedaten, mit denen externer Code Tales REST
 
 API-Schlüssel sind die organisationsweiten Anmeldedaten, die Tale ausstellt, damit externer Code seine REST-API ohne Person in der Schleife aufrufen kann. Ein Schlüssel authentifiziert den Aufrufer als die Organisation, begrenzt durch die Rolle, die du beim Anlegen wählst. Admins und Entwickler verwalten Schlüssel; andere Rollen sehen die Seite nicht. Das ist die Referenz dafür, was ein Schlüssel ist, wie du einen erstellst, wie du ihn begrenzt und wie du ihn außer Dienst stellst, ohne etwas zu zerbrechen, das von ihm abhängt.
 
-Die hier gelisteten Schlüssel sind etwas anderes als die Per-Benutzer-Session-Tokens, die Tale beim Anmelden ausstellt. Die sind kurzlebig und an eine Person gebunden; API-Schlüssel sind langlebig und an die Organisation gebunden. Greif zu einem API-Schlüssel, wenn du ein Skript, einen Cron-Job, einen internen Dienst oder eine Drittanbieter-Integration an Tale anschließt; greif zur In-Produkt-Oberfläche, wenn eine Person an der Tastatur sitzt.
+Die hier gelisteten Schlüssel sind etwas anderes als die Per-Benutzer-Session-Tokens, die Tale beim Anmelden ausstellt. Die sind kurzlebig und an eine Person gebunden; API-Schlüssel sind langlebig und an die Organisation gebunden. Greif zu einem API-Schlüssel, wenn du ein Skript, einen Cron-Job, einen internen Dienst oder eine Drittanbieter-Connector an Tale anschließt; greif zur In-Produkt-Oberfläche, wenn eine Person an der Tastatur sitzt.
 
 <Frame caption="Einstellungen > API-Schlüssel — wo Schlüssel erstellt, rotiert und widerrufen werden.">
 
@@ -41,4 +41,4 @@ Ein Schlüssel kann bei der Erstellung weiter durch eine IP-Allowlist eingeschr�
 
 ## Wo das hingehört
 
-API-Schlüssel sind die Brücke zwischen Tale und externem Code; sie sitzen neben [Integrationen](/de/platform/admin/integrations) (Drittanbieter-Systeme, die Tale aufruft) und [Automatisierungs-Webhook-Triggern](/de/platform/automations/triggers) (Systeme, die Tale bei Ereignissen aufrufen). Die natürliche nächste Lektüre ist die REST-API selbst — siehe die API-Referenz im Develop-Tab für die Oberfläche, gegen die ein Schlüssel authentifiziert, und siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für die Rollen-zu-Berechtigungen-Karte, die jeder Schlüssel erbt.
+API-Schlüssel sind die Brücke zwischen Tale und externem Code; sie sitzen neben [Connectors](/de/platform/admin/connectors) (Drittanbieter-Systeme, die Tale aufruft) und [Automatisierungs-Webhook-Triggern](/de/platform/automations/triggers) (Systeme, die Tale bei Ereignissen aufrufen). Die natürliche nächste Lektüre ist die REST-API selbst — siehe die API-Referenz im Develop-Tab für die Oberfläche, gegen die ein Schlüssel authentifiziert, und siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für die Rollen-zu-Berechtigungen-Karte, die jeder Schlüssel erbt.

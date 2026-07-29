@@ -3,7 +3,7 @@ title: Rate-Limits
 description: REST- und MCP-Rate-Limits — die zwei Buckets, die 429-Antwort und wie du wiederholst, ohne es schlimmer zu machen.
 ---
 
-Die API ist pro Schlüssel mit Token-Buckets limitiert: Bursts gehen durch, Dauerfeuer antwortet **429**. Die Budgets sind so bemessen, dass eine normale Integration sie nie sieht — wenn ein bisher gesunder Client 429 zu treffen beginnt, fehlt fast immer ein Backoff oder eine Schleife läuft heiß, nicht die Kapazität.
+Die API ist pro Schlüssel mit Token-Buckets limitiert: Bursts gehen durch, Dauerfeuer antwortet **429**. Die Budgets sind so bemessen, dass eine normale Connector sie nie sieht — wenn ein bisher gesunder Client 429 zu treffen beginnt, fehlt fast immer ein Backoff oder eine Schleife läuft heiß, nicht die Kapazität.
 
 Lies das, wenn du einen Client verdrahtest, der die API nach Zeitplan oder unter Last aufruft.
 

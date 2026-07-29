@@ -2,7 +2,7 @@
 # per-exec config as one JSON object on stdin, staged to disk before the CLI
 # starts — process lists leak argv, and a prompt starting with '-' would
 # parse as a flag). Pi has no MCP support at all, so no MCP-delivered
-# tooling (browser server, integration bridge) reaches it. Its
+# tooling (browser server, connector bridge) reaches it. Its
 # bring-your-own backend is commonly OpenRouter-style and speaks the
 # catalog's vendor-prefixed ids, so refs resolve in the catalog dialect.
 #

@@ -45,8 +45,8 @@ export interface UpsertDocumentByExternalIdArgs {
   metadata?: Record<string, unknown>;
   folderId?: Id<'folders'>;
   createdBy?: string;
-  /** Integration identifier stamped on the row so reconcile can scope
-   * orphan detection per-integration (see `listOrphanedExternalDocs`). */
+  /** Connector identifier stamped on the row so reconcile can scope
+   * orphan detection per-connector (see `listOrphanedExternalDocs`). */
   driveId?: string;
 }
 

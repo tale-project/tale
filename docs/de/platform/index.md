@@ -32,7 +32,7 @@ Anweisungen, Wissen, Tools, Modell — plus Fähigkeiten, Worker, Versionierung 
 
 <Card title="Automatisierungen" icon="layout-grid" href="/de/platform/automations/concepts">
 
-Installierbare Bündel aus Integrationen, Agents, Skills und einem Workflow — der Katalog, der Installations-Assistent, der Editor und die Trigger hinter jeder Automatisierung und die Laufhistorie, die sie hinterlässt.
+Installierbare Bündel aus Connectors, Agents, Skills und einem Workflow — der Katalog, der Installations-Assistent, der Editor und die Trigger hinter jeder Automatisierung und die Laufhistorie, die sie hinterlässt.
 
 </Card>
 
@@ -60,7 +60,7 @@ Der Modellkatalog hinter jedem Picker — Fähigkeits-Tags, Standards und die au
 
 </Card>
 
-<Card title="Integrationen" icon="plug" href="/de/platform/integrations/overview">
+<Card title="Connectors" icon="plug" href="/de/platform/connectors/overview">
 
 Drittanbieter-Pairings und MCP-Server.
 
@@ -94,7 +94,7 @@ API-Schlüssel, eigene Tools, Webhooks, MCP-Server — Tale an externen Code anb
 
 <Card title="Verwaltung" icon="shield" href="/de/platform/admin/overview">
 
-Organisationseinstellungen, Anbieter, Branding, Integrationen und der Governance-Unterzweig.
+Organisationseinstellungen, Anbieter, Branding, Connectors und der Governance-Unterzweig.
 
 </Card>
 

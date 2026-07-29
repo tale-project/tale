@@ -73,7 +73,7 @@
     "build",
     "dist",
     "**/_generated",
-    "**/integrations/**/_generated",
+    "**/connectors/**/_generated",
     "lib/shared",
     "*.gen.ts",
     "*.gen.tsx",

@@ -44,7 +44,7 @@ Skipped nodes are worth reading rather than glossing over, because the reason di
 
 ### Effects
 
-A run also keeps the ordered list of everything it changed outside the platform — each entry naming which node caused it, which integration was called, and the input it was called with. A run that changed nothing outside the platform says so explicitly, which is a real answer rather than an empty section.
+A run also keeps the ordered list of everything it changed outside the platform — each entry naming which node caused it, which connector was called, and the input it was called with. A run that changed nothing outside the platform says so explicitly, which is a real answer rather than an empty section.
 
 The effects list is what makes a run auditable after the fact. When someone asks whether a message actually went out, this is the list that answers, and it stays with the run permanently.
 

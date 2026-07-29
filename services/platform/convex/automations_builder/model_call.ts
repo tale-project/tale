@@ -26,7 +26,7 @@ import { providerAttributionHeaders } from '../../lib/shared/providers/attributi
 import type { ApiFormat } from '../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../_generated/server';
 import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
-import { resolveConnectorsForOrgId } from '../lib/providers/org_connectors';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { buildChatRequest, parseChatReply } from './chat_wire';
@@ -58,7 +58,7 @@ async function resolveWireTarget(
   organizationId: string,
   target: BuilderModelTarget,
 ): Promise<WireTarget> {
-  const connector = (await resolveConnectorsForOrgId(ctx, organizationId)).find(
+  const connector = (await resolveProvidersForOrgId(ctx, organizationId)).find(
     (entry) => entry.name === target.providerSlug,
   );
   if (!connector) {

@@ -32,7 +32,7 @@ Die Anweisungen lassen sich wie Anzeigename und Beschreibung pro Sprache überse
 
 ## Schritt 3 — Tools und Skills gewähren
 
-Wechsle auf **Tools**. Tools sind einzelne Schalter, gebündelt in Kategorie-Karten — Kontakte, Produkte, Dateien, Wissen, Automatisierungen und mehr —, und jeder gewährte Schalter erweitert, was der Agent in deinem Namen lesen oder ändern darf. Gewähre das kleinste Set, das die Aufgabe erledigt, und lass den Rest aus. Angebundene Integrationen und die Automatisierungen der Organisation stehen in derselben Liste, das Binden ist also derselbe Handgriff wie das Gewähren eines Plattform-Tools.
+Wechsle auf **Tools**. Tools sind einzelne Schalter, gebündelt in Kategorie-Karten — Kontakte, Produkte, Dateien, Wissen, Automatisierungen und mehr —, und jeder gewährte Schalter erweitert, was der Agent in deinem Namen lesen oder ändern darf. Gewähre das kleinste Set, das die Aufgabe erledigt, und lass den Rest aus. Angebundene Connectors und die Automatisierungen der Organisation stehen in derselben Liste, das Binden ist also derselbe Handgriff wie das Gewähren eines Plattform-Tools.
 
 <Frame caption="Der Tool-Katalog — eine Karte pro Kategorie, jede mit der Zahl der Tools, die der Agent gewährt bekommen hat.">
 

@@ -19,7 +19,7 @@ export const fileMetadataTable = defineTable({
   //                  <untrusted_source> on RAG retrieval (R2 review)
   //   <connector>  — external import: the connector slug verbatim, e.g.
   //                  'confluence', 'google_drive', 'onedrive', 'sharepoint',
-  //                  'webdav', or any integration slug. Set by
+  //                  'webdav', or any connector slug. Set by
   //                  linkDocumentToFile from the linked document's
   //                  sourceProvider when a blob is promoted to a document.
   // Only 'user' and 'agent' participate in the temp-retention GC lanes; import
@@ -133,7 +133,7 @@ export const fileMetadataTable = defineTable({
    * Three classes of `fileMetadata` after this field landed:
    *  - Document Hub: `documentId` set, `threadId` unset → org-wide knowledge
    *  - Chat upload: `documentId` unset, `threadId` set → bound to thread chain
-   *  - Legacy / integration: both unset → falls back to same-org check
+   *  - Legacy / connector: both unset → falls back to same-org check
    *
    * Drives:
    *  - `rag_search` access: chat-bound files require caller's `ctx.threadId`

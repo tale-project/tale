@@ -30,7 +30,7 @@ Si tu voulais ajouter du savoir plus tard — disons une matrice d'escalade que 
 
 Les tools sont ce que l'agent peut faire au-delà de répondre en texte. Pour le triage, aucun tool n'est nécessaire : l'agent lit l'entrée et écrit la sortie. Ouvre l'onglet **Tools** et laisse chaque interrupteur désactivé. Chaque tool que tu accordes élargit la frontière de confiance ; garde la liste courte.
 
-Si l'agent doit écrire l'action recommandée dans un CRM, tu activerais plus tard le tool d'intégration correspondant — mais pas avant que la version texte seul fonctionne.
+Si l'agent doit écrire l'action recommandée dans un CRM, tu activerais plus tard le tool de connector correspondant — mais pas avant que la version texte seul fonctionne.
 
 ## Étape 4 — Choisir le modèle et publier
 

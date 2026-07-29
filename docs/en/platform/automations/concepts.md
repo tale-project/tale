@@ -62,7 +62,7 @@ Branching and looping are fields on a node rather than separate step types, so t
 
 ### Node types
 
-Three types are built in, and every integration action and platform native — knowledge search, document operations — joins the same table alongside them.
+Three types are built in, and every connector action and platform native — knowledge search, document operations — joins the same table alongside them.
 
 **`transform`** runs pure JavaScript to reshape data. It has no network and no imports: the body reads the node's resolved `input` and must return a value.
 

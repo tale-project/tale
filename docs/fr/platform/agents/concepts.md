@@ -19,7 +19,7 @@ Tu préfères regarder d’abord ? L’épisode 4 construit un agent de bout en 
 
 **Les instructions.** La prose placée en tête de chaque tour auquel l’agent répond. Garde-la courte, tranchée et concrète : de longues instructions se diluent dans les longues conversations. Nomme la voix, les limites, et les cas où l’agent doit refuser.
 
-**Les outils et les skills.** Deux listes d’autorisation. Les outils nomment les capacités que l’agent peut appeler, et les outils de la plateforme, les intégrations connectées et les automatisations de l’organisation figurent tous dans cette même liste. Les skills nomment les paquets de connaissances qu’il peut déplier, dix au plus. La même règle vaut pour les deux : laisse une liste intacte et l’agent n’est pas restreint, remplis-la et il s’en tient exactement à ce que tu as nommé.
+**Les outils et les skills.** Deux listes d’autorisation. Les outils nomment les capacités que l’agent peut appeler, et les outils de la plateforme, les connectors connectées et les automatisations de l’organisation figurent tous dans cette même liste. Les skills nomment les paquets de connaissances qu’il peut déplier, dix au plus. La même règle vaut pour les deux : laisse une liste intacte et l’agent n’est pas restreint, remplis-la et il s’en tient exactement à ce que tu as nommé.
 
 **La portée des connaissances.** Un seul réglage décide quel corpus la recherche de l’agent a le droit de lire : les documents propres à l’organisation, les pages récupérées pour son compte, les deux ensemble, ou rien du tout. La recherche ne part que lorsque l’agent la juge nécessaire, si bien que rien n’atterrit dans une réponse sans qu’il soit allé le chercher.
 

@@ -16,7 +16,7 @@ Die Mitglieder-Oberfläche ist bewusst eng. Die vier Kübel sind:
 - **Inbox** — im Tab **Inbox** antworten, den eine installierte E-Mail-Automatisierung hinzufügt. Mitglieder antworten, wenn ein Agent eine Konversation zurückgibt; die Automatisierung selbst zu installieren ist eine Admin-Aktion.
 - **Genehmigungen** — die Genehmigungs-Karten lesen, die zu dir geroutet wurden. Klick auf Genehmigen, Ablehnen oder Änderungen anfordern; hinterlass einen Kommentar, wenn die Regel danach fragt.
 
-Die Org-Konfigurationseinstellungen — Anbieter, Integrationen, Agents, Governance — sind für Mitglieder ausgeblendet; was bleibt, ist zum Großteil die Arbeits-Oberfläche. Die Ausnahme ist eine kleine persönliche Einstellungs-Gruppe, die jede Rolle trägt: Konto, Personalisierung und [Umgebungsvariablen & Geheimnisse](/de/platform/member/environment), die Schlüssel und Variablen, die in die Sandboxes injiziert werden, die du fährst.
+Die Org-Konfigurationseinstellungen — Anbieter, Connectors, Agents, Governance — sind für Mitglieder ausgeblendet; was bleibt, ist zum Großteil die Arbeits-Oberfläche. Die Ausnahme ist eine kleine persönliche Einstellungs-Gruppe, die jede Rolle trägt: Konto, Personalisierung und [Umgebungsvariablen & Geheimnisse](/de/platform/member/environment), die Schlüssel und Variablen, die in die Sandboxes injiziert werden, die du fährst.
 
 ## Seiten in diesem Bereich
 

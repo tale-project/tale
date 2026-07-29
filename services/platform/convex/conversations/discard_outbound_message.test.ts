@@ -52,7 +52,7 @@ async function seedConversation(t: T): Promise<Id<'conversations'>> {
     ctx.db.insert('conversations', {
       organizationId: ORG,
       status: 'open',
-      integrationName: 'imap_smtp',
+      connectorName: 'imap_smtp',
       subject: 'Need help',
       lastMessageAt: 2_000,
     }),
@@ -71,7 +71,7 @@ async function seedFailedMessage(
       channel: 'email',
       direction: 'outbound',
       deliveryState: 'failed',
-      integrationName: 'imap_smtp',
+      connectorName: 'imap_smtp',
       content: '<p>Happy to help</p>',
       sentAt: 2_000,
       deliveredAt: 2_000,

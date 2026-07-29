@@ -15,7 +15,7 @@
 export interface InboxAutomationSummary {
   slug: string;
   /** The first entry is the inbox provider (gmail / outlook / imap_smtp). */
-  requiredIntegrations: string[];
+  requiredConnectors: string[];
 }
 
 export function useInboxAvailability(_organizationId: string): {

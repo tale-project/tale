@@ -75,7 +75,7 @@ tests:
     input: { invoiceId: 'inv-1' }
     expect:
       effects:
-        - integration: email.send
+        - connector: email.send
 ```
 
 Le résultat des tests d’une version est consigné à l’enregistrement, et la liste **Versions** l’affiche en badge **Tests réussis** ou **Tests en échec**. La mise en service lit ce fait : une version enregistrée avec des tests en échec est refusée, et la liste indique qu’elle n’a pas été mise en service plutôt que de ne rien faire en silence. Corrige la cause et enregistre une nouvelle version — un résultat consigné est un fait sur cette version-là et ne change jamais.

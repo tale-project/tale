@@ -1,4 +1,4 @@
-// Shared test helpers for the WebDAV handler integration suite. Owns
+// Shared test helpers for the WebDAV handler connector suite. Owns
 // the ConvexHttpClient stub, the Basic-auth credential plumbing (HMAC
 // matches what `handler.ts` reads from the env), and the
 // WebDAVRequest builder.
