@@ -13,6 +13,13 @@ import { CatalogCard, CatalogCardIcon, CatalogGrid } from './catalog-grid';
 import { CatalogLabels } from './catalog-labels';
 import { CatalogSection, groupCatalogItems } from './catalog-section';
 import { CatalogToolbar } from './catalog-toolbar';
+import { CatalogView } from './catalog-view';
+
+const ROWS = [
+  { slug: 'github', description: 'Issues, pull requests, and reviews.' },
+  { slug: 'slack', description: 'Channels, threads, and direct messages.' },
+  { slug: 'gmail', description: 'Read, label, and send mail.' },
+];
 
 const meta: Meta = {
   title: 'Catalog/Catalog',
@@ -308,6 +315,118 @@ export const SkeletonCardOnly: StoryObj = {
     docs: {
       description: {
         story: 'One placeholder card, without and with the footer bar.',
+      },
+    },
+  },
+};
+
+export const ToolbarWithFilters: StoryObj = {
+  render: function ToolbarWithFiltersStory() {
+    const [tab, setTab] = useState('all');
+    const [query, setQuery] = useState('');
+    return (
+      <CatalogToolbar
+        tabs={{
+          items: [
+            { value: 'all', label: 'All' },
+            { value: 'connected', label: 'Connected' },
+            { value: 'available', label: 'Available' },
+          ],
+          value: tab,
+          onValueChange: setTab,
+        }}
+        search={{
+          value: query,
+          onChange: (e) => setQuery(e.target.value),
+          placeholder: 'Search connectors…',
+        }}
+        filters={
+          <Button variant="secondary" size="sm">
+            Tags
+          </Button>
+        }
+        action={
+          <Button icon={Plus} size="sm">
+            Add connector
+          </Button>
+        }
+      />
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Facets go in `filters`, beside the search that does the same narrowing job. `action` keeps the surface’s primary verb apart from them.',
+      },
+    },
+  },
+};
+
+export const ViewStates: StoryObj = {
+  render: () => (
+    <div className="flex flex-col gap-10">
+      {(
+        [
+          ['Loading', { isPending: true, items: ROWS, hasItems: true }],
+          ['Loaded', { isPending: false, items: ROWS, hasItems: true }],
+          [
+            'Listing failed',
+            {
+              isPending: false,
+              isError: true,
+              errorMessage:
+                'Could not load the connectors: catalog root missing',
+              items: [],
+              hasItems: false,
+            },
+          ],
+          [
+            'Nothing yet (offers the CTA)',
+            { isPending: false, items: [], hasItems: false },
+          ],
+          [
+            'Nothing matches (no CTA)',
+            { isPending: false, items: [], hasItems: true },
+          ],
+        ] as const
+      ).map(([label, props]) => (
+        <div key={label} className="flex flex-col gap-2">
+          <p className="text-muted-foreground text-xs font-medium uppercase">
+            {label}
+          </p>
+          <CatalogView<{ slug: string; description: string }>
+            {...props}
+            itemKey={(row) => row.slug}
+            renderItem={(row) => (
+              <CatalogCard
+                media={
+                  <CatalogCardIcon>
+                    <Bot className="size-6" />
+                  </CatalogCardIcon>
+                }
+                title={row.slug}
+                headingLevel={3}
+                description={row.description}
+              />
+            )}
+            empty={{
+              icon: LayoutGrid,
+              title: 'No connectors yet',
+              description: 'Connect a service to give your agents reach.',
+              action: <Button size="sm">Add connector</Button>,
+            }}
+            skeletonCards={3}
+          />
+        </div>
+      ))}
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Every state a card catalog can be in. Note the two empty states differ: owning nothing offers the create CTA, filtering to nothing offers the search reset instead.',
       },
     },
   },
