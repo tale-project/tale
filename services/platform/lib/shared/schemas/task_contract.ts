@@ -14,7 +14,7 @@
 import { z } from 'zod/v4';
 
 /** Localizable strings of the create-flow's single input field (the
- *  subject's natural key, e.g. the quarter folder name). */
+ *  subject's natural key, e.g. a period folder name). */
 const taskSubjectFieldTextSchema = z.object({
   label: z.string().optional(),
   placeholder: z.string().optional(),
@@ -35,14 +35,14 @@ export const taskSubjectContractSchema = z.object({
     .object({
       kind: z.literal('folder'),
       /** Anchored regex the folder name must match at template-create time
-       *  (e.g. "^\\d{4}Q[1-4]$" for VAT quarters). */
+       *  (e.g. "^\\d{4}Q[1-4]$" for period folders). */
       naming: z.string().optional(),
       /** Sibling setup folder resolved into `externalUrl` on create (the
        *  desks' binding convention; create fails closed when missing). */
       setupFolderName: z.string().optional(),
     })
     .optional(),
-  /** Board-side template creation ("New quarter" from the task board). */
+  /** Board-side template creation (one chip per `create.enabled` contract). */
   create: z
     .object({
       enabled: z.boolean(),

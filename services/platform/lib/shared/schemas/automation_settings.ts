@@ -76,7 +76,7 @@ export const settingsFieldSchema = z
      * client-side validation (`boolean` stores 'true'/'false'). */
     type: z.enum(['text', 'number', 'boolean', 'select']),
     required: z.boolean().optional(),
-    /** Anchored regex a `text` value must match (e.g. a VAT-number shape). */
+    /** Anchored regex a `text` value must match (e.g. an identifier shape). */
     pattern: z.string().max(500).optional(),
     /** Prefill when the file carries no value yet, in string form. */
     default: z.string().max(500).optional(),
