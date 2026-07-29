@@ -267,6 +267,15 @@ function ensureLocalAdminKey() {
 // video ingestion is optional and the rest of the stack must still boot. The
 // exported vars are synced into the Convex deployment env by the caller.
 async function provisionVideoToolchain(): Promise<void> {
+  // The hermetic E2E stack (TALE_E2E, set by playwright.config.ts's webServer
+  // and the CI workflow) exercises no video ingestion — but on a bare CI
+  // runner this step apt-installs ffmpeg, and a slow mirror has eaten the
+  // whole 300s webServer boot budget (shards died mid-`apt-get`). Skip it
+  // there, like the docker bring-up (TALE_DEV_SKIP_DOCKER).
+  if (process.env.TALE_E2E === '1') {
+    infoLine('Skipping video toolchain (TALE_E2E set — no video specs)');
+    return;
+  }
   if (
     process.env.VIDEO_INGEST_BIN_DIR &&
     process.env.VIDEO_INGEST_FFMPEG_LOCATION
